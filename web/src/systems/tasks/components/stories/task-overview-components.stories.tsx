@@ -26,6 +26,7 @@ import { TasksDetailChildrenPanel } from "../tasks-detail-children-panel";
 import { TasksDetailDependenciesPanel } from "../tasks-detail-dependencies-panel";
 import { TasksDetailRunsPanel } from "../tasks-detail-runs-panel";
 import { TasksExecutionProfileCard } from "../tasks-execution-profile-card";
+import { TasksFanOutRunsCard } from "../tasks-fan-out-runs-card";
 import { TasksInboxItem } from "../tasks-inbox-item";
 import { resolveInboxGroupId } from "../../lib/inbox-grouping";
 import { TasksMultiAgentPanel } from "../tasks-multi-agent-panel";
@@ -180,6 +181,10 @@ export const OperationalCards: Story = {
         onCreate={async () => undefined}
         onDelete={async () => undefined}
       />
+      <TasksFanOutRunsCard
+        defaultNetworkChannel={detail.task.network_channel}
+        onFanOut={async () => ({ designation_group_id: "desig_storybook", runs: [] })}
+      />
       <TasksExecutionProfileCard
         taskId={detail.task.id}
         profile={taskExecutionProfileFixture}
@@ -214,6 +219,10 @@ export const Orchestration: Story = {
   args: {},
   render: () => (
     <TasksDetailOrchestrationPanel
+      fanOut={{
+        defaultNetworkChannel: detail.task.network_channel,
+        onFanOut: async () => ({ designation_group_id: "desig_storybook", runs: [] }),
+      }}
       profile={{
         taskId: detail.task.id,
         profile: taskExecutionProfileFixture,

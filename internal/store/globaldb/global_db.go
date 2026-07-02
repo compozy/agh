@@ -132,6 +132,7 @@ const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_tim
 		intent        TEXT,
 		text          TEXT,
 		preview_text  TEXT NOT NULL DEFAULT '',
+		mentions_json TEXT NOT NULL DEFAULT '[]',
 		body_json     TEXT NOT NULL,
 		timestamp     TEXT NOT NULL,
 		CHECK (
@@ -141,6 +142,68 @@ const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_tim
 		),
 			CHECK (kind IN ('greet', 'whois', 'say', 'capability', 'receipt', 'trace')),
 			PRIMARY KEY (workspace_id, message_id)
+		);`
+
+const networkThreadPeerTokenStatsTableStatement = `CREATE TABLE IF NOT EXISTS network_thread_peer_token_stats (
+			workspace_id             TEXT NOT NULL,
+			channel                  TEXT NOT NULL,
+			thread_id                TEXT NOT NULL,
+			peer_id                  TEXT NOT NULL,
+			delivered_count          INTEGER NOT NULL DEFAULT 0 CHECK (delivered_count >= 0),
+			prompt_size_bytes        INTEGER NOT NULL DEFAULT 0 CHECK (prompt_size_bytes >= 0),
+			estimated_prompt_tokens  INTEGER NOT NULL DEFAULT 0 CHECK (estimated_prompt_tokens >= 0),
+			first_delivered_at       TEXT NOT NULL,
+			last_delivered_at        TEXT NOT NULL,
+			updated_at              TEXT NOT NULL,
+			PRIMARY KEY (workspace_id, channel, thread_id, peer_id),
+			FOREIGN KEY (workspace_id, channel, thread_id)
+				REFERENCES network_threads(workspace_id, channel, thread_id)
+				ON DELETE CASCADE
+		);`
+
+const networkSubscriptionsTableStatement = `CREATE TABLE IF NOT EXISTS network_subscriptions (
+			workspace_id          TEXT NOT NULL,
+			channel               TEXT NOT NULL,
+			thread_id             TEXT NOT NULL DEFAULT '',
+			peer_id               TEXT NOT NULL,
+			mode                  TEXT NOT NULL CHECK (mode IN ('mute', 'digest', 'full')),
+			keyword_filters_json  TEXT NOT NULL DEFAULT '[]',
+			created_at            TEXT NOT NULL,
+			updated_at            TEXT NOT NULL,
+			PRIMARY KEY (workspace_id, channel, thread_id, peer_id),
+			FOREIGN KEY (workspace_id, channel)
+				REFERENCES network_channels(workspace_id, channel)
+				ON DELETE CASCADE
+		);`
+
+const networkDeliveryGuidanceStateTableStatement = `CREATE TABLE IF NOT EXISTS network_delivery_guidance_state (
+			session_id                   TEXT PRIMARY KEY,
+			reply_guidance_delivered     BOOLEAN NOT NULL DEFAULT 0 CHECK (reply_guidance_delivered IN (0, 1)),
+			protocol_guidance_delivered  BOOLEAN NOT NULL DEFAULT 0 CHECK (protocol_guidance_delivered IN (0, 1)),
+			created_at                   TEXT NOT NULL,
+			updated_at                   TEXT NOT NULL
+		);`
+
+const networkTaskThreadOriginsTableStatement = `CREATE TABLE IF NOT EXISTS network_task_thread_origins (
+			task_id                 TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+			workspace_id            TEXT NOT NULL,
+			channel                 TEXT NOT NULL,
+			thread_id               TEXT NOT NULL,
+			origin_message_id       TEXT NOT NULL,
+			digest                  TEXT NOT NULL,
+			source_message_ids_json TEXT NOT NULL DEFAULT '[]',
+			created_at              TEXT NOT NULL,
+			updated_at              TEXT NOT NULL,
+			FOREIGN KEY (workspace_id, channel, thread_id)
+				REFERENCES network_threads(workspace_id, channel, thread_id)
+				ON DELETE CASCADE
+		);`
+
+const taskDesignationRollupsTableStatement = `CREATE TABLE IF NOT EXISTS task_designation_rollups (
+			designation_group_id  TEXT PRIMARY KEY,
+			task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			summary_json          TEXT NOT NULL,
+			created_at            TEXT NOT NULL
 		);`
 
 var networkConversationSchemaStatements = []string{
@@ -200,6 +263,16 @@ var networkConversationSchemaStatements = []string{
 		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_thread_participants_peer
 			ON network_thread_participants(workspace_id, peer_id, last_seen_at DESC);`,
+	networkThreadPeerTokenStatsTableStatement,
+	`CREATE INDEX IF NOT EXISTS idx_network_thread_peer_token_stats_peer
+			ON network_thread_peer_token_stats(workspace_id, channel, peer_id, last_delivered_at DESC);`,
+	networkSubscriptionsTableStatement,
+	`CREATE INDEX IF NOT EXISTS idx_network_subscriptions_peer
+			ON network_subscriptions(workspace_id, peer_id, channel, thread_id);`,
+	networkDeliveryGuidanceStateTableStatement,
+	networkTaskThreadOriginsTableStatement,
+	`CREATE INDEX IF NOT EXISTS idx_network_task_thread_origins_thread
+			ON network_task_thread_origins(workspace_id, channel, thread_id, created_at DESC);`,
 	`CREATE TABLE IF NOT EXISTS network_direct_rooms (
 			workspace_id         TEXT NOT NULL,
 			channel              TEXT NOT NULL,
@@ -370,6 +443,10 @@ var globalSchemaStatements = appendSchemaStatements(
 			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 			channel      TEXT NOT NULL,
 			purpose      TEXT NOT NULL,
+			fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
+				fanout_policy IN ('capability_match', 'coordinator', 'all_members')
+			),
+			coordinator_peer_id TEXT NOT NULL DEFAULT '',
 			created_by   TEXT NOT NULL DEFAULT '',
 			created_at   TEXT NOT NULL,
 			updated_at   TEXT NOT NULL,
@@ -597,6 +674,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		metadata_json   TEXT,
 		result_json     TEXT,
 		summary         TEXT NOT NULL DEFAULT '',
+		designation_group_id TEXT NOT NULL DEFAULT '',
 		claimed_agent_name TEXT NOT NULL DEFAULT '',
 		claimed_peer_id TEXT NOT NULL DEFAULT '',
 		terminalized_by_session_id TEXT NOT NULL DEFAULT '',
@@ -634,6 +712,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_previous ON task_runs(previous_run_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_designation_group ON task_runs(task_id, designation_group_id);`,
+		taskDesignationRollupsTableStatement,
 		`CREATE TABLE IF NOT EXISTS task_dependencies (
 		task_id             TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		depends_on_task_id  TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -1078,6 +1158,127 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateTaskExecutionProfileRuntimeMode,
 		Checksum: "2026-05-31-add-task-execution-profile-runtime-mode",
 	},
+	{
+		Version:  43,
+		Name:     "add_network_thread_peer_token_stats",
+		Up:       migrateNetworkThreadPeerTokenStats,
+		Checksum: "2026-07-01-add-network-thread-peer-token-stats",
+	},
+	{
+		Version:  44,
+		Name:     "add_network_activation_policy_mentions",
+		Up:       migrateNetworkActivationPolicyMentions,
+		Checksum: "2026-07-01-add-network-activation-policy-mentions",
+	},
+	{
+		Version:  45,
+		Name:     "add_network_subscriptions_guidance_state",
+		Up:       migrateNetworkSubscriptionsGuidanceState,
+		Checksum: "2026-07-01-add-network-subscriptions-guidance-state",
+	},
+	{
+		Version:  46,
+		Name:     "add_network_task_thread_origins",
+		Up:       migrateNetworkTaskThreadOrigins,
+		Checksum: "2026-07-01-add-network-task-thread-origins",
+	},
+	{
+		Version:  47,
+		Name:     "add_task_run_designations",
+		Up:       migrateTaskRunDesignations,
+		Checksum: "2026-07-01-add-task-run-designations",
+	},
+}
+
+func migrateNetworkActivationPolicyMentions(ctx context.Context, tx *sql.Tx) error {
+	if err := addMissingMigrationColumns(ctx, tx, "network_channels", []migrationColumnSpec{
+		{
+			name: "fanout_policy",
+			sql: `ALTER TABLE network_channels ADD COLUMN fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
+				fanout_policy IN ('capability_match', 'coordinator', 'all_members')
+			)`,
+		},
+		{
+			name: "coordinator_peer_id",
+			sql:  `ALTER TABLE network_channels ADD COLUMN coordinator_peer_id TEXT NOT NULL DEFAULT ''`,
+		},
+	}); err != nil {
+		return err
+	}
+	if err := addMissingMigrationColumns(ctx, tx, "network_timeline_log", []migrationColumnSpec{
+		{
+			name: "mentions_json",
+			sql:  `ALTER TABLE network_timeline_log ADD COLUMN mentions_json TEXT NOT NULL DEFAULT '[]'`,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateNetworkSubscriptionsGuidanceState(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		networkSubscriptionsTableStatement,
+		`CREATE INDEX IF NOT EXISTS idx_network_subscriptions_peer
+			ON network_subscriptions(workspace_id, peer_id, channel, thread_id);`,
+		networkDeliveryGuidanceStateTableStatement,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate network subscriptions and guidance state: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateNetworkTaskThreadOrigins(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		networkTaskThreadOriginsTableStatement,
+		`CREATE INDEX IF NOT EXISTS idx_network_task_thread_origins_thread
+			ON network_task_thread_origins(workspace_id, channel, thread_id, created_at DESC);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate network task thread origins: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateTaskRunDesignations(ctx context.Context, tx *sql.Tx) error {
+	if err := addMissingMigrationColumns(ctx, tx, "task_runs", []migrationColumnSpec{
+		{
+			name: "designation_group_id",
+			sql:  `ALTER TABLE task_runs ADD COLUMN designation_group_id TEXT NOT NULL DEFAULT ''`,
+		},
+	}); err != nil {
+		return err
+	}
+	statements := []string{
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_designation_group
+			ON task_runs(task_id, designation_group_id);`,
+		taskDesignationRollupsTableStatement,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate task run designations: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateNetworkThreadPeerTokenStats(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		networkThreadPeerTokenStatsTableStatement,
+		`CREATE INDEX IF NOT EXISTS idx_network_thread_peer_token_stats_peer
+			ON network_thread_peer_token_stats(workspace_id, channel, peer_id, last_delivered_at DESC);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate network thread peer token stats: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {
@@ -1285,6 +1486,10 @@ func workspaceQualifiedNetworkIdentityStatements() []string {
 			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 			channel      TEXT NOT NULL,
 			purpose      TEXT NOT NULL,
+			fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
+				fanout_policy IN ('capability_match', 'coordinator', 'all_members')
+			),
+			coordinator_peer_id TEXT NOT NULL DEFAULT '',
 			created_by   TEXT NOT NULL DEFAULT '',
 			created_at   TEXT NOT NULL,
 			updated_at   TEXT NOT NULL,
@@ -1358,14 +1563,23 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 		return errors.New("store: network_timeline_log schema is stale; recreate the AGH database")
 	}
 
-	statements := []string{
+	for _, stmt := range networkTimelineLogConversationColumnStatements() {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("store: rebuild network_timeline_log for conversation containers: %w", err)
+		}
+	}
+	return nil
+}
+
+func networkTimelineLogConversationColumnStatements() []string {
+	return []string{
 		`DROP TABLE IF EXISTS network_timeline_log_new`,
 		strings.Replace(networkTimelineLogTableStatement, "network_timeline_log", "network_timeline_log_new", 1),
 		`INSERT INTO network_timeline_log_new (
-				message_id,
-				session_id,
-				workspace_id,
-				channel,
+			message_id,
+			session_id,
+			workspace_id,
+			channel,
 			surface,
 			thread_id,
 			direct_id,
@@ -1380,6 +1594,7 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 			intent,
 			text,
 			preview_text,
+			mentions_json,
 			body_json,
 			timestamp
 		)
@@ -1388,33 +1603,28 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 				session_id,
 				'legacy_workspace',
 				channel,
-			NULL,
-			NULL,
-			NULL,
-			direction,
-			peer_from,
-			peer_to,
-			kind,
-			NULL,
-			reply_to,
-			trace_id,
-			causation_id,
-			intent,
-			text,
-			preview_text,
-			body_json,
-			timestamp
-		FROM network_timeline_log
-		WHERE kind IN ('greet', 'whois')`,
+				NULL,
+				NULL,
+				NULL,
+				direction,
+				peer_from,
+				peer_to,
+				kind,
+				NULL,
+				reply_to,
+				trace_id,
+				causation_id,
+				intent,
+				text,
+				preview_text,
+				'[]',
+				body_json,
+				timestamp
+			FROM network_timeline_log
+			WHERE kind IN ('greet', 'whois')`,
 		`DROP TABLE network_timeline_log`,
 		`ALTER TABLE network_timeline_log_new RENAME TO network_timeline_log`,
 	}
-	for _, stmt := range statements {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("store: rebuild network_timeline_log for conversation containers: %w", err)
-		}
-	}
-	return nil
 }
 
 func migrateNetworkAuditLogConversationColumns(ctx context.Context, tx *sql.Tx) error {

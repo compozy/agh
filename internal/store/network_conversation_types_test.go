@@ -130,17 +130,20 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		t.Parallel()
 
 		summary := NetworkThreadSummary{
-			WorkspaceID:        networkConversationTestWorkspaceID,
-			Channel:            "builders",
-			ThreadID:           "thread_patch_42",
-			RootMessageID:      "msg_patch_42",
-			OpenedByPeerID:     "coder.sess-abc",
-			OpenedAt:           now,
-			LastActivityAt:     now,
-			MessageCount:       1,
-			ParticipantCount:   1,
-			OpenWorkCount:      0,
-			LastMessagePreview: "hello",
+			WorkspaceID:           networkConversationTestWorkspaceID,
+			Channel:               "builders",
+			ThreadID:              "thread_patch_42",
+			RootMessageID:         "msg_patch_42",
+			OpenedByPeerID:        "coder.sess-abc",
+			OpenedAt:              now,
+			LastActivityAt:        now,
+			MessageCount:          1,
+			ParticipantCount:      1,
+			OpenWorkCount:         0,
+			DeliveredCount:        1,
+			PromptSizeBytes:       128,
+			EstimatedPromptTokens: 32,
+			LastMessagePreview:    "hello",
 		}
 		if err := summary.Validate(); err != nil {
 			t.Fatalf("Validate(thread summary) error = %v", err)
@@ -149,6 +152,11 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		summary.ParticipantCount = -1
 		if err := summary.Validate(); err == nil || !strings.Contains(err.Error(), "participant_count") {
 			t.Fatalf("Validate(thread summary) error = %v, want participant_count rejection", err)
+		}
+		summary.ParticipantCount = 1
+		summary.PromptSizeBytes = -1
+		if err := summary.Validate(); err == nil || !strings.Contains(err.Error(), "prompt_size_bytes") {
+			t.Fatalf("Validate(thread summary) error = %v, want prompt_size_bytes rejection", err)
 		}
 	})
 

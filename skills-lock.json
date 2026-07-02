@@ -149,11 +149,29 @@
             "sourceType": "github",
             "computedHash": "49104982a9de3b6a7718f1c34866ca2a435ec826a523f0e8e0ee97b64409de2d"
         },
+        "cmux": {
+            "source": "manaflow-ai/cmux",
+            "sourceType": "github",
+            "skillPath": "skills/cmux/SKILL.md",
+            "computedHash": "f83a74295fb40f6c0f0abad386b9fa7e0305aed6789c1a94e635b367f206d94c"
+        },
+        "cmux-debugging": {
+            "source": "manaflow-ai/cmux",
+            "sourceType": "github",
+            "skillPath": "skills/cmux-debugging/SKILL.md",
+            "computedHash": "b647829f3f28ae2f2841ba8a6e03d3743e441d675eadb7f51a4274c395854797"
+        },
         "cmux-orchestration": {
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/cmux-orchestration/SKILL.md",
             "computedHash": "5ea0eccfcf5e08b2bd85841ab2183f77dfbfdda0732a8ff9285653cbef504264"
+        },
+        "cmux-workspace": {
+            "source": "manaflow-ai/cmux",
+            "sourceType": "github",
+            "skillPath": "skills/cmux-workspace/SKILL.md",
+            "computedHash": "92aafcdb32fa2f410f7a669cbd7c9a5caf765d4a01595c35a3bf08823409fd41"
         },
         "colorize": {
             "source": "pbakaus/impeccable",

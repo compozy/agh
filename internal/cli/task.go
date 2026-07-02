@@ -153,6 +153,23 @@ type taskNotificationSubscribeInput struct {
 	DeliveryModeRaw  string
 }
 
+type taskPromoteInput struct {
+	WorkspaceRef    string
+	Channel         string
+	ThreadID        string
+	OriginMessageID string
+	Title           string
+	Description     string
+	Priority        string
+	MetadataRaw     string
+}
+
+type taskFanOutInput struct {
+	NetworkChannel string
+	Designations   []string
+	IdempotencyKey string
+}
+
 type taskInspectTarget string
 
 const (
@@ -239,6 +256,8 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskRecoverCommand(deps))
 	cmd.AddCommand(newTaskPauseCommand(deps))
 	cmd.AddCommand(newTaskResumeCommand(deps))
+	cmd.AddCommand(newTaskPromoteCommand(deps))
+	cmd.AddCommand(newTaskFanOutCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
 	cmd.AddCommand(newTaskDependencyCommand(deps))
 	cmd.AddCommand(newTaskRunCommand(deps))
@@ -1858,6 +1877,116 @@ func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+func newTaskPromoteCommand(deps commandDeps) *cobra.Command {
+	var input taskPromoteInput
+	cmd := &cobra.Command{
+		Use:   networkPromoteCommandUse,
+		Short: "Promote one network thread message into a task",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			metadata, err := parseOptionalNetworkMetadata(cmd, input.MetadataRaw)
+			if err != nil {
+				return err
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveCLIWorkspaceRouteRef(
+				cmd.Context(),
+				deps,
+				client,
+				strings.TrimSpace(input.WorkspaceRef),
+			)
+			if err != nil {
+				return err
+			}
+			promoted, err := client.PromoteNetworkThreadTask(
+				cmd.Context(),
+				workspace,
+				strings.TrimSpace(input.Channel),
+				strings.TrimSpace(input.ThreadID),
+				PromoteNetworkThreadTaskRequest{
+					OriginMessageID: strings.TrimSpace(input.OriginMessageID),
+					Title:           strings.TrimSpace(input.Title),
+					Description:     strings.TrimSpace(input.Description),
+					Priority:        strings.TrimSpace(input.Priority),
+					Metadata:        metadata,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkThreadPromotionBundle(&promoted))
+		},
+	}
+	cmd.Flags().StringVar(&input.WorkspaceRef, "workspace", "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&input.Channel, networkChannelKey, "", "Source network channel")
+	cmd.Flags().StringVar(&input.ThreadID, networkSurfaceThread, "", "Source public thread id")
+	cmd.Flags().StringVar(&input.OriginMessageID, "origin-message", "", "Origin message id to promote")
+	cmd.Flags().StringVar(&input.Title, taskTitleKey, "", "Optional task title")
+	cmd.Flags().StringVar(&input.Description, taskDescriptionKey, "", "Optional task description")
+	cmd.Flags().StringVar(&input.Priority, "priority", "", "Optional task priority")
+	cmd.Flags().StringVar(&input.MetadataRaw, "metadata", "", "Optional JSON metadata for the promoted task")
+	mustMarkFlagRequired(cmd, "workspace")
+	mustMarkFlagRequired(cmd, networkChannelKey)
+	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	mustMarkFlagRequired(cmd, "origin-message")
+	return cmd
+}
+
+func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
+	var input taskFanOutInput
+	cmd := &cobra.Command{
+		Use:     "fan-out <task-id>",
+		Aliases: []string{"fanout"},
+		Short:   "Enqueue designated sibling runs for one task",
+		Args:    exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			designations, err := taskFanOutDesignations(input.Designations)
+			if err != nil {
+				return err
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.FanOutTaskRuns(cmd.Context(), args[0], FanOutTaskRunsRequest{
+				NetworkChannel: strings.TrimSpace(input.NetworkChannel),
+				Designations:   designations,
+				IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskFanOutRunsBundle(record))
+		},
+	}
+	cmd.Flags().
+		StringVar(&input.NetworkChannel, "channel", "", "Optional coordination channel override")
+	cmd.Flags().
+		StringArrayVar(&input.Designations, "designation", nil, "Designation brief for one sibling run; repeatable")
+	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional fan-out idempotency key")
+	mustMarkFlagRequired(cmd, "designation")
+	return cmd
+}
+
+func taskFanOutDesignations(
+	values []string,
+) ([]contract.TaskFanOutRunDesignationRequest, error) {
+	trimmed := trimSpawnAtoms(values)
+	if len(trimmed) == 0 {
+		return nil, errors.New("cli: at least one --designation is required")
+	}
+	designations := make([]contract.TaskFanOutRunDesignationRequest, 0, len(trimmed))
+	for _, brief := range trimmed {
+		designations = append(designations, contract.TaskFanOutRunDesignationRequest{
+			Brief: brief,
+		})
+	}
+	return designations, nil
+}
+
 func newTaskChildCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "child",
@@ -3168,6 +3297,35 @@ func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
 			return renderHumanBlocks(taskBlock, runBlock), nil
 		},
 	}
+}
+
+func taskFanOutRunsBundle(record FanOutTaskRunsRecord) outputBundle {
+	return listBundle(
+		record,
+		record.Runs,
+		"Task Fan-Out Runs",
+		[]string{"Run ID", taskTaskValue, taskStatusValue, taskAttemptValue, taskChannelValue},
+		"task_fanout_runs",
+		[]string{"run_id", taskTaskIDKey, taskStatusKey, taskAttemptKey, taskNetworkChannelKey},
+		func(item TaskRunRecord) []string {
+			return []string{
+				stringOrDash(item.ID),
+				stringOrDash(item.TaskID),
+				stringOrDash(string(item.Status)),
+				intOrDash(item.Attempt),
+				stringOrDash(item.NetworkChannel),
+			}
+		},
+		func(item TaskRunRecord) []string {
+			return []string{
+				item.ID,
+				item.TaskID,
+				string(item.Status),
+				strconv.Itoa(item.Attempt),
+				item.NetworkChannel,
+			}
+		},
+	)
 }
 
 func taskDeleteBundle(id string) outputBundle {

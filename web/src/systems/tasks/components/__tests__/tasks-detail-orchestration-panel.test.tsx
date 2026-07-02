@@ -9,6 +9,10 @@ describe("TasksDetailOrchestrationPanel", () => {
   it("renders all orchestration cards with their empty states", () => {
     render(
       <TasksDetailOrchestrationPanel
+        fanOut={{
+          defaultNetworkChannel: "general",
+          onFanOut: noop,
+        }}
         notifications={{
           isLoading: false,
           subscriptions: [],
@@ -34,6 +38,7 @@ describe("TasksDetailOrchestrationPanel", () => {
       />
     );
     expect(screen.getByTestId("tasks-detail-orchestration-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-fan-out-runs-card")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-execution-profile-empty")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-reviews-card-empty")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-bridge-notifications-empty")).toBeInTheDocument();

@@ -1,0 +1,179 @@
+ M .claude/ledger/2026-07-01-MEMORY-network-token-optimization.md
+ M .codex/peer-reviews/network-token-cost-round1-prompt.md
+ M .repoclone.rc
+ M internal/acp/types.go
+ M internal/api/contract/contract.go
+ M internal/api/contract/responses.go
+ M internal/api/contract/settings.go
+ M internal/api/contract/tasks.go
+ M internal/api/core/agent_channels.go
+ M internal/api/core/agent_channels_internal_test.go
+ M internal/api/core/conversions.go
+ M internal/api/core/interfaces.go
+ M internal/api/core/memory.go
+ M internal/api/core/network.go
+ M internal/api/core/network_conversations.go
+ M internal/api/core/network_details.go
+ M internal/api/core/network_test.go
+ M internal/api/core/prompt_stream.go
+ M internal/api/core/settings.go
+ M internal/api/core/settings_internal_test.go
+ M internal/api/core/settings_test.go
+ M internal/api/core/tasks.go
+ M internal/api/core/tasks_test.go
+ M internal/api/core/test_helpers_test.go
+ M internal/api/core/tools.go
+ M internal/api/httpapi/handlers_test.go
+ M internal/api/httpapi/routes.go
+ M internal/api/spec/spec.go
+ M internal/api/testutil/network_stub.go
+ M internal/api/udsapi/handlers_test.go
+ M internal/api/udsapi/routes.go
+ M internal/cli/agent_kernel.go
+ M internal/cli/client.go
+ M internal/cli/helpers_test.go
+ M internal/cli/network.go
+ M internal/cli/session.go
+ M internal/cli/task.go
+ M internal/config/config.go
+ M internal/config/merge.go
+ M internal/config/task_orchestration.go
+ M internal/config/tool_surface.go
+ M internal/daemon/boot.go
+ M internal/daemon/composed_assembler_test.go
+ M internal/daemon/daemon.go
+ M internal/daemon/daemon_test.go
+ M internal/daemon/harness_context.go
+ M internal/daemon/native_create_tools.go
+ M internal/daemon/native_tools.go
+ M internal/daemon/prompt_input_composite.go
+ M internal/daemon/prompt_sections.go
+ M internal/daemon/task_event_bridge_notifier.go
+ M internal/daemon/task_role_runtime.go
+ M internal/daemon/task_role_runtime_test.go
+ M internal/daemon/task_runtime.go
+ M internal/network/audit.go
+ M internal/network/delivery.go
+ M internal/network/delivery_test.go
+ M internal/network/envelope.go
+ M internal/network/hooks_test.go
+ M internal/network/manager.go
+ M internal/network/manager_test.go
+ M internal/network/router.go
+ M internal/network/router_test.go
+ M internal/network/transport_test.go
+ M internal/network/validate.go
+ M internal/observe/tasks.go
+ M internal/situation/task_context.go
+ M internal/store/globaldb/global_db.go
+ M internal/store/globaldb/global_db_network_channels.go
+ M internal/store/globaldb/global_db_network_channels_test.go
+ M internal/store/globaldb/global_db_network_conversations.go
+ M internal/store/globaldb/global_db_network_messages.go
+ M internal/store/globaldb/global_db_network_messages_test.go
+ M internal/store/globaldb/global_db_task.go
+ M internal/store/globaldb/global_db_task_aux.go
+ M internal/store/globaldb/global_db_task_claim.go
+ M internal/store/globaldb/global_db_task_force.go
+ M internal/store/globaldb/global_db_task_review.go
+ M internal/store/globaldb/global_db_task_test.go
+ M internal/store/globaldb/global_db_test.go
+ M internal/store/globaldb/migrate_task_run_status.go
+ M internal/store/store.go
+ M internal/store/types.go
+ M internal/task/interfaces.go
+ M internal/task/interfaces_integration_test.go
+ M internal/task/live.go
+ M internal/task/manager.go
+ M internal/task/manager_test.go
+ M internal/task/types.go
+ M internal/tools/builtin/builtin_test.go
+ M internal/tools/builtin/descriptors.go
+ M internal/tools/builtin/extensions.go
+ M internal/tools/builtin/network.go
+ M internal/tools/builtin/tasks.go
+ M internal/tools/builtin/testdata/native-tool-catalog.json
+ M internal/tools/builtin/toolsets.go
+ M internal/tools/builtin_ids.go
+ M openapi/agh.json
+ M packages/site/content/protocol/delivery.mdx
+ M packages/site/content/runtime/cli-reference/network/channels/meta.json
+ M packages/site/content/runtime/cli-reference/network/meta.json
+ M packages/site/content/runtime/cli-reference/network/send.mdx
+ M packages/site/content/runtime/cli-reference/network/threads/meta.json
+ M packages/site/content/runtime/cli-reference/task/meta.json
+ M packages/site/content/runtime/core/network/channels-and-peers.mdx
+ M packages/site/content/runtime/core/network/delivery-and-safety.mdx
+ M packages/site/content/runtime/core/network/task-ingress.mdx
+ M packages/site/content/runtime/core/network/threads.mdx
+ M sdk/typescript/src/generated/contracts.ts
+ M skills/agh/references/native-tools.md
+ M skills/agh/references/network.md
+ M skills/agh/references/tasks-and-orchestration.md
+ M web/src/generated/agh-openapi.d.ts
+ M web/src/hooks/routes/__tests__/use-settings-network-page.test.tsx
+ M web/src/hooks/routes/use-task-detail-orchestration-tab.ts
+ M web/src/routes/_app/settings/__tests__/-network.test.tsx
+ M web/src/routes/_app/settings/network.tsx
+ M web/src/routes/_app/tasks.$id.tsx
+ M web/src/systems/network/adapters/network-api.ts
+ M web/src/systems/network/components/composer/__tests__/channel-thread-composer.test.tsx
+ M web/src/systems/network/components/composer/__tests__/composer.test.tsx
+ M web/src/systems/network/components/composer/channel-thread-composer.tsx
+ M web/src/systems/network/components/composer/composer.tsx
+ M web/src/systems/network/components/composer/detail-composer.tsx
+ M web/src/systems/network/components/composer/use-composer-state.ts
+ M web/src/systems/network/components/shell/channel-header.tsx
+ M web/src/systems/network/components/thread-overlay/thread-overlay-header.tsx
+ M web/src/systems/network/components/thread-overlay/thread-overlay.tsx
+ M web/src/systems/network/components/thread-overlay/use-thread-overlay-view.ts
+ M web/src/systems/network/hooks/use-network-actions.ts
+ M web/src/systems/network/index.ts
+ M web/src/systems/network/lib/query-keys.ts
+ M web/src/systems/network/lib/query-options.ts
+ M web/src/systems/network/mocks/__tests__/network-mocks.test.ts
+ M web/src/systems/network/mocks/fixtures.ts
+ M web/src/systems/network/mocks/handlers.ts
+ M web/src/systems/network/types.ts
+ M web/src/systems/settings/mocks/fixtures.ts
+ M web/src/systems/tasks/adapters/tasks-api.ts
+ M web/src/systems/tasks/components/__tests__/tasks-detail-orchestration-panel.test.tsx
+ M web/src/systems/tasks/components/__tests__/tasks-detail-runs-panel.test.tsx
+ M web/src/systems/tasks/components/stories/task-overview-components.stories.tsx
+ M web/src/systems/tasks/components/tasks-detail-orchestration-panel.tsx
+ M web/src/systems/tasks/components/tasks-detail-runs-panel.tsx
+ M web/src/systems/tasks/hooks/use-task-actions.ts
+ M web/src/systems/tasks/index.ts
+ M web/src/systems/tasks/mocks/handlers.ts
+ M web/src/systems/tasks/types.ts
+?? .claude/ledger/2026-07-01-MEMORY-hermes-orchestration-research.md
+?? .claude/ledger/2026-07-01-MEMORY-loops-docs-review.md
+?? .claude/ledger/2026-07-01-MEMORY-loops-editor-design-review.md
+?? .claude/ledger/2026-07-01-MEMORY-loops-spec-sequencing.md
+?? .claude/ledger/2026-07-01-MEMORY-network-token-megaround-review.md
+?? .claude/ledger/2026-07-01-MEMORY-network-token-peer-review-r2.md
+?? .claude/plans/2026-07-01-network-megaround.md
+?? .codex/peer-reviews/network-token-cost-impl/
+?? internal/daemon/network_response_register_prompt.go
+?? internal/daemon/network_task_status_observer.go
+?? internal/daemon/network_task_status_observer_test.go
+?? internal/daemon/truncate_utf8.go
+?? internal/store/globaldb/global_db_network_preferences.go
+?? internal/task/designation.go
+?? packages/site/content/runtime/cli-reference/network/channels/update.mdx
+?? packages/site/content/runtime/cli-reference/network/digest-mode.mdx
+?? packages/site/content/runtime/cli-reference/network/mute.mdx
+?? packages/site/content/runtime/cli-reference/network/subscribe.mdx
+?? packages/site/content/runtime/cli-reference/network/subscriptions.mdx
+?? packages/site/content/runtime/cli-reference/network/threads/promote.mdx
+?? packages/site/content/runtime/cli-reference/network/unmute.mdx
+?? packages/site/content/runtime/cli-reference/task/fan-out.mdx
+?? packages/site/content/runtime/cli-reference/task/promote.mdx
+?? web/src/systems/network/components/shell/__tests__/channel-policy-dialog.test.tsx
+?? web/src/systems/network/components/shell/channel-policy-dialog.tsx
+?? web/src/systems/network/components/thread-overlay/__tests__/thread-overlay-header.test.tsx
+?? web/src/systems/network/components/thread-overlay/__tests__/thread-subscription-control.test.tsx
+?? web/src/systems/network/components/thread-overlay/thread-subscription-control.tsx
+?? web/src/systems/tasks/components/__tests__/tasks-fan-out-runs-card.test.tsx
+?? web/src/systems/tasks/components/tasks-fan-out-runs-card.tsx
+?? web/src/systems/tasks/hooks/use-tasks-fan-out-runs-card.ts

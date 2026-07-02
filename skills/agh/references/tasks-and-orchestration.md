@@ -65,6 +65,15 @@ Use this guidance only inside a daemon-managed coordinator session.
 
 Do not leave ready tasks idle after telling the operator that work has been orchestrated. Either start the task runs or report that the tasks were created but not started.
 
+When one task should run as several scoped sibling assignments, use the designated fan-out surface:
+
+    agh task fan-out <task-id> --designation "Inspect data path" --designation "Validate UI and docs" -o json
+
+Each sibling run gets a shared `designation_group_id` and one assignment brief. If the task came from
+an AGH Network thread, terminal run state is summarized back to the origin thread by `agh.runtime`;
+do not manually duplicate raw worker logs into the thread. Read aggregated designation results from
+task detail JSON (`agh task get <id> -o json`, field `designation_rollups`).
+
 For dependency DAGs, opt a dependent task into auto-enqueue so it starts on its own the moment its blockers finish: `agh task create … --auto-enqueue-on-ready`, or toggle it on an assembled tree with `agh task update <id> --auto-enqueue-on-ready` (`--auto-enqueue-on-ready=false` turns it off). When set, a blocking dependency completing and the task reaching `ready` enqueues exactly one run through the canonical path — no manual start. It is conservative by design: a failed or expired blocker never triggers it, paused dependents are skipped, and the open-run reservation guarantees one queued run even under concurrent blocker completions. Read the flag back from `agh task inspect <id> -o json` (`auto_enqueue_on_ready`).
 
 Never spawn another coordinator unless the runtime explicitly supports that delegation. Never use channel messages as task ownership state.
@@ -80,6 +89,9 @@ Use this guidance only inside a worker session with an active task claim or whil
 5. Keep lease/heartbeat requirements current through daemon-provided tools.
 6. Complete, fail, or release only through session-bound AGH task authority.
 7. Include changed files, verification commands, and residual risks in the run summary.
+
+When a run includes a designation, follow only your own `designation.brief`; do not merge sibling
+assignments into your scope.
 
 Do not use agh task run claim for autonomous session-bound work when the runtime instructed agh task next.
 

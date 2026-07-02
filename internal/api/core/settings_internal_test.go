@@ -353,13 +353,18 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		t.Fatalf("automationSettingsFromPayload(valid) error = %v", err)
 	}
 	if _, err := networkConfigFromPayload(contract.SettingsNetworkConfigPayload{
-		Enabled:        true,
-		DefaultChannel: "builders",
-		Port:           4222,
-		MaxPayload:     1024,
-		GreetInterval:  5,
-		MaxReplayAge:   10,
-		MaxQueueDepth:  32,
+		Enabled:                        true,
+		DefaultChannel:                 "builders",
+		Port:                           4222,
+		MaxPayload:                     1024,
+		GreetInterval:                  5,
+		MaxReplayAge:                   10,
+		MaxQueueDepth:                  32,
+		ActivationTopK:                 4,
+		DigestFlushInterval:            "30s",
+		DigestMaxEnvelopes:             10,
+		ResponseGuidanceMaxBytes:       1024,
+		DeliveryStructuredBodyMaxBytes: 2048,
 	}); err != nil {
 		t.Fatalf("networkConfigFromPayload(valid) error = %v", err)
 	}

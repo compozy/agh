@@ -12,6 +12,8 @@ export type {
   CreateTaskRequest,
   EnqueueTaskRunRequest,
   FailTaskRunRequest,
+  FanOutTaskRunsRequest,
+  FanOutTaskRunsResponse,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
@@ -110,6 +112,7 @@ export {
   deleteTaskExecutionProfile,
   dismissTask,
   enqueueTaskRun,
+  fanOutTaskRuns,
   failTaskRun,
   forceFailTaskRun,
   forceReleaseTaskRun,
@@ -284,6 +287,7 @@ export {
   useDeleteTask,
   useDismissTask,
   useEnqueueTaskRun,
+  useFanOutTaskRuns,
   useFailTaskRun,
   useForceFailTaskRun,
   useForceReleaseTaskRun,
@@ -380,6 +384,8 @@ export type { AgentCardProps } from "./components/agent-card";
 // Orchestration tab components (execution profile, reviews, bridge notifications, stream resume)
 export { TasksExecutionProfileCard } from "./components/tasks-execution-profile-card";
 export type { TasksExecutionProfileCardProps } from "./components/tasks-execution-profile-card";
+export { TasksFanOutRunsCard } from "./components/tasks-fan-out-runs-card";
+export type { TasksFanOutRunsCardProps } from "./components/tasks-fan-out-runs-card";
 export { TasksReviewsCard } from "./components/tasks-reviews-card";
 export type { TasksReviewsCardProps } from "./components/tasks-reviews-card";
 export { TasksBridgeNotificationsCard } from "./components/tasks-bridge-notifications-card";

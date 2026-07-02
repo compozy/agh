@@ -13,6 +13,8 @@ import (
 // WriteNetworkChannel upserts durable network channel metadata.
 func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
 	entry.Channel = strings.TrimSpace(entry.Channel)
+	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
+	entry.CoordinatorPeerID = strings.TrimSpace(entry.CoordinatorPeerID)
 	entry.CreatedBy = strings.TrimSpace(entry.CreatedBy)
 	if err := g.checkReady(ctx, "write network channel"); err != nil {
 		return err
@@ -33,12 +35,16 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 			channel,
 			workspace_id,
 			purpose,
+			fanout_policy,
+			coordinator_peer_id,
 			created_by,
 			created_at,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(workspace_id, channel) DO UPDATE SET
 				purpose = excluded.purpose,
+				fanout_policy = excluded.fanout_policy,
+				coordinator_peer_id = excluded.coordinator_peer_id,
 				updated_at = excluded.updated_at,
 				created_by = CASE
 				WHEN TRIM(network_channels.created_by) = '' THEN excluded.created_by
@@ -47,6 +53,8 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 		entry.Channel,
 		entry.WorkspaceID,
 		entry.Purpose,
+		entry.FanoutPolicy,
+		entry.CoordinatorPeerID,
 		entry.CreatedBy,
 		store.FormatTimestamp(entry.CreatedAt),
 		store.FormatTimestamp(entry.UpdatedAt),
@@ -75,7 +83,7 @@ func (g *GlobalDB) GetNetworkChannel(
 
 	row := g.db.QueryRowContext(
 		ctx,
-		`SELECT channel, workspace_id, purpose, created_by, created_at, updated_at
+		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
 		FROM network_channels
 		WHERE workspace_id = ? AND channel = ?`,
 		normalized.WorkspaceID,
@@ -104,7 +112,7 @@ func (g *GlobalDB) ListNetworkChannels(
 		return nil, fmt.Errorf("store: validate network channel query: %w", err)
 	}
 
-	sqlQuery := `SELECT channel, workspace_id, purpose, created_by, created_at, updated_at FROM network_channels`
+	sqlQuery := `SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at FROM network_channels`
 	where, args := store.BuildClauses(
 		store.StringClause("channel", query.Channel),
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -170,6 +178,7 @@ func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, ref store.NetworkCh
 func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 	var (
 		entry        store.NetworkChannelEntry
+		coordinator  sql.NullString
 		createdBy    sql.NullString
 		createdAtRaw string
 		updatedAtRaw string
@@ -178,6 +187,8 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 		&entry.Channel,
 		&entry.WorkspaceID,
 		&entry.Purpose,
+		&entry.FanoutPolicy,
+		&coordinator,
 		&createdBy,
 		&createdAtRaw,
 		&updatedAtRaw,
@@ -191,6 +202,10 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 	if value := store.NullString(createdBy); value != nil {
 		entry.CreatedBy = *value
 	}
+	if value := store.NullString(coordinator); value != nil {
+		entry.CoordinatorPeerID = *value
+	}
+	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {

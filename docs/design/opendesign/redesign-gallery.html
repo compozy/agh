@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AGH · Redesigns — gallery</title>
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+:root{
+  color-scheme: dark;
+  --canvas:#131211; --canvas-soft:#1a1918; --elevated:#232220; --hover:#1f1e1d;
+  --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+  --line:rgba(255,255,255,0.055); --line-soft:rgba(255,255,255,0.03);
+  --accent:#e8572a; --accent-ink:#17110f; --accent-hover:#d14e25;
+  --accent-tint:rgba(232,87,42,0.10);
+  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  --radius:6px; --radius-lg:10px;
+  --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-0.006em;font-feature-settings:"cv01","ss03","cv11";-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+.font-mono{font-family:var(--font-mono);font-feature-settings:normal}
+
+.shell{display:grid;grid-template-rows:auto 1fr;height:100vh;overflow:hidden}
+.top{display:flex;align-items:center;gap:18px;padding:14px 22px;border-bottom:1px solid var(--line-soft);flex-shrink:0;background:var(--canvas)}
+.top__brand{display:inline-flex;align-items:center;gap:9px;font-size:13.5px;font-weight:510;color:var(--fg-strong);letter-spacing:-0.014em}
+.top__logo{width:24px;height:24px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:11.5px;letter-spacing:-0.04em}
+.top__sep{width:1px;height:14px;background:var(--line-soft)}
+.top__crumbs{font-size:11.5px;color:var(--muted)}
+.top__crumbs .strong{color:var(--fg);font-weight:510}
+.top__spacer{flex:1}
+.top__hint{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:0}
+
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:0;overflow:hidden}
+.side{background:var(--canvas-soft);border-right:1px solid var(--line-soft);padding:14px 8px;overflow-y:auto}
+.side__label{padding:8px 12px 6px;font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:0.06em;text-transform:uppercase}
+
+.story{display:flex;flex-direction:column;gap:1px;list-style:none;margin:0;padding:0}
+.story__btn{display:flex;align-items:flex-start;gap:10px;width:100%;padding:9px 11px;border-radius:6px;color:var(--muted);text-align:left;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.story__btn:hover{color:var(--fg-strong);background:var(--hover)}
+.story__btn[aria-current="page"]{color:var(--fg-strong);background:var(--elevated)}
+.story__btn[aria-current="page"]::before{content:"";position:absolute;width:2px;height:18px}
+.story__index{font-family:var(--font-mono);font-size:11px;color:var(--faint);width:18px;flex-shrink:0;padding-top:2px;text-align:right;font-variant-numeric:tabular-nums}
+.story__info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.story__title{font-size:12.5px;font-weight:510;letter-spacing:-0.005em}
+.story__sub{font-size:11px;color:var(--faint);letter-spacing:-0.005em}
+.story__btn[aria-current="page"] .story__sub{color:var(--muted)}
+
+.side__divider{height:1px;background:var(--line-soft);margin:14px 8px}
+
+.side__note{padding:0 12px;font-size:11.5px;color:var(--subtle);line-height:1.55}
+.side__note .code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:rgba(255,255,255,0.04);padding:1px 5px;border-radius:3px}
+
+.stage{display:flex;flex-direction:column;min-width:0;background:#0e0d0c}
+.stage__head{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line-soft);background:var(--canvas);flex-shrink:0}
+.stage__head-title{font-size:11.5px;font-weight:510;color:var(--fg-strong);letter-spacing:-0.005em}
+.stage__head-id{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:0;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.04)}
+.stage__head-spacer{flex:1}
+.stage__head-open{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:5px;font-size:11px;font-weight:510;color:var(--muted);background:rgba(255,255,255,0.04);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.stage__head-open:hover{background:rgba(255,255,255,0.07);color:var(--fg-strong)}
+.stage__head-open svg{width:11px;height:11px;stroke-width:1.75}
+.stage__frame{flex:1;min-height:0;width:100%;border:0;background:var(--canvas)}
+
+@media (max-width:780px){
+  .layout{grid-template-columns:1fr}
+  .side{display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="top">
+    <div class="top__brand"><span class="top__logo">A</span> AGH · Redesigns</div>
+    <span class="top__sep"></span>
+    <span class="top__crumbs">
+      <span class="strong">systems/tasks</span> · TaskOverview &amp; TaskRunDetail
+    </span>
+    <span class="top__spacer"></span>
+    <span class="top__hint">storybook · v8 · localhost:6006</span>
+  </header>
+
+  <div class="layout">
+
+    <aside class="side" aria-label="Story navigation">
+      <div class="side__label">Stories</div>
+      <ul class="story" role="list" id="storyList">
+        <li>
+          <button class="story__btn" type="button" data-target="redesign-operational-cards.html" data-id="OperationalCards" data-title="Operational cards">
+            <span class="story__index">01</span>
+            <span class="story__info">
+              <span class="story__title">Operational cards</span>
+              <span class="story__sub">timeline · reviews · stream · bridge · profile</span>
+            </span>
+          </button>
+        </li>
+        <li>
+          <button class="story__btn" type="button" data-target="redesign-multi-agent.html" data-id="MultiAgent" data-title="Multi-agent">
+            <span class="story__index">02</span>
+            <span class="story__info">
+              <span class="story__title">Multi-agent</span>
+              <span class="story__sub">4 agents · 2 live · 2 idle</span>
+            </span>
+          </button>
+        </li>
+        <li>
+          <button class="story__btn" type="button" data-target="redesign-orchestration.html" data-id="Orchestration" data-title="Orchestration">
+            <span class="story__index">03</span>
+            <span class="story__info">
+              <span class="story__title">Orchestration</span>
+              <span class="story__sub">execution profile · reviews · bridge · stream</span>
+            </span>
+          </button>
+        </li>
+        <li>
+          <button class="story__btn" type="button" data-target="redesign-taskrundetail-running.html" data-id="Running" data-title="Task run detail — Running">
+            <span class="story__index">04</span>
+            <span class="story__info">
+              <span class="story__title">Task run · Running</span>
+              <span class="story__sub">detail header · run card · timeline</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="side__divider"></div>
+
+      <p class="side__note">
+        Each story has a standalone HTML in the project root. Original visual baseline was captured to <span class="code">story-*.png</span> for reference.
+      </p>
+    </aside>
+
+    <section class="stage" aria-label="Story preview">
+      <div class="stage__head">
+        <span class="stage__head-title" id="stageTitle">Operational cards</span>
+        <span class="stage__head-id" id="stageId">OperationalCards</span>
+        <span class="stage__head-spacer"></span>
+        <a class="stage__head-open" id="openInTab" href="redesign-operational-cards.html" target="_blank" rel="noopener">
+          Open in new tab
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+        </a>
+      </div>
+      <iframe id="stageFrame" class="stage__frame" src="redesign-operational-cards.html" title="Story preview"></iframe>
+    </section>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const list = document.getElementById('storyList');
+  const frame = document.getElementById('stageFrame');
+  const titleEl = document.getElementById('stageTitle');
+  const idEl = document.getElementById('stageId');
+  const openLink = document.getElementById('openInTab');
+  function activate(btn){
+    list.querySelectorAll('.story__btn').forEach(b => b.removeAttribute('aria-current'));
+    btn.setAttribute('aria-current', 'page');
+    const target = btn.dataset.target;
+    frame.src = target;
+    titleEl.textContent = btn.dataset.title;
+    idEl.textContent = btn.dataset.id;
+    openLink.href = target;
+    try { localStorage.setItem('agh.redesign.last', target); } catch(e) {}
+  }
+  list.addEventListener('click', e => {
+    const btn = e.target.closest('.story__btn');
+    if (btn) activate(btn);
+  });
+  const first = list.querySelector('.story__btn');
+  let last = null;
+  try { last = localStorage.getItem('agh.redesign.last'); } catch(e) {}
+  const restore = last && list.querySelector('.story__btn[data-target="' + last + '"]');
+  activate(restore || first);
+})();
+</script>
+</body>
+</html>

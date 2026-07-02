@@ -1,0 +1,25 @@
+# Ledger — Network Token Optimization Megaround Peer Review (Round 2)
+
+- Goal: Peer-review round-2 remediation of network token optimization megaround. Verify B-001..B-006 (round 1 blockers) fixed. Write findings to `.codex/peer-reviews/network-token-cost-impl/impl-review-findings-round2.md`. Verdict SHIP/FIX_BEFORE_SHIP/REWORK.
+- Constraints/Assumptions: Scoped-write — may write ONLY the target findings file. Read-only otherwise. Greenfield alpha. task_runs single queue; ClaimNextRun authoritative; claim_token never leaves boundary; codegen co-ship; hard cuts.
+- Round 1 blockers to re-verify:
+  - B-001: fanout_policy/coordinator_peer_id never enforced in routing (router.go deliveriesFromLocalPeers)
+  - B-002: designated fan-out N>=2 non-functional (2nd sibling rejected at ReserveQueuedRun / findOpenRunIDForQueuedRunReservation)
+  - B-003: digest doesn't coalesce; DigestFlushInterval/DigestMaxEnvelopes dead knobs; cost per-envelope
+  - B-004: capability_match no-match full-injects top-K instead of digest fallback
+  - B-005: mute suppresses directly-addressed traffic (silent loss)
+  - B-006: zero behavioral tests for subscription/mute/digest/activation
+- State: Blockers B-001..B-006 all appear FIXED (first-hand verified router.go, manager.go, delivery.go, global_db_task_aux.go; B-006 test coverage 11/13 via Explore).
+  - B-001 FIXED: router selectEmptyThreadPeers branches on coordinator/all_members/capability_match (router.go:1281-1317)
+  - B-002 FIXED: findOpenRunIDForQueuedRunReservation designation-aware (global_db_task_aux.go:1477-1509)
+  - B-003 FIXED: collectDigestBatch coalesces + deliveredPromptCostAllocations splits cost (delivery.go:657-724,1213-1271)
+  - B-004 FIXED: capability no-match → digest fallback (router.go:1307-1316)
+  - B-005 FIXED: deliveryAddressedToPeer exemption (manager.go:1194)
+  - B-006 MOSTLY FIXED: 11/13 invariants tested; MISSING positive capability_match test + positive keyword-filter test (risk)
+  - R-001 FIXED: structured body cap wired (delivery.go cappedStructuredDeliveryBody)
+  - Migrations v44-v47: append-only, transactional, workspace-scoped, tail test updated — CLEAN
+- Carried-forward risk: R-003 (partial fan-out orphans) now LIVE since B-002 fixed — enqueueFanOutTaskRuns returns on first err, no rollback (api/core/tasks.go:1213-1240)
+- Now: verify R-006 (sub channel FK), status observer R-004, codegen drift, parity, new bugs
+- Next: write findings
+- Open questions: none yet
+- Working set: diff at .codex/peer-reviews/network-token-cost-impl/impl-review-diff-round2.patch (26957 lines)

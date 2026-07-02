@@ -2,9 +2,11 @@ package network
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +30,20 @@ type RouterTransport interface {
 	Publish(ctx context.Context, subject string, payload []byte) error
 }
 
+// ThreadParticipantResolver supplies persisted public-thread membership for delivery routing.
+type ThreadParticipantResolver interface {
+	ListThreadParticipants(
+		ctx context.Context,
+		ref store.NetworkChannelRef,
+		threadID string,
+	) ([]store.NetworkThreadParticipant, error)
+}
+
+// ChannelPolicyResolver supplies durable channel fan-out settings for receive routing.
+type ChannelPolicyResolver interface {
+	GetNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+}
+
 // SendRequest carries one caller-supplied outbound envelope request.
 type SendRequest struct {
 	SessionID   string
@@ -38,6 +54,27 @@ type SendRequest struct {
 	DirectID    *string
 	Kind        Kind
 	To          *string
+	Mentions    []string
+	Body        json.RawMessage
+	WorkID      *string
+	ReplyTo     *string
+	TraceID     *string
+	CausationID *string
+	ExpiresAt   *int64
+	ID          *string
+	Ext         ExtensionMap
+}
+
+// RuntimeSendRequest carries one outbound envelope emitted by the AGH runtime peer.
+type RuntimeSendRequest struct {
+	WorkspaceID string
+	Channel     string
+	Surface     *Surface
+	ThreadID    *string
+	DirectID    *string
+	Kind        Kind
+	To          *string
+	Mentions    []string
 	Body        json.RawMessage
 	WorkID      *string
 	ReplyTo     *string
@@ -60,6 +97,7 @@ type Delivery struct {
 	SessionID string
 	PeerID    string
 	Envelope  Envelope
+	Mode      string
 }
 
 // RouteResult is the router decision for one inbound envelope.
@@ -79,8 +117,9 @@ type RouteResult struct {
 type PeerLifecycleKind string
 
 const (
-	PeerLifecycleJoined PeerLifecycleKind = "joined"
-	PeerLifecycleLeft   PeerLifecycleKind = "left"
+	PeerLifecycleJoined         PeerLifecycleKind = "joined"
+	PeerLifecycleLeft           PeerLifecycleKind = "left"
+	defaultRouterActivationTopK                   = 3
 )
 
 // PeerLifecycleEvent is the runtime-local representation of a peer presence
@@ -131,12 +170,36 @@ func WithRouterClock(now func() time.Time) RouterOption {
 	}
 }
 
+// WithRouterThreadParticipantResolver injects persisted thread membership for inbound thread routing.
+func WithRouterThreadParticipantResolver(resolver ThreadParticipantResolver) RouterOption {
+	return func(router *Router) {
+		router.threadParticipants = resolver
+	}
+}
+
+// WithRouterChannelPolicyResolver injects durable channel fan-out policy lookup.
+func WithRouterChannelPolicyResolver(resolver ChannelPolicyResolver) RouterOption {
+	return func(router *Router) {
+		router.channelPolicies = resolver
+	}
+}
+
+// WithRouterActivationTopK bounds channel activation for unaddressed empty public threads.
+func WithRouterActivationTopK(limit int) RouterOption {
+	return func(router *Router) {
+		router.activationTopK = limit
+	}
+}
+
 // Router handles outbound subject selection plus inbound receiver policy.
 type Router struct {
-	peers        *PeerRegistry
-	transport    RouterTransport
-	maxReplayAge time.Duration
-	now          func() time.Time
+	peers              *PeerRegistry
+	transport          RouterTransport
+	threadParticipants ThreadParticipantResolver
+	channelPolicies    ChannelPolicyResolver
+	activationTopK     int
+	maxReplayAge       time.Duration
+	now                func() time.Time
 
 	mu    sync.Mutex
 	seen  map[string]time.Time
@@ -166,12 +229,13 @@ func NewRouter(
 	}
 
 	router := &Router{
-		peers:        peers,
-		transport:    transport,
-		maxReplayAge: maxReplayAge,
-		now:          func() time.Time { return time.Now().UTC() },
-		seen:         make(map[string]time.Time),
-		works:        make(map[string]Work),
+		peers:          peers,
+		transport:      transport,
+		activationTopK: defaultRouterActivationTopK,
+		maxReplayAge:   maxReplayAge,
+		now:            func() time.Time { return time.Now().UTC() },
+		seen:           make(map[string]time.Time),
+		works:          make(map[string]Work),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -180,6 +244,9 @@ func NewRouter(
 	}
 	if router.now == nil {
 		router.now = func() time.Time { return time.Now().UTC() }
+	}
+	if router.activationTopK <= 0 {
+		router.activationTopK = defaultRouterActivationTopK
 	}
 
 	return router, nil
@@ -563,10 +630,11 @@ func (r *Router) handleReceivedSay(ctx context.Context, state *receiveState) (Ro
 		}
 		return result, nil
 	}
-	result.Deliveries = deliveriesFromLocalPeers(
-		r.peers.LocalPeers(state.envelope.WorkspaceID, state.envelope.Channel),
-		state.envelope,
-	)
+	deliveries, err := r.deliveriesFromLocalPeers(ctx, state.envelope)
+	if err != nil {
+		return RouteResult{}, err
+	}
+	result.Deliveries = deliveries
 	return result, nil
 }
 
@@ -584,10 +652,11 @@ func (r *Router) handleReceivedCapability(ctx context.Context, state *receiveSta
 		}
 		return result, nil
 	}
-	result.Deliveries = deliveriesFromLocalPeers(
-		r.peers.LocalPeers(state.envelope.WorkspaceID, state.envelope.Channel),
-		state.envelope,
-	)
+	deliveries, err := r.deliveriesFromLocalPeers(ctx, state.envelope)
+	if err != nil {
+		return RouteResult{}, err
+	}
+	result.Deliveries = deliveries
 	return result, nil
 }
 
@@ -922,6 +991,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		DirectID:    normalizeOptionalIdentifier(req.DirectID),
 		From:        local.PeerID,
 		To:          normalizeOptionalIdentifier(req.To),
+		Mentions:    normalizeEnvelopeMentions(req.Mentions),
 		WorkID:      normalizeOptionalIdentifier(req.WorkID),
 		ReplyTo:     normalizeOptionalIdentifier(req.ReplyTo),
 		TraceID:     normalizeOptionalIdentifier(req.TraceID),
@@ -1135,6 +1205,10 @@ func workKey(workspaceID string, workID string) string {
 }
 
 func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
+	return deliveriesFromLocalPeersWithMode(peers, envelope, store.NetworkSubscriptionModeFull)
+}
+
+func deliveriesFromLocalPeersWithMode(peers []LocalPeer, envelope Envelope, mode string) []Delivery {
 	if len(peers) == 0 {
 		return nil
 	}
@@ -1145,9 +1219,366 @@ func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
 		if !ok {
 			continue
 		}
+		delivery.Mode = normalizedRouterDeliveryMode(mode)
 		deliveries = append(deliveries, delivery)
 	}
 	return deliveries
+}
+
+func (r *Router) deliveriesFromLocalPeers(ctx context.Context, envelope Envelope) ([]Delivery, error) {
+	peers := r.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
+	if !envelopeRequiresThreadParticipantRouting(envelope) {
+		return deliveriesFromLocalPeers(peers, envelope), nil
+	}
+	mentioned := mentionedPeerSet(envelope)
+	if r.threadParticipants == nil {
+		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
+	}
+	participants, err := r.threadParticipantSet(ctx, envelope)
+	if err != nil {
+		return nil, err
+	}
+	if len(participants) == 0 {
+		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
+	}
+	filtered := make([]LocalPeer, 0, len(peers))
+	for _, peer := range peers {
+		peerID := strings.TrimSpace(peer.PeerID)
+		if participants[peerID] || mentioned[peerID] {
+			filtered = append(filtered, peer)
+		}
+	}
+	return deliveriesFromLocalPeers(filtered, envelope), nil
+}
+
+func (r *Router) selectEmptyThreadDeliveries(
+	ctx context.Context,
+	peers []LocalPeer,
+	envelope Envelope,
+	participants map[string]bool,
+	mentioned map[string]bool,
+) ([]Delivery, error) {
+	decision, err := r.selectEmptyThreadPeers(ctx, peers, envelope, participants, mentioned)
+	if err != nil {
+		return nil, err
+	}
+	deliveries := deliveriesFromLocalPeers(decision.fullPeers, envelope)
+	deliveries = append(
+		deliveries,
+		deliveriesFromLocalPeersWithMode(decision.digestPeers, envelope, store.NetworkSubscriptionModeDigest)...,
+	)
+	sort.SliceStable(deliveries, func(i int, j int) bool {
+		return deliveries[i].PeerID < deliveries[j].PeerID
+	})
+	return deliveries, nil
+}
+
+type emptyThreadDeliveryDecision struct {
+	fullPeers   []LocalPeer
+	digestPeers []LocalPeer
+}
+
+func (r *Router) selectEmptyThreadPeers(
+	ctx context.Context,
+	peers []LocalPeer,
+	envelope Envelope,
+	participants map[string]bool,
+	mentioned map[string]bool,
+) (emptyThreadDeliveryDecision, error) {
+	policy, coordinatorPeerID, err := r.channelFanoutPolicy(ctx, envelope)
+	if err != nil {
+		return emptyThreadDeliveryDecision{}, err
+	}
+	baseFull := r.participantMentionPeers(peers, envelope, participants, mentioned)
+	switch policy {
+	case store.NetworkFanoutPolicyAllMembers:
+		full := append(cloneLocalPeers(baseFull.peers), r.allEligibleThreadPeers(peers, envelope, baseFull.seen)...)
+		return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+	case store.NetworkFanoutPolicyCoordinator:
+		selected, ok := r.coordinatorPeer(peers, envelope, coordinatorPeerID, baseFull.seen)
+		if ok {
+			full := append(cloneLocalPeers(baseFull.peers), selected)
+			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+		}
+		return emptyThreadDeliveryDecision{
+			fullPeers:   sortLocalPeers(baseFull.peers),
+			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
+		}, nil
+	default:
+		full := r.selectCapabilityMatchedThreadPeers(peers, envelope, baseFull.peers, baseFull.seen)
+		if len(full) > len(baseFull.peers) {
+			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+		}
+		return emptyThreadDeliveryDecision{
+			fullPeers:   sortLocalPeers(baseFull.peers),
+			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
+		}, nil
+	}
+}
+
+type selectedThreadPeers struct {
+	peers []LocalPeer
+	seen  map[string]bool
+}
+
+func (r *Router) participantMentionPeers(
+	peers []LocalPeer,
+	envelope Envelope,
+	participants map[string]bool,
+	mentioned map[string]bool,
+) selectedThreadPeers {
+	selected := make([]LocalPeer, 0, len(peers))
+	seen := make(map[string]bool, len(peers))
+	for _, peer := range peers {
+		peerID := strings.TrimSpace(peer.PeerID)
+		if peerID == "" || isEnvelopeSender(peer, envelope) {
+			continue
+		}
+		if mentioned[peerID] || participants[peerID] {
+			selected = append(selected, peer)
+			seen[peerID] = true
+		}
+	}
+	return selectedThreadPeers{peers: sortLocalPeers(selected), seen: seen}
+}
+
+func (r *Router) allEligibleThreadPeers(
+	peers []LocalPeer,
+	envelope Envelope,
+	seen map[string]bool,
+) []LocalPeer {
+	selected := make([]LocalPeer, 0, len(peers))
+	for _, peer := range peers {
+		peerID := strings.TrimSpace(peer.PeerID)
+		if peerID == "" || isEnvelopeSender(peer, envelope) || seen[peerID] {
+			continue
+		}
+		selected = append(selected, peer)
+		seen[peerID] = true
+	}
+	return sortLocalPeers(selected)
+}
+
+func (r *Router) coordinatorPeer(
+	peers []LocalPeer,
+	envelope Envelope,
+	coordinatorPeerID string,
+	seen map[string]bool,
+) (LocalPeer, bool) {
+	target := strings.TrimSpace(coordinatorPeerID)
+	if target == "" || seen[target] {
+		return LocalPeer{}, false
+	}
+	for _, peer := range peers {
+		if strings.TrimSpace(peer.PeerID) != target || isEnvelopeSender(peer, envelope) {
+			continue
+		}
+		return peer, true
+	}
+	return LocalPeer{}, false
+}
+
+func (r *Router) selectCapabilityMatchedThreadPeers(
+	peers []LocalPeer,
+	envelope Envelope,
+	selected []LocalPeer,
+	seen map[string]bool,
+) []LocalPeer {
+	out := cloneLocalPeers(selected)
+	limit := r.activationTopK
+	if limit <= 0 {
+		limit = defaultRouterActivationTopK
+	}
+	for _, candidate := range rankActivationCandidates(peers, envelope) {
+		if len(out)-len(selected) >= limit {
+			break
+		}
+		if candidate.score <= 0 {
+			continue
+		}
+		peerID := strings.TrimSpace(candidate.peer.PeerID)
+		if peerID == "" || seen[peerID] || isEnvelopeSender(candidate.peer, envelope) {
+			continue
+		}
+		out = append(out, candidate.peer)
+		seen[peerID] = true
+	}
+	return sortLocalPeers(out)
+}
+
+func (r *Router) threadDigestFallbackPeers(
+	peers []LocalPeer,
+	envelope Envelope,
+	seen map[string]bool,
+) []LocalPeer {
+	selected := make([]LocalPeer, 0, len(peers))
+	for _, peer := range peers {
+		peerID := strings.TrimSpace(peer.PeerID)
+		if peerID == "" || seen[peerID] || isEnvelopeSender(peer, envelope) {
+			continue
+		}
+		selected = append(selected, peer)
+	}
+	return sortLocalPeers(selected)
+}
+
+func (r *Router) channelFanoutPolicy(
+	ctx context.Context,
+	envelope Envelope,
+) (string, string, error) {
+	if r.channelPolicies == nil {
+		return store.NetworkFanoutPolicyCapabilityMatch, "", nil
+	}
+	entry, err := r.channelPolicies.GetNetworkChannel(
+		ctx,
+		store.NetworkChannelRef{
+			WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
+			Channel:     strings.TrimSpace(envelope.Channel),
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.NetworkFanoutPolicyCapabilityMatch, "", nil
+		}
+		return "", "", fmt.Errorf("network: get channel fanout policy for routing: %w", err)
+	}
+	return store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy), strings.TrimSpace(entry.CoordinatorPeerID), nil
+}
+
+func sortLocalPeers(peers []LocalPeer) []LocalPeer {
+	if len(peers) == 0 {
+		return nil
+	}
+	out := cloneLocalPeers(peers)
+	sort.SliceStable(out, func(i int, j int) bool {
+		return out[i].PeerID < out[j].PeerID
+	})
+	return out
+}
+
+func cloneLocalPeers(peers []LocalPeer) []LocalPeer {
+	if len(peers) == 0 {
+		return nil
+	}
+	out := make([]LocalPeer, len(peers))
+	copy(out, peers)
+	return out
+}
+
+type activationCandidate struct {
+	peer  LocalPeer
+	score int
+}
+
+func rankActivationCandidates(peers []LocalPeer, envelope Envelope) []activationCandidate {
+	candidates := make([]activationCandidate, 0, len(peers))
+	terms := activationTerms(envelope)
+	for _, peer := range peers {
+		candidates = append(candidates, activationCandidate{
+			peer:  peer,
+			score: activationScore(peer, terms),
+		})
+	}
+	sort.SliceStable(candidates, func(i int, j int) bool {
+		if candidates[i].score != candidates[j].score {
+			return candidates[i].score > candidates[j].score
+		}
+		return candidates[i].peer.PeerID < candidates[j].peer.PeerID
+	})
+	return candidates
+}
+
+func activationTerms(envelope Envelope) []string {
+	body, err := envelope.DecodeBody()
+	if err != nil {
+		return nil
+	}
+	var text string
+	switch typed := body.(type) {
+	case SayBody:
+		text = typed.Text + " " + typed.Intent
+	case CapabilityBody:
+		text = typed.Capability.ID + " " + typed.Capability.Summary + " " + typed.Capability.Outcome
+	default:
+		return nil
+	}
+	fields := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
+	})
+	terms := make([]string, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		if len(field) < 3 || seen[field] {
+			continue
+		}
+		seen[field] = true
+		terms = append(terms, field)
+	}
+	return terms
+}
+
+func activationScore(peer LocalPeer, terms []string) int {
+	if len(terms) == 0 {
+		return 0
+	}
+	var builder strings.Builder
+	builder.WriteString(strings.Join(peer.PeerCard.Capabilities, " "))
+	for _, capability := range peer.CapabilityCatalog {
+		builder.WriteByte(' ')
+		builder.WriteString(capability.ID)
+		builder.WriteByte(' ')
+		builder.WriteString(capability.Summary)
+		builder.WriteByte(' ')
+		builder.WriteString(capability.Outcome)
+	}
+	haystack := strings.ToLower(builder.String())
+	score := 0
+	for _, term := range terms {
+		if strings.Contains(haystack, term) {
+			score++
+		}
+	}
+	return score
+}
+
+func mentionedPeerSet(envelope Envelope) map[string]bool {
+	mentions := normalizeEnvelopeMentions(envelope.Mentions)
+	if len(mentions) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(mentions))
+	for _, peerID := range mentions {
+		set[strings.TrimSpace(peerID)] = true
+	}
+	return set
+}
+
+func envelopeRequiresThreadParticipantRouting(envelope Envelope) bool {
+	return !envelope.IsDirected() &&
+		envelope.Surface != nil &&
+		*envelope.Surface == SurfaceThread &&
+		envelope.ThreadID != nil
+}
+
+func (r *Router) threadParticipantSet(ctx context.Context, envelope Envelope) (map[string]bool, error) {
+	participants, err := r.threadParticipants.ListThreadParticipants(
+		ctx,
+		store.NetworkChannelRef{
+			WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
+			Channel:     strings.TrimSpace(envelope.Channel),
+		},
+		strings.TrimSpace(*envelope.ThreadID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("network: list thread participants for routing: %w", err)
+	}
+	participantSet := make(map[string]bool, len(participants))
+	for _, participant := range participants {
+		if peerID := strings.TrimSpace(participant.PeerID); peerID != "" {
+			participantSet[peerID] = true
+		}
+	}
+	return participantSet, nil
 }
 
 func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
@@ -1162,6 +1593,15 @@ func deliveryFromLocalPeer(peer LocalPeer, envelope Envelope) (Delivery, bool) {
 		PeerID:    peer.PeerID,
 		Envelope:  envelope,
 	}, true
+}
+
+func normalizedRouterDeliveryMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case store.NetworkSubscriptionModeDigest:
+		return store.NetworkSubscriptionModeDigest
+	default:
+		return store.NetworkSubscriptionModeFull
+	}
 }
 
 func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
@@ -1268,6 +1708,7 @@ func parseEnvelopeSummary(data []byte) *Envelope {
 		DirectID:    normalizeOptionalIdentifier(env.DirectID),
 		From:        strings.TrimSpace(env.From),
 		To:          normalizeOptionalIdentifier(env.To),
+		Mentions:    normalizeEnvelopeMentions(env.Mentions),
 		WorkID:      normalizeOptionalIdentifier(env.WorkID),
 		ReplyTo:     normalizeOptionalIdentifier(env.ReplyTo),
 		TraceID:     normalizeOptionalIdentifier(env.TraceID),

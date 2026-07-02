@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
@@ -26,14 +26,29 @@ func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
 	third := testDeliveryEnvelope(t, "msg-3", "third")
 	now := time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC)
 
-	if result := queue.enqueue(first, now, false); result.Dropped != nil || result.Depth != 1 {
+	if result := queue.enqueue(
+		"peer-one",
+		first,
+		store.NetworkSubscriptionModeFull,
+		now,
+		false,
+	); result.Dropped != nil ||
+		result.Depth != 1 {
 		t.Fatalf("enqueue(first) = %#v, want depth=1 with no drop", result)
 	}
-	if result := queue.enqueue(second, now.Add(time.Second), false); result.Dropped != nil || result.Depth != 2 {
+	if result := queue.enqueue(
+		"peer-two",
+		second,
+		store.NetworkSubscriptionModeFull,
+		now.Add(time.Second),
+		false,
+	); result.Dropped != nil || result.Depth != 2 {
 		t.Fatalf("enqueue(second) = %#v, want depth=2 with no drop", result)
 	}
 	if result := queue.enqueue(
+		"peer-three",
 		third,
+		store.NetworkSubscriptionModeFull,
 		now.Add(2*time.Second),
 		true,
 	); result.Dropped == nil || result.Dropped.ID != first.ID ||
@@ -65,9 +80,15 @@ func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
 	if gotSecond.Envelope.WorkspaceID != testWorkspaceID {
 		t.Fatalf("second dequeue workspace_id = %q, want %q", gotSecond.Envelope.WorkspaceID, testWorkspaceID)
 	}
+	if gotFirst.PeerID != "peer-two" {
+		t.Fatalf("first dequeue peer_id = %q, want peer-two", gotFirst.PeerID)
+	}
+	if gotSecond.PeerID != "peer-three" {
+		t.Fatalf("second dequeue peer_id = %q, want peer-three", gotSecond.PeerID)
+	}
 }
 
-func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.T) {
+func TestFormatNetworkMessageEscapesPreviewAndPlainTextBody(t *testing.T) {
 	t.Parallel()
 
 	envelope := Envelope{
@@ -149,30 +170,11 @@ func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.
 		}
 	}
 
-	start := strings.Index(rendered, `<network-body encoding="base64-json">`)
-	if start < 0 {
-		t.Fatalf("rendered message missing network-body: %s", rendered)
+	if !strings.Contains(rendered, `<network-body encoding="text">`+escapedPreview+`</network-body>`) {
+		t.Fatalf("rendered message missing escaped text body: %s", rendered)
 	}
-	start += len(`<network-body encoding="base64-json">`)
-	end := strings.Index(rendered[start:], `</network-body>`)
-	if end < 0 {
-		t.Fatalf("rendered message missing closing network-body tag: %s", rendered)
-	}
-	encodedBody := rendered[start : start+end]
-	decodedBody, err := base64.StdEncoding.DecodeString(encodedBody)
-	if err != nil {
-		t.Fatalf("DecodeString(network-body) error = %v", err)
-	}
-
-	wantBody, err := json.Marshal(SayBody{
-		Text:   `look at <auth.go> & run "rm -rf" 'now'`,
-		Intent: "review_request",
-	})
-	if err != nil {
-		t.Fatalf("json.Marshal(wantBody) error = %v", err)
-	}
-	if !bytes.Equal(decodedBody, wantBody) {
-		t.Fatalf("decoded body = %s, want %s", string(decodedBody), string(wantBody))
+	if strings.Contains(rendered, `<network-body encoding="text">look at <auth.go>`) {
+		t.Fatalf("rendered body leaked raw XML-breaking content:\n%s", rendered)
 	}
 }
 
@@ -196,7 +198,8 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 			CausationID: new("msg-root-1"),
 		}
 
-		meta := promptNetworkMeta(envelope)
+		cost := deliveredPromptCost{PromptSizeBytes: 120, EstimatedPromptTokens: 30}
+		meta := promptNetworkMeta(envelope, cost)
 		if got, want := meta.MessageID, envelope.ID; got != want {
 			t.Fatalf("MessageID = %q, want %q", got, want)
 		}
@@ -221,6 +224,12 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 		if got, want := meta.Trust, networkMessageTrustUntrusted; got != want {
 			t.Fatalf("Trust = %q, want %q", got, want)
 		}
+		if got, want := meta.PromptSizeBytes, cost.PromptSizeBytes; got != want {
+			t.Fatalf("PromptSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := meta.EstimatedPromptTokens, cost.EstimatedPromptTokens; got != want {
+			t.Fatalf("EstimatedPromptTokens = %d, want %d", got, want)
+		}
 	})
 
 	t.Run("Should omit work id when the message is not lifecycle-bearing", func(t *testing.T) {
@@ -241,7 +250,7 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 			}),
 		}
 
-		meta := promptNetworkMeta(envelope)
+		meta := promptNetworkMeta(envelope, deliveredPromptCost{})
 		if meta.WorkID != "" {
 			t.Fatalf("WorkID = %q, want omitted for non-lifecycle kind", meta.WorkID)
 		}
@@ -257,6 +266,59 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 			t.Fatalf("rendered message leaked non-lifecycle work-id:\n%s", rendered)
 		}
 	})
+}
+
+func TestFormatNetworkMessageCapsStructuredBody(t *testing.T) {
+	t.Parallel()
+
+	envelope := Envelope{
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-trace-large",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		Surface:     new(SurfaceDirect),
+		DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-abc",
+		To:          new("reviewer.sess-xyz"),
+		WorkID:      new("work-large-trace"),
+		TS:          time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
+		Body: mustRawJSON(t, TraceBody{
+			State:   WorkStateWorking,
+			Message: strings.Repeat("large structured body ", 40),
+		}),
+	}
+
+	rendered, err := formatNetworkMessageWithDeliveryModeAndLimit(
+		envelope,
+		networkMessageGuidanceCompact,
+		store.NetworkSubscriptionModeFull,
+		96,
+	)
+	if err != nil {
+		t.Fatalf("formatNetworkMessageWithDeliveryModeAndLimit() error = %v", err)
+	}
+	if !strings.Contains(rendered, `<network-body-truncated`) {
+		t.Fatalf("rendered message missing truncation marker:\n%s", rendered)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(extractNetworkBodyBase64(t, rendered))
+	if err != nil {
+		t.Fatalf("DecodeString(network body) error = %v", err)
+	}
+	var payload struct {
+		Truncated     bool `json:"truncated"`
+		OriginalBytes int  `json:"original_bytes"`
+		DeliveredMax  int  `json:"delivered_max_bytes"`
+	}
+	if err := json.Unmarshal(decoded, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(truncated body) error = %v; decoded=%s", err, decoded)
+	}
+	if len(decoded) > 96 {
+		t.Fatalf("decoded truncated body bytes = %d, want <= 96: %s", len(decoded), decoded)
+	}
+	if !payload.Truncated || payload.OriginalBytes <= payload.DeliveredMax || payload.DeliveredMax != 96 {
+		t.Fatalf("truncated payload = %#v, want capped valid JSON", payload)
+	}
 }
 
 func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.T) {
@@ -640,13 +702,44 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		ctx := t.Context()
 
 		prompter := newFakeDeliveryPrompter()
-		coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+		delivered := make(chan struct {
+			sessionID string
+			peerID    string
+			messageID string
+			cost      deliveredPromptCost
+		}, 1)
+		coordinator, err := newDeliveryCoordinator(
+			ctx,
+			4,
+			prompter,
+			withDeliveryDeliveredHook(func(
+				sessionID string,
+				peerID string,
+				envelope Envelope,
+				_ string,
+				_ time.Duration,
+				cost deliveredPromptCost,
+			) {
+				delivered <- struct {
+					sessionID string
+					peerID    string
+					messageID string
+					cost      deliveredPromptCost
+				}{
+					sessionID: sessionID,
+					peerID:    peerID,
+					messageID: envelope.ID,
+					cost:      cost,
+				}
+			}),
+		)
 		if err != nil {
 			t.Fatalf("newDeliveryCoordinator() error = %v", err)
 		}
 
 		if err := coordinator.acceptOne(context.Background(), Delivery{
 			SessionID: "sess-idle",
+			PeerID:    "reviewer.sess-xyz",
 			Envelope:  testDeliveryEnvelope(t, "msg-idle", "idle message"),
 		}); err != nil {
 			t.Fatalf("acceptOne(idle) error = %v", err)
@@ -675,9 +768,27 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		if got, want := call.meta.Trust, networkMessageTrustUntrusted; got != want {
 			t.Fatalf("idle call meta trust = %q, want %q", got, want)
 		}
+		if got, want := call.meta.PromptSizeBytes, int64(len(call.message)); got != want {
+			t.Fatalf("idle call meta prompt_size_bytes = %d, want %d", got, want)
+		}
+		if got, want := call.meta.EstimatedPromptTokens, estimatePromptTokens(int64(len(call.message))); got != want {
+			t.Fatalf("idle call meta estimated_prompt_tokens = %d, want %d", got, want)
+		}
 
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 		coordinator.wait()
+		select {
+		case got := <-delivered:
+			if got.sessionID != "sess-idle" || got.peerID != "reviewer.sess-xyz" || got.messageID != "msg-idle" {
+				t.Fatalf("delivered hook = %#v, want sess-idle reviewer msg-idle", got)
+			}
+			if got.cost.PromptSizeBytes != int64(len(call.message)) ||
+				got.cost.EstimatedPromptTokens != estimatePromptTokens(int64(len(call.message))) {
+				t.Fatalf("delivered hook cost = %#v, want rendered prompt cost", got.cost)
+			}
+		default:
+			t.Fatal("delivered hook was not called")
+		}
 	})
 
 	t.Run("Should busy delivery waits for turn end", func(t *testing.T) {
@@ -750,6 +861,135 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 	})
 }
 
+func TestDeliveryCoordinatorCoalescesDigestDeliveries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should batch queued digest envelopes and allocate prompt cost", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		prompter.setPrompting("sess-digest", true)
+		delivered := make(chan deliveredPromptCost, 2)
+		coordinator, err := newDeliveryCoordinator(
+			ctx,
+			8,
+			prompter,
+			withDeliveryDigestCoalescing(10*time.Millisecond, 4),
+			withDeliveryDeliveredHook(func(
+				_ string,
+				_ string,
+				_ Envelope,
+				_ string,
+				_ time.Duration,
+				cost deliveredPromptCost,
+			) {
+				delivered <- cost
+			}),
+		)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		first := testDeliveryEnvelope(t, "msg-digest-1", "first digest update")
+		second := testDeliveryEnvelope(t, "msg-digest-2", "second digest update")
+		for _, delivery := range []Delivery{
+			{
+				SessionID: "sess-digest",
+				PeerID:    "reviewer.sess-xyz",
+				Envelope:  first,
+				Mode:      store.NetworkSubscriptionModeDigest,
+			},
+			{
+				SessionID: "sess-digest",
+				PeerID:    "reviewer.sess-xyz",
+				Envelope:  second,
+				Mode:      store.NetworkSubscriptionModeDigest,
+			},
+		} {
+			if err := coordinator.acceptOne(ctx, delivery); err != nil {
+				t.Fatalf("acceptOne(%s) error = %v", delivery.Envelope.ID, err)
+			}
+		}
+
+		prompter.setPrompting("sess-digest", false)
+		coordinator.onTurnEnd("sess-digest")
+		prompter.waitForCalls(t, 1)
+
+		call := prompter.call(0)
+		if !strings.Contains(call.message, `<network-digest-batch`) {
+			t.Fatalf("digest call missing batch wrapper:\n%s", call.message)
+		}
+		for _, snippet := range []string{
+			`count="2"`,
+			`id="msg-digest-1"`,
+			`id="msg-digest-2"`,
+			"first digest update",
+			"second digest update",
+		} {
+			if !strings.Contains(call.message, snippet) {
+				t.Fatalf("digest call missing snippet %q:\n%s", snippet, call.message)
+			}
+		}
+		if got, want := call.meta.DeliveryMode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("digest call delivery mode = %q, want %q", got, want)
+		}
+
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+
+		firstCost := <-delivered
+		secondCost := <-delivered
+		if got, want := firstCost.PromptSizeBytes+secondCost.PromptSizeBytes, int64(len(call.message)); got != want {
+			t.Fatalf("allocated prompt bytes = %d, want %d", got, want)
+		}
+		if got, want := firstCost.EstimatedPromptTokens+secondCost.EstimatedPromptTokens,
+			estimatePromptTokens(int64(len(call.message))); got != want {
+			t.Fatalf("allocated prompt tokens = %d, want %d", got, want)
+		}
+		if got := prompter.callCount(); got != 1 {
+			t.Fatalf("prompt call count = %d, want one coalesced digest prompt", got)
+		}
+	})
+
+	t.Run("Should skip flush wait when one digest envelope is queued", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		coordinator, err := newDeliveryCoordinator(
+			ctx,
+			8,
+			prompter,
+			withDeliveryDigestCoalescing(time.Hour, 4),
+		)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		startedAt := time.Now()
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-single-digest",
+			PeerID:    "reviewer.sess-xyz",
+			Envelope:  testDeliveryEnvelope(t, "msg-digest-single", "single digest update"),
+			Mode:      store.NetworkSubscriptionModeDigest,
+		}); err != nil {
+			t.Fatalf("acceptOne(single digest) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+		if elapsed := time.Since(startedAt); elapsed > 500*time.Millisecond {
+			t.Fatalf("single digest prompt latency = %s, want no flush-window wait", elapsed)
+		}
+
+		call := prompter.call(0)
+		if strings.Contains(call.message, `<network-digest-batch`) {
+			t.Fatalf("single digest call rendered as batch:\n%s", call.message)
+		}
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
+}
+
 func TestDeliveryCoordinatorWorkerLifecycleStopsCleanly(t *testing.T) {
 	t.Parallel()
 
@@ -802,7 +1042,7 @@ func TestDeliveryCoordinatorCancelsInFlightDeliveryWithoutCountingItAsDelivered(
 		ctx,
 		4,
 		prompter,
-		withDeliveryDeliveredHook(func(string, Envelope, string, time.Duration) {
+		withDeliveryDeliveredHook(func(string, string, Envelope, string, time.Duration, deliveredPromptCost) {
 			delivered <- struct{}{}
 		}),
 	)
@@ -1290,6 +1530,21 @@ func (p *fakeDeliveryPrompter) waitForCalls(t *testing.T, want int) {
 			t.Fatalf("timed out waiting for %d prompt calls; got %d", want, p.callCount())
 		}
 	}
+}
+
+func extractNetworkBodyBase64(t *testing.T, rendered string) string {
+	t.Helper()
+
+	start := strings.Index(rendered, `<network-body encoding="base64-json">`)
+	if start < 0 {
+		t.Fatalf("rendered message missing network-body: %s", rendered)
+	}
+	start += len(`<network-body encoding="base64-json">`)
+	end := strings.Index(rendered[start:], `</network-body>`)
+	if end < 0 {
+		t.Fatalf("rendered message missing closing network-body tag: %s", rendered)
+	}
+	return rendered[start : start+end]
 }
 
 func testDeliveryEnvelope(t *testing.T, id string, text string) Envelope {

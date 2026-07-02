@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Loops · AGH</title>
+<style>
+  :root{
+    /* surfaces */
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    /* text ladder */
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    /* hairlines */
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    /* accent — scarce: identity, primary action, active state only */
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10);
+    /* signal — desaturated, used as tint + text, never solid banners */
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    /* glaze */
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05); --btn-fill:rgba(255,255,255,.04);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit}
+  ::selection{background:var(--accent-tint)}
+
+  /* content-only reference — the workspace rail + nav panel live in the app shell, not here */
+  .shell{height:100vh}
+
+  /* ---------- main column ---------- */
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 18px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas)}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .topbar__spacer{flex:1}
+  .search{display:flex;align-items:center;gap:8px;width:230px;height:28px;padding:0 10px;border:1px solid var(--line);
+    border-radius:var(--radius);background:var(--input-fill);color:var(--subtle);font-size:12.5px}
+  .search svg{width:14px;height:14px;flex:none}
+  .search .kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:var(--radius);font-size:12.5px;
+    font-weight:520;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:rgba(255,255,255,.07);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--muted)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg-strong);border-color:transparent}
+
+  /* ---------- page ---------- */
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+  .head__main{min-width:0}
+  .head__titlerow{display:flex;align-items:center;gap:10px}
+  .head__title{font-size:22px;font-weight:560;letter-spacing:-.028em;color:var(--fg-strong)}
+  .count-chip{display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border-radius:var(--radius-xs);
+    background:var(--canvas-soft);border:1px solid var(--line-soft);font-family:var(--font-mono);font-size:11px;font-weight:500;
+    color:var(--faint);font-variant-numeric:tabular-nums}
+  .head__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;font-size:12px;color:var(--subtle)}
+  .head__meta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .head__actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+
+  /* filter bar */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+  .segment{display:inline-flex;gap:1px;padding:2px;background:var(--canvas-soft);border:1px solid var(--line-soft);border-radius:var(--radius-md)}
+  .seg{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 10px;border-radius:var(--radius);font-size:12px;
+    font-weight:510;color:var(--muted);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease)}
+  .seg:hover{color:var(--fg-strong)}
+  .seg--active{color:var(--fg-strong);background:var(--elevated);box-shadow:var(--highlight)}
+  .seg__count{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .seg--active .seg__count{color:var(--muted)}
+  .cats{display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap}
+  .cat-pill{height:24px;padding:0 10px;border-radius:var(--radius);font-size:12px;color:var(--subtle);background:transparent;border:0;cursor:pointer;transition:color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .cat-pill:hover{color:var(--fg-strong);background:var(--row-hover)}
+  .cat-pill--active{color:var(--fg-strong);background:var(--row-hover)}
+  .toolbar__sort{margin-left:auto;font-size:12px;color:var(--subtle)}
+  .toolbar__sort b{color:var(--fg);font-weight:520}
+
+  /* ---------- loop list ---------- */
+  .group{margin-top:22px}
+  .group__label{display:flex;align-items:center;gap:8px;padding:0 2px 8px;font-size:10.5px;font-weight:600;letter-spacing:.04em;
+    color:var(--subtle);text-transform:uppercase}
+  .group__label .count-chip{text-transform:none;letter-spacing:0}
+  .list{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+  .row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 16px;
+    border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background var(--dur) var(--ease)}
+  .row:last-child{border-bottom:0}
+  .row:hover{background:var(--row-hover)}
+  .licon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .licon svg{width:17px;height:17px}
+  .row:hover .licon{color:var(--fg)}
+  .rmain{min-width:0}
+  .rname{display:flex;align-items:center;gap:8px;min-width:0}
+  .rname b{font-size:13.5px;font-weight:560;color:var(--fg-strong);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .rslug{font-family:var(--font-mono);font-size:11px;color:var(--faint);white-space:nowrap;flex:none}
+  .rgoal{margin-top:3px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rmeta{margin-top:5px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--faint)}
+  .rmeta .k{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .rmeta .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint)}
+  .rtrail{display:flex;align-items:center;gap:18px;flex:none}
+  .rcat{font-size:12px;color:var(--subtle);width:96px;text-align:right}
+  .rstat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;width:84px}
+  .rstat__v{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);font-variant-numeric:tabular-nums}
+  .rstat__l{font-size:10px;color:var(--faint)}
+  .runbtn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--radius);font-size:12px;
+    font-weight:520;background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);cursor:pointer;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .runbtn svg{width:11px;height:11px}
+  .runbtn:hover{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+
+  /* status pill (shared vocabulary) */
+  .pill{display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:520;width:max-content}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+  .pill--done{background:var(--success-tint);color:var(--success)}
+  .pill--failed{background:var(--danger-tint);color:var(--danger)}
+  .pill--exhausted{background:var(--warning-tint);color:var(--warning)}
+  .pill--stalled{background:var(--neutral-tint);color:var(--muted)}
+  .pill--running{background:var(--accent-tint);color:var(--accent-strong)}
+  .pill--watching{background:var(--info-tint);color:var(--info)}
+  .pill--approval{background:var(--info-tint);color:var(--info)}
+  .pill .dot--pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 34%,transparent)}55%{box-shadow:0 0 0 4px transparent}}
+  @media (prefers-reduced-motion:reduce){.dot--pulse{animation:none}}
+
+  .hide{display:none!important}
+  @media(max-width:920px){.rtrail{gap:12px}.rcat{display:none}.rstat{width:auto}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb"><span>home</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg><b>Loops</b></div>
+      <div class="topbar__spacer"></div>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>Search loops<span class="kbd">/</span></div>
+      <a class="btn btn--ghost" href="runs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>Runs</a>
+      <a class="btn btn--primary" href="loop-create.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New from template</a>
+    </header>
+
+    <div class="scroll">
+      <div class="page">
+        <div class="head">
+          <div class="head__main">
+            <div class="head__titlerow">
+              <h1 class="head__title">Loops</h1>
+              <span class="count-chip">8</span>
+            </div>
+            <div class="head__meta">
+              <span>Reusable, guardrailed cycles that pursue a goal until it's verified.</span>
+              <span class="dotsep"></span>
+              <span>workspace home</span>
+              <span class="dotsep"></span>
+              <span>synced 2m ago</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="segment" role="tablist" aria-label="Filter by kind">
+            <button class="seg seg--active" data-kind="all" role="tab" aria-selected="true">All <span class="seg__count">8</span></button>
+            <button class="seg" data-kind="builtin" role="tab" aria-selected="false">Built-in <span class="seg__count">6</span></button>
+            <button class="seg" data-kind="custom" role="tab" aria-selected="false">Custom <span class="seg__count">2</span></button>
+          </div>
+          <div class="cats" aria-label="Filter by category">
+            <button class="cat-pill cat-pill--active" data-cat="all">All categories</button>
+            <button class="cat-pill" data-cat="Engineering">Engineering</button>
+            <button class="cat-pill" data-cat="Operations">Operations</button>
+            <button class="cat-pill" data-cat="Evaluation">Evaluation</button>
+            <button class="cat-pill" data-cat="Content">Content</button>
+            <button class="cat-pill" data-cat="Design">Design</button>
+          </div>
+          <span class="toolbar__sort">Sorted by <b>recent activity</b></span>
+        </div>
+
+        <!-- BUILT-IN -->
+        <section class="group" data-group="builtin">
+          <div class="group__label">Built-in <span class="count-chip">6</span></div>
+          <div class="list">
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Engineering">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>software-delivery</b><span class="tag">Built-in</span><span class="rslug">agh.loop/v1</span></div>
+                <div class="rgoal">Orchestrate the tasks you already authored under .compozy/tasks: run them in dependency order, review, remediate, and verify against the project's own checks.</div>
+                <div class="rmeta"><span class="k">8 nodes</span><span class="dotsep"></span><span class="k">4 inputs</span><span class="dotsep"></span><span>iteration cap 50</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Engineering</span>
+                <span class="pill pill--done"><span class="dot"></span>done</span>
+                <div class="rstat"><span class="rstat__v">92%</span><span class="rstat__l">48 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Operations">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>reviews-watch</b><span class="tag">Built-in</span><span class="rslug">watch-source</span></div>
+                <div class="rgoal">Watch a PR for new review comments and resolve them until it's approved. Re-arms on each event; stalls if it goes quiet.</div>
+                <div class="rmeta"><span class="k">watch-source</span><span class="dotsep"></span><span class="k">2 inputs</span><span class="dotsep"></span><span>iteration cap ∞</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Operations</span>
+                <span class="pill pill--watching"><span class="dot dot--pulse"></span>watching</span>
+                <div class="rstat"><span class="rstat__v">87%</span><span class="rstat__l">21 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Evaluation">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4"/><path d="M9 3v4h6V3"/><path d="M8 13l2.5 2.5L16 10"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>eval-harness</b><span class="tag">Built-in</span><span class="rslug">agh.loop/v1</span></div>
+                <div class="rgoal">Run a rubric-graded eval over a dataset and iterate the prompt until the score clears the bar, or the iteration cap is hit.</div>
+                <div class="rmeta"><span class="k">5 nodes</span><span class="dotsep"></span><span class="k">3 inputs</span><span class="dotsep"></span><span>iteration cap 10</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Evaluation</span>
+                <span class="pill pill--exhausted"><span class="dot"></span>exhausted</span>
+                <div class="rstat"><span class="rstat__v">71%</span><span class="rstat__l">34 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Content">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>docs-sync</b><span class="tag">Built-in</span><span class="rslug">agh.loop/v1</span></div>
+                <div class="rgoal">Keep docs in sync with a code change; revise until the docs reviewer passes the diff against the style guide.</div>
+                <div class="rmeta"><span class="k">4 nodes</span><span class="dotsep"></span><span class="k">2 inputs</span><span class="dotsep"></span><span>iteration cap 10</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Content</span>
+                <span class="pill pill--done"><span class="dot"></span>done</span>
+                <div class="rstat"><span class="rstat__v">96%</span><span class="rstat__l">29 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Operations">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9l-8 13.8A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>incident-triage</b><span class="tag">Built-in</span><span class="rslug">watch-source</span></div>
+                <div class="rgoal">Watch an alert channel; triage incoming alerts and draft a runbook update for human approval before posting.</div>
+                <div class="rmeta"><span class="k">watch-source</span><span class="dotsep"></span><span class="k">2 inputs</span><span class="dotsep"></span><span>human gate</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Operations</span>
+                <span class="pill pill--running"><span class="dot dot--pulse"></span>running</span>
+                <div class="rstat"><span class="rstat__v">83%</span><span class="rstat__l">17 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="builtin" data-cat="Design">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="13" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="14" r="2.5"/><path d="M12 22a3 3 0 0 1 0-6 2 2 0 0 0 0-4 9 9 0 1 0 0-2"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>design-audit</b><span class="tag">Built-in</span><span class="rslug">agh.loop/v1</span></div>
+                <div class="rgoal">Audit a UI surface against the design system and produce a prioritized fix list with annotated screenshots.</div>
+                <div class="rmeta"><span class="k">3 nodes</span><span class="dotsep"></span><span class="k">2 inputs</span><span class="dotsep"></span><span>iteration cap 10</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Design</span>
+                <span class="pill pill--stalled"><span class="dot"></span>stalled</span>
+                <div class="rstat"><span class="rstat__v">64%</span><span class="rstat__l">11 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+          </div>
+        </section>
+
+        <!-- CUSTOM -->
+        <section class="group" data-group="custom">
+          <div class="group__label">Custom <span class="count-chip">2</span></div>
+          <div class="list">
+
+            <a class="row" href="loop-detail.html" data-kind="custom" data-cat="Engineering">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M4 11h16"/><circle cx="8" cy="18.5" r="1.5"/><circle cx="16" cy="18.5" r="1.5"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>acme-release-train</b><span class="tag">Fork</span><span class="rslug">← software-delivery</span></div>
+                <div class="rgoal">Batch-ship a milestone's tasks with a mandatory human merge gate and a stricter token budget.</div>
+                <div class="rmeta"><span class="k">8 nodes</span><span class="dotsep"></span><span class="k">3 inputs</span><span class="dotsep"></span><span>human gate</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Engineering</span>
+                <span class="pill pill--failed"><span class="dot"></span>failed</span>
+                <div class="rstat"><span class="rstat__v">78%</span><span class="rstat__l">9 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+            <a class="row" href="loop-detail.html" data-kind="custom" data-cat="Content">
+              <span class="licon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+              <div class="rmain">
+                <div class="rname"><b>weekly-changelog</b><span class="tag">Fork</span><span class="rslug">← docs-sync</span></div>
+                <div class="rgoal">Summarize the week's merged PRs into a publishable changelog, revised until the editor agent signs off.</div>
+                <div class="rmeta"><span class="k">4 nodes</span><span class="dotsep"></span><span class="k">2 inputs</span><span class="dotsep"></span><span>iteration cap 10</span></div>
+              </div>
+              <div class="rtrail">
+                <span class="rcat">Content</span>
+                <span class="pill pill--done"><span class="dot"></span>done</span>
+                <div class="rstat"><span class="rstat__v">100%</span><span class="rstat__l">6 runs · 30d</span></div>
+                <span class="runbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>Run</span>
+              </div>
+            </a>
+
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var segs   = Array.prototype.slice.call(document.querySelectorAll('.seg'));
+    var cats   = Array.prototype.slice.call(document.querySelectorAll('.cat-pill'));
+    var rows   = Array.prototype.slice.call(document.querySelectorAll('.row'));
+    var groups = Array.prototype.slice.call(document.querySelectorAll('.group'));
+    var kind='all', cat='all';
+
+    function apply(){
+      rows.forEach(function(r){
+        var okKind = kind==='all' || r.getAttribute('data-kind')===kind;
+        var okCat  = cat==='all'  || r.getAttribute('data-cat')===cat;
+        r.classList.toggle('hide', !(okKind && okCat));
+      });
+      groups.forEach(function(g){
+        var visible = g.querySelectorAll('.row:not(.hide)').length;
+        g.classList.toggle('hide', visible===0);
+      });
+    }
+    segs.forEach(function(s){ s.addEventListener('click', function(){
+      segs.forEach(function(x){x.classList.remove('seg--active');x.setAttribute('aria-selected','false');});
+      s.classList.add('seg--active'); s.setAttribute('aria-selected','true');
+      kind=s.getAttribute('data-kind'); apply();
+    });});
+    cats.forEach(function(c){ c.addEventListener('click', function(){
+      cats.forEach(function(x){x.classList.remove('cat-pill--active');});
+      c.classList.add('cat-pill--active'); cat=c.getAttribute('data-cat'); apply();
+    });});
+
+    document.querySelectorAll('.runbtn').forEach(function(b){
+      b.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.location.href='loop-run-form.html'; });
+    });
+  })();
+</script>
+</body>
+</html>

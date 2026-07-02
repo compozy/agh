@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // taskRunColumns lists every task_runs column in storage order so the rebuild copy is
 // explicit (never relies on SELECT * ordering). Keep in sync with the task_runs schema.
 const taskRunColumns = `id, task_id, status, attempt, previous_run_id, failure_kind, ` +
 	`claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key, ` +
-	`network_channel, queued_at, claimed_at, started_at, ended_at, error, metadata_json, ` +
+	`network_channel, designation_group_id, queued_at, claimed_at, started_at, ended_at, error, metadata_json, ` +
 	`result_json, summary, claimed_agent_name, claimed_peer_id, terminalized_by_session_id, ` +
 	`terminalized_by_agent_name, terminalized_by_peer_id, terminalized_by_actor_kind, ` +
 	`terminalized_by_actor_ref, review_required, review_request_round, review_policy_snapshot, ` +
@@ -59,10 +60,18 @@ func migrateDropTaskRunStatusCheck(ctx context.Context, conn *sql.Conn) (err err
 	if err != nil {
 		return err
 	}
+	hasDesignationGroupID, err := taskRunColumnExists(ctx, conn, "designation_group_id")
+	if err != nil {
+		return err
+	}
+	copyColumns := taskRunColumns
+	if !hasDesignationGroupID {
+		copyColumns = taskRunColumnsWithoutDesignationGroup()
+	}
 
 	statements := []string{
-		taskRunsWithoutStatusCheckCreateStatement(),
-		`INSERT INTO task_runs_new (` + taskRunColumns + `) SELECT ` + taskRunColumns + ` FROM task_runs;`,
+		taskRunsWithoutStatusCheckCreateStatement(hasDesignationGroupID),
+		`INSERT INTO task_runs_new (` + copyColumns + `) SELECT ` + copyColumns + ` FROM task_runs;`,
 		`DROP TABLE task_runs;`,
 		`ALTER TABLE task_runs_new RENAME TO task_runs;`,
 	}
@@ -114,8 +123,52 @@ func captureTaskRunIndexDDL(ctx context.Context, tx *sql.Tx) (ddl []string, err 
 	return ddl, nil
 }
 
-func taskRunsWithoutStatusCheckCreateStatement() string {
-	return `CREATE TABLE task_runs_new (
+func taskRunColumnExists(ctx context.Context, queryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, columnName string) (exists bool, err error) {
+	rows, err := queryer.QueryContext(ctx, `PRAGMA table_info(task_runs)`)
+	if err != nil {
+		return false, fmt.Errorf("store: inspect task_runs columns: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("store: close task_runs column rows: %w", closeErr)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	target := strings.TrimSpace(columnName)
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &pk); err != nil {
+			return false, fmt.Errorf("store: scan task_runs column: %w", err)
+		}
+		if strings.TrimSpace(name) == target {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("store: iterate task_runs columns: %w", err)
+	}
+	return false, nil
+}
+
+func taskRunColumnsWithoutDesignationGroup() string {
+	return strings.Replace(taskRunColumns, "designation_group_id, ", "", 1)
+}
+
+func taskRunsWithoutStatusCheckCreateStatement(hasDesignationGroupID bool) string {
+	statement := `CREATE TABLE task_runs_new (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 		status          TEXT NOT NULL,
@@ -139,6 +192,7 @@ func taskRunsWithoutStatusCheckCreateStatement() string {
 		origin_ref      TEXT NOT NULL,
 		idempotency_key TEXT,
 		network_channel TEXT,
+		designation_group_id TEXT NOT NULL DEFAULT '',
 		queued_at       TEXT NOT NULL,
 		claimed_at      TEXT,
 		started_at      TEXT,
@@ -178,4 +232,8 @@ func taskRunsWithoutStatusCheckCreateStatement() string {
 		),
 		CHECK (status <> 'queued' OR session_id IS NULL)
 	);`
+	if hasDesignationGroupID {
+		return statement
+	}
+	return strings.Replace(statement, "\n\t\tdesignation_group_id TEXT NOT NULL DEFAULT '',", "", 1)
 }

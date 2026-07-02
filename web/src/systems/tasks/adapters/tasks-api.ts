@@ -17,6 +17,8 @@ import type {
   CreateTaskRequest,
   EnqueueTaskRunRequest,
   FailTaskRunRequest,
+  FanOutTaskRunsRequest,
+  FanOutTaskRunsResponse,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
@@ -516,6 +518,31 @@ export async function enqueueTaskRun(
   }
 
   return requireResponseData(data, response, `Failed to enqueue run for task "${id}"`).run;
+}
+
+export async function fanOutTaskRuns(
+  id: string,
+  body: FanOutTaskRunsRequest,
+  signal?: AbortSignal
+): Promise<FanOutTaskRunsResponse> {
+  const { data, error, response } = await apiClient.POST("/api/tasks/{id}/runs/fan-out", {
+    params: { path: { id } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to fan out runs for task "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to fan out runs for task "${id}"`);
 }
 
 export async function getTaskTimeline(

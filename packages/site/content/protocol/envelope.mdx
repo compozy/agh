@@ -59,10 +59,10 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 
 A conversation-bearing envelope carries one explicit conversation container:
 
-| Surface            | Required field | Container meaning                                                                                                          |
-| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `surface:"thread"` | `thread_id`    | Public N-to-N conversation inside one workspace channel. Visible to every channel member in that workspace.                |
-| `surface:"direct"` | `direct_id`    | Restricted two-party conversation inside one workspace channel. Visible to the two room peers and the daemon's audit path. |
+| Surface            | Required field | Container meaning                                                                                                                                        |
+| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surface:"thread"` | `thread_id`    | Public N-to-N conversation inside one workspace channel. Readable through channel-scoped history; prompt delivery is participant-bounded in AGH Runtime. |
+| `surface:"direct"` | `direct_id`    | Restricted two-party conversation inside one workspace channel. Visible to the two room peers and the daemon's audit path.                               |
 
 `thread_id` and `direct_id` are mutually exclusive on a single envelope. Setting both is a
 validation failure.
@@ -75,6 +75,10 @@ room observe the same `direct_id`.
 Direct rooms describe restricted runtime visibility — not cryptographic privacy. RFC 004 Trust Mode
 signs `surface`, `thread_id`, `direct_id`, and `work_id` when present, but signing covers integrity
 and authenticity, not confidentiality.
+
+AGH Runtime records public-thread participants from senders and directed `to` targets. A
+non-directed thread envelope is not treated as a channel-wide prompt fan-out; the runtime delivers it
+only to recorded participants for that thread.
 
 `greet` and `whois` are discovery messages. They MUST NOT carry `surface`, `thread_id`, `direct_id`,
 or `work_id`. Implementations MUST reject discovery envelopes that include any of those fields.

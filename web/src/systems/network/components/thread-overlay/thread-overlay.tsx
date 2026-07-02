@@ -5,7 +5,7 @@ import { ConversationError } from "../empty-states/conversation-error";
 import { ThreadEmpty } from "../empty-states/thread-empty";
 import { useMessageCopyActions } from "../timeline/use-message-copy-actions";
 import { WorkBanner } from "../work/work-banner";
-import { ThreadOverlayHeader } from "./thread-overlay-header";
+import { ThreadOverlayHeader, ThreadTaskLinks } from "./thread-overlay-header";
 import { ThreadOverlayReplies } from "./thread-overlay-replies";
 import { ThreadOverlayRoot } from "./thread-overlay-root";
 import { useThreadOverlayView } from "./use-thread-overlay-view";
@@ -46,8 +46,11 @@ export function ThreadOverlay({
         workspaceId={workspaceId}
         channel={channel}
         detail={overlay.detail}
+        rootMessageId={overlay.rootMessage?.message_id ?? null}
+        selfPeerId={session?.peerId ?? null}
         threadId={threadId}
       />
+      <ThreadTaskLinks links={overlay.detail?.task_links ?? []} />
       {detailError ? (
         <div className="flex flex-1 items-center justify-center px-5 py-10" role="alert">
           <ConversationError

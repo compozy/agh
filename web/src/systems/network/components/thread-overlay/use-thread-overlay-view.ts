@@ -48,6 +48,7 @@ export function useThreadOverlayView({
         sessionId: session.session.sessionId,
         peerFrom: session.session.peerId,
         text: message.text ?? "",
+        mentions: message.mentions ?? [],
         displayName: session.session.displayName,
       };
     },

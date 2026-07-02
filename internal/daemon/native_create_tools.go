@@ -13,10 +13,22 @@ import (
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
+const nativeNetworkChannelUpdateRequiredFields = "purpose, fanout_policy, or coordinator_peer_id"
+
 type networkChannelCreateInput struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Purpose     string `json:"purpose"`
+	WorkspaceID       string `json:"workspace_id"`
+	Channel           string `json:"channel"`
+	Purpose           string `json:"purpose"`
+	FanoutPolicy      string `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID string `json:"coordinator_peer_id,omitempty"`
+}
+
+type networkChannelUpdateInput struct {
+	WorkspaceID       string  `json:"workspace_id"`
+	Channel           string  `json:"channel"`
+	Purpose           *string `json:"purpose,omitempty"`
+	FanoutPolicy      *string `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID *string `json:"coordinator_peer_id,omitempty"`
 }
 
 type agentCreateInput struct {
@@ -52,23 +64,79 @@ func (n *daemonNativeTools) networkChannelCreate(
 	if purpose == "" {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "purpose")
 	}
+	fanoutPolicy := store.NormalizeNetworkFanoutPolicy(input.FanoutPolicy)
+	if err := store.ValidateNetworkFanoutPolicy(fanoutPolicy); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
 	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	entry := store.NetworkChannelEntry{
-		Channel:     channel,
-		WorkspaceID: workspaceID,
-		Purpose:     purpose,
-		CreatedBy:   strings.TrimSpace(scope.AgentName),
+		Channel:           channel,
+		WorkspaceID:       workspaceID,
+		Purpose:           purpose,
+		FanoutPolicy:      fanoutPolicy,
+		CoordinatorPeerID: strings.TrimSpace(input.CoordinatorPeerID),
+		CreatedBy:         strings.TrimSpace(scope.AgentName),
 	}
 	if err := n.deps.NetworkStore.WriteNetworkChannel(ctx, entry); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	return structuredNetworkResult(
-		map[string]any{"channel": channel, "workspace_id": workspaceID, "purpose": purpose},
+		map[string]any{
+			"channel":             channel,
+			"workspace_id":        workspaceID,
+			"purpose":             purpose,
+			"fanout_policy":       fanoutPolicy,
+			"coordinator_peer_id": entry.CoordinatorPeerID,
+		},
 		"channel "+channel,
 	)
+}
+
+func (n *daemonNativeTools) networkChannelUpdate(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkChannelUpdateInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if input.Purpose == nil && input.FanoutPolicy == nil && input.CoordinatorPeerID == nil {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, nativeNetworkChannelUpdateRequiredFields)
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel}
+	entry, err := n.deps.NetworkStore.GetNetworkChannel(ctx, ref)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if input.Purpose != nil {
+		entry.Purpose = strings.TrimSpace(*input.Purpose)
+	}
+	if input.FanoutPolicy != nil {
+		policy := strings.TrimSpace(*input.FanoutPolicy)
+		entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(policy)
+		if err := store.ValidateNetworkFanoutPolicy(entry.FanoutPolicy); err != nil {
+			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		}
+	}
+	if input.CoordinatorPeerID != nil {
+		entry.CoordinatorPeerID = strings.TrimSpace(*input.CoordinatorPeerID)
+	}
+	if err := n.deps.NetworkStore.WriteNetworkChannel(ctx, entry); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	return structuredNetworkResult(map[string]any{"channel": entry}, "channel "+channel)
 }
 
 func (n *daemonNativeTools) agentCreate(

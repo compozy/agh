@@ -39,11 +39,17 @@ const (
 	toolSurfaceNetworkGreetIntervalPath                           = "network.greet_interval"
 	toolSurfaceNetworkMaxPayloadPath                              = "network.max_payload"
 	toolSurfaceNetworkMaxReplayAgePath                            = "network.max_replay_age"
+	toolSurfaceNetworkActivationTopKPath                          = "network.activation_top_k"
+	toolSurfaceNetworkDigestFlushIntervalPath                     = "network.digest_flush_interval"
+	toolSurfaceNetworkDigestMaxEnvelopesPath                      = "network.digest_max_envelopes"
+	toolSurfaceNetworkResponseGuidanceMaxBytesPath                = "network.response_guidance_max_bytes"
+	toolSurfaceNetworkDeliveryStructuredBodyMaxBytesPath          = "network.delivery_structured_body_max_bytes"
 	toolSurfacePermissionsKey                                     = "permissions"
 	toolSurfaceTaskOrchestrationContextBodyMaxBytesPath           = "task.orchestration.context_body_max_bytes"
 	toolSurfaceTaskOrchestrationContextPriorAttemptsPath          = "task.orchestration.context_prior_attempts"
 	toolSurfaceTaskOrchestrationContextRecentEventsPath           = "task.orchestration.context_recent_events"
 	toolSurfaceTaskOrchestrationDefaultMaxRuntimePath             = "task.orchestration.default_max_runtime"
+	toolSurfaceTaskOrchestrationDesignatedRunMaxPath              = "task.orchestration.designated_run_max"
 	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath     = "task.orchestration.profile.default_sandbox_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath      = "task.orchestration.profile.default_worker_mode"
@@ -234,6 +240,11 @@ var (
 		toolSurfaceNetworkGreetIntervalPath:                           ConfigValueInt,
 		toolSurfaceNetworkMaxReplayAgePath:                            ConfigValueInt,
 		"network.max_queue_depth":                                     ConfigValueInt,
+		toolSurfaceNetworkActivationTopKPath:                          ConfigValueInt,
+		toolSurfaceNetworkDigestFlushIntervalPath:                     ConfigValueDuration,
+		toolSurfaceNetworkDigestMaxEnvelopesPath:                      ConfigValueInt,
+		toolSurfaceNetworkResponseGuidanceMaxBytesPath:                ConfigValueInt,
+		toolSurfaceNetworkDeliveryStructuredBodyMaxBytesPath:          ConfigValueInt,
 		toolSurfaceTaskOrchestrationSummaryMaxBytesPath:               ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextBodyMaxBytesPath:           ConfigValueInt,
 		toolSurfaceTaskOrchestrationContextPriorAttemptsPath:          ConfigValueInt,
@@ -242,6 +253,7 @@ var (
 		toolSurfaceTaskOrchestrationSchedulerBadTickThresholdPath:     ConfigValueInt,
 		toolSurfaceTaskOrchestrationSchedulerBadTickCooldownPath:      ConfigValueDuration,
 		toolSurfaceTaskOrchestrationDefaultMaxRuntimePath:             ConfigValueDuration,
+		toolSurfaceTaskOrchestrationDesignatedRunMaxPath:              ConfigValueInt,
 		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath:      ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath:     ConfigValueString,

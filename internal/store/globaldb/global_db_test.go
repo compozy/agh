@@ -599,6 +599,31 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_execution_profile_runtime_mode",
 			checksum: "2026-05-31-add-task-execution-profile-runtime-mode",
 		},
+		{
+			version:  43,
+			name:     "add_network_thread_peer_token_stats",
+			checksum: "2026-07-01-add-network-thread-peer-token-stats",
+		},
+		{
+			version:  44,
+			name:     "add_network_activation_policy_mentions",
+			checksum: "2026-07-01-add-network-activation-policy-mentions",
+		},
+		{
+			version:  45,
+			name:     "add_network_subscriptions_guidance_state",
+			checksum: "2026-07-01-add-network-subscriptions-guidance-state",
+		},
+		{
+			version:  46,
+			name:     "add_network_task_thread_origins",
+			checksum: "2026-07-01-add-network-task-thread-origins",
+		},
+		{
+			version:  47,
+			name:     "add_task_run_designations",
+			checksum: "2026-07-01-add-task-run-designations",
+		},
 	}
 }
 

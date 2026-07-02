@@ -47,6 +47,10 @@ type stubClient struct {
 	networkPeersFn               func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn            func(context.Context, string) ([]NetworkChannelRecord, error)
 	createNetworkChannelFn       func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
+	updateNetworkChannelFn       func(context.Context, string, string, UpdateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
+	listNetworkSubscriptionsFn   func(context.Context, NetworkSubscriptionsQuery) ([]NetworkSubscriptionRecord, error)
+	setNetworkSubscriptionFn     func(context.Context, string, string, NetworkSubscriptionRequest) (NetworkSubscriptionRecord, error)
+	deleteNetworkSubscriptionFn  func(context.Context, string, string, string, string) error
 	networkThreadsFn             func(context.Context, NetworkThreadsQuery) ([]NetworkThreadRecord, error)
 	networkThreadFn              func(context.Context, string, string, string) (NetworkThreadRecord, error)
 	networkThreadMessagesFn      func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
@@ -57,6 +61,7 @@ type stubClient struct {
 	networkWorkFn                func(context.Context, string, string) (NetworkWorkRecord, error)
 	networkSendFn                func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
 	networkInboxFn               func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
+	promoteNetworkThreadTaskFn   func(context.Context, string, string, string, PromoteNetworkThreadTaskRequest) (PromoteNetworkThreadTaskRecord, error)
 	listExtensionsFn             func(context.Context) ([]ExtensionRecord, error)
 	searchExtensionMarketplaceFn func(context.Context, string, string, int) ([]ExtensionMarketplaceRecord, error)
 	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
@@ -271,6 +276,7 @@ type stubClient struct {
 	addTaskDependencyFn    func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
 	removeTaskDependencyFn func(context.Context, string, string) (TaskDetailRecord, error)
 	enqueueTaskRunFn       func(context.Context, string, EnqueueTaskRunRequest) (TaskRunRecord, error)
+	fanOutTaskRunsFn       func(context.Context, string, FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	listTaskRunsFn         func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
 	getTaskRunFn           func(context.Context, string) (TaskRunDetailRecord, error)
 	claimTaskRunFn         func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
@@ -547,6 +553,53 @@ func (s *stubClient) CreateNetworkChannel(
 	return NetworkChannelDetailRecord{}, errors.New("unexpected CreateNetworkChannel call")
 }
 
+func (s *stubClient) UpdateNetworkChannel(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	request UpdateNetworkChannelRequest,
+) (NetworkChannelDetailRecord, error) {
+	if s.updateNetworkChannelFn != nil {
+		return s.updateNetworkChannelFn(ctx, workspaceRef, channel, request)
+	}
+	return NetworkChannelDetailRecord{}, errors.New("unexpected UpdateNetworkChannel call")
+}
+
+func (s *stubClient) ListNetworkSubscriptions(
+	ctx context.Context,
+	query NetworkSubscriptionsQuery,
+) ([]NetworkSubscriptionRecord, error) {
+	if s.listNetworkSubscriptionsFn != nil {
+		return s.listNetworkSubscriptionsFn(ctx, query)
+	}
+	return nil, errors.New("unexpected ListNetworkSubscriptions call")
+}
+
+func (s *stubClient) SetNetworkSubscription(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	request NetworkSubscriptionRequest,
+) (NetworkSubscriptionRecord, error) {
+	if s.setNetworkSubscriptionFn != nil {
+		return s.setNetworkSubscriptionFn(ctx, workspaceRef, channel, request)
+	}
+	return NetworkSubscriptionRecord{}, errors.New("unexpected SetNetworkSubscription call")
+}
+
+func (s *stubClient) DeleteNetworkSubscription(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	peerID string,
+	threadID string,
+) error {
+	if s.deleteNetworkSubscriptionFn != nil {
+		return s.deleteNetworkSubscriptionFn(ctx, workspaceRef, channel, peerID, threadID)
+	}
+	return errors.New("unexpected DeleteNetworkSubscription call")
+}
+
 func (s *stubClient) NetworkThreads(
 	ctx context.Context,
 	query NetworkThreadsQuery,
@@ -649,6 +702,19 @@ func (s *stubClient) NetworkInbox(
 		return s.networkInboxFn(ctx, workspaceRef, sessionID)
 	}
 	return nil, errors.New("unexpected NetworkInbox call")
+}
+
+func (s *stubClient) PromoteNetworkThreadTask(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	threadID string,
+	request PromoteNetworkThreadTaskRequest,
+) (PromoteNetworkThreadTaskRecord, error) {
+	if s.promoteNetworkThreadTaskFn != nil {
+		return s.promoteNetworkThreadTaskFn(ctx, workspaceRef, channel, threadID, request)
+	}
+	return PromoteNetworkThreadTaskRecord{}, errors.New("unexpected PromoteNetworkThreadTask call")
 }
 
 func (s *stubClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
@@ -2385,6 +2451,17 @@ func (s *stubClient) EnqueueTaskRun(
 		return s.enqueueTaskRunFn(ctx, id, request)
 	}
 	return TaskRunRecord{}, errors.New("unexpected EnqueueTaskRun call")
+}
+
+func (s *stubClient) FanOutTaskRuns(
+	ctx context.Context,
+	id string,
+	request FanOutTaskRunsRequest,
+) (FanOutTaskRunsRecord, error) {
+	if s.fanOutTaskRunsFn != nil {
+		return s.fanOutTaskRunsFn(ctx, id, request)
+	}
+	return FanOutTaskRunsRecord{}, errors.New("unexpected FanOutTaskRuns call")
 }
 
 func (s *stubClient) ListTaskRuns(

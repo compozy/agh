@@ -288,6 +288,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       local_peer_count: 6,
       message_count: 34,
       peer_count: 8,
+      fanout_policy: "capability_match",
+      coordinator_peer_id: ctoPeerCard.peer_id,
       purpose:
         "Coordinate launch command, pricing approvals, engineering sign-off, and merchant-risk decisions for Northstar Pay Checkout.",
       remote_peer_count: 2,
@@ -447,6 +449,8 @@ export const networkChannelFixture: NetworkChannel = {
   local_peer_count: 6,
   message_count: 34,
   peer_count: 8,
+  fanout_policy: "capability_match",
+  coordinator_peer_id: ctoPeerCard.peer_id,
   peers: [
     {
       workspace_id: storyWorkspaceIds.hq,
@@ -1224,6 +1228,16 @@ export const networkThreadDetailFixture: NetworkThreadDetail = {
   opened_session_id: storySessionIds.product,
   participant_count: 6,
   root_message_id: "msg_launch_001",
+  task_links: [
+    {
+      channel: storyHeroNetworkChannel,
+      digest: "Launch command brief",
+      origin_message_id: "msg_launch_001",
+      task_id: "task_story_thread_promoted",
+      thread_id: "thread_launch_command",
+      workspace_id: storyWorkspaceIds.hq,
+    },
+  ],
   thread_id: "thread_launch_command",
   title: "Launch command brief",
 };

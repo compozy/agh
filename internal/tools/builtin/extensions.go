@@ -74,7 +74,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{extensionsExtensionsKey, "update", extensionsMarketplaceKey, extensionsMutationKey},
+		[]string{extensionsExtensionsKey, descriptorKeywordUpdate, extensionsMarketplaceKey, extensionsMutationKey},
 		[]string{"update extension", "upgrade extension"},
 	),
 	nativeExtensionDescriptor(

@@ -104,6 +104,13 @@ In the AGH reference implementation:
 - Overflow drops the oldest queued item.
 - A session that is currently prompting receives queued network messages after the turn.
 - A delivered prompt includes the envelope and reply guidance for the local agent.
+- Directed thread messages are delivered to the addressed peer and record the target as a thread
+  participant.
+- Non-directed thread messages prefer peers already recorded as participants in that thread.
+  Explicit `mentions` force delivery to named peers, and the channel `fanout_policy` controls
+  bounded activation when AGH needs to add peers beyond the participant set.
+- Thread or channel delivery preferences can compact delivery to `digest` mode or suppress prompt
+  delivery with `mute`; durable history remains readable through the control plane.
 
 Other runtimes MAY expose inbound messages differently as long as they preserve the protocol
 semantics.

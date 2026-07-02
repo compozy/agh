@@ -758,6 +758,7 @@ type NetworkSendRequest struct {
 	DirectID    string                     `json:"direct_id,omitempty"`
 	Kind        string                     `json:"kind"`
 	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
 	Body        json.RawMessage            `json:"body"`
 	WorkID      string                     `json:"work_id,omitempty"`
 	ReplyTo     string                     `json:"reply_to,omitempty"`
@@ -801,6 +802,7 @@ type NetworkSendPayload struct {
 	DirectID    string                     `json:"direct_id,omitempty"`
 	Kind        string                     `json:"kind"`
 	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
 	WorkID      string                     `json:"work_id,omitempty"`
 	ReplyTo     string                     `json:"reply_to,omitempty"`
 	TraceID     string                     `json:"trace_id,omitempty"`
@@ -811,10 +813,75 @@ type NetworkSendPayload struct {
 
 // CreateNetworkChannelRequest is the shared network channel creation payload.
 type CreateNetworkChannelRequest struct {
-	Channel     string   `json:"channel"`
-	WorkspaceID string   `json:"workspace_id"`
-	Purpose     string   `json:"purpose"`
-	AgentNames  []string `json:"agent_names"`
+	Channel           string   `json:"channel"`
+	WorkspaceID       string   `json:"workspace_id"`
+	Purpose           string   `json:"purpose"`
+	FanoutPolicy      string   `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID string   `json:"coordinator_peer_id,omitempty"`
+	AgentNames        []string `json:"agent_names"`
+}
+
+// UpdateNetworkChannelRequest captures mutable channel delivery policy fields.
+type UpdateNetworkChannelRequest struct {
+	Purpose           *string `json:"purpose,omitempty"`
+	FanoutPolicy      *string `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID *string `json:"coordinator_peer_id,omitempty"`
+}
+
+// NetworkSubscriptionRequest captures one peer delivery preference mutation.
+type NetworkSubscriptionRequest struct {
+	ThreadID       string   `json:"thread_id,omitempty"`
+	PeerID         string   `json:"peer_id"`
+	Mode           string   `json:"mode"`
+	KeywordFilters []string `json:"keyword_filters,omitempty"`
+}
+
+// NetworkSubscriptionPayload exposes one peer delivery preference.
+type NetworkSubscriptionPayload struct {
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	Channel        string     `json:"channel"`
+	ThreadID       string     `json:"thread_id,omitempty"`
+	PeerID         string     `json:"peer_id"`
+	Mode           string     `json:"mode"`
+	KeywordFilters []string   `json:"keyword_filters,omitempty"`
+	CreatedAt      *time.Time `json:"created_at,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+}
+
+// PromoteNetworkThreadTaskRequest promotes a thread message into a durable task.
+type PromoteNetworkThreadTaskRequest struct {
+	OriginMessageID string          `json:"origin_message_id"`
+	Title           string          `json:"title,omitempty"`
+	Description     string          `json:"description,omitempty"`
+	Priority        string          `json:"priority,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
+}
+
+// NetworkTaskThreadOriginPayload links a task back to a source thread.
+type NetworkTaskThreadOriginPayload struct {
+	TaskID           string     `json:"task_id"`
+	WorkspaceID      string     `json:"workspace_id,omitempty"`
+	Channel          string     `json:"channel"`
+	ThreadID         string     `json:"thread_id"`
+	OriginMessageID  string     `json:"origin_message_id"`
+	Digest           string     `json:"digest"`
+	SourceMessageIDs []string   `json:"source_message_ids,omitempty"`
+	CreatedAt        *time.Time `json:"created_at,omitempty"`
+	UpdatedAt        *time.Time `json:"updated_at,omitempty"`
+}
+
+// TaskFanOutRunDesignationRequest describes one designated sibling run.
+type TaskFanOutRunDesignationRequest struct {
+	Brief          string          `json:"brief"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+}
+
+// FanOutTaskRunsRequest captures one designated fan-out enqueue request.
+type FanOutTaskRunsRequest struct {
+	NetworkChannel string                            `json:"network_channel,omitempty"`
+	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
 }
 
 // NetworkCapabilityBriefPayload is the shared brief discovery projection for
@@ -891,6 +958,8 @@ type NetworkChannelPayload struct {
 	Channel                    string     `json:"channel"`
 	WorkspaceID                string     `json:"workspace_id,omitempty"`
 	Purpose                    string     `json:"purpose,omitempty"`
+	FanoutPolicy               string     `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID          string     `json:"coordinator_peer_id,omitempty"`
 	CreatedBy                  string     `json:"created_by,omitempty"`
 	CreatedAt                  *time.Time `json:"created_at,omitempty"`
 	PeerCount                  int        `json:"peer_count"`
@@ -918,6 +987,7 @@ type NetworkEnvelopePayload struct {
 	DirectID    *string                    `json:"direct_id,omitempty"`
 	From        string                     `json:"from"`
 	To          *string                    `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
 	WorkID      *string                    `json:"work_id,omitempty"`
 	ReplyTo     *string                    `json:"reply_to,omitempty"`
 	TraceID     *string                    `json:"trace_id,omitempty"`
@@ -934,6 +1004,8 @@ type NetworkChannelDetailPayload struct {
 	Channel                    string                           `json:"channel"`
 	WorkspaceID                string                           `json:"workspace_id,omitempty"`
 	Purpose                    string                           `json:"purpose,omitempty"`
+	FanoutPolicy               string                           `json:"fanout_policy,omitempty"`
+	CoordinatorPeerID          string                           `json:"coordinator_peer_id,omitempty"`
 	CreatedBy                  string                           `json:"created_by,omitempty"`
 	CreatedAt                  *time.Time                       `json:"created_at,omitempty"`
 	PeerCount                  int                              `json:"peer_count"`
@@ -969,6 +1041,7 @@ type NetworkConversationMessagePayload struct {
 	Direction          string          `json:"direction"`
 	PeerFrom           string          `json:"peer_from"`
 	PeerTo             string          `json:"peer_to,omitempty"`
+	Mentions           []string        `json:"mentions,omitempty"`
 	DisplayName        string          `json:"display_name,omitempty"`
 	SessionID          string          `json:"session_id,omitempty"`
 	Local              bool            `json:"local,omitempty"`
@@ -979,6 +1052,7 @@ type NetworkConversationMessagePayload struct {
 	Intent             string          `json:"intent,omitempty"`
 	Text               string          `json:"text,omitempty"`
 	PreviewText        string          `json:"preview_text,omitempty"`
+	SizeBytes          int64           `json:"size_bytes,omitempty"`
 	PresenceCount      int             `json:"presence_count,omitempty"`
 	PresenceStartedAt  *time.Time      `json:"presence_started_at,omitempty"`
 	PresenceLastSeenAt *time.Time      `json:"presence_last_seen_at,omitempty"`
@@ -988,19 +1062,37 @@ type NetworkConversationMessagePayload struct {
 
 // NetworkThreadSummaryPayload is the public-thread list/detail projection.
 type NetworkThreadSummaryPayload struct {
-	WorkspaceID        string     `json:"workspace_id,omitempty"`
-	Channel            string     `json:"channel"`
-	ThreadID           string     `json:"thread_id"`
-	RootMessageID      string     `json:"root_message_id"`
-	Title              string     `json:"title,omitempty"`
-	OpenedByPeerID     string     `json:"opened_by_peer_id,omitempty"`
-	OpenedSessionID    string     `json:"opened_session_id,omitempty"`
-	OpenedAt           *time.Time `json:"opened_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	MessageCount       int        `json:"message_count"`
-	ParticipantCount   int        `json:"participant_count"`
-	OpenWorkCount      int        `json:"open_work_count"`
-	LastMessagePreview string     `json:"last_message_preview,omitempty"`
+	WorkspaceID        string                          `json:"workspace_id,omitempty"`
+	Channel            string                          `json:"channel"`
+	ThreadID           string                          `json:"thread_id"`
+	RootMessageID      string                          `json:"root_message_id"`
+	Title              string                          `json:"title,omitempty"`
+	OpenedByPeerID     string                          `json:"opened_by_peer_id,omitempty"`
+	OpenedSessionID    string                          `json:"opened_session_id,omitempty"`
+	OpenedAt           *time.Time                      `json:"opened_at,omitempty"`
+	LastActivityAt     *time.Time                      `json:"last_activity_at,omitempty"`
+	MessageCount       int                             `json:"message_count"`
+	ParticipantCount   int                             `json:"participant_count"`
+	OpenWorkCount      int                             `json:"open_work_count"`
+	CoordinationCost   *NetworkCoordinationCostPayload `json:"coordination_cost,omitempty"`
+	LastMessagePreview string                          `json:"last_message_preview,omitempty"`
+}
+
+// NetworkCoordinationCostPayload reports aggregate prompt delivery cost for one public thread.
+type NetworkCoordinationCostPayload struct {
+	DeliveredCount        int64 `json:"delivered_count,omitempty"`
+	PromptSizeBytes       int64 `json:"prompt_size_bytes,omitempty"`
+	EstimatedPromptTokens int64 `json:"estimated_prompt_tokens,omitempty"`
+}
+
+// NetworkThreadPeerCostPayload reports prompt delivery cost for one peer in a public thread.
+type NetworkThreadPeerCostPayload struct {
+	PeerID                string     `json:"peer_id"`
+	DeliveredCount        int64      `json:"delivered_count,omitempty"`
+	PromptSizeBytes       int64      `json:"prompt_size_bytes,omitempty"`
+	EstimatedPromptTokens int64      `json:"estimated_prompt_tokens,omitempty"`
+	FirstDeliveredAt      *time.Time `json:"first_delivered_at,omitempty"`
+	LastDeliveredAt       *time.Time `json:"last_delivered_at,omitempty"`
 }
 
 // NetworkDirectRoomPayload is the direct-room list/detail projection.
@@ -1042,10 +1134,15 @@ type NetworkDirectResolveRequest struct {
 
 // NetworkPeerMetricsPayload is the shared peer-level counter payload.
 type NetworkPeerMetricsPayload struct {
-	Sent      int64 `json:"sent,omitempty"`
-	Received  int64 `json:"received,omitempty"`
-	Rejected  int64 `json:"rejected,omitempty"`
-	Delivered int64 `json:"delivered,omitempty"`
+	Sent               int64 `json:"sent,omitempty"`
+	Received           int64 `json:"received,omitempty"`
+	Rejected           int64 `json:"rejected,omitempty"`
+	Delivered          int64 `json:"delivered,omitempty"`
+	SentSizeBytes      int64 `json:"sent_size_bytes,omitempty"`
+	ReceivedSizeBytes  int64 `json:"received_size_bytes,omitempty"`
+	RejectedSizeBytes  int64 `json:"rejected_size_bytes,omitempty"`
+	DeliveredSizeBytes int64 `json:"delivered_size_bytes,omitempty"`
+	TotalSizeBytes     int64 `json:"total_size_bytes,omitempty"`
 }
 
 // NetworkPeerDetailPayload is the shared selected-peer detail payload.

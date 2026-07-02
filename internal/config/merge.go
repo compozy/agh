@@ -468,6 +468,7 @@ type taskOrchestrationOverlay struct {
 	SchedulerBadTickCooldown  *time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         *time.Duration                  `toml:"default_max_runtime"`
 	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
+	DesignatedRunMax          *int                            `toml:"designated_run_max"`
 	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
 	Review                    taskOrchestrationReviewOverlay  `toml:"review"`
 }
@@ -496,13 +497,18 @@ type taskOrchestrationReviewOverlay struct {
 }
 
 type networkOverlay struct {
-	Enabled        *bool   `toml:"enabled"`
-	DefaultChannel *string `toml:"default_channel"`
-	Port           *int    `toml:"port"`
-	MaxPayload     *int    `toml:"max_payload"`
-	GreetInterval  *int    `toml:"greet_interval"`
-	MaxReplayAge   *int    `toml:"max_replay_age"`
-	MaxQueueDepth  *int    `toml:"max_queue_depth"`
+	Enabled                        *bool          `toml:"enabled"`
+	DefaultChannel                 *string        `toml:"default_channel"`
+	Port                           *int           `toml:"port"`
+	MaxPayload                     *int           `toml:"max_payload"`
+	GreetInterval                  *int           `toml:"greet_interval"`
+	MaxReplayAge                   *int           `toml:"max_replay_age"`
+	MaxQueueDepth                  *int           `toml:"max_queue_depth"`
+	ActivationTopK                 *int           `toml:"activation_top_k"`
+	DigestFlushInterval            *time.Duration `toml:"digest_flush_interval"`
+	DigestMaxEnvelopes             *int           `toml:"digest_max_envelopes"`
+	ResponseGuidanceMaxBytes       *int           `toml:"response_guidance_max_bytes"`
+	DeliveryStructuredBodyMaxBytes *int           `toml:"delivery_structured_body_max_bytes"`
 }
 
 type autonomyOverlay struct {
@@ -1492,6 +1498,9 @@ func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
 	if o.BridgeNotificationTimeout != nil {
 		dst.BridgeNotificationTimeout = *o.BridgeNotificationTimeout
 	}
+	if o.DesignatedRunMax != nil {
+		dst.DesignatedRunMax = *o.DesignatedRunMax
+	}
 	o.Profile.Apply(&dst.Profile)
 	o.Review.Apply(&dst.Review)
 }
@@ -1574,6 +1583,21 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 	}
 	if o.MaxQueueDepth != nil {
 		dst.MaxQueueDepth = *o.MaxQueueDepth
+	}
+	if o.ActivationTopK != nil {
+		dst.ActivationTopK = *o.ActivationTopK
+	}
+	if o.DigestFlushInterval != nil {
+		dst.DigestFlushInterval = *o.DigestFlushInterval
+	}
+	if o.DigestMaxEnvelopes != nil {
+		dst.DigestMaxEnvelopes = *o.DigestMaxEnvelopes
+	}
+	if o.ResponseGuidanceMaxBytes != nil {
+		dst.ResponseGuidanceMaxBytes = *o.ResponseGuidanceMaxBytes
+	}
+	if o.DeliveryStructuredBodyMaxBytes != nil {
+		dst.DeliveryStructuredBodyMaxBytes = *o.DeliveryStructuredBodyMaxBytes
 	}
 }
 

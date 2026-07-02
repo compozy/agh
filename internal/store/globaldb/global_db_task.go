@@ -51,7 +51,7 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 
 const taskRunSelectColumnsSQL = `id, task_id, status, attempt, previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-	network_channel, '' AS claim_token,
+	network_channel, designation_group_id, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
 	claimed_at, started_at, ended_at, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
@@ -451,7 +451,7 @@ func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 		 SET task_id = ?, status = ?, attempt = ?, previous_run_id = ?, failure_kind = ?, claimed_by_kind = ?,
 		     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
 		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
-		     claim_token = ?, claim_token_hash = ?, lease_until = ?,
+		     designation_group_id = ?, claim_token = ?, claim_token_hash = ?, lease_until = ?,
 		     heartbeat_at = ?, coordination_channel_id = ?, queued_at = ?,
 		     claimed_at = ?, started_at = ?, ended_at = ?, error = ?,
 		     metadata_json = ?, result_json = ?, review_required = ?,
@@ -471,6 +471,7 @@ func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 		run.Origin.Ref,
 		store.NullableString(run.IdempotencyKey),
 		store.NullableString(run.NetworkChannel),
+		strings.TrimSpace(run.DesignationGroupID),
 		nil,
 		store.NullableString(run.ClaimTokenHash),
 		nullableTaskTimestamp(run.LeaseUntil),
@@ -576,6 +577,7 @@ func (g *GlobalDB) listTaskRunsWithExecutor(
 		store.StringClause("status", string(normalized.Status)),
 		store.StringClause("session_id", normalized.SessionID),
 		store.StringClause("coordination_channel_id", normalized.CoordinationChannelID),
+		store.StringClause("designation_group_id", normalized.DesignationGroupID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY queued_at DESC, id DESC"
@@ -789,12 +791,15 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 		`INSERT INTO task_runs (
 			id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
 			claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-			network_channel, claim_token, claim_token_hash, lease_until,
+			network_channel, designation_group_id, claim_token, claim_token_hash, lease_until,
 			heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
 			error, metadata_json, result_json, review_required, review_request_round,
 			review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
 			continuation_reason, missing_work_json, next_round_guidance
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+		)`,
 		run.ID,
 		run.TaskID,
 		string(run.Status),
@@ -808,6 +813,7 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 		run.Origin.Ref,
 		store.NullableString(run.IdempotencyKey),
 		store.NullableString(run.NetworkChannel),
+		strings.TrimSpace(run.DesignationGroupID),
 		nil,
 		store.NullableString(run.ClaimTokenHash),
 		nullableTaskTimestamp(run.LeaseUntil),
@@ -1163,6 +1169,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&run.Origin.Ref,
 		&fields.idempotencyKey,
 		&fields.networkChannel,
+		&fields.designationGroupID,
 		&fields.claimToken,
 		&fields.claimTokenHash,
 		&fields.leaseUntilRaw,
@@ -1201,6 +1208,7 @@ type taskRunScanFields struct {
 	originKind           string
 	idempotencyKey       sql.NullString
 	networkChannel       sql.NullString
+	designationGroupID   string
 	claimToken           sql.NullString
 	claimTokenHash       sql.NullString
 	leaseUntilRaw        sql.NullString
@@ -1237,6 +1245,7 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.originKind,
 		fields.idempotencyKey,
 		fields.networkChannel,
+		fields.designationGroupID,
 		fields.claimToken,
 		fields.claimTokenHash,
 		fields.coordChannelID,
@@ -1345,6 +1354,7 @@ func assignScannedTaskRunRecord(
 	originKind string,
 	idempotencyKey sql.NullString,
 	networkChannel sql.NullString,
+	designationGroupID string,
 	claimToken sql.NullString,
 	claimTokenHash sql.NullString,
 	coordChannelID sql.NullString,
@@ -1363,6 +1373,7 @@ func assignScannedTaskRunRecord(
 	run.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
 	run.IdempotencyKey = taskNullStringValue(idempotencyKey)
 	run.NetworkChannel = taskNullStringValue(networkChannel)
+	run.DesignationGroupID = strings.TrimSpace(designationGroupID)
 	run.ClaimToken = taskNullStringValue(claimToken)
 	run.ClaimTokenHash = taskNullStringValue(claimTokenHash)
 	run.CoordinationChannelID = taskNullStringValue(coordChannelID)
@@ -1499,6 +1510,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
 	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)
 	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
@@ -1635,6 +1647,7 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
+	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	return normalized
 }
 

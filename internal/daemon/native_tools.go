@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -664,6 +665,30 @@ func (n *daemonNativeTools) networkToolBindings(
 			call:         n.networkChannelCreate,
 			availability: readAvailability,
 		},
+		toolspkg.ToolIDNetworkChannelUpdate: {
+			call:         n.networkChannelUpdate,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkSubscriptions: {
+			call:         n.networkSubscriptions,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkSubscribe: {
+			call:         n.networkSubscribe,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkMute: {
+			call:         n.networkMute,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkDigestMode: {
+			call:         n.networkDigestMode,
+			availability: readAvailability,
+		},
+		toolspkg.ToolIDNetworkUnmute: {
+			call:         n.networkUnmute,
+			availability: readAvailability,
+		},
 		toolspkg.ToolIDNetworkThreads: {
 			call:         n.networkThreads,
 			availability: readAvailability,
@@ -829,7 +854,7 @@ func (n *daemonNativeTools) taskToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 	notificationAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
+	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskList: {
 			call:         n.taskList,
 			availability: availability,
@@ -882,21 +907,53 @@ func (n *daemonNativeTools) taskToolBindings(
 			call:         n.taskExecutionProfileDelete,
 			availability: availability,
 		},
+	}
+	mergeNativeToolBindings(bindings, n.taskNotificationToolBindings(notificationAvailability))
+	mergeNativeToolBindings(bindings, n.taskNetworkToolBindings(availability))
+	return bindings
+}
+
+func mergeNativeToolBindings(
+	dst map[toolspkg.ToolID]nativeToolBinding,
+	src map[toolspkg.ToolID]nativeToolBinding,
+) {
+	maps.Copy(dst, src)
+}
+
+func (n *daemonNativeTools) taskNotificationToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDTaskNotificationSubscribe: {
 			call:         n.taskNotificationSubscribe,
-			availability: notificationAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskNotificationList: {
 			call:         n.taskNotificationList,
-			availability: notificationAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskNotificationShow: {
 			call:         n.taskNotificationShow,
-			availability: notificationAvailability,
+			availability: availability,
 		},
 		toolspkg.ToolIDTaskNotificationDelete: {
 			call:         n.taskNotificationDelete,
-			availability: notificationAvailability,
+			availability: availability,
+		},
+	}
+}
+
+func (n *daemonNativeTools) taskNetworkToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDTaskPromoteFromThread: {
+			call:         n.taskPromoteFromThread,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskFanOutRuns: {
+			call:         n.taskFanOutRuns,
+			availability: availability,
 		},
 	}
 }
@@ -1371,6 +1428,7 @@ func (n *daemonNativeTools) networkSend(
 		DirectID:    strings.TrimSpace(input.DirectID),
 		Kind:        strings.TrimSpace(input.Kind),
 		To:          strings.TrimSpace(input.To),
+		Mentions:    cloneTrimmedStrings(input.Mentions),
 		Body:        cloneJSON(input.Body),
 		WorkID:      strings.TrimSpace(input.WorkID),
 		ReplyTo:     strings.TrimSpace(input.ReplyTo),
@@ -1617,6 +1675,174 @@ func (n *daemonNativeTools) networkWork(
 	}
 	payload := core.NetworkWorkPayloadFromStore(work)
 	return structuredNetworkResult(map[string]any{"work": payload}, payload.WorkID)
+}
+
+func (n *daemonNativeTools) networkSubscriptions(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkSubscriptionsInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query := store.NetworkSubscriptionQuery{
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(input.ThreadID),
+		PeerID:      strings.TrimSpace(input.PeerID),
+		Limit:       input.Limit,
+	}
+	if query.Limit == 0 {
+		query.Limit = 100
+	}
+	if err := query.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	subscriptions, err := n.deps.NetworkStore.ListNetworkSubscriptions(ctx, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	payload := core.NetworkSubscriptionPayloadsFromStore(subscriptions)
+	return structuredNetworkResult(
+		map[string]any{"subscriptions": payload},
+		fmt.Sprintf("%d subscriptions", len(payload)),
+	)
+}
+
+func (n *daemonNativeTools) networkSubscribe(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeFull))
+}
+
+func (n *daemonNativeTools) networkMute(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeMute))
+}
+
+func (n *daemonNativeTools) networkDigestMode(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	return n.networkSetSubscription(ctx, scope, req, string(store.NetworkSubscriptionModeDigest))
+}
+
+func (n *daemonNativeTools) networkSetSubscription(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	mode string,
+) (toolspkg.ToolResult, error) {
+	var input networkSubscriptionInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	now := time.Now().UTC()
+	entry := store.NetworkSubscriptionEntry{
+		WorkspaceID:    workspaceID,
+		Channel:        channel,
+		ThreadID:       strings.TrimSpace(input.ThreadID),
+		PeerID:         strings.TrimSpace(input.PeerID),
+		Mode:           mode,
+		KeywordFilters: cloneTrimmedStrings(input.KeywordFilters),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := entry.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.ensureNativeNetworkSubscriptionChannel(ctx, scope, entry); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.deps.NetworkStore.PutNetworkSubscription(ctx, entry); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	payload := core.NetworkSubscriptionPayloadFromStore(entry)
+	return structuredNetworkResult(map[string]any{"subscription": payload}, payload.Mode)
+}
+
+func (n *daemonNativeTools) ensureNativeNetworkSubscriptionChannel(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	entry store.NetworkSubscriptionEntry,
+) error {
+	ref := store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
+		Channel:     strings.TrimSpace(entry.Channel),
+	}
+	if err := ref.Validate(); err != nil {
+		return err
+	}
+	if _, err := n.deps.NetworkStore.GetNetworkChannel(ctx, ref); err == nil {
+		return nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	now := time.Now().UTC()
+	return n.deps.NetworkStore.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+		WorkspaceID:  ref.WorkspaceID,
+		Channel:      ref.Channel,
+		Purpose:      "network_channel",
+		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
+		CreatedBy:    strings.TrimSpace(scope.AgentName),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+}
+
+func (n *daemonNativeTools) networkUnmute(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input networkSubscriptionDeleteInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel, err := nativeNetworkChannel(req.ToolID, input.Channel)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref := store.NetworkSubscriptionRef{
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(input.ThreadID),
+		PeerID:      strings.TrimSpace(input.PeerID),
+	}
+	if err := ref.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.deps.NetworkStore.DeleteNetworkSubscription(ctx, ref); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	return structuredNetworkResult(map[string]any{"deleted": true}, "deleted")
 }
 
 func (n *daemonNativeTools) networkConversationMessages(
@@ -2591,6 +2817,322 @@ func (n *daemonNativeTools) taskRunList(
 	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
+func (n *daemonNativeTools) taskPromoteFromThread(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskPromoteFromThreadInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	source, err := n.nativeThreadPromotionSource(ctx, scope, req.ToolID, input)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	spec := taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    source.workspaceID,
+		NetworkChannel: source.channel,
+		Title:          nativePromotedThreadTaskTitle(input, source),
+		Description:    firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
+		Priority:       taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
+		Metadata:       cloneJSON(input.Metadata),
+	}
+	taskRecord, err := n.deps.Tasks.CreateTask(ctx, spec, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	now := time.Now().UTC()
+	origin := store.NetworkTaskThreadOrigin{
+		TaskID:           taskRecord.ID,
+		WorkspaceID:      source.workspaceID,
+		Channel:          source.channel,
+		ThreadID:         source.threadID,
+		OriginMessageID:  source.originMessageID,
+		Digest:           source.digest,
+		SourceMessageIDs: source.sourceMessageIDs,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := origin.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.deps.NetworkStore.PutNetworkTaskThreadOrigin(ctx, origin); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{"task": taskRecord, "origin": core.NetworkTaskThreadOriginPayloadFromStore(origin)},
+		taskRecord.Title,
+	)
+}
+
+type nativeThreadPromotionSource struct {
+	workspaceID      string
+	channel          string
+	threadID         string
+	originMessageID  string
+	digest           string
+	sourceMessageIDs []string
+	thread           store.NetworkThreadSummary
+}
+
+func (n *daemonNativeTools) nativeThreadPromotionSource(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	toolID toolspkg.ToolID,
+	input taskPromoteFromThreadInput,
+) (nativeThreadPromotionSource, error) {
+	if n.deps.NetworkStore == nil {
+		return nativeThreadPromotionSource{}, nativeUnavailableError(toolID, "network store is unavailable")
+	}
+	channel, err := nativeNetworkChannel(toolID, input.Channel)
+	if err != nil {
+		return nativeThreadPromotionSource{}, err
+	}
+	threadID := strings.TrimSpace(input.ThreadID)
+	if err := network.ValidateConversationID(threadID, "thread_id"); err != nil {
+		return nativeThreadPromotionSource{}, nativeNetworkInputError(toolID, err)
+	}
+	originMessageID, err := requiredNativeString(toolID, "origin_message_id", input.OriginMessageID)
+	if err != nil {
+		return nativeThreadPromotionSource{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, toolID, input.WorkspaceID, scope)
+	if err != nil {
+		return nativeThreadPromotionSource{}, err
+	}
+	messages, err := n.deps.NetworkStore.ListConversationMessages(
+		ctx,
+		store.NetworkConversationRef{
+			WorkspaceID: workspaceID,
+			Channel:     channel,
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    threadID,
+		},
+		store.NetworkConversationMessageQuery{Limit: 200},
+	)
+	if err != nil {
+		return nativeThreadPromotionSource{}, nativeNetworkInputError(toolID, err)
+	}
+	digest, sourceMessageIDs, found := nativeNetworkThreadPromotionDigest(messages, originMessageID)
+	if !found {
+		return nativeThreadPromotionSource{}, nativeNetworkInputError(
+			toolID,
+			fmt.Errorf("origin_message_id %q is not part of thread %q", originMessageID, threadID),
+		)
+	}
+	thread, err := n.deps.NetworkStore.GetThread(
+		ctx,
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		threadID,
+	)
+	if err != nil {
+		return nativeThreadPromotionSource{}, nativeNetworkInputError(toolID, err)
+	}
+	return nativeThreadPromotionSource{
+		workspaceID:      workspaceID,
+		channel:          channel,
+		threadID:         threadID,
+		originMessageID:  originMessageID,
+		digest:           digest,
+		sourceMessageIDs: sourceMessageIDs,
+		thread:           thread,
+	}, nil
+}
+
+func nativePromotedThreadTaskTitle(
+	input taskPromoteFromThreadInput,
+	source nativeThreadPromotionSource,
+) string {
+	return firstNonEmpty(
+		strings.TrimSpace(input.Title),
+		strings.TrimSpace(source.thread.Title),
+		"Network thread "+source.threadID,
+	)
+}
+
+func (n *daemonNativeTools) taskFanOutRuns(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskFanOutRunsInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if n.deps.NetworkStore == nil {
+		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "network store is unavailable")
+	}
+	taskID, err := requiredNativeString(req.ToolID, "task_id", input.TaskID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	maxDesignations := n.deps.Config.Task.Orchestration.DesignatedRunMax
+	if maxDesignations <= 0 {
+		maxDesignations = 5
+	}
+	if len(input.Designations) == 0 {
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "designations")
+	}
+	if len(input.Designations) > maxDesignations {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			fmt.Errorf("designations cannot exceed %d", maxDesignations),
+		)
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	groupID := store.NewID("tdg")
+	runs := make([]taskpkg.Run, 0, len(input.Designations))
+	for index, designation := range input.Designations {
+		metadata, metadataErr := nativeFanOutDesignationMetadata(index, designation)
+		if metadataErr != nil {
+			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, metadataErr)
+		}
+		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
+			TaskID:             taskID,
+			IdempotencyKey:     nativeFanOutDesignationIdempotencyKey(input.IdempotencyKey, designation, index),
+			NetworkChannel:     strings.TrimSpace(input.NetworkChannel),
+			DesignationGroupID: groupID,
+			Metadata:           metadata,
+		}, actor)
+		if enqueueErr != nil {
+			return toolspkg.ToolResult{}, enqueueErr
+		}
+		runs = append(runs, *run)
+	}
+	if err := n.deps.NetworkStore.PutTaskDesignationRollup(ctx, store.TaskDesignationRollup{
+		DesignationGroupID: groupID,
+		TaskID:             taskID,
+		SummaryJSON:        nativeFanOutDesignationRollupJSON(runs),
+		CreatedAt:          time.Now().UTC(),
+	}); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{"designation_group_id": groupID, nativeToolsRunsKey: runs},
+		fmt.Sprintf("%d runs", len(runs)),
+	)
+}
+
+func nativeNetworkThreadPromotionDigest(
+	messages []store.NetworkConversationMessage,
+	originMessageID string,
+) (string, []string, bool) {
+	target := strings.TrimSpace(originMessageID)
+	sourceIDs := make([]string, 0, len(messages))
+	var builder strings.Builder
+	found := false
+	for _, message := range messages {
+		messageID := strings.TrimSpace(message.MessageID)
+		if messageID == "" {
+			continue
+		}
+		sourceIDs = append(sourceIDs, messageID)
+		if messageID == target {
+			found = true
+		}
+		line := nativeNetworkThreadPromotionMessageLine(message)
+		if line == "" {
+			continue
+		}
+		if builder.Len() > 0 {
+			builder.WriteByte('\n')
+		}
+		builder.WriteString(line)
+		if builder.Len() >= 4000 {
+			break
+		}
+	}
+	digest := strings.TrimSpace(builder.String())
+	if len(digest) > 4000 {
+		digest = truncateUTF8Bytes(digest, 4000)
+	}
+	return digest, sourceIDs, found
+}
+
+func nativeNetworkThreadPromotionMessageLine(message store.NetworkConversationMessage) string {
+	preview := strings.TrimSpace(message.PreviewText)
+	if preview == "" {
+		preview = strings.TrimSpace(message.Text)
+	}
+	if preview == "" {
+		return ""
+	}
+	peer := firstNonEmpty(strings.TrimSpace(message.PeerFrom), strings.TrimSpace(message.SessionID), "unknown")
+	return peer + ": " + preview
+}
+
+type nativeFanOutDesignationMetadataPayload struct {
+	Designation nativeFanOutDesignationMetadataDetail `json:"designation"`
+	Metadata    json.RawMessage                       `json:"metadata,omitempty"`
+}
+
+type nativeFanOutDesignationMetadataDetail struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief"`
+}
+
+func nativeFanOutDesignationMetadata(
+	index int,
+	designation contract.TaskFanOutRunDesignationRequest,
+) (json.RawMessage, error) {
+	brief := strings.TrimSpace(designation.Brief)
+	if brief == "" {
+		return nil, fmt.Errorf("designations[%d].brief is required", index)
+	}
+	metadata := cloneJSON(designation.Metadata)
+	if len(metadata) > 0 && !json.Valid(metadata) {
+		return nil, fmt.Errorf("designations[%d].metadata must be valid JSON", index)
+	}
+	encoded, err := json.Marshal(nativeFanOutDesignationMetadataPayload{
+		Designation: nativeFanOutDesignationMetadataDetail{Index: index, Brief: brief},
+		Metadata:    metadata,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("task fan-out metadata: %w", err)
+	}
+	return encoded, nil
+}
+
+func nativeFanOutDesignationIdempotencyKey(
+	requestKey string,
+	designation contract.TaskFanOutRunDesignationRequest,
+	index int,
+) string {
+	if key := strings.TrimSpace(designation.IdempotencyKey); key != "" {
+		return key
+	}
+	if key := strings.TrimSpace(requestKey); key != "" {
+		return fmt.Sprintf("%s:%d", key, index)
+	}
+	return ""
+}
+
+func nativeFanOutDesignationRollupJSON(runs []taskpkg.Run) json.RawMessage {
+	runIDs := make([]string, 0, len(runs))
+	for _, run := range runs {
+		if id := strings.TrimSpace(run.ID); id != "" {
+			runIDs = append(runIDs, id)
+		}
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"run_ids": runIDs,
+		"count":   len(runIDs),
+	})
+	if err != nil {
+		return json.RawMessage(`{"run_ids":[],"count":0}`)
+	}
+	return encoded
+}
+
 func (n *daemonNativeTools) autonomyClaimNext(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -3079,6 +3621,7 @@ type networkSendInput struct {
 	DirectID    string               `json:"direct_id,omitempty"`
 	Kind        string               `json:"kind"`
 	To          string               `json:"to,omitempty"`
+	Mentions    []string             `json:"mentions,omitempty"`
 	Body        json.RawMessage      `json:"body"`
 	WorkID      string               `json:"work_id,omitempty"`
 	ReplyTo     string               `json:"reply_to,omitempty"`
@@ -3144,6 +3687,29 @@ type networkConversationMessageQueryInput struct {
 type networkWorkInput struct {
 	WorkspaceID string `json:"workspace_id"`
 	WorkID      string `json:"work_id"`
+}
+
+type networkSubscriptionsInput struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	PeerID      string `json:"peer_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+type networkSubscriptionInput struct {
+	WorkspaceID    string   `json:"workspace_id"`
+	Channel        string   `json:"channel"`
+	ThreadID       string   `json:"thread_id,omitempty"`
+	PeerID         string   `json:"peer_id"`
+	KeywordFilters []string `json:"keyword_filters,omitempty"`
+}
+
+type networkSubscriptionDeleteInput struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id,omitempty"`
+	PeerID      string `json:"peer_id"`
 }
 
 type sessionListInput struct {
@@ -3508,6 +4074,24 @@ func (i taskCancelInput) cancel() taskpkg.CancelTask {
 	}
 }
 
+type taskPromoteFromThreadInput struct {
+	WorkspaceID     string          `json:"workspace_id"`
+	Channel         string          `json:"channel"`
+	ThreadID        string          `json:"thread_id"`
+	OriginMessageID string          `json:"origin_message_id"`
+	Title           string          `json:"title,omitempty"`
+	Description     string          `json:"description,omitempty"`
+	Priority        string          `json:"priority,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
+}
+
+type taskFanOutRunsInput struct {
+	TaskID         string                                     `json:"task_id"`
+	NetworkChannel string                                     `json:"network_channel,omitempty"`
+	Designations   []contract.TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                                     `json:"idempotency_key,omitempty"`
+}
+
 type taskRunListInput struct {
 	TaskID                string `json:"task_id"`
 	Status                string `json:"status,omitempty"`
@@ -3611,6 +4195,16 @@ func nativeRequiredInputError(id toolspkg.ToolID, field string) error {
 		fmt.Sprintf("%s is required", field),
 		toolspkg.ErrToolInvalidInput,
 		toolspkg.ReasonSchemaInvalid,
+	)
+}
+
+func nativeUnavailableError(id toolspkg.ToolID, message string) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		id,
+		strings.TrimSpace(message),
+		fmt.Errorf("%w: %s", toolspkg.ErrToolUnavailable, strings.TrimSpace(message)),
+		toolspkg.ReasonBackendUnhealthy,
 	)
 }
 
@@ -5021,6 +5615,19 @@ func cloneStringPtr(value *string) *string {
 	}
 	cloned := strings.TrimSpace(*value)
 	return &cloned
+}
+
+func cloneTrimmedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			cloned = append(cloned, trimmed)
+		}
+	}
+	return cloned
 }
 
 func cloneIntPtr(value *int) *int {

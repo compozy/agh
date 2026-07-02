@@ -205,6 +205,7 @@ type Envelope struct {
 	DirectID    *string         `json:"direct_id,omitempty"`
 	From        string          `json:"from"`
 	To          *string         `json:"to,omitempty"`
+	Mentions    []string        `json:"mentions,omitempty"`
 	WorkID      *string         `json:"work_id,omitempty"`
 	ReplyTo     *string         `json:"reply_to,omitempty"`
 	TraceID     *string         `json:"trace_id,omitempty"`

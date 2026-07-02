@@ -1,4 +1,4 @@
 {
     "title": "Channels",
-    "pages": ["index", "create"]
+    "pages": ["index", "create", "update"]
 }

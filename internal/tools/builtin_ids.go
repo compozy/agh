@@ -30,6 +30,18 @@ const (
 	ToolIDNetworkSend ToolID = "agh__network_send"
 	// ToolIDNetworkChannelCreate registers one AGH network channel with a stated purpose.
 	ToolIDNetworkChannelCreate ToolID = "agh__network_channel_create"
+	// ToolIDNetworkChannelUpdate updates one AGH network channel delivery policy.
+	ToolIDNetworkChannelUpdate ToolID = "agh__network_channel_update"
+	// ToolIDNetworkSubscriptions lists AGH network delivery preferences.
+	ToolIDNetworkSubscriptions ToolID = "agh__network_subscriptions"
+	// ToolIDNetworkSubscribe sets one AGH network delivery preference to full delivery.
+	ToolIDNetworkSubscribe ToolID = "agh__network_subscribe"
+	// ToolIDNetworkMute mutes one AGH network delivery preference.
+	ToolIDNetworkMute ToolID = "agh__network_mute"
+	// ToolIDNetworkDigestMode sets one AGH network delivery preference to digest mode.
+	ToolIDNetworkDigestMode ToolID = "agh__network_digest_mode"
+	// ToolIDNetworkUnmute removes one AGH network delivery preference.
+	ToolIDNetworkUnmute ToolID = "agh__network_unmute"
 	// ToolIDNetworkThreads lists public network thread summaries.
 	ToolIDNetworkThreads ToolID = "agh__network_threads"
 	// ToolIDNetworkThreadMessages reads messages in one public network thread.
@@ -186,6 +198,10 @@ const (
 	ToolIDTaskNotificationShow ToolID = "agh__task_notification_show"
 	// ToolIDTaskNotificationDelete deletes one bridge notification subscription for a task.
 	ToolIDTaskNotificationDelete ToolID = "agh__task_notification_delete"
+	// ToolIDTaskPromoteFromThread promotes one network thread message into a durable task.
+	ToolIDTaskPromoteFromThread ToolID = "agh__task_promote_from_thread"
+	// ToolIDTaskFanOutRuns creates designated sibling task runs.
+	ToolIDTaskFanOutRuns ToolID = "agh__task_fanout_runs"
 	// ToolIDTaskRunClaimNext claims the next run for the caller session.
 	ToolIDTaskRunClaimNext ToolID = "agh__task_run_claim_next"
 	// ToolIDTaskRunHeartbeat extends the caller session's active run lease.

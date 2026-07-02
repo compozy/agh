@@ -313,6 +313,7 @@ type Run struct {
 	Origin                Origin            `json:"origin"`
 	IdempotencyKey        string            `json:"idempotency_key,omitempty"`
 	NetworkChannel        string            `json:"network_channel,omitempty"`
+	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
 	ClaimToken            string            `json:"-"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
 	LeaseUntil            time.Time         `json:"lease_until"`
@@ -426,24 +427,26 @@ type DependencyReference struct {
 
 // RunSummary captures the operator-facing run chip data used by enriched task cards.
 type RunSummary struct {
-	ID                    string         `json:"id"`
-	TaskID                string         `json:"task_id"`
-	Status                RunStatus      `json:"status"`
-	Attempt               int            `json:"attempt"`
-	PreviousRunID         string         `json:"previous_run_id,omitempty"`
-	FailureKind           string         `json:"failure_kind,omitempty"`
-	MaxAttempts           int            `json:"max_attempts"`
-	SessionID             string         `json:"session_id,omitempty"`
-	ClaimedBy             *ActorIdentity `json:"claimed_by,omitempty"`
-	ClaimTokenHash        string         `json:"claim_token_hash,omitempty"`
-	LeaseUntil            time.Time      `json:"lease_until"`
-	HeartbeatAt           time.Time      `json:"heartbeat_at"`
-	CoordinationChannelID string         `json:"coordination_channel_id,omitempty"`
-	QueuedAt              time.Time      `json:"queued_at"`
-	ClaimedAt             time.Time      `json:"claimed_at"`
-	StartedAt             time.Time      `json:"started_at"`
-	EndedAt               time.Time      `json:"ended_at"`
-	Error                 string         `json:"error,omitempty"`
+	ID                    string                 `json:"id"`
+	TaskID                string                 `json:"task_id"`
+	Status                RunStatus              `json:"status"`
+	Attempt               int                    `json:"attempt"`
+	PreviousRunID         string                 `json:"previous_run_id,omitempty"`
+	FailureKind           string                 `json:"failure_kind,omitempty"`
+	MaxAttempts           int                    `json:"max_attempts"`
+	SessionID             string                 `json:"session_id,omitempty"`
+	ClaimedBy             *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash        string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil            time.Time              `json:"lease_until"`
+	HeartbeatAt           time.Time              `json:"heartbeat_at"`
+	CoordinationChannelID string                 `json:"coordination_channel_id,omitempty"`
+	DesignationGroupID    string                 `json:"designation_group_id,omitempty"`
+	Designation           *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt              time.Time              `json:"queued_at"`
+	ClaimedAt             time.Time              `json:"claimed_at"`
+	StartedAt             time.Time              `json:"started_at"`
+	EndedAt               time.Time              `json:"ended_at"`
+	Error                 string                 `json:"error,omitempty"`
 }
 
 // View is the expanded read model returned from single-task lookups.
@@ -535,10 +538,11 @@ type AddDependency struct {
 
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
-	TaskID         string          `json:"task_id"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	TaskID             string          `json:"task_id"`
+	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
+	NetworkChannel     string          `json:"network_channel,omitempty"`
+	DesignationGroupID string          `json:"designation_group_id,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ClaimRun captures one run-claim request.
@@ -823,6 +827,7 @@ type RunQuery struct {
 	Status                RunStatus `json:"status,omitempty"`
 	SessionID             string    `json:"session_id,omitempty"`
 	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
+	DesignationGroupID    string    `json:"designation_group_id,omitempty"`
 	Limit                 int       `json:"limit,omitempty"`
 }
 

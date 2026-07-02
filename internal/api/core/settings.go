@@ -1595,14 +1595,26 @@ func automationSettingsFromPayload(
 }
 
 func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (aghconfig.NetworkConfig, error) {
+	digestFlushInterval, err := parseSettingsDuration(
+		"network.config.digest_flush_interval",
+		payload.DigestFlushInterval,
+	)
+	if err != nil {
+		return aghconfig.NetworkConfig{}, err
+	}
 	value := aghconfig.NetworkConfig{
-		Enabled:        payload.Enabled,
-		DefaultChannel: strings.TrimSpace(payload.DefaultChannel),
-		Port:           payload.Port,
-		MaxPayload:     payload.MaxPayload,
-		GreetInterval:  payload.GreetInterval,
-		MaxReplayAge:   payload.MaxReplayAge,
-		MaxQueueDepth:  payload.MaxQueueDepth,
+		Enabled:                        payload.Enabled,
+		DefaultChannel:                 strings.TrimSpace(payload.DefaultChannel),
+		Port:                           payload.Port,
+		MaxPayload:                     payload.MaxPayload,
+		GreetInterval:                  payload.GreetInterval,
+		MaxReplayAge:                   payload.MaxReplayAge,
+		MaxQueueDepth:                  payload.MaxQueueDepth,
+		ActivationTopK:                 payload.ActivationTopK,
+		DigestFlushInterval:            digestFlushInterval,
+		DigestMaxEnvelopes:             payload.DigestMaxEnvelopes,
+		ResponseGuidanceMaxBytes:       payload.ResponseGuidanceMaxBytes,
+		DeliveryStructuredBodyMaxBytes: payload.DeliveryStructuredBodyMaxBytes,
 	}
 	if err := value.Validate(); err != nil {
 		return aghconfig.NetworkConfig{}, NewSettingsValidationError(err)

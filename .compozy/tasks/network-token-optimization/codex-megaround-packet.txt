@@ -1,0 +1,251 @@
+AGH NETWORK MEGA-ROUND — CONVERSATION-PLANE EFFICIENCY + TWO-PLANES BRIDGE + DESIGNATED EXECUTION
+==================================================================================================
+
+ROLE: You are the principal engineer for AGH, working in Plan Mode with gpt-5.5 xhigh reasoning. This is a
+large, long-running redesign round — exactly what Plan Mode and your model tier exist for. Investigate
+first (the required reading below is dense and load-bearing), then present ONE implementation plan that
+sequences the full scope into ordered, independently verifiable phases. After approval you implement
+hands-off until completion.
+
+This round builds ON TOP of the already-landed Round 1 (thread-membership routing + prompt-cost
+accounting — committed on main; plan at .claude/plans/2026-07-01-network-thread-routing-cost-round1.md).
+Round 1 is a prerequisite, not a draft: do not revert or re-litigate it. Where this round intentionally
+REVERSES one Round 1 default (see D1 below), it does so as an explicit, documented hard cut.
+
+--------------------------------------------------------------------------------------------------
+PRODUCT FRAME (decided by the operator — these are constraints, not options)
+--------------------------------------------------------------------------------------------------
+
+AGH separates two planes:
+
+- CONVERSATION PLANE (network channels/threads): collaborative and cheap. Threads exist for deciding,
+  reviewing, analyzing, planning, and discussing. Agents respond in a short, conversational register.
+  Read-only lookups to answer a question are fine; heavy or mutating execution is NOT done in threads.
+- EXECUTION PLANE (kanban tasks + autonomy kernel): owns real work. When a thread conversation produces
+  actionable work, it is PROMOTED into a kanban task carrying a compact digest + pointer back to the
+  thread. The kernel orchestrates execution — including fanning one task into N sub-runs of the SAME
+  agent definition with DIFFERENT designation briefs — and compact status flows back into the
+  originating thread as conversation.
+
+The bridge between the planes is first-class and agent-manageable. The golden register rule that must
+reach agents through guidance: "threads are for deciding and discussing — reply short and conversational;
+when actionable work emerges, promote it to a task and link the card; do not execute inside the thread."
+
+--------------------------------------------------------------------------------------------------
+REQUIRED READING (in this order, before planning; all paths repo-relative)
+--------------------------------------------------------------------------------------------------
+
+1. .compozy/tasks/network-token-optimization/analysis/summary.md — synthesized diagnosis, convergences,
+   risks, the Round 1/Round 2 split record, and step 7 (response-register).
+2. .claude/plans/2026-07-01-network-thread-routing-cost-round1.md — what Round 1 shipped (thread
+   participants as routing boundary; zero-delivery default for unaddressed threads; PromptNetworkMeta
+   prompt_size_bytes/estimated_prompt_tokens; migration v43 network_thread_peer_token_stats; cost payloads).
+3. .compozy/tasks/network-token-optimization/analysis/08_analysis_channel-policy-surfaces.md — the
+   implementation map for the conversation plane: fanout_policy storage (v44), activation hook at
+   router.go deliveriesFromLocalPeers, deterministic capability matcher, mentions blast radius,
+   volume verbs + network_subscriptions (v45), digest-fallback delivery mode, web surfaces.
+4. .compozy/tasks/network-token-optimization/analysis/07_analysis_task-execution-plane.md — the
+   implementation map for the bridge + execution plane: CreateTaskFromPeer (ZERO non-test callers today),
+   withNetworkRunMetadata precedent, designation-brief seam (TaskRunPromptOverlay → opts.PromptOverlay →
+   manager_start.go:369), fan-out ownership (EnqueueRun N times / coordinator_runtime.OnTaskRunEnqueued),
+   per-run budgets (missing), artifact aggregation (priorRunSummaries precedent), status-back seam
+   (composeTaskEventObserver + bridgeTerminalTaskNotificationObserver precedent), daemon-originated Send gap.
+5. .compozy/tasks/network-token-optimization/analysis/06_analysis_response-behavior.md — why agents
+   answer every thread message like a final report: no register guidance at any layer; the exact seams
+   (per-delivery guidance taper, ComposedAssembler startup sections with StartupPredicate+Budget,
+   TurnSourceNetwork-aware pre-submit hook / input augmenter, skills/agh network.md, config-driven sizing).
+6. .compozy/tasks/network-token-optimization/analysis/03_analysis_delivery-prompt-cost.md — the measured
+   per-delivery boilerplate (~500 tok steady-state around ~98 B of content; 633 B protocolGuidanceText
+   always-on; ~400 B reply-flags prose; preview+base64 double encoding; strict one-envelope-per-prompt).
+7. Skim for context as needed: 01 (swarm evidence), 02 (protocol patterns), 04 (pre-Round-1 fan-out
+   analysis), 05 (config/observability gaps).
+8. CLAUDE.md (root) + internal/CLAUDE.md — repo rules. Non-negotiable: make verify passes; zero lint
+   tolerance; never discard errors with _; append-only numbered migrations (RE-VERIFY the true migration
+   tail before numbering — Round 1 landed v43; expect to start at v44 but confirm at HEAD); contract
+   codegen co-ship (openapi/agh.json + web/src/generated/agh-openapi.d.ts + sdk/typescript generated);
+   greenfield hard cuts with delete targets listed (no dual fields, no compat paths); AGH Impact Audit
+   (4 rows) in the plan and completion notes; workspace_id isolation proven with tests on every new datum.
+
+Line numbers in the maps were read at a specific HEAD; re-verify anchors before editing.
+
+--------------------------------------------------------------------------------------------------
+SCOPE — WHAT THIS ROUND DELIVERS
+--------------------------------------------------------------------------------------------------
+
+A. CONVERSATION-PLANE EFFICIENCY
+
+A1. Channel activation policy (the "never a black hole" fix — reverses Round 1's zero-delivery default
+    as an explicit hard cut):
+    - New store-backed per-channel setting fanout_policy: 'capability_match' (DEFAULT) | 'coordinator' |
+      'all_members'. Persist on network_channels (migration v44; map 08 area 1 has all four SQL
+      touchpoints + NetworkChannelEntry + validation + PATCH route precedent).
+    - Activation evaluation inside the delivery-set computation (router.go deliveriesFromLocalPeers, the
+      site map 08 pins): for an UNADDRESSED thread message with no recorded participants, evaluate the
+      channel policy instead of returning zero deliveries.
+    - capability_match: deterministic, no-LLM matcher (new internal/network/activation.go) tokenizing
+      SayBody.Intent (fallback Text) against each LocalPeer.CapabilityCatalog ID/Summary using the
+      existing containment primitives (matchesWhoisQuery family). Top-K bounded (K configurable,
+      sensible default 3). If no match → digest fallback to thread/channel members — NEVER silently
+      nothing, NEVER all-members full injection.
+    - coordinator: route the message as a full injection to the channel's coordinator peer. You must
+      design the coordinator signal (none exists on PeerCard/LocalPeer today — map 08 flags it):
+      prefer an explicit capability tag or channel-settings field over name conventions. The
+      coordinator's job in conversation is triage: answer, pull in peers via mentions, or promote to task.
+    - all_members: today's full fan-out, for small channels that opt in.
+    - Mentions always override policy (see A2). Policy decisions must be observable (audit/log/hook —
+      including which peers were activated and why) and agent-manageable (see A4 verbs + PATCH).
+
+A2. Mentions (multi-target addressing):
+    - Add Envelope.Mentions []string. KEEP To (it drives DirectRoomIdentity and directed semantics) —
+      mentions are thread-plane multi-target addressing; map 08 lists the full blast radius
+      (envelope/validate/router/cloneEnvelope/parseEnvelopeSummary/promptNetworkMeta/XML attrs/
+      networkLogFields/contracts/CLI --mention/tool schema/tests/docs). Mention-only envelopes stay on
+      the broadcast subject with receiver-side filtering (subjectForEnvelope must NOT flip to
+      DirectSubject).
+    - Mentioned peers get full injection and become thread participants (upsert like peer_to in Round 1).
+
+A3. Delivery composition diet + digest batching (slices 03 + map 08):
+    - Suppress protocolGuidanceText after first successful exposure per session with a DURABLE ledger
+      (survives reconnect/dropSession — Round 1's in-memory taper resets today).
+    - Collapse the reply-flags prose: verify first whether PromptNetworkMeta reaches model-visible
+      context across provider adapters; if it does not, keep ONE compact line referencing the ids in the
+      message metadata instead of the ~400 B flag enumeration. Design honestly around what you verify.
+    - Stop double-encoding say bodies: plaintext only for chat say; base64 body only for structured kinds
+      (capability/receipt/trace) where exact-bytes fidelity matters. Preserve an observability path for
+      canonical bytes (audit already stores them).
+    - Digest delivery mode: new DeliveryMode "digest" + a multi-envelope digest formatter (renderer is
+      strictly per-envelope today). Used for (a) policy digest-fallback (A1) and (b) coalescing a
+      backed-up per-session queue into one turn while preserving per-message ids for reply/causation.
+      Rework prompt-cost attribution (recordThreadPeerPromptCost assumes 1 delivery = 1 envelope) so
+      digest turns attribute cost honestly across the coalesced envelopes.
+    - Extend injected-body caps for non-say kinds (greet/capability precedent: greet_summary 160-rune cap).
+
+A4. Volume verbs + subscriptions:
+    - New network_subscriptions store (migration v45) keyed (workspace_id, channel, thread_id, peer_id)
+      with mode mute|digest|full + optional keyword filters. Daemon-side, zero-token evaluation at the
+      delivery-set site (resolver-interface precedent: ThreadParticipantResolver injection).
+    - Verbs with three-surface parity (native tool + CLI + HTTP/UDS): mute / unmute / subscribe /
+      digest-mode per channel and per thread. Workspace-scoped; hook-observable.
+    - Channel settings PATCH (fanout_policy + defaults) for operators AND agents.
+
+A5. Response-register shaping (slice 06 — operator-mandated):
+    - One short surface-aware register line inside the per-delivery guidance, riding the existing
+      verbose→compact taper (do NOT re-inflate what A3 just cut — budget the line).
+    - A StartupPredicate-gated, Budget-capped network-etiquette startup section via ComposedAssembler
+      (wired in boot.go beside Situation/Memory/Skills), active only for sessions that join channels.
+    - Turn-source-aware guidance at the pre-submit / input-augmenter seam using TurnSourceNetwork where
+      per-delivery text is not enough.
+    - The register content encodes: conversational brevity; reply only when addressed/activated or you
+      add value; thread etiquette (address peers, reference message ids); and the two-planes golden rule
+      (promote actionable work to a task instead of executing in-thread — see B).
+    - "Response register" section in skills/agh/references/network.md; guidance sizing config-driven
+      (NextRoundGuidanceMaxBytes precedent). Register shaping is GUIDANCE ONLY — never a wire-level cap
+      on SayBody.Text (breaks receipt+trace+say flows and long handoffs).
+
+B. TWO-PLANES BRIDGE
+
+B1. Thread→task promotion (first-class verb, three-surface parity):
+    - Extend the task-create path so a task can carry a typed thread origin: channel, thread_id,
+      originating message id, and a byte-budgeted pin-and-trim digest (enforceTaskContextBudget
+      precedent) + pointer. Never full-history replay.
+    - Wire the network ingress: CreateTaskFromPeer exists, is capability-gated, and has ZERO non-test
+      callers — add the wire dispatch that reaches it, mirroring withNetworkRunMetadata to stamp trusted
+      thread metadata server-side.
+    - Surfaces: native tool (agh__task_promote_from_thread or equivalent), CLI (agh task promote), HTTP
+      (thread-scoped promote route). Promote CREATES a task (kanban card) — it does not auto-execute
+      unless it goes through the explicit enqueue path (respect Task.AutoEnqueueOnReady semantics).
+    - Web: the thread view exposes promote + shows the linked card; the kanban card links back to the
+      thread (scope web work to what the changed contracts require plus these two affordances).
+
+B2. Status-back:
+    - A network status-back EventObserver registered in composeTaskEventObserver, imitating
+      bridgeTerminalTaskNotificationObserver (filter, de-dupe, deliver): on meaningful transitions of a
+      thread-originated task, post ONE compact conversational message into the originating thread
+      (state, run id, blocker/next action, artifact link) following the Communication Discipline register.
+    - Design the missing primitive: daemon-originated network message injection (Manager.Send is
+      session-bound today). Prefer an explicit system/runtime peer identity that is first-class and
+      observable (identity/proof rules in internal/CLAUDE.md apply) over impersonating any session.
+
+C. EXECUTION PLANE — DESIGNATED SUB-RUNS
+
+C1. Fan-out: a task-service API (e.g. FanOutRuns) that enqueues N runs of one task via the authoritative
+    EnqueueRun path — one run per designation — each with designation brief (+ index/group) in run
+    metadata. Do NOT repurpose parent_run_id (review lineage) or previous_run_id (retry lineage); if
+    explicit sibling grouping is needed, add designation_group_id via append-only migration. task_runs
+    stays a single queue; ClaimNextRun stays authoritative; the scheduler never claims.
+C2. Briefs: render the designation brief into the per-run prompt overlay via bundleForRun →
+    renderTaskBundlePrompt (the TaskRunPromptOverlay → opts.PromptOverlay → manager_start seam is
+    confirmed end-to-end; coordinator sessions pick the brief up automatically via coordinator_runtime).
+C3. Budgets + stop: per-run budget caps (new state — design the minimal honest shape; RuntimeLimits and
+    SessionSpawnBudget are the precedents) and an explicit quiescence condition: all designated runs
+    terminal → task-level rollup runs → status-back fires. Bound N (config default, hard ceiling).
+C4. Aggregation: task-level rollup composing sibling-run Results (priorRunSummaries precedent) into a
+    task artifact the status-back message links.
+C5. Surfaces + guidance: fan-out reachable via task tool/CLI/HTTP surfaces (parity), and
+    skills/agh/references/tasks-and-orchestration.md updated (fan-out ladder, designation briefs,
+    aggregation, status-back register).
+
+D. CROSS-CUTTING DECISIONS AND RULES
+
+D1. Explicit hard cut vs Round 1: unaddressed-thread zero-delivery is REPLACED by policy evaluation with
+    digest fallback. Document as a hard cut: update the Round-1-rewritten docs/skill sections and delete
+    superseded guidance/tests (list delete targets in the plan).
+D2. Hook payload enrichment: add size/estimated-token fields to NetworkPayload hook events (extensions
+    can observe cost); activation decisions and subscriptions emit hook/audit events.
+D3. Config lifecycle: new keys only where truly global (e.g. activation top-K default, digest cadence,
+    guidance size, fan-out N ceiling) — per-channel state is store-backed, not config. Register every
+    new key with defaults + validation + docs; keep cost knobs distinct from safety bounds.
+D4. Migrations: append-only, numbered, re-verify the tail at HEAD before numbering (expect v44/v45+...).
+    Update the migration-tail test assertion. Fresh-DB schema and migrations must agree.
+D5. Contracts: every payload/request change co-ships codegen (make codegen; make codegen-check).
+D6. Workspace isolation: every new datum (policy, subscriptions, thread origin, designation group,
+    status-back) is workspace-scoped with leak-proof tests.
+D7. Tests: extend canonical suites (router_test, delivery_test, manager_test, store/globaldb migration
+    tests, api handler tests with status+body, task manager tests). Test decisions per
+    consolidate-test-suites — no filler regression files, no prose/snapshot tests.
+D8. Docs: skills/agh references (network.md, tasks-and-orchestration.md) + packages/site protocol and
+    runtime network/tasks pages updated in the same cut.
+D9. AGH Impact Audit (4 rows: Native tools / Extensibility and hooks / Workspace data isolation /
+    Official AGH skill) required in the plan AND the completion report.
+
+OUT OF SCOPE (do not plan these): NATS transport/subject changes (thread-scoped subjects remain a
+possible future wire cut — note it, don't do it); turn-taking/floor-control and listener-interruption
+mechanics; LLM-based or RL-based routing/scoring (the matcher is deterministic); CRDT substrates;
+provider TokenUsage attribution joins (estimated size/tokens remain the network-side measure); web
+redesign beyond changed contracts + the named affordances (mention picker, policy visibility/settings,
+promote button + card/thread links).
+
+--------------------------------------------------------------------------------------------------
+PLAN EXPECTATIONS
+--------------------------------------------------------------------------------------------------
+
+- Sequence the scope into ordered phases with explicit dependencies (a sensible shape: schema/store →
+  wire+routing/policy → delivery diet+digest → verbs/config → register guidance → bridge (promote +
+  status-back) → designated sub-runs → web + docs — but you own the final sequencing and may split
+  differently with justification).
+- Per phase: files touched, migrations, delete targets, tests extended, and the verification commands.
+- Name the product decisions you are locking (default fanout_policy=capability_match with digest
+  fallback; top-K default; coordinator signal design; N ceiling for fan-out; system-peer identity) so
+  the controller can veto individual ones at plan review.
+- Call out anything in the required-reading maps that no longer matches HEAD (Round 1 landed after the
+  maps were written) instead of silently adapting.
+
+CLAIMED FILES: internal/network/**, internal/task/**, internal/coordinator/**, internal/scheduler
+(fan-out seam only), internal/daemon (task_event_bridge_notifier, coordinator_runtime, native_tools,
+boot prompt sections, runtime_prompt), internal/session (prompt path/overlay only), internal/acp
+(PromptNetworkMeta), internal/situation (task_context), internal/config, internal/store (+ globaldb
+migrations), internal/api (+ contract codegen), internal/tools + internal/toolruntime, internal/cli,
+skills/agh references, packages/site network+tasks docs, web/src/systems/network + web/src/systems/tasks
++ web/src/routes/_app/network.* (scoped to the named affordances). Do NOT touch unrelated pending
+worktree changes (docs/design/opendesign/*, .compozy/tasks/feature-stories/*).
+
+VERIFICATION: make verify must pass end-to-end before you report done. Focused iteration per package
+first; make codegen + make codegen-check for every contract change. Do NOT commit or push — report
+completion with a phase-by-phase diff summary + verification evidence; the controller owns commits.
+
+STOP CONDITIONS: surface a blocking question instead of improvising if (a) a required-reading map
+contradicts HEAD in a way that changes a design decision, (b) the scope requires touching files outside
+the claimed set, (c) any repo gate cannot pass without weakening a test or invariant, (d) a product
+decision you are locking feels reversible only at high cost and was not pre-decided above.
+
+Present the plan when ready.

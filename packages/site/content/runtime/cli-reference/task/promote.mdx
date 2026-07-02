@@ -1,0 +1,46 @@
+---
+title: "agh task promote"
+description: "Promote one network thread message into a task"
+---
+
+## agh task promote
+
+Promote one network thread message into a draft task. This is the task-oriented alias for
+`agh network threads promote`.
+
+```
+agh task promote [flags]
+```
+
+### Options
+
+```
+      --channel string          Source network channel
+      --description string      Optional task description
+  -h, --help                    help for promote
+      --metadata string         Optional JSON metadata for the promoted task
+      --origin-message string   Origin message id to promote
+      --priority string         Optional task priority
+      --thread string           Source public thread id
+      --title string            Optional task title
+      --workspace string        Workspace path, name, or ID
+```
+
+### Example
+
+```bash
+agh task promote \
+  --workspace ~/dev/app \
+  --channel builders \
+  --thread thread_release_check_20260416 \
+  --origin-message msg_thread_root \
+  --title "Validate release migration gates" \
+  -o json
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```

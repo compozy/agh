@@ -1,0 +1,52 @@
+# Memory Ledger — network-token-optimization
+
+- Goal (incl. success criteria):
+  - Reduce token cost of agent coordination in AGH Network (threads/channels). Today every agent receives every message on each thread turn; prompts are huge; orchestration is expensive.
+  - Success: analysis documents generated from research topics + repo exploration, synthesized into a preliminary analysis, then codex gpt-5.5 xhigh orchestrated via cmux in Plan Mode to plan the improvements.
+- Constraints/Assumptions:
+  - Research topics live at `/Users/pedronauck/Dev/courses/pedronauck/research/agent-swarm` and `/Users/pedronauck/Dev/courses/pedronauck/research/agent-networks` (additional working dir).
+  - Repo surface: `internal/network` (AGH Network). Skill `nats` + `agh-code-guidelines` govern that package.
+  - Codex plan-mode process reference: `/Users/pedronauck/dev/dash/advos/.agents/skills/fixing-linear-issue`.
+  - Skills requested by user: cmux-orchestration, cmux-workspace, cmux-debugging.
+  - Conversation BR-PT; artifacts EN.
+- Key decisions:
+  - Use `agent-exploration`-style explorer subagents with scoped-write contract to produce analysis docs.
+- State: ROUND 1 IMPLEMENTING — plan approved + accepted (option 1) 2026-07-01; codex hands-off on surface:38. Approved plan persisted at `.claude/plans/2026-07-01-network-thread-routing-cost-round1.md`.
+- Round 1 scope (codex): thread routing boundary via existing `network_thread_participants` table (to-targeted → single peer; untargeted → participants only; new unaddressed thread → zero prompts); PromptNetworkMeta prompt_size_bytes + estimated_prompt_tokens; migration v43 `network_thread_peer_token_stats` aggregate; API payload cost enrichment + codegen; skills/agh + site docs updates. No config keys, no commit (controller commits).
+- Round 2 backlog (after codex finishes COMPLETELY, per user): composition diet (step 1), queue digest/batching (step 2), volume verbs + cost knobs (step 4), hook payload enrichment, response-register guidance from slice 06.
+- ROUND 2 CENTERPIECE (user challenge 2026-07-01, confirmed in code): Round 1 default "unaddressed thread → zero prompts" opens a UX hole — web thread composer (`web/src/systems/network/components/composer/detail-composer.tsx` buildSendInput) sends threads with NO `to`/participant selection, so web-originated threads would prompt no one. Round 2 must add channel activation policy: per-channel `fanout_policy` (`capability_match` default proposed | `coordinator` | `all_members`), mentions always override, fallback digest to members (never a black hole), daemon-side agent subscription filters (zero-token until matched), web composer participant/mention selector + policy visibility (truthful UI). User asked whether senders should always have to address someone — answer NO; activation must be policy-driven. Awaiting user confirmation on default policy choice (capability_match vs coordinator).
+- cmux registry:
+  - controller: Claude Fable (this session), caller workspace:3 / pane:3 / surface:35.
+  - worker: codex gpt-5.5 xhigh YOLO, workspace:3 / pane:23 / surface:38, cwd repo root, status: running (plan investigation), packet: `.compozy/tasks/network-token-optimization/codex-plan-packet.md`, claimed files: internal/network/\*\*, session/acp prompt path, config, store+migrations, api+contract, skills/agh network refs, site network docs.
+- Exploration results (verified, checklist passed):
+  - 5 analyses + parent `summary.md` at `.compozy/tasks/network-token-optimization/analysis/`.
+  - Root causes: (a) threads are labels not routing boundaries — `router.go:1167` returns true unconditionally for thread surface → every channel member gets every thread message; only 2 wire subjects (broadcast + per-peer direct); (b) each delivery injects ~500 tok steady-state (~950 verbose) boilerplate around ~98B content — protocolGuidanceText 633B always-on, reply-flags ~400B, double-encoding preview+base64, no batching (K msgs = K injections); (c) zero network-dimension token accounting; no mute/leave/subscribe/digest verbs; 6 config knobs are safety-only.
+  - Plan scope given to codex: summary.md next steps 1–5 (composition diet, queue digest, thread membership+mentions, volume verbs, cost observability); item 6 (turn-taking/budgets) excluded.
+- Done:
+  - Ledger created; skills loaded: cmux-orchestration, cmux-workspace, cmux-debugging, agent-exploration.
+  - Preflight: `compozy` on PATH; explorer agent at `~/.compozy/agents/explorer/AGENT.md`.
+  - Scout: agent-swarm content in `raw/` (arXiv papers + articles + yt); agent-networks content in `wiki/concepts/` (~35 notes). Repo: `delivery.go` composes injected prompt (deliveryPrompter.PromptNetwork, replyGuidanceContext, XML attrs + `--thread` CLI guidance); `router.go`/`manager.go` fan-out; `internal/session/network_peer.go` session integration.
+  - Read codex plan-mode reference (`fixing-linear-issue/references/codex-cmux-control.md`): launch `rtk codex --yolo -m gpt-5.5`, shift+tab → status line `Plan mode`, send text + explicit enter, poll read-only, accept plan option 1.
+  - Slice prompts at `.compozy/tasks/network-token-optimization/.dispatch/prompts/0N_<slug>.txt`; dispatched via dispatch-slices.sh (claude/opus/xhigh).
+- NEW USER REQUIREMENT (mid-run, 2026-07-01): agents respond to EACH network message with a huge final-answer-style reply — no system prompt / delivery guidance / skill guidance shapes conversational register (brevity, thread etiquette, when to reply vs stay silent). Verify via slice 06 (`b9du16v1h`, running) → `analysis/06_analysis_response-behavior.md`. DO NOT interrupt codex round 1; after it finishes COMPLETELY, run round 2 of improvements incorporating slice 06, WITHOUT discarding round 1.
+- MEGA-ROUND DECISION (user, 2026-07-01): merge Round 2 + execution-plane phase into ONE codex plan-mode round driven by a dense TXT packet. Two-planes product frame locked: threads = discuss/decide (conversational register); actionable work → kanban task; kernel owns designated sub-runs; compact status-back into thread. Explored via 2 synchronous Explore subagents (opus) — maps persisted as analysis 07 (task-execution-plane) + 08 (channel-policy-surfaces). NOTE: first attempt with async named teammates failed (haiku model, mailbox never delivered) — synchronous Agent calls with model:opus are the working pattern.
+- Mega-round packet: `.compozy/tasks/network-token-optimization/codex-megaround-packet.txt` (scope A conversation-plane: fanout_policy v44 + activation.go matcher + mentions + composition diet + digest mode + volume verbs/subscriptions v45 + response register; B bridge: thread→task promote verb + status-back via EventObserver + system-peer Send; C designated sub-runs: FanOutRuns + briefs via run.Metadata→TaskRunPromptOverlay + budgets + aggregation; D cross-cutting: hard-cut reversal of Round 1 zero-delivery default, hooks enrichment, migrations v44+, codegen, workspace isolation, Impact Audit).
+- Key map findings: CreateTaskFromPeer/EnqueueRunFromPeer have ZERO non-test callers (wire dispatch missing); parent_run_id/previous_run_id are review/retry lineage — never repurpose; designation seam confirmed end-to-end (TaskRunPromptOverlay → opts.PromptOverlay → manager_start.go:369); Manager.Send is session-bound (system peer identity needed); migration tail v43 at HEAD (start v44); keep `To`, add `Mentions` (To drives DirectRoomIdentity).
+- ROUND 1 DONE + COMMITTED: `ce2d8042a` "feat: bound thread prompt delivery to participants and add prompt-cost accounting" (30 files, +1654/−146; skills-lock.json deliberately excluded — pre-existing unrelated user change). Controller-run make verify passed BEFORE (bwfad4hz3 exit 0) and AFTER commit (b341nn24f exit 0). Codex worker report: Impact Audit complete; internal peer review 1 non-blocking nit (SDK generator scoping for peer_costs); 918k tokens / 58min. Old worker surface:38 left idle (do not close without user ask).
+- MEGA-ROUND RUNNING: fresh codex gpt-5.5 xhigh YOLO on surface:40 (pane:23), Plan mode confirmed, pointer prompt submitted → reading codex-megaround-packet.txt. Codex TUI update 0.142.5 was SKIPPED (stayed on 0.142.4).
+- MEGA-ROUND PLAN APPROVED + ACCEPTED (option 1). Plan highlights: migrations v44–v47 (fanout_policy+coordinator_peer_id+mentions_json; network_subscriptions + durable guidance state; network_task_thread_origins; designation_group_id + rollups), config keys (activation_top_k=3, digest_flush_interval=250ms, digest_max_envelopes=10, response_guidance_max_bytes=512, delivery_structured_body_max_bytes=4096, designated_run_max=5), coordinator_peer_id explicit per channel, `agh.runtime` first-class peer for status-back, plaintext say bodies, digest cost allocation across coalesced envelopes, hard-cut deletes listed. MUST persist approved plan to `.claude/plans/` (pending — do it during monitoring).
+- GIT STATE (USER-INTENTIONAL, do not "fix"): the USER (not codex) ran mixed reset on main→1630bfe95, created branch `network-optimization`, and committed savepoint `669f6b503` (contains round-1 changes + previously-untracked files) to avoid developing on main. Round-1 commit `ce2d8042a` is orphaned but its content lives in the savepoint. All future controller commits go on `network-optimization`; NEVER touch main.
+- Now:
+  - Hands-off monitor mega-round implementation on surface:40 (goal resumed after user clarification).
+- Next:
+  - On completion report: verify diff + make verify (controller), commit on `network-optimization`.
+  - Persist approved mega-round plan text to `.claude/plans/2026-07-01-network-megaround.md`.
+  - Old teammates explore-task-plane/explore-channel-policy dismissed; surface:38 idle (leave unless user asks cleanup).
+- Open questions (UNCONFIRMED if needed):
+  - UNCONFIRMED: exact location/size of interaction logs showing token spend.
+  - UNCONFIRMED: output directory for analysis docs (default: `.compozy/tasks/network-token-optimization/analysis/`).
+- Working set (files/ids/commands):
+  - `/Users/pedronauck/Dev/courses/pedronauck/research/agent-swarm`
+  - `/Users/pedronauck/Dev/courses/pedronauck/research/agent-networks`
+  - `internal/network/`
+  - `/Users/pedronauck/dev/dash/advos/.agents/skills/fixing-linear-issue`

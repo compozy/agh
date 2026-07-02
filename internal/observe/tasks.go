@@ -1246,20 +1246,26 @@ func taskInboxRunSummary(run *taskpkg.Run, maxAttempts int) *taskpkg.RunSummary 
 	if run == nil {
 		return nil
 	}
-	return &taskpkg.RunSummary{
-		ID:          run.ID,
-		TaskID:      run.TaskID,
-		Status:      run.Status,
-		Attempt:     run.Attempt,
-		MaxAttempts: maxAttempts,
-		SessionID:   run.SessionID,
-		ClaimedBy:   cloneActorIdentity(run.ClaimedBy),
-		QueuedAt:    run.QueuedAt,
-		ClaimedAt:   run.ClaimedAt,
-		StartedAt:   run.StartedAt,
-		EndedAt:     run.EndedAt,
-		Error:       strings.TrimSpace(run.Error),
+	summary := &taskpkg.RunSummary{
+		ID:                 run.ID,
+		TaskID:             run.TaskID,
+		Status:             run.Status,
+		Attempt:            run.Attempt,
+		MaxAttempts:        maxAttempts,
+		SessionID:          run.SessionID,
+		ClaimedBy:          cloneActorIdentity(run.ClaimedBy),
+		DesignationGroupID: run.DesignationGroupID,
+		QueuedAt:           run.QueuedAt,
+		ClaimedAt:          run.ClaimedAt,
+		StartedAt:          run.StartedAt,
+		EndedAt:            run.EndedAt,
+		Error:              strings.TrimSpace(run.Error),
 	}
+	if designation, ok := taskpkg.DesignationFromRun(*run); ok {
+		summary.DesignationGroupID = designation.GroupID
+		summary.Designation = designation.Summary()
+	}
+	return summary
 }
 
 func taskInboxItemUnread(item TaskInboxItem) bool {

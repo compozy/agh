@@ -57,18 +57,20 @@ type taskRoleRuntime struct {
 }
 
 type taskRoleActivation struct {
-	TaskID        string
-	RunID         string
-	Scope         taskpkg.Scope
-	WorkspaceID   string
-	WorkspacePath string
-	AgentName     string
-	Provider      string
-	Model         string
-	Channel       string
-	Title         string
-	Profile       *taskpkg.ExecutionProfile
-	Capabilities  []string
+	TaskID         string
+	RunID          string
+	Scope          taskpkg.Scope
+	WorkspaceID    string
+	WorkspacePath  string
+	AgentName      string
+	Provider       string
+	Model          string
+	Channel        string
+	Title          string
+	Profile        *taskpkg.ExecutionProfile
+	Capabilities   []string
+	Designation    taskpkg.RunDesignation
+	HasDesignation bool
 }
 
 var _ taskRunEnqueuedObserver = (*taskRoleRuntime)(nil)
@@ -253,6 +255,7 @@ func (r *taskRoleRuntime) activationForRun(
 			profileRequiredWorkerCapabilities(profile)...,
 		),
 	}
+	applyTaskRoleDesignation(&activation, run)
 	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
 		return taskRoleActivation{}, false, err
 	}
@@ -489,6 +492,7 @@ func (r *taskRoleRuntime) starvationActivation(
 		Channel:     taskRunSessionChannel(run),
 		Title:       strings.TrimSpace(taskRecord.Title),
 	}
+	applyTaskRoleDesignation(&activation, run)
 	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
 		return taskRoleActivation{}, false, err
 	}
@@ -583,18 +587,46 @@ func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
 	channel := firstNonEmpty(activation.Channel, "default")
 	claimCommand := taskRoleClaimCommand(activation.Capabilities)
+	designation := taskRoleDesignationOverlay(activation)
 	return fmt.Sprintf(`A queued AGH task run is assigned to this agent.
 
 Task: %s
 Run: %s
 Coordination channel: %s
-
+%s
 Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `+"`agh task run claim`"+` for autonomous work.`,
 		title,
 		activation.RunID,
 		channel,
+		designation,
 		claimCommand,
 	)
+}
+
+func taskRoleDesignationOverlay(activation taskRoleActivation) string {
+	if !activation.HasDesignation {
+		return ""
+	}
+	parts := []string{
+		fmt.Sprintf("group %s", activation.Designation.GroupID),
+		fmt.Sprintf("index %d", activation.Designation.Index),
+	}
+	if brief := strings.TrimSpace(activation.Designation.Brief); brief != "" {
+		parts = append(parts, fmt.Sprintf("brief %q", brief))
+	}
+	return "Designated fan-out assignment: " + strings.Join(parts, ", ") + ".\n"
+}
+
+func applyTaskRoleDesignation(activation *taskRoleActivation, run taskpkg.Run) {
+	if activation == nil {
+		return
+	}
+	designation, ok := taskpkg.DesignationFromRun(run)
+	if !ok {
+		return
+	}
+	activation.Designation = designation
+	activation.HasDesignation = true
 }
 
 func taskRoleClaimCommand(capabilities []string) string {

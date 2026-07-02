@@ -2313,13 +2313,18 @@ func settingsAutomationConfigPayload(value settingspkg.AutomationSettings) contr
 
 func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
 	return contract.SettingsNetworkConfigPayload{
-		Enabled:        value.Enabled,
-		DefaultChannel: strings.TrimSpace(value.DefaultChannel),
-		Port:           value.Port,
-		MaxPayload:     value.MaxPayload,
-		GreetInterval:  value.GreetInterval,
-		MaxReplayAge:   value.MaxReplayAge,
-		MaxQueueDepth:  value.MaxQueueDepth,
+		Enabled:                        value.Enabled,
+		DefaultChannel:                 strings.TrimSpace(value.DefaultChannel),
+		Port:                           value.Port,
+		MaxPayload:                     value.MaxPayload,
+		GreetInterval:                  value.GreetInterval,
+		MaxReplayAge:                   value.MaxReplayAge,
+		MaxQueueDepth:                  value.MaxQueueDepth,
+		ActivationTopK:                 value.ActivationTopK,
+		DigestFlushInterval:            value.DigestFlushInterval.String(),
+		DigestMaxEnvelopes:             value.DigestMaxEnvelopes,
+		ResponseGuidanceMaxBytes:       value.ResponseGuidanceMaxBytes,
+		DeliveryStructuredBodyMaxBytes: value.DeliveryStructuredBodyMaxBytes,
 	}
 }
 
@@ -3003,11 +3008,25 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		LeaseUntil:            optionalTime(summary.LeaseUntil),
 		HeartbeatAt:           optionalTime(summary.HeartbeatAt),
 		CoordinationChannelID: summary.CoordinationChannelID,
+		DesignationGroupID:    summary.DesignationGroupID,
+		Designation:           cloneRunDesignationSummary(summary.Designation),
 		QueuedAt:              summary.QueuedAt,
 		ClaimedAt:             optionalTime(summary.ClaimedAt),
 		StartedAt:             optionalTime(summary.StartedAt),
 		EndedAt:               optionalTime(summary.EndedAt),
 		Error:                 summary.Error,
+	}
+}
+
+func cloneRunDesignationSummary(
+	summary *taskpkg.RunDesignationSummary,
+) *taskpkg.RunDesignationSummary {
+	if summary == nil {
+		return nil
+	}
+	return &taskpkg.RunDesignationSummary{
+		Index: summary.Index,
+		Brief: strings.TrimSpace(summary.Brief),
 	}
 }
 

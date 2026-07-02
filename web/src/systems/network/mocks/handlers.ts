@@ -47,6 +47,14 @@ function readOptionalString(
   return value.trim() || undefined;
 }
 
+function readStringArray(record: Record<string, unknown> | null, key: string): string[] {
+  const value = record?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((candidate): candidate is string => typeof candidate === "string");
+}
+
 export const handlers: HttpHandler[] = [
   http.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
   http.get("/api/workspaces/:workspace_id/network/channels", () =>
@@ -66,6 +74,74 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
+  http.patch(
+    "/api/workspaces/:workspace_id/network/channels/:channel",
+    async ({ params, request }) => {
+      const channel = String(params.channel);
+
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      const body = readRecord(await request.json());
+      return HttpResponse.json({
+        channel: {
+          ...networkChannelFixture,
+          channel,
+          coordinator_peer_id:
+            readOptionalString(body, "coordinator_peer_id") ??
+            networkChannelFixture.coordinator_peer_id,
+          fanout_policy:
+            readOptionalString(body, "fanout_policy") ?? networkChannelFixture.fanout_policy,
+          purpose: readOptionalString(body, "purpose") ?? networkChannelFixture.purpose,
+        },
+      });
+    }
+  ),
+  http.get("/api/workspaces/:workspace_id/network/channels/:channel/subscriptions", ({ params }) =>
+    HttpResponse.json({
+      subscriptions: [
+        {
+          channel: String(params.channel),
+          created_at: "2026-04-17T18:10:00Z",
+          mode: "digest",
+          peer_id: "peer_northstar_launch_control",
+          thread_id: "thread_launch_command",
+          updated_at: "2026-04-17T18:12:00Z",
+          workspace_id: String(params.workspace_id),
+        },
+      ],
+    })
+  ),
+  http.put(
+    "/api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
+    async ({ params, request }) => {
+      const body = readRecord(await request.json());
+      const peerId = readRequiredString(body, "peer_id");
+      const mode = readRequiredString(body, "mode");
+
+      if (!peerId || !mode) {
+        return HttpResponse.json({ error: "peer_id and mode are required." }, { status: 400 });
+      }
+
+      return HttpResponse.json({
+        subscription: {
+          channel: String(params.channel),
+          created_at: "2026-04-17T18:10:00Z",
+          keyword_filters: readStringArray(body, "keyword_filters"),
+          mode,
+          peer_id: peerId,
+          thread_id: readOptionalString(body, "thread_id"),
+          updated_at: "2026-04-17T18:12:00Z",
+          workspace_id: String(params.workspace_id),
+        },
+      });
+    }
+  ),
+  http.delete(
+    "/api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+    () => new HttpResponse(null, { status: 204 })
+  ),
   http.get("/api/workspaces/:workspace_id/network/channels/:channel/threads", ({ params }) => {
     const channel = String(params.channel);
 
@@ -93,7 +169,57 @@ export const handlers: HttpHandler[] = [
           channel,
           thread_id: threadId,
         },
+        task_links: networkThreadDetailFixture.task_links ?? [],
       });
+    }
+  ),
+  http.post(
+    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
+    async ({ params, request }) => {
+      const channel = String(params.channel);
+      const threadId = String(params.thread_id);
+      const body = readRecord(await request.json());
+      const originMessageId = readRequiredString(body, "origin_message_id");
+
+      if (!originMessageId) {
+        return HttpResponse.json({ error: "origin_message_id is required." }, { status: 400 });
+      }
+
+      const taskId = "task_story_thread_promoted";
+      const now = "2026-04-17T18:20:00Z";
+      return HttpResponse.json(
+        {
+          origin: {
+            channel,
+            created_at: now,
+            digest: readOptionalString(body, "title") ?? networkThreadDetailFixture.title,
+            origin_message_id: originMessageId,
+            source_message_ids: [originMessageId],
+            task_id: taskId,
+            thread_id: threadId,
+            updated_at: now,
+            workspace_id: String(params.workspace_id),
+          },
+          task: {
+            created_at: now,
+            created_by: { kind: "network_peer", ref: "peer_northstar_launch_control" },
+            description:
+              readOptionalString(body, "description") ??
+              "Task promoted from an AGH Network thread.",
+            id: taskId,
+            latest_event_seq: 1,
+            network_channel: channel,
+            origin: { kind: "network", ref: `${channel}/${threadId}` },
+            priority: readOptionalString(body, "priority") ?? "medium",
+            scope: "workspace",
+            status: "draft",
+            title: readOptionalString(body, "title") ?? networkThreadDetailFixture.title,
+            updated_at: now,
+            workspace_id: String(params.workspace_id),
+          },
+        },
+        { status: 201 }
+      );
     }
   ),
   http.get(
@@ -304,6 +430,7 @@ export const handlers: HttpHandler[] = [
         thread_id: readOptionalString(body, "thread_id"),
         direct_id: readOptionalString(body, "direct_id"),
         work_id: readOptionalString(body, "work_id"),
+        mentions: readStringArray(body, "mentions"),
         to: readOptionalString(body, "to"),
         reply_to: readOptionalString(body, "reply_to"),
         trace_id: readOptionalString(body, "trace_id"),

@@ -107,9 +107,9 @@ func (d *Daemon) composeTaskEventObserver(
 	state *bootState,
 	store taskStore,
 	reentry taskpkg.EventObserver,
-) (taskpkg.EventObserver, *bridgeTerminalTaskNotificationObserver) {
+) (taskpkg.EventObserver, *bridgeTerminalTaskNotificationObserver, *networkTaskStatusObserver) {
 	if state == nil {
-		return reentry, nil
+		return reentry, nil, nil
 	}
 	bridgeEventObserver := newBridgeTerminalTaskNotificationObserver(
 		state.bridges,
@@ -122,11 +122,13 @@ func (d *Daemon) composeTaskEventObserver(
 		d.now,
 		state.cfg.Task.Orchestration.BridgeNotificationTimeout,
 	)
+	networkStatusObserver := newNetworkTaskStatusObserver(state.network, store, state.logger, d.now)
 	return newTaskEventObserverFanout(
 		state.logger,
 		reentry,
 		bridgeEventObserver,
-	), bridgeEventObserver
+		networkStatusObserver,
+	), bridgeEventObserver, networkStatusObserver
 }
 
 func newBridgeTerminalTaskNotificationObserver(

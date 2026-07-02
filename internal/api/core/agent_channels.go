@@ -808,6 +808,7 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) (network.Envelo
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		Channel:     strings.TrimSpace(entry.Channel),
 		From:        strings.TrimSpace(entry.PeerFrom),
+		Mentions:    cloneTrimmedStrings(entry.Mentions),
 		WorkID:      optionalStringPtr(entry.WorkID),
 		ReplyTo:     optionalStringPtr(entry.ReplyTo),
 		TraceID:     optionalStringPtr(entry.TraceID),

@@ -492,7 +492,7 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 	}
 }
 
-func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t *testing.T) {
+func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *testing.T) {
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{})
@@ -516,9 +516,12 @@ func TestComposedAssemblerAssembleStartupLoadsBundledNetworkSectionDescriptor(t 
 	if err != nil {
 		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNetworkReference, err)
 	}
-	networkSkill = strings.TrimSpace(networkSkill)
-	if !strings.Contains(got, networkSkill) {
-		t.Fatalf("AssembleStartup() = %q, want bundled network skill content", got)
+	if !strings.Contains(got, "# AGH Network Response Register") ||
+		!strings.Contains(got, "Threads decide and discuss; actionable work is promoted to tasks") {
+		t.Fatalf("AssembleStartup() = %q, want compact network response register", got)
+	}
+	if strings.Contains(got, strings.TrimSpace(networkSkill)) {
+		t.Fatalf("AssembleStartup() loaded full network reference instead of compact register: %q", got)
 	}
 }
 

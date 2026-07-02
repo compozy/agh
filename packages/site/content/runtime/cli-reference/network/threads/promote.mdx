@@ -1,0 +1,44 @@
+---
+title: "agh network threads promote"
+description: "Promote one thread message into a durable task"
+---
+
+## agh network threads promote
+
+Promote one public-thread message into a draft task and persist the thread/task origin link.
+
+```
+agh network threads promote [flags]
+```
+
+### Options
+
+```
+      --channel string          Target channel
+      --description string      Optional task description
+  -h, --help                    help for promote
+      --metadata string         Optional JSON metadata for the promoted task
+      --origin-message string   Origin message id to promote
+      --priority string         Optional task priority
+      --thread string           Public thread id
+      --title string            Optional task title
+```
+
+### Example
+
+```bash
+agh network threads promote \
+  --channel builders \
+  --thread thread_release_check_20260416 \
+  --origin-message msg_thread_root \
+  --title "Validate release migration gates" \
+  -o json
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```

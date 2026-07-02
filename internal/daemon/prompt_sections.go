@@ -35,7 +35,7 @@ const (
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
 	startupToolsSectionBudget     = 16_000
-	startupNetworkSectionBudget   = 12_000
+	startupNetworkSectionBudget   = 512
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -84,6 +84,7 @@ func defaultStartupPromptSectionDescriptors(
 	memoryProvider session.PromptProvider,
 	skillsProvider session.PromptProvider,
 	situationProvider session.PromptProvider,
+	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	descriptors := make([]PromptSectionDescriptor, 0, 6)
 
@@ -141,12 +142,15 @@ func defaultStartupPromptSectionDescriptors(
 		})
 	}
 
-	descriptors = append(descriptors, defaultBundledStartupPromptSectionDescriptors()...)
+	descriptors = append(
+		descriptors,
+		defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget...)...,
+	)
 
 	return descriptors
 }
 
-func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
+func defaultBundledStartupPromptSectionDescriptors(networkResponseGuidanceBudget ...int) []PromptSectionDescriptor {
 	return []PromptSectionDescriptor{
 		{
 			Name:           string(HarnessPromptSectionTools),
@@ -165,9 +169,9 @@ func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 			Name:           string(HarnessPromptSectionNetwork),
 			Position:       PromptSectionPositionAppend,
 			Order:          startupNetworkSectionOrder,
-			Budget:         startupNetworkSectionBudget,
-			BudgetBehavior: PromptSectionBudgetBehaviorOmit,
-			Provider:       bundledReferencesPromptSectionProvider(bundledAghSkillName, bundledNetworkReference),
+			Budget:         resolvedNetworkResponseGuidanceBudget(networkResponseGuidanceBudget...),
+			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+			Provider:       networkResponseRegisterPromptSectionProvider{},
 			Predicate:      policyIncludesSection(HarnessPromptSectionNetwork),
 		},
 	}
@@ -177,6 +181,7 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 	prependProviders []session.PromptProvider,
 	appendProviders []session.PromptProvider,
 	situationProvider session.PromptProvider,
+	networkResponseGuidanceBudget ...int,
 ) []PromptSectionDescriptor {
 	var memoryProvider session.PromptProvider
 	for _, provider := range prependProviders {
@@ -194,7 +199,21 @@ func defaultStartupPromptSectionDescriptorsFromProviders(
 		}
 	}
 
-	return defaultStartupPromptSectionDescriptors(memoryProvider, skillsProvider, situationProvider)
+	return defaultStartupPromptSectionDescriptors(
+		memoryProvider,
+		skillsProvider,
+		situationProvider,
+		networkResponseGuidanceBudget...,
+	)
+}
+
+func resolvedNetworkResponseGuidanceBudget(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return startupNetworkSectionBudget
 }
 
 func policyIncludesSection(section HarnessPromptSection) SectionPredicate {

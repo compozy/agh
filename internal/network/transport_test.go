@@ -171,13 +171,18 @@ func TestTransportLifecycleAndMethodGuards(t *testing.T) {
 
 func testNetworkConfig() aghconfig.NetworkConfig {
 	return aghconfig.NetworkConfig{
-		Enabled:        true,
-		DefaultChannel: "default",
-		Port:           -1,
-		MaxPayload:     1 << 20,
-		GreetInterval:  30,
-		MaxReplayAge:   300,
-		MaxQueueDepth:  100,
+		Enabled:                        true,
+		DefaultChannel:                 "default",
+		Port:                           -1,
+		MaxPayload:                     1 << 20,
+		GreetInterval:                  30,
+		MaxReplayAge:                   300,
+		MaxQueueDepth:                  100,
+		ActivationTopK:                 8,
+		DigestFlushInterval:            30 * time.Second,
+		DigestMaxEnvelopes:             20,
+		ResponseGuidanceMaxBytes:       2048,
+		DeliveryStructuredBodyMaxBytes: 4096,
 	}
 }
 

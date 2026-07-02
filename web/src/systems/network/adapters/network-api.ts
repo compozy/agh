@@ -9,6 +9,8 @@ import type {
   CreateNetworkChannelRequest,
   CreateNetworkChannelResponse,
   NetworkChannel,
+  NetworkChannelUpdateRequest,
+  NetworkChannelUpdateResponse,
   NetworkChannelsResponse,
   NetworkConversationMessagesQuery,
   NetworkDirectRoomDetail,
@@ -16,6 +18,11 @@ import type {
   NetworkDirectRoomSummary,
   NetworkPeerDetail,
   NetworkPeerSummary,
+  NetworkSubscriptionRequest,
+  NetworkSubscriptionResponse,
+  NetworkSubscriptionsResponse,
+  PromoteNetworkThreadTaskRequest,
+  PromoteNetworkThreadTaskResponse,
   NetworkResolveDirectRoomRequest,
   NetworkSendRequest,
   NetworkSendResponse,
@@ -98,6 +105,35 @@ export async function getNetworkChannel(
   return requireResponseData(data, response, `Failed to load channel "${channel}"`).channel;
 }
 
+export async function updateNetworkChannel(
+  workspaceId: string,
+  channel: string,
+  body: NetworkChannelUpdateRequest,
+  signal?: AbortSignal
+): Promise<NetworkChannelUpdateResponse["channel"]> {
+  const { data, error, response } = await apiClient.PATCH(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}",
+    {
+      params: { path: { workspace_id: workspaceId, channel } },
+      body,
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new NetworkApiError(`Channel not found: ${channel}`, 404);
+    }
+
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to update channel "${channel}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to update channel "${channel}"`).channel;
+}
+
 export interface NetworkThreadsListQuery {
   after?: string;
   limit?: number;
@@ -159,7 +195,96 @@ export async function getNetworkThread(
     );
   }
 
-  return requireResponseData(data, response, `Failed to load thread "${threadId}"`).thread;
+  const payload = requireResponseData(data, response, `Failed to load thread "${threadId}"`);
+  return {
+    ...payload.thread,
+    task_links: payload.task_links ?? [],
+  };
+}
+
+export interface NetworkSubscriptionsListQuery {
+  peer_id?: string;
+  thread_id?: string;
+}
+
+export async function listNetworkSubscriptions(
+  workspaceId: string,
+  channel: string,
+  query: NetworkSubscriptionsListQuery = {},
+  signal?: AbortSignal
+): Promise<NetworkSubscriptionsResponse["subscriptions"]> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+    {
+      params: {
+        path: { workspace_id: workspaceId, channel },
+        query: toSubscriptionsListQuery(query),
+      },
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to load subscriptions for "${channel}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load subscriptions for "${channel}"`)
+    .subscriptions;
+}
+
+export async function upsertNetworkSubscription(
+  workspaceId: string,
+  channel: string,
+  body: NetworkSubscriptionRequest,
+  signal?: AbortSignal
+): Promise<NetworkSubscriptionResponse["subscription"]> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+    {
+      params: { path: { workspace_id: workspaceId, channel } },
+      body,
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to update subscription for "${channel}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to update subscription for "${channel}"`)
+    .subscription;
+}
+
+export async function deleteNetworkSubscription(
+  workspaceId: string,
+  channel: string,
+  peerId: string,
+  query: { thread_id?: string } = {},
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+    {
+      params: {
+        path: { workspace_id: workspaceId, channel, peer_id: peerId },
+        query: toDeleteSubscriptionQuery(query),
+      },
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to delete subscription for "${channel}"`, response, error),
+      response.status
+    );
+  }
 }
 
 export async function listNetworkThreadMessages(
@@ -193,6 +318,32 @@ export async function listNetworkThreadMessages(
 
   return requireResponseData(data, response, `Failed to load thread messages for "${threadId}"`)
     .messages;
+}
+
+export async function promoteNetworkThreadTask(
+  workspaceId: string,
+  channel: string,
+  threadId: string,
+  body: PromoteNetworkThreadTaskRequest,
+  signal?: AbortSignal
+): Promise<PromoteNetworkThreadTaskResponse> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
+    {
+      params: { path: { workspace_id: workspaceId, channel, thread_id: threadId } },
+      body,
+      signal,
+    }
+  );
+
+  if (apiRequestFailed(response, error)) {
+    throw new NetworkApiError(
+      defaultApiErrorMessage(`Failed to promote thread "${threadId}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to promote thread "${threadId}"`);
 }
 
 export interface NetworkDirectsListQuery {
@@ -469,6 +620,25 @@ function toDirectsListQuery(query: NetworkDirectsListQuery) {
   }
   if (query.peer_id) {
     supported.peer_id = query.peer_id;
+  }
+  return supported;
+}
+
+function toSubscriptionsListQuery(query: NetworkSubscriptionsListQuery) {
+  const supported: { peer_id?: string; thread_id?: string } = {};
+  if (query.peer_id) {
+    supported.peer_id = query.peer_id;
+  }
+  if (query.thread_id) {
+    supported.thread_id = query.thread_id;
+  }
+  return supported;
+}
+
+function toDeleteSubscriptionQuery(query: { thread_id?: string }) {
+  const supported: { thread_id?: string } = {};
+  if (query.thread_id) {
+    supported.thread_id = query.thread_id;
   }
   return supported;
 }

@@ -78,6 +78,29 @@ type DaemonClient interface {
 		workspaceRef string,
 		request CreateNetworkChannelRequest,
 	) (NetworkChannelDetailRecord, error)
+	UpdateNetworkChannel(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		request UpdateNetworkChannelRequest,
+	) (NetworkChannelDetailRecord, error)
+	ListNetworkSubscriptions(
+		ctx context.Context,
+		query NetworkSubscriptionsQuery,
+	) ([]NetworkSubscriptionRecord, error)
+	SetNetworkSubscription(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		request NetworkSubscriptionRequest,
+	) (NetworkSubscriptionRecord, error)
+	DeleteNetworkSubscription(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		peerID string,
+		threadID string,
+	) error
 	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error)
 	NetworkThread(
 		ctx context.Context,
@@ -109,6 +132,13 @@ type DaemonClient interface {
 	NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error)
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
 	NetworkInbox(ctx context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error)
+	PromoteNetworkThreadTask(
+		ctx context.Context,
+		workspaceRef string,
+		channel string,
+		threadID string,
+		request PromoteNetworkThreadTaskRequest,
+	) (PromoteNetworkThreadTaskRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
 	SearchExtensionMarketplace(
 		ctx context.Context,
@@ -427,6 +457,7 @@ type DaemonClient interface {
 	AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error)
 	RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error)
 	EnqueueTaskRun(ctx context.Context, id string, request EnqueueTaskRunRequest) (TaskRunRecord, error)
+	FanOutTaskRuns(ctx context.Context, id string, request FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
 	GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error)
 	ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error)
@@ -1146,6 +1177,12 @@ type AddTaskDependencyRequest = contract.AddTaskDependencyRequest
 // EnqueueTaskRunRequest captures the shared run-enqueue payload.
 type EnqueueTaskRunRequest = contract.EnqueueTaskRunRequest
 
+// FanOutTaskRunsRequest captures designated sibling run enqueue inputs.
+type FanOutTaskRunsRequest = contract.FanOutTaskRunsRequest
+
+// FanOutTaskRunsRecord captures designated sibling run enqueue results.
+type FanOutTaskRunsRecord = contract.FanOutTaskRunsResponse
+
 // ClaimTaskRunRequest captures the shared run-claim payload.
 type ClaimTaskRunRequest = contract.ClaimTaskRunRequest
 
@@ -1265,6 +1302,15 @@ type NetworkChannelDetailRecord = contract.NetworkChannelDetailPayload
 // CreateNetworkChannelRequest captures one network channel creation payload.
 type CreateNetworkChannelRequest = contract.CreateNetworkChannelRequest
 
+// UpdateNetworkChannelRequest captures one network channel policy update payload.
+type UpdateNetworkChannelRequest = contract.UpdateNetworkChannelRequest
+
+// NetworkSubscriptionRequest captures one network delivery preference mutation.
+type NetworkSubscriptionRequest = contract.NetworkSubscriptionRequest
+
+// NetworkSubscriptionRecord is the shared delivery preference payload.
+type NetworkSubscriptionRecord = contract.NetworkSubscriptionPayload
+
 // NetworkThreadRecord is the shared public-thread summary payload.
 type NetworkThreadRecord = contract.NetworkThreadSummaryPayload
 
@@ -1283,10 +1329,25 @@ type NetworkDirectResolveRequest = contract.NetworkDirectResolveRequest
 // NetworkEnvelopeRecord is the shared surfaced envelope payload.
 type NetworkEnvelopeRecord = contract.NetworkEnvelopePayload
 
+// PromoteNetworkThreadTaskRequest captures thread-to-task promotion inputs.
+type PromoteNetworkThreadTaskRequest = contract.PromoteNetworkThreadTaskRequest
+
+// PromoteNetworkThreadTaskRecord is the shared promotion response payload.
+type PromoteNetworkThreadTaskRecord = contract.PromoteNetworkThreadTaskResponse
+
 // NetworkPeersQuery captures CLI filters for peer listing.
 type NetworkPeersQuery struct {
 	WorkspaceRef string
 	Channel      string
+}
+
+// NetworkSubscriptionsQuery captures CLI filters for delivery preferences.
+type NetworkSubscriptionsQuery struct {
+	WorkspaceRef string
+	Channel      string
+	ThreadID     string
+	PeerID       string
+	Limit        int
 }
 
 // NetworkThreadsQuery captures CLI filters for public-thread listing.
@@ -1797,18 +1858,112 @@ func (c *unixSocketClient) CreateNetworkChannel(
 		return NetworkChannelDetailRecord{}, err
 	}
 	body := struct {
-		Channel    string   `json:"channel"`
-		Purpose    string   `json:"purpose"`
-		AgentNames []string `json:"agent_names"`
+		Channel           string   `json:"channel"`
+		Purpose           string   `json:"purpose"`
+		FanoutPolicy      string   `json:"fanout_policy,omitempty"`
+		CoordinatorPeerID string   `json:"coordinator_peer_id,omitempty"`
+		AgentNames        []string `json:"agent_names"`
 	}{
-		Channel:    request.Channel,
-		Purpose:    request.Purpose,
-		AgentNames: request.AgentNames,
+		Channel:           request.Channel,
+		Purpose:           request.Purpose,
+		FanoutPolicy:      request.FanoutPolicy,
+		CoordinatorPeerID: request.CoordinatorPeerID,
+		AgentNames:        request.AgentNames,
 	}
 	if err := c.doJSON(ctx, http.MethodPost, path+"/channels", nil, body, &response); err != nil {
 		return NetworkChannelDetailRecord{}, err
 	}
 	return response.Channel, nil
+}
+
+func (c *unixSocketClient) UpdateNetworkChannel(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	request UpdateNetworkChannelRequest,
+) (NetworkChannelDetailRecord, error) {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return NetworkChannelDetailRecord{}, err
+	}
+	var response contract.NetworkChannelResponse
+	path, err := networkChannelPath(workspaceRef, channel)
+	if err != nil {
+		return NetworkChannelDetailRecord{}, err
+	}
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return NetworkChannelDetailRecord{}, err
+	}
+	return response.Channel, nil
+}
+
+func (c *unixSocketClient) ListNetworkSubscriptions(
+	ctx context.Context,
+	query NetworkSubscriptionsQuery,
+) ([]NetworkSubscriptionRecord, error) {
+	channel, err := requireNetworkPathValue("channel", query.Channel)
+	if err != nil {
+		return nil, err
+	}
+	var response contract.NetworkSubscriptionsResponse
+	path, err := networkChannelPath(query.WorkspaceRef, channel)
+	if err != nil {
+		return nil, err
+	}
+	path += "/subscriptions"
+	if err := c.doJSON(ctx, http.MethodGet, path, networkSubscriptionsValues(query), nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Subscriptions, nil
+}
+
+func (c *unixSocketClient) SetNetworkSubscription(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	request NetworkSubscriptionRequest,
+) (NetworkSubscriptionRecord, error) {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return NetworkSubscriptionRecord{}, err
+	}
+	var response contract.NetworkSubscriptionResponse
+	path, err := networkChannelPath(workspaceRef, channel)
+	if err != nil {
+		return NetworkSubscriptionRecord{}, err
+	}
+	path += "/subscriptions"
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return NetworkSubscriptionRecord{}, err
+	}
+	return response.Subscription, nil
+}
+
+func (c *unixSocketClient) DeleteNetworkSubscription(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	peerID string,
+	threadID string,
+) error {
+	channel, err := requireNetworkPathValue("channel", channel)
+	if err != nil {
+		return err
+	}
+	peerID, err = requireNetworkPathValue("peer_id", peerID)
+	if err != nil {
+		return err
+	}
+	path, err := networkChannelPath(workspaceRef, channel)
+	if err != nil {
+		return err
+	}
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(threadID); trimmed != "" {
+		values.Set("thread_id", trimmed)
+	}
+	path += "/subscriptions/" + url.PathEscape(peerID)
+	return c.doJSON(ctx, http.MethodDelete, path, values, nil, nil)
 }
 
 func (c *unixSocketClient) NetworkThreads(
@@ -2027,6 +2182,24 @@ func (c *unixSocketClient) NetworkInbox(
 		return nil, err
 	}
 	return response.Messages, nil
+}
+
+func (c *unixSocketClient) PromoteNetworkThreadTask(
+	ctx context.Context,
+	workspaceRef string,
+	channel string,
+	threadID string,
+	request PromoteNetworkThreadTaskRequest,
+) (PromoteNetworkThreadTaskRecord, error) {
+	path, err := networkThreadPath(workspaceRef, channel, threadID)
+	if err != nil {
+		return PromoteNetworkThreadTaskRecord{}, err
+	}
+	var response contract.PromoteNetworkThreadTaskResponse
+	if err := c.doJSON(ctx, http.MethodPost, path+"/promote-task", nil, request, &response); err != nil {
+		return PromoteNetworkThreadTaskRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
@@ -4541,6 +4714,19 @@ func (c *unixSocketClient) EnqueueTaskRun(
 	return response.Run, nil
 }
 
+func (c *unixSocketClient) FanOutTaskRuns(
+	ctx context.Context,
+	id string,
+	request FanOutTaskRunsRequest,
+) (FanOutTaskRunsRecord, error) {
+	var response contract.FanOutTaskRunsResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/runs/fan-out"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return FanOutTaskRunsRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ListTaskRuns(
 	ctx context.Context,
 	id string,
@@ -5475,6 +5661,20 @@ func networkInboxValues(sessionID string) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
+	}
+	return values
+}
+
+func networkSubscriptionsValues(query NetworkSubscriptionsQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.ThreadID); trimmed != "" {
+		values.Set("thread_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.PeerID); trimmed != "" {
+		values.Set("peer_id", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
 }
