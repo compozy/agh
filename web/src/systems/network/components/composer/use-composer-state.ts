@@ -3,9 +3,11 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { SlashCommandEntry } from "./composer-slash-popover";
 
 const SLASH_PREFIX = /(^|\s)\/([\w-]*)$/u;
+const MENTION_PATTERN = /(^|\s)@([A-Za-z0-9_.:-]+)/gu;
 
 export interface ComposerSubmitArgs {
   text: string;
+  mentions: string[];
   /** Reset the textarea after a successful send. */
   reset: () => void;
   /** Restore the textarea to the value the user typed (used when the send fails). */
@@ -21,6 +23,7 @@ export interface UseComposerStateArgs {
 export interface UseComposerStateResult {
   value: string;
   trimmed: string;
+  mentions: string[];
   slashOpen: boolean;
   slashFilter: string;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -31,6 +34,17 @@ export interface UseComposerStateResult {
   handleSlashSelect: (entry: SlashCommandEntry) => void;
   handleToolbarSlash: () => void;
   handleSlashClose: () => void;
+}
+
+export function parseMentions(value: string): string[] {
+  const mentions = new Set<string>();
+  for (const match of value.matchAll(MENTION_PATTERN)) {
+    const peerId = match[2]?.trim();
+    if (peerId) {
+      mentions.add(peerId);
+    }
+  }
+  return [...mentions];
 }
 
 /**
@@ -89,7 +103,7 @@ export function useComposerState({
 
   const submitInternal = useCallback(
     (text: string) => {
-      onSubmit({ text, reset, restore });
+      onSubmit({ text, mentions: parseMentions(text), reset, restore });
     },
     [onSubmit, reset, restore]
   );
@@ -143,11 +157,13 @@ export function useComposerState({
   }, []);
 
   const trimmed = value.trim();
+  const mentions = parseMentions(trimmed);
   const sendDisabled = disabled || isSending || trimmed.length === 0;
 
   return {
     value,
     trimmed,
+    mentions,
     slashOpen,
     slashFilter,
     textareaRef,

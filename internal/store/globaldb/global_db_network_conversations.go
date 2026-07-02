@@ -117,7 +117,11 @@ func (g *GlobalDB) WriteConversationMessage(
 			result.WorkState = work.state
 
 			if normalized.Surface == store.NetworkSurfaceThread {
-				if participantErr := upsertNetworkThreadParticipant(ctx, exec, normalized); participantErr != nil {
+				if participantErr := upsertNetworkThreadParticipantsForMessage(
+					ctx,
+					exec,
+					normalized,
+				); participantErr != nil {
 					return participantErr
 				}
 			}
@@ -136,6 +140,25 @@ func (g *GlobalDB) WriteConversationMessage(
 		return store.NetworkConversationWriteResult{}, err
 	}
 	return result, nil
+}
+
+func upsertNetworkThreadParticipantsForMessage(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	message store.NetworkConversationMessage,
+) error {
+	if err := upsertNetworkThreadParticipant(ctx, exec, message); err != nil {
+		return err
+	}
+	if err := upsertNetworkThreadTargetParticipant(ctx, exec, message); err != nil {
+		return err
+	}
+	for _, mention := range message.Mentions {
+		if err := upsertNetworkThreadParticipantPeer(ctx, exec, message, mention); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ListThreads returns public-thread summaries for one channel.
@@ -157,7 +180,29 @@ func (g *GlobalDB) ListThreads(
 
 	sqlQuery := `SELECT
 		workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-		opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
+		opened_at, last_activity_at, message_count, participant_count, open_work_count,
+		COALESCE((
+			SELECT SUM(stats.delivered_count)
+			FROM network_thread_peer_token_stats AS stats
+			WHERE stats.workspace_id = network_threads.workspace_id
+				AND stats.channel = network_threads.channel
+				AND stats.thread_id = network_threads.thread_id
+		), 0),
+		COALESCE((
+			SELECT SUM(stats.prompt_size_bytes)
+			FROM network_thread_peer_token_stats AS stats
+			WHERE stats.workspace_id = network_threads.workspace_id
+				AND stats.channel = network_threads.channel
+				AND stats.thread_id = network_threads.thread_id
+		), 0),
+		COALESCE((
+			SELECT SUM(stats.estimated_prompt_tokens)
+			FROM network_thread_peer_token_stats AS stats
+			WHERE stats.workspace_id = network_threads.workspace_id
+				AND stats.channel = network_threads.channel
+				AND stats.thread_id = network_threads.thread_id
+		), 0),
+		last_message_preview
 	FROM network_threads`
 	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
 	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
@@ -215,7 +260,29 @@ func (g *GlobalDB) GetThread(
 		ctx,
 		`SELECT
 			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-			opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
+			opened_at, last_activity_at, message_count, participant_count, open_work_count,
+			COALESCE((
+				SELECT SUM(stats.delivered_count)
+				FROM network_thread_peer_token_stats AS stats
+				WHERE stats.workspace_id = network_threads.workspace_id
+					AND stats.channel = network_threads.channel
+					AND stats.thread_id = network_threads.thread_id
+			), 0),
+			COALESCE((
+				SELECT SUM(stats.prompt_size_bytes)
+				FROM network_thread_peer_token_stats AS stats
+				WHERE stats.workspace_id = network_threads.workspace_id
+					AND stats.channel = network_threads.channel
+					AND stats.thread_id = network_threads.thread_id
+			), 0),
+			COALESCE((
+				SELECT SUM(stats.estimated_prompt_tokens)
+				FROM network_thread_peer_token_stats AS stats
+				WHERE stats.workspace_id = network_threads.workspace_id
+					AND stats.channel = network_threads.channel
+					AND stats.thread_id = network_threads.thread_id
+			), 0),
+			last_message_preview
 		FROM network_threads
 		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
 		ref.WorkspaceID,
@@ -466,10 +533,16 @@ func (g *GlobalDB) normalizeConversationMessage(
 		Intent:      strings.TrimSpace(entry.Intent),
 		Text:        strings.TrimSpace(entry.Text),
 		PreviewText: strings.TrimSpace(entry.PreviewText),
+		Mentions:    append([]string(nil), entry.Mentions...),
 		ExtJSON:     append(json.RawMessage(nil), entry.ExtJSON...),
 		Body:        append(json.RawMessage(nil), entry.Body...),
 		Timestamp:   entry.Timestamp,
 	}
+	mentions, err := store.NormalizeNetworkPeerIDs(normalized.Mentions, "network message mentions")
+	if err != nil {
+		return store.NetworkConversationMessage{}, err
+	}
+	normalized.Mentions = mentions
 	if normalized.PreviewText == "" {
 		normalized.PreviewText = normalized.Text
 	}
@@ -595,10 +668,11 @@ func insertNetworkTimelineMessageWithExecutor(
 			intent,
 			text,
 			preview_text,
+			mentions_json,
 			ext_json,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
@@ -618,6 +692,7 @@ func insertNetworkTimelineMessageWithExecutor(
 		store.NullableString(entry.Intent),
 		store.NullableString(entry.Text),
 		entry.PreviewText,
+		networkMentionsJSONString(entry.Mentions),
 		networkMessageExtJSONString(entry.ExtJSON),
 		string(entry.Body),
 		store.FormatTimestamp(entry.Timestamp),
@@ -938,6 +1013,27 @@ func upsertNetworkThreadParticipant(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) error {
+	return upsertNetworkThreadParticipantPeer(ctx, exec, entry, entry.PeerFrom)
+}
+
+func upsertNetworkThreadTargetParticipant(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	entry store.NetworkConversationMessage,
+) error {
+	return upsertNetworkThreadParticipantPeer(ctx, exec, entry, entry.PeerTo)
+}
+
+func upsertNetworkThreadParticipantPeer(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	entry store.NetworkConversationMessage,
+	peerID string,
+) error {
+	trimmedPeerID := strings.TrimSpace(peerID)
+	if trimmedPeerID == "" {
+		return nil
+	}
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO network_thread_participants (
@@ -948,7 +1044,7 @@ func upsertNetworkThreadParticipant(
 		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
-		entry.PeerFrom,
+		trimmedPeerID,
 		entry.MessageID,
 		store.FormatTimestamp(entry.Timestamp),
 		store.FormatTimestamp(entry.Timestamp),
@@ -1005,9 +1101,9 @@ func refreshNetworkThreadSummary(
 	var participantCount int
 	if err := exec.QueryRowContext(
 		ctx,
-		`SELECT COUNT(DISTINCT peer_from)
-		FROM network_timeline_log
-		WHERE workspace_id = ? AND channel = ? AND surface = 'thread' AND thread_id = ?`,
+		`SELECT COUNT(*)
+		FROM network_thread_participants
+		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
 		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
@@ -1311,8 +1407,15 @@ func networkConversationMessageSelect() string {
 		intent,
 		text,
 		preview_text,
+		mentions_json,
 		ext_json,
 		body_json,
+		COALESCE((
+			SELECT MAX(audit.size)
+			FROM network_audit_log AS audit
+			WHERE audit.workspace_id = network_timeline_log.workspace_id
+				AND audit.message_id = network_timeline_log.message_id
+		), 0),
 		timestamp
 	FROM network_timeline_log`
 }
@@ -1399,6 +1502,9 @@ func scanNetworkThreadSummary(scanner rowScanner) (store.NetworkThreadSummary, e
 		&summary.MessageCount,
 		&summary.ParticipantCount,
 		&summary.OpenWorkCount,
+		&summary.DeliveredCount,
+		&summary.PromptSizeBytes,
+		&summary.EstimatedPromptTokens,
 		&lastPreview,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

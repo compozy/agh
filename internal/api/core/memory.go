@@ -1975,12 +1975,12 @@ func memoryDreamState(record memory.DreamRunRecord) contract.MemoryDreamState {
 		return contract.MemoryDreamStateRunning
 	case "failed":
 		return contract.MemoryDreamStateFailed
-	case "completed":
+	case toolInvokeStatusCompleted:
 		if record.PromotedCount > 0 {
 			return contract.MemoryDreamStatePromoted
 		}
 		return contract.MemoryDreamStateSkipped
-	case "canceled":
+	case toolInvokeStatusCanceled:
 		return contract.MemoryDreamStateSkipped
 	default:
 		return contract.MemoryDreamStateIdle

@@ -59,6 +59,8 @@ const (
 	networkOpenWorkCountKey      = "open_work_count"
 	networkOpenedAtKey           = "opened_at"
 	networkOpenedByPeerIDKey     = "opened_by_peer_id"
+	networkPeerIDKey             = bridgePeerIDKey
+	networkPromoteCommandUse     = "promote"
 	networkSendKey               = "send"
 	networkShowKey               = "show"
 	networkStatusKey             = "status"
@@ -66,6 +68,13 @@ const (
 	networkThreadIDKey           = "thread_id"
 	networkTitleKey              = "title"
 	networkWorkIDKey             = "work_id"
+)
+
+const (
+	networkDeletedKey   = bridgeDeletedKey
+	networkDeletedValue = toolBoolTrue
+	networkModeKey      = bridgeModeKey
+	networkModeValue    = bridgeModeValue
 )
 
 const (
@@ -96,6 +105,29 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newNetworkWorkCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkSendCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkInboxCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkSubscriptionsCommand(deps, &workspaceRef))
+	cmd.AddCommand(
+		newNetworkSubscriptionModeCommand(
+			deps,
+			&workspaceRef,
+			"subscribe",
+			"full",
+			"Subscribe one peer to full delivery",
+		),
+	)
+	cmd.AddCommand(
+		newNetworkSubscriptionModeCommand(deps, &workspaceRef, "mute", "mute", "Mute one peer's network delivery"),
+	)
+	cmd.AddCommand(
+		newNetworkSubscriptionModeCommand(
+			deps,
+			&workspaceRef,
+			"digest-mode",
+			"digest",
+			"Set one peer to digest delivery",
+		),
+	)
+	cmd.AddCommand(newNetworkUnmuteCommand(deps, &workspaceRef))
 	return cmd
 }
 
@@ -182,13 +214,16 @@ func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Co
 		},
 	}
 	cmd.AddCommand(newNetworkChannelsCreateCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkChannelsUpdateCommand(deps, workspaceRef))
 	return cmd
 }
 
 type networkCreateChannelFlags struct {
-	channel    string
-	purpose    string
-	agentNames []string
+	channel           string
+	purpose           string
+	fanoutPolicy      string
+	coordinatorPeerID string
+	agentNames        []string
 }
 
 func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -225,9 +260,11 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 				return errors.New("cli: --purpose cannot be empty")
 			}
 			created, err := client.CreateNetworkChannel(cmd.Context(), workspace, CreateNetworkChannelRequest{
-				Channel:    channel,
-				Purpose:    purpose,
-				AgentNames: agentNames,
+				Channel:           channel,
+				Purpose:           purpose,
+				FanoutPolicy:      strings.TrimSpace(flags.fanoutPolicy),
+				CoordinatorPeerID: strings.TrimSpace(flags.coordinatorPeerID),
+				AgentNames:        agentNames,
 			})
 			if err != nil {
 				return err
@@ -237,6 +274,18 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 	}
 	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Channel name when not passed as an argument")
 	cmd.Flags().StringVar(&flags.purpose, "purpose", "", "Human-readable channel purpose")
+	cmd.Flags().StringVar(
+		&flags.fanoutPolicy,
+		"fanout-policy",
+		"",
+		"Delivery activation policy: capability_match, coordinator, or all_members",
+	)
+	cmd.Flags().StringVar(
+		&flags.coordinatorPeerID,
+		"coordinator-peer-id",
+		"",
+		"Coordinator peer id for coordinator fanout",
+	)
 	cmd.Flags().StringArrayVar(
 		&flags.agentNames,
 		"agent",
@@ -246,6 +295,85 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 	mustMarkFlagRequired(cmd, "purpose")
 	mustMarkFlagRequired(cmd, "agent")
 	return cmd
+}
+
+type networkUpdateChannelFlags struct {
+	channel           string
+	purpose           string
+	fanoutPolicy      string
+	coordinatorPeerID string
+}
+
+func newNetworkChannelsUpdateCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var flags networkUpdateChannelFlags
+	cmd := &cobra.Command{
+		Use:   "update [channel]",
+		Short: "Update a runtime channel delivery policy",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			channel, err := resolveNetworkCreateChannelName(args, flags.channel)
+			if err != nil {
+				return err
+			}
+			request, err := networkChannelUpdateRequest(cmd, flags)
+			if err != nil {
+				return err
+			}
+			updated, err := client.UpdateNetworkChannel(cmd.Context(), workspace, channel, request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkChannelBundle(updated))
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Channel name when not passed as an argument")
+	cmd.Flags().StringVar(&flags.purpose, "purpose", "", "Human-readable channel purpose")
+	cmd.Flags().StringVar(
+		&flags.fanoutPolicy,
+		"fanout-policy",
+		"",
+		"Delivery activation policy: capability_match, coordinator, or all_members",
+	)
+	cmd.Flags().StringVar(
+		&flags.coordinatorPeerID,
+		"coordinator-peer-id",
+		"",
+		"Coordinator peer id; pass empty to clear",
+	)
+	return cmd
+}
+
+func networkChannelUpdateRequest(
+	cmd *cobra.Command,
+	flags networkUpdateChannelFlags,
+) (UpdateNetworkChannelRequest, error) {
+	request := UpdateNetworkChannelRequest{}
+	if cmd.Flags().Changed("purpose") {
+		value := strings.TrimSpace(flags.purpose)
+		request.Purpose = &value
+	}
+	if cmd.Flags().Changed("fanout-policy") {
+		value := strings.TrimSpace(flags.fanoutPolicy)
+		request.FanoutPolicy = &value
+	}
+	if cmd.Flags().Changed("coordinator-peer-id") {
+		value := strings.TrimSpace(flags.coordinatorPeerID)
+		request.CoordinatorPeerID = &value
+	}
+	if request.Purpose == nil && request.FanoutPolicy == nil && request.CoordinatorPeerID == nil {
+		return UpdateNetworkChannelRequest{}, errors.New(
+			"cli: at least one of --purpose, --fanout-policy, or --coordinator-peer-id is required",
+		)
+	}
+	return request, nil
 }
 
 func resolveNetworkCreateChannelName(args []string, channelFlag string) (string, error) {
@@ -284,6 +412,7 @@ func newNetworkThreadsCommand(deps commandDeps, workspaceRef *string) *cobra.Com
 	cmd.AddCommand(newNetworkThreadsListCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkThreadsShowCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkThreadsMessagesCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkThreadsPromoteCommand(deps, workspaceRef))
 	return cmd
 }
 
@@ -399,6 +528,77 @@ func newNetworkThreadsMessagesCommand(deps commandDeps, workspaceRef *string) *c
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceThread)
 	return cmd
+}
+
+type networkThreadPromoteFlags struct {
+	channel         string
+	threadID        string
+	originMessageID string
+	title           string
+	description     string
+	priority        string
+	metadataRaw     string
+}
+
+func newNetworkThreadsPromoteCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var flags networkThreadPromoteFlags
+	cmd := &cobra.Command{
+		Use:   networkPromoteCommandUse,
+		Short: "Promote one thread message into a durable task",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			metadata, err := parseOptionalNetworkMetadata(cmd, flags.metadataRaw)
+			if err != nil {
+				return err
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			promoted, err := client.PromoteNetworkThreadTask(
+				cmd.Context(),
+				workspace,
+				strings.TrimSpace(flags.channel),
+				strings.TrimSpace(flags.threadID),
+				PromoteNetworkThreadTaskRequest{
+					OriginMessageID: strings.TrimSpace(flags.originMessageID),
+					Title:           strings.TrimSpace(flags.title),
+					Description:     strings.TrimSpace(flags.description),
+					Priority:        strings.TrimSpace(flags.priority),
+					Metadata:        metadata,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkThreadPromotionBundle(&promoted))
+		},
+	}
+	registerNetworkThreadPromoteFlags(cmd, &flags)
+	return cmd
+}
+
+func registerNetworkThreadPromoteFlags(cmd *cobra.Command, flags *networkThreadPromoteFlags) {
+	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Target channel")
+	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Public thread id")
+	cmd.Flags().StringVar(&flags.originMessageID, "origin-message", "", "Origin message id to promote")
+	cmd.Flags().StringVar(&flags.title, "title", "", "Optional task title")
+	cmd.Flags().StringVar(&flags.description, "description", "", "Optional task description")
+	cmd.Flags().StringVar(&flags.priority, "priority", "", "Optional task priority")
+	cmd.Flags().StringVar(&flags.metadataRaw, "metadata", "", "Optional JSON metadata for the promoted task")
+	mustMarkFlagRequired(cmd, networkChannelKey)
+	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	mustMarkFlagRequired(cmd, "origin-message")
+}
+
+func parseOptionalNetworkMetadata(cmd *cobra.Command, raw string) (json.RawMessage, error) {
+	if !cmd.Flags().Changed("metadata") {
+		return nil, nil
+	}
+	return parseJSONFlag("metadata", raw)
 }
 
 type networkDirectsFlags struct {
@@ -643,6 +843,7 @@ type networkSendFlags struct {
 	directID     string
 	kind         string
 	to           string
+	mentions     []string
 	bodyRaw      string
 	workID       string
 	replyTo      string
@@ -695,6 +896,7 @@ func newNetworkSendCommand(deps commandDeps, workspaceRef *string) *cobra.Comman
 				DirectID:    strings.TrimSpace(flags.directID),
 				Kind:        strings.TrimSpace(flags.kind),
 				To:          strings.TrimSpace(flags.to),
+				Mentions:    trimSpawnAtoms(flags.mentions),
 				Body:        body,
 				WorkID:      strings.TrimSpace(flags.workID),
 				ReplyTo:     strings.TrimSpace(flags.replyTo),
@@ -727,6 +929,7 @@ func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
 	cmd.Flags().StringVar(&flags.directID, networkSurfaceDirect, "", "Direct room id for direct-surface messages")
 	cmd.Flags().StringVar(&flags.kind, networkKindKey, "", "Envelope kind")
 	cmd.Flags().StringVar(&flags.to, "to", "", "Directed target peer id")
+	cmd.Flags().StringArrayVar(&flags.mentions, "mention", nil, "Mention target peer id (repeatable)")
 	cmd.Flags().StringVar(&flags.bodyRaw, "body", "", "Raw JSON object for the envelope body")
 	cmd.Flags().StringVar(&flags.workID, "work", "", "Optional work id")
 	cmd.Flags().StringVar(&flags.replyTo, "reply-to", "", "Optional reply-to message id")
@@ -764,6 +967,149 @@ func newNetworkInboxCommand(deps commandDeps, workspaceRef *string) *cobra.Comma
 	cmd.Flags().StringVar(&sessionID, "session", "", "Target session id")
 	mustMarkFlagRequired(cmd, "session")
 	return cmd
+}
+
+type networkSubscriptionFlags struct {
+	channel        string
+	threadID       string
+	peerID         string
+	keywordFilters []string
+	limit          int
+}
+
+func newNetworkSubscriptionsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "subscriptions",
+		Short: "Inspect network delivery preferences",
+	}
+	cmd.AddCommand(newNetworkSubscriptionsListCommand(deps, workspaceRef))
+	return cmd
+}
+
+func newNetworkSubscriptionsListCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var flags networkSubscriptionFlags
+	cmd := &cobra.Command{
+		Use:   networkListKey,
+		Short: "List network delivery preferences",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			subscriptions, err := client.ListNetworkSubscriptions(cmd.Context(), NetworkSubscriptionsQuery{
+				WorkspaceRef: workspace,
+				Channel:      strings.TrimSpace(flags.channel),
+				ThreadID:     strings.TrimSpace(flags.threadID),
+				PeerID:       strings.TrimSpace(flags.peerID),
+				Limit:        flags.limit,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutputWithJSONL(cmd, networkSubscriptionsBundle(subscriptions), subscriptions)
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Target channel")
+	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Optional thread id")
+	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Optional peer id filter")
+	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Maximum number of preferences to return")
+	mustMarkFlagRequired(cmd, networkChannelKey)
+	return cmd
+}
+
+func newNetworkSubscriptionModeCommand(
+	deps commandDeps,
+	workspaceRef *string,
+	use string,
+	mode string,
+	short string,
+) *cobra.Command {
+	var flags networkSubscriptionFlags
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			subscription, err := client.SetNetworkSubscription(
+				cmd.Context(),
+				workspace,
+				strings.TrimSpace(flags.channel),
+				NetworkSubscriptionRequest{
+					ThreadID:       strings.TrimSpace(flags.threadID),
+					PeerID:         strings.TrimSpace(flags.peerID),
+					Mode:           mode,
+					KeywordFilters: trimSpawnAtoms(flags.keywordFilters),
+				},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkSubscriptionBundle(subscription))
+		},
+	}
+	registerNetworkSubscriptionMutationFlags(cmd, &flags, true)
+	return cmd
+}
+
+func newNetworkUnmuteCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var flags networkSubscriptionFlags
+	cmd := &cobra.Command{
+		Use:   "unmute",
+		Short: "Remove one network delivery preference",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteNetworkSubscription(
+				cmd.Context(),
+				workspace,
+				strings.TrimSpace(flags.channel),
+				strings.TrimSpace(flags.peerID),
+				strings.TrimSpace(flags.threadID),
+			); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkSubscriptionDeleteBundle(flags.channel, flags.threadID, flags.peerID))
+		},
+	}
+	registerNetworkSubscriptionMutationFlags(cmd, &flags, false)
+	return cmd
+}
+
+func registerNetworkSubscriptionMutationFlags(
+	cmd *cobra.Command,
+	flags *networkSubscriptionFlags,
+	withKeywords bool,
+) {
+	cmd.Flags().StringVar(&flags.channel, networkChannelKey, "", "Target channel")
+	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Optional thread id")
+	cmd.Flags().StringVar(&flags.peerID, "peer", "", "Target peer id")
+	if withKeywords {
+		cmd.Flags().StringArrayVar(
+			&flags.keywordFilters,
+			"keyword",
+			nil,
+			"Keyword filter for this preference (repeatable)",
+		)
+	}
+	mustMarkFlagRequired(cmd, networkChannelKey)
+	mustMarkFlagRequired(cmd, "peer")
 }
 
 func networkStatusBundle(status NetworkStatusRecord) outputBundle {
@@ -853,7 +1199,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 		},
 		"network_peers",
 		[]string{
-			"peer_id",
+			networkPeerIDKey,
 			"display_name",
 			"session_id",
 			networkChannelKey,
@@ -966,6 +1312,95 @@ func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
 	}
 }
 
+func networkSubscriptionsBundle(subscriptions []NetworkSubscriptionRecord) outputBundle {
+	return listBundle(
+		contract.NetworkSubscriptionsResponse{Subscriptions: subscriptions},
+		subscriptions,
+		"Network Subscriptions",
+		[]string{networkChannelValue, taskThreadValue, taskPeerValue, networkModeValue, "Keywords"},
+		"network_subscriptions",
+		[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkModeKey, "keyword_filters"},
+		func(subscription NetworkSubscriptionRecord) []string {
+			return []string{
+				stringOrDash(subscription.Channel),
+				stringOrDash(subscription.ThreadID),
+				stringOrDash(subscription.PeerID),
+				stringOrDash(subscription.Mode),
+				stringOrDash(strings.Join(subscription.KeywordFilters, ", ")),
+			}
+		},
+		func(subscription NetworkSubscriptionRecord) []string {
+			return []string{
+				subscription.Channel,
+				subscription.ThreadID,
+				subscription.PeerID,
+				subscription.Mode,
+				strings.Join(subscription.KeywordFilters, ","),
+			}
+		},
+	)
+}
+
+func networkSubscriptionBundle(subscription NetworkSubscriptionRecord) outputBundle {
+	return outputBundle{
+		jsonValue: contract.NetworkSubscriptionResponse{Subscription: subscription},
+		human: func() (string, error) {
+			return renderHumanSection("Network Subscription", []keyValue{
+				{Label: networkChannelValue, Value: stringOrDash(subscription.Channel)},
+				{Label: taskThreadValue, Value: stringOrDash(subscription.ThreadID)},
+				{Label: taskPeerValue, Value: stringOrDash(subscription.PeerID)},
+				{Label: networkModeValue, Value: stringOrDash(subscription.Mode)},
+				{Label: "Keywords", Value: stringOrDash(strings.Join(subscription.KeywordFilters, ", "))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_subscription",
+				[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkModeKey, "keyword_filters"},
+				[]string{
+					subscription.Channel,
+					subscription.ThreadID,
+					subscription.PeerID,
+					subscription.Mode,
+					strings.Join(subscription.KeywordFilters, ","),
+				},
+			), nil
+		},
+	}
+}
+
+func networkSubscriptionDeleteBundle(channel string, threadID string, peerID string) outputBundle {
+	payload := map[string]any{
+		networkChannelKey:  strings.TrimSpace(channel),
+		networkThreadIDKey: strings.TrimSpace(threadID),
+		networkPeerIDKey:   strings.TrimSpace(peerID),
+		networkDeletedKey:  true,
+	}
+	return outputBundle{
+		jsonValue: payload,
+		human: func() (string, error) {
+			return renderHumanSection("Network Subscription", []keyValue{
+				{Label: networkChannelValue, Value: stringOrDash(strings.TrimSpace(channel))},
+				{Label: taskThreadValue, Value: stringOrDash(strings.TrimSpace(threadID))},
+				{Label: taskPeerValue, Value: stringOrDash(strings.TrimSpace(peerID))},
+				{Label: "Deleted", Value: networkDeletedValue},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_subscription",
+				[]string{networkChannelKey, networkThreadIDKey, networkPeerIDKey, networkDeletedKey},
+				[]string{
+					strings.TrimSpace(channel),
+					strings.TrimSpace(threadID),
+					strings.TrimSpace(peerID),
+					networkDeletedValue,
+				},
+			), nil
+		},
+	}
+}
+
 func networkThreadsBundle(threads []NetworkThreadRecord) outputBundle {
 	return listBundle(
 		contract.NetworkThreadsResponse{Threads: threads},
@@ -1034,6 +1469,36 @@ func networkThreadBundle(thread NetworkThreadRecord) outputBundle {
 					strconv.Itoa(thread.ParticipantCount),
 					strconv.Itoa(thread.OpenWorkCount),
 					thread.LastMessagePreview,
+				},
+			), nil
+		},
+	}
+}
+
+func networkThreadPromotionBundle(promoted *PromoteNetworkThreadTaskRecord) outputBundle {
+	return outputBundle{
+		jsonValue: promoted,
+		human: func() (string, error) {
+			return renderHumanBlocks(
+				renderHumanSection("Promoted Task", []keyValue{
+					{Label: "Task ID", Value: stringOrDash(promoted.Task.ID)},
+					{Label: taskTitleValue, Value: stringOrDash(promoted.Task.Title)},
+					{Label: networkChannelValue, Value: stringOrDash(promoted.Origin.Channel)},
+					{Label: taskThreadValue, Value: stringOrDash(promoted.Origin.ThreadID)},
+					{Label: networkMessageValue, Value: stringOrDash(promoted.Origin.OriginMessageID)},
+				}),
+			), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"network_thread_promotion",
+				[]string{taskTaskIDKey, networkTitleKey, networkChannelKey, networkThreadIDKey, networkMessageIDKey},
+				[]string{
+					promoted.Task.ID,
+					promoted.Task.Title,
+					promoted.Origin.Channel,
+					promoted.Origin.ThreadID,
+					promoted.Origin.OriginMessageID,
 				},
 			), nil
 		},

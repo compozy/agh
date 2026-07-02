@@ -38,6 +38,16 @@ type StubNetworkStore struct {
 		store.NetworkChannelRef,
 		store.NetworkDirectRoomQuery,
 	) ([]store.NetworkDirectRoomSummary, error)
+	ListThreadParticipantsFn func(
+		context.Context,
+		store.NetworkChannelRef,
+		string,
+	) ([]store.NetworkThreadParticipant, error)
+	UpdateNetworkThreadPeerTokenStatsFn func(context.Context, store.NetworkThreadPeerTokenStatsUpdate) error
+	ListNetworkThreadPeerTokenStatsFn   func(
+		context.Context,
+		store.NetworkThreadPeerTokenStatsQuery,
+	) ([]store.NetworkThreadPeerTokenStats, error)
 	GetDirectRoomFn func(
 		context.Context,
 		store.NetworkChannelRef,
@@ -48,13 +58,33 @@ type StubNetworkStore struct {
 		store.NetworkConversationRef,
 		store.NetworkConversationMessageQuery,
 	) ([]store.NetworkConversationMessage, error)
-	GetWorkFn              func(context.Context, string, string) (store.NetworkWorkEntry, error)
-	GetNetworkChannelFn    func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
-	ListNetworkChannelsFn  func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
-	WriteNetworkChannelFn  func(context.Context, store.NetworkChannelEntry) error
-	DeleteNetworkChannelFn func(context.Context, store.NetworkChannelRef) error
-	ListNetworkAuditFn     func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
-	ListNetworkMessagesFn  func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+	GetWorkFn                  func(context.Context, string, string) (store.NetworkWorkEntry, error)
+	GetNetworkChannelFn        func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+	ListNetworkChannelsFn      func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
+	WriteNetworkChannelFn      func(context.Context, store.NetworkChannelEntry) error
+	DeleteNetworkChannelFn     func(context.Context, store.NetworkChannelRef) error
+	WriteNetworkAuditFn        func(context.Context, store.NetworkAuditEntry) error
+	ListNetworkAuditFn         func(context.Context, store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
+	WriteNetworkMessageFn      func(context.Context, store.NetworkMessageEntry) error
+	ListNetworkMessagesFn      func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+	PutNetworkSubscriptionFn   func(context.Context, store.NetworkSubscriptionEntry) error
+	ListNetworkSubscriptionsFn func(
+		context.Context,
+		store.NetworkSubscriptionQuery,
+	) ([]store.NetworkSubscriptionEntry, error)
+	DeleteNetworkSubscriptionFn       func(context.Context, store.NetworkSubscriptionRef) error
+	GetNetworkDeliveryGuidanceStateFn func(context.Context, string) (store.NetworkDeliveryGuidanceState, error)
+	PutNetworkDeliveryGuidanceStateFn func(context.Context, store.NetworkDeliveryGuidanceState) error
+	PutNetworkTaskThreadOriginFn      func(context.Context, store.NetworkTaskThreadOrigin) error
+	ListNetworkTaskThreadOriginsFn    func(
+		context.Context,
+		store.NetworkTaskThreadOriginQuery,
+	) ([]store.NetworkTaskThreadOrigin, error)
+	PutTaskDesignationRollupFn   func(context.Context, store.TaskDesignationRollup) error
+	ListTaskDesignationRollupsFn func(
+		context.Context,
+		store.TaskDesignationRollupQuery,
+	) ([]store.TaskDesignationRollup, error)
 }
 
 func (s StubNetworkService) Send(ctx context.Context, req network.SendRequest) (string, error) {
@@ -105,6 +135,13 @@ func (s StubNetworkService) WaitInbox(
 		return s.WaitInboxFn(ctx, sessionID, channel)
 	}
 	return nil, ErrStubNetworkServiceWaitInboxNotImplemented
+}
+
+func (s StubNetworkStore) WriteNetworkAudit(ctx context.Context, entry store.NetworkAuditEntry) error {
+	if s.WriteNetworkAuditFn != nil {
+		return s.WriteNetworkAuditFn(ctx, entry)
+	}
+	return nil
 }
 
 func (s StubNetworkStore) ListNetworkAudit(
@@ -196,6 +233,37 @@ func (s StubNetworkStore) GetThread(
 	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
 }
 
+func (s StubNetworkStore) ListThreadParticipants(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+	threadID string,
+) ([]store.NetworkThreadParticipant, error) {
+	if s.ListThreadParticipantsFn != nil {
+		return s.ListThreadParticipantsFn(ctx, ref, threadID)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) UpdateNetworkThreadPeerTokenStats(
+	ctx context.Context,
+	update store.NetworkThreadPeerTokenStatsUpdate,
+) error {
+	if s.UpdateNetworkThreadPeerTokenStatsFn != nil {
+		return s.UpdateNetworkThreadPeerTokenStatsFn(ctx, update)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) ListNetworkThreadPeerTokenStats(
+	ctx context.Context,
+	query store.NetworkThreadPeerTokenStatsQuery,
+) ([]store.NetworkThreadPeerTokenStats, error) {
+	if s.ListNetworkThreadPeerTokenStatsFn != nil {
+		return s.ListNetworkThreadPeerTokenStatsFn(ctx, query)
+	}
+	return nil, nil
+}
+
 func (s StubNetworkStore) ListDirectRooms(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
@@ -246,6 +314,100 @@ func (s StubNetworkStore) ListNetworkMessages(
 ) ([]store.NetworkMessageEntry, error) {
 	if s.ListNetworkMessagesFn != nil {
 		return s.ListNetworkMessagesFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error {
+	if s.WriteNetworkMessageFn != nil {
+		return s.WriteNetworkMessageFn(ctx, entry)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) PutNetworkSubscription(
+	ctx context.Context,
+	entry store.NetworkSubscriptionEntry,
+) error {
+	if s.PutNetworkSubscriptionFn != nil {
+		return s.PutNetworkSubscriptionFn(ctx, entry)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) ListNetworkSubscriptions(
+	ctx context.Context,
+	query store.NetworkSubscriptionQuery,
+) ([]store.NetworkSubscriptionEntry, error) {
+	if s.ListNetworkSubscriptionsFn != nil {
+		return s.ListNetworkSubscriptionsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) DeleteNetworkSubscription(ctx context.Context, ref store.NetworkSubscriptionRef) error {
+	if s.DeleteNetworkSubscriptionFn != nil {
+		return s.DeleteNetworkSubscriptionFn(ctx, ref)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) GetNetworkDeliveryGuidanceState(
+	ctx context.Context,
+	key string,
+) (store.NetworkDeliveryGuidanceState, error) {
+	if s.GetNetworkDeliveryGuidanceStateFn != nil {
+		return s.GetNetworkDeliveryGuidanceStateFn(ctx, key)
+	}
+	return store.NetworkDeliveryGuidanceState{}, sql.ErrNoRows
+}
+
+func (s StubNetworkStore) PutNetworkDeliveryGuidanceState(
+	ctx context.Context,
+	state store.NetworkDeliveryGuidanceState,
+) error {
+	if s.PutNetworkDeliveryGuidanceStateFn != nil {
+		return s.PutNetworkDeliveryGuidanceStateFn(ctx, state)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) PutNetworkTaskThreadOrigin(
+	ctx context.Context,
+	origin store.NetworkTaskThreadOrigin,
+) error {
+	if s.PutNetworkTaskThreadOriginFn != nil {
+		return s.PutNetworkTaskThreadOriginFn(ctx, origin)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) ListNetworkTaskThreadOrigins(
+	ctx context.Context,
+	query store.NetworkTaskThreadOriginQuery,
+) ([]store.NetworkTaskThreadOrigin, error) {
+	if s.ListNetworkTaskThreadOriginsFn != nil {
+		return s.ListNetworkTaskThreadOriginsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s StubNetworkStore) PutTaskDesignationRollup(
+	ctx context.Context,
+	rollup store.TaskDesignationRollup,
+) error {
+	if s.PutTaskDesignationRollupFn != nil {
+		return s.PutTaskDesignationRollupFn(ctx, rollup)
+	}
+	return nil
+}
+
+func (s StubNetworkStore) ListTaskDesignationRollups(
+	ctx context.Context,
+	query store.TaskDesignationRollupQuery,
+) ([]store.TaskDesignationRollup, error) {
+	if s.ListTaskDesignationRollupsFn != nil {
+		return s.ListTaskDesignationRollupsFn(ctx, query)
 	}
 	return nil, nil
 }

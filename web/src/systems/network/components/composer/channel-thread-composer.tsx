@@ -27,12 +27,21 @@ export function ChannelThreadComposer({
   const { createThread, isCreating } = useCreateNetworkThread({ workspaceId });
   const disabled = disabledReason != null || workspaceId === "";
 
-  const handleSubmit = async ({ text, reset }: { text: string; reset: () => void }) => {
+  const handleSubmit = async ({
+    text,
+    mentions,
+    reset,
+  }: {
+    text: string;
+    mentions: string[];
+    reset: () => void;
+  }) => {
     try {
       const result = await createThread({
         channel,
         sessionId,
         text,
+        mentions,
         peerFrom,
         displayName,
       });

@@ -93,6 +93,21 @@ export function TasksDetailRunsPanel({
                         </span>
                       </Pill>
                     ) : null}
+                    {run.designation ? (
+                      <Pill
+                        data-testid={`tasks-detail-runs-designation-${run.id}`}
+                        title={run.designation.brief}
+                        tone="accent"
+                      >
+                        Assignment {run.designation.index + 1}
+                      </Pill>
+                    ) : null}
+                    {run.designation_group_id ? (
+                      <span className="inline-flex items-center gap-1 text-small-body text-muted">
+                        <span>group</span>
+                        <MonoId size="sm" value={run.designation_group_id} />
+                      </span>
+                    ) : null}
                     {run.session_id ? (
                       <span className="inline-flex items-center gap-1 text-small-body text-muted">
                         <span>session</span>

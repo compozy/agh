@@ -41,6 +41,7 @@ type taskRuntime struct {
 	detached            *harnessDetachedWorkBridge
 	reentry             *harnessReentryBridge
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver
+	networkTaskStatus   *networkTaskStatusObserver
 	roles               atomic.Pointer[taskRoleRuntime]
 }
 
@@ -355,7 +356,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
 	}
 	reviewRequests := newRunReviewRequestedForwarder()
-	eventObserver, bridgeNotifications := d.composeTaskEventObserver(state, store, reentry)
+	eventObserver, bridgeNotifications, networkTaskStatus := d.composeTaskEventObserver(state, store, reentry)
 	manager, err := taskpkg.NewManager(
 		taskManagerOptions(
 			store,
@@ -381,6 +382,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		detached:            detached,
 		reentry:             reentry,
 		bridgeNotifications: bridgeNotifications,
+		networkTaskStatus:   networkTaskStatus,
 	}
 	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager
@@ -547,6 +549,9 @@ func (r *taskRuntime) shutdown() {
 	}
 	if r.bridgeNotifications != nil {
 		r.bridgeNotifications.shutdown()
+	}
+	if r.networkTaskStatus != nil {
+		r.networkTaskStatus.shutdown()
 	}
 	if r.reentry != nil {
 		r.reentry.shutdown()

@@ -68,7 +68,9 @@ claim about profiles and capabilities; it is not proof that the peer is trustwor
 ## 4. Send one envelope
 
 For direct runtime operation, use the network CLI. Open or join a public thread first, then send a
-`say` envelope into it:
+`say` envelope into it. Target the first message when you need a specific peer to be prompted; AGH
+records the sender and target as thread participants, and later non-directed thread messages are
+delivered only to recorded participants rather than every channel member.
 
 ```bash
 agh network send \

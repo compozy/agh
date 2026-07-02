@@ -209,6 +209,7 @@ func TestManagerJoinSendStatusAndLeave(t *testing.T) {
 			SessionID: "sess-a",
 			Channel:   "builders",
 			Kind:      KindSay,
+			To:        ptrString("reviewer.sess-b"),
 			Body:      mustRawJSON(t, map[string]any{"text": "hello builders"}),
 		}))
 		if err != nil {
@@ -446,6 +447,7 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 			Kind:        KindSay,
 			Channel:     "builders",
 			From:        "coder.sess-remote",
+			To:          ptrString("reviewer.sess-b"),
 			TS:          now.Unix(),
 			Body:        mustRawJSON(t, SayBody{Text: "commit before prompt"}),
 		}))
@@ -471,6 +473,66 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		}
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: now})
 		deliveries.wait()
+	})
+
+	t.Run("Should persist delivered prompt cost for thread peer", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		now := time.Date(2026, 5, 5, 12, 10, 0, 0, time.UTC)
+		conversations := &recordingConversationStore{}
+		auditor := &recordingAuditWriter{}
+		manager := &Manager{
+			logger:        discardManagerLogger(),
+			now:           func() time.Time { return now },
+			lifecycleCtx:  ctx,
+			conversations: conversations,
+			auditor:       auditor,
+			stats:         newRuntimeStats(),
+		}
+		envelope := withThreadSurface(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-thread-delivered",
+			Kind:        KindSay,
+			Channel:     "builders",
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "delivered cost"}),
+		})
+
+		manager.recordDelivered(
+			"sess-reviewer",
+			"reviewer.sess-b",
+			envelope,
+			"immediate",
+			15*time.Millisecond,
+			deliveredPromptCost{PromptSizeBytes: 512, EstimatedPromptTokens: 128},
+		)
+
+		update := conversations.tokenUpdate(0)
+		if got, want := update.WorkspaceID, testWorkspaceID; got != want {
+			t.Fatalf("token update WorkspaceID = %q, want %q", got, want)
+		}
+		if got, want := update.ThreadID, testThreadRef().ThreadID; got != want {
+			t.Fatalf("token update ThreadID = %q, want %q", got, want)
+		}
+		if got, want := update.PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("token update PeerID = %q, want %q", got, want)
+		}
+		if got, want := update.DeliveredCount, int64(1); got != want {
+			t.Fatalf("token update DeliveredCount = %d, want %d", got, want)
+		}
+		if got, want := update.PromptSizeBytes, int64(512); got != want {
+			t.Fatalf("token update PromptSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := update.EstimatedPromptTokens, int64(128); got != want {
+			t.Fatalf("token update EstimatedPromptTokens = %d, want %d", got, want)
+		}
+		if got, want := auditor.countDelivered(KindSay), 1; got != want {
+			t.Fatalf("delivered audit count = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -644,6 +706,7 @@ func TestManagerQueuesBusyDeliveriesTracksDisconnectsAndShutsDownIdempotently(t 
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
+			To:        ptrString("reviewer.sess-busy"),
 			Body:      mustRawJSON(t, map[string]any{"text": "queued while busy"}),
 		})); err != nil {
 			t.Fatalf("Send() error = %v", err)
@@ -762,6 +825,7 @@ func TestManagerWaitInboxWakesOnNewChannelMessage(t *testing.T) {
 		SessionID: "sess-a",
 		Channel:   "builders",
 		Kind:      KindSay,
+		To:        ptrString("reviewer.sess-b"),
 		Body:      mustRawJSON(t, map[string]any{"text": "wake reviewer"}),
 	}))
 	if err != nil {
@@ -828,6 +892,7 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
+			To:        ptrString("reviewer.sess-busy"),
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow first"}),
 		})
 		secondID := receiveTestEnvelope(t, manager, SendRequest{
@@ -835,6 +900,7 @@ func TestManagerAuditsBusyQueueOverflowAsRejected(t *testing.T) {
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
+			To:        ptrString("reviewer.sess-busy"),
 			Body:      mustRawJSON(t, map[string]any{"text": "overflow second"}),
 		})
 
@@ -962,6 +1028,7 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 			SessionID: "sess-sender",
 			Channel:   "builders",
 			Kind:      KindSay,
+			To:        ptrString("reviewer.sess-receiver"),
 			Body:      mustRawJSON(t, map[string]any{"text": "clean message during bogus flood"}),
 		}))
 		if err != nil {
@@ -1158,6 +1225,7 @@ func TestManagerStatusTracksWorkflowMetricsAndStructuredLogs(t *testing.T) {
 			SessionID:   "sess-a",
 			Channel:     "builders",
 			Kind:        KindSay,
+			To:          ptrString("patcher.sess-b"),
 			Body:        mustRawJSON(t, map[string]any{"text": "hello builders"}),
 			ReplyTo:     ptrString("msg-root"),
 			TraceID:     ptrString("trace-1"),
@@ -1351,6 +1419,7 @@ func TestManagerShutdownTracksInterruptedInFlightMessages(t *testing.T) {
 		SessionID: "sess-sender",
 		Channel:   "builders",
 		Kind:      KindSay,
+		To:        ptrString("reviewer.sess-stop"),
 		Body:      mustRawJSON(t, map[string]any{"text": "hello before shutdown"}),
 	})); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -1470,6 +1539,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        remoteCard.PeerID,
+		To:          ptrString("reviewer.sess-local"),
 		TS:          fixedNow.Unix(),
 		Body:        mustRawJSON(t, map[string]any{"text": "remote delivery"}),
 	}))
@@ -1796,14 +1866,123 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 
 func testManagerConfig() aghconfig.NetworkConfig {
 	return aghconfig.NetworkConfig{
-		Enabled:        true,
-		DefaultChannel: "builders",
-		Port:           -1,
-		MaxPayload:     1 << 20,
-		GreetInterval:  1,
-		MaxReplayAge:   300,
-		MaxQueueDepth:  8,
+		Enabled:                        true,
+		DefaultChannel:                 "builders",
+		Port:                           -1,
+		MaxPayload:                     1 << 20,
+		GreetInterval:                  1,
+		MaxReplayAge:                   300,
+		MaxQueueDepth:                  8,
+		ActivationTopK:                 8,
+		DigestFlushInterval:            30 * time.Second,
+		DigestMaxEnvelopes:             20,
+		ResponseGuidanceMaxBytes:       2048,
+		DeliveryStructuredBodyMaxBytes: 4096,
 	}
+}
+
+func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer thread subscription over channel subscription", func(t *testing.T) {
+		t.Parallel()
+
+		threadSurface := SurfaceThread
+		threadID := "thread-subscriptions"
+		envelope := testDeliveryEnvelope(t, "msg-thread-subscription", "thread update")
+		envelope.Surface = &threadSurface
+		envelope.ThreadID = &threadID
+		envelope.DirectID = nil
+		envelope.To = nil
+		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
+			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
+			testNetworkSubscriptionEntry(threadID, "reviewer.sess-xyz", store.NetworkSubscriptionModeDigest, nil),
+		}}
+
+		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
+			PeerID:   "reviewer.sess-xyz",
+			Envelope: envelope,
+		})
+		if err != nil {
+			t.Fatalf("deliverySubscriptionMode() error = %v", err)
+		}
+		if got, want := mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("mode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep router digest fallback when keyword filter misses", func(t *testing.T) {
+		t.Parallel()
+
+		threadSurface := SurfaceThread
+		threadID := "thread-keyword-miss"
+		envelope := testDeliveryEnvelope(t, "msg-keyword-miss", "ordinary update")
+		envelope.Surface = &threadSurface
+		envelope.ThreadID = &threadID
+		envelope.DirectID = nil
+		envelope.To = nil
+		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
+			testNetworkSubscriptionEntry(
+				"",
+				"reviewer.sess-xyz",
+				store.NetworkSubscriptionModeFull,
+				[]string{"urgent"},
+			),
+		}}
+
+		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
+			PeerID:   "reviewer.sess-xyz",
+			Envelope: envelope,
+			Mode:     store.NetworkSubscriptionModeDigest,
+		})
+		if err != nil {
+			t.Fatalf("deliverySubscriptionMode() error = %v", err)
+		}
+		if got, want := mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("mode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should deliver mentioned traffic despite mute", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := testDeliveryEnvelope(t, "msg-mentioned-muted", "please look")
+		envelope.Mentions = []string{"reviewer.sess-xyz"}
+		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
+			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
+		}}
+
+		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
+			PeerID:   "reviewer.sess-xyz",
+			Envelope: envelope,
+		})
+		if err != nil {
+			t.Fatalf("deliverySubscriptionMode() error = %v", err)
+		}
+		if got, want := mode, store.NetworkSubscriptionModeFull; got != want {
+			t.Fatalf("mode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should deliver addressed traffic despite mute", func(t *testing.T) {
+		t.Parallel()
+
+		envelope := testDeliveryEnvelope(t, "msg-addressed-muted", "direct update")
+		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
+			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
+		}}
+
+		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
+			PeerID:   "reviewer.sess-xyz",
+			Envelope: envelope,
+		})
+		if err != nil {
+			t.Fatalf("deliverySubscriptionMode() error = %v", err)
+		}
+		if got, want := mode, store.NetworkSubscriptionModeFull; got != want {
+			t.Fatalf("mode = %q, want %q", got, want)
+		}
+	})
 }
 
 func discardManagerLogger() *slog.Logger {
@@ -1815,12 +1994,54 @@ type recordingConversationStore struct {
 
 	mu                  sync.Mutex
 	entries             []store.NetworkConversationMessage
+	participants        []store.NetworkThreadParticipant
+	tokenUpdates        []store.NetworkThreadPeerTokenStatsUpdate
 	publishCount        func() int
 	promptCount         func() int
 	publishCountAtWrite int
 	promptCountAtWrite  int
 	result              store.NetworkConversationWriteResult
 	err                 error
+}
+
+type fakeNetworkSubscriptionStore struct {
+	entries []store.NetworkSubscriptionEntry
+}
+
+func (s fakeNetworkSubscriptionStore) ListNetworkSubscriptions(
+	_ context.Context,
+	query store.NetworkSubscriptionQuery,
+) ([]store.NetworkSubscriptionEntry, error) {
+	out := make([]store.NetworkSubscriptionEntry, 0, len(s.entries))
+	for _, entry := range s.entries {
+		if strings.TrimSpace(entry.WorkspaceID) != strings.TrimSpace(query.WorkspaceID) ||
+			strings.TrimSpace(entry.Channel) != strings.TrimSpace(query.Channel) ||
+			strings.TrimSpace(entry.PeerID) != strings.TrimSpace(query.PeerID) {
+			continue
+		}
+		if strings.TrimSpace(query.ThreadID) != "" &&
+			strings.TrimSpace(entry.ThreadID) != strings.TrimSpace(query.ThreadID) {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+func testNetworkSubscriptionEntry(
+	threadID string,
+	peerID string,
+	mode string,
+	keywords []string,
+) store.NetworkSubscriptionEntry {
+	return store.NetworkSubscriptionEntry{
+		WorkspaceID:    testWorkspaceID,
+		Channel:        "builders",
+		ThreadID:       strings.TrimSpace(threadID),
+		PeerID:         strings.TrimSpace(peerID),
+		Mode:           strings.TrimSpace(mode),
+		KeywordFilters: normalizeStringList(keywords),
+	}
 }
 
 func (s *recordingConversationStore) WriteConversationMessage(
@@ -1837,6 +2058,7 @@ func (s *recordingConversationStore) WriteConversationMessage(
 		s.promptCountAtWrite = s.promptCount()
 	}
 	s.entries = append(s.entries, entry)
+	s.recordThreadParticipantsLocked(entry)
 	if s.err != nil {
 		return store.NetworkConversationWriteResult{}, s.err
 	}
@@ -1847,6 +2069,41 @@ func (s *recordingConversationStore) WriteConversationMessage(
 	return result, nil
 }
 
+func (s *recordingConversationStore) ListThreadParticipants(
+	_ context.Context,
+	ref store.NetworkChannelRef,
+	threadID string,
+) ([]store.NetworkThreadParticipant, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	participants := make([]store.NetworkThreadParticipant, 0, len(s.participants))
+	for _, participant := range s.participants {
+		if participant.WorkspaceID == ref.WorkspaceID &&
+			participant.Channel == ref.Channel &&
+			participant.ThreadID == threadID {
+			participants = append(participants, participant)
+		}
+	}
+	return participants, nil
+}
+
+func (s *recordingConversationStore) UpdateNetworkThreadPeerTokenStats(
+	_ context.Context,
+	update store.NetworkThreadPeerTokenStatsUpdate,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tokenUpdates = append(s.tokenUpdates, update)
+	return nil
+}
+
+func (s *recordingConversationStore) ListNetworkThreadPeerTokenStats(
+	context.Context,
+	store.NetworkThreadPeerTokenStatsQuery,
+) ([]store.NetworkThreadPeerTokenStats, error) {
+	return nil, nil
+}
+
 func (s *recordingConversationStore) entry(index int) store.NetworkConversationMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1854,6 +2111,15 @@ func (s *recordingConversationStore) entry(index int) store.NetworkConversationM
 		return store.NetworkConversationMessage{}
 	}
 	return s.entries[index]
+}
+
+func (s *recordingConversationStore) tokenUpdate(index int) store.NetworkThreadPeerTokenStatsUpdate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.tokenUpdates) {
+		return store.NetworkThreadPeerTokenStatsUpdate{}
+	}
+	return s.tokenUpdates[index]
 }
 
 func (s *recordingConversationStore) publishCountAtWriteValue() int {
@@ -1866,6 +2132,39 @@ func (s *recordingConversationStore) promptCountAtWriteValue() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.promptCountAtWrite
+}
+
+func (s *recordingConversationStore) recordThreadParticipantsLocked(entry store.NetworkConversationMessage) {
+	if entry.Surface != store.NetworkSurfaceThread || strings.TrimSpace(entry.ThreadID) == "" {
+		return
+	}
+	s.addThreadParticipantLocked(entry, entry.PeerFrom)
+	s.addThreadParticipantLocked(entry, entry.PeerTo)
+}
+
+func (s *recordingConversationStore) addThreadParticipantLocked(
+	entry store.NetworkConversationMessage,
+	peerID string,
+) {
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" {
+		return
+	}
+	participant := store.NetworkThreadParticipant{
+		WorkspaceID: entry.WorkspaceID,
+		Channel:     entry.Channel,
+		ThreadID:    entry.ThreadID,
+		PeerID:      peerID,
+	}
+	for _, existing := range s.participants {
+		if existing.WorkspaceID == participant.WorkspaceID &&
+			existing.Channel == participant.Channel &&
+			existing.ThreadID == participant.ThreadID &&
+			existing.PeerID == participant.PeerID {
+			return
+		}
+	}
+	s.participants = append(s.participants, participant)
 }
 
 type recordingAuditWriter struct {
@@ -1936,6 +2235,19 @@ func (w *recordingAuditWriter) countReceived(kind Kind) int {
 
 	count := 0
 	for _, call := range w.received {
+		if call.envelope.Kind == kind {
+			count++
+		}
+	}
+	return count
+}
+
+func (w *recordingAuditWriter) countDelivered(kind Kind) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	count := 0
+	for _, call := range w.delivered {
 		if call.envelope.Kind == kind {
 			count++
 		}

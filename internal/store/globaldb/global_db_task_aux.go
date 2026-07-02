@@ -27,13 +27,14 @@ type taskSQLExecutor interface {
 }
 
 type queuedRunReservationInput struct {
-	taskID           string
-	runID            string
-	idempotencyKey   string
-	origin           taskpkg.Origin
-	requestedChannel string
-	metadata         json.RawMessage
-	queuedAt         time.Time
+	taskID             string
+	runID              string
+	idempotencyKey     string
+	origin             taskpkg.Origin
+	requestedChannel   string
+	designationGroupID string
+	metadata           json.RawMessage
+	queuedAt           time.Time
 }
 
 // GetTaskTriageState returns the durable actor-scoped triage state for one task.
@@ -623,6 +624,7 @@ func (g *GlobalDB) ReserveQueuedRun(
 	requestedChannel string,
 	metadata json.RawMessage,
 	queuedAt time.Time,
+	designationGroupID ...string,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	if err := g.checkReady(ctx, "reserve queued task run"); err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
@@ -636,6 +638,7 @@ func (g *GlobalDB) ReserveQueuedRun(
 		requestedChannel,
 		metadata,
 		queuedAt,
+		designationGroupID...,
 	)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
@@ -668,6 +671,7 @@ func (g *GlobalDB) normalizeQueuedRunReservationInput(
 	requestedChannel string,
 	metadata json.RawMessage,
 	queuedAt time.Time,
+	designationGroupID ...string,
 ) (queuedRunReservationInput, error) {
 	trimmedTaskID, err := requireTaskValue(taskID, "task id")
 	if err != nil {
@@ -694,14 +698,24 @@ func (g *GlobalDB) normalizeQueuedRunReservationInput(
 		normalizedQueuedAt = g.now()
 	}
 	return queuedRunReservationInput{
-		taskID:           trimmedTaskID,
-		runID:            trimmedRunID,
-		idempotencyKey:   trimmedKey,
-		origin:           normalizedOrigin,
-		requestedChannel: strings.TrimSpace(requestedChannel),
-		metadata:         normalizedMetadata,
-		queuedAt:         normalizedQueuedAt,
+		taskID:             trimmedTaskID,
+		runID:              trimmedRunID,
+		idempotencyKey:     trimmedKey,
+		origin:             normalizedOrigin,
+		requestedChannel:   strings.TrimSpace(requestedChannel),
+		designationGroupID: firstQueuedRunDesignationGroupID(designationGroupID),
+		metadata:           normalizedMetadata,
+		queuedAt:           normalizedQueuedAt,
 	}, nil
+}
+
+func firstQueuedRunDesignationGroupID(values []string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func (g *GlobalDB) reserveQueuedRunWithExecutor(
@@ -731,7 +745,7 @@ func (g *GlobalDB) reserveQueuedRunWithExecutor(
 		return taskRecord, runRecord, true, nil
 	}
 
-	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID)
+	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID, input.designationGroupID)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
@@ -816,6 +830,7 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 		Origin:                input.origin,
 		IdempotencyKey:        input.idempotencyKey,
 		NetworkChannel:        networkChannel,
+		DesignationGroupID:    input.designationGroupID,
 		CoordinationChannelID: coordinationChannelID,
 		Metadata:              input.metadata,
 		QueuedAt:              input.queuedAt,
@@ -1047,7 +1062,7 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 			tr.id, tr.task_id, tr.status, tr.attempt, tr.previous_run_id, tr.failure_kind,
 			tr.claimed_by_kind, tr.claimed_by_ref,
 			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
-			'' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
+			tr.designation_group_id, '' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
 			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
 			tr.error, tr.metadata_json, tr.result_json, tr.review_required,
 			tr.review_request_round, tr.review_policy_snapshot, tr.review_request_id,
@@ -1463,19 +1478,24 @@ func (g *GlobalDB) findOpenRunIDForQueuedRunReservation(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskID string,
+	designationGroupID string,
 ) (string, error) {
+	normalizedDesignationGroupID := strings.TrimSpace(designationGroupID)
 	row := exec.QueryRowContext(
 		ctx,
 		`SELECT id
 		   FROM task_runs
 		  WHERE task_id = ?
 		    AND status NOT IN (?, ?, ?)
+		    AND (? = '' OR COALESCE(designation_group_id, '') <> ?)
 		  ORDER BY queued_at DESC, id DESC
 		  LIMIT 1`,
 		taskID,
 		string(taskpkg.TaskRunStatusCompleted),
 		string(taskpkg.TaskRunStatusFailed),
 		string(taskpkg.TaskRunStatusCanceled),
+		normalizedDesignationGroupID,
+		normalizedDesignationGroupID,
 	)
 
 	var runID string

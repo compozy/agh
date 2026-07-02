@@ -12,8 +12,10 @@ import {
   listNetworkDirectRooms,
   listNetworkDirectRoomMessages,
   listNetworkPeers,
+  listNetworkSubscriptions,
   listNetworkThreadMessages,
   listNetworkThreads,
+  type NetworkSubscriptionsListQuery,
   type NetworkDirectsListQuery,
   type NetworkThreadsListQuery,
 } from "../adapters/network-api";
@@ -65,6 +67,22 @@ export function networkChannelDetailOptions(workspaceId: string, channel: string
   return queryOptions({
     queryKey: networkKeys.channelDetail(workspaceId, channel),
     queryFn: ({ signal }) => getNetworkChannel(workspaceId, channel, signal),
+    staleTime: LIST_STALE_TIME,
+    refetchInterval: LIST_REFETCH_INTERVAL,
+    refetchOnWindowFocus: true,
+    enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
+  });
+}
+
+export function networkSubscriptionsOptions(
+  workspaceId: string,
+  channel: string,
+  query: NetworkSubscriptionsListQuery = {},
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: networkKeys.subscriptions(workspaceId, channel, query),
+    queryFn: ({ signal }) => listNetworkSubscriptions(workspaceId, channel, query, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,

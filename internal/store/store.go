@@ -140,6 +140,22 @@ type NetworkConversationStore interface {
 	GetWork(ctx context.Context, workspaceID string, workID string) (NetworkWorkEntry, error)
 }
 
+// NetworkPreferenceStore manages network delivery preferences and network-task links.
+type NetworkPreferenceStore interface {
+	PutNetworkSubscription(ctx context.Context, entry NetworkSubscriptionEntry) error
+	ListNetworkSubscriptions(ctx context.Context, query NetworkSubscriptionQuery) ([]NetworkSubscriptionEntry, error)
+	DeleteNetworkSubscription(ctx context.Context, ref NetworkSubscriptionRef) error
+	GetNetworkDeliveryGuidanceState(ctx context.Context, key string) (NetworkDeliveryGuidanceState, error)
+	PutNetworkDeliveryGuidanceState(ctx context.Context, state NetworkDeliveryGuidanceState) error
+	PutNetworkTaskThreadOrigin(ctx context.Context, origin NetworkTaskThreadOrigin) error
+	ListNetworkTaskThreadOrigins(
+		ctx context.Context,
+		query NetworkTaskThreadOriginQuery,
+	) ([]NetworkTaskThreadOrigin, error)
+	PutTaskDesignationRollup(ctx context.Context, rollup TaskDesignationRollup) error
+	ListTaskDesignationRollups(ctx context.Context, query TaskDesignationRollupQuery) ([]TaskDesignationRollup, error)
+}
+
 // SessionRegistry composes the global persistence surfaces used by runtime consumers.
 type SessionRegistry interface {
 	SessionCatalog
@@ -150,6 +166,7 @@ type SessionRegistry interface {
 	NetworkChannelStore
 	NetworkMessageStore
 	NetworkConversationStore
+	NetworkPreferenceStore
 	Close(ctx context.Context) error
 }
 

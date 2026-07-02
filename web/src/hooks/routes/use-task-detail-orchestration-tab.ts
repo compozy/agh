@@ -5,6 +5,7 @@ import {
   useCreateTaskBridgeNotificationSubscription,
   useDeleteTaskBridgeNotificationSubscription,
   useDeleteTaskExecutionProfile,
+  useFanOutTaskRuns,
   useSetTaskExecutionProfile,
   useTaskBridgeNotificationSubscriptions,
   useTaskExecutionProfile,
@@ -14,6 +15,7 @@ import {
 import type {
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskExecutionProfileSetRequest,
+  FanOutTaskRunsRequest,
 } from "@/systems/tasks";
 
 interface UseTaskDetailOrchestrationTabOptions {
@@ -44,6 +46,7 @@ function useTaskDetailOrchestrationTab(
 
   const setProfileMutation = useSetTaskExecutionProfile();
   const deleteProfileMutation = useDeleteTaskExecutionProfile();
+  const fanOutMutation = useFanOutTaskRuns();
   const createSubscriptionMutation = useCreateTaskBridgeNotificationSubscription();
   const deleteSubscriptionMutation = useDeleteTaskBridgeNotificationSubscription();
 
@@ -111,6 +114,23 @@ function useTaskDetailOrchestrationTab(
     }
   }, [deleteProfileMutation, hasTaskId, taskId]);
 
+  const handleFanOutRuns = useCallback(
+    async (data: FanOutTaskRunsRequest) => {
+      if (!hasTaskId) {
+        return;
+      }
+      try {
+        const result = await fanOutMutation.mutateAsync({ id: taskId, data });
+        toast.success(`${result.runs.length} designated runs queued.`);
+        return result;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to fan out task runs");
+        throw error;
+      }
+    },
+    [fanOutMutation, hasTaskId, taskId]
+  );
+
   const handleCreateSubscription = useCallback(
     async (data: TaskBridgeNotificationSubscriptionCreateRequest) => {
       if (!hasTaskId) {
@@ -163,10 +183,12 @@ function useTaskDetailOrchestrationTab(
     subscriptionsLoading: subscriptionsQuery.isLoading && subscriptions.length === 0,
     isSetProfilePending: setProfileMutation.isPending,
     isDeleteProfilePending: deleteProfileMutation.isPending,
+    isFanOutPending: fanOutMutation.isPending,
     isCreateSubscriptionPending: createSubscriptionMutation.isPending,
     isDeleteSubscriptionPending: deleteSubscriptionMutation.isPending,
     handleSetProfile,
     handleDeleteProfile,
+    handleFanOutRuns,
     handleCreateSubscription,
     handleDeleteSubscription,
     streamState,

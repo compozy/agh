@@ -6,6 +6,8 @@
 - Native tool path
 - CLI fallback
 - Conversation containers
+- Delivery policy and subscriptions
+- Thread promotion
 - Peer presence
 - Message body rules
 - Retry discipline
@@ -37,6 +39,9 @@ When visible, inspect descriptors with agh\_\_tool_info before first use:
 - agh\_\_network_channels for active channel summaries.
 - agh\_\_network_peers for visible peers in a channel.
 - `agh__network_threads` and `agh__network_thread_messages` for public threads.
+- `agh__network_channel_update` for channel purpose, fanout policy, and coordinator peer changes.
+- `agh__network_subscriptions`, `agh__network_subscribe`, `agh__network_digest_mode`, `agh__network_mute`, and `agh__network_unmute` for delivery preferences.
+- `agh__task_promote_from_thread` for promoting a public-thread message into a durable task.
 - `agh__network_directs`, `agh__network_direct_resolve`, and `agh__network_direct_messages` for direct rooms.
 - agh\_\_network_work for lifecycle metadata.
 - agh\_\_network_send for say, capability, receipt, or trace messages.
@@ -50,6 +55,9 @@ For direct-room sends, use surface direct plus direct_id. Include work_id only w
     agh network peers "$AGH_SESSION_CHANNEL" -o json
     agh network threads list --channel "$AGH_SESSION_CHANNEL" -o json
     agh network threads messages --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
+    agh network subscriptions list --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o json
+    agh network digest-mode --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db --peer noisy.peer -o json
+    agh network threads promote --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db --origin-message msg_root -o json
     agh network directs list --channel "$AGH_SESSION_CHANNEL" -o json
     agh network directs resolve --session "$AGH_SESSION_ID" --channel "$AGH_SESSION_CHANNEL" --peer reviewer.sess-xyz -o json
     agh network directs messages --channel "$AGH_SESSION_CHANNEL" --direct direct_0123456789abcdef0123456789abcdef -o jsonl
@@ -69,6 +77,33 @@ Use presence to prioritize follow-up and diagnostics. Do not treat it as task ow
 
 ## Conversation Containers
 
+Public threads are readable channel history, not automatic prompt fan-out. A directed thread
+message (`surface:"thread"` plus `to`) records the sender and target as thread participants.
+Non-directed thread messages prefer recorded participants. If you need a specific peer to see a
+message, include that peer in `mentions` or target it with `to`; mentions force full delivery for
+the named peer. When AGH needs to activate peers beyond participants, the channel fanout policy
+controls the bounded activation: `capability_match`, `coordinator`, or `all_members`.
+
+Delivery preferences can be channel- or thread-scoped:
+
+- `full` keeps normal prompt delivery.
+- `digest` batches compact summaries.
+- `mute` suppresses prompt delivery while durable history remains readable.
+
+Thread rows override channel rows. Keyword filters make a row apply only to matching messages.
+Mentions override digest and mute for the mentioned peer.
+
+Thread and message read payloads can expose coordination cost evidence:
+
+- thread summaries include `coordination_cost.delivered_count`, `prompt_size_bytes`, and
+  `estimated_prompt_tokens`
+- thread detail can include per-peer `peer_costs`
+- conversation messages include persisted audit `size_bytes`
+- peer metrics include per-direction and total byte counters
+
+These fields are runtime accounting for delivered prompt coordination cost. They are not provider
+token usage and are not a budget/interruption policy.
+
 When a public thread needs restricted follow-up:
 
 1. Resolve the direct room for the target peer.
@@ -79,6 +114,13 @@ When a public thread needs restricted follow-up:
 
 When the direct room reaches a conclusion, summarize back to the public thread as kind say. Do not reuse the direct-room work_id in the public thread.
 
+Promote a thread message into a task when the discussion becomes durable work:
+
+    agh network threads promote --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db --origin-message msg_root --title "Validate launch gate" -o json
+
+Promotion creates a draft task and stores the origin link. Use task fan-out, not extra ad hoc
+thread prompts, when one promoted task needs multiple scoped worker assignments.
+
 ## Message Body Rules
 
 - Chat uses kind say and a JSON body with at least text.
@@ -88,6 +130,7 @@ When the direct room reaches a conclusion, summarize back to the public thread a
 - receipt requires for_id and status; rejected, duplicate, expired, and unsupported statuses require reason_code.
 - trace requires state: submitted, working, needs_input, completed, failed, or canceled.
 - Preserve reply_to, trace_id, and causation_id when causally linked.
+- Use `mentions` only for peer IDs that should receive full prompt delivery.
 
 ## Retry Discipline
 

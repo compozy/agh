@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -81,6 +82,37 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+			}
+		}
+	})
+
+	t.Run("Should include designated fan-out assignment in worker prompt", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-fanout", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-fanout", taskRecord.ID, "design-review")
+		run.DesignationGroupID = "tdg-fanout"
+		run.Metadata = json.RawMessage(`{"designation":{"index":2,"brief":"Audit billing latency"}}`)
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		})
+
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("create count = %d, want %d", got, want)
+		}
+		overlay := sessions.createCall(0).PromptOverlay
+		for _, required := range []string{
+			"Designated fan-out assignment",
+			"group tdg-fanout",
+			"index 2",
+			`brief "Audit billing latency"`,
+		} {
+			if !strings.Contains(overlay, required) {
+				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
 	})

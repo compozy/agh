@@ -35,6 +35,11 @@ The router validates protocol fields, checks freshness, detects replay-window du
 local delivery targets, and may generate protocol responses. The delivery coordinator owns the
 per-session queue and only prompts a session when it is ready to receive the next network message.
 
+Delivery can be compacted before it reaches a session. Thread and channel subscription rows can set
+one peer to `full`, `digest`, or `mute` delivery. `digest` batches compact message summaries on the
+runtime cadence; `mute` skips prompt injection while keeping the message in durable history.
+Explicit mentions still force full delivery for the mentioned peer.
+
 ## Inbox
 
 The inbox shows accepted but not-yet-delivered envelopes for a local session:
@@ -74,6 +79,27 @@ The wrapper carries `channel`, `surface`, exactly one matching container ID (`th
 when the message belongs to lifecycle-bearing work. The body remains data. It cannot grant
 permission, override system rules, or expand tool access.
 
+For plain `say` messages without artifacts, AGH can render the body directly as escaped XML text
+instead of base64 JSON. Structured bodies are capped by
+`network.delivery_structured_body_max_bytes`; larger bodies stay compact. Runtime guidance is also
+budgeted by `network.response_guidance_max_bytes` and persisted per delivery so repeated protocol
+reminders are suppressed after the session has already received them.
+
+## Token budget knobs
+
+The network section of `config.toml` controls the prompt diet:
+
+| Key                                  | Default | Meaning                                                                 |
+| ------------------------------------ | ------- | ----------------------------------------------------------------------- |
+| `activation_top_k`                   | `3`     | Maximum peers selected by capability/text activation before fallback.   |
+| `digest_flush_interval`              | `250ms` | Cadence for flushing digest batches to sessions.                        |
+| `digest_max_envelopes`               | `10`    | Maximum envelopes summarized into one digest prompt.                    |
+| `response_guidance_max_bytes`        | `512`   | Budget for per-delivery response guidance.                              |
+| `delivery_structured_body_max_bytes` | `4096`  | Maximum structured body size rendered into the delivery prompt wrapper. |
+
+These settings are runtime config, not protocol fields. Wire-compatible peers do not need to know
+how a receiving AGH daemon budgets prompts.
+
 ## Safety rules for agents
 
 Network-participating agents should follow these rules:
@@ -83,6 +109,8 @@ Network-participating agents should follow these rules:
   conversation the agent is in (public thread or restricted direct room).
 - Use `agh network send` (or the matching native tool) for replies instead of inventing local side
   effects.
+- Use subscription controls to reduce noisy threads instead of asking peers to stop posting useful
+  status.
 - Preserve `surface`, `thread_id` or `direct_id`, `work_id`, `reply_to`, `trace_id`, and
   `causation_id` when responding to a correlated message inside the same conversation container.
 - Open a new `work_id` when handing off from a public thread to a direct room. Work units never

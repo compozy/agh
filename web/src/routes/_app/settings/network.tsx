@@ -310,7 +310,7 @@ function DeliverySection({
   setValidationError: (key: string) => (message: string | null) => void;
 }) {
   return (
-    <Section divided label="Delivery" note="queue limits and retention">
+    <Section divided label="Delivery" note="queue limits, fanout, and prompt diet">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <NumberField
           label="Greet interval"
@@ -364,6 +364,75 @@ function DeliverySection({
             setDraft(prev => {
               const current = prev ?? draft;
               return { ...current, max_replay_age: value };
+            })
+          }
+        />
+        <NumberField
+          label="Activation top K"
+          errorMessage={validationErrors.activationTopK ?? undefined}
+          testId="settings-page-network-activation-top-k"
+          value={draft.activation_top_k}
+          onValidityChange={setValidationError("activationTopK")}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, activation_top_k: value };
+            })
+          }
+        />
+        <div className="flex flex-col gap-1">
+          <Eyebrow className="text-muted">Digest flush interval</Eyebrow>
+          <Input
+            aria-label="Digest flush interval"
+            className="font-mono"
+            data-testid="settings-page-network-digest-flush-interval"
+            value={draft.digest_flush_interval}
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, digest_flush_interval: event.target.value };
+              })
+            }
+          />
+        </div>
+        <NumberField
+          label="Digest max envelopes"
+          errorMessage={validationErrors.digestMaxEnvelopes ?? undefined}
+          testId="settings-page-network-digest-max-envelopes"
+          value={draft.digest_max_envelopes}
+          onValidityChange={setValidationError("digestMaxEnvelopes")}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, digest_max_envelopes: value };
+            })
+          }
+        />
+        <NumberField
+          label="Guidance max bytes"
+          errorMessage={validationErrors.responseGuidanceMaxBytes ?? undefined}
+          suffix="bytes"
+          testId="settings-page-network-response-guidance-max-bytes"
+          value={draft.response_guidance_max_bytes}
+          onValidityChange={setValidationError("responseGuidanceMaxBytes")}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, response_guidance_max_bytes: value };
+            })
+          }
+        />
+        <NumberField
+          label="Structured body max"
+          errorMessage={validationErrors.deliveryStructuredBodyMaxBytes ?? undefined}
+          suffix="bytes"
+          testId="settings-page-network-delivery-structured-body-max-bytes"
+          value={draft.delivery_structured_body_max_bytes}
+          onValidityChange={setValidationError("deliveryStructuredBodyMaxBytes")}
+          onChange={value =>
+            setDraft(prev => {
+              const current = prev ?? draft;
+              return { ...current, delivery_structured_body_max_bytes: value };
             })
           }
         />

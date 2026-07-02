@@ -541,7 +541,7 @@ func promptAISDKFinishReason(stopReason string) string {
 		return promptStreamStopKey
 	case "max_tokens":
 		return "length"
-	case "canceled", "max_turn_requests", "refusal":
+	case toolInvokeStatusCanceled, "max_turn_requests", "refusal":
 		return "other"
 	default:
 		return "other"

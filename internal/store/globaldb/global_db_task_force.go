@@ -224,7 +224,7 @@ func (g *GlobalDB) retryTaskRunTask(
 	if err := validateTaskForQueuedRunReservation(taskRecord); err != nil {
 		return taskpkg.Task{}, err
 	}
-	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID)
+	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID, "")
 	if err != nil {
 		return taskpkg.Task{}, err
 	}

@@ -323,9 +323,20 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/network/channels", handlers.NetworkChannels)
 	engine.POST("/workspaces/:workspace_id/network/channels", handlers.CreateNetworkChannel)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel", handlers.NetworkChannel)
+	engine.PATCH("/workspaces/:workspace_id/network/channels/:channel", handlers.UpdateNetworkChannel)
+	engine.GET("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
+	engine.PUT("/workspaces/:workspace_id/network/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
+	engine.DELETE(
+		"/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+		handlers.DeleteNetworkSubscription,
+	)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/messages", handlers.NetworkChannelMessages)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads", handlers.NetworkThreads)
 	engine.GET("/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id", handlers.NetworkThread)
+	engine.POST(
+		"/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
+		handlers.PromoteNetworkThreadTask,
+	)
 	engine.GET(
 		"/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
 		handlers.NetworkThreadMessages,
@@ -378,6 +389,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/tasks/:id/triage/archive", handlers.ArchiveTask)
 	engine.POST("/tasks/:id/triage/dismiss", handlers.DismissTask)
 	engine.POST("/tasks/:id/runs", handlers.EnqueueTaskRun)
+	engine.POST("/tasks/:id/runs/fan-out", handlers.FanOutTaskRuns)
 	engine.GET("/task-runs/:id", handlers.GetTaskRun)
 	engine.GET("/runs/:id/inspect", handlers.InspectRun)
 	engine.POST("/runs/:id/release", handlers.ForceReleaseTaskRun)

@@ -100,6 +100,28 @@ describe("TasksDetailRunsPanel", () => {
     );
   });
 
+  it("renders designation assignment chips on fan-out runs", () => {
+    render(
+      <TasksDetailRunsPanel
+        runs={[
+          buildRun({
+            designation: {
+              index: 2,
+              brief: "Validate UI impact",
+            },
+            designation_group_id: "desig_123",
+          }),
+        ]}
+        taskId="task_001"
+      />
+    );
+
+    const chip = screen.getByTestId("tasks-detail-runs-designation-run_001");
+    expect(chip).toHaveTextContent("Assignment 3");
+    expect(chip).toHaveAttribute("title", "Validate UI impact");
+    expect(screen.getByTestId("tasks-detail-runs-item-run_001")).toHaveTextContent("desig_123");
+  });
+
   it("does not render the channel chip when the run has no coordination binding", () => {
     render(<TasksDetailRunsPanel runs={[buildRun()]} taskId="task_001" />);
 

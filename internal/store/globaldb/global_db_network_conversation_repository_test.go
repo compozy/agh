@@ -131,6 +131,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 				startedAt.Add(2*time.Minute),
 			),
 		}
+		messages[1].PeerTo = "planner.sess-plan"
 
 		firstResult, err := globalDB.WriteConversationMessage(testutil.Context(t), messages[0])
 		if err != nil {
@@ -163,7 +164,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if got, want := thread.MessageCount, 3; got != want {
 			t.Fatalf("thread.MessageCount = %d, want %d", got, want)
 		}
-		if got, want := thread.ParticipantCount, 2; got != want {
+		if got, want := thread.ParticipantCount, 3; got != want {
 			t.Fatalf("thread.ParticipantCount = %d, want %d", got, want)
 		}
 		if got, want := thread.LastMessagePreview, "reviewing"; got != want {
@@ -183,6 +184,27 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 		if got, want := threads[0].ThreadID, "thread_store_counts"; got != want {
 			t.Fatalf("threads[0].ThreadID = %q, want %q", got, want)
+		}
+		if got, want := threads[0].ParticipantCount, 3; got != want {
+			t.Fatalf("threads[0].ParticipantCount = %d, want %d", got, want)
+		}
+
+		participants, err := globalDB.ListThreadParticipants(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			"thread_store_counts",
+		)
+		if err != nil {
+			t.Fatalf("ListThreadParticipants() error = %v", err)
+		}
+		participantSet := make(map[string]bool, len(participants))
+		for _, participant := range participants {
+			participantSet[participant.PeerID] = true
+		}
+		for _, want := range []string{"coder.sess-abc", "reviewer.sess-xyz", "planner.sess-plan"} {
+			if !participantSet[want] {
+				t.Fatalf("participants = %#v, want peer %q", participantSet, want)
+			}
 		}
 
 		entries, err := globalDB.ListConversationMessages(
@@ -215,6 +237,102 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 		if got, want := auditRows[0].ThreadID, "thread_store_counts"; got != want {
 			t.Fatalf("auditRows[0].ThreadID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should aggregate delivered prompt cost by thread peer", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		startedAt := time.Date(2026, 5, 5, 14, 30, 0, 0, time.UTC)
+		thread := threadMessage(
+			"msg_thread_cost_root",
+			"thread_store_cost",
+			"coder.sess-abc",
+			"hello cost accounting",
+			startedAt,
+		)
+		if _, err := globalDB.WriteConversationMessage(testutil.Context(t), thread); err != nil {
+			t.Fatalf("WriteConversationMessage(thread) error = %v", err)
+		}
+
+		updates := []store.NetworkThreadPeerTokenStatsUpdate{
+			{
+				WorkspaceID:           networkStoreTestWorkspaceID,
+				Channel:               "builders",
+				ThreadID:              "thread_store_cost",
+				PeerID:                "reviewer.sess-xyz",
+				DeliveredCount:        1,
+				PromptSizeBytes:       400,
+				EstimatedPromptTokens: 100,
+				DeliveredAt:           startedAt.Add(time.Minute),
+				UpdatedAt:             startedAt.Add(time.Minute),
+			},
+			{
+				WorkspaceID:           networkStoreTestWorkspaceID,
+				Channel:               "builders",
+				ThreadID:              "thread_store_cost",
+				PeerID:                "reviewer.sess-xyz",
+				DeliveredCount:        1,
+				PromptSizeBytes:       200,
+				EstimatedPromptTokens: 50,
+				DeliveredAt:           startedAt.Add(2 * time.Minute),
+				UpdatedAt:             startedAt.Add(2 * time.Minute),
+			},
+		}
+		for _, update := range updates {
+			if err := globalDB.UpdateNetworkThreadPeerTokenStats(testutil.Context(t), update); err != nil {
+				t.Fatalf("UpdateNetworkThreadPeerTokenStats() error = %v", err)
+			}
+		}
+
+		stats, err := globalDB.ListNetworkThreadPeerTokenStats(
+			testutil.Context(t),
+			store.NetworkThreadPeerTokenStatsQuery{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				ThreadID:    "thread_store_cost",
+				Limit:       10,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ListNetworkThreadPeerTokenStats() error = %v", err)
+		}
+		if got, want := len(stats), 1; got != want {
+			t.Fatalf("len(stats) = %d, want %d", got, want)
+		}
+		if got, want := stats[0].DeliveredCount, int64(2); got != want {
+			t.Fatalf("stats[0].DeliveredCount = %d, want %d", got, want)
+		}
+		if got, want := stats[0].PromptSizeBytes, int64(600); got != want {
+			t.Fatalf("stats[0].PromptSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := stats[0].EstimatedPromptTokens, int64(150); got != want {
+			t.Fatalf("stats[0].EstimatedPromptTokens = %d, want %d", got, want)
+		}
+		if got, want := stats[0].FirstDeliveredAt, startedAt.Add(time.Minute); !got.Equal(want) {
+			t.Fatalf("stats[0].FirstDeliveredAt = %s, want %s", got, want)
+		}
+		if got, want := stats[0].LastDeliveredAt, startedAt.Add(2*time.Minute); !got.Equal(want) {
+			t.Fatalf("stats[0].LastDeliveredAt = %s, want %s", got, want)
+		}
+
+		summary, err := globalDB.GetThread(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			"thread_store_cost",
+		)
+		if err != nil {
+			t.Fatalf("GetThread() error = %v", err)
+		}
+		if got, want := summary.DeliveredCount, int64(2); got != want {
+			t.Fatalf("summary.DeliveredCount = %d, want %d", got, want)
+		}
+		if got, want := summary.PromptSizeBytes, int64(600); got != want {
+			t.Fatalf("summary.PromptSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := summary.EstimatedPromptTokens, int64(150); got != want {
+			t.Fatalf("summary.EstimatedPromptTokens = %d, want %d", got, want)
 		}
 	})
 }

@@ -424,7 +424,7 @@ func (m *Service) loadTaskLiveContext(
 }
 
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
-	return &RunSummary{
+	summary := &RunSummary{
 		ID:                    run.ID,
 		TaskID:                run.TaskID,
 		Status:                run.Status,
@@ -438,12 +438,18 @@ func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 		LeaseUntil:            run.LeaseUntil,
 		HeartbeatAt:           run.HeartbeatAt,
 		CoordinationChannelID: run.CoordinationChannelID,
+		DesignationGroupID:    run.DesignationGroupID,
 		QueuedAt:              run.QueuedAt,
 		ClaimedAt:             run.ClaimedAt,
 		StartedAt:             run.StartedAt,
 		EndedAt:               run.EndedAt,
 		Error:                 run.Error,
 	}
+	if designation, ok := DesignationFromRun(run); ok {
+		summary.DesignationGroupID = designation.GroupID
+		summary.Designation = designation.Summary()
+	}
+	return summary
 }
 
 func baseRunSessionRef(sessionID string) *RunSessionRef {

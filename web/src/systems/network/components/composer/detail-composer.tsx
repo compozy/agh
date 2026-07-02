@@ -29,7 +29,11 @@ export interface DetailComposerDirectProps {
 
 export type DetailComposerProps = DetailComposerThreadProps | DetailComposerDirectProps;
 
-function buildSendInput(props: DetailComposerProps, text: string): SendNetworkMessageInput {
+function buildSendInput(
+  props: DetailComposerProps,
+  text: string,
+  mentions: string[] = []
+): SendNetworkMessageInput {
   if (props.surface === "thread") {
     return {
       surface: "thread",
@@ -38,6 +42,7 @@ function buildSendInput(props: DetailComposerProps, text: string): SendNetworkMe
       sessionId: props.sessionId,
       peerFrom: props.peerFrom,
       text,
+      mentions,
       displayName: props.displayName,
     };
   }
@@ -49,6 +54,7 @@ function buildSendInput(props: DetailComposerProps, text: string): SendNetworkMe
     peerFrom: props.peerFrom,
     peerTo: props.peerTo,
     text,
+    mentions,
     displayName: props.displayName,
   };
 }
@@ -64,9 +70,17 @@ export function DetailComposer(props: DetailComposerProps) {
       ? `Send to #${props.channel}`
       : `Send to ${props.peerLabel ?? "@peer"}`;
 
-  const handleSubmit = async ({ text, reset }: { text: string; reset: () => void }) => {
+  const handleSubmit = async ({
+    text,
+    mentions,
+    reset,
+  }: {
+    text: string;
+    mentions: string[];
+    reset: () => void;
+  }) => {
     try {
-      await send(buildSendInput(props, text));
+      await send(buildSendInput(props, text, mentions));
       reset();
     } catch {
       // The optimistic message remains visible with retry/discard inline per

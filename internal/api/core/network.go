@@ -378,6 +378,7 @@ func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.Sen
 		Channel:     strings.TrimSpace(req.Channel),
 		Kind:        network.Kind(strings.TrimSpace(req.Kind)),
 		Body:        cloneRawMessage(req.Body),
+		Mentions:    cloneTrimmedStrings(req.Mentions),
 		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
 		Ext:         cloneRawMap(req.Ext),
 	}
@@ -492,6 +493,7 @@ func NetworkSendPayloadFromRequest(id string, req contract.NetworkSendRequest) c
 		DirectID:    strings.TrimSpace(req.DirectID),
 		Kind:        strings.TrimSpace(req.Kind),
 		To:          strings.TrimSpace(req.To),
+		Mentions:    cloneTrimmedStrings(req.Mentions),
 		WorkID:      strings.TrimSpace(req.WorkID),
 		ReplyTo:     strings.TrimSpace(req.ReplyTo),
 		TraceID:     strings.TrimSpace(req.TraceID),
@@ -621,6 +623,24 @@ func cloneNetworkStringSliceOrEmpty(values []string) []string {
 		return []string{}
 	}
 	return append([]string(nil), values...)
+}
+
+func cloneTrimmedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		cloned = append(cloned, trimmed)
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
 }
 
 func networkCapabilityBriefPayloads(
@@ -788,6 +808,7 @@ func NetworkEnvelopePayloadFromEnvelope(envelope network.Envelope) contract.Netw
 		DirectID:    cloneStringPtr(envelope.DirectID),
 		From:        envelope.From,
 		To:          cloneStringPtr(envelope.To),
+		Mentions:    cloneTrimmedStrings(envelope.Mentions),
 		WorkID:      cloneStringPtr(envelope.WorkID),
 		ReplyTo:     cloneStringPtr(envelope.ReplyTo),
 		TraceID:     cloneStringPtr(envelope.TraceID),

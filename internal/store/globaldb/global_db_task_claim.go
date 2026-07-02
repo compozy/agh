@@ -939,7 +939,7 @@ func networkChannelEntry(
 ) (store.NetworkChannelEntry, error) {
 	row := exec.QueryRowContext(
 		ctx,
-		`SELECT channel, workspace_id, purpose, created_by, created_at, updated_at
+		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
 		 FROM network_channels
 		 WHERE channel = ?`,
 		channelID,

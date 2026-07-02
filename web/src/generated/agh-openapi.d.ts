@@ -3354,6 +3354,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/runs/fan-out": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enqueue designated sibling runs for one task */
+    post: operations["fanOutTaskRuns"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{id}/start": {
     parameters: {
       query?: never;
@@ -3799,7 +3816,8 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    /** Update mutable delivery policy for one network channel */
+    patch: operations["updateNetworkChannel"];
     trace?: never;
   };
   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs": {
@@ -3870,6 +3888,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List delivery subscriptions for one network channel */
+    get: operations["listNetworkSubscriptions"];
+    /** Create or update one network delivery subscription */
+    put: operations["upsertNetworkSubscription"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete one network delivery subscription */
+    delete: operations["deleteNetworkSubscription"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads": {
     parameters: {
       query?: never;
@@ -3915,6 +3968,23 @@ export interface paths {
     get: operations["listNetworkThreadMessages"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Promote one network thread message into a durable task */
+    post: operations["promoteNetworkThreadTask"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5376,6 +5446,11 @@ export interface operations {
                       ref: string;
                     } | null;
                     coordination_channel_id?: string;
+                    designation?: {
+                      brief?: string;
+                      index: number;
+                    } | null;
+                    designation_group_id?: string;
                     /** Format: date-time */
                     ended_at: string;
                     error?: string;
@@ -5488,6 +5563,11 @@ export interface operations {
                       ref: string;
                     } | null;
                     coordination_channel_id?: string;
+                    designation?: {
+                      brief?: string;
+                      index: number;
+                    } | null;
+                    designation_group_id?: string;
                     /** Format: date-time */
                     ended_at: string;
                     error?: string;
@@ -5562,6 +5642,11 @@ export interface operations {
                         ref: string;
                       } | null;
                       coordination_channel_id?: string;
+                      designation?: {
+                        brief?: string;
+                        index: number;
+                      } | null;
+                      designation_group_id?: string;
                       /** Format: date-time */
                       ended_at: string;
                       error?: string;
@@ -7333,6 +7418,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -27698,6 +27788,11 @@ export interface operations {
                       workspace_id?: string;
                     } | null;
                     coordination_channel_id?: string;
+                    designation?: {
+                      brief?: string;
+                      index: number;
+                    } | null;
+                    designation_group_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
@@ -29442,6 +29537,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -29701,6 +29801,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -29943,6 +30048,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -30344,6 +30454,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -30671,6 +30786,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -30754,6 +30874,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -31044,6 +31169,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -31333,6 +31463,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -31416,6 +31551,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -31816,6 +31956,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -31900,6 +32045,11 @@ export interface operations {
                       workspace_id?: string;
                     } | null;
                     coordination_channel_id?: string;
+                    designation?: {
+                      brief?: string;
+                      index: number;
+                    } | null;
+                    designation_group_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
@@ -36323,13 +36473,18 @@ export interface operations {
           "application/json": {
             available_scopes: "global"[];
             config: {
+              activation_top_k: number;
               default_channel: string;
+              delivery_structured_body_max_bytes: number;
+              digest_flush_interval: string;
+              digest_max_envelopes: number;
               enabled: boolean;
               greet_interval: number;
               max_payload: number;
               max_queue_depth: number;
               max_replay_age: number;
               port: number;
+              response_guidance_max_bytes: number;
             };
             links?: {
               label: string;
@@ -36401,13 +36556,18 @@ export interface operations {
       content: {
         "application/json": {
           config: {
+            activation_top_k: number;
             default_channel: string;
+            delivery_structured_body_max_bytes: number;
+            digest_flush_interval: string;
+            digest_max_envelopes: number;
             enabled: boolean;
             greet_interval: number;
             max_payload: number;
             max_queue_depth: number;
             max_replay_age: number;
             port: number;
+            response_guidance_max_bytes: number;
           };
         };
       };
@@ -41872,6 +42032,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -42167,6 +42332,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -42448,6 +42618,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -42688,6 +42863,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -42927,6 +43107,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -43166,6 +43351,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -43406,6 +43596,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -44139,6 +44334,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -44408,6 +44608,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -45009,6 +45214,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -45217,6 +45427,13 @@ export interface operations {
                 kind: "blocks";
                 task_id: string;
               }[];
+              designation_rollups?: {
+                /** Format: date-time */
+                created_at: string;
+                designation_group_id: string;
+                summary: unknown;
+                task_id: string;
+              }[];
               events?: {
                 actor: {
                   /** @enum {string} */
@@ -45289,6 +45506,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -45373,6 +45595,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -46159,6 +46386,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -47009,6 +47241,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -47217,6 +47454,13 @@ export interface operations {
                 kind: "blocks";
                 task_id: string;
               }[];
+              designation_rollups?: {
+                /** Format: date-time */
+                created_at: string;
+                designation_group_id: string;
+                summary: unknown;
+                task_id: string;
+              }[];
               events?: {
                 actor: {
                   /** @enum {string} */
@@ -47289,6 +47533,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -47373,6 +47622,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -47804,6 +48058,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -48012,6 +48271,13 @@ export interface operations {
                 kind: "blocks";
                 task_id: string;
               }[];
+              designation_rollups?: {
+                /** Format: date-time */
+                created_at: string;
+                designation_group_id: string;
+                summary: unknown;
+                task_id: string;
+              }[];
               events?: {
                 actor: {
                   /** @enum {string} */
@@ -48084,6 +48350,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -48168,6 +48439,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -49261,6 +49537,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -50474,6 +50755,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -51518,6 +51804,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -51734,6 +52025,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -51909,6 +52205,257 @@ export interface operations {
       };
     };
   };
+  fanOutTaskRuns: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          designations: {
+            brief: string;
+            idempotency_key?: string;
+            metadata?: unknown;
+          }[];
+          idempotency_key?: string;
+          network_channel?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            designation_group_id: string;
+            runs: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled"
+                | "needs_attention";
+              task_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task fan-out conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid fan-out request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   startTask: {
     parameters: {
       query?: never;
@@ -51975,6 +52522,11 @@ export interface operations {
                 workspace_id?: string;
               } | null;
               coordination_channel_id?: string;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
@@ -52324,6 +52876,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -52590,6 +53147,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -52823,6 +53385,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -52932,6 +53499,11 @@ export interface operations {
                     workspace_id?: string;
                   } | null;
                   coordination_channel_id?: string;
+                  designation?: {
+                    brief?: string;
+                    index: number;
+                  } | null;
+                  designation_group_id?: string;
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
@@ -58500,9 +59072,11 @@ export interface operations {
           "application/json": {
             channels: {
               channel: string;
+              coordinator_peer_id?: string;
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              fanout_policy?: string;
               historical_participant_count?: number;
               /** Format: date-time */
               last_activity_at?: string | null;
@@ -58589,6 +59163,8 @@ export interface operations {
         "application/json": {
           agent_names: string[];
           channel: string;
+          coordinator_peer_id?: string;
+          fanout_policy?: string;
           purpose: string;
           workspace_id: string;
         };
@@ -58604,9 +59180,11 @@ export interface operations {
           "application/json": {
             channel: {
               channel: string;
+              coordinator_peer_id?: string;
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              fanout_policy?: string;
               historical_participant_count?: number;
               kind_counts?: {
                 count: number;
@@ -58929,9 +59507,11 @@ export interface operations {
           "application/json": {
             channel: {
               channel: string;
+              coordinator_peer_id?: string;
               /** Format: date-time */
               created_at?: string | null;
               created_by?: string;
+              fanout_policy?: string;
               historical_participant_count?: number;
               kind_counts?: {
                 count: number;
@@ -59130,6 +59710,342 @@ export interface operations {
         };
       };
       /** @description Invalid network channel */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network channel not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateNetworkChannel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          coordinator_peer_id?: string | null;
+          fanout_policy?: string | null;
+          purpose?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            channel: {
+              channel: string;
+              coordinator_peer_id?: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              created_by?: string;
+              fanout_policy?: string;
+              historical_participant_count?: number;
+              kind_counts?: {
+                count: number;
+                kind: string;
+              }[];
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              /** Format: date-time */
+              last_presence_at?: string | null;
+              local_peer_count?: number;
+              message_count?: number;
+              peer_count: number;
+              peers?: {
+                channel: string;
+                display_name?: string;
+                /** Format: date-time */
+                expires_at?: string | null;
+                /** Format: date-time */
+                joined_at?: string | null;
+                /** Format: date-time */
+                last_seen?: string | null;
+                /** Format: int64 */
+                last_seen_age_seconds?: number | null;
+                local: boolean;
+                peer_card: {
+                  artifacts_supported: string[];
+                  capabilities: {
+                    id: string;
+                    summary: string;
+                  }[];
+                  display_name?: string | null;
+                  ext?: {
+                    [key: string]: unknown;
+                  };
+                  peer_id: string;
+                  profiles_supported: string[];
+                  trust_modes_supported: string[];
+                };
+                peer_id: string;
+                presence_state: string;
+                session_id?: string | null;
+                workspace_id?: string;
+              }[];
+              presence_count?: number;
+              purpose?: string;
+              remote_peer_count?: number;
+              session_count?: number;
+              sessions?: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
+                  /** Format: int64 */
+                  elapsed_seconds: number;
+                  /** Format: int64 */
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
+                agent_name: string;
+                /** Format: date-time */
+                attach_expires_at?: string | null;
+                attachable: boolean;
+                attached_to?: string;
+                badge: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
+                } | null;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    sandbox_profiles: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                model?: string;
+                name?: string;
+                provider: string;
+                reasoning_effort?: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              }[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network channel policy */
       400: {
         headers: {
           [name: string]: unknown;
@@ -59712,6 +60628,7 @@ export interface operations {
               intent?: string;
               kind: string;
               local?: boolean;
+              mentions?: string[];
               message_id: string;
               peer_from: string;
               peer_to?: string;
@@ -59723,6 +60640,8 @@ export interface operations {
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
+              /** Format: int64 */
+              size_bytes?: number;
               surface?: string;
               text?: string;
               thread_id?: string;
@@ -59837,6 +60756,350 @@ export interface operations {
       };
     };
   };
+  listNetworkSubscriptions: {
+    parameters: {
+      query?: {
+        /** @description Filter subscriptions by peer id */
+        peer_id?: string;
+        /** @description Filter subscriptions by thread id */
+        thread_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            subscriptions: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              keyword_filters?: string[];
+              mode: string;
+              peer_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid network subscription filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  upsertNetworkSubscription: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          keyword_filters?: string[];
+          mode: string;
+          peer_id: string;
+          thread_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            subscription: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              keyword_filters?: string[];
+              mode: string;
+              peer_id: string;
+              thread_id?: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid network subscription */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteNetworkSubscription: {
+    parameters: {
+      query?: {
+        /** @description Delete the thread-scoped subscription for this peer */
+        thread_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Network peer id */
+        peer_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid network subscription */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network runtime is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listNetworkThreads: {
     parameters: {
       query?: {
@@ -59865,6 +61128,14 @@ export interface operations {
           "application/json": {
             threads: {
               channel: string;
+              coordination_cost?: {
+                /** Format: int64 */
+                delivered_count?: number;
+                /** Format: int64 */
+                estimated_prompt_tokens?: number;
+                /** Format: int64 */
+                prompt_size_bytes?: number;
+              } | null;
               /** Format: date-time */
               last_activity_at?: string | null;
               last_message_preview?: string;
@@ -59983,8 +61254,42 @@ export interface operations {
         };
         content: {
           "application/json": {
+            peer_costs?: {
+              /** Format: int64 */
+              delivered_count?: number;
+              /** Format: int64 */
+              estimated_prompt_tokens?: number;
+              /** Format: date-time */
+              first_delivered_at?: string | null;
+              /** Format: date-time */
+              last_delivered_at?: string | null;
+              peer_id: string;
+              /** Format: int64 */
+              prompt_size_bytes?: number;
+            }[];
+            task_links?: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              digest: string;
+              origin_message_id: string;
+              source_message_ids?: string[];
+              task_id: string;
+              thread_id: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              workspace_id?: string;
+            }[];
             thread: {
               channel: string;
+              coordination_cost?: {
+                /** Format: int64 */
+                delivered_count?: number;
+                /** Format: int64 */
+                estimated_prompt_tokens?: number;
+                /** Format: int64 */
+                prompt_size_bytes?: number;
+              } | null;
               /** Format: date-time */
               last_activity_at?: string | null;
               last_message_preview?: string;
@@ -60149,6 +61454,7 @@ export interface operations {
               intent?: string;
               kind: string;
               local?: boolean;
+              mentions?: string[];
               message_id: string;
               peer_from: string;
               peer_to?: string;
@@ -60160,6 +61466,8 @@ export interface operations {
               preview_text?: string;
               reply_to?: string;
               session_id?: string;
+              /** Format: int64 */
+              size_bytes?: number;
               surface?: string;
               text?: string;
               thread_id?: string;
@@ -60274,6 +61582,241 @@ export interface operations {
       };
     };
   };
+  promoteNetworkThreadTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Network channel */
+        channel: string;
+        /** @description Public thread id */
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          description?: string;
+          metadata?: unknown;
+          origin_message_id: string;
+          priority?: string;
+          title?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            origin: {
+              channel: string;
+              /** Format: date-time */
+              created_at?: string | null;
+              digest: string;
+              origin_message_id: string;
+              source_message_ids?: string[];
+              task_id: string;
+              thread_id: string;
+              /** Format: date-time */
+              updated_at?: string | null;
+              workspace_id?: string;
+            };
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              current_run_id?: string;
+              description?: string;
+              draft?: boolean;
+              effective_paused?: boolean;
+              id: string;
+              identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid thread promotion request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network thread not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task or bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listNetworkInbox: {
     parameters: {
       query: {
@@ -60309,6 +61852,7 @@ export interface operations {
               from: string;
               id: string;
               kind: string;
+              mentions?: string[];
               proof?: {
                 [key: string]: unknown;
               };
@@ -60613,11 +62157,21 @@ export interface operations {
                 /** Format: int64 */
                 delivered?: number;
                 /** Format: int64 */
+                delivered_size_bytes?: number;
+                /** Format: int64 */
                 received?: number;
+                /** Format: int64 */
+                received_size_bytes?: number;
                 /** Format: int64 */
                 rejected?: number;
                 /** Format: int64 */
+                rejected_size_bytes?: number;
+                /** Format: int64 */
                 sent?: number;
+                /** Format: int64 */
+                sent_size_bytes?: number;
+                /** Format: int64 */
+                total_size_bytes?: number;
               };
               peer_card: {
                 artifacts_supported: string[];
@@ -60742,6 +62296,7 @@ export interface operations {
           };
           id?: string;
           kind: string;
+          mentions?: string[];
           reply_to?: string;
           session_id: string;
           surface?: string;
@@ -60772,6 +62327,7 @@ export interface operations {
               };
               id: string;
               kind: string;
+              mentions?: string[];
               reply_to?: string;
               session_id: string;
               surface?: string;
@@ -62853,6 +64409,11 @@ export interface operations {
                   workspace_id?: string;
                 } | null;
                 coordination_channel_id?: string;
+                designation?: {
+                  brief?: string;
+                  index: number;
+                } | null;
+                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;

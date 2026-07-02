@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/notifications"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -1548,6 +1550,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	var removedTaskID string
 	var removedDependsOnID string
 	var enqueuedRun taskpkg.EnqueueRun
+	enqueuedRuns := make([]taskpkg.EnqueueRun, 0)
 	var listedRunTaskID string
 	var listedRunQuery taskpkg.RunQuery
 	var claimedRun taskpkg.ClaimRun
@@ -1562,6 +1565,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	var retryRunRequest taskpkg.RetryRunRequest
 	var bulkForceRelease taskpkg.BulkForceRunRequest
 	var bulkForceFail taskpkg.BulkForceRunRequest
+	var fanoutRollup store.TaskDesignationRollup
 
 	taskView := &taskpkg.View{
 		Task: taskpkg.Task{
@@ -1703,17 +1707,22 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			return nil
 		},
 		EnqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			enqueuedRun = spec
+			if spec.IdempotencyKey == "key-3" {
+				enqueuedRun = spec
+			}
+			enqueuedRuns = append(enqueuedRuns, spec)
+			runID := fmt.Sprintf("run-%d", len(enqueuedRuns)+2)
 			return &taskpkg.Run{
-				ID:             "run-3",
-				TaskID:         spec.TaskID,
-				Status:         taskpkg.TaskRunStatusQueued,
-				Attempt:        3,
-				Origin:         actor.Origin,
-				IdempotencyKey: spec.IdempotencyKey,
-				NetworkChannel: spec.NetworkChannel,
-				Metadata:       spec.Metadata,
-				QueuedAt:       now,
+				ID:                 runID,
+				TaskID:             spec.TaskID,
+				Status:             taskpkg.TaskRunStatusQueued,
+				Attempt:            len(enqueuedRuns) + 2,
+				Origin:             actor.Origin,
+				IdempotencyKey:     spec.IdempotencyKey,
+				NetworkChannel:     spec.NetworkChannel,
+				DesignationGroupID: spec.DesignationGroupID,
+				Metadata:           spec.Metadata,
+				QueuedAt:           now,
 			}, nil
 		},
 		ClaimRunFn: func(_ context.Context, _ string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
@@ -1914,6 +1923,24 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		nil,
 		nil,
 	)
+	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+		PutTaskDesignationRollupFn: func(_ context.Context, rollup store.TaskDesignationRollup) error {
+			fanoutRollup = rollup
+			return nil
+		},
+		ListTaskDesignationRollupsFn: func(_ context.Context, query store.TaskDesignationRollupQuery) ([]store.TaskDesignationRollup, error) {
+			if query.TaskID != "task-1" {
+				t.Fatalf("designation rollup query task_id = %q, want task-1", query.TaskID)
+			}
+			if query.Limit != 20 {
+				t.Fatalf("designation rollup query limit = %d, want 20", query.Limit)
+			}
+			if fanoutRollup.DesignationGroupID == "" {
+				return nil, nil
+			}
+			return []store.TaskDesignationRollup{fanoutRollup}, nil
+		},
+	}
 
 	resp := performRequest(
 		t,
@@ -2020,6 +2047,44 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	)
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/runs/fan-out",
+		[]byte(
+			`{"network_channel":"builders","idempotency_key":"fanout-key","designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
+		),
+	)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("fan-out status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+	var fanoutResp contract.FanOutTaskRunsResponse
+	testutil.DecodeJSONResponse(t, resp, &fanoutResp)
+	if fanoutResp.DesignationGroupID == "" || len(fanoutResp.Runs) != 2 {
+		t.Fatalf("fan-out response = %#v", fanoutResp)
+	}
+	if fanoutResp.Runs[0].DesignationGroupID != fanoutResp.DesignationGroupID ||
+		fanoutResp.Runs[1].DesignationGroupID != fanoutResp.DesignationGroupID {
+		t.Fatalf("fan-out runs missing group id: %#v", fanoutResp.Runs)
+	}
+
+	resp = performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("get after fan-out status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var detailResp contract.TaskDetailResponse
+	testutil.DecodeJSONResponse(t, resp, &detailResp)
+	if len(detailResp.Task.DesignationRollups) != 1 {
+		t.Fatalf("designation rollups = %#v, want one rollup", detailResp.Task.DesignationRollups)
+	}
+	detailRollup := detailResp.Task.DesignationRollups[0]
+	if detailRollup.DesignationGroupID != fanoutResp.DesignationGroupID ||
+		detailRollup.TaskID != "task-1" ||
+		string(detailRollup.Summary) != string(fanoutRollup.SummaryJSON) {
+		t.Fatalf("designation rollup payload = %#v, want stored rollup %#v", detailRollup, fanoutRollup)
 	}
 
 	resp = performRequest(
@@ -2241,8 +2306,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		listedRunQuery.Limit != 1 {
 		t.Fatalf("listed run query = %#v", listedRunQuery)
 	}
-	if getTaskCalls != 3 {
-		t.Fatalf("GetTask() calls = %d, want 3 detail reads without extra run-list fetch", getTaskCalls)
+	if getTaskCalls != 4 {
+		t.Fatalf("GetTask() calls = %d, want 4 detail reads without extra run-list fetch", getTaskCalls)
 	}
 	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.NetworkChannel != "builders" || createdSpec.Owner == nil ||
 		createdSpec.Owner.Ref != "reviewers" {
@@ -2273,6 +2338,23 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		enqueuedRun.Metadata,
 	), `{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}`; got != want {
 		t.Fatalf("enqueued run metadata = %q, want %q", got, want)
+	}
+	if len(enqueuedRuns) < 3 {
+		t.Fatalf("len(enqueuedRuns) = %d, want at least normal enqueue plus fan-out runs", len(enqueuedRuns))
+	}
+	fanoutEnqueues := enqueuedRuns[1:3]
+	if fanoutRollup.DesignationGroupID == "" || fanoutRollup.TaskID != "task-1" {
+		t.Fatalf("fanout rollup = %#v", fanoutRollup)
+	}
+	for idx, run := range fanoutEnqueues {
+		if run.TaskID != "task-1" ||
+			run.NetworkChannel != "builders" ||
+			run.DesignationGroupID != fanoutRollup.DesignationGroupID {
+			t.Fatalf("fanout enqueue %d = %#v", idx, run)
+		}
+		if !strings.Contains(string(run.Metadata), `"designation"`) {
+			t.Fatalf("fanout enqueue %d metadata = %s, want designation payload", idx, run.Metadata)
+		}
 	}
 	if claimedRun.IdempotencyKey != "claim-1" {
 		t.Fatalf("claimed run = %#v", claimedRun)

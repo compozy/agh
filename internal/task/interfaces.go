@@ -156,6 +156,7 @@ type RunStore interface {
 		requestedChannel string,
 		metadata json.RawMessage,
 		queuedAt time.Time,
+		designationGroupID ...string,
 	) (Task, Run, bool, error)
 }
 

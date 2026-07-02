@@ -2,6 +2,7 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 
 import type {
   CreateTaskRequest,
+  FanOutTaskRunsRequest,
   TaskBridgeNotificationSubscription,
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskExecutionProfileSetRequest,
@@ -515,6 +516,41 @@ export const handlers: HttpHandler[] = [
           started_at: null,
           session_id: undefined,
         }),
+      },
+      { status: 201 }
+    );
+  }),
+  http.post("/api/tasks/:id/runs/fan-out", async ({ params, request }) => {
+    const id = String(params.id);
+    const task = resolveTask(id);
+    if (!task) {
+      return notFound("Task", id);
+    }
+
+    const body = (await request.json()) as Partial<FanOutTaskRunsRequest>;
+    const designations = body.designations ?? [];
+    const runs = designations.map((designation, index) =>
+      buildTaskRunRecordFixture({
+        id: `run_fanout_${index + 1}`,
+        task_id: id,
+        attempt: index + 1,
+        status: "queued",
+        queued_at: "2026-04-17T10:05:00Z",
+        started_at: null,
+        session_id: undefined,
+        designation: {
+          index,
+          brief: designation.brief,
+        },
+        designation_group_id: "desig_storybook",
+        network_channel: body.network_channel ?? task.network_channel,
+      })
+    );
+
+    return HttpResponse.json(
+      {
+        designation_group_id: "desig_storybook",
+        runs,
       },
       { status: 201 }
     );

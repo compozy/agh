@@ -10,6 +10,7 @@ const (
 	descriptorKeywordCatalog = "catalog"
 	descriptorKeywordStatus  = "status"
 	descriptorKeywordCreate  = "create"
+	descriptorKeywordUpdate  = "update"
 	emptyInputSchema         = `{"type":"object","additionalProperties":false}`
 )
 

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Hash, MoreHorizontal, PanelRight, RefreshCw } from "lucide-react";
+import { Hash, MoreHorizontal, PanelRight, RefreshCw, Settings2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -12,9 +12,11 @@ import {
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
+import { useUpdateNetworkChannel } from "../../hooks/use-network-actions";
 import { useChannelMembers } from "../../hooks/use-channel-members";
 import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
+import { ChannelPolicyDialog } from "./channel-policy-dialog";
 
 export interface ChannelHeaderProps {
   workspaceId: string;
@@ -70,6 +72,11 @@ function buildMetaSegments({
     segments.push(purpose);
   }
 
+  const fanoutPolicy = detail?.fanout_policy || channel.fanout_policy;
+  if (fanoutPolicy) {
+    segments.push(`fanout ${fanoutPolicy}`);
+  }
+
   return segments;
 }
 
@@ -83,6 +90,8 @@ export function ChannelHeader({
 }: ChannelHeaderProps) {
   const queryClient = useQueryClient();
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const updateChannel = useUpdateNetworkChannel();
   const members = useChannelMembers(channel.channel, { workspaceId });
   const metaSegments = buildMetaSegments({
     channel,
@@ -148,6 +157,17 @@ export function ChannelHeader({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
+            data-testid="network-channel-policy"
+            onSelect={event => {
+              event.preventDefault();
+              setPolicyOpen(true);
+              setOverflowOpen(false);
+            }}
+          >
+            <Settings2 aria-hidden="true" className="size-3" />
+            Delivery policy
+          </DropdownMenuItem>
+          <DropdownMenuItem
             data-testid="network-channel-refresh"
             onSelect={event => {
               event.preventDefault();
@@ -182,6 +202,21 @@ export function ChannelHeader({
             </span>
           </span>
         }
+      />
+      <ChannelPolicyDialog
+        channel={channel}
+        detail={detail}
+        isSubmitting={updateChannel.isPending}
+        members={members.members}
+        onOpenChange={setPolicyOpen}
+        onSubmit={async data => {
+          await updateChannel.mutateAsync({
+            workspaceId,
+            channel: channel.channel,
+            data,
+          });
+        }}
+        open={policyOpen}
       />
     </header>
   );

@@ -15,6 +15,11 @@ const envelope = {
     max_payload: 131072,
     max_queue_depth: 1024,
     max_replay_age: 86400,
+    activation_top_k: 3,
+    digest_flush_interval: "250ms",
+    digest_max_envelopes: 10,
+    response_guidance_max_bytes: 512,
+    delivery_structured_body_max_bytes: 4096,
   },
   runtime: {
     available: true,
@@ -156,6 +161,15 @@ describe("NetworkSettingsPage", () => {
     expect(screen.getByTestId("settings-page-network-default-channel-input")).toHaveValue("agh");
     expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("4222");
     expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue("1024");
+    expect(screen.getByTestId("settings-page-network-activation-top-k")).toHaveValue("3");
+    expect(screen.getByTestId("settings-page-network-digest-flush-interval")).toHaveValue("250ms");
+    expect(screen.getByTestId("settings-page-network-digest-max-envelopes")).toHaveValue("10");
+    expect(screen.getByTestId("settings-page-network-response-guidance-max-bytes")).toHaveValue(
+      "512"
+    );
+    expect(
+      screen.getByTestId("settings-page-network-delivery-structured-body-max-bytes")
+    ).toHaveValue("4096");
     expect(screen.getByLabelText("Embedded network")).toBe(
       screen.getByTestId("settings-page-network-enabled-switch")
     );
@@ -164,6 +178,9 @@ describe("NetworkSettingsPage", () => {
     );
     expect(screen.getByLabelText("Max queue depth")).toBe(
       screen.getByTestId("settings-page-network-max-queue-depth")
+    );
+    expect(screen.getByLabelText("Digest flush interval")).toBe(
+      screen.getByTestId("settings-page-network-digest-flush-interval")
     );
   });
 

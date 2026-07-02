@@ -625,7 +625,7 @@ func (g *GlobalDB) createReviewContinuationRun(
 	runID string,
 	queuedAt time.Time,
 ) (taskpkg.Run, error) {
-	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID)
+	openRunID, err := g.findOpenRunIDForQueuedRunReservation(ctx, exec, taskRecord.ID, "")
 	if err != nil {
 		return taskpkg.Run{}, err
 	}

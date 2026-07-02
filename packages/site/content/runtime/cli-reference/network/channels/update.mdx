@@ -1,0 +1,59 @@
+---
+title: "agh network channels update"
+description: "Update a runtime channel delivery policy"
+---
+
+## agh network channels update
+
+Update a runtime channel delivery policy.
+
+```
+agh network channels update [channel] [flags]
+```
+
+### Examples
+
+```
+agh network channels update builders \
+  --purpose "Coordinate release verification" \
+  --fanout-policy capability_match \
+  -o json
+
+agh network channels update builders \
+  --fanout-policy coordinator \
+  --coordinator-peer-id release-coordinator.session-4 \
+  -o json
+```
+
+### Options
+
+```
+      --channel string               Channel name when not passed as an argument
+      --coordinator-peer-id string   Coordinator peer id; pass empty to clear
+      --fanout-policy string         Delivery activation policy: capability_match, coordinator, or all_members
+  -h, --help                         help for update
+      --purpose string               Human-readable channel purpose
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh network channels update builders --fanout-policy capability_match -o json
+```

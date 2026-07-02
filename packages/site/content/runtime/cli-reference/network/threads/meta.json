@@ -1,4 +1,4 @@
 {
     "title": "Threads",
-    "pages": ["index", "list", "messages", "show"]
+    "pages": ["index", "list", "messages", "promote", "show"]
 }

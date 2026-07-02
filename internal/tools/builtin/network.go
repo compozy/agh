@@ -3,8 +3,10 @@ package builtin
 import toolspkg "github.com/compozy/agh/internal/tools"
 
 const (
-	networkDirectsKey = "directs"
-	networkNetworkKey = "network"
+	networkDirectsKey       = "directs"
+	networkChannelsKey      = "channels"
+	networkNetworkKey       = "network"
+	networkSubscriptionsKey = "subscriptions"
 )
 
 var networkTools = []toolspkg.Descriptor{
@@ -33,7 +35,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{networkNetworkKey, "channels"},
+		[]string{networkNetworkKey, networkChannelsKey},
 		[]string{"network channels", "coordination channels"},
 	),
 	nativeDescriptor(
@@ -91,8 +93,92 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{networkNetworkKey, "channels", descriptorKeywordCreate},
+		[]string{networkNetworkKey, networkChannelsKey, descriptorKeywordCreate},
 		[]string{"create channel", "register coordination channel"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkChannelUpdate,
+		"network_channel_update",
+		"Network Channel Update",
+		"Update one AGH network channel purpose, fanout policy, or coordinator peer.",
+		networkChannelUpdateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkChannelsKey, descriptorKeywordUpdate},
+		[]string{"update channel", "channel fanout policy"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkSubscriptions,
+		"network_subscriptions",
+		"Network Subscriptions",
+		"List AGH network delivery preferences for one channel or thread.",
+		networkSubscriptionsInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkSubscriptionsKey},
+		[]string{"network subscriptions", "delivery preferences"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkSubscribe,
+		"network_subscribe",
+		"Network Subscribe",
+		"Set one AGH network delivery preference to full message delivery.",
+		networkSubscriptionInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkSubscriptionsKey, "subscribe"},
+		[]string{"subscribe network peer", "full delivery"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkMute,
+		"network_mute",
+		"Network Mute",
+		"Mute one AGH network channel or thread for a peer.",
+		networkSubscriptionInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkSubscriptionsKey, "mute"},
+		[]string{"mute network peer", "mute channel"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkDigestMode,
+		"network_digest_mode",
+		"Network Digest Mode",
+		"Set one AGH network channel or thread to compact digest delivery for a peer.",
+		networkSubscriptionInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkSubscriptionsKey, "digest"},
+		[]string{"digest network peer", "compact delivery"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDNetworkUnmute,
+		"network_unmute",
+		"Network Unmute",
+		"Remove one AGH network delivery preference.",
+		networkSubscriptionDeleteInputSchema,
+		toolspkg.RiskDestructive,
+		false,
+		true,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, networkSubscriptionsKey, "unmute"},
+		[]string{"unmute network peer", "delete delivery preference"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkThreads,
@@ -232,6 +318,7 @@ const networkSendInputSchema = `{
 		"direct_id":{"type":"string"},
 		"work_id":{"type":"string"},
 		"to":{"type":"string"},
+		"mentions":{"type":"array","items":{"type":"string"}},
 		"body":{"type":"object"},
 		"reply_to":{"type":"string"},
 		"trace_id":{"type":"string"},
@@ -249,7 +336,60 @@ const networkChannelCreateInputSchema = `{
 	"properties":{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
-		"purpose":{"type":"string"}
+		"purpose":{"type":"string"},
+		"fanout_policy":{"type":"string","enum":["","capability_match","coordinator","all_members"]},
+		"coordinator_peer_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const networkChannelUpdateInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"purpose":{"type":"string"},
+		"fanout_policy":{"type":"string","enum":["","capability_match","coordinator","all_members"]},
+		"coordinator_peer_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const networkSubscriptionsInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"peer_id":{"type":"string"},
+		"limit":{"type":"integer"}
+	},
+	"additionalProperties":false
+}`
+
+const networkSubscriptionInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel","peer_id"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"peer_id":{"type":"string"},
+		"keyword_filters":{"type":"array","items":{"type":"string"}}
+	},
+	"additionalProperties":false
+}`
+
+const networkSubscriptionDeleteInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel","peer_id"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"peer_id":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

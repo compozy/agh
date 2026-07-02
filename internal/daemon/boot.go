@@ -343,6 +343,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
 		DurableMemoryAugmenter:              state.memoryStore != nil,
+		NetworkResponseRegisterAugmenter:    state.cfg.Network.ResponseGuidanceMaxBytes > 0,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	})
@@ -354,21 +355,36 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 				prependProviders,
 				appendProviders,
 				state.situationContext,
+				state.cfg.Network.ResponseGuidanceMaxBytes,
 			)...,
 		),
 	)
 	state.startupOverlay = aghRuntimePromptOverlay{}
+	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
+		memory.NewRecallAugmenter(state.memoryStore),
+		newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
+			return state.workspaceResolver
+		}),
+		state.situationContext.Augment,
+	)
+	if state.cfg.Network.ResponseGuidanceMaxBytes > 0 {
+		promptAugmenterDescriptors = append(
+			promptAugmenterDescriptors,
+			promptInputAugmenterDescriptor{
+				Name:           HarnessAugmenterNetworkResponseRegister,
+				Order:          networkResponseAugmenterOrder,
+				Budget:         state.cfg.Network.ResponseGuidanceMaxBytes,
+				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
+				Critical:       false,
+				Augmenter:      newNetworkResponseRegisterAugmenter(),
+			},
+		)
+	}
 	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,
 		state.harnessRecorder,
-		defaultPromptInputAugmenterDescriptors(
-			memory.NewRecallAugmenter(state.memoryStore),
-			newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
-				return state.workspaceResolver
-			}),
-			state.situationContext.Augment,
-		)...,
+		promptAugmenterDescriptors...,
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: build prompt input composite: %w", err)

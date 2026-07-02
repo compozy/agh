@@ -506,7 +506,7 @@ func taskReference(taskRecord taskpkg.Task) taskpkg.Reference {
 }
 
 func runSummaryFromTaskRun(run taskpkg.Run, maxAttempts int) taskpkg.RunSummary {
-	return taskpkg.RunSummary{
+	summary := taskpkg.RunSummary{
 		ID:                    strings.TrimSpace(run.ID),
 		TaskID:                strings.TrimSpace(run.TaskID),
 		Status:                run.Status.Normalize(),
@@ -518,12 +518,18 @@ func runSummaryFromTaskRun(run taskpkg.Run, maxAttempts int) taskpkg.RunSummary 
 		LeaseUntil:            run.LeaseUntil.UTC(),
 		HeartbeatAt:           run.HeartbeatAt.UTC(),
 		CoordinationChannelID: strings.TrimSpace(run.CoordinationChannelID),
+		DesignationGroupID:    strings.TrimSpace(run.DesignationGroupID),
 		QueuedAt:              run.QueuedAt.UTC(),
 		ClaimedAt:             run.ClaimedAt.UTC(),
 		StartedAt:             run.StartedAt.UTC(),
 		EndedAt:               run.EndedAt.UTC(),
 		Error:                 safeTaskContextText(run.Error, maxReviewReasonFallback),
 	}
+	if designation, ok := taskpkg.DesignationFromRun(run); ok {
+		summary.DesignationGroupID = designation.GroupID
+		summary.Designation = designation.Summary()
+	}
+	return summary
 }
 
 const maxReviewReasonFallback = 2048
