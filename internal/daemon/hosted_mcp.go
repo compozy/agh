@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcppkg "github.com/compozy/agh/internal/mcp"
@@ -20,6 +21,23 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 		return nil, errors.New("daemon: hosted MCP state is required")
 	}
 	if !state.cfg.Tools.Enabled || !state.cfg.Tools.HostedMCPEnabled {
+		logger := slog.Default()
+		if state.logger != nil {
+			logger = state.logger
+		}
+		reason := "tools_disabled"
+		if state.cfg.Tools.Enabled {
+			reason = "hosted_mcp_disabled"
+		}
+		logger.Info(
+			"daemon.hosted_mcp.disabled",
+			"reason",
+			reason,
+			"tools_enabled",
+			state.cfg.Tools.Enabled,
+			"hosted_mcp_enabled",
+			state.cfg.Tools.HostedMCPEnabled,
+		)
 		return nil, nil
 	}
 	executable, err := d.executable()

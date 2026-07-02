@@ -37,8 +37,11 @@ describe("tool-first canonical surface docs", () => {
     ]);
     expectIncludesAll(definitions, [
       "`agh__bootstrap` and `agh__catalog`",
-      "`agh__tool_search -> agh__tool_info -> invoke`",
-      "`agh__skill_search -> agh__skill_view`",
+      "resolve canonical `agh__tool_search`",
+      "canonical `agh__tool_info`",
+      "harness-returned tool reference",
+      "canonical `agh__skill_search`",
+      "and `agh__skill_view`",
       "Operator-only management",
     ]);
   });

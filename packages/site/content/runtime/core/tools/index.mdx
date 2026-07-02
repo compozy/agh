@@ -91,13 +91,18 @@ The normal managed-agent path starts with discovery, not blind invocation:
 - `agh__skill_search`
 - `agh__skill_view`
 
+These are canonical AGH ToolIDs. They are stable for registry, policy, CLI, and descriptor use, but
+the active agent harness owns the actual invocation name. Managed agents should search or load by
+capability plus canonical ID, then call the tool reference surfaced by the harness exactly as
+returned.
+
 The expected pattern is:
 
 <Mermaid
   chart={`flowchart LR
-    ToolSearch["agh__tool_search"] --> ToolInfo["agh__tool_info"]
-    ToolInfo --> Invoke["invoke selected tool"]
-    SkillSearch["agh__skill_search"] --> SkillView["agh__skill_view"]`}
+    ToolSearch["Resolve canonical agh__tool_search"] --> ToolInfo["Resolve canonical agh__tool_info"]
+    ToolInfo --> Invoke["Invoke returned tool reference"]
+    SkillSearch["Resolve canonical agh__skill_search"] --> SkillView["Resolve canonical agh__skill_view"]`}
   caption="Managed agents should discover tools and skills before invoking a runtime action."
 />
 

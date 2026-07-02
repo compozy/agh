@@ -10,9 +10,9 @@ only when it needs it.
 
 <OperatorNote>
   Skills are metadata-first. The startup prompt receives names and descriptions, not every
-  `SKILL.md` body. Agents load full instructions through `agh__skill_view` (or
-  `agh__skill_search` first if the exact name is not yet known); operators read the same content
-  through `agh skill view <name>`.
+  `SKILL.md` body. Agents resolve canonical `agh__skill_view` through the active harness (or
+  canonical `agh__skill_search` first if the exact name is not yet known), then call the returned
+  tool reference; operators read the same content through `agh skill view <name>`.
 </OperatorNote>
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
@@ -64,8 +64,8 @@ only when it needs it.
 `SKILL.md` has YAML frontmatter followed by Markdown instructions. The frontmatter gives AGH the
 skill name, description, version, and optional AGH-specific metadata. The Markdown body is procedural
 guidance for the agent. Resource files stay next to the skill and are read on demand with
-`agh__skill_view` with a `file` input from inside a session, or with `agh skill view <name> --file <path>`
-from the operator CLI.
+the returned tool reference for canonical `agh__skill_view` with a `file` input from inside a session,
+or with `agh skill view <name> --file <path>` from the operator CLI.
 
 The runtime does not keep full skill bodies in list/detail payloads. This keeps prompts, APIs, and
 the web UI lightweight while preserving the full instruction set for explicit reads.
@@ -177,10 +177,12 @@ The prompt catalog has this shape:
   <skill name="agh">Operate and extend AGH, the local-first agent operating system...</skill>
 </available-skills>
 
-Use `agh__skill_view` with `{ "name": "agh" }` to load full instructions for any skill, or
+Resolve canonical `agh__skill_view` through the active harness, then call the returned tool
+reference with `{ "name": "agh" }` to load full instructions for any skill, or
 `agh skill view <name>` from the operator CLI when the tool path is unavailable.
-Use `agh__skill_view` with `{ "name": "agh", "file": "references/network.md" }`
-(or `agh skill view <name> --file <path>`) to read a
+Use the returned tool reference for canonical `agh__skill_view` with
+`{ "name": "agh", "file": "references/network.md" }` (or
+`agh skill view <name> --file <path>`) to read a
 specific skill resource file.
 ```
 
@@ -191,7 +193,8 @@ advertises a CLI fallback when the dedicated tool is callable.
 Runtime prompts do not repeat the full current-skill catalog after every turn when the resolved
 catalog is unchanged for the session. The first prompt, and any later catalog change, carries the
 full `<current-available-skills>` block; repeated turns carry a compact unchanged marker that keeps
-the previous block authoritative and points agents back to `agh__skill_view` for full instructions.
+the previous block authoritative and points agents back to canonical `agh__skill_view` for full
+instructions.
 
 Important details:
 

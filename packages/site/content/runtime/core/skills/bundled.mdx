@@ -63,8 +63,8 @@ The normal prompt catalog lists the bundled skill by name and description:
 </available-skills>
 ```
 
-Agents load the full router through `agh__skill_view` with `{ "name": "agh" }`. Operators can read
-the same body with:
+Agents resolve canonical `agh__skill_view` through the active harness, then load the full router with
+the returned tool reference and `{ "name": "agh" }`. Operators can read the same body with:
 
 ```bash
 agh skill view agh
@@ -96,9 +96,10 @@ not in the skill text.
 
 The bundled `agh` skill teaches agents how to find and use AGH-native tools, but it does not grant
 tool access. Tool visibility and invocation are enforced by the tool registry, session scope,
-toolsets, approval policy, and the owning runtime service. Agents should start with
-`agh__tool_search`, inspect candidates with `agh__tool_info`, and then call the dedicated tool when
-it is available in the active scope.
+toolsets, approval policy, and the owning runtime service. `agh__*` names are canonical ToolIDs, not
+guaranteed harness invocation names. Agents should resolve canonical `agh__tool_search`, inspect
+candidates through canonical `agh__tool_info`, and then call the dedicated tool reference returned
+by the active harness when it is available in the active scope.
 
 The review submit path is the clearest example. The reviewer-facing prompt tells the session to load
 `agh` and read `references/tasks-and-orchestration.md`, but the `submit_run_review` model-facing

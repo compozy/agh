@@ -186,13 +186,51 @@ func callHostedTool(
 }
 
 func hostedToolDescription(descriptor tools.Descriptor) string {
+	sections := make([]string, 0, 6)
 	if title := strings.TrimSpace(descriptor.DisplayTitle); title != "" {
 		if description := strings.TrimSpace(descriptor.Description); description != "" {
-			return title + "\n\n" + description
+			sections = append(sections, title+"\n\n"+description)
+		} else {
+			sections = append(sections, title)
 		}
-		return title
+	} else if description := strings.TrimSpace(descriptor.Description); description != "" {
+		sections = append(sections, description)
 	}
-	return strings.TrimSpace(descriptor.Description)
+
+	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
+		sections = append(sections, "AGH canonical tool ID: "+id)
+	}
+	if toolsets := hostedToolsetNames(descriptor.Toolsets); toolsets != "" {
+		sections = append(sections, "AGH toolsets: "+toolsets)
+	}
+	if tags := hostedDescriptionValues(descriptor.Tags); tags != "" {
+		sections = append(sections, "Tags: "+tags)
+	}
+	if hints := hostedDescriptionValues(descriptor.SearchHints); hints != "" {
+		sections = append(sections, "Search hints: "+hints)
+	}
+	sections = append(sections, "Call the harness-returned tool reference.")
+	return strings.Join(sections, "\n\n")
+}
+
+func hostedToolsetNames(toolsets []tools.ToolsetID) string {
+	values := make([]string, 0, len(toolsets))
+	for _, toolset := range toolsets {
+		if value := strings.TrimSpace(toolset.String()); value != "" {
+			values = append(values, value)
+		}
+	}
+	return strings.Join(values, ", ")
+}
+
+func hostedDescriptionValues(values []string) string {
+	cleaned := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	return strings.Join(cleaned, ", ")
 }
 
 func rawArguments(args any) (json.RawMessage, error) {

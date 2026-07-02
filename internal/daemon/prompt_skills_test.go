@@ -44,8 +44,8 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		if strings.Contains(second, `name="qa-marker-skill"`) {
 			t.Fatalf("second prompt = %q, want compact marker without repeated skill entries", second)
 		}
-		if !strings.Contains(second, "use `agh__skill_view` for full skill/resource instructions") {
-			t.Fatalf("second prompt = %q, want compact skill_view guidance", second)
+		if !strings.Contains(second, "resolve canonical `agh__skill_view` for full skill/resource instructions") {
+			t.Fatalf("second prompt = %q, want compact harness-agnostic skill_view guidance", second)
 		}
 		if !strings.Contains(second, "use `agh skill view <name>` as an operator fallback") {
 			t.Fatalf("second prompt = %q, want operator fallback guidance", second)

@@ -154,17 +154,32 @@ func TestHostedProxyHelpers(t *testing.T) {
 		view := hostedToolView("agh__hosted_echo")
 		view.Descriptor.DisplayTitle = "Echo"
 		view.Descriptor.Description = "Send text back"
-		if got, want := hostedToolDescription(view.Descriptor), "Echo\n\nSend text back"; got != want {
-			t.Fatalf("hostedToolDescription() = %q, want %q", got, want)
+		view.Descriptor.Toolsets = []tools.ToolsetID{tools.ToolsetIDBootstrap}
+		view.Descriptor.Tags = []string{"catalog", "echo"}
+		view.Descriptor.SearchHints = []string{"send text back"}
+		got := hostedToolDescription(view.Descriptor)
+		for _, want := range []string{
+			"Echo\n\nSend text back",
+			"AGH canonical tool ID: agh__hosted_echo",
+			"AGH toolsets: agh__bootstrap",
+			"Tags: catalog, echo",
+			"Search hints: send text back",
+			"Call the harness-returned tool reference.",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("hostedToolDescription() = %q, want substring %q", got, want)
+			}
 		}
 		view.Descriptor.Description = ""
-		if got, want := hostedToolDescription(view.Descriptor), "Echo"; got != want {
-			t.Fatalf("hostedToolDescription(title only) = %q, want %q", got, want)
+		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "Echo") ||
+			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			t.Fatalf("hostedToolDescription(title only) = %q, want title and canonical ID", got)
 		}
 		view.Descriptor.DisplayTitle = ""
 		view.Descriptor.Description = "fallback"
-		if got, want := hostedToolDescription(view.Descriptor), "fallback"; got != want {
-			t.Fatalf("hostedToolDescription(description only) = %q, want %q", got, want)
+		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "fallback") ||
+			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			t.Fatalf("hostedToolDescription(description only) = %q, want description and canonical ID", got)
 		}
 	})
 

@@ -16,11 +16,13 @@
 
 ## Operating Rule
 
-Agents running inside AGH should prefer daemon-native tools over shelling out when a dedicated `agh__*` tool is visible and callable. Native tools are policy-filtered, structured, auditable, and redaction-aware. Shell commands remain valid when a native tool is absent, denied, too narrow for the task, or when the user explicitly asks for CLI output.
+Inside AGH, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell commands when a native tool is absent, denied, too narrow, or explicitly requested.
 
-Never guess a tool schema from this reference. Use `agh__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.
+`agh__*` strings are canonical ToolIDs for registry, policy, CLI, descriptors, and `tool_id`, not guaranteed harness call names. Harnesses may wrap them; Claude Code has surfaced `mcp__agh-hosted-tools__agh__tool_search` for `agh__tool_search`. Resolve by capability plus canonical ID, then call the returned reference exactly.
 
-Not every management surface has a native tool. Diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification preset management, config apply history, and some session repair/recap/approval flows are intentionally CLI/HTTP surfaces today.
+Never guess a tool schema from this reference. Resolve canonical `agh__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.
+
+Some management surfaces are intentionally CLI/HTTP today: diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
 
 ## Discovery And Catalog Toolsets
 
@@ -29,9 +31,9 @@ Not every management surface has a native tool. Diagnostics, support bundles, sc
 
 Use:
 
-1. `agh__tool_search` with the domain or action.
-2. `agh__tool_info` for the selected ToolID.
-3. The dedicated tool call when available.
+1. Resolve canonical `agh__tool_search`, then search with the domain or action.
+2. Resolve canonical `agh__tool_info`, then inspect the selected ToolID.
+3. Call the returned dedicated tool reference when available.
 4. CLI/API fallback only after reading denial or absence diagnostics.
 
 ## Runtime And Workspace Tools
@@ -75,7 +77,7 @@ Skill tools:
 - `agh__skill_search`
 - `agh__skill_view`
 
-Use `agh__skill_view` with a file/resource argument when reading `skills/agh/references/*.md` from inside AGH.
+Resolve canonical `agh__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/agh/references/*.md` from inside AGH.
 
 Memory tools:
 

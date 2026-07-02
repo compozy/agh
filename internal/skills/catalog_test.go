@@ -57,9 +57,9 @@ func TestBuildCatalogFormatsCatalogSortedEscapedAndWithUsageInstructions(t *test
 		`  <skill name="zeta">Last skill</skill>`,
 		"</available-skills>",
 		"",
-		"Use `agh__skill_view` to load full instructions for any skill.",
-		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
+		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -87,9 +87,9 @@ func TestBuildCurrentCatalogFormatsAuthoritativeTurnScopedCatalog(t *testing.T) 
 		"",
 		"The <current-available-skills> block above is the authoritative current skill state for this turn.",
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block.",
-		"Use `agh__skill_view` to load full instructions for any skill.",
-		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
+		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -267,9 +267,9 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 		`  <skill name="global">Global skill</skill>`,
 		"</available-skills>",
 		"",
-		"Use `agh__skill_view` to load full instructions for any skill.",
-		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
-		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
+		"Resolve canonical `agh__skill_view` through the active harness, then call the returned tool reference to load full instructions for any skill.",
+		"Use the returned tool reference for canonical `agh__skill_view` to read a specific skill resource file when the skill references one.",
+		"If current tool policy denies canonical `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 	}, "\n")
 
 	if got != want {
@@ -297,8 +297,8 @@ func TestBuildCatalogUsesToolFirstSkillLoadingInstructions(t *testing.T) {
 			},
 		})
 
-		if !strings.Contains(got, "Use `agh__skill_view` to load full instructions") {
-			t.Fatalf("BuildCatalog() = %q, want agh__skill_view primary guidance", got)
+		if !strings.Contains(got, "Resolve canonical `agh__skill_view` through the active harness") {
+			t.Fatalf("BuildCatalog() = %q, want harness-agnostic agh__skill_view guidance", got)
 		}
 		if !strings.Contains(got, "operator fallback") {
 			t.Fatalf("BuildCatalog() = %q, want conditional operator fallback guidance", got)
