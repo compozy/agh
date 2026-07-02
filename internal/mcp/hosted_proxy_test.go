@@ -49,39 +49,50 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 	t.Parallel()
 
-	echo := hostedToolView("agh__hosted_echo")
-	echo.Descriptor.SearchHints = []string{"echo messages"}
-	search := hostedToolView(tools.ToolIDToolSearch)
-	search.Descriptor.SearchHints = []string{"find AGH native tools"}
+	t.Run("Should set searchHint and omit alwaysLoad for non-search tools", func(t *testing.T) {
+		t.Parallel()
 
-	mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
-	applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{echo, search})
+		echo := hostedToolView("agh__hosted_echo")
+		echo.Descriptor.SearchHints = []string{"echo messages"}
+		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{echo})
 
-	registered := mcpServer.ListTools()
-	echoTool, ok := registered["agh__hosted_echo"]
-	if !ok {
-		t.Fatalf("registered tools = %#v, want agh__hosted_echo", registered)
-	}
-	echoHint := requireHostedToolMetaString(t, echoTool.Tool.Meta, "anthropic/searchHint")
-	if !strings.Contains(echoHint, "agh__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
-		t.Fatalf("echo search hint = %q, want canonical ID and descriptor hint", echoHint)
-	}
-	if _, ok := echoTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; ok {
-		t.Fatalf("echo metadata = %#v, want no alwaysLoad hint", echoTool.Tool.Meta.AdditionalFields)
-	}
+		registered := mcpServer.ListTools()
+		echoTool, ok := registered["agh__hosted_echo"]
+		if !ok {
+			t.Fatalf("registered tools = %#v, want agh__hosted_echo", registered)
+		}
+		echoHint := requireHostedToolMetaString(t, echoTool.Tool.Meta, "anthropic/searchHint")
+		if !strings.Contains(echoHint, "agh__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
+			t.Fatalf("echo search hint = %q, want canonical ID and descriptor hint", echoHint)
+		}
+		if _, ok := echoTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("echo metadata = %#v, want no alwaysLoad hint", echoTool.Tool.Meta.AdditionalFields)
+		}
+	})
 
-	searchTool, ok := registered[tools.ToolIDToolSearch.String()]
-	if !ok {
-		t.Fatalf("registered tools = %#v, want %s", registered, tools.ToolIDToolSearch)
-	}
-	searchHint := requireHostedToolMetaString(t, searchTool.Tool.Meta, "anthropic/searchHint")
-	if !strings.Contains(searchHint, tools.ToolIDToolSearch.String()) ||
-		!strings.Contains(searchHint, "find AGH native tools") {
-		t.Fatalf("tool_search hint = %q, want canonical ID and descriptor hint", searchHint)
-	}
-	if got := searchTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; got != true {
-		t.Fatalf("tool_search alwaysLoad = %#v, want true", got)
-	}
+	t.Run("Should set searchHint and alwaysLoad for tool_search", func(t *testing.T) {
+		t.Parallel()
+
+		search := hostedToolView(tools.ToolIDToolSearch)
+		search.Descriptor.SearchHints = []string{"find AGH native tools"}
+		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{search})
+
+		registered := mcpServer.ListTools()
+		searchTool, ok := registered[tools.ToolIDToolSearch.String()]
+		if !ok {
+			t.Fatalf("registered tools = %#v, want %s", registered, tools.ToolIDToolSearch)
+		}
+		searchHint := requireHostedToolMetaString(t, searchTool.Tool.Meta, "anthropic/searchHint")
+		if !strings.Contains(searchHint, tools.ToolIDToolSearch.String()) ||
+			!strings.Contains(searchHint, "find AGH native tools") {
+			t.Fatalf("tool_search hint = %q, want canonical ID and descriptor hint", searchHint)
+		}
+		if got := searchTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; got != true {
+			t.Fatalf("tool_search alwaysLoad = %#v, want true", got)
+		}
+	})
 }
 
 func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
