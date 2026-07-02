@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -191,12 +192,20 @@ func WithRouterActivationTopK(limit int) RouterOption {
 	}
 }
 
+// WithRouterLogger overrides the logger used for routing diagnostics.
+func WithRouterLogger(logger *slog.Logger) RouterOption {
+	return func(router *Router) {
+		router.logger = logger
+	}
+}
+
 // Router handles outbound subject selection plus inbound receiver policy.
 type Router struct {
 	peers              *PeerRegistry
 	transport          RouterTransport
 	threadParticipants ThreadParticipantResolver
 	channelPolicies    ChannelPolicyResolver
+	logger             *slog.Logger
 	activationTopK     int
 	maxReplayAge       time.Duration
 	now                func() time.Time
@@ -231,6 +240,7 @@ func NewRouter(
 	router := &Router{
 		peers:          peers,
 		transport:      transport,
+		logger:         slog.Default(),
 		activationTopK: defaultRouterActivationTopK,
 		maxReplayAge:   maxReplayAge,
 		now:            func() time.Time { return time.Now().UTC() },
@@ -244,6 +254,9 @@ func NewRouter(
 	}
 	if router.now == nil {
 		router.now = func() time.Time { return time.Now().UTC() }
+	}
+	if router.logger == nil {
+		router.logger = slog.Default()
 	}
 	if router.activationTopK <= 0 {
 		router.activationTopK = defaultRouterActivationTopK
@@ -1236,6 +1249,7 @@ func (r *Router) deliveriesFromLocalPeers(ctx context.Context, envelope Envelope
 	}
 	participants, err := r.threadParticipantSet(ctx, envelope)
 	if err != nil {
+		r.warnThreadParticipantFallback(envelope, err)
 		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
 	}
 	if len(participants) == 0 {
@@ -1284,6 +1298,7 @@ func (r *Router) selectEmptyThreadPeers(
 ) emptyThreadDeliveryDecision {
 	policy, coordinatorPeerID, err := r.channelFanoutPolicy(ctx, envelope)
 	if err != nil {
+		r.warnChannelPolicyFallback(envelope, err)
 		policy = store.NetworkFanoutPolicyCapabilityMatch
 		coordinatorPeerID = ""
 	}
@@ -1312,6 +1327,34 @@ func (r *Router) selectEmptyThreadPeers(
 			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
 		}
 	}
+}
+
+func (r *Router) warnThreadParticipantFallback(envelope Envelope, err error) {
+	if r == nil || r.logger == nil || err == nil {
+		return
+	}
+	r.logger.Warn(
+		"network.router.thread_participants_lookup_failed",
+		"error", err,
+		"workspace_id", envelope.WorkspaceID,
+		"channel", envelope.Channel,
+		"thread_id", normalizeOptionalIdentifier(envelope.ThreadID),
+		"fallback", "empty_thread_delivery",
+	)
+}
+
+func (r *Router) warnChannelPolicyFallback(envelope Envelope, err error) {
+	if r == nil || r.logger == nil || err == nil {
+		return
+	}
+	r.logger.Warn(
+		"network.router.channel_policy_lookup_failed",
+		"error", err,
+		"workspace_id", envelope.WorkspaceID,
+		"channel", envelope.Channel,
+		"thread_id", normalizeOptionalIdentifier(envelope.ThreadID),
+		"fallback_policy", store.NetworkFanoutPolicyCapabilityMatch,
+	)
 }
 
 type selectedThreadPeers struct {

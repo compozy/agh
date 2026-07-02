@@ -32,6 +32,10 @@ func TestNetworkChannels(t *testing.T) {
 			run:  assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields,
 		},
 		{
+			name: "Should reject patches that break channel fanout coupling",
+			run:  assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling,
+		},
+		{
 			name: "Should return sql.ErrNoRows for missing network channels",
 			run:  assertGlobalDBGetNetworkChannelNotFound,
 		},
@@ -233,6 +237,55 @@ func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) 
 		entry.FanoutPolicy != store.NetworkFanoutPolicyCapabilityMatch ||
 		entry.CoordinatorPeerID != "" {
 		t.Fatalf("entry after policy patch = %#v", entry)
+	}
+}
+
+func assertGlobalDBPatchNetworkChannelRejectsInvalidFanoutCoupling(t *testing.T) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-alpha",
+		filepath.Join(t.TempDir(), "ws-alpha"),
+	)
+	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		Channel:           "coord.core",
+		WorkspaceID:       workspaceID,
+		Purpose:           "Original purpose",
+		FanoutPolicy:      store.NetworkFanoutPolicyCoordinator,
+		CoordinatorPeerID: "reviewer.sess-a",
+		CreatedBy:         "codex",
+		CreatedAt:         recordedAt,
+		UpdatedAt:         recordedAt,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
+
+	coordinatorPeerID := ""
+	err := globalDB.PatchNetworkChannel(
+		testutil.Context(t),
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
+		store.NetworkChannelPatch{
+			CoordinatorPeerID: &coordinatorPeerID,
+			UpdatedAt:         recordedAt.Add(time.Minute),
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "coordinator_peer_id is required") {
+		t.Fatalf("PatchNetworkChannel(clear coordinator) error = %v, want coordinator peer validation", err)
+	}
+	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	})
+	if err != nil {
+		t.Fatalf("GetNetworkChannel(after invalid patch) error = %v", err)
+	}
+	if entry.FanoutPolicy != store.NetworkFanoutPolicyCoordinator ||
+		entry.CoordinatorPeerID != "reviewer.sess-a" {
+		t.Fatalf("entry after invalid patch = %#v, want original fanout coupling", entry)
 	}
 }
 

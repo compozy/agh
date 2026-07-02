@@ -138,10 +138,10 @@ func TestNetworkTaskStatusObserver(t *testing.T) {
 		observer := newNetworkTaskStatusObserver(
 			&fakeNetworkRuntime{},
 			db,
-			discardLogger(),
-			func() time.Time { return now },
-			7,
-			2*time.Second,
+			withNetworkTaskStatusObserverLogger(discardLogger()),
+			withNetworkTaskStatusObserverClock(func() time.Time { return now }),
+			withNetworkTaskStatusObserverQueueSize(7),
+			withNetworkTaskStatusObserverTimeout(2*time.Second),
 		)
 		if observer == nil {
 			t.Fatal("newNetworkTaskStatusObserver() = nil, want observer")

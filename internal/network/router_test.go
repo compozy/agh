@@ -1,9 +1,11 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
@@ -564,6 +566,7 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 5, 6, 12, 2, 30, 0, time.UTC)
+		var logs bytes.Buffer
 		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
 		if err != nil {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
@@ -583,6 +586,7 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 			&spyRouterTransport{},
 			DefaultMaxReplayAge,
 			WithRouterClock(func() time.Time { return now }),
+			WithRouterLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))),
 			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
 				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
 					return nil, errors.New("participants unavailable")
@@ -622,12 +626,18 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
 			t.Fatalf("participant error fallback mode = %q, want %q", got, want)
 		}
+		logOutput := logs.String()
+		if !strings.Contains(logOutput, "network.router.thread_participants_lookup_failed") ||
+			!strings.Contains(logOutput, "participants unavailable") {
+			t.Fatalf("participant fallback log = %q, want lookup warning with error", logOutput)
+		}
 	})
 
 	t.Run("Should digest fallback when channel policy lookup fails", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 5, 6, 12, 2, 45, 0, time.UTC)
+		var logs bytes.Buffer
 		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
 		if err != nil {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
@@ -647,6 +657,7 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 			&spyRouterTransport{},
 			DefaultMaxReplayAge,
 			WithRouterClock(func() time.Time { return now }),
+			WithRouterLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))),
 			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
 				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
 					return nil, nil
@@ -690,6 +701,11 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 		}
 		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
 			t.Fatalf("policy error fallback mode = %q, want %q", got, want)
+		}
+		logOutput := logs.String()
+		if !strings.Contains(logOutput, "network.router.channel_policy_lookup_failed") ||
+			!strings.Contains(logOutput, "channel policy unavailable") {
+			t.Fatalf("channel policy fallback log = %q, want lookup warning with error", logOutput)
 		}
 	})
 

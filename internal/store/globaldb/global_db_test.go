@@ -33,6 +33,7 @@ type PermissionLogQuery = store.PermissionLogQuery
 
 const GlobalDatabaseName = store.GlobalDatabaseName
 const defaultSessionType = "user"
+const preNetworkActivationMigrationCount = 25
 const sqliteDriverName = "sqlite"
 
 var testGlobalDBCurrentSchemaSeedPath string
@@ -457,7 +458,11 @@ func TestGlobalSchemaMigrationsAreAppendOnlyContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
 		}
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:25]); err != nil {
+		if err := store.RunMigrations(
+			ctx,
+			db,
+			globalSchemaMigrations[:preNetworkActivationMigrationCount],
+		); err != nil {
 			t.Fatalf("RunMigrations(v25 prefix) error = %v", err)
 		}
 

@@ -333,6 +333,7 @@ func (m *Manager) initRouter(cfg aghconfig.NetworkConfig) error {
 		WithRouterThreadParticipantResolver(participantResolver),
 		WithRouterChannelPolicyResolver(channelPolicyResolver),
 		WithRouterActivationTopK(cfg.ActivationTopK),
+		WithRouterLogger(m.logger),
 	)
 	if err != nil {
 		return err

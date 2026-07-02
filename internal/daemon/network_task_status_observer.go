@@ -39,41 +39,82 @@ type networkTaskStatusObserver struct {
 
 var _ taskpkg.EventObserver = (*networkTaskStatusObserver)(nil)
 
+type networkTaskStatusObserverOptions struct {
+	logger    *slog.Logger
+	now       func() time.Time
+	queueSize int
+	timeout   time.Duration
+}
+
+type networkTaskStatusObserverOption func(*networkTaskStatusObserverOptions)
+
+func withNetworkTaskStatusObserverLogger(logger *slog.Logger) networkTaskStatusObserverOption {
+	return func(options *networkTaskStatusObserverOptions) {
+		options.logger = logger
+	}
+}
+
+func withNetworkTaskStatusObserverClock(now func() time.Time) networkTaskStatusObserverOption {
+	return func(options *networkTaskStatusObserverOptions) {
+		options.now = now
+	}
+}
+
+func withNetworkTaskStatusObserverQueueSize(queueSize int) networkTaskStatusObserverOption {
+	return func(options *networkTaskStatusObserverOptions) {
+		options.queueSize = queueSize
+	}
+}
+
+func withNetworkTaskStatusObserverTimeout(timeout time.Duration) networkTaskStatusObserverOption {
+	return func(options *networkTaskStatusObserverOptions) {
+		options.timeout = timeout
+	}
+}
+
 func newNetworkTaskStatusObserver(
 	networkRuntime networkRuntime,
 	tasks taskStore,
-	logger *slog.Logger,
-	now func() time.Time,
-	queueSize int,
-	timeout time.Duration,
+	opts ...networkTaskStatusObserverOption,
 ) *networkTaskStatusObserver {
 	prefs, ok := tasks.(storepkg.NetworkPreferenceStore)
 	if networkRuntime == nil || tasks == nil || !ok {
 		return nil
 	}
-	if logger == nil {
-		logger = slog.Default()
+	options := networkTaskStatusObserverOptions{
+		logger:    slog.Default(),
+		now:       time.Now,
+		queueSize: aghconfig.DefaultTaskNetworkStatusQueueSize,
+		timeout:   aghconfig.DefaultTaskNetworkStatusTimeout,
 	}
-	if now == nil {
-		now = time.Now
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&options)
+		}
 	}
-	if queueSize <= 0 {
-		queueSize = aghconfig.DefaultTaskNetworkStatusQueueSize
+	if options.logger == nil {
+		options.logger = slog.Default()
 	}
-	if timeout <= 0 {
-		timeout = aghconfig.DefaultTaskNetworkStatusTimeout
+	if options.now == nil {
+		options.now = time.Now
+	}
+	if options.queueSize <= 0 {
+		options.queueSize = aghconfig.DefaultTaskNetworkStatusQueueSize
+	}
+	if options.timeout <= 0 {
+		options.timeout = aghconfig.DefaultTaskNetworkStatusTimeout
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &networkTaskStatusObserver{
 		network: networkRuntime,
 		tasks:   tasks,
 		prefs:   prefs,
-		logger:  logger,
-		now:     now,
+		logger:  options.logger,
+		now:     options.now,
 		ctx:     ctx,
 		cancel:  cancel,
-		queue:   make(chan taskpkg.EventRecord, queueSize),
-		timeout: timeout,
+		queue:   make(chan taskpkg.EventRecord, options.queueSize),
+		timeout: options.timeout,
 	}
 	observer.start()
 	return observer

@@ -125,10 +125,10 @@ func (d *Daemon) composeTaskEventObserver(
 	networkStatusObserver := newNetworkTaskStatusObserver(
 		state.network,
 		store,
-		state.logger,
-		d.now,
-		state.cfg.Task.Orchestration.NetworkStatusQueueSize,
-		state.cfg.Task.Orchestration.NetworkStatusTimeout,
+		withNetworkTaskStatusObserverLogger(state.logger),
+		withNetworkTaskStatusObserverClock(d.now),
+		withNetworkTaskStatusObserverQueueSize(state.cfg.Task.Orchestration.NetworkStatusQueueSize),
+		withNetworkTaskStatusObserverTimeout(state.cfg.Task.Orchestration.NetworkStatusTimeout),
 	)
 	return newTaskEventObserverFanout(
 		state.logger,

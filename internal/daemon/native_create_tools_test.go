@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -209,24 +210,26 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 	netStore := apitest.StubNetworkStore{
 		GetNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
 			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
-				t.Fatalf("GetNetworkChannel() ref = %#v, want native design channel", ref)
+				return store.NetworkChannelEntry{}, fmt.Errorf(
+					"GetNetworkChannel() ref = %#v, want native design channel",
+					ref,
+				)
 			}
 			return entry, nil
 		},
 		PatchNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef, patch store.NetworkChannelPatch) error {
 			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
-				t.Fatalf("PatchNetworkChannel() ref = %#v, want native design channel", ref)
+				return fmt.Errorf("PatchNetworkChannel() ref = %#v, want native design channel", ref)
 			}
 			patchCalls++
 			entry = patch.Apply(entry)
 			if err := entry.Validate(); err != nil {
-				t.Fatalf("patched entry Validate() error = %v", err)
+				return fmt.Errorf("patched entry Validate(): %w", err)
 			}
 			return nil
 		},
 		WriteNetworkChannelFn: func(context.Context, store.NetworkChannelEntry) error {
-			t.Fatal("WriteNetworkChannel() should not be called for a partial update")
-			return nil
+			return fmt.Errorf("WriteNetworkChannel() should not be called for a partial update")
 		},
 	}
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{

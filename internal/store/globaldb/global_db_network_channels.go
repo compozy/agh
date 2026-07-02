@@ -81,23 +81,7 @@ func (g *GlobalDB) GetNetworkChannel(
 		return store.NetworkChannelEntry{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
-		FROM network_channels
-		WHERE workspace_id = ? AND channel = ?`,
-		normalized.WorkspaceID,
-		normalized.Channel,
-	)
-
-	entry, err := scanNetworkChannel(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkChannelEntry{}, err
-		}
-		return store.NetworkChannelEntry{}, err
-	}
-	return entry, nil
+	return getNetworkChannel(ctx, g.db, normalized)
 }
 
 // PatchNetworkChannel applies one partial metadata update without overwriting
@@ -120,44 +104,46 @@ func (g *GlobalDB) PatchNetworkChannel(
 	if !patch.HasChanges() {
 		return errors.New("store: network channel patch must include at least one field")
 	}
-	current, err := g.GetNetworkChannel(ctx, normalized)
-	if err != nil {
-		return err
-	}
-	next := patch.Apply(current)
-	if next.UpdatedAt.IsZero() {
-		next.UpdatedAt = g.now()
-	}
-	if err := next.Validate(); err != nil {
-		return fmt.Errorf("store: validate network channel patch: %w", err)
-	}
+	return g.withNetworkImmediateTransaction(ctx, "patch network channel", func(exec networkSQLExecutor) error {
+		current, err := getNetworkChannel(ctx, exec, normalized)
+		if err != nil {
+			return err
+		}
+		next := patch.Apply(current)
+		if next.UpdatedAt.IsZero() {
+			next.UpdatedAt = g.now()
+		}
+		if err := next.Validate(); err != nil {
+			return fmt.Errorf("store: validate network channel patch: %w", err)
+		}
 
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE network_channels SET
-			purpose = COALESCE(?, purpose),
-			fanout_policy = COALESCE(?, fanout_policy),
-			coordinator_peer_id = COALESCE(?, coordinator_peer_id),
-			updated_at = ?
-		WHERE workspace_id = ? AND channel = ?`,
-		patchNullString(patch.Purpose, strings.TrimSpace),
-		patchNullString(patch.FanoutPolicy, store.NormalizeNetworkFanoutPolicy),
-		patchNullString(patch.CoordinatorPeerID, strings.TrimSpace),
-		store.FormatTimestamp(next.UpdatedAt),
-		normalized.WorkspaceID,
-		normalized.Channel,
-	)
-	if err != nil {
-		return fmt.Errorf("store: patch network channel: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: inspect patched network channel rows: %w", err)
-	}
-	if affected == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
+		result, err := exec.ExecContext(
+			ctx,
+			`UPDATE network_channels SET
+				purpose = ?,
+				fanout_policy = ?,
+				coordinator_peer_id = ?,
+				updated_at = ?
+			WHERE workspace_id = ? AND channel = ?`,
+			next.Purpose,
+			next.FanoutPolicy,
+			next.CoordinatorPeerID,
+			store.FormatTimestamp(next.UpdatedAt),
+			normalized.WorkspaceID,
+			normalized.Channel,
+		)
+		if err != nil {
+			return fmt.Errorf("store: patch network channel: %w", err)
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("store: inspect patched network channel rows: %w", err)
+		}
+		if affected == 0 {
+			return sql.ErrNoRows
+		}
+		return nil
+	})
 }
 
 // ListNetworkChannels returns persisted network channel metadata rows.
@@ -235,11 +221,28 @@ func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, ref store.NetworkCh
 	return nil
 }
 
-func patchNullString(value *string, normalize func(string) string) sql.NullString {
-	if value == nil {
-		return sql.NullString{}
+func getNetworkChannel(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	normalized store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
+	row := exec.QueryRowContext(
+		ctx,
+		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
+			FROM network_channels
+			WHERE workspace_id = ? AND channel = ?`,
+		normalized.WorkspaceID,
+		normalized.Channel,
+	)
+
+	entry, err := scanNetworkChannel(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.NetworkChannelEntry{}, err
+		}
+		return store.NetworkChannelEntry{}, err
 	}
-	return sql.NullString{String: normalize(*value), Valid: true}
+	return entry, nil
 }
 
 func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
