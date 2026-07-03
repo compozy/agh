@@ -91,6 +91,8 @@ docs/_refacs/**
 docs/prs/**
 docs/ideas/**
 docs/proposals/**
+docs/design/**
+docs/tweets/**
 .codex/ledger/**
 .codex/plans/**
 .compozy/tasks/*/state.yaml
