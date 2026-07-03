@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/compozy/agh-web-assets v0.0.38
+	github.com/compozy/agh-web-assets v0.0.42
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/daytonaio/daytona/libs/sdk-go v0.190.0
 	github.com/getkin/kin-openapi v0.140.0
