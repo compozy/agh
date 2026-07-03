@@ -659,9 +659,10 @@ digest and triggers a fresh resolution at the next wake decision.
 
 Tool registry configuration is loaded before runtime policy and dispatch consume it. These keys only
 establish defaults and parse-time guardrails; dispatch still revalidates visibility, permission,
-availability, hooks, and approval state per call. When `enabled = true`, the runtime injects the
-`agh__bootstrap` and `agh__catalog` discovery toolsets for every agent unless effective policy
-denies them, and a startup prompt section teaches the `search → info → invoke` loop.
+availability, hooks, and approval state per call. When `enabled = true` and hosted MCP is enabled,
+a bare managed session receives the full availability-gated callable catalog unless effective
+policy narrows it. The startup prompt and hosted MCP metadata still teach the `search → info →
+invoke` loop through canonical discovery tools.
 
 | Field                      | Type    | Default  | Valid values            | Description                                                                |
 | -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------- |

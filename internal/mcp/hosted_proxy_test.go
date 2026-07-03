@@ -46,6 +46,55 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	}
 }
 
+func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should set searchHint and omit alwaysLoad for non-search tools", func(t *testing.T) {
+		t.Parallel()
+
+		echo := hostedToolView("agh__hosted_echo")
+		echo.Descriptor.SearchHints = []string{"echo messages"}
+		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{echo})
+
+		registered := mcpServer.ListTools()
+		echoTool, ok := registered["agh__hosted_echo"]
+		if !ok {
+			t.Fatalf("registered tools = %#v, want agh__hosted_echo", registered)
+		}
+		echoHint := requireHostedToolMetaString(t, echoTool.Tool.Meta, "anthropic/searchHint")
+		if !strings.Contains(echoHint, "agh__hosted_echo") || !strings.Contains(echoHint, "echo messages") {
+			t.Fatalf("echo search hint = %q, want canonical ID and descriptor hint", echoHint)
+		}
+		if _, ok := echoTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("echo metadata = %#v, want no alwaysLoad hint", echoTool.Tool.Meta.AdditionalFields)
+		}
+	})
+
+	t.Run("Should set searchHint and alwaysLoad for tool_search", func(t *testing.T) {
+		t.Parallel()
+
+		search := hostedToolView(tools.ToolIDToolSearch)
+		search.Descriptor.SearchHints = []string{"find AGH native tools"}
+		mcpServer := server.NewMCPServer(HostedServerName, "test", server.WithToolCapabilities(true))
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{search})
+
+		registered := mcpServer.ListTools()
+		searchTool, ok := registered[tools.ToolIDToolSearch.String()]
+		if !ok {
+			t.Fatalf("registered tools = %#v, want %s", registered, tools.ToolIDToolSearch)
+		}
+		searchHint := requireHostedToolMetaString(t, searchTool.Tool.Meta, "anthropic/searchHint")
+		if !strings.Contains(searchHint, tools.ToolIDToolSearch.String()) ||
+			!strings.Contains(searchHint, "find AGH native tools") {
+			t.Fatalf("tool_search hint = %q, want canonical ID and descriptor hint", searchHint)
+		}
+		if got := searchTool.Tool.Meta.AdditionalFields["anthropic/alwaysLoad"]; got != true {
+			t.Fatalf("tool_search alwaysLoad = %#v, want true", got)
+		}
+	})
+}
+
 func TestRunHostedProxyListsCallsAndStreamsProjectionChanges(t *testing.T) {
 	t.Parallel()
 
@@ -154,17 +203,32 @@ func TestHostedProxyHelpers(t *testing.T) {
 		view := hostedToolView("agh__hosted_echo")
 		view.Descriptor.DisplayTitle = "Echo"
 		view.Descriptor.Description = "Send text back"
-		if got, want := hostedToolDescription(view.Descriptor), "Echo\n\nSend text back"; got != want {
-			t.Fatalf("hostedToolDescription() = %q, want %q", got, want)
+		view.Descriptor.Toolsets = []tools.ToolsetID{tools.ToolsetIDBootstrap}
+		view.Descriptor.Tags = []string{"catalog", "echo"}
+		view.Descriptor.SearchHints = []string{"send text back"}
+		got := hostedToolDescription(view.Descriptor)
+		for _, want := range []string{
+			"Echo\n\nSend text back",
+			"AGH canonical tool ID: agh__hosted_echo",
+			"AGH toolsets: agh__bootstrap",
+			"Tags: catalog, echo",
+			"Search hints: send text back",
+			"Call the harness-returned tool reference.",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("hostedToolDescription() = %q, want substring %q", got, want)
+			}
 		}
 		view.Descriptor.Description = ""
-		if got, want := hostedToolDescription(view.Descriptor), "Echo"; got != want {
-			t.Fatalf("hostedToolDescription(title only) = %q, want %q", got, want)
+		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "Echo") ||
+			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			t.Fatalf("hostedToolDescription(title only) = %q, want title and canonical ID", got)
 		}
 		view.Descriptor.DisplayTitle = ""
 		view.Descriptor.Description = "fallback"
-		if got, want := hostedToolDescription(view.Descriptor), "fallback"; got != want {
-			t.Fatalf("hostedToolDescription(description only) = %q, want %q", got, want)
+		if got := hostedToolDescription(view.Descriptor); !strings.Contains(got, "fallback") ||
+			!strings.Contains(got, "AGH canonical tool ID: agh__hosted_echo") {
+			t.Fatalf("hostedToolDescription(description only) = %q, want description and canonical ID", got)
 		}
 	})
 
@@ -268,6 +332,19 @@ func sdkToolNames(tools []sdkmcp.Tool) []string {
 	}
 	slices.Sort(names)
 	return names
+}
+
+func requireHostedToolMetaString(t *testing.T, meta *sdkmcp.Meta, field string) string {
+	t.Helper()
+
+	if meta == nil {
+		t.Fatalf("tool meta = nil, want %s", field)
+	}
+	got, ok := meta.AdditionalFields[field].(string)
+	if !ok || strings.TrimSpace(got) == "" {
+		t.Fatalf("tool meta %s = %#v, want non-empty string", field, meta.AdditionalFields[field])
+	}
+	return got
 }
 
 type hostedProxyClientStub struct {

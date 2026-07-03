@@ -486,7 +486,18 @@ func approvalScopeField(field string, scoped string, requested string) (string, 
 
 // respondToolError serializes stable tool errors without backend error text.
 func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
+	RespondToolError(c, err, h.MaskInternalErrors)
+}
+
+// RespondToolError serializes stable tool errors without backend error text.
+func RespondToolError(c *gin.Context, err error, maskInternal bool) {
 	status := StatusForToolError(err)
+	response := ToolErrorResponseForError(err, status, maskInternal)
+	c.JSON(status, response)
+}
+
+// ToolErrorResponseForError builds the stable tool error response payload.
+func ToolErrorResponseForError(err error, status int, maskInternal bool) contract.ToolErrorResponse {
 	var toolErr *toolspkg.ToolError
 	payload := contract.ToolErrorPayload{
 		Code:    toolspkg.ErrorCodeBackendFailed,
@@ -510,13 +521,13 @@ func (h *BaseHandlers) respondToolError(c *gin.Context, err error) {
 		payload.Code = toolErrorCodeForStatus(status)
 		payload.Message = http.StatusText(status)
 	}
-	if h.MaskInternalErrors && status >= http.StatusInternalServerError {
+	if maskInternal && status >= http.StatusInternalServerError {
 		payload.Message = http.StatusText(status)
 	}
 	if strings.TrimSpace(payload.Message) == "" {
 		payload.Message = http.StatusText(status)
 	}
-	c.JSON(status, contract.ToolErrorResponse{Error: payload})
+	return contract.ToolErrorResponse{Error: payload}
 }
 
 // safeToolErrorMessage maps internal failures to client-safe contract messages.

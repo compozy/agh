@@ -419,9 +419,29 @@ func (m *Manager) sessionMCPServers(
 	resolved aghconfig.ResolvedAgent,
 ) ([]aghconfig.MCPServer, error) {
 	if !resolved.SessionMCP {
+		spec.startLogger(m).Info(
+			"session.mcp.skipped",
+			"reason",
+			"provider_session_mcp_disabled",
+			"resolved_agent_name",
+			strings.TrimSpace(resolved.Name),
+			"resolved_provider",
+			strings.TrimSpace(resolved.Provider),
+		)
 		return nil, nil
 	}
 	if m.hostedMCP == nil {
+		spec.startLogger(m).Warn(
+			"session.mcp.hosted_mcp_unavailable",
+			"reason",
+			"hosted_mcp_launcher_unavailable",
+			"resolved_agent_name",
+			strings.TrimSpace(resolved.Name),
+			"resolved_provider",
+			strings.TrimSpace(resolved.Provider),
+			"configured_mcp_servers",
+			len(resolved.MCPServers),
+		)
 		return m.resolveStartMCPServers(ctx, &spec.workspace, resolved.Name, resolved.MCPServers)
 	}
 	hosted, err := m.hostedMCP.Launch(ctx, HostedMCPLaunchRequest{

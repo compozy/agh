@@ -3094,7 +3094,8 @@ func TestCreateDoesNotEnforceSessionCap(t *testing.T) {
 func TestCreatePassesMergedMCPServers(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
 	skillRegistry := newFakeSkillRegistry()
 	h.cfg.MCPServers = []aghconfig.MCPServer{
 		{Name: "global", Command: "global-command"},
@@ -3139,6 +3140,7 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 		h,
 		WithSkillRegistry(skillRegistry),
 		WithMCPResolver(skillspkg.NewMCPResolver(aghconfig.SkillsConfig{}, nil)),
+		WithLogger(slog.New(logs)),
 	)
 
 	session := createSession(t, h)
@@ -3170,6 +3172,19 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	}
 	if got := skillRegistry.call(0).ID; got != h.workspaceID {
 		t.Fatalf("skill registry workspace id = %q, want %q", got, h.workspaceID)
+	}
+	record, ok := logs.FindByMessage("session.mcp.hosted_mcp_unavailable")
+	if !ok {
+		t.Fatalf("logs = %#v, want hosted MCP unavailable diagnostic", logs.Records())
+	}
+	if record.Level != slog.LevelWarn {
+		t.Fatalf("hosted MCP unavailable log level = %s, want WARN", record.Level)
+	}
+	if got, want := record.Attrs["reason"], "hosted_mcp_launcher_unavailable"; got != want {
+		t.Fatalf("hosted MCP unavailable reason = %q, want %q", got, want)
+	}
+	if got, want := record.Attrs["configured_mcp_servers"], "4"; got != want {
+		t.Fatalf("hosted MCP unavailable configured_mcp_servers = %q, want %q", got, want)
 	}
 }
 
@@ -3246,7 +3261,8 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	logs := newCaptureLogHandler()
+	h := newHarness(t, WithLogger(slog.New(logs)))
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      h.workspaceID,
@@ -3267,7 +3283,7 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 			Command:   "/bin/agh",
 		},
 	}
-	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+	h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted), WithLogger(slog.New(logs)))
 
 	session := createSession(t, h)
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -3283,6 +3299,19 @@ func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	}
 	if requests := hosted.launchRequests(); len(requests) != 0 {
 		t.Fatalf("hosted launch requests = %#v, want none", requests)
+	}
+	record, ok := logs.FindByMessage("session.mcp.skipped")
+	if !ok {
+		t.Fatalf("logs = %#v, want session MCP skipped diagnostic", logs.Records())
+	}
+	if record.Level != slog.LevelInfo {
+		t.Fatalf("session MCP skipped log level = %s, want INFO", record.Level)
+	}
+	if got, want := record.Attrs["reason"], "provider_session_mcp_disabled"; got != want {
+		t.Fatalf("session MCP skipped reason = %q, want %q", got, want)
+	}
+	if got, want := record.Attrs["resolved_provider"], "openclaw"; got != want {
+		t.Fatalf("session MCP skipped provider = %q, want %q", got, want)
 	}
 }
 

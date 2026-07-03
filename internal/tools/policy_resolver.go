@@ -2,28 +2,23 @@ package tools
 
 import (
 	"context"
-	"slices"
-	"strings"
 )
 
 // PolicyInputResolver resolves effective policy inputs for the current caller scope.
 type PolicyInputResolver interface {
 	Resolve(ctx context.Context, scope Scope) (PolicyInputs, error)
-	DefaultToolsets(ctx context.Context, scope Scope) ([]ToolsetID, error)
 }
 
 type staticPolicyInputResolver struct {
-	inputs          PolicyInputs
-	defaultToolsets []ToolsetID
+	inputs PolicyInputs
 }
 
 var _ PolicyInputResolver = (*staticPolicyInputResolver)(nil)
 
 // NewStaticPolicyInputResolver returns a resolver for callers with fixed policy inputs.
-func NewStaticPolicyInputResolver(inputs PolicyInputs, defaultToolsets ...ToolsetID) PolicyInputResolver {
+func NewStaticPolicyInputResolver(inputs PolicyInputs) PolicyInputResolver {
 	return &staticPolicyInputResolver{
-		inputs:          clonePolicyInputs(inputs),
-		defaultToolsets: append([]ToolsetID(nil), defaultToolsets...),
+		inputs: clonePolicyInputs(inputs),
 	}
 }
 
@@ -32,41 +27,6 @@ func (r *staticPolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyI
 		return DefaultPolicyInputs(), nil
 	}
 	return clonePolicyInputs(r.inputs), nil
-}
-
-func (r *staticPolicyInputResolver) DefaultToolsets(_ context.Context, _ Scope) ([]ToolsetID, error) {
-	if r == nil {
-		return nil, nil
-	}
-	return append([]ToolsetID(nil), r.defaultToolsets...), nil
-}
-
-func applyDefaultDiscoveryOverlay(inputs PolicyInputs, scope Scope, defaultToolsets []ToolsetID) PolicyInputs {
-	resolved := clonePolicyInputs(inputs)
-	if len(defaultToolsets) == 0 || !hasPolicySubject(scope) || agentPolicyHasAllowlist(resolved.Agent) {
-		return resolved
-	}
-	resolved.Agent.Toolsets = appendUniqueToolsetIDs(resolved.Agent.Toolsets, defaultToolsets...)
-	return resolved
-}
-
-func hasPolicySubject(scope Scope) bool {
-	return strings.TrimSpace(scope.SessionID) != "" || strings.TrimSpace(scope.AgentName) != ""
-}
-
-func agentPolicyHasAllowlist(policy AgentToolPolicy) bool {
-	return len(policy.Tools) > 0 || len(policy.Toolsets) > 0
-}
-
-func appendUniqueToolsetIDs(base []ToolsetID, values ...ToolsetID) []ToolsetID {
-	result := append([]ToolsetID(nil), base...)
-	for _, value := range values {
-		found := slices.Contains(result, value)
-		if !found {
-			result = append(result, value)
-		}
-	}
-	return result
 }
 
 func clonePolicyInputs(src PolicyInputs) PolicyInputs {

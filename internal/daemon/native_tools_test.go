@@ -5086,7 +5086,7 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should resolve default discovery and scoped runtime policy inputs", func(t *testing.T) {
+	t.Run("Should resolve full default projection and scoped runtime policy inputs", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -5111,10 +5111,6 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			Sessions:          sessions,
 			AgentResolver:     agents,
 			ApprovalAvailable: true,
-			DefaultToolsets: []toolspkg.ToolsetID{
-				toolspkg.ToolsetIDBootstrap,
-				toolspkg.ToolsetIDCatalog,
-			},
 		})
 		if err != nil {
 			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
@@ -5127,19 +5123,19 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 
 		views, err := registry.SessionProjection(ctx, scope)
 		if err != nil {
-			t.Fatalf("SessionProjection(default discovery) error = %v", err)
+			t.Fatalf("SessionProjection(full default) error = %v", err)
 		}
 		requireNativeViewContains(t, views, toolspkg.ToolIDToolList)
 		requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
 		requireNativeViewContains(t, views, toolspkg.ToolIDSkillView)
-		requireNativeViewExcludes(t, views, toolspkg.ToolIDTaskRead)
+		requireNativeViewContains(t, views, toolspkg.ToolIDTaskRead)
 
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolInfo,
 			Input:  json.RawMessage(`{"tool_id":"agh__tool_list"}`),
 		})
 		if err != nil {
-			t.Fatalf("Registry.Call(tool_info default discovery) error = %v", err)
+			t.Fatalf("Registry.Call(tool_info full default) error = %v", err)
 		}
 
 		agents.agent.Toolsets = []string{toolspkg.ToolsetIDTasks.String()}
@@ -5172,6 +5168,73 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireNativeViewExcludes(t, views, toolspkg.ToolIDToolList)
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+	})
+
+	t.Run("Should return diagnostic status for tools denied by explicit agent policy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		sessions := &nativeToolPolicySessionStub{
+			info: &session.Info{
+				ID:        "sess-catalog",
+				AgentName: "catalog-only",
+				State:     session.StateActive,
+			},
+		}
+		agents := &nativeToolPolicyAgentResolverStub{
+			agent: aghconfig.AgentDef{
+				Name:     "catalog-only",
+				Provider: "opencode",
+				Prompt:   "Inspect the tool catalog.",
+				Toolsets: []string{toolspkg.ToolsetIDCatalog.String()},
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			Sessions:          sessions,
+			AgentResolver:     agents,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
+			Skills:  newLoadedNativeSkillRegistry(t),
+			Network: &nativeNetworkStub{},
+		}, resolver)
+		scope := toolspkg.Scope{SessionID: "sess-catalog"}
+
+		views, err := registry.SessionProjection(ctx, scope)
+		if err != nil {
+			t.Fatalf("SessionProjection(catalog-only) error = %v", err)
+		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDToolSearch)
+		requireNativeViewContains(t, views, toolspkg.ToolIDToolInfo)
+		requireNativeViewExcludes(t, views, toolspkg.ToolIDNetworkChannelCreate)
+
+		searchResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolSearch,
+			Input:  json.RawMessage(`{"query":"network channel create"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(tool_search diagnostic) error = %v", err)
+		}
+		requireNativeStructuredContains(t, searchResult, []byte(`"agh__network_channel_create"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"callable":false`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"policy_denied"`))
+
+		infoResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolInfo,
+			Input:  json.RawMessage(`{"tool_id":"agh__network_channel_create"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(tool_info diagnostic) error = %v", err)
+		}
+		requireNativeStructuredContains(t, infoResult, []byte(`"agh__network_channel_create"`))
+		requireNativeStructuredContains(t, infoResult, []byte(`"callable":false`))
+		requireNativeStructuredContains(t, infoResult, []byte(`"policy_denied"`))
 	})
 
 	t.Run(

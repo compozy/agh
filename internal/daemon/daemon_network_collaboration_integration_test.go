@@ -102,6 +102,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			"thread",
 			"--thread",
 			buildersThreadID,
+			"--mention",
+			patchPeerID,
 			"--id",
 			"msg_say_01",
 			"--trace-id",
@@ -547,6 +549,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 			"thread",
 			"--thread",
 			capabilitiesThreadID,
+			"--mention",
+			curatorPeerID,
 			"--id",
 			"msg_capability_say_01",
 			"--trace-id",
@@ -793,10 +797,11 @@ func mustCreateNetworkChannel(
 	t.Helper()
 
 	detail, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
-		Channel:     channel,
-		Purpose:     "Release validation channel for " + channel,
-		WorkspaceID: harness.WorkspaceID,
-		AgentNames:  append([]string(nil), agentNames...),
+		Channel:      channel,
+		Purpose:      "Release validation channel for " + channel,
+		WorkspaceID:  harness.WorkspaceID,
+		AgentNames:   append([]string(nil), agentNames...),
+		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
 	})
 	if err != nil {
 		t.Fatalf("CreateNetworkChannel(%q) error = %v", channel, err)

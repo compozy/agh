@@ -92,32 +92,38 @@ surfaces reject `onboarding` as an agent name, and public list/detail payloads h
 onboarding wizard can still explicitly start `agent_name: "onboarding"` sessions so that setup can
 provision channels and workspace-local agents through bounded tool grants.
 
-Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields start empty, but
-the effective runtime policy adds `agh__bootstrap` and `agh__catalog` by default unless a deny or
-runtime policy layer removes them. Agents should use `agh__tool_search -> agh__tool_info -> invoke`
-for AGH-native capabilities and `agh__skill_search -> agh__skill_view` for skill loading before
-falling back to equivalent `agh ...` shell commands. Operator-only management — daemon lifecycle,
-MCP OAuth login/logout, trust-root config, raw secret writes, and cross-session terminal-state
-mutation — stays on the CLI/HTTP/UDS surfaces and is intentionally absent from the tool family.
+Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields start empty; empty
+means no agent-local allowlist. For a bare managed session, hosted MCP projects the full
+availability-gated callable catalog. Populate `tools` or `toolsets` only when the agent should be
+limited to that explicit surface.
+Discovery-only policies can still name `agh__bootstrap` and `agh__catalog`; AGH just no longer
+injects those toolsets as a default cap for every bare hosted session. Denies, session lineage,
+disabled sources, and approval/risk gates still narrow or block invocation.
+Agents resolve canonical `agh__tool_search` and inspect canonical `agh__tool_info`.
+Invoke the harness-returned tool reference for AGH-native capabilities.
+Skill loading resolves canonical `agh__skill_search` and `agh__skill_view`.
+Operator-only management — daemon lifecycle, MCP OAuth login/logout, trust-root config, raw secret
+writes, and cross-session terminal-state mutation — stays on the CLI/HTTP/UDS surfaces and is
+intentionally absent from the tool family.
 
 ## Frontmatter reference
 
 These are the frontmatter fields accepted by the current `internal/config` parser.
 
-| Field           | Type                        | Required | Default or resolution               | Valid values and notes                                                                                                                                                         |
-| --------------- | --------------------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `name`          | string                      | yes      | none                                | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                 |
-| `provider`      | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                         |
-| `command`       | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                           |
-| `model`         | string                      | no       | provider `models.default`           | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                                       |
-| `tools`         | string array                | no       | empty                               | Additional exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. Default discovery is runtime-applied. |
-| `toolsets`      | string array                | no       | empty                               | Additional canonical ToolsetIDs such as `agh__tasks` or `linear__read`. Runtime discovery adds `agh__bootstrap` and `agh__catalog` unless denied.                              |
-| `deny_tools`    | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                |
-| `permissions`   | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                                 |
-| `skills`        | object                      | no       | empty                               | Currently supports `disabled`, a string array of logical skill names disabled for this agent after precedence resolution.                                                      |
-| `category_path` | string array                | no       | empty                               | Ordered display-only path such as `["Marketing", "Sales"]`. Segments are trimmed and must not be blank, `.`, `..`, or contain `/` or `\`.                                      |
-| `mcp_servers`   | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                      |
-| `hooks`         | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                            |
+| Field           | Type                        | Required | Default or resolution               | Valid values and notes                                                                                                                                                                                                               |
+| --------------- | --------------------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`          | string                      | yes      | none                                | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                                                                       |
+| `provider`      | string                      | no       | `defaults.provider`                 | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                                                                               |
+| `command`       | string                      | no       | provider `command`                  | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                                                                                 |
+| `model`         | string                      | no       | provider `models.default`           | Stored as the resolved model metadata. The current ACP `session/new` and `session/load` payloads do not send this field.                                                                                                             |
+| `tools`         | string array                | no       | empty                               | Optional agent-local allowlist of exact canonical ToolIDs such as `agh__skill_view`, or namespace-prefix wildcards such as `agh__skill_*` and `mcp__github__*`. Empty leaves the hosted projection uncapped by the agent definition. |
+| `toolsets`      | string array                | no       | empty                               | Optional agent-local allowlist of canonical ToolsetIDs such as `agh__tasks` or `linear__read`. Empty leaves the hosted projection uncapped by the agent definition.                                                                  |
+| `deny_tools`    | string array                | no       | empty                               | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                                                                      |
+| `permissions`   | string                      | no       | `[permissions].mode`                | `deny-all`, `approve-reads`, or `approve-all`.                                                                                                                                                                                       |
+| `skills`        | object                      | no       | empty                               | Currently supports `disabled`, a string array of logical skill names disabled for this agent after precedence resolution.                                                                                                            |
+| `category_path` | string array                | no       | empty                               | Ordered display-only path such as `["Marketing", "Sales"]`. Segments are trimmed and must not be blank, `.`, `..`, or contain `/` or `\`.                                                                                            |
+| `mcp_servers`   | array of MCP server objects | no       | merged with config/provider servers | Each server requires `name` and `command`; `args` and `env` are optional.                                                                                                                                                            |
+| `hooks`         | array of hook declarations  | no       | none                                | Agent-scoped hooks validated with the same hook declaration rules as runtime hooks.                                                                                                                                                  |
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.

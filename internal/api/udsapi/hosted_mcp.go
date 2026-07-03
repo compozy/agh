@@ -8,6 +8,7 @@ import (
 
 	core "github.com/compozy/agh/internal/api/core"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,7 +42,7 @@ func (h *Handlers) bindHostedMCP(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Bind(c.Request.Context(), req, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
+		respondHostedMCPError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -59,7 +60,7 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
+		respondHostedMCPError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -79,7 +80,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	lastDigest := strings.TrimSpace(c.Query("last_digest"))
 	response, err := h.HostedMCP.Projection(c.Request.Context(), bindID, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
+		respondHostedMCPError(c, err)
 		return
 	}
 	writer, err := core.PrepareSSE(c)
@@ -164,7 +165,7 @@ func (h *Handlers) callHostedMCP(c *gin.Context) {
 	}
 	response, err := h.HostedMCP.Call(c.Request.Context(), req, peer)
 	if err != nil {
-		core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
+		respondHostedMCPError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, response)
@@ -186,10 +187,18 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 		return
 	}
 	if err := h.HostedMCP.ReleaseBindForPeer(c.Request.Context(), req.BindID, peer); err != nil {
-		core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
+		respondHostedMCPError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func respondHostedMCPError(c *gin.Context, err error) {
+	if isHostedMCPToolError(err) {
+		core.RespondToolError(c, err, false)
+		return
+	}
+	core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
 }
 
 func hostedMCPSafeError() error {
@@ -197,6 +206,9 @@ func hostedMCPSafeError() error {
 }
 
 func hostedMCPJSONError(err error) error {
+	if isHostedMCPToolError(err) {
+		return errors.New("hosted_mcp_tool_error: hosted tool request failed")
+	}
 	if hostedMCPStatus(err) >= http.StatusInternalServerError {
 		return hostedMCPSafeError()
 	}
@@ -226,6 +238,8 @@ func hostedMCPStatus(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case isHostedMCPToolError(err):
+		return core.StatusForToolError(err)
 	case errors.Is(err, mcppkg.ErrHostedDisabled), errors.Is(err, mcppkg.ErrHostedRegistryRequired):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, mcppkg.ErrHostedSessionRequired),
@@ -241,4 +255,21 @@ func hostedMCPStatus(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+func isHostedMCPToolError(err error) bool {
+	var toolErr *toolspkg.ToolError
+	var validationErr *toolspkg.ValidationError
+	return errors.As(err, &toolErr) ||
+		errors.As(err, &validationErr) ||
+		errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+		errors.Is(err, toolspkg.ErrToolNotFound) ||
+		errors.Is(err, toolspkg.ErrToolDenied) ||
+		errors.Is(err, toolspkg.ErrToolApprovalRequired) ||
+		errors.Is(err, toolspkg.ErrToolConflict) ||
+		errors.Is(err, toolspkg.ErrToolUnavailable) ||
+		errors.Is(err, toolspkg.ErrToolResultTooLarge) ||
+		errors.Is(err, toolspkg.ErrToolBackendFailed) ||
+		errors.Is(err, toolspkg.ErrToolCanceled) ||
+		errors.Is(err, toolspkg.ErrToolTimedOut)
 }

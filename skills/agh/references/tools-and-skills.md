@@ -14,20 +14,27 @@
 
 ## Tool-First Operating Model
 
-AGH exposes runtime capabilities through a policy-filtered tool registry. Prefer native AGH tools over equivalent agh shell commands when a dedicated tool exists and is callable. Tool calls are structured, policy-aware, observable, and easier for the daemon to redact and audit.
+AGH exposes runtime capabilities through a policy-filtered tool registry. Prefer native AGH tools over equivalent agh shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
 
-Use shell commands for ordinary repository work, explicit operator requests, and management flows that AGH intentionally keeps outside the normal tool-call loop.
+Use shell commands for repository work, explicit operator requests, and management flows AGH keeps outside the normal tool-call loop.
 
 ## Discovery Loop
 
 Use this sequence for AGH-native work:
 
-1. Search with agh\_\_tool_search using the runtime domain or action.
-2. Inspect with agh\_\_tool_info before the first invocation.
-3. Invoke the dedicated tool with the descriptor's input schema.
+1. Resolve canonical `agh__tool_search`, then search using the runtime domain or action.
+2. Resolve canonical `agh__tool_info`, then inspect the selected ToolID before first invocation.
+3. Invoke the returned dedicated tool reference with the descriptor's input schema.
 4. Diagnose denied or missing tools from reason codes before changing surface.
 
-For skills, search with `agh__skill_search` and load full instructions with `agh__skill_view`. Use the operator CLI fallback only when the tool path is denied, absent, or the user asks for CLI output.
+`agh__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
+
+Hosted MCP projects the full availability-gated callable catalog for a bare managed session. AGH no
+longer caps that projection to bootstrap/catalog tools unless the agent definition or session
+lineage explicitly narrows it. Use `agh__tool_search` and `agh__tool_info` to diagnose known but
+denied tools; use `agh__tool_list` when you need only the currently callable set.
+
+For skills, resolve canonical `agh__skill_search`/`agh__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
 
 ## Skill Loading
 
@@ -35,8 +42,8 @@ The prompt catalog lists skill names and descriptions, not full bodies. Load the
 
     agh skill view agh
 
-Inside a tool-capable session, use the equivalent skill search/view tools.
-For resource files inside daemon-managed AGH sessions, use the native skill view tool with the resource path instead of the CLI `--file` fallback. The CLI resource form is for local operator mode where skill resolution reads directly from the filesystem:
+Inside a tool-capable session, resolve the equivalent skill search/view tools through the active harness.
+For resource files inside daemon-managed AGH sessions, use the returned skill view reference with the resource path. The CLI resource form is for local operator mode where skill resolution reads directly from the filesystem:
 
     agh skill view agh --file references/network.md
 
@@ -72,7 +79,7 @@ directory before retrying.
 
 ## Native AGH Tool Map
 
-Agents running inside AGH should read references/native-tools.md before choosing a tool or CLI fallback. That file lists the daemon-native toolsets and stable `agh__*` IDs, but the source of truth for parameters and availability is always the live descriptor returned by `agh__tool_info`.
+Inside AGH, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `agh__*` IDs, but parameters and availability come from the live descriptor returned by canonical `agh__tool_info`.
 
 ## Management-Surface Exceptions
 

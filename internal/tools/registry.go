@@ -174,6 +174,69 @@ func (r *RuntimeRegistry) Get(ctx context.Context, scope Scope, id ToolID) (Tool
 	)
 }
 
+// DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
+func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
+	if err != nil {
+		return nil, err
+	}
+	views := make([]ToolView, 0, len(index.entries))
+	for _, entry := range index.entries {
+		view, err := r.viewFor(ctx, scope, evaluator, entry)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+// DiagnosticSearch filters the diagnostic projection without hiding denied tools.
+func (r *RuntimeRegistry) DiagnosticSearch(ctx context.Context, scope Scope, q SearchQuery) ([]ToolView, error) {
+	views, err := r.DiagnosticProjection(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	needle := strings.TrimSpace(strings.ToLower(q.Query))
+	if needle == "" {
+		return limitViews(views, q.Limit), nil
+	}
+	filtered := make([]ToolView, 0, len(views))
+	for i := range views {
+		if toolViewMatches(&views[i], needle) {
+			filtered = append(filtered, views[i])
+		}
+	}
+	return limitViews(filtered, q.Limit), nil
+}
+
+// DiagnosticGet returns one diagnostic projection row even when the tool is not callable.
+func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id ToolID) (ToolView, error) {
+	if err := id.Validate(); err != nil {
+		return ToolView{}, err
+	}
+	views, err := r.DiagnosticProjection(ctx, scope)
+	if err != nil {
+		return ToolView{}, err
+	}
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			return views[i], nil
+		}
+	}
+	return ToolView{}, NewToolError(
+		ErrorCodeNotFound,
+		id,
+		fmt.Sprintf("tool %q not found", id),
+		ErrToolNotFound,
+		ReasonToolUnknown,
+	)
+}
+
 // Call runs the central provider-agnostic registry dispatch pipeline.
 func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
 	return r.dispatch(ctx, scope, req)
@@ -213,22 +276,12 @@ func (r *RuntimeRegistry) GetToolset(ctx context.Context, scope Scope, id Toolse
 
 // OperatorProjection returns all registered tools with diagnostics.
 func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
-	index, err := r.buildIndex(ctx, scope)
+	views, err := r.DiagnosticProjection(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
-	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
-	if err != nil {
-		return nil, err
-	}
-	views := make([]ToolView, 0, len(index.entries))
-	for _, entry := range index.entries {
-		view, err := r.viewFor(ctx, scope, evaluator, entry)
-		if err != nil {
-			return nil, err
-		}
-		view.Decision.VisibleToOperator = true
-		views = append(views, view)
+	for i := range views {
+		views[i].Decision.VisibleToOperator = true
 	}
 	return views, nil
 }
@@ -323,11 +376,7 @@ func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (Pol
 	if err != nil {
 		return PolicyInputs{}, err
 	}
-	defaultToolsets, err := resolver.DefaultToolsets(ctx, scope)
-	if err != nil {
-		return PolicyInputs{}, err
-	}
-	return applyDefaultDiscoveryOverlay(inputs, scope, defaultToolsets), nil
+	return clonePolicyInputs(inputs), nil
 }
 
 func (r *RuntimeRegistry) toolsetView(ctx context.Context, scope Scope, toolset Toolset) (ToolsetView, error) {
