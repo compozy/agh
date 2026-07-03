@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TasksKanbanBoard } from "../tasks-kanban-board";
-import { groupTasksForKanban } from "../../lib/task-grouping";
+import { getKanbanColumns, groupTasksForKanban } from "../../lib/task-grouping";
 import type { TaskListItem } from "../../types";
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
@@ -22,7 +22,7 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 describe("TasksKanbanBoard", () => {
-  it("Should render exactly four canonical columns labeled Pending, In progress, Blocked, Done", () => {
+  it("Should render the canonical columns including a distinct Needs attention column", () => {
     render(
       <TasksKanbanBoard
         columns={groupTasksForKanban([])}
@@ -31,12 +31,22 @@ describe("TasksKanbanBoard", () => {
       />
     );
 
-    expect(screen.getByTestId("tasks-kanban-board")).toBeInTheDocument();
+    const board = screen.getByTestId("tasks-kanban-board");
+    expect(board).toBeInTheDocument();
     const columns = screen.getAllByRole("listitem");
-    expect(columns).toHaveLength(4);
+    // The rendered column count AND the grid track count must both derive from
+    // the canonical column set, so a future status column can never wrap onto a
+    // broken second row (guards the round-4 B-001 regression).
+    expect(columns).toHaveLength(getKanbanColumns().length);
+    expect(board.getAttribute("style")).toContain(
+      `repeat(${getKanbanColumns().length}, minmax(0, 1fr))`
+    );
     expect(screen.getByTestId("tasks-kanban-column-pending")).toHaveTextContent(/Pending/);
     expect(screen.getByTestId("tasks-kanban-column-in_progress")).toHaveTextContent(/In progress/);
     expect(screen.getByTestId("tasks-kanban-column-blocked")).toHaveTextContent(/Blocked/);
+    expect(screen.getByTestId("tasks-kanban-column-needs_attention")).toHaveTextContent(
+      /Needs attention/
+    );
     expect(screen.getByTestId("tasks-kanban-column-done")).toHaveTextContent(/Done/);
   });
 
@@ -213,6 +223,21 @@ describe("TaskKanbanCard", () => {
       "data-slot",
       "owner-avatar"
     );
+  });
+
+  it("Should render needs_attention cards with a human status label", () => {
+    const tasks = [buildTask({ id: "attention", status: "needs_attention" })];
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban(tasks)}
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+      />
+    );
+
+    const card = screen.getByTestId("tasks-kanban-card-attention");
+    expect(card).toHaveTextContent("Needs attention");
+    expect(card).not.toHaveTextContent("needs_attention");
   });
 
   it("Should paint the card with an inset ring instead of a border class", () => {

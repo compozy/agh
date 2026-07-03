@@ -682,6 +682,10 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 		{name: "task status valid", run: func() error { return TaskStatusReady.Validate("status") }},
 		{name: "task status draft valid", run: func() error { return TaskStatusDraft.Validate("status") }},
 		{
+			name: "Should accept needs_attention task status",
+			run:  func() error { return TaskStatusNeedsAttention.Validate("status") },
+		},
+		{
 			name:    "task status invalid",
 			run:     func() error { return Status("waiting").Validate("status") },
 			wantErr: ErrValidation,

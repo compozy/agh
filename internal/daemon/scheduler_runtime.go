@@ -22,6 +22,7 @@ import (
 // The production global store MUST satisfy the scheduler's StarvationStore so the convergence
 // backstop is statically wired, never silently disabled by a failed runtime type assertion.
 var _ schedulerpkg.StarvationStore = (*globaldb.GlobalDB)(nil)
+var _ schedulerpkg.TaskSource = schedulerTaskSource{}
 
 const (
 	schedulerRuntimeTaskKey = "task"
@@ -322,6 +323,14 @@ func (s schedulerTaskSource) RecoverExpiredRunLeases(
 	actor taskpkg.ActorContext,
 ) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
 	return s.manager.RecoverExpiredRunLeases(ctx, recovery, actor)
+}
+
+func (s schedulerTaskSource) ExpireTaskBlocks(
+	ctx context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return s.manager.ExpireTaskBlocks(ctx, now, actor)
 }
 
 func (s schedulerTaskSource) GetRunStatus(

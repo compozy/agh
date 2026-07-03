@@ -5,24 +5,10 @@ description: "Update a runtime channel delivery policy"
 
 ## agh network channels update
 
-Update a runtime channel delivery policy.
+Update a runtime channel delivery policy
 
 ```
 agh network channels update [channel] [flags]
-```
-
-### Examples
-
-```
-agh network channels update builders \
-  --purpose "Coordinate release verification" \
-  --fanout-policy capability_match \
-  -o json
-
-agh network channels update builders \
-  --fanout-policy coordinator \
-  --coordinator-peer-id release-coordinator.session-4 \
-  -o json
 ```
 
 ### Options
@@ -55,5 +41,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh network channels update builders --fanout-policy capability_match -o json
+agh network channels update [channel] -o json
 ```

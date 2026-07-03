@@ -3,6 +3,8 @@
     "pages": [
         "index",
         "approve",
+        "block",
+        "blocks",
         "cancel",
         "complete",
         "create",
@@ -23,6 +25,7 @@
         "resume",
         "retry",
         "start",
+        "unblock",
         "update",
         "child",
         "dependency",

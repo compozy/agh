@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"time"
 
 	core "github.com/compozy/agh/internal/api/core"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -90,6 +91,16 @@ type StubTaskManager struct {
 		taskpkg.CancelTask,
 		taskpkg.ActorContext,
 	) (*taskpkg.Task, error)
+	BlockTaskFn      func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error)
+	ClearTaskBlockFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		taskpkg.ActorContext,
+	) (taskpkg.TaskBlock, error)
+	RecoverTaskFn         func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	ListTaskBlocksFn      func(context.Context, string, bool, taskpkg.ActorContext) ([]taskpkg.TaskBlock, error)
 	MarkTaskReadFn        func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	ArchiveTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	DismissTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
@@ -306,6 +317,62 @@ func (s StubTaskManager) CancelTask(
 ) (*taskpkg.Task, error) {
 	if s.CancelTaskFn != nil {
 		return s.CancelTaskFn(ctx, id, req, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) BlockTask(
+	ctx context.Context,
+	req taskpkg.BlockRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	if s.BlockTaskFn != nil {
+		return s.BlockTaskFn(ctx, req, actor)
+	}
+	return taskpkg.TaskBlock{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ClearTaskBlock(
+	ctx context.Context,
+	taskID string,
+	blockID string,
+	note string,
+	actor taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	if s.ClearTaskBlockFn != nil {
+		return s.ClearTaskBlockFn(ctx, taskID, blockID, note, actor)
+	}
+	return taskpkg.TaskBlock{}, taskpkg.ErrTaskBlockNotFound
+}
+
+func (s StubTaskManager) RecoverTask(
+	ctx context.Context,
+	id string,
+	note string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	if s.RecoverTaskFn != nil {
+		return s.RecoverTaskFn(ctx, id, note, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ExpireTaskBlocks(
+	_ context.Context,
+	_ time.Time,
+	_ taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
+func (s StubTaskManager) ListTaskBlocks(
+	ctx context.Context,
+	taskID string,
+	includeCleared bool,
+	actor taskpkg.ActorContext,
+) ([]taskpkg.TaskBlock, error) {
+	if s.ListTaskBlocksFn != nil {
+		return s.ListTaskBlocksFn(ctx, taskID, includeCleared, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
 }

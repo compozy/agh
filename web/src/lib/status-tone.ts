@@ -11,6 +11,7 @@
  * states from the backend `Status` enum in `internal/task/types.go`. Task lanes
  * do not render canceled tasks today; downstream consumers map `canceled` to a
  * neutral fallback at the call site or route through `RUN_STATUS_TONE.canceled`.
+ * `needs_attention` shares the warning tone used by run-level escalation.
  * This also defers the `stuck` UI tone (the dashboard exposes a separate
  * `stuck: bool` field, not a Status value), and `queued` is not a Status value.
  *
@@ -23,6 +24,7 @@ export type TaskStatus =
   | "draft"
   | "pending"
   | "blocked"
+  | "needs_attention"
   | "ready"
   | "in_progress"
   | "completed"
@@ -51,6 +53,7 @@ export const TASK_STATUS_TONE = {
   draft: "neutral",
   pending: "neutral",
   blocked: "danger",
+  needs_attention: "warning",
   ready: "neutral",
   in_progress: "info",
   completed: "success",

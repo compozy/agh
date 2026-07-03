@@ -83,8 +83,8 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator, metadata_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -112,6 +112,7 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		normalized.PausedBy,
 		nullableTaskTimestamp(normalized.PausedAt),
 		normalized.PausedReason,
+		taskBoolToInt(normalized.WakeCreator),
 		nullableTaskJSON(normalized.Metadata),
 	)
 	if err != nil {
@@ -209,7 +210,10 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
 		     created_at = ?, updated_at = ?, closed_at = ?,
-		     paused = ?, paused_by = ?, paused_at = ?, paused_reason = ?, metadata_json = ?
+		     paused = ?, paused_by = ?, paused_at = ?, paused_reason = ?,
+		     needs_attention_reason = ?, needs_attention_at = ?,
+		     needs_attention_by_kind = ?, needs_attention_by_ref = ?,
+		     wake_creator = ?, metadata_json = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -237,6 +241,11 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		normalized.PausedBy,
 		nullableTaskTimestamp(normalized.PausedAt),
 		normalized.PausedReason,
+		store.NullableString(taskNeedsAttentionReason(normalized.NeedsAttention)),
+		nullableTaskTimestamp(taskNeedsAttentionAt(normalized.NeedsAttention)),
+		taskActorKindValue(taskNeedsAttentionActor(normalized.NeedsAttention)),
+		taskActorRefValue(taskNeedsAttentionActor(normalized.NeedsAttention)),
+		taskBoolToInt(normalized.WakeCreator),
 		nullableTaskJSON(normalized.Metadata),
 		normalized.ID,
 	)
@@ -265,7 +274,9 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`,
-			paused, paused_by, paused_at, paused_reason, metadata_json
+			paused, paused_by, paused_at, paused_reason, needs_attention_reason,
+			needs_attention_at, needs_attention_by_kind, needs_attention_by_ref, wake_creator,
+			metadata_json
 			 FROM tasks
 			 WHERE id = ?`,
 		trimmedID,
@@ -296,7 +307,9 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
-		paused, paused_by, paused_at, paused_reason, metadata_json
+		paused, paused_by, paused_at, paused_reason, needs_attention_reason,
+		needs_attention_at, needs_attention_by_kind, needs_attention_by_ref, wake_creator,
+		metadata_json
 		FROM tasks`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(normalized.Scope)),
@@ -308,6 +321,8 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		store.StringClause("owner_ref", normalized.OwnerRef),
 		store.StringClause("parent_task_id", normalized.ParentTaskID),
 		store.StringClause("network_channel", normalized.NetworkChannel),
+		store.StringClause("created_by_kind", string(normalized.CreatedByKind)),
+		store.StringClause("created_by_ref", normalized.CreatedByRef),
 	)
 	where, args = appendTaskSearchClause(where, args, normalized.Search)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
@@ -635,6 +650,18 @@ func (s *deleteTaskTxStore) ListDependencies(
 	taskID string,
 ) ([]taskpkg.Dependency, error) {
 	return s.global.listDependenciesWithExecutor(ctx, s.exec, taskID)
+}
+
+func (s *deleteTaskTxStore) ListTaskBlocks(
+	ctx context.Context,
+	taskID string,
+	includeCleared bool,
+) ([]taskpkg.TaskBlock, error) {
+	return s.global.listTaskBlocksWithExecutor(ctx, s.exec, taskID, includeCleared, s.global.now())
+}
+
+func (s *deleteTaskTxStore) HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error) {
+	return s.global.hasOpenTaskBlocksWithExecutor(ctx, s.exec, taskID, s.global.now())
 }
 
 func (s *deleteTaskTxStore) ListDependents(
@@ -1061,6 +1088,16 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 	record.Paused = fields.paused != 0
 	record.PausedBy = strings.TrimSpace(fields.pausedBy)
 	record.PausedReason = strings.TrimSpace(fields.pausedReason)
+	attention := taskpkg.NeedsAttention{
+		Reason: taskNullStringValue(fields.needsAttentionReason),
+	}
+	if fields.needsAttentionByKind.Valid || fields.needsAttentionByRef.Valid {
+		attention.By = taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKind(strings.TrimSpace(fields.needsAttentionByKind.String)),
+			Ref:  strings.TrimSpace(fields.needsAttentionByRef.String),
+		}
+	}
+	record.WakeCreator = fields.wakeCreator != 0
 	if err := assignTaskRecordTimestamps(
 		&record,
 		fields.createdAtRaw,
@@ -1075,6 +1112,12 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
 		return taskpkg.Task{}, err
 	}
+	if err := assignNullableTaskTimestamp(&attention.At, fields.needsAttentionAtRaw); err != nil {
+		return taskpkg.Task{}, err
+	}
+	if attention.Reason != "" || !attention.At.IsZero() || !attention.By.IsZero() {
+		record.NeedsAttention = &attention
+	}
 	record = normalizeTaskRecord(record)
 	if err := record.Validate(); err != nil {
 		return taskpkg.Task{}, err
@@ -1084,32 +1127,37 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 }
 
 type taskScanFields struct {
-	identifier         sql.NullString
-	scope              string
-	workspaceID        sql.NullString
-	parentTaskID       sql.NullString
-	networkChannel     sql.NullString
-	description        sql.NullString
-	priority           string
-	maxAttempts        int
-	autoEnqueueOnReady int
-	status             string
-	approvalPolicy     string
-	approvalState      string
-	ownerKind          sql.NullString
-	ownerRef           sql.NullString
-	createdByKind      string
-	originKind         string
-	createdAtRaw       string
-	updatedAtRaw       string
-	closedAtRaw        sql.NullString
-	currentRunID       sql.NullString
-	latestEventSeq     int64
-	paused             int
-	pausedBy           string
-	pausedAtRaw        sql.NullString
-	pausedReason       string
-	metadataJSON       sql.NullString
+	identifier           sql.NullString
+	scope                string
+	workspaceID          sql.NullString
+	parentTaskID         sql.NullString
+	networkChannel       sql.NullString
+	description          sql.NullString
+	priority             string
+	maxAttempts          int
+	autoEnqueueOnReady   int
+	status               string
+	approvalPolicy       string
+	approvalState        string
+	ownerKind            sql.NullString
+	ownerRef             sql.NullString
+	createdByKind        string
+	originKind           string
+	createdAtRaw         string
+	updatedAtRaw         string
+	closedAtRaw          sql.NullString
+	currentRunID         sql.NullString
+	latestEventSeq       int64
+	paused               int
+	pausedBy             string
+	pausedAtRaw          sql.NullString
+	pausedReason         string
+	needsAttentionReason sql.NullString
+	needsAttentionAtRaw  sql.NullString
+	needsAttentionByKind sql.NullString
+	needsAttentionByRef  sql.NullString
+	wakeCreator          int
+	metadataJSON         sql.NullString
 }
 
 func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
@@ -1145,6 +1193,11 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.pausedBy,
 		&fields.pausedAtRaw,
 		&fields.pausedReason,
+		&fields.needsAttentionReason,
+		&fields.needsAttentionAtRaw,
+		&fields.needsAttentionByKind,
+		&fields.needsAttentionByRef,
+		&fields.wakeCreator,
 		&fields.metadataJSON,
 	); err != nil {
 		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
@@ -1443,6 +1496,20 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.PausedBy = strings.TrimSpace(normalized.PausedBy)
 	normalized.PausedReason = strings.TrimSpace(normalized.PausedReason)
+	if normalized.NeedsAttention != nil {
+		attention := *normalized.NeedsAttention
+		attention.Reason = strings.TrimSpace(attention.Reason)
+		attention.By.Kind = attention.By.Kind.Normalize()
+		attention.By.Ref = strings.TrimSpace(attention.By.Ref)
+		if !attention.At.IsZero() {
+			attention.At = attention.At.UTC()
+		}
+		if attention.Reason == "" && attention.At.IsZero() && attention.By.IsZero() {
+			normalized.NeedsAttention = nil
+		} else {
+			normalized.NeedsAttention = &attention
+		}
+	}
 	normalized.Status = normalized.Status.Normalize()
 	normalized.CreatedBy.Kind = normalized.CreatedBy.Kind.Normalize()
 	normalized.CreatedBy.Ref = strings.TrimSpace(normalized.CreatedBy.Ref)
@@ -1637,6 +1704,8 @@ func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.CreatedByKind = normalized.CreatedByKind.Normalize()
+	normalized.CreatedByRef = strings.TrimSpace(normalized.CreatedByRef)
 	normalized.Search = strings.TrimSpace(normalized.Search)
 	return normalized
 }
@@ -1667,10 +1736,12 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		ApprovalPolicy:     record.ApprovalPolicy,
 		ApprovalState:      record.ApprovalState,
 		Draft:              record.Status.Normalize() == taskpkg.TaskStatusDraft,
+		NeedsAttention:     cloneNeedsAttention(record.NeedsAttention),
 		Owner:              record.Owner,
 		CurrentRunID:       record.CurrentRunID,
 		LatestEventSeq:     record.LatestEventSeq,
 		Paused:             record.Paused,
+		WakeCreator:        record.WakeCreator,
 		PausedBy:           record.PausedBy,
 		PausedAt:           record.PausedAt,
 		PausedReason:       record.PausedReason,
@@ -1688,6 +1759,14 @@ func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 		ClosedAt:       record.ClosedAt,
 		LastActivityAt: record.UpdatedAt,
 	}
+}
+
+func cloneNeedsAttention(attention *taskpkg.NeedsAttention) *taskpkg.NeedsAttention {
+	if attention == nil {
+		return nil
+	}
+	clone := *attention
+	return &clone
 }
 
 func requireTaskValue(value string, label string) (string, error) {
@@ -1731,6 +1810,27 @@ func taskActorRefValue(actor *taskpkg.ActorIdentity) any {
 		return nil
 	}
 	return actor.Ref
+}
+
+func taskNeedsAttentionReason(attention *taskpkg.NeedsAttention) string {
+	if attention == nil {
+		return ""
+	}
+	return attention.Reason
+}
+
+func taskNeedsAttentionAt(attention *taskpkg.NeedsAttention) time.Time {
+	if attention == nil {
+		return time.Time{}
+	}
+	return attention.At
+}
+
+func taskNeedsAttentionActor(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity {
+	if attention == nil || attention.By.IsZero() {
+		return nil
+	}
+	return &attention.By
 }
 
 func nullableTaskTimestamp(value time.Time) any {

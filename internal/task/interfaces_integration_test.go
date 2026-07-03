@@ -51,6 +51,40 @@ func (fakeStore) CountDependencies(context.Context, string) (int, error) { retur
 
 func (fakeStore) HasDependencyPath(context.Context, string, string) (bool, error) { return false, nil }
 
+func (fakeStore) ListTaskBlocks(context.Context, string, bool) ([]taskpkg.TaskBlock, error) {
+	return nil, nil
+}
+
+func (fakeStore) HasOpenTaskBlocks(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (fakeStore) CreateTaskBlock(
+	context.Context,
+	taskpkg.CreateTaskBlockMutation,
+) (taskpkg.BlockMutationResult, error) {
+	return taskpkg.BlockMutationResult{}, nil
+}
+
+func (fakeStore) ClearTaskBlock(context.Context, taskpkg.ClearTaskBlockMutation) (taskpkg.TaskBlock, error) {
+	return taskpkg.TaskBlock{}, nil
+}
+
+func (fakeStore) ClearTaskNeedsAttention(context.Context, taskpkg.NeedsAttentionClearMutation) (taskpkg.Task, error) {
+	return taskpkg.Task{}, nil
+}
+
+func (fakeStore) ExpireTaskBlocks(context.Context, taskpkg.ExpireTaskBlocksMutation) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
+func (fakeStore) BlockTaskAndReleaseRun(
+	context.Context,
+	taskpkg.BlockTaskAndReleaseRunMutation,
+) (taskpkg.BlockTaskAndReleaseRunResult, error) {
+	return taskpkg.BlockTaskAndReleaseRunResult{}, nil
+}
+
 func (fakeStore) CreateTaskRun(context.Context, taskpkg.Run) error { return nil }
 
 func (fakeStore) UpdateTaskRun(context.Context, taskpkg.Run) error { return nil }

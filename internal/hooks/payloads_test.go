@@ -655,6 +655,55 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	assertJSONRoundTrip(t, "PermissionResolvedPatch", PermissionResolvedPatch{})
 	assertJSONRoundTrip(t, "PermissionDeniedPatch", PermissionDeniedPatch{})
 
+	sampleTaskContext := TaskContext{
+		TaskID:                "task-1",
+		WorkspaceID:           "ws-1",
+		WorkflowID:            "wf-1",
+		CoordinationChannelID: "coord-1",
+		NetworkChannel:        "builders",
+		AgentName:             "codex",
+		ActorKind:             "agent_session",
+		ActorID:               "sess-1",
+		OriginKind:            "agent_session",
+		OriginRef:             "sess-1",
+		TaskStatus:            "blocked",
+		RunID:                 "run-1",
+		ReleaseReason:         "blocked",
+		ClaimTokenHash:        "sha256:abc123",
+	}
+	assertJSONRoundTrip(t, "TaskBlockedPayload", TaskBlockedPayload{
+		PayloadBase: samplePayloadBase(HookTaskBlocked),
+		TaskContext: sampleTaskContext,
+		BlockID:     "block-1",
+		Kind:        "needs_input",
+		Reason:      "creator clarification required",
+		Details:     sampleRaw,
+	})
+	assertJSONRoundTrip(t, "TaskUnblockedPayload", TaskUnblockedPayload{
+		PayloadBase: samplePayloadBase(HookTaskUnblocked),
+		TaskContext: sampleTaskContext,
+		BlockID:     "block-1",
+		Kind:        "needs_input",
+		Reason:      "creator clarification required",
+		ClearedAt:   samplePayloadBase(HookTaskUnblocked).Timestamp,
+		ClearNote:   "creator answered",
+	})
+	assertJSONRoundTrip(t, "TaskNeedsAttentionPayload", TaskNeedsAttentionPayload{
+		PayloadBase: samplePayloadBase(HookTaskNeedsAttention),
+		TaskContext: sampleTaskContext,
+		Reason:      "breaker limit reached",
+		At:          samplePayloadBase(HookTaskNeedsAttention).Timestamp,
+	})
+	assertJSONRoundTrip(t, "TaskRecoveredPayload", TaskRecoveredPayload{
+		PayloadBase: samplePayloadBase(HookTaskRecovered),
+		TaskContext: sampleTaskContext,
+		Note:        "operator recovered",
+		At:          samplePayloadBase(HookTaskRecovered).Timestamp,
+	})
+	assertJSONRoundTrip(t, "TaskObservationPatch", TaskObservationPatch{
+		Labels: map[string]string{"source": "test"},
+	})
+
 	assertJSONRoundTrip(t, "ContextPreCompactPayload", ContextPreCompactPayload{
 		PayloadBase:    samplePayloadBase(HookContextPreCompact),
 		SessionContext: sampleSession,

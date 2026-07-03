@@ -6129,6 +6129,49 @@ func (r *recordingRegistry) ListDependencies(context.Context, string) ([]taskpkg
 	return nil, nil
 }
 
+func (r *recordingRegistry) ListTaskBlocks(context.Context, string, bool) ([]taskpkg.TaskBlock, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) HasOpenTaskBlocks(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (r *recordingRegistry) CreateTaskBlock(
+	context.Context,
+	taskpkg.CreateTaskBlockMutation,
+) (taskpkg.BlockMutationResult, error) {
+	return taskpkg.BlockMutationResult{}, nil
+}
+
+func (r *recordingRegistry) ClearTaskBlock(
+	context.Context,
+	taskpkg.ClearTaskBlockMutation,
+) (taskpkg.TaskBlock, error) {
+	return taskpkg.TaskBlock{}, nil
+}
+
+func (r *recordingRegistry) ClearTaskNeedsAttention(
+	context.Context,
+	taskpkg.NeedsAttentionClearMutation,
+) (taskpkg.Task, error) {
+	return taskpkg.Task{}, nil
+}
+
+func (r *recordingRegistry) ExpireTaskBlocks(
+	context.Context,
+	taskpkg.ExpireTaskBlocksMutation,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
+func (r *recordingRegistry) BlockTaskAndReleaseRun(
+	context.Context,
+	taskpkg.BlockTaskAndReleaseRunMutation,
+) (taskpkg.BlockTaskAndReleaseRunResult, error) {
+	return taskpkg.BlockTaskAndReleaseRunResult{}, nil
+}
+
 func (r *recordingRegistry) ListDependents(context.Context, string) ([]taskpkg.Dependency, error) {
 	return nil, nil
 }
@@ -7099,6 +7142,34 @@ func (f *fakeHookRuntime) DispatchCoordinatorFailed(
 	_ context.Context,
 	payload hookspkg.CoordinatorFailedPayload,
 ) (hookspkg.CoordinatorFailedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskBlocked(
+	_ context.Context,
+	payload hookspkg.TaskBlockedPayload,
+) (hookspkg.TaskBlockedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskUnblocked(
+	_ context.Context,
+	payload hookspkg.TaskUnblockedPayload,
+) (hookspkg.TaskUnblockedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskNeedsAttention(
+	_ context.Context,
+	payload hookspkg.TaskNeedsAttentionPayload,
+) (hookspkg.TaskNeedsAttentionPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskRecovered(
+	_ context.Context,
+	payload hookspkg.TaskRecoveredPayload,
+) (hookspkg.TaskRecoveredPayload, error) {
 	return payload, nil
 }
 

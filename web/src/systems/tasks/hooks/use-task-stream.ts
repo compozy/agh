@@ -37,6 +37,15 @@ const TASK_STREAM_EVENT_TYPES = [
   "task.approved",
   "task.rejected",
   "task.canceled",
+  // Task-block lifecycle. Only the frames the daemon actually writes to the task
+  // stream are subscribed: task.needs_attention (breaker escalation) and
+  // task.recovered (recover). Plain block add/clear surfaces via task.run_released
+  // (a mid-run block parks the run) and task.run_enqueued (last-block-clear
+  // auto-enqueue), both already listed below. task.blocked/task.unblocked are
+  // typed hook events dispatched at the service call site, NOT stream frames, so
+  // they are intentionally not subscribed here.
+  "task.needs_attention",
+  "task.recovered",
   "task.child_created",
   "task.dependency_added",
   "task.dependency_removed",

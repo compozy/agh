@@ -10,13 +10,15 @@ import type { PillTone } from "@agh/ui";
 
 /**
  * Column header tone — `In progress` reads as `info` (live work without an
- * accent recolor), `Blocked` reads as `danger`, terminal `Done` and `Pending`
+ * accent recolor), `Blocked` reads as `danger`, `Needs attention` reads as
+ * `warning` (distinct escalation, no coercion), terminal `Done` and `Pending`
  * stay neutral.
  */
 const COLUMN_HEADER_TONE: Record<TaskKanbanColumnId, PillTone> = {
   pending: "neutral",
   in_progress: "info",
   blocked: "danger",
+  needs_attention: "warning",
   done: "neutral",
 };
 
@@ -53,11 +55,17 @@ export function TasksKanbanBoard({
     );
   }
 
+  // Derive the grid track count from the canonical column set so it can never
+  // drift from `KANBAN_COLUMNS`: a new status column widens the grid instead of
+  // wrapping the last column onto a broken second row.
   return (
     <div
-      className="grid min-h-0 flex-1 grid-cols-4 gap-3 overflow-y-auto px-4 pt-4 pb-15"
+      className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-15"
       data-testid="tasks-kanban-board"
       role="list"
+      style={{
+        gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
+      }}
     >
       {isLoading ? (
         <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">

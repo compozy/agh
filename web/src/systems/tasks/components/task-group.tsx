@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { listGroupDotProps, type TaskListGroupId } from "../lib/task-grouping";
 
 export interface TaskGroupProps {
-  /** Canonical list-view group id (active / blocked / stuck / queued / done / failed). */
+  /** Canonical list-view group id (active / blocked / needs_attention / queued / done / failed). */
   id: TaskListGroupId;
   /** Group header label, rendered through the canonical `<Eyebrow>` utility. */
   label: string;
@@ -21,7 +21,7 @@ export interface TaskGroupProps {
 
 /**
  * Tasks index — List-view status group. Renders a six-group anatomy per
- * (`Active` · `Blocked` · `Stuck` · `Queued` · `Done` · `Failed`).
+ * (`Active` · `Blocked` · `Needs attention` · `Queued` · `Done` · `Failed`).
  *
  * Header composition: `<StatusDot>` + `<Eyebrow>` label + bare mono count +
  * optional actions slot. One dot per group replaces per-row status dots on the

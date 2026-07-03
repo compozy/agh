@@ -2,17 +2,17 @@
     "title": "Network",
     "pages": [
         "index",
+        "digest-mode",
         "inbox",
+        "mute",
         "peers",
         "send",
         "status",
         "subscribe",
-        "digest-mode",
-        "mute",
         "unmute",
-        "subscriptions",
         "channels",
         "directs",
+        "subscriptions",
         "threads",
         "work"
     ]

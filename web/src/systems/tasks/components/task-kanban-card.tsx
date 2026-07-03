@@ -26,6 +26,7 @@ const STATUS_LABELS: Partial<Record<TaskListItem["status"], string>> = {
   ready: "Ready",
   in_progress: "In progress",
   blocked: "Blocked",
+  needs_attention: "Needs attention",
   completed: "Done",
   failed: "Failed",
   canceled: "Canceled",

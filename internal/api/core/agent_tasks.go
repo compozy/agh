@@ -245,9 +245,10 @@ func (h *BaseHandlers) AgentTaskComplete(c *gin.Context) {
 		return
 	}
 	run, err := manager.CompleteRunLease(c.Request.Context(), taskpkg.LeaseCompletion{
-		RunID:      runID,
-		ClaimToken: handle.ClaimToken,
-		Result:     result,
+		RunID:          runID,
+		ClaimToken:     handle.ClaimToken,
+		Result:         result,
+		CreatedTaskIDs: append([]string(nil), req.CreatedTaskIDs...),
 	}, caller.Actor)
 	if err != nil {
 		h.respondError(c, statusForAgentTaskError(err), err)

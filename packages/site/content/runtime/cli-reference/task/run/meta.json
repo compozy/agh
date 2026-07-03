@@ -9,6 +9,8 @@
         "enqueue",
         "fail",
         "list",
+        "recover",
+        "show",
         "start"
     ]
 }

@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -401,6 +403,187 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 	}
 }
 
+func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
+	t.Parallel()
+
+	var blocked hookspkg.TaskBlockedPayload
+	var unblocked hookspkg.TaskUnblockedPayload
+	var needsAttention hookspkg.TaskNeedsAttentionPayload
+	var recovered hookspkg.TaskRecoveredPayload
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+		blocked: func(
+			_ context.Context,
+			payload hookspkg.TaskBlockedPayload,
+		) (hookspkg.TaskBlockedPayload, error) {
+			blocked = payload
+			return payload, nil
+		},
+		unblocked: func(
+			_ context.Context,
+			payload hookspkg.TaskUnblockedPayload,
+		) (hookspkg.TaskUnblockedPayload, error) {
+			unblocked = payload
+			return payload, nil
+		},
+		needsAttention: func(
+			_ context.Context,
+			payload hookspkg.TaskNeedsAttentionPayload,
+		) (hookspkg.TaskNeedsAttentionPayload, error) {
+			needsAttention = payload
+			return payload, nil
+		},
+		taskRecovered: func(
+			_ context.Context,
+			payload hookspkg.TaskRecoveredPayload,
+		) (hookspkg.TaskRecoveredPayload, error) {
+			recovered = payload
+			return payload, nil
+		},
+	}))
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-task-hooks"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:          ScopeWorkspace,
+		WorkspaceID:    "ws-task-hooks",
+		NetworkChannel: "network-build",
+		Title:          "Task hook dispatch",
+		Metadata: json.RawMessage(
+			`{"workflow_id":"wf-task-hooks","coordination_channel_id":"coord-task-hooks","agent_name":"worker-a"}`,
+		),
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeWorkspace,
+		WorkspaceID:      taskRecord.WorkspaceID,
+		ClaimerSessionID: "sess-task-hooks",
+		LeaseDuration:    2 * time.Minute,
+		Now:              claimNow,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if claim.Run.ID != run.ID {
+		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
+	}
+
+	block, err := manager.BlockTask(context.Background(), BlockRequest{
+		TaskID:     taskRecord.ID,
+		Kind:       BlockKindNeedsInput,
+		Reason:     "creator clarification required",
+		Details:    json.RawMessage(`{"prompt_id":"prompt-1"}`),
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+	}, agent)
+	if err != nil {
+		t.Fatalf("BlockTask(active run) error = %v", err)
+	}
+	if got, want := blocked.Event, hookspkg.HookTaskBlocked; got != want {
+		t.Fatalf("blocked.Event = %q, want %q", got, want)
+	}
+	if blocked.TaskID != taskRecord.ID ||
+		blocked.WorkspaceID != taskRecord.WorkspaceID ||
+		blocked.RunID != run.ID ||
+		blocked.WorkflowID != "wf-task-hooks" ||
+		blocked.CoordinationChannelID != "coord-task-hooks" ||
+		blocked.NetworkChannel != "network-build" ||
+		blocked.AgentName != "worker-a" ||
+		blocked.ReleaseReason != "blocked" {
+		t.Fatalf("blocked.TaskContext = %#v, want correlation keys for task/run/workflow/release", blocked.TaskContext)
+	}
+	if blocked.ClaimTokenHash == "" || !VerifyClaimToken(claim.ClaimToken, blocked.ClaimTokenHash) {
+		t.Fatalf("blocked.ClaimTokenHash = %q, want hash verifying raw token", blocked.ClaimTokenHash)
+	}
+	if strings.Contains(blocked.ClaimTokenHash, claim.ClaimToken) {
+		t.Fatalf("blocked.ClaimTokenHash leaks raw claim token: %q", blocked.ClaimTokenHash)
+	}
+
+	cleared, err := manager.ClearTaskBlock(context.Background(), taskRecord.ID, block.ID, "creator answered", operator)
+	if err != nil {
+		t.Fatalf("ClearTaskBlock() error = %v", err)
+	}
+	if cleared.ID != block.ID {
+		t.Fatalf("ClearTaskBlock().ID = %q, want %q", cleared.ID, block.ID)
+	}
+	if got, want := unblocked.Event, hookspkg.HookTaskUnblocked; got != want {
+		t.Fatalf("unblocked.Event = %q, want %q", got, want)
+	}
+	if unblocked.TaskID != taskRecord.ID ||
+		unblocked.WorkspaceID != taskRecord.WorkspaceID ||
+		unblocked.BlockID != block.ID ||
+		unblocked.ClearNote != "creator answered" ||
+		unblocked.ClearedAt.IsZero() {
+		t.Fatalf("unblocked payload = %#v, want clear correlation and audit fields", unblocked)
+	}
+	if got, want := string(unblocked.Details), `{"prompt_id":"prompt-1"}`; got != want {
+		t.Fatalf("unblocked.Details = %s, want %s", got, want)
+	}
+
+	currentTask, err := store.GetTask(context.Background(), taskRecord.ID)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	escalatedAt := claimNow.Add(time.Minute)
+	manager.dispatchTaskNeedsAttention(
+		context.Background(),
+		currentTask,
+		agent,
+		"breaker limit reached",
+		escalatedAt,
+		nil,
+	)
+	manager.dispatchTaskRecovered(
+		context.Background(),
+		currentTask,
+		operator,
+		"operator resumed",
+		escalatedAt.Add(time.Minute),
+	)
+	if needsAttention.Event != hookspkg.HookTaskNeedsAttention ||
+		needsAttention.TaskID != taskRecord.ID ||
+		needsAttention.Reason != "breaker limit reached" ||
+		!needsAttention.At.Equal(escalatedAt) {
+		t.Fatalf("needsAttention payload = %#v, want task.needs_attention correlation", needsAttention)
+	}
+	if recovered.Event != hookspkg.HookTaskRecovered ||
+		recovered.TaskID != taskRecord.ID ||
+		recovered.Note != "operator resumed" ||
+		!recovered.At.Equal(escalatedAt.Add(time.Minute)) {
+		t.Fatalf("recovered payload = %#v, want task.recovered correlation", recovered)
+	}
+
+	storedBlocks, err := manager.ListTaskBlocks(context.Background(), taskRecord.ID, true, operator)
+	if err != nil {
+		t.Fatalf("ListTaskBlocks(includeCleared) error = %v", err)
+	}
+	assertJSONDoesNotContain(t, "stored task blocks", storedBlocks, claim.ClaimToken)
+	assertJSONDoesNotContain(t, "task.blocked payload", blocked, claim.ClaimToken)
+
+	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
+	if err != nil {
+		t.Fatalf("ListTaskEvents() error = %v", err)
+	}
+	for _, event := range events {
+		switch event.EventType {
+		case string(hookspkg.HookTaskBlocked), string(hookspkg.HookTaskUnblocked),
+			string(hookspkg.HookTaskNeedsAttention), string(hookspkg.HookTaskRecovered):
+			t.Fatalf(
+				"event table contains hook event %q; task hooks must dispatch at service call sites",
+				event.EventType,
+			)
+		}
+	}
+}
+
 func assertContextStillActive(ctx context.Context, t *testing.T, label string) {
 	t.Helper()
 	if ctx == nil {
@@ -413,7 +596,25 @@ func assertContextStillActive(ctx context.Context, t *testing.T, label string) {
 	}
 }
 
+func assertJSONDoesNotContain(t *testing.T, label string, value any, forbidden string) {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal(%s) error = %v", label, err)
+	}
+	if strings.Contains(string(encoded), forbidden) {
+		t.Fatalf("%s contains forbidden raw claim token %q: %s", label, forbidden, string(encoded))
+	}
+}
+
 type recordingTaskRunHooks struct {
+	blocked        func(context.Context, hookspkg.TaskBlockedPayload) (hookspkg.TaskBlockedPayload, error)
+	unblocked      func(context.Context, hookspkg.TaskUnblockedPayload) (hookspkg.TaskUnblockedPayload, error)
+	needsAttention func(
+		context.Context,
+		hookspkg.TaskNeedsAttentionPayload,
+	) (hookspkg.TaskNeedsAttentionPayload, error)
+	taskRecovered func(context.Context, hookspkg.TaskRecoveredPayload) (hookspkg.TaskRecoveredPayload, error)
 	enqueued      func(context.Context, hookspkg.TaskRunEnqueuedPayload) (hookspkg.TaskRunEnqueuedPayload, error)
 	preClaim      func(context.Context, hookspkg.TaskRunPreClaimPayload) (hookspkg.TaskRunPreClaimPayload, error)
 	postClaim     func(context.Context, hookspkg.TaskRunPostClaimPayload) (hookspkg.TaskRunPostClaimPayload, error)
@@ -432,6 +633,46 @@ type recordingTaskRunHooks struct {
 	released  func(context.Context, hookspkg.TaskRunReleasedPayload) (hookspkg.TaskRunReleasedPayload, error)
 	completed func(context.Context, hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error)
 	failed    func(context.Context, hookspkg.TaskRunFailedPayload) (hookspkg.TaskRunFailedPayload, error)
+}
+
+func (h recordingTaskRunHooks) DispatchTaskBlocked(
+	ctx context.Context,
+	payload hookspkg.TaskBlockedPayload,
+) (hookspkg.TaskBlockedPayload, error) {
+	if h.blocked != nil {
+		return h.blocked(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (h recordingTaskRunHooks) DispatchTaskUnblocked(
+	ctx context.Context,
+	payload hookspkg.TaskUnblockedPayload,
+) (hookspkg.TaskUnblockedPayload, error) {
+	if h.unblocked != nil {
+		return h.unblocked(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (h recordingTaskRunHooks) DispatchTaskNeedsAttention(
+	ctx context.Context,
+	payload hookspkg.TaskNeedsAttentionPayload,
+) (hookspkg.TaskNeedsAttentionPayload, error) {
+	if h.needsAttention != nil {
+		return h.needsAttention(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (h recordingTaskRunHooks) DispatchTaskRecovered(
+	ctx context.Context,
+	payload hookspkg.TaskRecoveredPayload,
+) (hookspkg.TaskRecoveredPayload, error) {
+	if h.taskRecovered != nil {
+		return h.taskRecovered(ctx, payload)
+	}
+	return payload, nil
 }
 
 func (h recordingTaskRunHooks) DispatchTaskRunEnqueued(

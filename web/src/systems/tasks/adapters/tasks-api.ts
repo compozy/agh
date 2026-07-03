@@ -22,6 +22,7 @@ import type {
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
+  RecoverTaskRequest,
   RetryTaskRunRequest,
   RetryTaskRunResult,
   ResumeTaskRequest,
@@ -344,6 +345,37 @@ export async function resumeTask(
   }
 
   return requireResponseData(data, response, `Failed to resume task "${id}"`).task;
+}
+
+export async function recoverTask(
+  id: string,
+  body: RecoverTaskRequest = {},
+  signal?: AbortSignal
+): Promise<TaskRecord> {
+  const { data, error, response } = await apiClient.POST("/api/tasks/{id}/recover", {
+    params: { path: { id } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+    if (response.status === 409) {
+      throw new TasksApiError(
+        defaultApiErrorMessage(`Task "${id}" is not in needs_attention`, response, error),
+        409
+      );
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to recover task "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to recover task "${id}"`).task;
 }
 
 export async function approveTask(id: string, signal?: AbortSignal): Promise<TaskRecord> {

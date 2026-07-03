@@ -307,6 +307,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/task-reviews/:id",
 		"GET /api/tasks",
 		"GET /api/tasks/:id",
+		"GET /api/tasks/:id/blocks",
 		"GET /api/tasks/:id/inspect",
 		"GET /api/tasks/:id/notifications/bridges",
 		"GET /api/tasks/:id/notifications/bridges/:subscription_id",
@@ -435,12 +436,15 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/task-reviews/:id/verdict",
 		"POST /api/tasks",
 		"POST /api/tasks/:id/approve",
+		"POST /api/tasks/:id/blocks",
+		"POST /api/tasks/:id/blocks/:block_id/clear",
 		"POST /api/tasks/:id/notifications/bridges",
 		"POST /api/tasks/:id/cancel",
 		"POST /api/tasks/:id/children",
 		"POST /api/tasks/:id/dependencies",
 		"POST /api/tasks/:id/pause",
 		"POST /api/tasks/:id/publish",
+		"POST /api/tasks/:id/recover",
 		"POST /api/tasks/:id/reject",
 		"POST /api/tasks/:id/resume",
 		"POST /api/tasks/:id/runs",
@@ -535,6 +539,54 @@ func TestMemoryRoutesMatchV2Contract(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+}
+
+func TestTaskBlockHandlersReturnUDSStatusAndBody(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
+	manager := apitestutil.StubTaskManager{
+		BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
+			return taskpkg.TaskBlock{
+				ID:        "block-uds",
+				TaskID:    req.TaskID,
+				Kind:      req.Kind,
+				Reason:    req.Reason,
+				CreatedBy: actor.Actor,
+				CreatedAt: now,
+			}, nil
+		},
+	}
+	engine := newTestRouter(t, newTestHandlersWithRuntime(
+		t,
+		stubSessionManager{},
+		stubObserver{},
+		nil,
+		manager,
+		nil,
+		stubWorkspaceService{},
+		nil,
+		homePaths,
+	))
+
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/tasks/task-uds/blocks",
+		[]byte(`{"kind":"capability","reason":"missing gpu"}`),
+	)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+	}
+	var response contract.TaskBlockResponse
+	decodeJSONResponse(t, recorder, &response)
+	if response.Block.ID != "block-uds" ||
+		response.Block.TaskID != "task-uds" ||
+		response.Block.Kind != taskpkg.BlockKindCapability {
+		t.Fatalf("response.Block = %#v, want capability block for task-uds", response.Block)
+	}
 }
 
 func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {

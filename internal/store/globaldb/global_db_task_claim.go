@@ -215,6 +215,9 @@ func (g *GlobalDB) CompleteRunLease(ctx context.Context, completion taskpkg.Leas
 		if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusCompleted); err != nil {
 			return err
 		}
+		if err := g.verifyCompletionCreatedTaskClaims(ctx, exec, current, normalized.CreatedTaskIDs); err != nil {
+			return err
+		}
 		result, err := exec.ExecContext(
 			ctx,
 			`UPDATE task_runs
@@ -236,12 +239,84 @@ func (g *GlobalDB) CompleteRunLease(ctx context.Context, completion taskpkg.Leas
 		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
 			return err
 		}
+		if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
+			return err
+		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
 		return taskpkg.Run{}, err
 	}
 	return updated, nil
+}
+
+func (g *GlobalDB) verifyCompletionCreatedTaskClaims(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+	claimedTaskIDs []string,
+) error {
+	if len(claimedTaskIDs) == 0 {
+		return nil
+	}
+	taskRecord, err := g.getTaskWithExecutor(ctx, exec, run.TaskID)
+	if err != nil {
+		return err
+	}
+	sessionID := strings.TrimSpace(run.SessionID)
+	invalidTaskIDs := make([]string, 0)
+	for _, claimedTaskID := range claimedTaskIDs {
+		ok := false
+		if sessionID != "" {
+			var lookupErr error
+			ok, lookupErr = completionCreatedTaskClaimMatches(
+				ctx,
+				exec,
+				claimedTaskID,
+				taskRecord.WorkspaceID,
+				sessionID,
+			)
+			if lookupErr != nil {
+				return lookupErr
+			}
+		}
+		if !ok {
+			invalidTaskIDs = append(invalidTaskIDs, claimedTaskID)
+		}
+	}
+	if len(invalidTaskIDs) > 0 {
+		return taskpkg.NewHallucinatedTaskRefsError(run, claimedTaskIDs, invalidTaskIDs)
+	}
+	return nil
+}
+
+func completionCreatedTaskClaimMatches(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	workspaceID string,
+	sessionID string,
+) (bool, error) {
+	var found int
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT 1
+		   FROM tasks
+		  WHERE id = ?
+		    AND COALESCE(workspace_id, '') = ?
+		    AND created_by_kind = ?
+		    AND created_by_ref = ?`,
+		strings.TrimSpace(taskID),
+		strings.TrimSpace(workspaceID),
+		string(taskpkg.ActorKindAgentSession),
+		strings.TrimSpace(sessionID),
+	).Scan(&found); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("store: verify completion created task claim %q: %w", taskID, err)
+	}
+	return found == 1, nil
 }
 
 // FailRunLease marks one claimed run failed after token verification.
@@ -514,7 +589,14 @@ func (g *GlobalDB) selectClaimableRunID(
 			)
 			SELECT 1 FROM ancestors WHERE COALESCE(paused, 0) = 1
 		)`,
-		"t.status NOT IN (?, ?, ?)",
+		"t.status NOT IN (?, ?, ?, ?)",
+		`NOT EXISTS (
+			SELECT 1
+			  FROM task_blocks b
+			 WHERE b.task_id = t.id
+			   AND b.cleared_at IS NULL
+			   AND (b.expires_at IS NULL OR b.expires_at > ?)
+		)`,
 		taskPriorityValueSQL + " >= ?",
 		`NOT EXISTS (
 			SELECT 1
@@ -526,7 +608,9 @@ func (g *GlobalDB) selectClaimableRunID(
 		string(taskpkg.TaskRunStatusQueued),
 		string(taskpkg.TaskStatusDraft),
 		string(taskpkg.TaskStatusBlocked),
+		string(taskpkg.TaskStatusNeedsAttention),
 		string(taskpkg.TaskStatusCanceled),
+		store.FormatTimestamp(criteria.Now),
 		criteria.PriorityMin,
 	}
 	args = append(args, missingCapabilityArgs(criteria.RequiredCapabilities)...)

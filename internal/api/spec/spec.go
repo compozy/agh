@@ -79,11 +79,14 @@ const (
 	specAPITaskRunsIDReviewsPath                             = "/api/task-runs/{id}/reviews"
 	specAPITasksPath                                         = "/api/tasks"
 	specAPITasksIDPath                                       = "/api/tasks/{id}"
+	specAPITasksIDBlocksPath                                 = specAPITasksIDPath + "/blocks"
+	specAPITasksIDBlocksBlockIDClearPath                     = specAPITasksIDBlocksPath + "/{block_id}/clear"
 	specAPITasksIDExecutionProfilePath                       = "/api/tasks/{id}/execution-profile"
 	specAPITasksIDInspectPath                                = "/api/tasks/{id}/inspect"
 	specAPITasksIDNotificationsBridgesPath                   = "/api/tasks/{id}/notifications/bridges"
 	specAPITasksIDNotificationsBridgesSubscriptionIDPath     = "/api/tasks/{id}/notifications/bridges/{subscription_id}"
 	specAPITasksIDPausePath                                  = "/api/tasks/{id}/pause"
+	specAPITasksIDRecoverPath                                = specAPITasksIDPath + "/recover"
 	specAPITasksIDResumePath                                 = "/api/tasks/{id}/resume"
 	specAPITasksIDRunsPath                                   = "/api/tasks/{id}/runs"
 	specAPITasksIDRunsFanOutPath                             = specAPITasksIDRunsPath + "/fan-out"
@@ -194,6 +197,8 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[taskpkg.OwnerKind]():                         taskOwnerKindValues(),
 	reflect.TypeFor[taskpkg.OriginKind]():                        taskOriginKindValues(),
 	reflect.TypeFor[taskpkg.DependencyKind]():                    taskDependencyKindValues(),
+	reflect.TypeFor[taskpkg.BlockKind]():                         taskBlockKindValues(),
+	reflect.TypeFor[taskpkg.BlockedSource]():                     taskBlockedSourceValues(),
 	reflect.TypeFor[taskpkg.CoordinatorMode]():                   taskCoordinatorModeValues(),
 	reflect.TypeFor[taskpkg.WorkerMode]():                        taskWorkerModeValues(),
 	reflect.TypeFor[taskpkg.SandboxMode]():                       taskSandboxModeValues(),
@@ -289,6 +294,8 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.BridgeDeliveryDefaultsPayload](): func(schema *openapi3.Schema) {
 		*schema = *bridgeDeliveryDefaultsSchema()
 	},
+	reflect.TypeFor[contract.TaskPayload]():        describeTaskBlockedReasonsProperty,
+	reflect.TypeFor[contract.TaskSummaryPayload](): describeTaskBlockedReasonsProperty,
 }
 
 // Transport identifies which daemon transport exposes a route.
@@ -300,6 +307,17 @@ const (
 )
 
 type binaryResponse struct{}
+
+func describeTaskBlockedReasonsProperty(schema *openapi3.Schema) {
+	if schema == nil || schema.Properties == nil {
+		return
+	}
+	property := schema.Properties["blocked_reasons"]
+	if property == nil || property.Value == nil {
+		return
+	}
+	property.Value.Description = "Read projection of current blocking causes; mutation responses may omit it."
+}
 
 // ParameterSpec describes one OpenAPI parameter.
 type ParameterSpec struct {
@@ -3761,6 +3779,87 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodPost,
+		Path:        specAPITasksIDBlocksPath,
+		OperationID: "blockTask",
+		Summary:     "Create one typed task block",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.CreateTaskBlockRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.TaskBlockResponse{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task block conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task block request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPITasksIDBlocksPath,
+		OperationID: "listTaskBlocks",
+		Summary:     "List typed task blocks",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			boolQueryParam("include_cleared", "Include cleared task blocks"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskBlocksResponse{}},
+			{Status: 400, Description: "Invalid task block query", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: specInvalidTaskIDDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPITasksIDBlocksBlockIDClearPath,
+		OperationID: "clearTaskBlock",
+		Summary:     "Clear one typed task block",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+			pathParam("block_id", "Task block id"),
+		},
+		RequestBody: contract.ClearTaskBlockRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskBlockResponse{}},
+			{Status: 404, Description: "Task or block not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task block conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task block clear request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPITasksIDRecoverPath,
+		OperationID: "recoverTask",
+		Summary:     "Recover one task from needs_attention",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.RecoverTaskRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task recover conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task recover request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodGet,
 		Path:        specAPITasksIDExecutionProfilePath,
 		OperationID: "getTaskExecutionProfile",
@@ -6446,6 +6545,7 @@ func taskStatusValues() []string {
 		string(taskpkg.TaskStatusDraft),
 		string(taskpkg.TaskStatusPending),
 		string(taskpkg.TaskStatusBlocked),
+		string(taskpkg.TaskStatusNeedsAttention),
 		string(taskpkg.TaskStatusReady),
 		string(taskpkg.TaskStatusInProgress),
 		string(taskpkg.TaskStatusCompleted),
@@ -6531,6 +6631,23 @@ func taskOriginKindValues() []string {
 func taskDependencyKindValues() []string {
 	return []string{
 		string(taskpkg.DependencyKindBlocks),
+	}
+}
+
+func taskBlockKindValues() []string {
+	return []string{
+		string(taskpkg.BlockKindNeedsInput),
+		string(taskpkg.BlockKindCapability),
+		string(taskpkg.BlockKindTransient),
+	}
+}
+
+func taskBlockedSourceValues() []string {
+	return []string{
+		string(taskpkg.BlockedSourceDependency),
+		string(taskpkg.BlockedSourceApproval),
+		string(taskpkg.BlockedSourcePaused),
+		string(taskpkg.BlockedSourceBlock),
 	}
 }
 

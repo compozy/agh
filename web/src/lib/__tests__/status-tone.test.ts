@@ -13,6 +13,7 @@ const EXPECTED_TASK_STATUS_KEYS: readonly TaskStatus[] = [
   "draft",
   "pending",
   "blocked",
+  "needs_attention",
   "ready",
   "in_progress",
   "completed",
@@ -40,7 +41,7 @@ const EXPECTED_LANE_KEYS: readonly TaskLane[] = [
 ];
 
 describe("TASK_STATUS_TONE", () => {
-  it("Should expose exactly the seven techspec-scoped task statuses", () => {
+  it("Should expose exactly the eight techspec-scoped task statuses", () => {
     expect(Object.keys(TASK_STATUS_TONE).sort()).toEqual([...EXPECTED_TASK_STATUS_KEYS].sort());
   });
 
@@ -63,6 +64,18 @@ describe("TASK_STATUS_TONE", () => {
     expect(TASK_STATUS_TONE.draft).toBe("neutral");
     expect(TASK_STATUS_TONE.pending).toBe("neutral");
     expect(TASK_STATUS_TONE.ready).toBe("neutral");
+  });
+
+  it("Should map needs_attention to warning", () => {
+    expect(TASK_STATUS_TONE.needs_attention).toBe("warning");
+  });
+
+  it("Should map needs_attention and blocked to distinct tokens (no coercion)", () => {
+    // Truthful UI: the unblock-loop breaker's escalation must not read as the
+    // same signal as a plain block. blocked → danger, needs_attention → warning.
+    expect(TASK_STATUS_TONE.needs_attention).not.toBe(TASK_STATUS_TONE.blocked);
+    expect(TASK_STATUS_TONE.blocked).toBe("danger");
+    expect(TASK_STATUS_TONE.needs_attention).toBe("warning");
   });
 });
 

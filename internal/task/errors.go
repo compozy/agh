@@ -1,6 +1,10 @@
 package task
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
 
 var (
 	// ErrTaskNotFound reports that no persisted task matched the lookup.
@@ -11,6 +15,8 @@ var (
 	ErrTaskRunIdempotencyNotFound = errors.New("task: task run idempotency not found")
 	// ErrTaskDependencyNotFound reports that no persisted dependency edge matched the lookup.
 	ErrTaskDependencyNotFound = errors.New("task: task dependency not found")
+	// ErrTaskBlockNotFound reports that no persisted task block matched the lookup.
+	ErrTaskBlockNotFound = errors.New("task: task block not found")
 	// ErrTaskEventNotFound reports that no persisted task event matched the lookup.
 	ErrTaskEventNotFound = errors.New("task: task event not found")
 	// ErrTaskTriageStateNotFound reports that no persisted triage state matched the lookup.
@@ -47,8 +53,12 @@ var (
 	ErrNoClaimableRun = errors.New("task: no claimable run")
 	// ErrInvalidClaimToken reports that a lease mutation did not prove ownership with the current token.
 	ErrInvalidClaimToken = errors.New("task: invalid claim token")
+	// ErrHallucinatedTaskRefs reports completion claims for task IDs not created by the completing session.
+	ErrHallucinatedTaskRefs = errors.New("task: completion claims task ids not created by this session")
 	// ErrLeaseExpired reports that a lease mutation targeted an expired ownership lease.
 	ErrLeaseExpired = errors.New("task: lease expired")
+	// ErrSessionNotLive reports that a creator session cannot accept a wake delivery.
+	ErrSessionNotLive = errors.New("task: creator session is not live")
 	// ErrActiveRunLease reports that a session already owns an active task-run lease.
 	ErrActiveRunLease = errors.New("task: active run lease exists")
 	// ErrForbiddenOperatorAction reports that config or policy forbids a force operation for the actor.
@@ -62,3 +72,59 @@ var (
 	// ErrBulkTooLarge reports that a bulk operation exceeded its bounded item limit.
 	ErrBulkTooLarge = errors.New("task: bulk operation too large")
 )
+
+// HallucinatedTaskRefsError carries the rejected completion claim without exposing the raw claim token.
+type HallucinatedTaskRefsError struct {
+	RunID          string
+	TaskID         string
+	RunStatus      RunStatus
+	SessionID      string
+	ClaimTokenHash string
+	ClaimedTaskIDs []string
+	InvalidTaskIDs []string
+}
+
+// NewHallucinatedTaskRefsError builds the typed completion-claim rejection.
+func NewHallucinatedTaskRefsError(
+	run Run,
+	claimedTaskIDs []string,
+	invalidTaskIDs []string,
+) *HallucinatedTaskRefsError {
+	return &HallucinatedTaskRefsError{
+		RunID:          strings.TrimSpace(run.ID),
+		TaskID:         strings.TrimSpace(run.TaskID),
+		RunStatus:      run.Status.Normalize(),
+		SessionID:      strings.TrimSpace(run.SessionID),
+		ClaimTokenHash: strings.TrimSpace(run.ClaimTokenHash),
+		ClaimedTaskIDs: cloneErrorStringSlice(claimedTaskIDs),
+		InvalidTaskIDs: cloneErrorStringSlice(invalidTaskIDs),
+	}
+}
+
+func (e *HallucinatedTaskRefsError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	invalid := strings.Join(e.InvalidTaskIDs, ",")
+	if invalid == "" {
+		return ErrHallucinatedTaskRefs.Error()
+	}
+	return fmt.Sprintf("%s: run %q claimed invalid task ids %q", ErrHallucinatedTaskRefs, e.RunID, invalid)
+}
+
+// Unwrap exposes the stable sentinel used by API and agent-tool callers.
+func (e *HallucinatedTaskRefsError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return ErrHallucinatedTaskRefs
+}
+
+func cloneErrorStringSlice(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]string, len(values))
+	copy(cloned, values)
+	return cloned
+}

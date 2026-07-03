@@ -101,6 +101,62 @@ var taskTools = []toolspkg.Descriptor{
 		[]string{"cancel task", "stop task tree"},
 	),
 	nativeDescriptor(
+		toolspkg.ToolIDTaskBlock,
+		"task_block",
+		"Task Block",
+		"Create a typed task block through the task service.",
+		taskBlockInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, "block"},
+		[]string{"block task", "task blocked reason"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskUnblock,
+		"task_unblock",
+		"Task Unblock",
+		"Clear one task block through the task service.",
+		taskUnblockInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, "unblock"},
+		[]string{"unblock task", "clear task block"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskBlocks,
+		"task_blocks",
+		"Task Blocks",
+		"List task blocks through the task service.",
+		taskBlocksInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, "blocks"},
+		[]string{"task blocks", "blocked reasons"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskRecover,
+		"task_recover",
+		"Task Recover",
+		"Recover one task from needs_attention through the task service.",
+		taskRecoverInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, "recover"},
+		[]string{"recover task", "needs_attention"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDTaskRunList,
 		"task_run_list",
 		"Task Run List",
@@ -331,6 +387,7 @@ const taskCreateInputSchema = `{
 		"draft":{"type":"boolean"},
 		"approval_policy":{"type":"string"},
 		"owner":` + ownerSchema + `,
+		"wake_creator":{"type":"boolean"},
 		"metadata":{}
 	},
 	"additionalProperties":false
@@ -353,6 +410,7 @@ const taskChildCreateInputSchema = `{
 		"draft":{"type":"boolean"},
 		"approval_policy":{"type":"string"},
 		"owner":` + ownerSchema + `,
+		"wake_creator":{"type":"boolean"},
 		"metadata":{}
 	},
 	"additionalProperties":false
@@ -383,6 +441,52 @@ const taskCancelInputSchema = `{
 		"task_id":{"type":"string"},
 		"reason":{"type":"string"},
 		"metadata":{}
+	},
+	"additionalProperties":false
+}`
+
+const taskBlockInputSchema = `{
+	"type":"object",
+	"required":["task_id","kind","reason"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"kind":{"type":"string","enum":["needs_input","capability","transient"]},
+		"reason":{"type":"string"},
+		"details":{},
+		"expires_at":{"type":"string","format":"date-time"},
+		"run_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskUnblockInputSchema = `{
+	"type":"object",
+	"required":["task_id","block_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"block_id":{"type":"string"},
+		"run_id":{"type":"string"},
+		"note":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskBlocksInputSchema = `{
+	"type":"object",
+	"required":["task_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"include_cleared":{"type":"boolean"}
+	},
+	"additionalProperties":false
+}`
+
+const taskRecoverInputSchema = `{
+	"type":"object",
+	"required":["task_id"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"note":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

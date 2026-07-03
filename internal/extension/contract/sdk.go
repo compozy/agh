@@ -88,6 +88,11 @@ const (
 	sdkSpawnCreatePatchValue                    = "SpawnCreatePatch"
 	sdkSpawnLifecyclePayloadValue               = "SpawnLifecyclePayload"
 	sdkSpawnPreCreatePayloadValue               = "SpawnPreCreatePayload"
+	sdkTaskBlockedPayloadValue                  = "TaskBlockedPayload"
+	sdkTaskContextValue                         = "TaskContext"
+	sdkTaskNeedsAttentionPayloadValue           = "TaskNeedsAttentionPayload"
+	sdkTaskObservationPatchValue                = "TaskObservationPatch"
+	sdkTaskRecoveredPayloadValue                = "TaskRecoveredPayload"
 	sdkTaskRunClaimCriteriaValue                = "TaskRunClaimCriteria"
 	sdkTaskRunContextValue                      = "TaskRunContext"
 	sdkTaskRunEnqueuedPayloadValue              = "TaskRunEnqueuedPayload"
@@ -95,6 +100,7 @@ const (
 	sdkTaskRunPostClaimPayloadValue             = "TaskRunPostClaimPayload"
 	sdkTaskRunPreClaimPatchValue                = "TaskRunPreClaimPatch"
 	sdkTaskRunPreClaimPayloadValue              = "TaskRunPreClaimPayload"
+	sdkTaskUnblockedPayloadValue                = "TaskUnblockedPayload"
 	sdkToolCallPatchValue                       = "ToolCallPatch"
 	sdkToolCallRefValue                         = "ToolCallRef"
 	sdkToolLocationValue                        = "ToolLocation"
@@ -300,6 +306,12 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkSpawnPreCreatePayloadValue, Value: hooks.SpawnPreCreatePayload{}},
 	{Name: sdkSpawnLifecyclePayloadValue, Value: hooks.SpawnLifecyclePayload{}},
 	{Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
+	{Name: sdkTaskContextValue, Value: hooks.TaskContext{}},
+	{Name: sdkTaskBlockedPayloadValue, Value: hooks.TaskBlockedPayload{}},
+	{Name: sdkTaskUnblockedPayloadValue, Value: hooks.TaskUnblockedPayload{}},
+	{Name: sdkTaskNeedsAttentionPayloadValue, Value: hooks.TaskNeedsAttentionPayload{}},
+	{Name: sdkTaskRecoveredPayloadValue, Value: hooks.TaskRecoveredPayload{}},
+	{Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
 	{Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
 	{Name: "NetworkMatcher", Value: hooks.NetworkMatcher{}},
 	{Name: "CompactionMatcher", Value: hooks.CompactionMatcher{}},
@@ -634,6 +646,24 @@ var namedHookTypes = map[string]NamedType{
 	},
 	sdkTaskRunPreClaimPatchValue: {Name: sdkTaskRunPreClaimPatchValue, Value: hooks.TaskRunPreClaimPatch{}},
 	"TaskRunObservationPatch":    {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
+	sdkTaskContextValue:          {Name: sdkTaskContextValue, Value: hooks.TaskContext{}},
+	sdkTaskBlockedPayloadValue: {
+		Name:  sdkTaskBlockedPayloadValue,
+		Value: hooks.TaskBlockedPayload{},
+	},
+	sdkTaskUnblockedPayloadValue: {
+		Name:  sdkTaskUnblockedPayloadValue,
+		Value: hooks.TaskUnblockedPayload{},
+	},
+	sdkTaskNeedsAttentionPayloadValue: {
+		Name:  sdkTaskNeedsAttentionPayloadValue,
+		Value: hooks.TaskNeedsAttentionPayload{},
+	},
+	sdkTaskRecoveredPayloadValue: {
+		Name:  sdkTaskRecoveredPayloadValue,
+		Value: hooks.TaskRecoveredPayload{},
+	},
+	sdkTaskObservationPatchValue: {Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
 	sdkPermissionSetValue:        {Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
 	sdkSpawnContextValue:         {Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
 	sdkSpawnPreCreatePayloadValue: {

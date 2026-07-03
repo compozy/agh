@@ -5,6 +5,7 @@
 - Authority model
 - Task inspection
 - Task pause, resume, and force recovery
+- Task blocks and escalation
 - Scheduler controls
 - Coordinator loop
 - Worker loop
@@ -35,7 +36,21 @@ Use inspection to read task/run health, ownership, queue status, actor context, 
 
 Forced recovery is authority-gated and rate-limited for agent actors. Treat denial, conflict, or rate-limit diagnostics as authoritative. Do not retry blindly and never ask another agent to reveal a raw claim token.
 
-When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `agh task recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `agh task retry` for a failed run).
+When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `agh task run recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `agh task retry` for a failed run). This run-level recovery is distinct from task-level `agh task recover <task-id>`, which clears a task escalated by the unblock-loop breaker (see Task Blocks And Escalation).
+
+## Task Blocks And Escalation
+
+Declare _why_ a task cannot proceed with a typed block instead of leaving it silently stuck. Kinds are `needs_input` (waiting on a human or agent), `capability` (missing a skill, tool, or credential), and `transient` (a recoverable external failure, optionally self-expiring). Dependency waits, pending approval, and pause are not block kinds; they surface only in the read-only `blocked_reasons` projection on task read payloads.
+
+- `agh task block <task-id> --kind <kind> --reason <reason> [--details <json>] [--expires-in <dur>] -o json` opens a block. `agh task blocks <task-id> [--all] -o json` lists open (or all) blocks. `agh task unblock <task-id> --block <block-id> [--note <note>] -o json` clears one block.
+- To block a task you are actively running, pass `--run-id <run-id> --as-agent` so AGH resolves your active lease token server-side, records the block, and releases the lease in one atomic transaction. The run returns to `queued` with no attempt consumed.
+- Clearing the last blocking cause returns the task to `ready`. If the task opted into auto-enqueue, block-clear, transient-expiry, and approval-granted each enqueue the next run automatically through the same conservative one-open-run path as dependency completion.
+
+An automation that keeps clearing a block a worker keeps re-declaring is a thrash loop. AGH counts same-kind re-blocks per task and, at `[autonomy].block_recurrence_limit` (default 2; 0 disables), escalates the task to a first-class `needs_attention` status that is excluded from claim selection. The counter resets only on successful task completion. `agh task recover <task-id> [--note <note>] -o json` clears the escalation, records the actor, and re-admits an opted-in task to the claimable set. Recovering a non-escalated task is rejected as an invalid status transition. Do not loop clearing a block that immediately re-blocks — fix the underlying cause or hand the task to an operator.
+
+When an agent session creates a task, AGH wakes that creator session on the child's terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn (never an interrupt). This is the delegation feedback path — prefer it over polling. Opt a task out at create time with `agh task create … --no-wake-creator`. Wake fires at most once per transition, is suppressed for a dead creator session and for a self-wake, and never carries a raw claim token; it is meaningful only for agent-created tasks.
+
+When you complete a run that created child tasks, list exactly the task ids you created this run in the completion's `created_task_ids`. AGH verifies each id (exists, same workspace, created by your session) before the terminal write; a phantom or cross-session id rejects the completion and leaves your run running with its lease intact so you can correct the claim and complete again. Never claim tasks created by another session, and never fabricate task ids in the result prose — an advisory scan flags task-id-shaped tokens absent from the store.
 
 ## Scheduler Controls
 

@@ -12,6 +12,9 @@ provider = "claude"
 [limits]
 max_concurrent_agents = 20
 
+[autonomy]
+block_recurrence_limit = 2
+
 [permissions]
 mode = "approve-all"
 

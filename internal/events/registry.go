@@ -67,48 +67,58 @@ const (
 	SessionHung         = "session.hung"
 	SessionRecovered    = "session.recovered"
 
-	TaskCreated                   = "task.created"
-	TaskUpdated                   = "task.updated"
-	TaskPublished                 = "task.published"
-	TaskApproved                  = "task.approved"
-	TaskRejected                  = "task.rejected"
-	TaskCanceled                  = "task.canceled"
-	TaskChildCreated              = "task.child_created"
-	TaskDependencyAdded           = "task.dependency_added"
-	TaskDependencyRemoved         = "task.dependency_removed"
-	TaskPaused                    = "task.paused"
-	TaskResumed                   = "task.resumed"
-	TaskRunEnqueued               = "task.run_enqueued"
-	TaskRunClaimed                = "task.run_claimed"
-	TaskRunStarting               = "task.run_starting"
-	TaskRunSessionBound           = "task.run_session_bound"
-	TaskRunStarted                = "task.run_started"
-	TaskRunCompleted              = "task.run_completed"
-	TaskRunFailed                 = "task.run_failed"
-	TaskRunCanceled               = "task.run_canceled"
-	TaskRunForceStopped           = "task.run_force_stopped"
-	TaskRunRecovered              = "task.run_recovered"
-	TaskRunRejected               = "task.run_rejected"
-	TaskRunLeaseExtended          = "task.run_lease_extended"
-	TaskRunLeaseExpired           = "task.run_lease_expired"
-	TaskRunReleased               = "task.run_released"
-	TaskRunOperatorForcedFail     = "task.run_operator_forced_fail"
-	TaskRunOperatorRetry          = "task.run_operator_retry"
-	TaskRunRecoveredFromAttention = "task.run_recovered_from_attention"
-	TaskRunStarved                = "task.run_starved"
-	TaskRunNeedsAttention         = "task.run_needs_attention"
-	TaskExecutionProfileUpdated   = "task.execution_profile_updated"
-	TaskExecutionProfileDeleted   = "task.execution_profile_deleted"
-	TaskRunReviewRequested        = "task.run_review_requested"
-	TaskRunReviewBound            = "task.run_review_bound"
-	TaskRunReviewRecorded         = "task.run_review_recorded"
-	TaskRunReviewApproved         = "task.run_review_approved"
-	TaskRunReviewRejected         = "task.run_review_rejected"
-	TaskRunReviewBlocked          = "task.run_review_blocked"
-	TaskRunReviewError            = "task.run_review_error"
-	TaskRunReviewTimeout          = "task.run_review_timeout"
-	TaskRunReviewInvalidOutput    = "task.run_review_invalid_output"
-	TaskRunReviewRetryEnqueued    = "task.run_review_retry_enqueued"
+	TaskCreated                          = "task.created"
+	TaskUpdated                          = "task.updated"
+	TaskPublished                        = "task.published"
+	TaskApproved                         = "task.approved"
+	TaskRejected                         = "task.rejected"
+	TaskCanceled                         = "task.canceled"
+	TaskChildCreated                     = "task.child_created"
+	TaskDependencyAdded                  = "task.dependency_added"
+	TaskDependencyRemoved                = "task.dependency_removed"
+	TaskPaused                           = "task.paused"
+	TaskResumed                          = "task.resumed"
+	TaskBlockCreated                     = "task.block.created"
+	TaskBlockCleared                     = "task.block.cleared"
+	TaskBlockExpired                     = "task.block.expired"
+	TaskNeedsAttention                   = "task.needs_attention"
+	TaskRecovered                        = "task.recovered"
+	TaskRunEnqueued                      = "task.run_enqueued"
+	TaskRunClaimed                       = "task.run_claimed"
+	TaskRunStarting                      = "task.run_starting"
+	TaskRunSessionBound                  = "task.run_session_bound"
+	TaskRunStarted                       = "task.run_started"
+	TaskRunCompleted                     = "task.run_completed"
+	TaskRunFailed                        = "task.run_failed"
+	TaskRunCanceled                      = "task.run_canceled"
+	TaskRunForceStopped                  = "task.run_force_stopped"
+	TaskRunRecovered                     = "task.run_recovered"
+	TaskRunRejected                      = "task.run_rejected"
+	TaskRunLeaseExtended                 = "task.run_lease_extended"
+	TaskRunLeaseExpired                  = "task.run_lease_expired"
+	TaskRunReleased                      = "task.run_released"
+	TaskRunOperatorForcedFail            = "task.run_operator_forced_fail"
+	TaskRunOperatorRetry                 = "task.run_operator_retry"
+	TaskRunRecoveredFromAttention        = "task.run_recovered_from_attention"
+	TaskRunStarved                       = "task.run_starved"
+	TaskRunNeedsAttention                = "task.run_needs_attention"
+	TaskExecutionProfileUpdated          = "task.execution_profile_updated"
+	TaskExecutionProfileDeleted          = "task.execution_profile_deleted"
+	TaskRunReviewRequested               = "task.run_review_requested"
+	TaskRunReviewBound                   = "task.run_review_bound"
+	TaskRunReviewRecorded                = "task.run_review_recorded"
+	TaskRunReviewApproved                = "task.run_review_approved"
+	TaskRunReviewRejected                = "task.run_review_rejected"
+	TaskRunReviewBlocked                 = "task.run_review_blocked"
+	TaskRunReviewError                   = "task.run_review_error"
+	TaskRunReviewTimeout                 = "task.run_review_timeout"
+	TaskRunReviewInvalidOutput           = "task.run_review_invalid_output"
+	TaskRunReviewRetryEnqueued           = "task.run_review_retry_enqueued"
+	TaskAutoEnqueueTriggered             = "task.auto_enqueue.triggered"
+	TaskCompletionHallucinationBlocked   = "task.completion.hallucination_blocked"
+	TaskCompletionHallucinationSuspected = "task.completion.hallucination_suspected"
+	TaskWakeDelivered                    = "task.wake.delivered"
+	TaskWakeSuppressed                   = "task.wake.suppressed"
 
 	SettingsChanged = "settings.changed"
 
@@ -226,6 +236,11 @@ var registryEntries = []Metadata{
 	info(TaskDependencyRemoved, "task", ComponentTask),
 	warning(TaskPaused, "task", ComponentTask),
 	info(TaskResumed, "task", ComponentTask),
+	info(TaskBlockCreated, "task.block", ComponentTask),
+	info(TaskBlockCleared, "task.block", ComponentTask),
+	info(TaskBlockExpired, "task.block", ComponentTask),
+	notify(warning(TaskNeedsAttention, "task", ComponentTask)),
+	info(TaskRecovered, "task", ComponentTask),
 	info(TaskRunEnqueued, "task", ComponentTask),
 	info(TaskRunClaimed, "task", ComponentTask),
 	info(TaskRunStarting, "task", ComponentTask),
@@ -257,6 +272,11 @@ var registryEntries = []Metadata{
 	notify(warning(TaskRunReviewTimeout, "task", ComponentTask)),
 	notify(failure(TaskRunReviewInvalidOutput, "task", ComponentTask)),
 	info(TaskRunReviewRetryEnqueued, "task", ComponentTask),
+	info(TaskAutoEnqueueTriggered, "task.auto_enqueue", ComponentTask),
+	notify(warning(TaskCompletionHallucinationBlocked, "task.completion", ComponentTask)),
+	warning(TaskCompletionHallucinationSuspected, "task.completion", ComponentTask),
+	info(TaskWakeDelivered, "task.wake", ComponentTask),
+	warning(TaskWakeSuppressed, "task.wake", ComponentTask),
 
 	global(info(SettingsChanged, "settings", ComponentConfig)),
 	global(warning(SkillShadowed, "skill", ComponentSkill)),

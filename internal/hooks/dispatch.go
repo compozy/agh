@@ -1023,6 +1023,74 @@ func (h *Hooks) DispatchCoordinatorFailed(
 	)
 }
 
+// DispatchTaskBlocked runs the task.blocked hook dispatch.
+func (h *Hooks) DispatchTaskBlocked(
+	ctx context.Context,
+	payload TaskBlockedPayload,
+) (TaskBlockedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskBlocked,
+		payload,
+		dispatchConfig[TaskBlockedPayload, TaskObservationPatch]{
+			match: matchTaskBlock,
+			apply: applyNoop[TaskBlockedPayload, TaskObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskUnblocked runs the task.unblocked hook dispatch.
+func (h *Hooks) DispatchTaskUnblocked(
+	ctx context.Context,
+	payload TaskUnblockedPayload,
+) (TaskUnblockedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskUnblocked,
+		payload,
+		dispatchConfig[TaskUnblockedPayload, TaskObservationPatch]{
+			match: matchTaskBlock,
+			apply: applyNoop[TaskUnblockedPayload, TaskObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskNeedsAttention runs the task.needs_attention hook dispatch.
+func (h *Hooks) DispatchTaskNeedsAttention(
+	ctx context.Context,
+	payload TaskNeedsAttentionPayload,
+) (TaskNeedsAttentionPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskNeedsAttention,
+		payload,
+		dispatchConfig[TaskNeedsAttentionPayload, TaskObservationPatch]{
+			match: matchTaskAttention,
+			apply: applyNoop[TaskNeedsAttentionPayload, TaskObservationPatch],
+		},
+	)
+}
+
+// DispatchTaskRecovered runs the task.recovered hook dispatch.
+func (h *Hooks) DispatchTaskRecovered(
+	ctx context.Context,
+	payload TaskRecoveredPayload,
+) (TaskRecoveredPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookTaskRecovered,
+		payload,
+		dispatchConfig[TaskRecoveredPayload, TaskObservationPatch]{
+			match: matchTaskAttention,
+			apply: applyNoop[TaskRecoveredPayload, TaskObservationPatch],
+		},
+	)
+}
+
 // DispatchTaskRunEnqueued runs the task.run.enqueued hook dispatch.
 func (h *Hooks) DispatchTaskRunEnqueued(
 	ctx context.Context,

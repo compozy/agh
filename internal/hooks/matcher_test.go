@@ -398,6 +398,34 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		t.Fatal("MatchesTaskRun() = true, want false for run mismatch")
 	}
 
+	taskMatcher := HookMatcher{
+		WorkspaceID: "ws-1",
+		Autonomy: &AutonomyMatcher{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-*",
+			ReleaseReason:         "blocked",
+		},
+	}
+	if !taskMatcher.MatchesTask(TaskContext{
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-1",
+		RunID:                 "run-1",
+		CoordinationChannelID: "coord-ch-1",
+		ReleaseReason:         "blocked",
+	}) {
+		t.Fatal("MatchesTask() = false, want true")
+	}
+	if taskMatcher.MatchesTask(TaskContext{
+		WorkspaceID:           "ws-1",
+		TaskID:                "task-2",
+		RunID:                 "run-1",
+		CoordinationChannelID: "coord-ch-1",
+		ReleaseReason:         "blocked",
+	}) {
+		t.Fatal("MatchesTask() = true, want false for task mismatch")
+	}
+
 	spawnMatcher := HookMatcher{
 		WorkspaceID: "ws-1",
 		Autonomy: &AutonomyMatcher{
@@ -480,6 +508,18 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 			event: HookTaskRunEnqueued,
 			field: "workspace_id",
 			want:  true,
+		},
+		{
+			name:  "Should allow task id for task blocked hook",
+			event: HookTaskBlocked,
+			field: "task_id",
+			want:  true,
+		},
+		{
+			name:  "Should deny workspace root for task blocked hook",
+			event: HookTaskBlocked,
+			field: "workspace_root",
+			want:  false,
 		},
 		{
 			name:  "Should deny workspace root for task-run enqueued hook",

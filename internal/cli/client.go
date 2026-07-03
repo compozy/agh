@@ -398,6 +398,28 @@ type DaemonClient interface {
 	InspectTask(ctx context.Context, id string) (TaskInspectRecord, error)
 	InspectRun(ctx context.Context, id string) (TaskInspectRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
+	BlockTask(ctx context.Context, id string, request CreateTaskBlockRequest) (TaskBlockRecord, error)
+	BlockTaskAsAgent(
+		ctx context.Context,
+		id string,
+		request CreateTaskBlockRequest,
+		credentials agentidentity.Credentials,
+	) (TaskBlockRecord, error)
+	ListTaskBlocks(ctx context.Context, id string, includeCleared bool) ([]TaskBlockRecord, error)
+	ClearTaskBlock(
+		ctx context.Context,
+		id string,
+		blockID string,
+		request ClearTaskBlockRequest,
+	) (TaskBlockRecord, error)
+	ClearTaskBlockAsAgent(
+		ctx context.Context,
+		id string,
+		blockID string,
+		request ClearTaskBlockRequest,
+		credentials agentidentity.Credentials,
+	) (TaskBlockRecord, error)
+	RecoverTask(ctx context.Context, id string, request RecoverTaskRequest) (TaskRecord, error)
 	DeleteTask(ctx context.Context, id string) error
 	GetTaskExecutionProfile(ctx context.Context, id string) (TaskExecutionProfileRecord, error)
 	SetTaskExecutionProfile(
@@ -992,6 +1014,9 @@ type TaskSummaryRecord = contract.TaskSummaryPayload
 // TaskRecord is the shared single-task payload.
 type TaskRecord = contract.TaskPayload
 
+// TaskBlockRecord is the shared task-block payload.
+type TaskBlockRecord = contract.TaskBlockPayload
+
 // TaskDetailRecord is the shared expanded task payload.
 type TaskDetailRecord = contract.TaskDetailPayload
 
@@ -1161,6 +1186,15 @@ type CreateTaskRequest = contract.CreateTaskRequest
 
 // CreateTaskChildRequest captures the shared child-task create payload.
 type CreateTaskChildRequest = contract.CreateTaskChildRequest
+
+// CreateTaskBlockRequest captures one task-block create payload.
+type CreateTaskBlockRequest = contract.CreateTaskBlockRequest
+
+// ClearTaskBlockRequest captures one task-block clear payload.
+type ClearTaskBlockRequest = contract.ClearTaskBlockRequest
+
+// RecoverTaskRequest captures one task-level recovery payload.
+type RecoverTaskRequest = contract.RecoverTaskRequest
 
 // UpdateTaskRequest captures mutable task fields.
 type UpdateTaskRequest = contract.UpdateTaskRequest
@@ -4396,6 +4430,101 @@ func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request Up
 		return TaskRecord{}, err
 	}
 	return response.Task, nil
+}
+
+func (c *unixSocketClient) BlockTask(
+	ctx context.Context,
+	id string,
+	request CreateTaskBlockRequest,
+) (TaskBlockRecord, error) {
+	var response contract.TaskBlockResponse
+	if err := c.doJSON(ctx, http.MethodPost, taskBlocksPath(id), nil, request, &response); err != nil {
+		return TaskBlockRecord{}, err
+	}
+	return response.Block, nil
+}
+
+func (c *unixSocketClient) BlockTaskAsAgent(
+	ctx context.Context,
+	id string,
+	request CreateTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (TaskBlockRecord, error) {
+	var response contract.TaskBlockResponse
+	if err := c.doAgentJSON(
+		ctx,
+		http.MethodPost,
+		taskBlocksPath(id),
+		nil,
+		request,
+		credentials,
+		&response,
+	); err != nil {
+		return TaskBlockRecord{}, err
+	}
+	return response.Block, nil
+}
+
+func (c *unixSocketClient) ListTaskBlocks(
+	ctx context.Context,
+	id string,
+	includeCleared bool,
+) ([]TaskBlockRecord, error) {
+	var response contract.TaskBlocksResponse
+	values := url.Values{}
+	if includeCleared {
+		values.Set("include_cleared", "true")
+	}
+	if err := c.doJSON(ctx, http.MethodGet, taskBlocksPath(id), values, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Blocks, nil
+}
+
+func (c *unixSocketClient) ClearTaskBlock(
+	ctx context.Context,
+	id string,
+	blockID string,
+	request ClearTaskBlockRequest,
+) (TaskBlockRecord, error) {
+	var response contract.TaskBlockResponse
+	path := taskBlocksPath(id) + "/" + url.PathEscape(strings.TrimSpace(blockID)) + "/clear"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskBlockRecord{}, err
+	}
+	return response.Block, nil
+}
+
+func (c *unixSocketClient) ClearTaskBlockAsAgent(
+	ctx context.Context,
+	id string,
+	blockID string,
+	request ClearTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (TaskBlockRecord, error) {
+	var response contract.TaskBlockResponse
+	path := taskBlocksPath(id) + "/" + url.PathEscape(strings.TrimSpace(blockID)) + "/clear"
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
+		return TaskBlockRecord{}, err
+	}
+	return response.Block, nil
+}
+
+func (c *unixSocketClient) RecoverTask(
+	ctx context.Context,
+	id string,
+	request RecoverTaskRequest,
+) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/recover"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func taskBlocksPath(id string) string {
+	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/blocks"
 }
 
 func (c *unixSocketClient) GetTaskExecutionProfile(

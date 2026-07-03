@@ -3111,6 +3111,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/blocks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List typed task blocks */
+    get: operations["listTaskBlocks"];
+    put?: never;
+    /** Create one typed task block */
+    post: operations["blockTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/blocks/{block_id}/clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clear one typed task block */
+    post: operations["clearTaskBlock"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{id}/cancel": {
     parameters: {
       query?: never;
@@ -3279,6 +3314,23 @@ export interface paths {
     put?: never;
     /** Publish one draft task and enqueue executable work */
     post: operations["publishTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/recover": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Recover one task from needs_attention */
+    post: operations["recoverTask"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5705,6 +5757,7 @@ export interface operations {
                         | "draft"
                         | "pending"
                         | "blocked"
+                        | "needs_attention"
                         | "ready"
                         | "in_progress"
                         | "completed"
@@ -5764,6 +5817,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -5854,6 +5908,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -7496,6 +7551,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -7681,6 +7737,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          created_task_ids?: string[];
           result?: unknown;
         };
       };
@@ -21578,6 +21635,10 @@ export interface operations {
           | "coordinator.decision"
           | "coordinator.stopped"
           | "coordinator.failed"
+          | "task.blocked"
+          | "task.unblocked"
+          | "task.needs_attention"
+          | "task.recovered"
           | "task.run.enqueued"
           | "task.run.pre_claim"
           | "task.run.post_claim"
@@ -27465,6 +27526,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -27563,6 +27625,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -27849,6 +27912,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -30492,6 +30556,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -30540,6 +30614,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -30563,6 +30638,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -30605,6 +30695,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -30613,6 +30704,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
             };
@@ -32083,6 +32175,16 @@ export interface operations {
                   /** @enum {string} */
                   approval_state?: "not_required" | "pending" | "approved" | "rejected";
                   auto_enqueue_on_ready?: boolean;
+                  /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                  blocked_reasons?: {
+                    block_id?: string;
+                    depends_on_task_ids?: string[];
+                    /** @enum {string} */
+                    kind?: "needs_input" | "capability" | "transient";
+                    reason?: string;
+                    /** @enum {string} */
+                    source: "dependency" | "approval" | "paused" | "block";
+                  }[];
                   child_count?: number;
                   /** Format: date-time */
                   closed_at?: string | null;
@@ -32131,6 +32233,7 @@ export interface operations {
                         | "draft"
                         | "pending"
                         | "blocked"
+                        | "needs_attention"
                         | "ready"
                         | "in_progress"
                         | "completed"
@@ -32154,6 +32257,21 @@ export interface operations {
                   /** Format: int64 */
                   latest_event_seq: number;
                   max_attempts?: number;
+                  needs_attention?: boolean;
+                  /** Format: date-time */
+                  needs_attention_at?: string | null;
+                  needs_attention_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  needs_attention_reason?: string;
                   network_channel?: string;
                   origin: {
                     /** @enum {string} */
@@ -32196,6 +32314,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -32204,6 +32323,7 @@ export interface operations {
                   title: string;
                   /** Format: date-time */
                   updated_at: string;
+                  wake_creator: boolean;
                   workspace_id?: string;
                 };
               }[];
@@ -34209,6 +34329,10 @@ export interface operations {
                   | "coordinator.decision"
                   | "coordinator.stopped"
                   | "coordinator.failed"
+                  | "task.blocked"
+                  | "task.unblocked"
+                  | "task.needs_attention"
+                  | "task.recovered"
                   | "task.run.enqueued"
                   | "task.run.pre_claim"
                   | "task.run.post_claim"
@@ -34456,6 +34580,10 @@ export interface operations {
                   | "coordinator.decision"
                   | "coordinator.stopped"
                   | "coordinator.failed"
+                  | "task.blocked"
+                  | "task.unblocked"
+                  | "task.needs_attention"
+                  | "task.recovered"
                   | "task.run.enqueued"
                   | "task.run.pre_claim"
                   | "task.run.post_claim"
@@ -34902,6 +35030,10 @@ export interface operations {
               | "coordinator.decision"
               | "coordinator.stopped"
               | "coordinator.failed"
+              | "task.blocked"
+              | "task.unblocked"
+              | "task.needs_attention"
+              | "task.recovered"
               | "task.run.enqueued"
               | "task.run.pre_claim"
               | "task.run.post_claim"
@@ -42440,6 +42572,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -43301,6 +43434,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          created_task_ids?: string[];
           result?: unknown;
         };
       };
@@ -44526,6 +44660,7 @@ export interface operations {
           | "draft"
           | "pending"
           | "blocked"
+          | "needs_attention"
           | "ready"
           | "in_progress"
           | "completed"
@@ -44646,6 +44781,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               child_count?: number;
               /** Format: date-time */
               closed_at?: string | null;
@@ -44694,6 +44839,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -44717,6 +44863,21 @@ export interface operations {
               /** Format: int64 */
               latest_event_seq: number;
               max_attempts?: number;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -44759,6 +44920,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -44767,6 +44929,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             }[];
           };
@@ -44905,6 +45068,7 @@ export interface operations {
           /** @enum {string} */
           scope: "global" | "workspace";
           title: string;
+          wake_creator?: boolean | null;
           workspace?: string;
         };
       };
@@ -44923,6 +45087,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -44948,6 +45122,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -44990,6 +45179,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -44998,6 +45188,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -45252,6 +45443,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -45300,6 +45501,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -45323,6 +45525,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -45365,6 +45582,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -45373,6 +45591,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               }[];
               dependencies?: {
@@ -45414,6 +45633,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -45633,6 +45853,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -45681,6 +45911,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -45704,6 +45935,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -45746,6 +45992,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -45754,6 +46001,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
               task: {
@@ -45762,6 +46010,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -45787,6 +46045,21 @@ export interface operations {
                 latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -45829,6 +46102,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -45837,6 +46111,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
             };
@@ -46113,6 +46388,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -46138,6 +46423,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -46180,6 +46480,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -46188,6 +46489,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -46442,6 +46744,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -46467,6 +46779,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -46509,6 +46836,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -46517,6 +46845,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -46649,6 +46978,592 @@ export interface operations {
       };
     };
   };
+  listTaskBlocks: {
+    parameters: {
+      query?: {
+        /** @description Include cleared task blocks */
+        include_cleared?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            blocks: {
+              clear_note?: string;
+              /** Format: date-time */
+              cleared_at?: string | null;
+              cleared_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              details?: unknown;
+              /** Format: date-time */
+              expires_at?: string | null;
+              id: string;
+              /** @enum {string} */
+              kind: "needs_input" | "capability" | "transient";
+              reason: string;
+              task_id: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid task block query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  blockTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          details?: unknown;
+          /** Format: date-time */
+          expires_at?: string | null;
+          /** @enum {string} */
+          kind: "needs_input" | "capability" | "transient";
+          reason: string;
+          run_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            block: {
+              clear_note?: string;
+              /** Format: date-time */
+              cleared_at?: string | null;
+              cleared_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              details?: unknown;
+              /** Format: date-time */
+              expires_at?: string | null;
+              id: string;
+              /** @enum {string} */
+              kind: "needs_input" | "capability" | "transient";
+              reason: string;
+              task_id: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task block conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task block request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  clearTaskBlock: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+        /** @description Task block id */
+        block_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          note?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            block: {
+              clear_note?: string;
+              /** Format: date-time */
+              cleared_at?: string | null;
+              cleared_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              details?: unknown;
+              /** Format: date-time */
+              expires_at?: string | null;
+              id: string;
+              /** @enum {string} */
+              kind: "needs_input" | "capability" | "transient";
+              reason: string;
+              task_id: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task or block not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task block conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task block clear request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   cancelTask: {
     parameters: {
       query?: never;
@@ -46682,6 +47597,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -46707,6 +47632,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -46749,6 +47689,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -46757,6 +47698,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -46923,6 +47865,7 @@ export interface operations {
           /** @enum {string} */
           scope: "global" | "workspace";
           title: string;
+          wake_creator?: boolean | null;
           workspace?: string;
         };
       };
@@ -46941,6 +47884,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -46966,6 +47919,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -47008,6 +47976,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -47016,6 +47985,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -47279,6 +48249,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -47327,6 +48307,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -47350,6 +48331,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -47392,6 +48388,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -47400,6 +48397,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               }[];
               dependencies?: {
@@ -47441,6 +48439,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -47660,6 +48659,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -47708,6 +48717,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -47731,6 +48741,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -47773,6 +48798,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -47781,6 +48807,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
               task: {
@@ -47789,6 +48816,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -47814,6 +48851,21 @@ export interface operations {
                 latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -47856,6 +48908,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -47864,6 +48917,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
             };
@@ -48096,6 +49150,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -48144,6 +49208,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -48167,6 +49232,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -48209,6 +49289,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -48217,6 +49298,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               }[];
               dependencies?: {
@@ -48258,6 +49340,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -48477,6 +49560,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -48525,6 +49618,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -48548,6 +49642,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -48590,6 +49699,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -48598,6 +49708,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
               task: {
@@ -48606,6 +49717,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -48631,6 +49752,21 @@ export interface operations {
                 latest_event_seq: number;
                 max_attempts?: number;
                 metadata?: unknown;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -48673,6 +49809,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -48681,6 +49818,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
             };
@@ -49575,6 +50713,16 @@ export interface operations {
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
                 auto_enqueue_on_ready?: boolean;
+                /** @description Read projection of current blocking causes; mutation responses may omit it. */
+                blocked_reasons?: {
+                  block_id?: string;
+                  depends_on_task_ids?: string[];
+                  /** @enum {string} */
+                  kind?: "needs_input" | "capability" | "transient";
+                  reason?: string;
+                  /** @enum {string} */
+                  source: "dependency" | "approval" | "paused" | "block";
+                }[];
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -49623,6 +50771,7 @@ export interface operations {
                       | "draft"
                       | "pending"
                       | "blocked"
+                      | "needs_attention"
                       | "ready"
                       | "in_progress"
                       | "completed"
@@ -49646,6 +50795,21 @@ export interface operations {
                 /** Format: int64 */
                 latest_event_seq: number;
                 max_attempts?: number;
+                needs_attention?: boolean;
+                /** Format: date-time */
+                needs_attention_at?: string | null;
+                needs_attention_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                needs_attention_reason?: string;
                 network_channel?: string;
                 origin: {
                   /** @enum {string} */
@@ -49688,6 +50852,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -49696,6 +50861,7 @@ export interface operations {
                 title: string;
                 /** Format: date-time */
                 updated_at: string;
+                wake_creator: boolean;
                 workspace_id?: string;
               };
             };
@@ -50432,6 +51598,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -50457,6 +51633,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -50499,6 +51690,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -50507,6 +51699,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -50811,6 +52004,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -50836,6 +52039,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -50878,6 +52096,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -50886,6 +52105,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -51018,7 +52238,7 @@ export interface operations {
       };
     };
   };
-  rejectTask: {
+  recoverTask: {
     parameters: {
       query?: never;
       header?: never;
@@ -51028,7 +52248,14 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          note?: string;
+        };
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -51043,6 +52270,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -51068,6 +52305,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -51110,6 +52362,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -51118,6 +52371,266 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task recover conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task recover request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  rejectTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              current_run_id?: string;
+              description?: string;
+              draft?: boolean;
+              effective_paused?: boolean;
+              id: string;
+              identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
+              max_attempts?: number;
+              metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "needs_attention"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -51282,6 +52795,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -51307,6 +52830,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -51349,6 +52887,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -51357,6 +52896,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -52578,6 +54118,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -52603,6 +54153,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -52645,6 +54210,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -52653,6 +54219,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };
@@ -52939,6 +54506,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -53210,6 +54778,7 @@ export interface operations {
                   | "draft"
                   | "pending"
                   | "blocked"
+                  | "needs_attention"
                   | "ready"
                   | "in_progress"
                   | "completed"
@@ -53451,6 +55020,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -53565,6 +55135,7 @@ export interface operations {
                     | "draft"
                     | "pending"
                     | "blocked"
+                    | "needs_attention"
                     | "ready"
                     | "in_progress"
                     | "completed"
@@ -58741,6 +60312,10 @@ export interface operations {
           | "coordinator.decision"
           | "coordinator.stopped"
           | "coordinator.failed"
+          | "task.blocked"
+          | "task.unblocked"
+          | "task.needs_attention"
+          | "task.recovered"
           | "task.run.enqueued"
           | "task.run.pre_claim"
           | "task.run.post_claim"
@@ -61637,6 +63212,16 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
+              /** @description Read projection of current blocking causes; mutation responses may omit it. */
+              blocked_reasons?: {
+                block_id?: string;
+                depends_on_task_ids?: string[];
+                /** @enum {string} */
+                kind?: "needs_input" | "capability" | "transient";
+                reason?: string;
+                /** @enum {string} */
+                source: "dependency" | "approval" | "paused" | "block";
+              }[];
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -61662,6 +63247,21 @@ export interface operations {
               latest_event_seq: number;
               max_attempts?: number;
               metadata?: unknown;
+              needs_attention?: boolean;
+              /** Format: date-time */
+              needs_attention_at?: string | null;
+              needs_attention_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              needs_attention_reason?: string;
               network_channel?: string;
               origin: {
                 /** @enum {string} */
@@ -61704,6 +63304,7 @@ export interface operations {
                 | "draft"
                 | "pending"
                 | "blocked"
+                | "needs_attention"
                 | "ready"
                 | "in_progress"
                 | "completed"
@@ -61712,6 +63313,7 @@ export interface operations {
               title: string;
               /** Format: date-time */
               updated_at: string;
+              wake_creator: boolean;
               workspace_id?: string;
             };
           };

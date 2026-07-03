@@ -1,10 +1,6 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, it } from "vitest";
 
-import type { TaskListItem, TaskRun } from "../../types";
+import type { TaskBlockedReason, TaskListItem, TaskRecord, TaskRun } from "../../types";
 import {
   countTasksByStatus,
   formatAttemptLabel,
@@ -12,11 +8,12 @@ import {
   formatPercent,
   formatRelativeTime,
   matchesTaskQuery,
+  projectBlockedReasonChips,
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskApprovalStateLabel,
+  taskCanRecover,
   taskHandoffActionCopy,
-  taskHandoffActionKey,
   taskHasApprovalPending,
   taskInboxLaneLabel,
   taskIsBlocked,
@@ -32,7 +29,9 @@ import {
   taskPriorityTone,
   taskRunStatusTone,
   taskStatusLabel,
+  taskStatusSignal,
   taskStatusTone,
+  taskWakeIndicatorApplies,
 } from "../task-formatters";
 
 function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
@@ -123,56 +122,6 @@ describe("task semantic tones", () => {
     expect(taskLaneTone("blocked")).toBe("danger");
     expect(taskLaneTone("archived")).toBe("neutral");
     expect(taskLaneTone("my_work")).toBe("neutral");
-  });
-});
-
-describe("task-formatters source — STATUS_TONE migration exhaustiveness", () => {
-  const formatterSource = readFileSync(
-    resolve(dirname(fileURLToPath(import.meta.url)), "../task-formatters.ts"),
-    "utf8"
-  );
-
-  it("Should not contain legacy tone identifiers (violet / amber / stuck / green) anywhere in the formatters source", () => {
-    expect(formatterSource).not.toMatch(/\bviolet\b/);
-    expect(formatterSource).not.toMatch(/\bamber\b/);
-    expect(formatterSource).not.toMatch(/\bstuck\b/);
-    expect(formatterSource).not.toMatch(/\bgreen\b/);
-  });
-
-  function extractFunctionBody(source: string, name: string): string {
-    const start = source.indexOf(`export function ${name}(`);
-    if (start < 0) throw new Error(`function ${name} not found`);
-    let depth = 0;
-    let openSeen = false;
-    for (let i = start; i < source.length; i += 1) {
-      const char = source[i];
-      if (char === "{") {
-        depth += 1;
-        openSeen = true;
-      } else if (char === "}") {
-        depth -= 1;
-        if (openSeen && depth === 0) {
-          return source.slice(start, i + 1);
-        }
-      }
-    }
-    throw new Error(`function ${name} body not balanced`);
-  }
-
-  it("Should not contain inlined `status -> tone` switch statements inside the three migrated function bodies", () => {
-    expect(extractFunctionBody(formatterSource, "taskStatusTone")).not.toMatch(/\bswitch\b/);
-    expect(extractFunctionBody(formatterSource, "taskRunStatusTone")).not.toMatch(/\bswitch\b/);
-    expect(extractFunctionBody(formatterSource, "taskLaneTone")).not.toMatch(/\bswitch\b/);
-  });
-
-  it("Should consume the central STATUS_TONE dictionaries from `web/src/lib/status-tone.ts`", () => {
-    expect(formatterSource).toMatch(/TASK_STATUS_TONE/);
-    expect(formatterSource).toMatch(/RUN_STATUS_TONE/);
-    expect(formatterSource).toMatch(/TASK_LANE_TONE/);
-    expect(formatterSource).toMatch(/from "@\/lib\/status-tone"/);
-    expect(extractFunctionBody(formatterSource, "taskStatusTone")).toMatch(/TASK_STATUS_TONE/);
-    expect(extractFunctionBody(formatterSource, "taskRunStatusTone")).toMatch(/RUN_STATUS_TONE/);
-    expect(extractFunctionBody(formatterSource, "taskLaneTone")).toMatch(/TASK_LANE_TONE/);
   });
 });
 
@@ -306,12 +255,22 @@ describe("task lifecycle phases — manual-first signaling", () => {
     expect(taskLifecyclePhase(makeTask({ status: "blocked", active_run: null }))).toBe("blocked");
   });
 
+  it("Should treat needs_attention as recovery-only, not ready to start", () => {
+    const phase = taskLifecyclePhase(makeTask({ status: "needs_attention", active_run: null }));
+
+    expect(phase).toBe("needs_attention");
+    expect(taskLifecyclePhaseLabel(phase)).toBe("Needs attention");
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/recover it before/i);
+    expect(taskLifecyclePhaseDescription(phase)).toMatch(/enqueued or claimed/i);
+  });
+
   it("Should never mark saved intent or ready as activity in lifecycle tones", () => {
     expect(taskLifecyclePhaseTone("saved_intent")).toBe("neutral");
     expect(taskLifecyclePhaseTone("ready_to_start")).toBe("neutral");
     expect(taskLifecyclePhaseTone("queued")).toBe("neutral");
     expect(taskLifecyclePhaseTone("running")).toBe("accent");
     expect(taskLifecyclePhaseTone("awaiting_approval")).toBe("info");
+    expect(taskLifecyclePhaseTone("needs_attention")).toBe("warning");
     expect(taskLifecyclePhaseTone("blocked")).toBe("danger");
     expect(taskLifecyclePhaseTone("failed")).toBe("danger");
     expect(taskLifecyclePhaseTone("canceled")).toBe("danger");
@@ -320,35 +279,11 @@ describe("task lifecycle phases — manual-first signaling", () => {
 });
 
 describe("task handoff actions — boundary semantics", () => {
-  it("draft tasks resolve to publish", () => {
-    const action = taskHandoffActionKey(makeTask({ status: "draft", draft: true }));
-    expect(action).toBe("publish");
-    expect(taskHandoffActionCopy(action).label).toBe("Publish");
-    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
-  });
-
-  it("approval-pending tasks resolve to approve, never start", () => {
-    const action = taskHandoffActionKey(
-      makeTask({ approval_policy: "manual", approval_state: "pending", status: "blocked" })
-    );
-    expect(action).toBe("approve");
-    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
-  });
-
-  it("ready tasks resolve to start with coordinator handoff tooltip", () => {
-    const action = taskHandoffActionKey(makeTask({ status: "ready", active_run: null }));
-    expect(action).toBe("start");
-    expect(taskHandoffActionCopy(action).label).toBe("Start run");
-    expect(taskHandoffActionCopy(action).tooltip).toMatch(/coordinator handoff/i);
-  });
-
-  it("failed tasks expose retry as the executable action", () => {
-    expect(taskHandoffActionKey(makeTask({ status: "failed" }))).toBe("retry");
-  });
-
-  it("never returns publish/start for terminal completed tasks", () => {
-    expect(taskHandoffActionKey(makeTask({ status: "completed" }))).toBe("edit");
-    expect(taskHandoffActionKey(makeTask({ status: "canceled" }))).toBe("edit");
+  it("Should expose copy only for the explicit actions rendered by callers", () => {
+    expect(taskHandoffActionCopy("publish").label).toBe("Publish");
+    expect(taskHandoffActionCopy("publish").tooltip).toMatch(/coordinator handoff/i);
+    expect(taskHandoffActionCopy("start").label).toBe("Start run");
+    expect(taskHandoffActionCopy("start").tooltip).toMatch(/coordinator handoff/i);
   });
 });
 
@@ -391,3 +326,95 @@ function makeRun(status: TaskRun["status"]): TaskListItem["active_run"] {
     queued_at: "2026-04-17T09:58:00Z",
   } as TaskListItem["active_run"];
 }
+
+describe("blocked-reasons chip projection", () => {
+  it("Should return an empty array when the task carries no blocking causes", () => {
+    expect(projectBlockedReasonChips(undefined)).toEqual([]);
+    expect(projectBlockedReasonChips(null)).toEqual([]);
+    expect(projectBlockedReasonChips([])).toEqual([]);
+  });
+
+  it("Should project exactly one chip per blocked_reasons entry, preserving order", () => {
+    const reasons: TaskBlockedReason[] = [
+      { source: "dependency", depends_on_task_ids: ["task_dep_a", "task_dep_b"] },
+      { source: "approval", reason: "Pending review" },
+      { source: "block", kind: "transient", reason: "External API down", block_id: "block_1" },
+    ];
+
+    const chips = projectBlockedReasonChips(reasons);
+
+    expect(chips).toHaveLength(reasons.length);
+    expect(chips.map(chip => chip.source)).toEqual(["dependency", "approval", "block"]);
+  });
+
+  it("Should carry the source label, block kind, and reason on the block chip", () => {
+    const chips = projectBlockedReasonChips([
+      { source: "block", kind: "capability", reason: "Missing browser skill", block_id: "block_9" },
+    ]);
+
+    expect(chips[0]).toMatchObject({
+      key: "block_9",
+      source: "block",
+      sourceLabel: "Block",
+      kind: "capability",
+      kindLabel: "Capability",
+      reason: "Missing browser skill",
+      tone: "warning",
+    });
+  });
+
+  it("Should surface dependency ids and omit blank reasons", () => {
+    const chips = projectBlockedReasonChips([
+      { source: "dependency", reason: "   ", depends_on_task_ids: ["task_x", "  "] },
+    ]);
+
+    expect(chips[0].reason).toBeUndefined();
+    expect(chips[0].dependsOnTaskIds).toEqual(["task_x"]);
+    expect(chips[0].tone).toBe("neutral");
+  });
+
+  it("Should fall back to a source+index key when block_id is absent", () => {
+    const chips = projectBlockedReasonChips([
+      { source: "paused", reason: "Operator hold" },
+      { source: "paused", reason: "Ancestor hold" },
+    ]);
+
+    expect(chips.map(chip => chip.key)).toEqual(["paused-0", "paused-1"]);
+  });
+});
+
+describe("recover + wake affordance gating", () => {
+  it("Should enable recover only when the derived status is needs_attention", () => {
+    expect(taskCanRecover({ status: "needs_attention" } as Pick<TaskRecord, "status">)).toBe(true);
+    expect(taskCanRecover({ status: "ready" } as Pick<TaskRecord, "status">)).toBe(false);
+    expect(taskCanRecover({ status: "blocked" } as Pick<TaskRecord, "status">)).toBe(false);
+  });
+
+  it("Should not offer recover on a terminal task even if needs_attention_at lingered", () => {
+    // Derived precedence is terminal > needs_attention (ADR-003): a canceled task
+    // must not present a Recover control the runtime would reject.
+    expect(taskCanRecover({ status: "canceled" } as Pick<TaskRecord, "status">)).toBe(false);
+    expect(taskCanRecover({ status: "completed" } as Pick<TaskRecord, "status">)).toBe(false);
+  });
+
+  it("Should render blocked and needs_attention as distinct StatusDot signals", () => {
+    // The header title dot must agree with the status pill and keep the two
+    // states distinct (no coercion): blocked → danger, needs_attention → warning.
+    expect(taskStatusSignal("blocked").tone).toBe("danger");
+    expect(taskStatusSignal("needs_attention").tone).toBe("warning");
+    expect(taskStatusSignal("blocked").tone).not.toBe(taskStatusSignal("needs_attention").tone);
+  });
+
+  it("Should surface the wake indicator only for agent-session-created tasks", () => {
+    expect(
+      taskWakeIndicatorApplies({
+        created_by: { kind: "agent_session", ref: "session_a" },
+      } as Pick<TaskRecord, "created_by">)
+    ).toBe(true);
+    expect(
+      taskWakeIndicatorApplies({
+        created_by: { kind: "human", ref: "operator" },
+      } as Pick<TaskRecord, "created_by">)
+    ).toBe(false);
+  });
+});

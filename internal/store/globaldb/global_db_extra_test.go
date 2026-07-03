@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -112,34 +111,8 @@ func TestGlobalDBTransactionCleanupHelpers(t *testing.T) {
 	}
 }
 
-func TestTableDefinitionSQLAndSessionsDirForDatabasePath(t *testing.T) {
+func TestSessionsDirForDatabasePath(t *testing.T) {
 	t.Parallel()
-
-	ctx := testutil.Context(t)
-	db, err := store.OpenSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "table-definition.db"), nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	if _, err := db.ExecContext(
-		ctx,
-		`CREATE TABLE sample_table (id TEXT PRIMARY KEY, summary TEXT NOT NULL)`,
-	); err != nil {
-		t.Fatalf("CREATE TABLE sample_table error = %v", err)
-	}
-
-	definition, err := tableDefinitionSQL(ctx, db, "sample_table")
-	if err != nil {
-		t.Fatalf("tableDefinitionSQL(sample_table) error = %v", err)
-	}
-	if !strings.Contains(definition, "CREATE TABLE sample_table") {
-		t.Fatalf("tableDefinitionSQL(sample_table) = %q, want CREATE TABLE statement", definition)
-	}
-
-	if _, err := tableDefinitionSQL(ctx, db, "missing_table"); err == nil {
-		t.Fatal("tableDefinitionSQL(missing_table) error = nil, want missing-table failure")
-	}
 
 	if got := sessionsDirForDatabasePath("   "); got != "" {
 		t.Fatalf("sessionsDirForDatabasePath(blank) = %q, want empty", got)

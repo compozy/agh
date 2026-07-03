@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { storyAgentNames, storyCoordinatorAgentName } from "@/storybook/fintech-scenario";
-import {
-  runIsCoordinated,
-  taskHandoffActionKey,
-  taskLifecyclePhase,
-} from "../../lib/task-formatters";
+import { runIsCoordinated, taskLifecyclePhase } from "../../lib/task-formatters";
 import {
   agentContextFixture,
   awaitingApprovalTaskFixture,
@@ -17,6 +13,8 @@ import {
   buildTaskRunReviewVerdictResultFixture,
   coordinatorEnabledWorkspaceFixture,
   queuedCoordinatedTaskFixture,
+  nonEscalatedRecoverTaskFixture,
+  recoverableTaskFixture,
   savedIntentTaskFixture,
   taskBridgeNotificationSubscriptionFixture,
   taskBridgeNotificationSubscriptionsFixture,
@@ -34,7 +32,6 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
     expect(savedIntentTaskFixture.draft).toBe(true);
     expect(savedIntentTaskFixture.active_run).toBeNull();
     expect(taskLifecyclePhase(savedIntentTaskFixture)).toBe("saved_intent");
-    expect(taskHandoffActionKey(savedIntentTaskFixture)).toBe("publish");
   });
 
   it("awaitingApprovalTaskFixture is agent-created, gated, and resolves to approve", () => {
@@ -43,7 +40,6 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
     expect(awaitingApprovalTaskFixture.active_run).toBeNull();
     expect(awaitingApprovalTaskFixture.created_by?.kind).toBe("agent_session");
     expect(taskLifecyclePhase(awaitingApprovalTaskFixture)).toBe("awaiting_approval");
-    expect(taskHandoffActionKey(awaitingApprovalTaskFixture)).toBe("approve");
   });
 
   it("queuedCoordinatedTaskFixture has a queued run bound to a coordination channel", () => {
@@ -53,6 +49,13 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
       "coord-task-queued"
     );
     expect(taskLifecyclePhase(queuedCoordinatedTaskFixture)).toBe("queued");
+  });
+
+  it("recover fixtures cover escalated and non-escalated task states", () => {
+    expect(recoverableTaskFixture.status).toBe("needs_attention");
+    expect(taskLifecyclePhase(recoverableTaskFixture)).toBe("needs_attention");
+    expect(nonEscalatedRecoverTaskFixture.status).toBe("ready");
+    expect(taskLifecyclePhase(nonEscalatedRecoverTaskFixture)).toBe("ready_to_start");
   });
 
   it("TASK_FIXTURES still cover user-created, running, failed, and approval states", () => {

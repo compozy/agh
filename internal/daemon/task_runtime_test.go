@@ -1059,7 +1059,11 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 	if state.tasks == nil {
 		t.Fatal("bootTasks() did not install a task runtime")
 	}
-	t.Cleanup(state.tasks.shutdown)
+	t.Cleanup(func() {
+		if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("task runtime shutdown error = %v", err)
+		}
+	})
 	if state.tasks.manager == nil {
 		t.Fatal("bootTasks() task manager = nil, want initialized manager")
 	}
@@ -1119,7 +1123,11 @@ func TestBootTasksWiresSchedulerStarvationAgeToTaskManager(t *testing.T) {
 		if state.tasks == nil || state.tasks.manager == nil {
 			t.Fatal("bootTasks() did not install a task manager")
 		}
-		t.Cleanup(state.tasks.shutdown)
+		t.Cleanup(func() {
+			if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("task runtime shutdown error = %v", err)
+			}
+		})
 
 		actor, err := taskpkg.DeriveDaemonActorContext("scheduler-status-test", "daemon.test")
 		if err != nil {
@@ -1265,7 +1273,11 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if state.tasks == nil {
 		t.Fatal("bootTasks() did not install a task runtime")
 	}
-	t.Cleanup(state.tasks.shutdown)
+	t.Cleanup(func() {
+		if err := state.tasks.shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("task runtime shutdown error = %v", err)
+		}
+	})
 
 	recoveredRun, err := db.GetTaskRun(context.Background(), runRecord.ID)
 	if err != nil {

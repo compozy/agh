@@ -122,6 +122,27 @@ count limits.
 `CoordinatorSpawnPatch` may deny coordinator spawn or replace `agent_name`, `provider`, and
 `model`. Observation patches are empty and record hook execution only.
 
+### Task
+
+These are task-level state transitions, deliberately outside the run-level `task.run.*` namespace —
+they describe the task's blocking and escalation state, not a run's lifecycle.
+
+| Event                  | Sync | Payload                     | Patch                  | Fires when                                                  |
+| ---------------------- | ---- | --------------------------- | ---------------------- | ----------------------------------------------------------- |
+| `task.blocked`         | yes  | `TaskBlockedPayload`        | `TaskObservationPatch` | After a typed block is created on a task.                   |
+| `task.unblocked`       | yes  | `TaskUnblockedPayload`      | `TaskObservationPatch` | After a block is cleared explicitly or by transient expiry. |
+| `task.needs_attention` | yes  | `TaskNeedsAttentionPayload` | `TaskObservationPatch` | After the unblock-loop breaker escalates a task.            |
+| `task.recovered`       | yes  | `TaskRecoveredPayload`      | `TaskObservationPatch` | After an operator or agent recovers an escalated task.      |
+
+`TaskBlockedPayload` and `TaskUnblockedPayload` carry `block_id`, `kind`, `reason`, opaque
+`details`, and (on unblock) `cleared_at` / `clear_note`. `TaskNeedsAttentionPayload` and
+`TaskRecoveredPayload` carry the escalation `reason` / recovery `note` plus `at`. All four share the
+`TaskContext` fields (`task_id`, `workspace_id`, `task_status`, actor/origin identity, and — when a
+run was parked — `run_id` and `claim_token_hash`). `TaskObservationPatch` is empty; these hooks may
+annotate or deny but cannot mint claim tokens or bypass the breaker. The raw bearer lease token never
+appears in these payloads. See the [block lifecycle](/runtime/core/autonomy/task-runs-and-leases#typed-task-blocks-and-the-unblock-loop-breaker)
+for the operator and agent surfaces that drive these transitions.
+
 ### Task Run
 
 | Event                      | Sync | Payload                        | Patch                     | Fires when                                                     |

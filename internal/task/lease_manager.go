@@ -192,6 +192,11 @@ func (m *Service) CompleteRunLease(
 	}
 	run, err := m.store.CompleteRunLease(ctx, normalized)
 	if err != nil {
+		if hallucinated, ok := errors.AsType[*HallucinatedTaskRefsError](err); ok {
+			if eventErr := m.recordCompletionHallucinationBlocked(ctx, hallucinated, actor); eventErr != nil {
+				return nil, errors.Join(err, eventErr)
+			}
+		}
 		return nil, err
 	}
 	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
@@ -206,11 +211,95 @@ func (m *Service) CompleteRunLease(
 	}); err != nil {
 		return nil, err
 	}
+	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
+	advisoryCtx, advisoryCancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
+	defer advisoryCancel()
+	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
 	autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
 	defer cancel()
-	m.autoEnqueueReadyDependents(autoCtx, run.TaskID, run.ID, actor)
+	m.autoEnqueueReadyDependents(autoCtx, run.TaskID, autoEnqueueTrigger{
+		Kind: autoEnqueueTriggerDependencyCompletion,
+		Ref:  run.ID,
+	}, actor)
 	return &run, nil
+}
+
+func (m *Service) recordCompletionHallucinationBlocked(
+	ctx context.Context,
+	err *HallucinatedTaskRefsError,
+	actor ActorContext,
+) error {
+	if err == nil {
+		return nil
+	}
+	if recordErr := m.recordTaskEvent(
+		ctx,
+		err.TaskID,
+		err.RunID,
+		taskEventCompletionHallucinationBlocked,
+		actor,
+		completionHallucinationBlockedPayload{
+			Status:         err.RunStatus,
+			SessionID:      err.SessionID,
+			ClaimedTaskIDs: err.ClaimedTaskIDs,
+			InvalidTaskIDs: err.InvalidTaskIDs,
+			ClaimTokenHash: err.ClaimTokenHash,
+		},
+	); recordErr != nil {
+		return fmt.Errorf("task: record completion hallucination block event: %w", recordErr)
+	}
+	return nil
+}
+
+func (m *Service) recordCompletionHallucinationSuspected(ctx context.Context, run Run, actor ActorContext) {
+	suspectedTaskIDs := m.suspectedCompletionTaskIDs(ctx, run)
+	if len(suspectedTaskIDs) == 0 {
+		return
+	}
+	if err := m.recordTaskEvent(
+		ctx,
+		run.TaskID,
+		run.ID,
+		taskEventCompletionHallucinationSuspected,
+		actor,
+		completionHallucinationSuspectedPayload{
+			Status:           run.Status,
+			SuspectedTaskIDs: suspectedTaskIDs,
+			ClaimTokenHash:   run.ClaimTokenHash,
+		},
+	); err != nil {
+		slog.Warn(
+			"task: completion hallucination advisory event failed",
+			"task_id", run.TaskID,
+			"run_id", run.ID,
+			"error", err,
+		)
+	}
+}
+
+func (m *Service) suspectedCompletionTaskIDs(ctx context.Context, run Run) []string {
+	candidates := canonicalTaskIDTokens(run.Result)
+	if len(candidates) == 0 {
+		return nil
+	}
+	suspected := make([]string, 0)
+	for _, candidate := range candidates {
+		if _, err := m.store.GetTask(ctx, candidate); err != nil {
+			if errors.Is(err, ErrTaskNotFound) {
+				suspected = append(suspected, candidate)
+				continue
+			}
+			slog.Warn(
+				"task: completion hallucination advisory lookup failed",
+				"task_id", run.TaskID,
+				"run_id", run.ID,
+				"candidate_task_id", candidate,
+				"error", err,
+			)
+		}
+	}
+	return suspected
 }
 
 // autoEnqueueDispatchTimeout bounds the detached post-commit auto-enqueue side effect.
@@ -218,15 +307,43 @@ func (m *Service) CompleteRunLease(
 // (context.WithoutCancel) but still cannot run unbounded across a large dependent set.
 const autoEnqueueDispatchTimeout = 30 * time.Second
 
-// autoEnqueueReadyDependents enqueues runs for dependents that became ready due to the
-// completion of completedTaskID and opted in via AutoEnqueueOnReady. Best-effort: the
-// completion has already committed, so failures here are logged and skipped, never rolled
-// back. triggerRunID keeps each per-dependent enqueue idempotent across retried
-// completions; the store's queued-run reservation rejects duplicate or blocked enqueues.
-// A failed/expired blocker does not satisfy a "blocks" edge, so only completion calls this.
+const (
+	autoEnqueueTriggerDependencyCompletion = "dependency_completion"
+	autoEnqueueTriggerBlockClear           = "block_clear"
+	autoEnqueueTriggerTransientExpiry      = "transient_expiry"
+	autoEnqueueTriggerApprovalGranted      = "approval_granted"
+	autoEnqueueTriggerRecover              = "recover"
+)
+
+type autoEnqueueTrigger struct {
+	Kind string
+	Ref  string
+}
+
+func (t autoEnqueueTrigger) normalized() autoEnqueueTrigger {
+	return autoEnqueueTrigger{
+		Kind: strings.TrimSpace(t.Kind),
+		Ref:  strings.TrimSpace(t.Ref),
+	}
+}
+
+func (t autoEnqueueTrigger) idempotencyKey(taskID string) string {
+	normalized := t.normalized()
+	return fmt.Sprintf(
+		"task.auto_enqueue.%s.%s.%s",
+		strings.TrimSpace(taskID),
+		normalized.Kind,
+		normalized.Ref,
+	)
+}
+
+// autoEnqueueReadyDependents enqueues runs for dependents that became ready due to a
+// completed blocker and opted in via AutoEnqueueOnReady. A failed/expired blocker does
+// not satisfy a "blocks" edge, so only completion calls this dependent traversal.
 func (m *Service) autoEnqueueReadyDependents(
 	ctx context.Context,
-	completedTaskID, triggerRunID string,
+	completedTaskID string,
+	trigger autoEnqueueTrigger,
 	actor ActorContext,
 ) {
 	dependents, err := m.store.ListDependents(ctx, completedTaskID)
@@ -234,39 +351,141 @@ func (m *Service) autoEnqueueReadyDependents(
 		slog.Error("task: auto-enqueue list dependents failed", "task_id", completedTaskID, "error", err)
 		return
 	}
-	var pauseReader effectiveTaskPauseReader
-	if reader, ok := m.store.(effectiveTaskPauseReader); ok {
-		pauseReader = reader
-	}
+	taskIDs := make([]string, 0, len(dependents))
 	for _, dep := range dependents {
 		dependentID := strings.TrimSpace(dep.TaskID)
 		if dependentID == "" {
 			continue
 		}
-		dependent, err := m.store.GetTask(ctx, dependentID)
-		if err != nil {
-			slog.Error("task: auto-enqueue load dependent failed", "task_id", dependentID, "error", err)
+		taskIDs = append(taskIDs, dependentID)
+	}
+	m.autoEnqueueReadyTasks(ctx, taskIDs, trigger, actor)
+}
+
+func (m *Service) autoEnqueueReadyTaskDetached(
+	ctx context.Context,
+	taskID string,
+	trigger autoEnqueueTrigger,
+	actor ActorContext,
+) {
+	autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
+	defer cancel()
+	m.autoEnqueueReadyTasks(autoCtx, []string{taskID}, trigger, actor)
+}
+
+func (m *Service) autoEnqueueReadyTasks(
+	ctx context.Context,
+	taskIDs []string,
+	trigger autoEnqueueTrigger,
+	actor ActorContext,
+) {
+	normalizedTrigger := trigger.normalized()
+	if normalizedTrigger.Kind == "" || normalizedTrigger.Ref == "" {
+		slog.Warn(
+			"task: auto-enqueue skipped invalid trigger",
+			"trigger_kind",
+			trigger.Kind,
+			"trigger_ref",
+			trigger.Ref,
+		)
+		return
+	}
+	var pauseReader effectiveTaskPauseReader
+	if reader, ok := m.store.(effectiveTaskPauseReader); ok {
+		pauseReader = reader
+	}
+	seen := make(map[string]struct{}, len(taskIDs))
+	for _, taskID := range taskIDs {
+		trimmedTaskID := strings.TrimSpace(taskID)
+		if trimmedTaskID == "" {
 			continue
 		}
-		if !dependent.AutoEnqueueOnReady || dependent.Status.Normalize() != TaskStatusReady {
+		if _, ok := seen[trimmedTaskID]; ok {
 			continue
 		}
-		if pauseReader != nil {
-			if paused, _, perr := pauseReader.IsTaskEffectivelyPaused(ctx, dependentID); perr == nil && paused {
-				continue
-			}
+		seen[trimmedTaskID] = struct{}{}
+		m.autoEnqueueReadyTask(ctx, trimmedTaskID, normalizedTrigger, pauseReader, actor)
+	}
+}
+
+func (m *Service) autoEnqueueReadyTask(
+	ctx context.Context,
+	taskID string,
+	trigger autoEnqueueTrigger,
+	pauseReader effectiveTaskPauseReader,
+	actor ActorContext,
+) {
+	taskRecord, err := m.store.GetTask(ctx, taskID)
+	if err != nil {
+		slog.Error("task: auto-enqueue load task failed", "task_id", taskID, "error", err)
+		return
+	}
+	if !taskRecord.AutoEnqueueOnReady || taskRecord.Status.Normalize() != TaskStatusReady {
+		return
+	}
+	if pauseReader != nil {
+		paused, _, pauseErr := pauseReader.IsTaskEffectivelyPaused(ctx, taskID)
+		if pauseErr != nil {
+			slog.Warn("task: auto-enqueue pause check failed", "task_id", taskID, "error", pauseErr)
+			return
 		}
-		key := fmt.Sprintf("task.auto_enqueue.%s.%s", dependentID, strings.TrimSpace(triggerRunID))
-		_, enqErr := m.EnqueueRun(ctx, EnqueueRun{TaskID: dependentID, IdempotencyKey: key}, actor)
-		switch {
-		case enqErr == nil:
-		case errors.Is(enqErr, ErrInvalidStatusTransition) || errors.Is(enqErr, ErrConflict):
-			// Expected dedup: store rejects a second run (open run) or replayed idempotency key.
-			slog.Debug("task: auto-enqueue skipped; dependent already has an open run",
-				"task_id", dependentID, "error", enqErr)
-		default:
-			slog.Warn("task: auto-enqueue dependent run failed", "task_id", dependentID, "error", enqErr)
+		if paused {
+			return
 		}
+	}
+	key := trigger.idempotencyKey(taskID)
+	run, enqErr := m.EnqueueRun(ctx, EnqueueRun{TaskID: taskID, IdempotencyKey: key}, actor)
+	switch {
+	case enqErr == nil:
+		m.recordAutoEnqueueTriggered(ctx, taskRecord, run, trigger, actor)
+	case errors.Is(enqErr, ErrInvalidStatusTransition) || errors.Is(enqErr, ErrConflict):
+		// Expected dedup: store rejects a second run (open run) or replayed idempotency key.
+		slog.Debug(
+			"task: auto-enqueue skipped; task already has an open run",
+			"task_id", taskID,
+			"trigger_kind", trigger.Kind,
+			"error", enqErr,
+		)
+	default:
+		slog.Warn(
+			"task: auto-enqueue run failed",
+			"task_id", taskID,
+			"trigger_kind", trigger.Kind,
+			"error", enqErr,
+		)
+	}
+}
+
+func (m *Service) recordAutoEnqueueTriggered(
+	ctx context.Context,
+	taskRecord Task,
+	run *Run,
+	trigger autoEnqueueTrigger,
+	actor ActorContext,
+) {
+	if run == nil {
+		return
+	}
+	if err := m.recordTaskEvent(
+		ctx,
+		taskRecord.ID,
+		run.ID,
+		taskEventAutoEnqueueTriggered,
+		actor,
+		autoEnqueueTriggeredPayload{
+			Status:      taskRecord.Status,
+			RunStatus:   run.Status,
+			TriggerKind: trigger.Kind,
+			TriggerRef:  trigger.Ref,
+		},
+	); err != nil {
+		slog.Warn(
+			"task: auto-enqueue triggered event failed",
+			"task_id", taskRecord.ID,
+			"run_id", run.ID,
+			"trigger_kind", trigger.Kind,
+			"error", err,
+		)
 	}
 }
 
@@ -300,6 +519,7 @@ func (m *Service) FailRunLease(
 	}); err != nil {
 		return nil, err
 	}
+	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
 	m.dispatchTaskRunFailed(ctx, run, reconciledTask, actor)
 	return &run, nil
 }
@@ -362,6 +582,13 @@ func (m *Service) RecoverExpiredRunLeases(
 		)
 	}
 	return results, nil
+}
+
+type autoEnqueueTriggeredPayload struct {
+	Status      Status    `json:"status"`
+	RunStatus   RunStatus `json:"run_status"`
+	TriggerKind string    `json:"trigger_kind"`
+	TriggerRef  string    `json:"trigger_ref"`
 }
 
 func (m *Service) activeSessionRunLeases(ctx context.Context, sessionID string) ([]Run, error) {

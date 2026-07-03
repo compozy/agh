@@ -1184,6 +1184,18 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateTaskRunDesignations,
 		Checksum: "2026-07-01-add-task-run-designations",
 	},
+	{
+		Version:  48,
+		Name:     "rebuild_tasks_for_task_blocks",
+		UpConn:   migrateTaskBlockingFoundation,
+		Checksum: "2026-07-02-rebuild-tasks-for-task-blocks",
+	},
+	{
+		Version:  49,
+		Name:     "add_task_block_tables",
+		UpConn:   migrateTaskBlockTables,
+		Checksum: "2026-07-02-add-task-block-tables",
+	},
 }
 
 func migrateNetworkActivationPolicyMentions(ctx context.Context, tx *sql.Tx) error {

@@ -664,6 +664,14 @@ func (s integrationTaskSource) RecoverExpiredRunLeases(
 	return s.manager.RecoverExpiredRunLeases(ctx, recovery, actor)
 }
 
+func (s integrationTaskSource) ExpireTaskBlocks(
+	ctx context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return s.manager.ExpireTaskBlocks(ctx, now, actor)
+}
+
 func (s integrationTaskSource) joinRuns(ctx context.Context, runs []taskpkg.Run) ([]RunSnapshot, error) {
 	work := make([]RunSnapshot, 0, len(runs))
 	for _, run := range runs {

@@ -67,6 +67,34 @@ type integrationTaskRunHooks struct {
 	) (hookspkg.TaskRunLeaseRecoveredPayload, error)
 }
 
+func (h integrationTaskRunHooks) DispatchTaskBlocked(
+	_ context.Context,
+	payload hookspkg.TaskBlockedPayload,
+) (hookspkg.TaskBlockedPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskUnblocked(
+	_ context.Context,
+	payload hookspkg.TaskUnblockedPayload,
+) (hookspkg.TaskUnblockedPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskNeedsAttention(
+	_ context.Context,
+	payload hookspkg.TaskNeedsAttentionPayload,
+) (hookspkg.TaskNeedsAttentionPayload, error) {
+	return payload, nil
+}
+
+func (h integrationTaskRunHooks) DispatchTaskRecovered(
+	_ context.Context,
+	payload hookspkg.TaskRecoveredPayload,
+) (hookspkg.TaskRecoveredPayload, error) {
+	return payload, nil
+}
+
 func (h integrationTaskRunHooks) DispatchTaskRunEnqueued(
 	ctx context.Context,
 	payload hookspkg.TaskRunEnqueuedPayload,

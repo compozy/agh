@@ -1,29 +1,21 @@
 ---
 title: "agh task recover"
-description: "Recover one needs_attention task run"
+description: "Recover a task from needs_attention"
 ---
 
 ## agh task recover
 
-Recover one needs_attention task run
+Recover a task from needs_attention
 
 ```
-agh task recover <run-id> [flags]
-```
-
-### Examples
-
-```
-  # Re-enqueue one run stuck in needs_attention
-  agh task recover run-123 --reason "operator recovery"
+agh task recover <id> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help              help for recover
-      --metadata string   Optional recovery metadata JSON
-      --reason string     Optional recovery reason recorded in the audit event
+  -h, --help          help for recover
+      --note string   Optional recovery note
 ```
 
 ### Options inherited from parent commands
@@ -45,5 +37,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task recover <run-id> -o json
+agh task recover <id> -o json
 ```

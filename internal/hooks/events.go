@@ -19,6 +19,7 @@ const (
 	HookEventFamilyPermission  HookEventFamily = "permission"
 	HookEventFamilyContext     HookEventFamily = "context"
 	HookEventFamilyCoordinator HookEventFamily = "coordinator"
+	HookEventFamilyTask        HookEventFamily = "task"
 	HookEventFamilyTaskRun     HookEventFamily = "task.run"
 	HookEventFamilySpawn       HookEventFamily = "spawn"
 	HookEventFamilyNetwork     HookEventFamily = "network"
@@ -40,6 +41,7 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyPermission,
 		HookEventFamilyContext,
 		HookEventFamilyCoordinator,
+		HookEventFamilyTask,
 		HookEventFamilyTaskRun,
 		HookEventFamilySpawn,
 		HookEventFamilyNetwork:
@@ -115,6 +117,11 @@ const (
 	HookCoordinatorDecision HookEvent = "coordinator.decision"
 	HookCoordinatorStopped  HookEvent = "coordinator.stopped"
 	HookCoordinatorFailed   HookEvent = "coordinator.failed"
+
+	HookTaskBlocked        HookEvent = "task.blocked"
+	HookTaskUnblocked      HookEvent = "task.unblocked"
+	HookTaskNeedsAttention HookEvent = "task.needs_attention"
+	HookTaskRecovered      HookEvent = "task.recovered"
 
 	HookTaskRunEnqueued       HookEvent = "task.run.enqueued"
 	HookTaskRunPreClaim       HookEvent = "task.run.pre_claim"
@@ -279,6 +286,22 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
+	HookTaskBlocked: {
+		family:       HookEventFamilyTask,
+		syncEligible: true,
+	},
+	HookTaskUnblocked: {
+		family:       HookEventFamilyTask,
+		syncEligible: true,
+	},
+	HookTaskNeedsAttention: {
+		family:       HookEventFamilyTask,
+		syncEligible: true,
+	},
+	HookTaskRecovered: {
+		family:       HookEventFamilyTask,
+		syncEligible: true,
+	},
 	HookTaskRunEnqueued: {
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
@@ -420,6 +443,10 @@ var allHookEvents = []HookEvent{
 	HookCoordinatorDecision,
 	HookCoordinatorStopped,
 	HookCoordinatorFailed,
+	HookTaskBlocked,
+	HookTaskUnblocked,
+	HookTaskNeedsAttention,
+	HookTaskRecovered,
 	HookTaskRunEnqueued,
 	HookTaskRunPreClaim,
 	HookTaskRunPostClaim,

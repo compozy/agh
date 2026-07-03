@@ -83,7 +83,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		LastActivityAt: lastActivity,
 	}
 
-	summaryPayload := core.TaskSummaryPayloadFromSummary(summary)
+	summaryPayload := core.TaskSummaryPayloadFromSummary(&summary)
 	if summaryPayload.Priority != taskpkg.PriorityHigh ||
 		summaryPayload.MaxAttempts != 4 ||
 		summaryPayload.ApprovalState != taskpkg.ApprovalStatePending ||

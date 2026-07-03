@@ -8,6 +8,22 @@ import (
 
 // RunHookDispatcher is the narrow hook bridge consumed by task-run transitions.
 type RunHookDispatcher interface {
+	DispatchTaskBlocked(
+		context.Context,
+		hookspkg.TaskBlockedPayload,
+	) (hookspkg.TaskBlockedPayload, error)
+	DispatchTaskUnblocked(
+		context.Context,
+		hookspkg.TaskUnblockedPayload,
+	) (hookspkg.TaskUnblockedPayload, error)
+	DispatchTaskNeedsAttention(
+		context.Context,
+		hookspkg.TaskNeedsAttentionPayload,
+	) (hookspkg.TaskNeedsAttentionPayload, error)
+	DispatchTaskRecovered(
+		context.Context,
+		hookspkg.TaskRecoveredPayload,
+	) (hookspkg.TaskRecoveredPayload, error)
 	DispatchTaskRunEnqueued(
 		context.Context,
 		hookspkg.TaskRunEnqueuedPayload,
@@ -49,6 +65,34 @@ type RunHookDispatcher interface {
 var _ RunHookDispatcher = noopTaskRunHooks{}
 
 type noopTaskRunHooks struct{}
+
+func (noopTaskRunHooks) DispatchTaskBlocked(
+	_ context.Context,
+	payload hookspkg.TaskBlockedPayload,
+) (hookspkg.TaskBlockedPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskUnblocked(
+	_ context.Context,
+	payload hookspkg.TaskUnblockedPayload,
+) (hookspkg.TaskUnblockedPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskNeedsAttention(
+	_ context.Context,
+	payload hookspkg.TaskNeedsAttentionPayload,
+) (hookspkg.TaskNeedsAttentionPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskRecovered(
+	_ context.Context,
+	payload hookspkg.TaskRecoveredPayload,
+) (hookspkg.TaskRecoveredPayload, error) {
+	return payload, nil
+}
 
 func (noopTaskRunHooks) DispatchTaskRunEnqueued(
 	_ context.Context,

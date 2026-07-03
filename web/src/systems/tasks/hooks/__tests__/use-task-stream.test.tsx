@@ -239,6 +239,65 @@ describe("useTaskStream", () => {
     expect(eventSource.hasListener("task.notification_delivered")).toBe(false);
   });
 
+  it("Should subscribe to and apply the streamed needs_attention / recover / run-lifecycle block events", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const eventSource = new FakeTaskStreamEventSource();
+    const factory = vi.fn(() => eventSource);
+    const onEvent = vi.fn();
+
+    renderHook(
+      () =>
+        useTaskStream("task_001", {
+          afterSequence: 30,
+          eventSourceFactory: factory,
+          onEvent,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    // Only the frames the daemon writes to the task stream are subscribed:
+    // escalation, recovery, and the run-lifecycle events that carry block
+    // add/clear (a mid-run block parks the run; last-block-clear auto-enqueues).
+    expect(eventSource.hasListener("task.needs_attention")).toBe(true);
+    expect(eventSource.hasListener("task.recovered")).toBe(true);
+    expect(eventSource.hasListener("task.run_released")).toBe(true);
+    expect(eventSource.hasListener("task.run_enqueued")).toBe(true);
+    // task.blocked / task.unblocked are typed hook events, NOT stream frames, so
+    // they must never be subscribed here (truthful UI — no phantom listeners).
+    expect(eventSource.hasListener("task.blocked")).toBe(false);
+    expect(eventSource.hasListener("task.unblocked")).toBe(false);
+
+    const needsAttention = buildStreamPayload({ sequence: 31, type: "task.needs_attention" });
+
+    act(() => {
+      eventSource.emitNamed("task.needs_attention", needsAttention);
+    });
+
+    await waitFor(() => {
+      expect(onEvent).toHaveBeenCalledWith(needsAttention);
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["tasks", "detail", "task_001"],
+    });
+
+    invalidateQueries.mockClear();
+    onEvent.mockClear();
+
+    const recovered = buildStreamPayload({ sequence: 32, type: "task.recovered" });
+
+    act(() => {
+      eventSource.emitNamed("task.recovered", recovered);
+    });
+
+    await waitFor(() => {
+      expect(onEvent).toHaveBeenCalledWith(recovered);
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["tasks", "detail", "task_001"],
+    });
+  });
+
   it("Should still parse defensive unnamed message frames via onmessage", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const eventSource = new FakeTaskStreamEventSource();

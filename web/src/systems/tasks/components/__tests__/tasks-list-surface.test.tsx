@@ -64,6 +64,7 @@ describe("TasksListSurface", () => {
     const tasks = [
       buildTask({ id: "a", title: "Active task", status: "in_progress" }),
       buildTask({ id: "b", title: "Blocked task", status: "blocked" }),
+      buildTask({ id: "n", title: "Escalated task", status: "needs_attention" }),
       buildTask({ id: "c", title: "Queued task", status: "ready" }),
       buildTask({ id: "d", title: "Done task", status: "completed" }),
       buildTask({ id: "e", title: "Failed task", status: "failed" }),
@@ -74,13 +75,19 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("task-group-active-label")).toHaveTextContent(/active/i);
     expect(screen.getByTestId("task-group-active-count")).toHaveTextContent("1");
     expect(screen.getByTestId("task-group-blocked")).toBeInTheDocument();
+    // The escalated task is visible in its own group — never dropped or coerced.
+    expect(screen.getByTestId("task-group-needs_attention")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-queued")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-done")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-failed")).toBeInTheDocument();
 
     expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-tone", "accent");
     expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-variant", "ring");
-    expect(screen.getByTestId("task-group-dot-blocked")).toHaveAttribute("data-tone", "warning");
+    expect(screen.getByTestId("task-group-dot-blocked")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByTestId("task-group-dot-needs_attention")).toHaveAttribute(
+      "data-tone",
+      "warning"
+    );
     expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-tone", "faint");
     expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-variant", "ring");
     expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-tone", "faint");

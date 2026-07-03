@@ -132,6 +132,7 @@ type Manager struct {
 	stats         *runtimeStats
 
 	mu             sync.Mutex
+	inboundWG      sync.WaitGroup
 	sessions       map[string]*managedSession
 	channels       map[string]*managedChannel
 	connected      bool
@@ -1092,6 +1093,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 			errs = append(errs, err)
 		}
 	}
+	m.inboundWG.Wait()
 	m.logger.Info(
 		"network.stopped",
 		"pending_messages", deliveryStats.QueuedMessages+deliveryStats.InFlightMessages,
@@ -1104,7 +1106,15 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 }
 
 func (m *Manager) handleInboundMessage(payload []byte) {
-	if m == nil || m.router == nil {
+	if m == nil {
+		return
+	}
+	if !m.beginInboundMessage() {
+		return
+	}
+	defer m.inboundWG.Done()
+
+	if m.router == nil {
 		return
 	}
 	if err := m.lifecycleCtx.Err(); err != nil {
@@ -1146,6 +1156,19 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 	if err := m.deliveries.accept(m.lifecycleCtx, deliveries); err != nil {
 		m.logger.Warn("network.message.accept_failed", "error", err)
 	}
+}
+
+func (m *Manager) beginInboundMessage() bool {
+	if m == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
+	m.inboundWG.Add(1)
+	return true
 }
 
 func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []Delivery) []Delivery {

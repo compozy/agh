@@ -5,8 +5,7 @@ description: "Promote one network thread message into a task"
 
 ## agh task promote
 
-Promote one network thread message into a draft task. This is the task-oriented alias for
-`agh network threads promote`.
+Promote one network thread message into a task
 
 ```
 agh task promote [flags]
@@ -26,21 +25,24 @@ agh task promote [flags]
       --workspace string        Workspace path, name, or ID
 ```
 
-### Example
-
-```bash
-agh task promote \
-  --workspace ~/dev/app \
-  --channel builders \
-  --thread thread_release_check_20260416 \
-  --origin-message msg_thread_root \
-  --title "Validate release migration gates" \
-  -o json
-```
-
 ### Options inherited from parent commands
 
 ```
       --json            Emit JSON output
   -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh task promote -o json
 ```

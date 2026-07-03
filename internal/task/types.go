@@ -25,6 +25,8 @@ const (
 	TaskStatusPending Status = "pending"
 	// TaskStatusBlocked reports a task with unresolved dependencies.
 	TaskStatusBlocked Status = "blocked"
+	// TaskStatusNeedsAttention reports a task escalated out of normal claim flow for recovery.
+	TaskStatusNeedsAttention Status = "needs_attention"
 	// TaskStatusReady reports a task that may execute because dependencies are satisfied.
 	TaskStatusReady Status = "ready"
 	// TaskStatusInProgress reports a task with an active starting or running run.
@@ -181,6 +183,32 @@ const (
 	DependencyKindBlocks DependencyKind = "blocks"
 )
 
+// BlockKind identifies a runtime-declared reason a task cannot proceed.
+type BlockKind string
+
+const (
+	// BlockKindNeedsInput reports that the task needs human or creator input.
+	BlockKindNeedsInput BlockKind = "needs_input"
+	// BlockKindCapability reports that the task needs a capability that is not currently available.
+	BlockKindCapability BlockKind = "capability"
+	// BlockKindTransient reports a temporary external or environmental blocker.
+	BlockKindTransient BlockKind = "transient"
+)
+
+// BlockedSource identifies one source in the derived blocked-reasons projection.
+type BlockedSource string
+
+const (
+	// BlockedSourceDependency reports unresolved task dependency edges.
+	BlockedSourceDependency BlockedSource = "dependency"
+	// BlockedSourceApproval reports a pending approval gate.
+	BlockedSourceApproval BlockedSource = "approval"
+	// BlockedSourcePaused reports an operator pause gate.
+	BlockedSourcePaused BlockedSource = "paused"
+	// BlockedSourceBlock reports an open runtime-declared task block.
+	BlockedSourceBlock BlockedSource = "block"
+)
+
 // StopReason identifies why the task domain asked the session bridge to stop a session.
 type StopReason string
 
@@ -214,6 +242,134 @@ const (
 type ActorIdentity struct {
 	Kind ActorKind `json:"kind"`
 	Ref  string    `json:"ref"`
+}
+
+// TaskBlock is a durable runtime-declared block row for one task.
+//
+//nolint:revive // TaskBlock is the approved TechSpec contract name.
+type TaskBlock struct {
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspace_id"`
+	TaskID      string          `json:"task_id"`
+	Kind        BlockKind       `json:"kind"`
+	Reason      string          `json:"reason"`
+	Details     json.RawMessage `json:"details,omitempty"`
+	CreatedBy   ActorIdentity   `json:"created_by"`
+	CreatedAt   time.Time       `json:"created_at"`
+	ExpiresAt   time.Time       `json:"expires_at,omitzero"`
+	ClearedAt   time.Time       `json:"cleared_at,omitzero"`
+	ClearedBy   ActorIdentity   `json:"cleared_by,omitzero"`
+	ClearNote   string          `json:"clear_note,omitempty"`
+}
+
+// BlockRequest captures the service-level request to create a task block.
+type BlockRequest struct {
+	TaskID     string          `json:"task_id"`
+	Kind       BlockKind       `json:"kind"`
+	Reason     string          `json:"reason"`
+	Details    json.RawMessage `json:"details,omitempty"`
+	ExpiresAt  time.Time       `json:"expires_at,omitzero"`
+	RunID      string          `json:"run_id,omitempty"`
+	ClaimToken string          `json:"claim_token,omitempty"`
+}
+
+// BlockedReason is a derived read projection; it is never persisted.
+type BlockedReason struct {
+	Source           BlockedSource `json:"source"`
+	Kind             BlockKind     `json:"kind,omitempty"`
+	Reason           string        `json:"reason,omitempty"`
+	BlockID          string        `json:"block_id,omitempty"`
+	DependsOnTaskIDs []string      `json:"depends_on_task_ids,omitempty"`
+}
+
+// ClearTaskBlockMutation captures an audited task-block clear.
+type ClearTaskBlockMutation struct {
+	TaskID    string        `json:"task_id"`
+	BlockID   string        `json:"block_id"`
+	ClearedBy ActorIdentity `json:"cleared_by"`
+	ClearedAt time.Time     `json:"cleared_at"`
+	ClearNote string        `json:"clear_note,omitempty"`
+}
+
+// CreateTaskBlockMutation inserts one task block and evaluates breaker accounting atomically.
+type CreateTaskBlockMutation struct {
+	Block           TaskBlock `json:"block"`
+	RecurrenceLimit int       `json:"recurrence_limit"`
+}
+
+// BlockMutationResult is the durable result of a task-block creation mutation.
+type BlockMutationResult struct {
+	Block         TaskBlock       `json:"block"`
+	Recurrence    BlockRecurrence `json:"recurrence"`
+	EscalatedTask *Task           `json:"escalated_task,omitempty"`
+}
+
+// BlockRecurrence stores breaker accounting for one task and block kind.
+type BlockRecurrence struct {
+	TaskID    string    `json:"task_id"`
+	Kind      BlockKind `json:"kind"`
+	Count     int       `json:"count"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
+}
+
+// NeedsAttention stores task-level escalation metadata.
+type NeedsAttention struct {
+	Reason string        `json:"reason"`
+	At     time.Time     `json:"at"`
+	By     ActorIdentity `json:"by"`
+}
+
+// NeedsAttentionMutation captures task-level escalation metadata.
+type NeedsAttentionMutation struct {
+	TaskID   string        `json:"task_id"`
+	Reason   string        `json:"reason"`
+	Actor    ActorIdentity `json:"actor"`
+	MarkedAt time.Time     `json:"marked_at"`
+}
+
+// NeedsAttentionClearMutation clears task-level escalation metadata.
+type NeedsAttentionClearMutation struct {
+	TaskID    string        `json:"task_id"`
+	ClearedBy ActorIdentity `json:"cleared_by"`
+	ClearedAt time.Time     `json:"cleared_at"`
+}
+
+// WakeCreatorMutation captures the per-task creator-wake opt-in flag.
+type WakeCreatorMutation struct {
+	TaskID      string    `json:"task_id"`
+	WakeCreator bool      `json:"wake_creator"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// BlockTaskAndReleaseRunMutation inserts a block and atomically parks the active run.
+type BlockTaskAndReleaseRunMutation struct {
+	Block           TaskBlock `json:"block"`
+	RunID           string    `json:"run_id"`
+	ClaimToken      string    `json:"claim_token"`
+	Now             time.Time `json:"now"`
+	RecurrenceLimit int       `json:"recurrence_limit"`
+}
+
+// BlockTaskAndReleaseRunResult is the durable result of the atomic block-and-release mutation.
+type BlockTaskAndReleaseRunResult struct {
+	Block          TaskBlock       `json:"block"`
+	Run            Run             `json:"run"`
+	Recurrence     BlockRecurrence `json:"recurrence"`
+	EscalatedTask  *Task           `json:"escalated_task,omitempty"`
+	ReleaseReason  string          `json:"release_reason"`
+	PreviousRun    Run             `json:"previous_run"`
+	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
+}
+
+// ExpireTaskBlocksMutation finalizes expired transient blocks as daemon-cleared rows.
+type ExpireTaskBlocksMutation struct {
+	Now       time.Time     `json:"now"`
+	ClearedBy ActorIdentity `json:"cleared_by"`
+}
+
+// ExpireTaskBlocksResult describes expired transient blocks finalized by a sweep.
+type ExpireTaskBlocksResult struct {
+	Blocks []TaskBlock `json:"blocks"`
 }
 
 // Ownership is the optional mutable operational assignee attached to a task.
@@ -267,9 +423,11 @@ type Task struct {
 	// Paused to keep Task within the 512-byte gocritic copy threshold.
 	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
 	Paused             bool            `json:"paused,omitempty"`
+	WakeCreator        bool            `json:"wake_creator"`
 	PausedBy           string          `json:"paused_by,omitempty"`
 	PausedAt           time.Time       `json:"paused_at,omitzero"`
 	PausedReason       string          `json:"paused_reason,omitempty"`
+	NeedsAttention     *NeedsAttention `json:"needs_attention,omitempty"`
 	CreatedBy          ActorIdentity   `json:"created_by"`
 	Origin             Origin          `json:"origin"`
 	CreatedAt          time.Time       `json:"created_at"`
@@ -373,6 +531,8 @@ type Summary struct {
 	Title           string                `json:"title"`
 	Priority        Priority              `json:"priority,omitempty"`
 	Status          Status                `json:"status"`
+	BlockedReasons  *[]BlockedReason      `json:"blocked_reasons,omitempty"`
+	NeedsAttention  *NeedsAttention       `json:"needs_attention,omitempty"`
 	ApprovalPolicy  ApprovalPolicy        `json:"approval_policy,omitempty"`
 	ApprovalState   ApprovalState         `json:"approval_state,omitempty"`
 	CurrentRunID    string                `json:"current_run_id,omitempty"`
@@ -386,18 +546,33 @@ type Summary struct {
 	ActiveRun       *RunSummary           `json:"active_run,omitempty"`
 	MaxAttempts     int                   `json:"max_attempts,omitempty"`
 	LatestEventSeq  int64                 `json:"latest_event_seq"`
-	ChildCount      int                   `json:"child_count,omitempty"`
-	DependencyCount int                   `json:"dependency_count,omitempty"`
+	ChildCount      int32                 `json:"child_count,omitempty"`
+	DependencyCount int32                 `json:"dependency_count,omitempty"`
 	// Bool fields are clustered to keep Summary within the 512-byte gocritic copy threshold.
 	AutoEnqueueOnReady bool      `json:"auto_enqueue_on_ready,omitempty"`
 	Draft              bool      `json:"draft"`
 	Paused             bool      `json:"paused,omitempty"`
 	EffectivePaused    bool      `json:"effective_paused,omitempty"`
+	WakeCreator        bool      `json:"wake_creator"`
 	PausedAt           time.Time `json:"paused_at,omitzero"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 	ClosedAt           time.Time `json:"closed_at"`
 	LastActivityAt     time.Time `json:"last_activity_at"`
+}
+
+const maxSummaryCount = int32(1<<31 - 1)
+
+// ClampSummaryCount converts an internal count to the compact Summary count representation.
+func ClampSummaryCount(count int) int32 {
+	switch {
+	case count <= 0:
+		return 0
+	case count > int(maxSummaryCount):
+		return maxSummaryCount
+	default:
+		return int32(count)
+	}
 }
 
 // Reference is the human-meaningful task identity used in enriched read models.
@@ -476,6 +651,7 @@ type CreateTask struct {
 	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
 	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
 	Owner              *Ownership      `json:"owner,omitempty"`
+	WakeCreator        *bool           `json:"wake_creator,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -818,6 +994,8 @@ type Query struct {
 	ParentTaskID   string        `json:"parent_task_id,omitempty"`
 	NetworkChannel string        `json:"network_channel,omitempty"`
 	Search         string        `json:"search,omitempty"`
+	CreatedByKind  ActorKind     `json:"created_by_kind,omitempty"`
+	CreatedByRef   string        `json:"created_by_ref,omitempty"`
 	Limit          int           `json:"limit,omitempty"`
 }
 

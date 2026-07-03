@@ -5,14 +5,20 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/agh/internal/acp"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	eventspkg "github.com/compozy/agh/internal/events"
 	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/store/globaldb"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -339,6 +345,152 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 	})
 }
 
+func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWakes(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "task_wake_creator_fixture.json"),
+			FixtureAgent: "wake-creator",
+			AgentName:    "mock-wake-creator",
+		}},
+	})
+	registration, ok := harness.MockAgentRegistration("mock-wake-creator")
+	if !ok {
+		t.Fatal("MockAgentRegistration(mock-wake-creator) = missing, want present")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	creatorSession := createFixtureBackedSession(t, ctx, harness, "mock-wake-creator", "wake-creator-session")
+	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(wake-creator) error = %v", err)
+	}
+	hostedServer := requireHostedMCPStdioServer(t, diagnostics)
+	client := startHostedMCPClient(t, hostedServer)
+	clientClosed := false
+	defer func() {
+		if clientClosed {
+			return
+		}
+		if closeErr := client.Close(); closeErr != nil {
+			t.Logf("Close(hosted MCP client) after failed test error = %v", closeErr)
+		}
+	}()
+
+	var init sdkmcp.InitializeRequest
+	init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
+	init.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-task-wake-e2e", Version: "1.0.0"}
+	if _, err := client.Initialize(ctx, init); err != nil {
+		t.Fatalf("Initialize(hosted MCP client) error = %v", err)
+	}
+
+	terminalTaskID := createHostedTaskForWakeE2E(
+		t,
+		ctx,
+		client,
+		"task-wake-e2e-terminal",
+		"Wake terminal child",
+	)
+	optOutTaskID := createHostedTaskForWakeE2E(
+		t,
+		ctx,
+		client,
+		"task-wake-e2e-opt-out",
+		"Wake opt-out child",
+	)
+	selfWakeTaskID := createHostedTaskForWakeE2E(
+		t,
+		ctx,
+		client,
+		"task-wake-e2e-self",
+		"Wake self child",
+	)
+	if closeErr := client.Close(); closeErr != nil {
+		t.Fatalf("Close(hosted MCP client) error = %v", closeErr)
+	}
+	clientClosed = true
+
+	terminalExecutor := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		"mock-wake-creator",
+		"wake-terminal-executor",
+	)
+	terminalRun := completeWakeTaskRunViaSession(
+		t,
+		ctx,
+		harness,
+		terminalTaskID,
+		terminalExecutor.ID,
+		"terminal",
+	)
+	terminalWake := waitForSyntheticWakePrompt(
+		t,
+		registration.DiagnosticsPath,
+		terminalTaskID,
+		terminalRun.ID,
+		5*time.Second,
+	)
+	if strings.TrimSpace(creatorSession.ACPSessionID) == "" {
+		t.Fatalf("creator session ACPSessionID is empty: %#v", creatorSession)
+	}
+	if got, want := terminalWake.SessionID, creatorSession.ACPSessionID; got != want {
+		t.Fatalf("terminal wake ACP session = %q, want creator ACP session %q", got, want)
+	}
+	terminalMeta := terminalWake.PromptMeta.Normalize()
+	if terminalMeta.Synthetic == nil {
+		t.Fatal("terminal wake synthetic metadata = nil")
+	}
+	if got, want := terminalMeta.Synthetic.Reason, string(taskpkg.WakeReasonTerminal); got != want {
+		t.Fatalf("terminal wake reason = %q, want %q", got, want)
+	}
+	if strings.TrimSpace(terminalMeta.Synthetic.WakeEventID) == "" {
+		t.Fatal("terminal wake WakeEventID is empty")
+	}
+	if !diagnosticStepsContainText(terminalWake.Steps, "wake observed") {
+		t.Fatalf("terminal wake steps = %#v, want fixture assistant observation", terminalWake.Steps)
+	}
+
+	disableTaskWakeCreatorForWakeE2E(t, ctx, harness, optOutTaskID)
+	optOutExecutor := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		"mock-wake-creator",
+		"wake-opt-out-executor",
+	)
+	optOutRun := completeWakeTaskRunViaSession(
+		t,
+		ctx,
+		harness,
+		optOutTaskID,
+		optOutExecutor.ID,
+		"opt-out",
+	)
+	assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, optOutTaskID, optOutRun.ID, 500*time.Millisecond)
+	assertTaskWakeSuppressedReason(t, ctx, harness, optOutTaskID, "wake_creator_disabled")
+
+	selfWakeRun := completeWakeTaskRunViaSession(
+		t,
+		ctx,
+		harness,
+		selfWakeTaskID,
+		creatorSession.ID,
+		"self",
+	)
+	assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, selfWakeTaskID, selfWakeRun.ID, 500*time.Millisecond)
+	assertTaskWakeSuppressedReason(t, ctx, harness, selfWakeTaskID, "self_wake")
+
+	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
+		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)
+	}
+}
+
 func requireHostedMCPStdioServer(
 	t testing.TB,
 	records []acpmock.DiagnosticsRecord,
@@ -407,6 +559,304 @@ func sdkToolNames(tools []sdkmcp.Tool) []string {
 		names = append(names, tool.Name)
 	}
 	return names
+}
+
+func createHostedTaskForWakeE2E(
+	t testing.TB,
+	ctx context.Context,
+	client *mcpclient.Client,
+	taskID string,
+	title string,
+) string {
+	t.Helper()
+
+	var call sdkmcp.CallToolRequest
+	call.Params.Name = toolspkg.ToolIDTaskCreate.String()
+	call.Params.Arguments = map[string]any{
+		"id":    strings.TrimSpace(taskID),
+		"scope": string(taskpkg.ScopeGlobal),
+		"title": strings.TrimSpace(title),
+	}
+	result, err := client.CallTool(ctx, call)
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", call.Params.Name, err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("CallTool(%s) result = %#v, want successful result", call.Params.Name, result)
+	}
+	structured, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("Marshal(CallTool structuredContent) error = %v", err)
+	}
+	var payload struct {
+		Task struct {
+			ID string `json:"id"`
+		} `json:"task"`
+	}
+	if err := json.Unmarshal(structured, &payload); err != nil {
+		t.Fatalf("Unmarshal(task_create structuredContent) error = %v; content=%s", err, structured)
+	}
+	if got, want := payload.Task.ID, strings.TrimSpace(taskID); got != want {
+		t.Fatalf("task_create id = %q, want %q; content=%s", got, want, structured)
+	}
+	return payload.Task.ID
+}
+
+func completeWakeTaskRunViaSession(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+	sessionID string,
+	idempotencyPrefix string,
+) aghcontract.TaskRunPayload {
+	t.Helper()
+
+	run := enqueueWakeTaskRunForWakeE2E(t, ctx, harness, taskID, idempotencyPrefix+"-enqueue")
+	claimed, err := harness.ClaimTaskRun(ctx, run.ID, aghcontract.ClaimTaskRunRequest{
+		IdempotencyKey: idempotencyPrefix + "-claim",
+	})
+	if err != nil {
+		t.Fatalf("ClaimTaskRun(%s) error = %v", run.ID, err)
+	}
+	attached := attachWakeTaskRunSessionForWakeE2E(t, ctx, harness, claimed.ID, sessionID)
+	started, err := harness.StartTaskRun(ctx, attached.ID, aghcontract.StartTaskRunRequest{
+		IdempotencyKey: idempotencyPrefix + "-start",
+	})
+	if err != nil {
+		t.Fatalf("StartTaskRun(%s) error = %v", attached.ID, err)
+	}
+	completed, err := harness.CompleteTaskRun(ctx, started.ID, aghcontract.CompleteTaskRunRequest{
+		Result: json.RawMessage(`{"ok":true}`),
+	})
+	if err != nil {
+		t.Fatalf("CompleteTaskRun(%s) error = %v", started.ID, err)
+	}
+	return completed
+}
+
+func enqueueWakeTaskRunForWakeE2E(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+	idempotencyKey string,
+) aghcontract.TaskRunPayload {
+	t.Helper()
+
+	var response aghcontract.TaskRunResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/runs"
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		aghcontract.EnqueueTaskRunRequest{IdempotencyKey: strings.TrimSpace(idempotencyKey)},
+		&response,
+	); err != nil {
+		t.Fatalf("enqueue task run %q error = %v", taskID, err)
+	}
+	return response.Run
+}
+
+func attachWakeTaskRunSessionForWakeE2E(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	sessionID string,
+) aghcontract.TaskRunPayload {
+	t.Helper()
+
+	var response aghcontract.TaskRunResponse
+	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/attach-session"
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		aghcontract.AttachTaskRunSessionRequest{SessionID: strings.TrimSpace(sessionID)},
+		&response,
+	); err != nil {
+		t.Fatalf("attach task run session %q/%q error = %v", runID, sessionID, err)
+	}
+	return response.Run
+}
+
+func disableTaskWakeCreatorForWakeE2E(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+) {
+	t.Helper()
+
+	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(%q) error = %v", harness.HomePaths.DatabaseFile, err)
+	}
+	defer func() {
+		if closeErr := db.Close(ctx); closeErr != nil {
+			t.Fatalf("Close(global db) error = %v", closeErr)
+		}
+	}()
+	if _, err := db.SetTaskWakeCreator(ctx, taskpkg.WakeCreatorMutation{
+		TaskID:      strings.TrimSpace(taskID),
+		WakeCreator: false,
+		UpdatedAt:   time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("SetTaskWakeCreator(%q) error = %v", taskID, err)
+	}
+}
+
+func waitForSyntheticWakePrompt(
+	t testing.TB,
+	diagnosticsPath string,
+	taskID string,
+	runID string,
+	timeout time.Duration,
+) acpmock.DiagnosticsRecord {
+	t.Helper()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastReadErr error
+	for {
+		records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+		if err != nil {
+			lastReadErr = err
+		} else {
+			for _, record := range acpmock.PromptDiagnostics(records) {
+				if wakePromptMatches(record, taskID, runID) {
+					return record
+				}
+			}
+		}
+		select {
+		case <-timer.C:
+			t.Fatalf(
+				"timed out waiting for synthetic wake prompt task=%q run=%q diagnostics=%q last_read_error=%v",
+				taskID,
+				runID,
+				diagnosticsPath,
+				lastReadErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func assertNoSyntheticWakePromptWithin(
+	t testing.TB,
+	diagnosticsPath string,
+	taskID string,
+	runID string,
+	timeout time.Duration,
+) {
+	t.Helper()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(%q) error = %v", diagnosticsPath, err)
+		}
+		for _, record := range acpmock.PromptDiagnostics(records) {
+			if wakePromptMatches(record, taskID, runID) {
+				t.Fatalf("unexpected synthetic wake prompt task=%q run=%q record=%#v", taskID, runID, record)
+			}
+		}
+		select {
+		case <-timer.C:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func wakePromptMatches(record acpmock.DiagnosticsRecord, taskID string, runID string) bool {
+	meta := record.PromptMeta.Normalize()
+	if meta.TurnSource != acp.PromptTurnSourceSynthetic || meta.Synthetic == nil {
+		return false
+	}
+	if strings.TrimSpace(meta.Synthetic.TaskID) != strings.TrimSpace(taskID) {
+		return false
+	}
+	if strings.TrimSpace(runID) != "" && strings.TrimSpace(meta.Synthetic.TaskRunID) != strings.TrimSpace(runID) {
+		return false
+	}
+	return strings.TrimSpace(meta.Synthetic.WakeEventID) != ""
+}
+
+func diagnosticStepsContainText(steps []acpmock.DiagnosticsStep, text string) bool {
+	for _, step := range steps {
+		if strings.Contains(step.Text, text) {
+			return true
+		}
+	}
+	return false
+}
+
+func assertTaskWakeSuppressedReason(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+	reason string,
+) {
+	t.Helper()
+
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if taskTimelineHasWakeSuppression(t, ctx, harness, taskID, reason) {
+			return
+		}
+		select {
+		case <-timer.C:
+			t.Fatalf("timed out waiting for wake suppression task=%q reason=%q", taskID, reason)
+		case <-ticker.C:
+		}
+	}
+}
+
+func taskTimelineHasWakeSuppression(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+	reason string,
+) bool {
+	t.Helper()
+
+	var response aghcontract.TaskTimelineResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(taskID)) + "/timeline"
+	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("task timeline %q error = %v", taskID, err)
+	}
+	for _, item := range response.Timeline {
+		if item.EventType != eventspkg.TaskWakeSuppressed {
+			continue
+		}
+		var payload struct {
+			SuppressionReason string `json:"suppression_reason"`
+		}
+		if err := json.Unmarshal(item.Payload, &payload); err != nil {
+			t.Fatalf("Unmarshal(wake suppression payload) error = %v; payload=%s", err, item.Payload)
+		}
+		if payload.SuppressionReason == reason {
+			return true
+		}
+	}
+	return false
 }
 
 func permissionRequestIDFromSSE(event e2etest.SSEEvent) (string, bool) {

@@ -111,6 +111,16 @@ describe("buildTaskFilterFields", () => {
     expect(keys).toEqual(["status", "priority", "owner"]);
   });
 
+  it("Should expose needs_attention (distinct from blocked) as a filterable status option", () => {
+    const fields = buildTaskFilterFields([]);
+    const status = (fields as Array<{ key?: string; options?: Array<{ value: string }> }>).find(
+      field => field.key === "status"
+    );
+    const values = status?.options?.map(option => option.value) ?? [];
+    expect(values).toContain("needs_attention");
+    expect(values).toContain("blocked");
+  });
+
   it("Should mirror the live owner options inside the owner field", () => {
     const fields = buildTaskFilterFields([
       { ref: "pedro@", kind: "human" },

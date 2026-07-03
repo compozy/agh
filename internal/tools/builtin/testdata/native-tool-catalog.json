@@ -1394,6 +1394,28 @@
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
+        "tool_id": "agh__task_block",
+        "native_name": "task_block",
+        "toolsets": ["agh__tasks"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "50c8d8509b39f402f0a23eaef1b66deccf7aea4334c86ca028406c99d60892ee",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__task_blocks",
+        "native_name": "task_blocks",
+        "toolsets": ["agh__tasks"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "1eeb78a5628df964f61153c469d3fa8d2a73c2a0edc6a0ff02f123c3c289a09b",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
         "tool_id": "agh__task_cancel",
         "native_name": "task_cancel",
         "toolsets": ["agh__tasks"],
@@ -1412,7 +1434,7 @@
         "read_only": false,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "787bc75859640322cafdc083e8c32d1c1aac38a033cc4da80fefebe9b58369a9",
+        "input_schema_digest": "8e1bc39c397b60410d46a94a194484e610cb7dbd1a06fd6289aaa30b20a595d1",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1423,7 +1445,7 @@
         "read_only": false,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "3c9407146558c53adccf092920658d04a4e90262d94c93880f835074f1c48982",
+        "input_schema_digest": "a65243ab2b892eed46733bcbc6eea257a71f241d266cd6bfeb39274f7b9db67e",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1548,6 +1570,17 @@
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
+        "tool_id": "agh__task_recover",
+        "native_name": "task_recover",
+        "toolsets": ["agh__tasks"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "1a3a65a76b779c3f4e38ed7d51432ff083756af575a46f4349a31fec9827c422",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
         "tool_id": "agh__task_run_claim_next",
         "native_name": "task_run_claim_next",
         "toolsets": ["agh__autonomy"],
@@ -1566,7 +1599,7 @@
         "read_only": false,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "d5ead61d14fa350f259227e9c7f57af26c8064b83c01618d216df2001fb61025",
+        "input_schema_digest": "ea6c7d2ebc40fc37fc32e8c87ad61a09783b83233aa2edcdd423165ddb527266",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1655,6 +1688,17 @@
         "destructive": false,
         "open_world": false,
         "input_schema_digest": "423412b105350a48f57ade498b1b851ae0d906c43a73ef71b1e30e26bc13e5d1",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__task_unblock",
+        "native_name": "task_unblock",
+        "toolsets": ["agh__tasks"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "d56ae5ebed07f06e22967fbb4c7b0f176ab3c8670de48f49062ca1176f44bce1",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

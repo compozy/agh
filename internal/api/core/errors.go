@@ -379,6 +379,7 @@ func StatusForTaskError(err error) int {
 	case errors.Is(err, taskpkg.ErrTaskNotFound),
 		errors.Is(err, taskpkg.ErrTaskRunNotFound),
 		errors.Is(err, taskpkg.ErrTaskDependencyNotFound),
+		errors.Is(err, taskpkg.ErrTaskBlockNotFound),
 		errors.Is(err, taskpkg.ErrTaskEventNotFound),
 		errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound),
 		errors.Is(err, taskpkg.ErrExecutionProfileNotFound),
@@ -391,6 +392,8 @@ func StatusForTaskError(err error) int {
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
 	case errors.Is(err, taskpkg.ErrInvalidStatusTransition),
+		errors.Is(err, taskpkg.ErrConflict),
+		errors.Is(err, taskpkg.ErrHallucinatedTaskRefs),
 		errors.Is(err, taskpkg.ErrGraphLimitExceeded),
 		errors.Is(err, taskpkg.ErrCycleDetected),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),

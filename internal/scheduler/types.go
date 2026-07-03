@@ -43,6 +43,11 @@ type TaskSource interface {
 		recovery taskpkg.ExpiredLeaseRecovery,
 		actor taskpkg.ActorContext,
 	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
+	ExpireTaskBlocks(
+		ctx context.Context,
+		now time.Time,
+		actor taskpkg.ActorContext,
+	) (taskpkg.ExpireTaskBlocksResult, error)
 }
 
 // StarvationStore persists the durable per-run escalation budget so the convergence tier
@@ -166,6 +171,7 @@ type CycleResult struct {
 	ActiveRuns           int
 	SessionsScanned      int
 	RecoveredLeases      int
+	ExpiredBlocks        int
 	WakeAttempts         int
 	WakeSucceeded        int
 	WakeFailed           int
@@ -179,6 +185,7 @@ type CycleResult struct {
 	SelectedRunIDs       []string
 	NoMatchRunIDs        []string
 	RecoveredRunIDs      []string
+	ExpiredBlockIDs      []string
 	StarvedRunIDs        []string
 	SpawnRequestedRunIDs []string
 	NeedsAttentionRunIDs []string
@@ -199,7 +206,9 @@ type Stats struct {
 	Cycles            int
 	Rebuilds          int
 	RecoveredLeases   int
+	ExpiredBlocks     int
 	RecoveryErrors    int
+	ExpiryErrors      int
 	WakeAttempts      int
 	WakeSucceeded     int
 	WakeFailed        int
@@ -212,6 +221,7 @@ type Stats struct {
 	LastCycleAt       time.Time
 	LastRebuildAt     time.Time
 	LastRecoveryError string
+	LastExpiryError   string
 	LastWakeError     string
 }
 

@@ -225,9 +225,26 @@ type stubClient struct {
 	inspectTaskFn                 func(context.Context, string) (TaskInspectRecord, error)
 	inspectRunFn                  func(context.Context, string) (TaskInspectRecord, error)
 	updateTaskFn                  func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
-	deleteTaskFn                  func(context.Context, string) error
-	getTaskExecutionProfileFn     func(context.Context, string) (TaskExecutionProfileRecord, error)
-	setTaskExecutionProfileFn     func(
+	blockTaskFn                   func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error)
+	blockTaskAsAgentFn            func(
+		context.Context,
+		string,
+		CreateTaskBlockRequest,
+		agentidentity.Credentials,
+	) (TaskBlockRecord, error)
+	listTaskBlocksFn        func(context.Context, string, bool) ([]TaskBlockRecord, error)
+	clearTaskBlockFn        func(context.Context, string, string, ClearTaskBlockRequest) (TaskBlockRecord, error)
+	clearTaskBlockAsAgentFn func(
+		context.Context,
+		string,
+		string,
+		ClearTaskBlockRequest,
+		agentidentity.Credentials,
+	) (TaskBlockRecord, error)
+	recoverTaskFn             func(context.Context, string, RecoverTaskRequest) (TaskRecord, error)
+	deleteTaskFn              func(context.Context, string) error
+	getTaskExecutionProfileFn func(context.Context, string) (TaskExecutionProfileRecord, error)
+	setTaskExecutionProfileFn func(
 		context.Context,
 		string,
 		*TaskExecutionProfileRequest,
@@ -2188,6 +2205,76 @@ func (s *stubClient) UpdateTask(
 		return s.updateTaskFn(ctx, id, request)
 	}
 	return TaskRecord{}, errors.New("unexpected UpdateTask call")
+}
+
+func (s *stubClient) BlockTask(
+	ctx context.Context,
+	id string,
+	request CreateTaskBlockRequest,
+) (TaskBlockRecord, error) {
+	if s.blockTaskFn != nil {
+		return s.blockTaskFn(ctx, id, request)
+	}
+	return TaskBlockRecord{}, errors.New("unexpected BlockTask call")
+}
+
+func (s *stubClient) BlockTaskAsAgent(
+	ctx context.Context,
+	id string,
+	request CreateTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (TaskBlockRecord, error) {
+	if s.blockTaskAsAgentFn != nil {
+		return s.blockTaskAsAgentFn(ctx, id, request, credentials)
+	}
+	return TaskBlockRecord{}, errors.New("unexpected BlockTaskAsAgent call")
+}
+
+func (s *stubClient) ListTaskBlocks(
+	ctx context.Context,
+	id string,
+	includeCleared bool,
+) ([]TaskBlockRecord, error) {
+	if s.listTaskBlocksFn != nil {
+		return s.listTaskBlocksFn(ctx, id, includeCleared)
+	}
+	return nil, errors.New("unexpected ListTaskBlocks call")
+}
+
+func (s *stubClient) ClearTaskBlock(
+	ctx context.Context,
+	id string,
+	blockID string,
+	request ClearTaskBlockRequest,
+) (TaskBlockRecord, error) {
+	if s.clearTaskBlockFn != nil {
+		return s.clearTaskBlockFn(ctx, id, blockID, request)
+	}
+	return TaskBlockRecord{}, errors.New("unexpected ClearTaskBlock call")
+}
+
+func (s *stubClient) ClearTaskBlockAsAgent(
+	ctx context.Context,
+	id string,
+	blockID string,
+	request ClearTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (TaskBlockRecord, error) {
+	if s.clearTaskBlockAsAgentFn != nil {
+		return s.clearTaskBlockAsAgentFn(ctx, id, blockID, request, credentials)
+	}
+	return TaskBlockRecord{}, errors.New("unexpected ClearTaskBlockAsAgent call")
+}
+
+func (s *stubClient) RecoverTask(
+	ctx context.Context,
+	id string,
+	request RecoverTaskRequest,
+) (TaskRecord, error) {
+	if s.recoverTaskFn != nil {
+		return s.recoverTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected RecoverTask call")
 }
 
 func (s *stubClient) DeleteTask(ctx context.Context, id string) error {

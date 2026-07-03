@@ -5,8 +5,7 @@ description: "Remove one network delivery preference"
 
 ## agh network unmute
 
-Remove one network delivery preference so the peer falls back to the next applicable row or default
-routing.
+Remove one network delivery preference
 
 ```
 agh network unmute [flags]
@@ -21,16 +20,25 @@ agh network unmute [flags]
       --thread string    Optional thread id
 ```
 
-### Example
-
-```bash
-agh network unmute --channel builders --thread thread_release_check_20260416 --peer patch-worker.session-19 -o json
-```
-
 ### Options inherited from parent commands
 
 ```
       --json               Emit JSON output
   -o, --output string      Output format: human, json, jsonl, or toon (default "human")
       --workspace string   Workspace root, name, or ID for scoped network data
+```
+
+## Output Formats
+
+Every AGH command supports `-o, --output`:
+
+- `human` for interactive terminal use
+- `json` for scripts and other machine-readable consumers
+- `jsonl` for wait or streaming commands that emit one JSON record per line
+- `toon` for compact agent-readable summaries
+
+Example:
+
+```bash
+agh network unmute -o json
 ```

@@ -22,6 +22,7 @@ import {
   markTaskRead,
   pauseTask,
   publishTask,
+  recoverTask,
   rejectTask,
   removeTaskDependency,
   retryTaskRun,
@@ -45,6 +46,7 @@ import type {
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
+  RecoverTaskRequest,
   RetryTaskRunRequest,
   ResumeTaskRequest,
   StartTaskRunRequest,
@@ -75,6 +77,10 @@ interface PauseTaskParams extends TaskIdParams {
 
 interface ResumeTaskParams extends TaskIdParams {
   data?: ResumeTaskRequest;
+}
+
+interface RecoverTaskParams extends TaskIdParams {
+  data?: RecoverTaskRequest;
 }
 
 interface CreateChildTaskParams {
@@ -250,6 +256,19 @@ export function useResumeTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: ResumeTaskParams) => resumeTask(id, data ?? {}),
+    onSettled: (_result, _error, { id }) =>
+      Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useRecoverTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: RecoverTaskParams) => recoverTask(id, data ?? {}),
     onSettled: (_result, _error, { id }) =>
       Promise.all([
         invalidateTaskQueries(queryClient, id),

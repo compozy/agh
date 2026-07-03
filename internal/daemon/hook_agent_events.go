@@ -280,7 +280,7 @@ func hookPermissionDenied(decision string) bool {
 	switch {
 	case clean == "":
 		return false
-	case clean == "block", clean == "blocked":
+	case clean == daemonBlockKey, clean == "blocked":
 		return true
 	case clean == hookAgentEventsDenyKey,
 		clean == hookPermissionDecisionDenied,

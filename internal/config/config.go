@@ -742,8 +742,9 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Task:    DefaultTaskConfig(),
 		Network: DefaultNetworkConfig(),
 		Autonomy: AutonomyConfig{
-			Coordinator: DefaultCoordinatorConfig(),
-			Scheduler:   DefaultSchedulerConfig(),
+			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
+			Coordinator:          DefaultCoordinatorConfig(),
+			Scheduler:            DefaultSchedulerConfig(),
 		},
 	}
 }

@@ -314,6 +314,28 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
+			name: "Should return session context for task block payload",
+			payload: TaskBlockedPayload{TaskContext: TaskContext{
+				AgentName:   "task-agent",
+				WorkspaceID: "task-workspace",
+			}},
+			expected: SessionContext{
+				AgentName:   "task-agent",
+				WorkspaceID: "task-workspace",
+			},
+		},
+		{
+			name: "Should return session context for task attention payload",
+			payload: TaskNeedsAttentionPayload{TaskContext: TaskContext{
+				AgentName:   "attention-agent",
+				WorkspaceID: "attention-workspace",
+			}},
+			expected: SessionContext{
+				AgentName:   "attention-agent",
+				WorkspaceID: "attention-workspace",
+			},
+		},
+		{
 			name:     "Should return session context for task pre-claim payload",
 			payload:  TaskRunPreClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-pre"}},
 			expected: SessionContext{SessionID: "task-pre"},
@@ -413,6 +435,16 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 				ReleaseReason:        "completed",
 				CoordinatorSessionID: "coordinator-session",
 			},
+		},
+		{
+			name:     "Should derive correlation from task block payload",
+			payload:  TaskBlockedPayload{TaskContext: taskCorrelationContext()},
+			expected: taskDispatchCorrelation(),
+		},
+		{
+			name:     "Should derive correlation from task attention payload",
+			payload:  TaskNeedsAttentionPayload{TaskContext: taskCorrelationContext()},
+			expected: taskDispatchCorrelation(),
 		},
 		{
 			name:     "Should derive correlation from task pre-claim payload",
@@ -654,6 +686,28 @@ func TestHookTypeValidationBranches(t *testing.T) {
 			t.Fatalf("ResolvedHook.Validate(nil) error = %q, want %q", got, want)
 		}
 	})
+}
+
+func taskCorrelationContext() TaskContext {
+	return TaskContext{
+		TaskID:        " task-1 ",
+		RunID:         " run-1 ",
+		WorkflowID:    " workflow-1 ",
+		ActorKind:     " agent_session ",
+		ActorID:       " session-actor ",
+		ReleaseReason: " blocked ",
+	}
+}
+
+func taskDispatchCorrelation() DispatchCorrelation {
+	return DispatchCorrelation{
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		WorkflowID:    "workflow-1",
+		ActorKind:     "agent_session",
+		ActorID:       "session-actor",
+		ReleaseReason: "blocked",
+	}
 }
 
 func taskRunCorrelationContext() TaskRunContext {

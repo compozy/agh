@@ -360,7 +360,7 @@ func (m TurnMatch) Validate(path string) error {
 	}
 	normalized := m.Normalize()
 	switch normalized.TurnSource {
-	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceNetwork:
+	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceNetwork, acp.PromptTurnSourceSynthetic:
 	default:
 		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
 	}

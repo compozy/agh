@@ -1424,7 +1424,7 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 		appendWrappedError(errs, "daemon: shutdown scheduler wake dispatcher", targets.scheduler.shutdownWaker(ctx))
 	}
 	if targets.tasks != nil {
-		targets.tasks.shutdown()
+		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
 	}
 	if targets.localMemoryProvider != nil {
 		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))

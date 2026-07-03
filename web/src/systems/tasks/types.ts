@@ -109,10 +109,14 @@ export type FanOutTaskRunsRequest = OperationRequestBody<"fanOutTaskRuns">;
 export type FanOutTaskRunsResponse = OperationResponse<"fanOutTaskRuns", 201>;
 export type PauseTaskRequest = OperationRequestBody<"pauseTask">;
 export type ResumeTaskRequest = OperationRequestBody<"resumeTask">;
+export type RecoverTaskRequest = OperationRequestBody<"recoverTask">;
 export type BulkForceTaskRunRequest = OperationRequestBody<"bulkForceReleaseTaskRuns">;
 export type StartTaskRunRequest = OperationRequestBody<"startTaskRun">;
 
 export type TaskStatus = TaskRecord["status"];
+export type TaskBlockedReason = NonNullable<TaskRecord["blocked_reasons"]>[number];
+export type TaskBlockedReasonSource = TaskBlockedReason["source"];
+export type TaskBlockKind = NonNullable<TaskBlockedReason["kind"]>;
 export type TaskPriority = NonNullable<TaskRecord["priority"]>;
 export type TaskScope = TaskRecord["scope"];
 export type TaskApprovalPolicy = NonNullable<TaskRecord["approval_policy"]>;
