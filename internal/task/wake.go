@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const wakeSummaryMaxRunes = 512
@@ -251,13 +253,21 @@ func (m *Service) reserveWakeEvent(ctx context.Context, taskID string, wakeEvent
 		return false, fmt.Errorf("%w: wake event key is required", ErrValidation)
 	}
 	m.wakeMu.Lock()
-	defer m.wakeMu.Unlock()
 	if _, ok := m.wakeEventIDs[key]; ok {
+		m.wakeMu.Unlock()
 		return false, nil
 	}
+	m.wakeMu.Unlock()
+
 	recorded, err := m.hasWakeAuditEvent(ctx, taskID, wakeEventID)
 	if err != nil {
 		return false, err
+	}
+
+	m.wakeMu.Lock()
+	defer m.wakeMu.Unlock()
+	if _, ok := m.wakeEventIDs[key]; ok {
+		return false, nil
 	}
 	if recorded {
 		m.rememberWakeEventKeyLocked(key)
@@ -480,7 +490,7 @@ func wakeEventKey(taskID string, wakeEventID string) string {
 }
 
 func boundWakeSummary(value string) string {
-	redacted := strings.TrimSpace(RedactClaimTokens(value))
+	redacted := strings.TrimSpace(diagnostics.Redact(RedactClaimTokens(value)))
 	if redacted == "" {
 		return ""
 	}

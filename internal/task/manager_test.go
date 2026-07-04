@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/diagnostics"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	storepkg "github.com/compozy/agh/internal/store"
 )
@@ -9049,6 +9050,11 @@ type recordingWakeNotifier struct {
 	errByWakeEvent map[string]error
 }
 
+type wakeAuditLockProbeStore struct {
+	*inMemoryManagerStore
+	onListTaskEvents func()
+}
+
 func (n *recordingWakeNotifier) WakeCreator(
 	ctx context.Context,
 	creatorSessionID string,
@@ -9068,6 +9074,13 @@ func (n *recordingWakeNotifier) WakeCreator(
 		}
 	}
 	return n.err
+}
+
+func (s *wakeAuditLockProbeStore) ListTaskEvents(ctx context.Context, query EventQuery) ([]Event, error) {
+	if s.onListTaskEvents != nil {
+		s.onListTaskEvents()
+	}
+	return s.inMemoryManagerStore.ListTaskEvents(ctx, query)
 }
 
 func TestManagerWakeCreatorDispatchesEligibleTransitions(t *testing.T) {
@@ -9177,6 +9190,49 @@ func TestManagerWakeCreatorDeliversOncePerWakeEventID(t *testing.T) {
 		t.Fatalf("len(wake calls) = %d, want %d", got, want)
 	}
 	assertWakeEventCount(t, store, taskRecord.ID, taskEventWakeDelivered, 1)
+}
+
+func TestManagerWakeCreatorScansAuditHistoryOutsideWakeLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should release wake lock before scanning audit history", func(t *testing.T) {
+		t.Parallel()
+
+		store := &wakeAuditLockProbeStore{inMemoryManagerStore: newInMemoryManagerStore()}
+		wakes := &recordingWakeNotifier{}
+		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
+		listCalls := 0
+		store.onListTaskEvents = func() {
+			listCalls++
+			if !manager.wakeMu.TryLock() {
+				t.Fatal("wakeMu is locked during audit event scan")
+			}
+			manager.wakeMu.Unlock()
+		}
+		creator := agentSessionActorContext("sess-creator")
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Audit scan child",
+		}, creator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		manager.dispatchTerminalWake(context.Background(), *taskRecord, Run{
+			ID:        "run-audit-scan",
+			TaskID:    taskRecord.ID,
+			Status:    TaskRunStatusCompleted,
+			SessionID: "sess-worker",
+		}, creator)
+
+		if got, want := listCalls, 1; got != want {
+			t.Fatalf("ListTaskEvents calls = %d, want %d", got, want)
+		}
+		if got, want := len(wakes.calls), 1; got != want {
+			t.Fatalf("len(wake calls) = %d, want %d", got, want)
+		}
+		assertWakeEventCount(t, store.inMemoryManagerStore, taskRecord.ID, taskEventWakeDelivered, 1)
+	})
 }
 
 func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
@@ -9308,49 +9364,77 @@ func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
 	})
 }
 
-func TestManagerWakeCreatorRedactsClaimTokensFromSummaryAndPayload(t *testing.T) {
+func TestManagerWakeCreatorRedactsSecretsFromSummaryAndPayload(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_secret123"
-	store := newInMemoryManagerStore()
-	executor := &recordingSessionExecutor{startRef: &SessionRef{SessionID: "sess-worker"}}
-	wakes := &recordingWakeNotifier{}
-	manager := newTaskManagerForTestWithOptions(
-		t,
-		store,
-		WithSessionExecutor(executor),
-		WithWakeNotifier(wakes),
-	)
-	creator := agentSessionActorContext("sess-creator")
-	worker := agentSessionActorContext("sess-worker")
-	taskRecord, runningRun := createRunningRunForWakeTestWithTitle(
-		t,
-		manager,
-		"Delegated "+rawToken,
-		creator,
-		worker,
-	)
+	t.Run("Should redact claim tokens and project-wide secret shapes", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := manager.FailRun(context.Background(), runningRun.ID, RunFailure{
-		Error: "failed with " + rawToken,
-	}, worker); err != nil {
-		t.Fatalf("FailRun() error = %v", err)
-	}
+		rawClaimToken := "agh_claim_secret123"
+		rawAccessToken := "oauth-secret-123456"
+		rawBearerToken := "ya29.wake-secret-token"
+		rawPKCEVerifier := "pkce-secret-123456"
+		dynamicSecret := "runtime-provider-secret-123456"
+		cleanup := diagnostics.RegisterDynamicSecret(dynamicSecret)
+		t.Cleanup(cleanup)
+		rawSecrets := []string{
+			rawClaimToken,
+			rawAccessToken,
+			rawBearerToken,
+			rawPKCEVerifier,
+			dynamicSecret,
+		}
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{startRef: &SessionRef{SessionID: "sess-worker"}}
+		wakes := &recordingWakeNotifier{}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithWakeNotifier(wakes),
+		)
+		creator := agentSessionActorContext("sess-creator")
+		worker := agentSessionActorContext("sess-worker")
+		taskRecord, runningRun := createRunningRunForWakeTestWithTitle(
+			t,
+			manager,
+			"Delegated "+rawClaimToken+" access_token="+rawAccessToken,
+			creator,
+			worker,
+		)
 
-	if got, want := len(wakes.calls), 1; got != want {
-		t.Fatalf("len(wake calls) = %d, want %d", got, want)
-	}
-	if strings.Contains(wakes.calls[0].Event.Summary, rawToken) {
-		t.Fatalf("wake summary contains raw claim token: %q", wakes.calls[0].Event.Summary)
-	}
-	payload := singleWakePayloadForTest(t, store, taskRecord.ID, taskEventWakeDelivered)
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Marshal(wake payload) error = %v", err)
-	}
-	if strings.Contains(string(encoded), rawToken) {
-		t.Fatalf("wake payload contains raw claim token: %s", encoded)
-	}
+		if _, err := manager.FailRun(context.Background(), runningRun.ID, RunFailure{
+			Error: "failed with Bearer " + rawBearerToken +
+				" code_verifier=" + rawPKCEVerifier +
+				" " + dynamicSecret,
+		}, worker); err != nil {
+			t.Fatalf("FailRun() error = %v", err)
+		}
+
+		if got, want := len(wakes.calls), 1; got != want {
+			t.Fatalf("len(wake calls) = %d, want %d", got, want)
+		}
+		summary := wakes.calls[0].Event.Summary
+		payload := singleWakePayloadForTest(t, store, taskRecord.ID, taskEventWakeDelivered)
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("Marshal(wake payload) error = %v", err)
+		}
+		for _, rawSecret := range rawSecrets {
+			if strings.Contains(summary, rawSecret) {
+				t.Fatalf("wake summary contains raw secret %q: %q", rawSecret, summary)
+			}
+			if strings.Contains(string(encoded), rawSecret) {
+				t.Fatalf("wake payload contains raw secret %q: %s", rawSecret, encoded)
+			}
+		}
+		if !strings.Contains(summary, "[REDACTED]") {
+			t.Fatalf("wake summary = %q, want redaction marker", summary)
+		}
+		if !strings.Contains(string(encoded), "[REDACTED]") {
+			t.Fatalf("wake payload = %s, want redaction marker", encoded)
+		}
+	})
 }
 
 func TestManagerWakeCreatorSummarizesFailedRunsByTaskTerminalState(t *testing.T) {

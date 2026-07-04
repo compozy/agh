@@ -2059,231 +2059,239 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 func TestTaskManagerBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	db := openTaskManagerGlobalDB(t)
-	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time {
-		return claimNow
-	}))
-	workspaceID := registerTaskManagerWorkspace(t, db, "block-release-cycle", filepath.Join(t.TempDir(), "workspace"))
-	operator, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "agh task block")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-block-cycle")
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-	}
+	t.Run("Should park release and reclaim workspace task runs after unblock", func(t *testing.T) {
+		t.Parallel()
 
-	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope:       taskpkg.ScopeWorkspace,
-		WorkspaceID: workspaceID,
-		Title:       "Block release cycle",
-	}, operator)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
-	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
-	}
-	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: "sess-block-cycle",
-		LeaseDuration:    2 * time.Minute,
-		Now:              claimNow,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	if got, want := claim.Run.ID, run.ID; got != want {
-		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
-	}
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time {
+			return claimNow
+		}))
+		workspaceID := registerTaskManagerWorkspace(t, db, "block-release-cycle", filepath.Join(t.TempDir(), "workspace"))
+		operator, err := taskpkg.DeriveHumanActorContext("operator-1", taskpkg.OriginKindCLI, "agh task block")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-block-cycle")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
 
-	block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
-		TaskID:     taskRecord.ID,
-		Kind:       taskpkg.BlockKindNeedsInput,
-		Reason:     "creator clarification required",
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-	}, agent)
-	if err != nil {
-		t.Fatalf("BlockTask(active run) error = %v", err)
-	}
-	if got, want := block.WorkspaceID, workspaceID; got != want {
-		t.Fatalf("block.WorkspaceID = %q, want %q", got, want)
-	}
-	parked, err := db.GetTaskRun(ctx, run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(parked) error = %v", err)
-	}
-	if parked.Status != taskpkg.TaskRunStatusQueued ||
-		parked.Attempt != run.Attempt ||
-		parked.SessionID != "" ||
-		parked.ClaimTokenHash != "" ||
-		!parked.LeaseUntil.IsZero() {
-		t.Fatalf("parked run = %#v, want queued unleased run with unchanged attempt %d", parked, run.Attempt)
-	}
-	blockedTask, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(blocked) error = %v", err)
-	}
-	if got, want := blockedTask.Status, taskpkg.TaskStatusBlocked; got != want {
-		t.Fatalf("blockedTask.Status = %q, want %q", got, want)
-	}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Block release cycle",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-block-cycle",
+			LeaseDuration:    2 * time.Minute,
+			Now:              claimNow,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
+		}
 
-	cleared, err := manager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "creator answered", operator)
-	if err != nil {
-		t.Fatalf("ClearTaskBlock() error = %v", err)
-	}
-	if cleared.ClearedAt.IsZero() {
-		t.Fatal("ClearTaskBlock().ClearedAt is zero, want clear stamp")
-	}
-	readyTask, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(ready) error = %v", err)
-	}
-	if got, want := readyTask.Status, taskpkg.TaskStatusReady; got != want {
-		t.Fatalf("readyTask.Status = %q, want %q", got, want)
-	}
+		block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
+			TaskID:     taskRecord.ID,
+			Kind:       taskpkg.BlockKindNeedsInput,
+			Reason:     "creator clarification required",
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+		}, agent)
+		if err != nil {
+			t.Fatalf("BlockTask(active run) error = %v", err)
+		}
+		if got, want := block.WorkspaceID, workspaceID; got != want {
+			t.Fatalf("block.WorkspaceID = %q, want %q", got, want)
+		}
+		parked, err := db.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(parked) error = %v", err)
+		}
+		if parked.Status != taskpkg.TaskRunStatusQueued ||
+			parked.Attempt != run.Attempt ||
+			parked.SessionID != "" ||
+			parked.ClaimTokenHash != "" ||
+			!parked.LeaseUntil.IsZero() {
+			t.Fatalf("parked run = %#v, want queued unleased run with unchanged attempt %d", parked, run.Attempt)
+		}
+		blockedTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(blocked) error = %v", err)
+		}
+		if got, want := blockedTask.Status, taskpkg.TaskStatusBlocked; got != want {
+			t.Fatalf("blockedTask.Status = %q, want %q", got, want)
+		}
 
-	reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: "sess-block-cycle",
-		LeaseDuration:    2 * time.Minute,
-		Now:              claimNow.Add(time.Minute),
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(after unblock) error = %v", err)
-	}
-	if got, want := reclaimed.Run.ID, run.ID; got != want {
-		t.Fatalf("reclaimed.Run.ID = %q, want same parked run %q", got, want)
-	}
-	if got, want := reclaimed.Run.Attempt, run.Attempt; got != want {
-		t.Fatalf("reclaimed.Run.Attempt = %d, want unchanged %d", got, want)
-	}
-	if reclaimed.ClaimToken == "" ||
-		reclaimed.ClaimToken == claim.ClaimToken ||
-		!taskpkg.VerifyClaimToken(reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash) {
-		t.Fatalf("reclaimed claim token/hash invalid: token=%q hash=%q", reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash)
-	}
+		cleared, err := manager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "creator answered", operator)
+		if err != nil {
+			t.Fatalf("ClearTaskBlock() error = %v", err)
+		}
+		if cleared.ClearedAt.IsZero() {
+			t.Fatal("ClearTaskBlock().ClearedAt is zero, want clear stamp")
+		}
+		readyTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(ready) error = %v", err)
+		}
+		if got, want := readyTask.Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("readyTask.Status = %q, want %q", got, want)
+		}
+
+		reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-block-cycle",
+			LeaseDuration:    2 * time.Minute,
+			Now:              claimNow.Add(time.Minute),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(after unblock) error = %v", err)
+		}
+		if got, want := reclaimed.Run.ID, run.ID; got != want {
+			t.Fatalf("reclaimed.Run.ID = %q, want same parked run %q", got, want)
+		}
+		if got, want := reclaimed.Run.Attempt, run.Attempt; got != want {
+			t.Fatalf("reclaimed.Run.Attempt = %d, want unchanged %d", got, want)
+		}
+		if reclaimed.ClaimToken == "" ||
+			reclaimed.ClaimToken == claim.ClaimToken ||
+			!taskpkg.VerifyClaimToken(reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash) {
+			t.Fatalf("reclaimed claim token/hash invalid: token=%q hash=%q", reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash)
+		}
+	})
 }
 
 func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	db := openTaskManagerGlobalDB(t)
-	claimNow := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time {
-		return claimNow
-	}))
-	operator, err := taskpkg.DeriveHumanActorContext("operator-global", taskpkg.OriginKindCLI, "agh task block")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-global-block-cycle")
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-	}
+	t.Run("Should park release and reclaim global task runs after unblock", func(t *testing.T) {
+		t.Parallel()
 
-	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Global block release cycle",
-	}, operator)
-	if err != nil {
-		t.Fatalf("CreateTask(global) error = %v", err)
-	}
-	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
-	if err != nil {
-		t.Fatalf("EnqueueRun(global) error = %v", err)
-	}
-	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-global-block-cycle",
-		LeaseDuration:    2 * time.Minute,
-		Now:              claimNow,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(global) error = %v", err)
-	}
-	if got, want := claim.Run.ID, run.ID; got != want {
-		t.Fatalf("ClaimNextRun(global).Run.ID = %q, want %q", got, want)
-	}
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		claimNow := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time {
+			return claimNow
+		}))
+		operator, err := taskpkg.DeriveHumanActorContext("operator-global", taskpkg.OriginKindCLI, "agh task block")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-global-block-cycle")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
 
-	block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
-		TaskID:     taskRecord.ID,
-		Kind:       taskpkg.BlockKindNeedsInput,
-		Reason:     "global creator clarification required",
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-	}, agent)
-	if err != nil {
-		t.Fatalf("BlockTask(global active run) error = %v", err)
-	}
-	if got, want := block.WorkspaceID, ""; got != want {
-		t.Fatalf("block.WorkspaceID = %q, want global empty workspace", got)
-	}
-	parked, err := db.GetTaskRun(ctx, run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(global parked) error = %v", err)
-	}
-	if parked.Status != taskpkg.TaskRunStatusQueued ||
-		parked.Attempt != run.Attempt ||
-		parked.SessionID != "" ||
-		parked.ClaimTokenHash != "" ||
-		!parked.LeaseUntil.IsZero() {
-		t.Fatalf("global parked run = %#v, want queued unleased run with unchanged attempt %d", parked, run.Attempt)
-	}
-	blockedTask, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(global blocked) error = %v", err)
-	}
-	if got, want := blockedTask.Status, taskpkg.TaskStatusBlocked; got != want {
-		t.Fatalf("global blockedTask.Status = %q, want %q", got, want)
-	}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Global block release cycle",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask(global) error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun(global) error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-global-block-cycle",
+			LeaseDuration:    2 * time.Minute,
+			Now:              claimNow,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(global) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun(global).Run.ID = %q, want %q", got, want)
+		}
 
-	cleared, err := manager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "global creator answered", operator)
-	if err != nil {
-		t.Fatalf("ClearTaskBlock(global) error = %v", err)
-	}
-	if cleared.WorkspaceID != "" || cleared.ClearedAt.IsZero() {
-		t.Fatalf("cleared global block = %#v, want empty workspace and clear stamp", cleared)
-	}
-	readyTask, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(global ready) error = %v", err)
-	}
-	if got, want := readyTask.Status, taskpkg.TaskStatusReady; got != want {
-		t.Fatalf("global readyTask.Status = %q, want %q", got, want)
-	}
+		block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
+			TaskID:     taskRecord.ID,
+			Kind:       taskpkg.BlockKindNeedsInput,
+			Reason:     "global creator clarification required",
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+		}, agent)
+		if err != nil {
+			t.Fatalf("BlockTask(global active run) error = %v", err)
+		}
+		if got, want := block.WorkspaceID, ""; got != want {
+			t.Fatalf("block.WorkspaceID = %q, want global empty workspace", got)
+		}
+		parked, err := db.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(global parked) error = %v", err)
+		}
+		if parked.Status != taskpkg.TaskRunStatusQueued ||
+			parked.Attempt != run.Attempt ||
+			parked.SessionID != "" ||
+			parked.ClaimTokenHash != "" ||
+			!parked.LeaseUntil.IsZero() {
+			t.Fatalf("global parked run = %#v, want queued unleased run with unchanged attempt %d", parked, run.Attempt)
+		}
+		blockedTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(global blocked) error = %v", err)
+		}
+		if got, want := blockedTask.Status, taskpkg.TaskStatusBlocked; got != want {
+			t.Fatalf("global blockedTask.Status = %q, want %q", got, want)
+		}
 
-	reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-global-block-cycle",
-		LeaseDuration:    2 * time.Minute,
-		Now:              claimNow.Add(time.Minute),
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun(global after unblock) error = %v", err)
-	}
-	if got, want := reclaimed.Run.ID, run.ID; got != want {
-		t.Fatalf("reclaimed global Run.ID = %q, want same parked run %q", got, want)
-	}
-	if got, want := reclaimed.Run.Attempt, run.Attempt; got != want {
-		t.Fatalf("reclaimed global Run.Attempt = %d, want unchanged %d", got, want)
-	}
-	if reclaimed.ClaimToken == "" ||
-		reclaimed.ClaimToken == claim.ClaimToken ||
-		!taskpkg.VerifyClaimToken(reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash) {
-		t.Fatalf(
-			"reclaimed global claim token/hash invalid: token=%q hash=%q",
-			reclaimed.ClaimToken,
-			reclaimed.Run.ClaimTokenHash,
-		)
-	}
+		cleared, err := manager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "global creator answered", operator)
+		if err != nil {
+			t.Fatalf("ClearTaskBlock(global) error = %v", err)
+		}
+		if cleared.WorkspaceID != "" || cleared.ClearedAt.IsZero() {
+			t.Fatalf("cleared global block = %#v, want empty workspace and clear stamp", cleared)
+		}
+		readyTask, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(global ready) error = %v", err)
+		}
+		if got, want := readyTask.Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("global readyTask.Status = %q, want %q", got, want)
+		}
+
+		reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-global-block-cycle",
+			LeaseDuration:    2 * time.Minute,
+			Now:              claimNow.Add(time.Minute),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(global after unblock) error = %v", err)
+		}
+		if got, want := reclaimed.Run.ID, run.ID; got != want {
+			t.Fatalf("reclaimed global Run.ID = %q, want same parked run %q", got, want)
+		}
+		if got, want := reclaimed.Run.Attempt, run.Attempt; got != want {
+			t.Fatalf("reclaimed global Run.Attempt = %d, want unchanged %d", got, want)
+		}
+		if reclaimed.ClaimToken == "" ||
+			reclaimed.ClaimToken == claim.ClaimToken ||
+			!taskpkg.VerifyClaimToken(reclaimed.ClaimToken, reclaimed.Run.ClaimTokenHash) {
+			t.Fatalf(
+				"reclaimed global claim token/hash invalid: token=%q hash=%q",
+				reclaimed.ClaimToken,
+				reclaimed.Run.ClaimTokenHash,
+			)
+		}
+	})
 }
 
 func openTaskManagerGlobalDB(t *testing.T) *globaldb.GlobalDB {
@@ -2640,184 +2648,192 @@ func TestTaskManagerGetTaskRequiresReadAuthorityIntegration(t *testing.T) {
 func TestTaskManagerBlockBreakerRecoverAndCompletionResetIntegration(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	db := openTaskManagerGlobalDB(t)
-	manager := newTaskManagerIntegration(t, db)
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task recover")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Breaker integration target",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
+	t.Run("Should recover block breaker state and reset recurrence after completion", func(t *testing.T) {
+		t.Parallel()
 
-	var latest taskpkg.TaskBlock
-	for idx := range 3 {
-		latest, err = manager.BlockTask(ctx, taskpkg.BlockRequest{
-			TaskID: taskRecord.ID,
-			Kind:   taskpkg.BlockKindNeedsInput,
-			Reason: fmt.Sprintf("input loop %d", idx),
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task recover")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Breaker integration target",
 		}, actor)
 		if err != nil {
-			t.Fatalf("BlockTask(%d) error = %v", idx, err)
+			t.Fatalf("CreateTask() error = %v", err)
 		}
-		if idx < 2 {
-			if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, latest.ID, "resolved", actor); err != nil {
-				t.Fatalf("ClearTaskBlock(%d) error = %v", idx, err)
+
+		var latest taskpkg.TaskBlock
+		for idx := range 3 {
+			latest, err = manager.BlockTask(ctx, taskpkg.BlockRequest{
+				TaskID: taskRecord.ID,
+				Kind:   taskpkg.BlockKindNeedsInput,
+				Reason: fmt.Sprintf("input loop %d", idx),
+			}, actor)
+			if err != nil {
+				t.Fatalf("BlockTask(%d) error = %v", idx, err)
+			}
+			if idx < 2 {
+				if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, latest.ID, "resolved", actor); err != nil {
+					t.Fatalf("ClearTaskBlock(%d) error = %v", idx, err)
+				}
 			}
 		}
-	}
-	escalated, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(escalated) error = %v", err)
-	}
-	if got, want := escalated.Status, taskpkg.TaskStatusNeedsAttention; got != want {
-		t.Fatalf("escalated Status = %q, want %q", got, want)
-	}
-	if escalated.NeedsAttention == nil {
-		t.Fatal("NeedsAttention = nil, want durable escalation")
-	}
+		escalated, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(escalated) error = %v", err)
+		}
+		if got, want := escalated.Status, taskpkg.TaskStatusNeedsAttention; got != want {
+			t.Fatalf("escalated Status = %q, want %q", got, want)
+		}
+		if escalated.NeedsAttention == nil {
+			t.Fatal("NeedsAttention = nil, want durable escalation")
+		}
 
-	if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, latest.ID, "resolved final", actor); err != nil {
-		t.Fatalf("ClearTaskBlock(final) error = %v", err)
-	}
-	recovered, err := manager.RecoverTask(ctx, taskRecord.ID, "operator reviewed", actor)
-	if err != nil {
-		t.Fatalf("RecoverTask() error = %v", err)
-	}
-	if got, want := recovered.Status, taskpkg.TaskStatusReady; got != want {
-		t.Fatalf("RecoverTask().Status = %q, want %q", got, want)
-	}
-	reblock, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
-		TaskID: taskRecord.ID,
-		Kind:   taskpkg.BlockKindNeedsInput,
-		Reason: "input loop after recover",
-	}, actor)
-	if err != nil {
-		t.Fatalf("BlockTask(after recover) error = %v", err)
-	}
-	escalatedAgain, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(escalated again) error = %v", err)
-	}
-	if got, want := escalatedAgain.Status, taskpkg.TaskStatusNeedsAttention; got != want {
-		t.Fatalf("Status after recover re-block = %q, want %q", got, want)
-	}
-	recurrenceBeforeCompletion, err := db.GetTaskBlockRecurrence(ctx, taskRecord.ID, taskpkg.BlockKindNeedsInput)
-	if err != nil {
-		t.Fatalf("GetTaskBlockRecurrence(before completion) error = %v", err)
-	}
-	if got, want := recurrenceBeforeCompletion.Count, 3; got != want {
-		t.Fatalf("recurrence.Count after recover re-block = %d, want %d", got, want)
-	}
-	if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, reblock.ID, "resolved after recover", actor); err != nil {
-		t.Fatalf("ClearTaskBlock(after recover) error = %v", err)
-	}
-	recoveredAgain, err := manager.RecoverTask(ctx, taskRecord.ID, "operator reviewed again", actor)
-	if err != nil {
-		t.Fatalf("RecoverTask(second) error = %v", err)
-	}
-	if got, want := recoveredAgain.Status, taskpkg.TaskStatusReady; got != want {
-		t.Fatalf("RecoverTask(second).Status = %q, want %q", got, want)
-	}
+		if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, latest.ID, "resolved final", actor); err != nil {
+			t.Fatalf("ClearTaskBlock(final) error = %v", err)
+		}
+		recovered, err := manager.RecoverTask(ctx, taskRecord.ID, "operator reviewed", actor)
+		if err != nil {
+			t.Fatalf("RecoverTask() error = %v", err)
+		}
+		if got, want := recovered.Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("RecoverTask().Status = %q, want %q", got, want)
+		}
+		reblock, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
+			TaskID: taskRecord.ID,
+			Kind:   taskpkg.BlockKindNeedsInput,
+			Reason: "input loop after recover",
+		}, actor)
+		if err != nil {
+			t.Fatalf("BlockTask(after recover) error = %v", err)
+		}
+		escalatedAgain, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(escalated again) error = %v", err)
+		}
+		if got, want := escalatedAgain.Status, taskpkg.TaskStatusNeedsAttention; got != want {
+			t.Fatalf("Status after recover re-block = %q, want %q", got, want)
+		}
+		recurrenceBeforeCompletion, err := db.GetTaskBlockRecurrence(ctx, taskRecord.ID, taskpkg.BlockKindNeedsInput)
+		if err != nil {
+			t.Fatalf("GetTaskBlockRecurrence(before completion) error = %v", err)
+		}
+		if got, want := recurrenceBeforeCompletion.Count, 3; got != want {
+			t.Fatalf("recurrence.Count after recover re-block = %d, want %d", got, want)
+		}
+		if _, err := manager.ClearTaskBlock(ctx, taskRecord.ID, reblock.ID, "resolved after recover", actor); err != nil {
+			t.Fatalf("ClearTaskBlock(after recover) error = %v", err)
+		}
+		recoveredAgain, err := manager.RecoverTask(ctx, taskRecord.ID, "operator reviewed again", actor)
+		if err != nil {
+			t.Fatalf("RecoverTask(second) error = %v", err)
+		}
+		if got, want := recoveredAgain.Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("RecoverTask(second).Status = %q, want %q", got, want)
+		}
 
-	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
-	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
-	}
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-reset")
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-	}
-	claimNow := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-reset",
-		LeaseDuration:    time.Minute,
-		Now:              claimNow,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	if claim.Run.ID != run.ID {
-		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
-	}
-	if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
-		Now:        claimNow.Add(30 * time.Second),
-	}, agent); err != nil {
-		t.Fatalf("CompleteRunLease() error = %v", err)
-	}
-	recurrence, err := db.GetTaskBlockRecurrence(ctx, taskRecord.ID, taskpkg.BlockKindNeedsInput)
-	if err != nil {
-		t.Fatalf("GetTaskBlockRecurrence() error = %v", err)
-	}
-	if got, want := recurrence.Count, 0; got != want {
-		t.Fatalf("recurrence.Count after completion = %d, want %d", got, want)
-	}
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-reset")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		claimNow := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-reset",
+			LeaseDuration:    time.Minute,
+			Now:              claimNow,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if claim.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
+		}
+		if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        claimNow.Add(30 * time.Second),
+		}, agent); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		recurrence, err := db.GetTaskBlockRecurrence(ctx, taskRecord.ID, taskpkg.BlockKindNeedsInput)
+		if err != nil {
+			t.Fatalf("GetTaskBlockRecurrence() error = %v", err)
+		}
+		if got, want := recurrence.Count, 0; got != want {
+			t.Fatalf("recurrence.Count after completion = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestTaskManagerExpireTransientBlocksAutoEnqueuesIntegration(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	now := time.Date(2026, 6, 3, 13, 0, 0, 0, time.UTC)
-	db := openTaskManagerGlobalDB(t)
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time { return now }))
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope:              taskpkg.ScopeGlobal,
-		Title:              "Transient expiry integration target",
-		AutoEnqueueOnReady: true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
-		TaskID:    taskRecord.ID,
-		Kind:      taskpkg.BlockKindTransient,
-		Reason:    "temporary outage",
-		ExpiresAt: now.Add(time.Minute),
-	}, actor)
-	if err != nil {
-		t.Fatalf("BlockTask(transient) error = %v", err)
-	}
-	daemon, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
-	if err != nil {
-		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
-	}
-	result, err := manager.ExpireTaskBlocks(ctx, now.Add(2*time.Minute), daemon)
-	if err != nil {
-		t.Fatalf("ExpireTaskBlocks() error = %v", err)
-	}
-	if got, want := len(result.Blocks), 1; got != want {
-		t.Fatalf("expired blocks = %d, want %d", got, want)
-	}
-	if result.Blocks[0].ID != block.ID {
-		t.Fatalf("expired block ID = %q, want %q", result.Blocks[0].ID, block.ID)
-	}
-	if got, want := result.Blocks[0].ClearedBy.Kind, taskpkg.ActorKindDaemon; got != want {
-		t.Fatalf("expired block ClearedBy.Kind = %q, want %q", got, want)
-	}
-	runs, err := manager.ListTaskRuns(ctx, taskRecord.ID, taskpkg.RunQuery{}, actor)
-	if err != nil {
-		t.Fatalf("ListTaskRuns() error = %v", err)
-	}
-	if got, want := len(runs), 1; got != want {
-		t.Fatalf("runs after expiry auto enqueue = %d, want %d", got, want)
-	}
-	if got, want := runs[0].Status, taskpkg.TaskRunStatusQueued; got != want {
-		t.Fatalf("auto-enqueued run Status = %q, want %q", got, want)
-	}
+	t.Run("Should auto enqueue runs after transient block expiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 6, 3, 13, 0, 0, 0, time.UTC)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithManagerNow(func() time.Time { return now }))
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:              taskpkg.ScopeGlobal,
+			Title:              "Transient expiry integration target",
+			AutoEnqueueOnReady: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		block, err := manager.BlockTask(ctx, taskpkg.BlockRequest{
+			TaskID:    taskRecord.ID,
+			Kind:      taskpkg.BlockKindTransient,
+			Reason:    "temporary outage",
+			ExpiresAt: now.Add(time.Minute),
+		}, actor)
+		if err != nil {
+			t.Fatalf("BlockTask(transient) error = %v", err)
+		}
+		daemon, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		result, err := manager.ExpireTaskBlocks(ctx, now.Add(2*time.Minute), daemon)
+		if err != nil {
+			t.Fatalf("ExpireTaskBlocks() error = %v", err)
+		}
+		if got, want := len(result.Blocks), 1; got != want {
+			t.Fatalf("expired blocks = %d, want %d", got, want)
+		}
+		if result.Blocks[0].ID != block.ID {
+			t.Fatalf("expired block ID = %q, want %q", result.Blocks[0].ID, block.ID)
+		}
+		if got, want := result.Blocks[0].ClearedBy.Kind, taskpkg.ActorKindDaemon; got != want {
+			t.Fatalf("expired block ClearedBy.Kind = %q, want %q", got, want)
+		}
+		runs, err := manager.ListTaskRuns(ctx, taskRecord.ID, taskpkg.RunQuery{}, actor)
+		if err != nil {
+			t.Fatalf("ListTaskRuns() error = %v", err)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("runs after expiry auto enqueue = %d, want %d", got, want)
+		}
+		if got, want := runs[0].Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("auto-enqueued run Status = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
@@ -3302,77 +3318,81 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), "agh.db")
-	firstDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(first) error = %v", err)
-	}
-	firstManager := newTaskManagerIntegration(t, firstDB)
-	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
-	if err != nil {
-		t.Fatalf("DeriveHumanActorContext() error = %v", err)
-	}
-	taskRecord, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Durable needs attention target",
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	if _, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor); err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
-	}
-	for idx := 0; idx < 3; idx++ {
-		block, err := firstManager.BlockTask(ctx, taskpkg.BlockRequest{
-			TaskID: taskRecord.ID,
-			Kind:   taskpkg.BlockKindNeedsInput,
-			Reason: fmt.Sprintf("restart loop %d", idx),
+	t.Run("Should persist needs-attention state across restart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		dbPath := filepath.Join(t.TempDir(), "agh.db")
+		firstDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first) error = %v", err)
+		}
+		firstManager := newTaskManagerIntegration(t, firstDB)
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task block")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		taskRecord, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Durable needs attention target",
 		}, actor)
 		if err != nil {
-			t.Fatalf("BlockTask(%d) error = %v", idx, err)
+			t.Fatalf("CreateTask() error = %v", err)
 		}
-		if idx < 2 {
-			if _, err := firstManager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "resolved", actor); err != nil {
-				t.Fatalf("ClearTaskBlock(%d) error = %v", idx, err)
+		if _, err := firstManager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor); err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		for idx := 0; idx < 3; idx++ {
+			block, err := firstManager.BlockTask(ctx, taskpkg.BlockRequest{
+				TaskID: taskRecord.ID,
+				Kind:   taskpkg.BlockKindNeedsInput,
+				Reason: fmt.Sprintf("restart loop %d", idx),
+			}, actor)
+			if err != nil {
+				t.Fatalf("BlockTask(%d) error = %v", idx, err)
+			}
+			if idx < 2 {
+				if _, err := firstManager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "resolved", actor); err != nil {
+					t.Fatalf("ClearTaskBlock(%d) error = %v", idx, err)
+				}
 			}
 		}
-	}
-	if err := firstDB.Close(ctx); err != nil {
-		t.Fatalf("Close(first) error = %v", err)
-	}
+		if err := firstDB.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
 
-	secondDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(second) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := secondDB.Close(ctx); err != nil {
-			t.Fatalf("Close(second) error = %v", err)
+		secondDB, err := globaldb.OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(second) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := secondDB.Close(ctx); err != nil {
+				t.Fatalf("Close(second) error = %v", err)
+			}
+		})
+		secondManager := newTaskManagerIntegration(t, secondDB)
+		reopened, err := secondDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(reopened) error = %v", err)
+		}
+		if got, want := reopened.Status, taskpkg.TaskStatusNeedsAttention; got != want {
+			t.Fatalf("reopened Status = %q, want %q", got, want)
+		}
+		if reopened.NeedsAttention == nil {
+			t.Fatal("reopened NeedsAttention = nil, want durable metadata")
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-after-restart")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		_, err = secondManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-after-restart",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 6, 3, 14, 0, 0, 0, time.UTC),
+		}, agent)
+		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(reopened needs_attention) error = %v, want ErrNoClaimableRun", err)
 		}
 	})
-	secondManager := newTaskManagerIntegration(t, secondDB)
-	reopened, err := secondDB.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(reopened) error = %v", err)
-	}
-	if got, want := reopened.Status, taskpkg.TaskStatusNeedsAttention; got != want {
-		t.Fatalf("reopened Status = %q, want %q", got, want)
-	}
-	if reopened.NeedsAttention == nil {
-		t.Fatal("reopened NeedsAttention = nil, want durable metadata")
-	}
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-after-restart")
-	if err != nil {
-		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
-	}
-	_, err = secondManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-after-restart",
-		LeaseDuration:    time.Minute,
-		Now:              time.Date(2026, 6, 3, 14, 0, 0, 0, time.UTC),
-	}, agent)
-	if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-		t.Fatalf("ClaimNextRun(reopened needs_attention) error = %v, want ErrNoClaimableRun", err)
-	}
 }
