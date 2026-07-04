@@ -954,6 +954,9 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		if (TurnMatch{TurnSource: acp.PromptTurnSourceUser}).Validate("match") != nil {
 			t.Fatal("TurnMatch.Validate(user selector) error != nil, want nil")
 		}
+		if (TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic}).Validate("match") != nil {
+			t.Fatal("TurnMatch.Validate(synthetic selector) error != nil, want nil")
+		}
 		if (TurnMatchNetwork{}).Validate("match.network") == nil {
 			t.Fatal("TurnMatchNetwork.Validate(empty) error = nil, want non-nil")
 		}

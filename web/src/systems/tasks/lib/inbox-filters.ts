@@ -27,6 +27,7 @@ const STATUS_OPTIONS: TaskStatus[] = [
   "in_progress",
   "ready",
   "blocked",
+  "needs_attention",
   "pending",
   "draft",
   "completed",

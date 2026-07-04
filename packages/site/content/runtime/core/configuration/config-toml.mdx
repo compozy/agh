@@ -15,8 +15,8 @@ audit row.
 | `<workspace>/.agh/config.toml` | Workspace overlay     | Only when a workspace root is resolved for the session or command. |
 | `<workspace>/.agh/mcp.json`    | Workspace MCP sidecar | After workspace TOML.                                              |
 
-Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes.<name>]`; the old
-Use only `[sandboxes.<name>]` for session execution boundaries.
+Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes.<name>]`. Use only
+`[sandboxes.<name>]` for session execution boundaries.
 
 <OperatorNote>
   Workspace `.env` files are loaded before AGH resolves `$AGH_HOME`. This means
@@ -67,6 +67,7 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                                  |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                                       |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
+| `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                           | block recurrence limit 2                                                                         |
 | `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace |
 | `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5                     |
 | `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                   |
@@ -468,6 +469,10 @@ enabled = true
 [automation.triggers.filter]
 kind = "session.stopped"
 data.stop_reason = "error"
+
+[autonomy]
+# Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
+block_recurrence_limit = 2
 
 [autonomy.coordinator]
 # Disabled by default. When enabled, a workspace-scoped coordinated task run may start
@@ -1234,6 +1239,15 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 
 See [Vault](/runtime/core/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
 surfaces that store and inspect encrypted AGH-managed secret refs.
+
+## `[autonomy]`
+
+Top-level `[autonomy]` holds task-kernel autonomy defaults that are not scoped to the coordinator or
+scheduler subtables. The default below is loaded from `internal/config/autonomy.go`.
+
+| Field                    | Type    | Default | Valid values          | Description                                                                                                                                                                         |
+| ------------------------ | ------- | ------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `block_recurrence_limit` | integer | `2`     | `0` or a positive int | Same-kind re-block count that escalates a task to `needs_attention`. `0` disables the [unblock-loop breaker](/runtime/core/autonomy/task-runs-and-leases#the-unblock-loop-breaker). |
 
 ## `[autonomy.coordinator]`
 

@@ -53,7 +53,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -129,7 +129,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			subscription,
 			cursorStore,
 			transport,
-			terminalTaskReaderFixture{
+			&terminalTaskReaderFixture{
 				task: taskpkg.Task{
 					ID:     "task-1",
 					Status: taskpkg.TaskStatusCompleted,
@@ -184,7 +184,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 				return DeliveryAck{}, errors.New("bridge adapter rejected send")
 			},
 		}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -230,7 +230,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusInProgress,
@@ -274,7 +274,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -324,7 +324,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -377,7 +377,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusFailed,
@@ -431,7 +431,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusFailed,
@@ -550,7 +550,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		subscription := bridgeTaskSubscriptionForNotifierTest()
 		cursorStore := newMemoryCursorStore()
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -610,7 +610,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 			t.Fatalf("AdvanceCursor(seed) error = %v", err)
 		}
 		transport := &fakeDeliveryTransport{}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -677,7 +677,7 @@ func TestTruncateTerminalTaskCursorError(t *testing.T) {
 				)
 			},
 		}
-		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, terminalTaskReaderFixture{
+		notifier := terminalTaskNotifierForTest(subscription, cursorStore, transport, &terminalTaskReaderFixture{
 			task: taskpkg.Task{
 				ID:     "task-1",
 				Status: taskpkg.TaskStatusCompleted,
@@ -729,7 +729,7 @@ func terminalTaskNotifierForTest(
 	subscription BridgeTaskSubscription,
 	cursorStore notifications.CursorStore,
 	transport DeliveryTransport,
-	fixture terminalTaskReaderFixture,
+	fixture *terminalTaskReaderFixture,
 ) *TerminalTaskNotifier {
 	return terminalTaskNotifierForTestWithInstance(
 		subscription,
@@ -744,7 +744,7 @@ func terminalTaskNotifierForTestWithInstance(
 	subscription BridgeTaskSubscription,
 	cursorStore notifications.CursorStore,
 	transport DeliveryTransport,
-	fixture terminalTaskReaderFixture,
+	fixture *terminalTaskReaderFixture,
 	override BridgeInstance,
 ) *TerminalTaskNotifier {
 	instance := BridgeInstance{
@@ -779,7 +779,7 @@ func terminalTaskNotifierForTestWithInstance(
 	})
 }
 
-func fakeTerminalTaskEventReaderFromFixture(fixture terminalTaskReaderFixture) *fakeTerminalTaskEventReader {
+func fakeTerminalTaskEventReaderFromFixture(fixture *terminalTaskReaderFixture) *fakeTerminalTaskEventReader {
 	reader := &fakeTerminalTaskEventReader{
 		tasks:   map[string]taskpkg.Task{fixture.task.ID: fixture.task},
 		runs:    make(map[string]taskpkg.Run, len(fixture.runs)),

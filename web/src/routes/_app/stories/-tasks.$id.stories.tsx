@@ -3,6 +3,8 @@ import { delay, http, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { buildDetailFixture } from "@/systems/tasks/mocks";
+import type { TaskRecord } from "@/systems/tasks";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
@@ -118,6 +120,75 @@ export const OrchestrationTab: Story = {
     await userEvent.click(await canvas.findByTestId("tasks-detail-tab-orchestration"));
     await expect(canvas.findByTestId("tasks-detail-orchestration-panel")).resolves.toBeDefined();
   },
+};
+
+const BLOCKED_REASONS: NonNullable<TaskRecord["blocked_reasons"]> = [
+  { source: "dependency", depends_on_task_ids: ["task_dep_001"] },
+  { source: "approval", reason: "Awaiting operator approval" },
+  {
+    source: "block",
+    kind: "transient",
+    reason: "Upstream provider returned 503; retrying after cooldown",
+    block_id: "block_001",
+  },
+];
+
+/**
+ * Overview tab for a blocked task carrying dependency + approval + typed block
+ * causes simultaneously — one chip per `blocked_reasons` entry.
+ */
+export const BlockedReasons: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks/task_001"),
+    ...storybookMswParameters({
+      tasks: [
+        http.get("/api/tasks/:id", () =>
+          HttpResponse.json({
+            task: buildDetailFixture({
+              task: {
+                status: "blocked",
+                blocked_reasons: BLOCKED_REASONS,
+              } as TaskRecord,
+            }),
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Escalated task: the unblock-loop breaker raised `needs_attention`, so the
+ * header shows the escalation badge + Recover action and the wake indicator
+ * reflects an agent-created task that opted out of creator wake.
+ */
+export const NeedsAttention: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks/task_001"),
+    ...storybookMswParameters({
+      tasks: [
+        http.get("/api/tasks/:id", () =>
+          HttpResponse.json({
+            task: buildDetailFixture({
+              task: {
+                status: "needs_attention",
+                needs_attention: true,
+                needs_attention_at: "2026-04-17T10:12:00Z",
+                needs_attention_reason: "Block recurrence limit reached for transient blocks (2/2)",
+                created_by: { kind: "agent_session", ref: "session_orchestrator" },
+                wake_creator: false,
+                blocked_reasons: BLOCKED_REASONS,
+              } as TaskRecord,
+            }),
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**

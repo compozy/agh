@@ -250,6 +250,35 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 			},
 		},
 		{
+			name: "Should parse task create wake creator opt-out",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var createRequest CreateTaskRequest
+				deps := newTestDeps(t, &stubClient{
+					createTaskFn: func(_ context.Context, got CreateTaskRequest) (TaskRecord, error) {
+						createRequest = got
+						return sampleTaskRecord(), nil
+					},
+				})
+
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					"task", "create",
+					"--scope", "global",
+					"--title", "Quiet task",
+					"--no-wake-creator",
+					"-o", "json",
+				); err != nil {
+					t.Fatalf("task create --no-wake-creator error = %v", err)
+				}
+				if createRequest.WakeCreator == nil || *createRequest.WakeCreator {
+					t.Fatalf("WakeCreator = %#v, want explicit false", createRequest.WakeCreator)
+				}
+			},
+		},
+		{
 			name: "Should parse task list filters",
 			run: func(t *testing.T) {
 				t.Helper()
@@ -308,6 +337,333 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func TestTaskBlockCommandsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse block request and render stable JSON", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID       string
+			blockRequest CreateTaskBlockRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			blockTaskFn: func(_ context.Context, id string, request CreateTaskBlockRequest) (TaskBlockRecord, error) {
+				taskID = id
+				blockRequest = request
+				return sampleTaskBlockRecord(), nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"block",
+			"task-1",
+			"--kind",
+			"transient",
+			"--reason",
+			"waiting for quota",
+			"--details",
+			`{"queue":"gpu"}`,
+			"--expires-in",
+			"30m",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task block error = %v", err)
+		}
+		if taskID != "task-1" ||
+			blockRequest.Kind != taskpkg.BlockKindTransient ||
+			blockRequest.Reason != "waiting for quota" ||
+			blockRequest.RunID != "" ||
+			string(blockRequest.Details) != `{"queue":"gpu"}` ||
+			blockRequest.ExpiresAt == nil ||
+			!blockRequest.ExpiresAt.Equal(fixedTestNow.Add(30*time.Minute).UTC()) {
+			t.Fatalf("block request task=%q request=%#v, want parsed transient block", taskID, blockRequest)
+		}
+		var output TaskBlockRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task block) error = %v", err)
+		}
+		if output.ID != "block-1" || output.TaskID != "task-1" {
+			t.Fatalf("task block output = %#v, want block-1/task-1", output)
+		}
+	})
+
+	t.Run("Should reject run id without agent identity before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			blockTaskFn: func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error) {
+				t.Fatal("BlockTask should not be called when --run-id lacks --as-agent")
+				return TaskBlockRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"block",
+			"task-1",
+			"--kind",
+			"needs_input",
+			"--reason",
+			"creator input",
+			"--run-id",
+			"run-1",
+			"-o",
+			"json",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--run-id requires --as-agent") {
+			t.Fatalf("task block --run-id without --as-agent error = %v, want local validation", err)
+		}
+	})
+
+	t.Run("Should block as agent with validated identity and run id", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID       string
+			blockRequest CreateTaskBlockRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if id != "sess-agent" {
+					t.Fatalf("GetSession id = %q, want sess-agent", id)
+				}
+				return agentCommandSessionRecord(), nil
+			},
+			blockTaskFn: func(context.Context, string, CreateTaskBlockRequest) (TaskBlockRecord, error) {
+				t.Fatal("BlockTask should not be called for --as-agent")
+				return TaskBlockRecord{}, nil
+			},
+			blockTaskAsAgentFn: func(
+				_ context.Context,
+				id string,
+				request CreateTaskBlockRequest,
+				credentials agentidentity.Credentials,
+			) (TaskBlockRecord, error) {
+				assertAgentCredentials(t, credentials)
+				taskID = id
+				blockRequest = request
+				return sampleTaskBlockRecord(), nil
+			},
+		})
+		deps.getenv = agentCommandEnv
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"block",
+			"task-1",
+			"--as-agent",
+			"--kind",
+			"needs_input",
+			"--reason",
+			"creator input",
+			"--run-id",
+			"run-1",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task block --as-agent error = %v", err)
+		}
+		if taskID != "task-1" || blockRequest.RunID != "run-1" ||
+			blockRequest.Kind != taskpkg.BlockKindNeedsInput ||
+			blockRequest.Reason != "creator input" {
+			t.Fatalf("BlockTaskAsAgent task=%q request=%#v, want leased block request", taskID, blockRequest)
+		}
+	})
+
+	t.Run("Should list blocks with cleared rows when requested", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID         string
+			includeCleared bool
+		)
+		deps := newTestDeps(t, &stubClient{
+			listTaskBlocksFn: func(_ context.Context, id string, include bool) ([]TaskBlockRecord, error) {
+				taskID = id
+				includeCleared = include
+				return []TaskBlockRecord{sampleTaskBlockRecord()}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "task", "blocks", "task-1", "--all", "-o", "json")
+		if err != nil {
+			t.Fatalf("task blocks error = %v", err)
+		}
+		if taskID != "task-1" || !includeCleared {
+			t.Fatalf("ListTaskBlocks task/include = %q/%v, want task-1/true", taskID, includeCleared)
+		}
+		var output []TaskBlockRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task blocks) error = %v", err)
+		}
+		if len(output) != 1 || output[0].ID != "block-1" {
+			t.Fatalf("task blocks output = %#v, want block-1", output)
+		}
+	})
+
+	t.Run("Should clear a task block", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID  string
+			blockID string
+			request ClearTaskBlockRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			clearTaskBlockFn: func(
+				_ context.Context,
+				id string,
+				gotBlockID string,
+				got ClearTaskBlockRequest,
+			) (TaskBlockRecord, error) {
+				taskID = id
+				blockID = gotBlockID
+				request = got
+				block := sampleTaskBlockRecord()
+				clearedAt := fixedTestNow
+				block.ClearedAt = &clearedAt
+				block.ClearNote = got.Note
+				return block, nil
+			},
+		})
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"unblock",
+			"task-1",
+			"--block",
+			"block-1",
+			"--note",
+			"resolved",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task unblock error = %v", err)
+		}
+		if taskID != "task-1" || blockID != "block-1" || request.Note != "resolved" {
+			t.Fatalf("ClearTaskBlock task/block/request = %q/%q/%#v, want resolved block", taskID, blockID, request)
+		}
+	})
+
+	t.Run("Should clear a task block as agent with validated identity", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID  string
+			blockID string
+			request ClearTaskBlockRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if id != "sess-agent" {
+					t.Fatalf("GetSession id = %q, want sess-agent", id)
+				}
+				return agentCommandSessionRecord(), nil
+			},
+			clearTaskBlockFn: func(context.Context, string, string, ClearTaskBlockRequest) (TaskBlockRecord, error) {
+				t.Fatal("ClearTaskBlock should not be called for --as-agent")
+				return TaskBlockRecord{}, nil
+			},
+			clearTaskBlockAsAgentFn: func(
+				_ context.Context,
+				id string,
+				gotBlockID string,
+				got ClearTaskBlockRequest,
+				credentials agentidentity.Credentials,
+			) (TaskBlockRecord, error) {
+				assertAgentCredentials(t, credentials)
+				taskID = id
+				blockID = gotBlockID
+				request = got
+				block := sampleTaskBlockRecord()
+				clearedAt := fixedTestNow
+				block.ClearedAt = &clearedAt
+				block.ClearNote = got.Note
+				return block, nil
+			},
+		})
+		deps.getenv = agentCommandEnv
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"unblock",
+			"task-1",
+			"--as-agent",
+			"--block",
+			"block-1",
+			"--note",
+			"agent resolved",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("task unblock --as-agent error = %v", err)
+		}
+		if taskID != "task-1" || blockID != "block-1" || request.Note != "agent resolved" {
+			t.Fatalf(
+				"ClearTaskBlockAsAgent task/block/request = %q/%q/%#v, want agent resolved block",
+				taskID,
+				blockID,
+				request,
+			)
+		}
+	})
+
+	t.Run("Should recover a needs_attention task", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			taskID  string
+			request RecoverTaskRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			recoverTaskFn: func(_ context.Context, id string, got RecoverTaskRequest) (TaskRecord, error) {
+				taskID = id
+				request = got
+				return sampleTaskRecord(), nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"recover",
+			"task-1",
+			"--note",
+			"operator reviewed",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task recover error = %v", err)
+		}
+		if taskID != "task-1" || request.Note != "operator reviewed" {
+			t.Fatalf("RecoverTask task/request = %q/%#v, want operator note", taskID, request)
+		}
+		var output TaskRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task recover) error = %v", err)
+		}
+		if output.ID != "task-1" {
+			t.Fatalf("task recover output = %#v, want task-1", output)
+		}
+	})
 }
 
 func TestTaskExecutionCommandsMapBoundaryRequests(t *testing.T) {
@@ -1092,6 +1448,7 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 			t,
 			deps,
 			"task",
+			"run",
 			"recover",
 			"run-1",
 			"--reason",
@@ -2418,6 +2775,17 @@ func sampleTaskRecord() TaskRecord {
 		CreatedAt:      fixedTestNow,
 		UpdatedAt:      fixedTestNow,
 		Metadata:       json.RawMessage(`{"priority":"high"}`),
+	}
+}
+
+func sampleTaskBlockRecord() TaskBlockRecord {
+	return TaskBlockRecord{
+		ID:        "block-1",
+		TaskID:    "task-1",
+		Kind:      taskpkg.BlockKindNeedsInput,
+		Reason:    "creator input",
+		CreatedAt: fixedTestNow,
+		CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
 	}
 }
 

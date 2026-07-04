@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"time"
 
 	core "github.com/compozy/agh/internal/api/core"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -90,6 +91,17 @@ type StubTaskManager struct {
 		taskpkg.CancelTask,
 		taskpkg.ActorContext,
 	) (*taskpkg.Task, error)
+	BlockTaskFn      func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error)
+	ClearTaskBlockFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		taskpkg.ActorContext,
+	) (taskpkg.TaskBlock, error)
+	RecoverTaskFn         func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	ExpireTaskBlocksFn    func(context.Context, time.Time, taskpkg.ActorContext) (taskpkg.ExpireTaskBlocksResult, error)
+	ListTaskBlocksFn      func(context.Context, string, bool, taskpkg.ActorContext) ([]taskpkg.TaskBlock, error)
 	MarkTaskReadFn        func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	ArchiveTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	DismissTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
@@ -119,11 +131,6 @@ type StubTaskManager struct {
 	BindRunReviewSessionFn func(
 		context.Context,
 		taskpkg.BindRunReviewSessionRequest,
-		taskpkg.ActorContext,
-	) (taskpkg.RunReviewBinding, error)
-	LookupRunReviewForSessionFn func(
-		context.Context,
-		string,
 		taskpkg.ActorContext,
 	) (taskpkg.RunReviewBinding, error)
 	ListRunReviewsFn   func(context.Context, taskpkg.RunReviewQuery, taskpkg.ActorContext) ([]taskpkg.RunReview, error)
@@ -310,6 +317,65 @@ func (s StubTaskManager) CancelTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
+func (s StubTaskManager) BlockTask(
+	ctx context.Context,
+	req taskpkg.BlockRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	if s.BlockTaskFn != nil {
+		return s.BlockTaskFn(ctx, req, actor)
+	}
+	return taskpkg.TaskBlock{}, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ClearTaskBlock(
+	ctx context.Context,
+	taskID string,
+	blockID string,
+	note string,
+	actor taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	if s.ClearTaskBlockFn != nil {
+		return s.ClearTaskBlockFn(ctx, taskID, blockID, note, actor)
+	}
+	return taskpkg.TaskBlock{}, taskpkg.ErrTaskBlockNotFound
+}
+
+func (s StubTaskManager) RecoverTask(
+	ctx context.Context,
+	id string,
+	note string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	if s.RecoverTaskFn != nil {
+		return s.RecoverTaskFn(ctx, id, note, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) ExpireTaskBlocks(
+	ctx context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	if s.ExpireTaskBlocksFn != nil {
+		return s.ExpireTaskBlocksFn(ctx, now, actor)
+	}
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
+func (s StubTaskManager) ListTaskBlocks(
+	ctx context.Context,
+	taskID string,
+	includeCleared bool,
+	actor taskpkg.ActorContext,
+) ([]taskpkg.TaskBlock, error) {
+	if s.ListTaskBlocksFn != nil {
+		return s.ListTaskBlocksFn(ctx, taskID, includeCleared, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
 func (s StubTaskManager) MarkTaskRead(
 	ctx context.Context,
 	id string,
@@ -422,13 +488,10 @@ func (s StubTaskManager) BindRunReviewSession(
 }
 
 func (s StubTaskManager) LookupRunReviewForSession(
-	ctx context.Context,
-	sessionID string,
-	actor taskpkg.ActorContext,
+	_ context.Context,
+	_ string,
+	_ taskpkg.ActorContext,
 ) (taskpkg.RunReviewBinding, error) {
-	if s.LookupRunReviewForSessionFn != nil {
-		return s.LookupRunReviewForSessionFn(ctx, sessionID, actor)
-	}
 	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
 }
 

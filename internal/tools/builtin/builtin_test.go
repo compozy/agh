@@ -110,6 +110,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskChildCreate,
 			toolspkg.ToolIDTaskUpdate,
 			toolspkg.ToolIDTaskCancel,
+			toolspkg.ToolIDTaskBlock,
+			toolspkg.ToolIDTaskUnblock,
+			toolspkg.ToolIDTaskBlocks,
+			toolspkg.ToolIDTaskRecover,
 			toolspkg.ToolIDTaskRunList,
 			toolspkg.ToolIDTaskRunReviewRequest,
 			toolspkg.ToolIDTaskRunReviewList,
@@ -499,6 +503,10 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUpdate], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskCancel], toolspkg.RiskDestructive, false, true, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskBlock], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskUnblock], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskBlocks], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRecover], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDTaskExecutionProfileGet],
@@ -883,6 +891,10 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(tasks) error = %v", err)
 		}
 		if !slices.Contains(tasks, toolspkg.ToolIDTaskChildCreate) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskBlock) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskUnblock) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskBlocks) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskRecover) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewRequest) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewList) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewShow) ||

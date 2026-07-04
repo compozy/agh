@@ -55,17 +55,3 @@ Example:
 ```bash
 agh network send -o json
 ```
-
-Mention example:
-
-```bash
-agh network send \
-  --session "${AGH_SESSION_ID}" \
-  --channel builders \
-  --surface thread \
-  --thread thread_release_check_20260416 \
-  --mention patch-worker.session-19 \
-  --kind say \
-  --body '{"text":"@patch-worker.session-19 please validate this gate.","intent":"request"}' \
-  -o json
-```

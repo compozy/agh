@@ -284,7 +284,8 @@ type AgentTaskHeartbeatRequest struct {
 
 // AgentTaskCompleteRequest completes the caller session's claimed task run.
 type AgentTaskCompleteRequest struct {
-	Result json.RawMessage `json:"result,omitempty"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }
 
 // AgentTaskFailRequest fails the caller session's claimed task run.

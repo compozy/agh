@@ -1,5 +1,13 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { PauseCircle, PlayCircle, Radio } from "lucide-react";
+import {
+  AlertTriangle,
+  BellOff,
+  BellRing,
+  LifeBuoy,
+  PauseCircle,
+  PlayCircle,
+  Radio,
+} from "lucide-react";
 
 import {
   Button,
@@ -20,6 +28,7 @@ import {
   runCoordinationChannelLabel,
   runIsCoordinated,
   taskApprovalStateLabel,
+  taskCanRecover,
   taskHandoffActionCopy,
   taskHasApprovalPending,
   taskIsDraft,
@@ -34,6 +43,7 @@ import {
   taskStatusLabel,
   taskStatusSignal,
   taskStatusTone,
+  taskWakeIndicatorApplies,
 } from "../lib/task-formatters";
 import { useTaskPauseDialog } from "../hooks/use-task-pause-dialog";
 import type { TaskDetailView } from "../types";
@@ -48,6 +58,7 @@ export interface TasksDetailHeaderProps {
     enqueue?: boolean;
     pause?: boolean;
     resume?: boolean;
+    recover?: boolean;
   };
   onDelete?: (taskId: string) => void;
   onPublish?: () => void;
@@ -55,6 +66,7 @@ export interface TasksDetailHeaderProps {
   onEnqueueRun?: () => void;
   onPause?: (reason: string) => void | Promise<void>;
   onResume?: () => void | Promise<void>;
+  onRecover?: () => void | Promise<void>;
 }
 
 /**
@@ -73,6 +85,7 @@ export function TasksDetailHeader({
   onEnqueueRun,
   onPause,
   onResume,
+  onRecover,
 }: TasksDetailHeaderProps) {
   const router = useRouter();
   const pauseDialog = useTaskPauseDialog(onPause);
@@ -83,7 +96,10 @@ export function TasksDetailHeader({
   const isEnqueuePending = pending?.enqueue ?? false;
   const isPausePending = pending?.pause ?? false;
   const isResumePending = pending?.resume ?? false;
+  const isRecoverPending = pending?.recover ?? false;
   const record = detail.task;
+  const canRecover = taskCanRecover(record);
+  const showWakeIndicator = taskWakeIndicatorApplies(record);
   const identifier = taskShortId(record);
   const isDraft = taskIsDraft(record);
   const isDirectlyPaused = Boolean(record.paused);
@@ -98,6 +114,7 @@ export function TasksDetailHeader({
     activeRun?.status === "claimed" ||
     activeRun?.status === "starting" ||
     activeRun?.status === "running";
+  const canEnqueueRun = !isDraft && !hasOpenRun && record.status !== "needs_attention";
   const lifecyclePhase = taskLifecyclePhase({
     status: record.status,
     approval_state: record.approval_state,
@@ -188,6 +205,43 @@ export function TasksDetailHeader({
               {isDirectlyPaused ? "Paused" : "Paused by ancestor"}
             </Pill>
           ) : null}
+          {canRecover ? (
+            <Pill
+              data-testid="tasks-detail-needs-attention"
+              tone="warning"
+              title={
+                record.needs_attention_reason ||
+                "The unblock-loop breaker escalated this task for operator recovery."
+              }
+            >
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                <span className="max-w-[32ch] truncate">
+                  {record.needs_attention_reason?.trim() || "Escalated for recovery"}
+                </span>
+              </span>
+            </Pill>
+          ) : null}
+          {showWakeIndicator ? (
+            <Pill
+              data-testid="tasks-detail-wake"
+              tone={record.wake_creator ? "info" : "neutral"}
+              title={
+                record.wake_creator
+                  ? "The creator session is woken on this task's terminal, blocked, and needs-attention transitions."
+                  : "Creator wake is opted out for this task (created with --no-wake-creator)."
+              }
+            >
+              <span className="inline-flex items-center gap-1">
+                {record.wake_creator ? (
+                  <BellRing className="size-3" aria-hidden="true" />
+                ) : (
+                  <BellOff className="size-3" aria-hidden="true" />
+                )}
+                {record.wake_creator ? "Wake on" : "Wake off"}
+              </span>
+            </Pill>
+          ) : null}
         </>
       }
       meta={
@@ -224,6 +278,19 @@ export function TasksDetailHeader({
               Edit
             </Button>
           </Link>
+          {canRecover && onRecover ? (
+            <Button
+              data-testid="tasks-detail-recover"
+              disabled={isRecoverPending}
+              onClick={() => void onRecover()}
+              size="sm"
+              title="Clear the needs_attention escalation and return the task to the claimable set."
+              type="button"
+            >
+              <LifeBuoy className="size-3" aria-hidden="true" />
+              Recover
+            </Button>
+          ) : null}
           {canCancel && onCancel ? (
             <Button
               data-testid="tasks-detail-cancel"
@@ -287,7 +354,7 @@ export function TasksDetailHeader({
               {publishCopy.label}
             </Button>
           ) : null}
-          {!isDraft && !hasOpenRun && onEnqueueRun ? (
+          {canEnqueueRun && onEnqueueRun ? (
             <Button
               data-testid="tasks-detail-enqueue"
               disabled={isEnqueuePending || isEffectivelyPaused}

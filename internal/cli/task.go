@@ -63,6 +63,7 @@ const (
 	taskCoordinationChannelIDKey = "coordination_channel_id"
 	taskCreateKey                = "create"
 	taskCreatedAtKey             = "created_at"
+	createdByKey                 = "created_by"
 	taskDeleteIDValue            = "delete <id>"
 	taskDeletedKey               = "deleted"
 	taskDescriptionKey           = "description"
@@ -81,6 +82,7 @@ const (
 	taskPeerIDKey                = "peer_id"
 	taskProfileKey               = "profile"
 	taskQueuedAtKey              = "queued_at"
+	taskReasonKey                = "reason"
 	taskReviewKey                = "review"
 	taskRunIDKey                 = "run_id"
 	taskScopeKey                 = "scope"
@@ -109,6 +111,16 @@ type taskCreateInput struct {
 	OwnerRef           string
 	MetadataRaw        string
 	AutoEnqueueOnReady bool
+	NoWakeCreator      bool
+}
+
+type taskBlockInput struct {
+	KindRaw    string
+	Reason     string
+	DetailsRaw string
+	ExpiresIn  string
+	RunID      string
+	AsAgent    bool
 }
 
 type taskUpdateInput struct {
@@ -247,6 +259,9 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskApproveCommand(deps))
 	cmd.AddCommand(newTaskRejectCommand(deps))
 	cmd.AddCommand(newTaskCancelCommand(deps))
+	cmd.AddCommand(newTaskBlockCommand(deps))
+	cmd.AddCommand(newTaskUnblockCommand(deps))
+	cmd.AddCommand(newTaskBlocksCommand(deps))
 	cmd.AddCommand(newTaskNextCommand(deps))
 	cmd.AddCommand(newTaskHeartbeatCommand(deps))
 	cmd.AddCommand(newTaskCompleteCommand(deps))
@@ -342,19 +357,20 @@ func createTaskRecord(
 
 func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	var (
-		id           string
-		identifier   string
-		scopeRaw     string
-		workspaceRef string
-		networkRaw   string
-		title        string
-		description  string
-		ownerKindRaw string
-		ownerRef     string
-		metadataRaw  string
-		priorityRaw  string
-		asAgent      bool
-		autoEnqueue  bool
+		id            string
+		identifier    string
+		scopeRaw      string
+		workspaceRef  string
+		networkRaw    string
+		title         string
+		description   string
+		ownerKindRaw  string
+		ownerRef      string
+		metadataRaw   string
+		priorityRaw   string
+		asAgent       bool
+		autoEnqueue   bool
+		noWakeCreator bool
 	)
 
 	cmd := &cobra.Command{
@@ -380,6 +396,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 				OwnerRef:           ownerRef,
 				MetadataRaw:        metadataRaw,
 				AutoEnqueueOnReady: autoEnqueue,
+				NoWakeCreator:      noWakeCreator,
 			})
 			if err != nil {
 				return err
@@ -389,7 +406,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(created))
+			return writeCommandOutput(cmd, taskBundle(&created))
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Explicit task ID")
@@ -409,6 +426,8 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		BoolVar(&asAgent, "as-agent", false, "Create using the current AGH-managed agent session identity")
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Auto-enqueue the run once blocking dependencies complete")
+	cmd.Flags().
+		BoolVar(&noWakeCreator, "no-wake-creator", false, "Disable creator wake notifications for this task")
 	mustMarkFlagRequired(cmd, taskScopeKey)
 	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
@@ -509,7 +528,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(updated))
+			return writeCommandOutput(cmd, taskBundle(&updated))
 		},
 	}
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Update the task title")
@@ -1270,7 +1289,7 @@ func newTaskRejectCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(rejected))
+			return writeCommandOutput(cmd, taskBundle(&rejected))
 		},
 	}
 	return cmd
@@ -1330,6 +1349,45 @@ func buildTaskExecutionRequest(
 	return request, nil
 }
 
+func buildTaskBlockRequest(
+	cmd *cobra.Command,
+	input taskBlockInput,
+	now time.Time,
+) (CreateTaskBlockRequest, error) {
+	kind := taskpkg.BlockKind(strings.TrimSpace(input.KindRaw)).Normalize()
+	if err := kind.Validate("task_block.kind"); err != nil {
+		return CreateTaskBlockRequest{}, fmt.Errorf("cli: %w", err)
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if reason == "" {
+		return CreateTaskBlockRequest{}, errors.New("cli: --reason is required")
+	}
+	request := CreateTaskBlockRequest{
+		Kind:   kind,
+		Reason: reason,
+		RunID:  strings.TrimSpace(input.RunID),
+	}
+	if cmd.Flags().Changed("details") {
+		details, err := parseAgentTaskJSONFlag("details", input.DetailsRaw)
+		if err != nil {
+			return CreateTaskBlockRequest{}, err
+		}
+		request.Details = details
+	}
+	if strings.TrimSpace(input.ExpiresIn) != "" {
+		duration, err := time.ParseDuration(strings.TrimSpace(input.ExpiresIn))
+		if err != nil {
+			return CreateTaskBlockRequest{}, fmt.Errorf("cli: invalid --expires-in duration: %w", err)
+		}
+		if duration <= 0 {
+			return CreateTaskBlockRequest{}, errors.New("cli: --expires-in must be positive")
+		}
+		expiresAt := now.Add(duration).UTC()
+		request.ExpiresAt = &expiresAt
+	}
+	return request, nil
+}
+
 func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 	var (
 		reason      string
@@ -1358,11 +1416,154 @@ func newTaskCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(canceled))
+			return writeCommandOutput(cmd, taskBundle(&canceled))
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional cancellation reason")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional cancellation metadata JSON")
+	return cmd
+}
+
+func newTaskBlockCommand(deps commandDeps) *cobra.Command {
+	input := taskBlockInput{}
+	cmd := &cobra.Command{
+		Use:   "block <id>",
+		Short: "Block a task with a typed reason",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			request, err := buildTaskBlockRequest(cmd, input, cliNow(deps.now))
+			if err != nil {
+				return err
+			}
+			if request.RunID != "" && !input.AsAgent {
+				return errors.New("cli: --run-id requires --as-agent so the active lease can be resolved")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			var block TaskBlockRecord
+			if input.AsAgent {
+				credentials, credErr := requireAgentCommandIdentity(
+					cmd.Context(),
+					deps,
+					client,
+					agentActionCLI("task.block"),
+				)
+				if credErr != nil {
+					return credErr
+				}
+				block, err = client.BlockTaskAsAgent(cmd.Context(), args[0], request, credentials)
+			} else {
+				block, err = client.BlockTask(cmd.Context(), args[0], request)
+			}
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBlockBundle(block))
+		},
+	}
+	cmd.Flags().StringVar(&input.KindRaw, taskKindKey, "", "Block kind: needs_input, capability, or transient")
+	cmd.Flags().StringVar(&input.Reason, taskReasonKey, "", "Block reason")
+	cmd.Flags().StringVar(&input.DetailsRaw, "details", "", "Optional block details JSON")
+	cmd.Flags().StringVar(&input.ExpiresIn, "expires-in", "", "Optional transient block duration")
+	cmd.Flags().StringVar(&input.RunID, "run-id", "", "Active run ID to park when blocking")
+	cmd.Flags().BoolVar(&input.AsAgent, "as-agent", false, "Block using the current AGH-managed agent session identity")
+	mustMarkFlagRequired(cmd, taskKindKey)
+	mustMarkFlagRequired(cmd, taskReasonKey)
+	return cmd
+}
+
+func newTaskUnblockCommand(deps commandDeps) *cobra.Command {
+	var blockID string
+	var note string
+	var asAgent bool
+	cmd := &cobra.Command{
+		Use:   "unblock <id>",
+		Short: "Clear one task block",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(blockID) == "" {
+				return errors.New("cli: --block is required")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request := ClearTaskBlockRequest{Note: strings.TrimSpace(note)}
+			var block TaskBlockRecord
+			if asAgent {
+				credentials, credErr := requireAgentCommandIdentity(
+					cmd.Context(),
+					deps,
+					client,
+					agentActionCLI("task.unblock"),
+				)
+				if credErr != nil {
+					return credErr
+				}
+				block, err = client.ClearTaskBlockAsAgent(cmd.Context(), args[0], blockID, request, credentials)
+			} else {
+				block, err = client.ClearTaskBlock(cmd.Context(), args[0], blockID, request)
+			}
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBlockBundle(block))
+		},
+	}
+	cmd.Flags().StringVar(&blockID, "block", "", "Task block ID")
+	cmd.Flags().StringVar(&note, "note", "", "Optional clear note")
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current AGH-managed agent session identity")
+	mustMarkFlagRequired(cmd, "block")
+	return cmd
+}
+
+func newTaskBlocksCommand(deps commandDeps) *cobra.Command {
+	var includeCleared bool
+	cmd := &cobra.Command{
+		Use:   "blocks <id>",
+		Short: "List task blocks",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			blocks, err := client.ListTaskBlocks(cmd.Context(), args[0], includeCleared)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBlockListBundle(blocks))
+		},
+	}
+	cmd.Flags().BoolVar(&includeCleared, "all", false, "Include cleared blocks")
+	return cmd
+}
+
+func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
+	var note string
+	cmd := &cobra.Command{
+		Use:   "recover <id>",
+		Short: "Recover a task from needs_attention",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			recovered, err := client.RecoverTask(
+				cmd.Context(),
+				args[0],
+				RecoverTaskRequest{Note: strings.TrimSpace(note)},
+			)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBundle(&recovered))
+		},
+	}
+	cmd.Flags().StringVar(&note, "note", "", "Optional recovery note")
 	return cmd
 }
 
@@ -1758,7 +1959,7 @@ func newTaskRetryCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
+func newTaskRunRecoverCommand(deps commandDeps) *cobra.Command {
 	var (
 		reason      string
 		metadataRaw string
@@ -1769,7 +1970,7 @@ func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
 		Short: "Recover one needs_attention task run",
 		Args:  cobra.ExactArgs(1),
 		Example: `  # Re-enqueue one run stuck in needs_attention
-  agh task recover run-123 --reason "operator recovery"`,
+  agh task run recover run-123 --reason "operator recovery"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {
@@ -1832,7 +2033,7 @@ func newTaskPauseCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(record))
+			return writeCommandOutput(cmd, taskBundle(&record))
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Task-pause reason")
@@ -1870,7 +2071,7 @@ func newTaskResumeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(record))
+			return writeCommandOutput(cmd, taskBundle(&record))
 		},
 	}
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-resume metadata JSON")
@@ -2048,7 +2249,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, taskBundle(created))
+			return writeCommandOutput(cmd, taskBundle(&created))
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Explicit child task ID")
@@ -2163,6 +2364,7 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskRunCompleteCommand(deps))
 	cmd.AddCommand(newTaskRunFailCommand(deps))
 	cmd.AddCommand(newTaskRunCancelCommand(deps))
+	cmd.AddCommand(newTaskRunRecoverCommand(deps))
 	return cmd
 }
 
@@ -2819,6 +3021,10 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 		Owner:              owner,
 		Metadata:           metadata,
 	}
+	if input.NoWakeCreator {
+		wakeCreator := false
+		request.WakeCreator = &wakeCreator
+	}
 	if request.Title == "" {
 		return CreateTaskRequest{}, errors.New("cli: --title is required")
 	}
@@ -2904,9 +3110,9 @@ func agentTaskLeaseBundle(record AgentTaskLeaseRecord) outputBundle {
 	}
 }
 
-func taskBundle(item TaskRecord) outputBundle {
+func taskBundle(item *TaskRecord) outputBundle {
 	return outputBundle{
-		jsonValue: item,
+		jsonValue: *item,
 		human: func() (string, error) {
 			return renderHumanSection(taskTaskValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
@@ -2944,7 +3150,7 @@ func taskBundle(item TaskRecord) outputBundle {
 				"paused_by",
 				"paused_reason",
 				taskOwnerKey,
-				"created_by",
+				createdByKey,
 				taskOriginKey,
 				taskNetworkChannelKey,
 				taskCreatedAtKey,
@@ -2973,6 +3179,98 @@ func taskBundle(item TaskRecord) outputBundle {
 				compactJSON(item.Metadata),
 			}), nil
 		},
+	}
+}
+
+func taskBlockBundle(item TaskBlockRecord) outputBundle {
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Task Block", taskBlockKeyValues(item)), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("task_block", taskBlockToonFields(), taskBlockToonValues(item)), nil
+		},
+	}
+}
+
+func taskBlockListBundle(items []TaskBlockRecord) outputBundle {
+	return listBundle(
+		items,
+		items,
+		"Task Blocks",
+		[]string{"ID", taskTaskIDValue, taskKindValue, taskReasonValue, taskCreatedValue, "Cleared"},
+		"task_blocks",
+		[]string{"id", taskTaskIDKey, taskKindKey, taskReasonKey, taskCreatedAtKey, "cleared_at"},
+		func(item TaskBlockRecord) []string {
+			return []string{
+				stringOrDash(item.ID),
+				stringOrDash(item.TaskID),
+				stringOrDash(string(item.Kind)),
+				stringOrDash(item.Reason),
+				stringOrDash(formatTime(item.CreatedAt)),
+				stringOrDash(formatTimePtr(item.ClearedAt)),
+			}
+		},
+		func(item TaskBlockRecord) []string {
+			return []string{
+				item.ID,
+				item.TaskID,
+				string(item.Kind),
+				item.Reason,
+				formatTime(item.CreatedAt),
+				formatTimePtr(item.ClearedAt),
+			}
+		},
+	)
+}
+
+func taskBlockKeyValues(item TaskBlockRecord) []keyValue {
+	return []keyValue{
+		{Label: "ID", Value: stringOrDash(item.ID)},
+		{Label: taskTaskIDValue, Value: stringOrDash(item.TaskID)},
+		{Label: taskWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+		{Label: taskKindValue, Value: stringOrDash(string(item.Kind))},
+		{Label: taskReasonValue, Value: stringOrDash(item.Reason)},
+		{Label: "Details", Value: stringOrDash(compactJSON(item.Details))},
+		{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
+		{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+		{Label: "Expires", Value: stringOrDash(formatTimePtr(item.ExpiresAt))},
+		{Label: "Cleared", Value: stringOrDash(formatTimePtr(item.ClearedAt))},
+		{Label: "Cleared By", Value: stringOrDash(formatTaskActorPtr(item.ClearedBy))},
+		{Label: "Clear Note", Value: stringOrDash(item.ClearNote)},
+	}
+}
+
+func taskBlockToonFields() []string {
+	return []string{
+		"id",
+		taskTaskIDKey,
+		taskWorkspaceIDKey,
+		taskKindKey,
+		taskReasonKey,
+		createdByKey,
+		taskCreatedAtKey,
+		"expires_at",
+		"cleared_at",
+		"cleared_by",
+		"clear_note",
+	}
+}
+
+func taskBlockToonValues(item TaskBlockRecord) []string {
+	return []string{
+		item.ID,
+		item.TaskID,
+		item.WorkspaceID,
+		string(item.Kind),
+		item.Reason,
+		formatTaskActor(item.CreatedBy),
+		formatTime(item.CreatedAt),
+		formatTimePtr(item.ExpiresAt),
+		formatTimePtr(item.ClearedAt),
+		formatTaskActorPtr(item.ClearedBy),
+		item.ClearNote,
 	}
 }
 
@@ -3275,7 +3573,7 @@ func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
 	return outputBundle{
 		jsonValue: *item,
 		human: func() (string, error) {
-			taskBlock, err := taskBundle(item.Task).human()
+			taskBlock, err := taskBundle(&item.Task).human()
 			if err != nil {
 				return "", err
 			}
@@ -3286,7 +3584,7 @@ func taskExecutionBundle(item *TaskExecutionRecord) outputBundle {
 			return renderHumanBlocks(taskBlock, runBlock), nil
 		},
 		toon: func() (string, error) {
-			taskBlock, err := taskBundle(item.Task).toon()
+			taskBlock, err := taskBundle(&item.Task).toon()
 			if err != nil {
 				return "", err
 			}
@@ -3695,7 +3993,7 @@ func taskInspectHeartbeatAge(value *int64) string {
 }
 
 func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
-	taskBlock, err := taskBundle(detail.Task).human()
+	taskBlock, err := taskBundle(&detail.Task).human()
 	if err != nil {
 		return "", err
 	}
@@ -3745,7 +4043,7 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 }
 
 func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
-	taskBlock, err := taskBundle(detail.Task).toon()
+	taskBlock, err := taskBundle(&detail.Task).toon()
 	if err != nil {
 		return "", err
 	}
@@ -4165,7 +4463,8 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 
 func taskChildRows(items []TaskSummaryRecord) [][]string {
 	rows := make([][]string, 0, len(items))
-	for _, item := range items {
+	for idx := range items {
+		item := &items[idx]
 		rows = append(rows, []string{
 			stringOrDash(item.ID),
 			stringOrDash(item.Identifier),
@@ -4181,7 +4480,8 @@ func taskChildRows(items []TaskSummaryRecord) [][]string {
 
 func taskChildToonRows(items []TaskSummaryRecord) [][]string {
 	rows := make([][]string, 0, len(items))
-	for _, item := range items {
+	for idx := range items {
+		item := &items[idx]
 		rows = append(rows, []string{
 			item.ID,
 			item.Identifier,

@@ -17,11 +17,15 @@ export type {
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
+  RecoverTaskRequest,
   RetryTaskRunRequest,
   RetryTaskRunResult,
   ResumeTaskRequest,
   StartTaskRunRequest,
   TaskApprovalPolicy,
+  TaskBlockedReason,
+  TaskBlockedReasonSource,
+  TaskBlockKind,
   TaskApprovalState,
   TaskBridgeNotificationCursor,
   TaskBridgeNotificationDeliveryMode,
@@ -137,6 +141,7 @@ export {
   markTaskRead,
   pauseTask,
   publishTask,
+  recoverTask,
   rejectTask,
   removeTaskDependency,
   requestTaskRunReview,
@@ -170,7 +175,7 @@ export {
 } from "./lib/query-options";
 
 // Formatters and helpers
-export type { TaskStatusSignal } from "./lib/task-formatters";
+export type { BlockedReasonChip, TaskStatusSignal } from "./lib/task-formatters";
 export {
   computeElapsed,
   countTasksByStatus,
@@ -180,11 +185,16 @@ export {
   formatRelativeTime,
   matchesTaskQuery,
   ownerAvatarKindFor,
+  projectBlockedReasonChips,
   taskApprovalStateLabel,
+  taskBlockedSourceLabel,
+  taskBlockKindLabel,
+  taskCanRecover,
   taskHasApprovalPending,
   taskInboxLaneLabel,
   taskIsBlocked,
   taskIsDraft,
+  taskWakeIndicatorApplies,
   taskLaneTone,
   taskOwnerKindLabel,
   taskOwnerLabel,
@@ -294,6 +304,7 @@ export {
   useMarkTaskRead,
   usePauseTask,
   usePublishTask,
+  useRecoverTask,
   useRejectTask,
   useRemoveTaskDependency,
   useRetryTaskRun,
@@ -354,6 +365,8 @@ export { TaskEditorModal } from "./components/task-editor-modal";
 export type { TaskEditorModalMode, TaskEditorModalProps } from "./components/task-editor-modal";
 
 // Task detail + run detail components
+export { TasksDetailBlockedReasons } from "./components/tasks-detail-blocked-reasons";
+export type { TasksDetailBlockedReasonsProps } from "./components/tasks-detail-blocked-reasons";
 export { TasksDetailHeader } from "./components/tasks-detail-header";
 export type { TasksDetailHeaderProps } from "./components/tasks-detail-header";
 export { TasksDetailTabs } from "./components/tasks-detail-tabs";

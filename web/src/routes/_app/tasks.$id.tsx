@@ -98,6 +98,7 @@ function TaskDetailRoute() {
           enqueue: page.isEnqueuePending,
           pause: page.isPausePending,
           publish: page.isPublishPending,
+          recover: page.isRecoverPending,
           resume: page.isResumePending,
         }}
         onCancel={page.handleCancelTask}
@@ -105,6 +106,7 @@ function TaskDetailRoute() {
         onEnqueueRun={page.handleEnqueueRun}
         onPause={page.handlePauseTask}
         onPublish={page.handlePublishTask}
+        onRecover={page.handleRecoverTask}
         onResume={page.handleResumeTask}
       />
 

@@ -1299,7 +1299,9 @@ func (g *GlobalDB) getTaskWithExecutor(
 			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`,
-			paused, paused_by, paused_at, paused_reason, metadata_json
+			paused, paused_by, paused_at, paused_reason, needs_attention_reason,
+			needs_attention_at, needs_attention_by_kind, needs_attention_by_ref, wake_creator,
+			metadata_json
 		 FROM tasks
 		 WHERE id = ?`,
 		trimmedTaskID,

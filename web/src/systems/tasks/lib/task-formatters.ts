@@ -9,6 +9,9 @@ import {
 } from "@/lib/status-tone";
 import type {
   TaskApprovalState,
+  TaskBlockedReason,
+  TaskBlockedReasonSource,
+  TaskBlockKind,
   TaskInboxLane,
   TaskListItem,
   TaskOwnerKind,
@@ -40,6 +43,10 @@ export function taskStatusSignal(status?: TaskStatus | string | null): TaskStatu
     case "running":
       return { tone: "accent", pulse: true };
     case "blocked":
+      // Matches TASK_STATUS_TONE so the dot and the status pill agree, and stays
+      // distinct from the needs_attention escalation dot (warning) — no coercion.
+      return { tone: "danger" };
+    case "needs_attention":
       return { tone: "warning" };
     case "failed":
     case "canceled":
@@ -64,6 +71,7 @@ const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   draft: "Draft",
   pending: "Pending",
   blocked: "Blocked",
+  needs_attention: "Needs Attention",
   ready: "Ready",
   in_progress: "In Progress",
   completed: "Completed",
@@ -139,6 +147,82 @@ export function taskPriorityTone(_priority?: TaskPriority | null): PillTone {
   // Priority never colorizes — hierarchy is expressed via weight and position,
   // not hue. Stacking signal tones per row is decoration, not signal.
   return "neutral";
+}
+
+const TASK_BLOCKED_SOURCE_LABELS: Record<TaskBlockedReasonSource, string> = {
+  dependency: "Dependency",
+  approval: "Approval",
+  paused: "Paused",
+  block: "Block",
+};
+
+const TASK_BLOCK_KIND_LABELS: Record<TaskBlockKind, string> = {
+  needs_input: "Needs input",
+  capability: "Capability",
+  transient: "Transient",
+};
+
+/**
+ * Blocking-reason tones map each source to its signal token. Machine-resolvable
+ * waits (`dependency`) read neutral; the informational `approval` wait reads
+ * `info`; operator/runtime-declared holds (`paused`, `block`) read `warning`.
+ * Tone is signal, never decoration — no source stacks a danger tone.
+ */
+const TASK_BLOCKED_SOURCE_TONE: Record<TaskBlockedReasonSource, PillTone> = {
+  dependency: "neutral",
+  approval: "info",
+  paused: "warning",
+  block: "warning",
+};
+
+export function taskBlockedSourceLabel(source: TaskBlockedReasonSource): string {
+  return TASK_BLOCKED_SOURCE_LABELS[source] ?? source;
+}
+
+export function taskBlockKindLabel(kind?: TaskBlockKind | null): string | undefined {
+  if (!kind) {
+    return undefined;
+  }
+  return TASK_BLOCK_KIND_LABELS[kind] ?? kind;
+}
+
+export interface BlockedReasonChip {
+  key: string;
+  source: TaskBlockedReasonSource;
+  sourceLabel: string;
+  tone: PillTone;
+  kind?: TaskBlockKind;
+  kindLabel?: string;
+  reason?: string;
+  dependsOnTaskIds?: string[];
+}
+
+/**
+ * Projects the read-only `blocked_reasons` array into one chip descriptor per
+ * entry, preserving order and carrying only payload data (truthful UI). Returns
+ * an empty array when the task carries no blocking causes, so the caller renders
+ * nothing rather than an empty container.
+ */
+export function projectBlockedReasonChips(
+  reasons?: TaskBlockedReason[] | null
+): BlockedReasonChip[] {
+  if (!reasons || reasons.length === 0) {
+    return [];
+  }
+  return reasons.map((reason, index) => {
+    const trimmedReason = reason.reason?.trim();
+    const dependsOnTaskIds = reason.depends_on_task_ids?.filter(id => id.trim() !== "") ?? [];
+    return {
+      key: reason.block_id?.trim() || `${reason.source}-${index}`,
+      source: reason.source,
+      sourceLabel: taskBlockedSourceLabel(reason.source),
+      tone: TASK_BLOCKED_SOURCE_TONE[reason.source] ?? "neutral",
+      kind: reason.kind ?? undefined,
+      kindLabel: taskBlockKindLabel(reason.kind),
+      reason: trimmedReason || undefined,
+      dependsOnTaskIds: dependsOnTaskIds.length > 0 ? dependsOnTaskIds : undefined,
+    };
+  });
 }
 
 /**
@@ -245,6 +329,26 @@ export function taskIsDraft(task: Pick<TaskListItem, "draft" | "status">): boole
 
 export function taskIsBlocked(task: Pick<TaskListItem, "status">): boolean {
   return task.status === "blocked";
+}
+
+/**
+ * A task is recoverable only when its derived status is `needs_attention`. Gating
+ * on the derived status (not the raw `needs_attention_at` boolean) respects the
+ * precedence `terminal > needs_attention` (ADR-003): a task force-completed or
+ * canceled while `needs_attention_at` is still set reads as terminal, so the
+ * Recover control never appears on a task the runtime would reject (truthful UI).
+ */
+export function taskCanRecover(task: Pick<TaskRecord, "status">): boolean {
+  return task.status === "needs_attention";
+}
+
+/**
+ * The wake indicator is meaningful only for tasks created by an agent session —
+ * `wake_creator` never fires for human/automation/daemon creators (ADR-004), so
+ * the indicator is suppressed rather than rendering a control with no effect.
+ */
+export function taskWakeIndicatorApplies(task: Pick<TaskRecord, "created_by">): boolean {
+  return task.created_by?.kind === "agent_session";
 }
 
 export function matchesTaskQuery(
@@ -395,6 +499,7 @@ export function countTasksByStatus(tasks: TaskListItem[]): Record<TaskStatus, nu
     draft: 0,
     pending: 0,
     blocked: 0,
+    needs_attention: 0,
     ready: 0,
     in_progress: 0,
     completed: 0,
@@ -415,6 +520,7 @@ export type TaskLifecyclePhase =
   | "ready_to_start"
   | "queued"
   | "running"
+  | "needs_attention"
   | "completed"
   | "failed"
   | "canceled"
@@ -471,6 +577,10 @@ export function taskLifecyclePhase(task: TaskLifecycleInput): TaskLifecyclePhase
     return "blocked";
   }
 
+  if (task.status === "needs_attention") {
+    return "needs_attention";
+  }
+
   if (task.status === "in_progress") {
     return "running";
   }
@@ -484,6 +594,7 @@ const TASK_LIFECYCLE_PHASE_LABELS: Record<TaskLifecyclePhase, string> = {
   ready_to_start: "Ready to start",
   queued: "Coordinator handoff",
   running: "Running",
+  needs_attention: "Needs attention",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
@@ -504,6 +615,8 @@ const TASK_LIFECYCLE_PHASE_DESCRIPTIONS: Record<TaskLifecyclePhase, string> = {
   queued: "Coordinator handoff is in flight. A worker session will claim this queued run.",
   running:
     "A worker session is executing the active run. Channel messages support coordination only.",
+  needs_attention:
+    "Task is escalated for operator recovery. Recover it before any new run can be enqueued or claimed.",
   completed: "The latest run completed. Task ownership and terminal status are durable.",
   failed: "The latest run failed. Retry, cancel, or follow up — channel chatter never owns status.",
   canceled: "The task or its run was canceled.",
@@ -520,6 +633,7 @@ const TASK_LIFECYCLE_PHASE_TONES: Record<TaskLifecyclePhase, PillTone> = {
   ready_to_start: "neutral",
   queued: "neutral",
   running: "accent",
+  needs_attention: "warning",
   completed: "neutral",
   failed: "danger",
   canceled: "danger",
@@ -530,50 +644,12 @@ export function taskLifecyclePhaseTone(phase: TaskLifecyclePhase): PillTone {
   return TASK_LIFECYCLE_PHASE_TONES[phase];
 }
 
-export type TaskHandoffActionKey =
-  | "publish"
-  | "approve"
-  | "reject"
-  | "start"
-  | "cancel"
-  | "retry"
-  | "edit";
-
-/**
- * Picks the operator-facing primary handoff action for a task. UI surfaces use
- * this so that creation (intent) is never represented by an action — only the
- * boundary actions that enqueue an executable run.
- */
-export function taskHandoffActionKey(task: TaskLifecycleInput): TaskHandoffActionKey {
-  if (taskIsDraft(task)) {
-    return "publish";
-  }
-
-  if (task.approval_state === "pending") {
-    return "approve";
-  }
-
-  if (task.status === "failed") {
-    return "retry";
-  }
-
-  if (task.status === "blocked") {
-    return "edit";
-  }
-
-  if (task.status === "completed" || task.status === "canceled") {
-    return "edit";
-  }
-
-  return "start";
-}
-
 export interface TaskHandoffActionLabel {
   label: string;
   tooltip: string;
 }
 
-const TASK_HANDOFF_ACTION_COPY: Record<TaskHandoffActionKey, TaskHandoffActionLabel> = {
+const TASK_HANDOFF_ACTION_COPY = {
   publish: {
     label: "Publish",
     tooltip:
@@ -605,9 +681,11 @@ const TASK_HANDOFF_ACTION_COPY: Record<TaskHandoffActionKey, TaskHandoffActionLa
     label: "Edit",
     tooltip: "Open the editor. Editing keeps the task in saved intent until you publish or start.",
   },
-};
+} satisfies Record<string, TaskHandoffActionLabel>;
 
-export function taskHandoffActionCopy(action: TaskHandoffActionKey): TaskHandoffActionLabel {
+export function taskHandoffActionCopy(
+  action: keyof typeof TASK_HANDOFF_ACTION_COPY
+): TaskHandoffActionLabel {
   return TASK_HANDOFF_ACTION_COPY[action];
 }
 

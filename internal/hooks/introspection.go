@@ -9,6 +9,7 @@ const (
 	introspectionCoordinatorObservationPatchValue     = "CoordinatorObservationPatch"
 	introspectionNetworkObservationPatchValue         = "NetworkObservationPatch"
 	introspectionSpawnObservationPatchValue           = "SpawnObservationPatch"
+	introspectionTaskObservationPatchValue            = "TaskObservationPatch"
 	introspectionTaskRunObservationPatchValue         = "TaskRunObservationPatch"
 )
 
@@ -403,6 +404,34 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		SyncEligible:  true,
 		PayloadSchema: "CoordinatorFailedPayload",
 		PatchSchema:   introspectionCoordinatorObservationPatchValue,
+	},
+	HookTaskBlocked: {
+		Event:         HookTaskBlocked,
+		Family:        HookEventFamilyTask,
+		SyncEligible:  true,
+		PayloadSchema: "TaskBlockedPayload",
+		PatchSchema:   introspectionTaskObservationPatchValue,
+	},
+	HookTaskUnblocked: {
+		Event:         HookTaskUnblocked,
+		Family:        HookEventFamilyTask,
+		SyncEligible:  true,
+		PayloadSchema: "TaskUnblockedPayload",
+		PatchSchema:   introspectionTaskObservationPatchValue,
+	},
+	HookTaskNeedsAttention: {
+		Event:         HookTaskNeedsAttention,
+		Family:        HookEventFamilyTask,
+		SyncEligible:  true,
+		PayloadSchema: "TaskNeedsAttentionPayload",
+		PatchSchema:   introspectionTaskObservationPatchValue,
+	},
+	HookTaskRecovered: {
+		Event:         HookTaskRecovered,
+		Family:        HookEventFamilyTask,
+		SyncEligible:  true,
+		PayloadSchema: "TaskRecoveredPayload",
+		PatchSchema:   introspectionTaskObservationPatchValue,
 	},
 	HookTaskRunEnqueued: {
 		Event:         HookTaskRunEnqueued,

@@ -176,6 +176,14 @@ func (s *blockingRecoveryTaskSource) RecoverExpiredRunLeases(
 	return nil, nil
 }
 
+func (s *blockingRecoveryTaskSource) ExpireTaskBlocks(
+	context.Context,
+	time.Time,
+	taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
 func (s *blockingRecoveryTaskSource) waitForRecovery(t *testing.T) {
 	t.Helper()
 

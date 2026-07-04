@@ -147,6 +147,22 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.CoordinatorFailedPayload,
 	) (hookspkg.CoordinatorFailedPayload, error)
+	DispatchTaskBlocked(
+		context.Context,
+		hookspkg.TaskBlockedPayload,
+	) (hookspkg.TaskBlockedPayload, error)
+	DispatchTaskUnblocked(
+		context.Context,
+		hookspkg.TaskUnblockedPayload,
+	) (hookspkg.TaskUnblockedPayload, error)
+	DispatchTaskNeedsAttention(
+		context.Context,
+		hookspkg.TaskNeedsAttentionPayload,
+	) (hookspkg.TaskNeedsAttentionPayload, error)
+	DispatchTaskRecovered(
+		context.Context,
+		hookspkg.TaskRecoveredPayload,
+	) (hookspkg.TaskRecoveredPayload, error)
 	DispatchTaskRunEnqueued(
 		context.Context,
 		hookspkg.TaskRunEnqueuedPayload,
@@ -918,6 +934,58 @@ func (n *hooksNotifier) DispatchCoordinatorFailed(
 		hookspkg.HookCoordinatorFailed,
 		payload,
 		hookRuntime.DispatchCoordinatorFailed,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskBlocked(
+	ctx context.Context,
+	payload hookspkg.TaskBlockedPayload,
+) (hookspkg.TaskBlockedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskBlocked,
+		payload,
+		hookRuntime.DispatchTaskBlocked,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskUnblocked(
+	ctx context.Context,
+	payload hookspkg.TaskUnblockedPayload,
+) (hookspkg.TaskUnblockedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskUnblocked,
+		payload,
+		hookRuntime.DispatchTaskUnblocked,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskNeedsAttention(
+	ctx context.Context,
+	payload hookspkg.TaskNeedsAttentionPayload,
+) (hookspkg.TaskNeedsAttentionPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskNeedsAttention,
+		payload,
+		hookRuntime.DispatchTaskNeedsAttention,
+	)
+}
+
+func (n *hooksNotifier) DispatchTaskRecovered(
+	ctx context.Context,
+	payload hookspkg.TaskRecoveredPayload,
+) (hookspkg.TaskRecoveredPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookTaskRecovered,
+		payload,
+		hookRuntime.DispatchTaskRecovered,
 	)
 }
 

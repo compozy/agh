@@ -237,6 +237,130 @@ when they need an independent progress view.
 | `task.paused`               | A task was paused for future scheduler claims.        |
 | `task.resumed`              | A task's direct pause was cleared.                    |
 
+## Typed task blocks and the unblock-loop breaker
+
+A worker agent can declare _why_ a task cannot proceed with a typed block. Blocks are a side model
+next to task runs: a task may hold several open blocks at once, each with a machine- and
+human-readable reason.
+
+| Kind          | Meaning                                                                           |
+| ------------- | --------------------------------------------------------------------------------- |
+| `needs_input` | Waiting on a human or another agent to supply missing information.                |
+| `capability`  | Missing a skill, tool, or credential the task requires.                           |
+| `transient`   | A recoverable external failure; may carry an `expires_at` for lazy self-clearing. |
+
+Dependency waits, pending approval, and operator pause are **not** block kinds — they stay separate
+mechanisms and surface only in the unified `blocked_reasons` read projection.
+
+Tool path:
+
+```text
+agh__task_block    { "task_id": "task-123", "kind": "transient", "reason": "provider 503" }
+agh__task_unblock  { "task_id": "task-123", "block_id": "block-abc" }
+```
+
+CLI path:
+
+```bash
+agh task block task-123 --kind transient --reason "provider 503" --expires-in 5m -o json
+agh task blocks task-123 --all -o json
+agh task unblock task-123 --block block-abc --note "provider recovered" -o json
+```
+
+The HTTP and UDS surfaces are `POST /api/tasks/{id}/blocks`, `GET /api/tasks/{id}/blocks`, and
+`POST /api/tasks/{id}/blocks/{block_id}/clear`.
+
+Blocking a running task in one step passes `--run-id` (with `--as-agent`, so AGH resolves the active
+lease token server-side). AGH records the block, increments the recurrence counter, and releases the
+lease in one atomic transaction. The run returns to `queued` with no attempt consumed and emits
+`task.run_released`.
+
+### Blocked reasons projection
+
+Task read payloads carry a read-only `blocked_reasons` array that unifies every current cause under
+one shape. Each entry names a `source` — `dependency`, `approval`, `paused`, or `block` — and block
+entries add the `kind`, `reason`, and `block_id`; dependency entries carry `depends_on_task_ids`. The
+array is derived on every read and is never stored, so it cannot drift from the underlying blocks,
+edges, and flags. The web task detail renders one chip per entry.
+
+### Auto-resume
+
+Clearing the last blocking cause returns a task to `ready`. For tasks that opted into
+`auto_enqueue_on_ready`, AGH enqueues the next run automatically on block-clear, transient-expiry, and
+approval-granted — the same idempotent, at-most-one-open-run path used for dependency completion.
+Transient blocks expire lazily: an expired block stops counting toward `blocked` immediately for read
+and claim correctness, and a scheduler sweep finalizes the clear through the task service.
+
+### The unblock-loop breaker
+
+An automation that keeps clearing a block the worker keeps re-declaring is an unbounded thrash loop.
+AGH counts re-blocks of the same kind on the same task and, when the count reaches
+`[autonomy] block_recurrence_limit` (default `2`; `0` disables the breaker), escalates the task out of
+the block lane to a first-class `needs_attention` task status. The counter resets only on successful
+task completion — never on unblock or expiry.
+
+`needs_attention` is excluded from claim selection exactly like `blocked`, so an escalated task stops
+receiving new claims until an operator or agent recovers it:
+
+Tool path:
+
+```text
+agh__task_recover  { "task_id": "task-123", "note": "fixed the credential" }
+```
+
+CLI path:
+
+```bash
+agh task recover task-123 --note "fixed the credential" -o json
+```
+
+The HTTP and UDS route is `POST /api/tasks/{id}/recover`. Recover clears the escalation, records the
+actor, and flows through the same auto-enqueue path, so an opted-in task re-enters the claimable set.
+Recovering a task that is not escalated is rejected as an invalid status transition.
+
+### Wake-creator
+
+When an `agent_session` creates a task (delegation), AGH wakes the creating session on the child's
+terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn —
+never an interrupt or steer. Opt out per task at create time:
+
+```bash
+agh task create --scope global --title "Deploy" --no-wake-creator
+```
+
+Wake is delivered at most once per transition, suppressed for a dead creator session and for a
+self-wake (the creator session is the one executing the run), and never carries a raw claim token. The
+flag is meaningful only for agent-created tasks; it never fires for human, automation, or daemon
+creators.
+
+### Completion claim gate
+
+When a run completes, the worker may list the tasks it created during that run in `created_task_ids`.
+AGH verifies each id before the terminal write: the task must exist, belong to the same workspace, and
+have been created by the completing session. A phantom or cross-session id rejects the completion,
+leaves the run `running` with its lease intact for a corrected resubmission, and records
+`task.completion.hallucination_blocked`. A second advisory scan of the result prose emits
+`task.completion.hallucination_suspected` for task-id-shaped tokens absent from the store, but never
+blocks the completion.
+
+```text
+agh__task_run_complete  { "run_id": "run-123", "result": { "summary": "spawned 2 children" }, "created_task_ids": ["task-456", "task-789"] }
+```
+
+`created_task_ids` means "tasks I created this run" — do not list tasks created by other sessions.
+
+### Block and escalation events
+
+| Event                  | When AGH emits it                                      |
+| ---------------------- | ------------------------------------------------------ |
+| `task.blocked`         | A typed block was created on a task.                   |
+| `task.unblocked`       | A block was cleared explicitly or by transient expiry. |
+| `task.needs_attention` | The unblock-loop breaker escalated a task.             |
+| `task.recovered`       | An operator or agent recovered an escalated task.      |
+
+Blocking a running task also emits `task.run_released` for the parked run. See the
+[Hook Event Catalog](/runtime/core/hooks/event-catalog) for payload shapes.
+
 ## Task inspect diagnostics
 
 Use inspect when an operator or agent needs a read-only triage snapshot before mutating a task run.

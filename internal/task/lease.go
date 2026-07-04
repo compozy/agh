@@ -41,6 +41,7 @@ var defaultCoordinationMessageKinds = []string{
 }
 
 var rawClaimTokenPattern = regexp.MustCompile(`agh_claim_[A-Za-z0-9_-]+`)
+var canonicalTaskIDTokenPattern = regexp.MustCompile(`\btask-[A-Za-z0-9][A-Za-z0-9_-]*\b`)
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
@@ -106,10 +107,11 @@ type LeaseRelease struct {
 
 // LeaseCompletion captures a token-fenced successful terminal transition.
 type LeaseCompletion struct {
-	RunID      string    `json:"run_id"`
-	ClaimToken string    `json:"claim_token"`
-	Result     RunResult `json:"result"`
-	Now        time.Time `json:"now"`
+	RunID          string    `json:"run_id"`
+	ClaimToken     string    `json:"claim_token"`
+	Result         RunResult `json:"result"`
+	CreatedTaskIDs []string  `json:"created_task_ids,omitempty"`
+	Now            time.Time `json:"now"`
 }
 
 // LeaseFailure captures a token-fenced failed terminal transition.
@@ -374,6 +376,7 @@ func (c LeaseCompletion) Normalize(defaultNow time.Time) (LeaseCompletion, error
 	normalized := c
 	normalized.RunID = strings.TrimSpace(normalized.RunID)
 	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
+	normalized.CreatedTaskIDs = normalizeCreatedTaskIDs(normalized.CreatedTaskIDs)
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
 	if err := normalized.Validate("lease_completion"); err != nil {
 		return LeaseCompletion{}, err
@@ -385,6 +388,15 @@ func (c LeaseCompletion) Normalize(defaultNow time.Time) (LeaseCompletion, error
 func (c LeaseCompletion) Validate(path string) error {
 	if err := validateLeaseRunToken(c.RunID, c.ClaimToken, path); err != nil {
 		return err
+	}
+	for idx, taskID := range c.CreatedTaskIDs {
+		if strings.TrimSpace(taskID) == "" {
+			return fmt.Errorf(
+				"%w: %s is required",
+				ErrValidation,
+				nestedPath(path, fmt.Sprintf("created_task_ids[%d]", idx)),
+			)
+		}
 	}
 	return c.Result.Validate(nestedPath(path, "result"))
 }
@@ -435,6 +447,30 @@ func normalizeCapabilityCriteria(values []string) []string {
 	return normalizeStringSet(values)
 }
 
+func normalizeCreatedTaskIDs(values []string) []string {
+	return normalizeStringSet(values)
+}
+
+func canonicalTaskIDTokens(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	matches := canonicalTaskIDTokenPattern.FindAllString(string(raw), -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(matches))
+	tokens := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if _, ok := seen[match]; ok {
+			continue
+		}
+		seen[match] = struct{}{}
+		tokens = append(tokens, match)
+	}
+	return tokens
+}
+
 func normalizeStringSet(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -444,6 +480,7 @@ func normalizeStringSet(values []string) []string {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
 		if trimmed == "" {
+			// Preserve empty entries so Validate rejects invalid input instead of treating it as omitted.
 			normalized = append(normalized, trimmed)
 			continue
 		}

@@ -13,6 +13,7 @@ import {
   toRunCardStatus,
 } from "../lib/task-formatters";
 import type { TaskDetailView, TaskInspectView } from "../types";
+import { TasksDetailBlockedReasons } from "./tasks-detail-blocked-reasons";
 import { TaskInspectDiagnosticsCard } from "./task-inspect-diagnostics-card";
 
 export interface TasksDetailOverviewPanelProps {
@@ -24,9 +25,9 @@ export interface TasksDetailOverviewPanelProps {
 
 /**
  * Overview tab — KPI metric grid (3 col / gap-3 ≥ 1100 px, collapses to 1 col),
- * active-run `<RunCard>`, and `<DescriptionCard>` No
- * `border-l-2 border-l-accent` rail, no Stuck pill, no Watch button, no Block
- * reason placeholder (Out of Scope / §6 / §8).
+ * a blocking-reasons section (rendered only when the task carries open causes),
+ * active-run `<RunCard>`, and `<DescriptionCard>`. No `border-l-2 border-l-accent`
+ * rail, no Stuck pill, no Watch button.
  */
 export function TasksDetailOverviewPanel({
   detail,
@@ -41,6 +42,7 @@ export function TasksDetailOverviewPanel({
   const dependencyReferences = detail.dependency_references ?? detail.dependencies ?? [];
   const dependencyCount = dependencyReferences.length || summary?.dependency_count || 0;
   const runs = detail.runs ?? [];
+  const blockedReasons = record.blocked_reasons ?? [];
   const description = record.description?.trim() ?? "";
   const activeChannelLabel = runIsCoordinated(activeRun)
     ? runCoordinationChannelLabel(activeRun)
@@ -71,6 +73,12 @@ export function TasksDetailOverviewPanel({
         />
         <Metric data-testid="tasks-detail-overview-runs" label="Runs" value={runs.length} />
       </div>
+
+      {blockedReasons.length > 0 ? (
+        <Section data-testid="tasks-detail-blocking" label="Blocking reasons">
+          <TasksDetailBlockedReasons reasons={blockedReasons} />
+        </Section>
+      ) : null}
 
       {activeRun ? (
         <Section

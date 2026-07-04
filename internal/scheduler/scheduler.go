@@ -289,6 +289,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	now := s.clock.Now().UTC()
 	result := CycleResult{}
 	errs := s.sweepExpiredLeases(ctx, now, &result)
+	errs = append(errs, s.sweepExpiredTaskBlocks(ctx, now, &result)...)
 
 	pending, active, sessions, err := s.loadCycleSnapshots(ctx, &result)
 	if err != nil {
@@ -361,6 +362,20 @@ func (s *Scheduler) sweepExpiredLeases(ctx context.Context, now time.Time, resul
 	result.RecoveredRunIDs = recoveredRunIDs(recovered)
 	s.recordRecovered(len(recovered), now)
 	s.logger.Info("scheduler.lease_sweep", "recovered_leases", len(recovered))
+	return nil
+}
+
+func (s *Scheduler) sweepExpiredTaskBlocks(ctx context.Context, now time.Time, result *CycleResult) []error {
+	expired, err := s.tasks.ExpireTaskBlocks(ctx, now, s.actor)
+	if err != nil {
+		s.recordExpiryError(err)
+		s.logger.Warn("scheduler.task_block_sweep.error", "error", err)
+		return []error{fmt.Errorf("scheduler: expire task blocks: %w", err)}
+	}
+	result.ExpiredBlocks = len(expired.Blocks)
+	result.ExpiredBlockIDs = expiredBlockIDs(expired.Blocks)
+	s.recordExpiredBlocks(len(expired.Blocks), now)
+	s.logger.Info("scheduler.task_block_sweep", "expired_blocks", len(expired.Blocks))
 	return nil
 }
 
@@ -629,10 +644,24 @@ func (s *Scheduler) recordRecovered(count int, now time.Time) {
 	s.mu.Unlock()
 }
 
+func (s *Scheduler) recordExpiredBlocks(count int, now time.Time) {
+	s.mu.Lock()
+	s.stats.ExpiredBlocks += count
+	s.stats.LastCycleAt = now
+	s.mu.Unlock()
+}
+
 func (s *Scheduler) recordRecoveryError(err error) {
 	s.mu.Lock()
 	s.stats.RecoveryErrors++
 	s.stats.LastRecoveryError = err.Error()
+	s.mu.Unlock()
+}
+
+func (s *Scheduler) recordExpiryError(err error) {
+	s.mu.Lock()
+	s.stats.ExpiryErrors++
+	s.stats.LastExpiryError = err.Error()
 	s.mu.Unlock()
 }
 
@@ -869,6 +898,16 @@ func recoveredRunIDs(results []taskpkg.ExpiredLeaseRecoveryResult) []string {
 	ids := make([]string, 0, len(results))
 	for idx := range results {
 		if id := strings.TrimSpace(results[idx].Run.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func expiredBlockIDs(blocks []taskpkg.TaskBlock) []string {
+	ids := make([]string, 0, len(blocks))
+	for idx := range blocks {
+		if id := strings.TrimSpace(blocks[idx].ID); id != "" {
 			ids = append(ids, id)
 		}
 	}

@@ -25,6 +25,11 @@ const browserLifecycleFixture = path.resolve(
   "browser_session_lifecycle_fixture.json"
 );
 const tasksSessionAgentName = "browser-lifecycle-agent";
+// Agent-caller identity headers (mirrors internal/agentidentity.Header*). Sending
+// them on a create request stamps `created_by.kind = agent_session`, which the
+// wake indicator gates on (truthful UI).
+const aghSessionHeader = "X-AGH-Session-ID";
+const aghAgentHeader = "X-AGH-Agent";
 const sensitivePattern =
   /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
@@ -572,11 +577,251 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
   }
 });
 
+// E2E-web-1 (_tests.md §4.1): typed blocked_reasons chips project every open
+// source simultaneously (dependency + approval + block), truthfully from payload.
+test("task detail renders blocked_reasons chips for dependency, approval, and block sources", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const ui = tasksOperatorSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+
+  const dependencyTask = await createTask(runtime, {
+    scope: "global",
+    title: uniqueTitle("Blocking dependency"),
+    description: "Unresolved dependency that keeps the target task blocked.",
+  });
+  const targetTask = await createTask(runtime, {
+    scope: "global",
+    approval_policy: "manual",
+    title: uniqueTitle("Multi-source blocked task"),
+    description: "Carries dependency, approval, and block reasons at once.",
+  });
+  await addDependency(runtime, targetTask.id, dependencyTask.id);
+  await blockTask(runtime, targetTask.id, "needs_input", "Waiting on operator input");
+
+  await expect
+    .poll(async () =>
+      ((await getTask(runtime, targetTask.id)).task.blocked_reasons ?? [])
+        .map(reason => reason.source)
+        .sort()
+    )
+    .toEqual(["approval", "block", "dependency"]);
+
+  await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(targetTask.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await useGlobalWorkspaceIfPrompted(ui);
+  await expect(ui.detailContent).toBeVisible();
+
+  const blockedReasons = appPage.getByTestId("tasks-detail-blocked-reasons");
+  await expect(blockedReasons).toBeVisible();
+  await expect(appPage.getByTestId("tasks-detail-blocked-reason")).toHaveCount(3);
+  for (const source of ["dependency", "approval", "block"]) {
+    await expect(blockedReasons.locator(`[data-source="${source}"]`)).toHaveCount(1);
+  }
+  await expect(blockedReasons).toContainText("Waiting on operator input");
+  await browserArtifacts.captureScreenshot("tasks-blocked-reasons-chips", appPage);
+});
+
+// E2E-web-2 (_tests.md §4.2): the needs_attention badge + Recover action clear
+// the escalation through the real API, and a second observer tab (which never
+// fires the mutation) proves the badge disappears live via the task.recovered
+// SSE frame — isolating the SSE round-trip from the acting tab's own invalidation.
+test("task detail exposes the needs_attention badge and a Recover action that clears it live", async ({
+  appPage,
+  browserArtifacts,
+  context,
+  runtime,
+}) => {
+  const ui = tasksOperatorSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+
+  const task = await createTask(runtime, {
+    scope: "global",
+    title: uniqueTitle("Escalated task"),
+    description: "Driven through the block-recurrence breaker into needs_attention.",
+  });
+  await escalateTaskToNeedsAttention(runtime, task.id);
+  expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
+
+  const detailPath = `/tasks/${encodeURIComponent(task.id)}`;
+  await appPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(ui);
+  await expect(ui.detailContent).toBeVisible();
+
+  const badge = appPage.getByTestId("tasks-detail-needs-attention");
+  const recover = appPage.getByTestId("tasks-detail-recover");
+  await expect(badge).toBeVisible();
+  await expect(recover).toBeVisible();
+  await browserArtifacts.captureScreenshot("tasks-needs-attention-badge", appPage);
+
+  // Observer tab on the same task in the same context. It never issues the
+  // recover mutation, so its badge can only clear through the live
+  // `task.recovered` SSE frame — isolating the SSE path from the acting tab's
+  // own query invalidation.
+  const observerPage = await context.newPage();
+  try {
+    await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(observerPage);
+    const observerBadge = observerPage.getByTestId("tasks-detail-needs-attention");
+    await expect(observerBadge).toBeVisible();
+
+    const recoverResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/api/tasks/${encodeURIComponent(task.id)}/recover`)
+    );
+    await recover.click();
+    expect((await recoverResponse).ok()).toBe(true);
+
+    // Acting tab clears via the recover round-trip; observer tab clears purely
+    // via the SSE frame it received without issuing any mutation.
+    await expect(badge).toBeHidden();
+    await expect(recover).toBeHidden();
+    await expect(observerBadge).toBeHidden();
+  } finally {
+    await observerPage.close();
+  }
+
+  await expect
+    .poll(async () => (await getTask(runtime, task.id)).task.status)
+    .not.toBe("needs_attention");
+});
+
+// E2E-web-3 (_tests.md §4.3): the wake indicator reflects the wake_creator opt-out
+// on agent-created tasks (the pill only renders for agent_session creators).
+test("task detail reflects the wake_creator opt-out on agent-created tasks", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const ui = tasksOperatorSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+  const homeDir = runtime.paths?.homeDir;
+  if (!homeDir) {
+    throw new Error("wake indicator e2e requires launch-mode runtime paths.");
+  }
+  const workspace = await runtime.resolveWorkspace(homeDir);
+  const session = await createSession(runtime, tasksSessionAgentName, workspace.id);
+
+  const wakeOffTask = await createAgentTask(runtime, session.id, tasksSessionAgentName, {
+    scope: "global",
+    title: uniqueTitle("Wake opt-out task"),
+    description: "Created by an agent session with creator wake disabled.",
+    wake_creator: false,
+  });
+  const wakeOnTask = await createAgentTask(runtime, session.id, tasksSessionAgentName, {
+    scope: "global",
+    title: uniqueTitle("Wake enabled task"),
+    description: "Created by an agent session with the default creator wake.",
+  });
+
+  const wakeOff = await getTask(runtime, wakeOffTask.id);
+  expect(wakeOff.task.created_by?.kind).toBe("agent_session");
+  expect(wakeOff.task.wake_creator).toBe(false);
+  const wakeOn = await getTask(runtime, wakeOnTask.id);
+  expect(wakeOn.task.created_by?.kind).toBe("agent_session");
+  expect(wakeOn.task.wake_creator).toBe(true);
+
+  await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(wakeOffTask.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await useGlobalWorkspaceIfPrompted(ui);
+  await expect(ui.detailContent).toBeVisible();
+  const wakeOffPill = appPage.getByTestId("tasks-detail-wake");
+  await expect(wakeOffPill).toBeVisible();
+  await expect(wakeOffPill).toContainText("Wake off");
+  await browserArtifacts.captureScreenshot("tasks-wake-opt-out", appPage);
+
+  await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(wakeOnTask.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(ui.detailContent).toBeVisible();
+  const wakeOnPill = appPage.getByTestId("tasks-detail-wake");
+  await expect(wakeOnPill).toBeVisible();
+  await expect(wakeOnPill).toContainText("Wake on");
+});
+
+// E2E-web-4 (_tests.md §4.4): needs_attention stays a distinct, truthful status in
+// the list group and kanban column — never coerced into `blocked` (guards B-001).
+test("tasks list and kanban surface needs_attention as a distinct status", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const ui = tasksOperatorSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+
+  const task = await createTask(runtime, {
+    scope: "global",
+    title: uniqueTitle("Escalated list task"),
+    description: "Escalated task that must stay visible as its own list/kanban status.",
+  });
+  await escalateTaskToNeedsAttention(runtime, task.id);
+  expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
+
+  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(ui);
+  if ((await ui.modeList.getAttribute("aria-pressed")) !== "true") {
+    await ui.modeList.click();
+  }
+  await expect(ui.modeList).toHaveAttribute("aria-pressed", "true");
+  await revealTasksListPanel(appPage);
+  await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
+
+  // Distinct list group: the escalation lands in its own `needs_attention`
+  // group, never folded into `blocked`.
+  const needsAttentionGroup = appPage.getByTestId("task-group-needs_attention");
+  await expect(needsAttentionGroup).toBeVisible();
+  await expect(needsAttentionGroup.getByTestId(`task-card-${task.id}`)).toBeVisible();
+  await expect(
+    appPage.getByTestId("task-group-blocked").getByTestId(`task-card-${task.id}`)
+  ).toHaveCount(0);
+  await expect(appPage.getByTestId(`task-card-needs-attention-${task.id}`)).toBeVisible();
+  await browserArtifacts.captureScreenshot("tasks-list-needs-attention", appPage);
+
+  // Distinct kanban column: the same task lands in the needs_attention column.
+  await ui.modeKanban.click();
+  await expect(ui.modeKanban).toHaveAttribute("aria-pressed", "true");
+  await expect(appPage.getByTestId("tasks-kanban-column-needs_attention")).toBeVisible();
+  await expect(
+    appPage
+      .getByTestId("tasks-kanban-column-body-needs_attention")
+      .getByTestId(`tasks-kanban-card-${task.id}`)
+  ).toBeVisible();
+});
+
+interface TaskActorIdentity {
+  kind?: string | null;
+  ref?: string | null;
+}
+
+interface TaskBlockedReason {
+  source: string;
+  kind?: string | null;
+  reason?: string | null;
+  block_id?: string | null;
+  depends_on_task_ids?: string[] | null;
+}
+
 interface TaskRecord {
   id: string;
   approval_state?: string | null;
   status: string;
   title: string;
+  blocked_reasons?: TaskBlockedReason[] | null;
+  needs_attention?: boolean | null;
+  wake_creator?: boolean | null;
+  created_by?: TaskActorIdentity | null;
+}
+
+interface TaskBlockPayload {
+  id: string;
+  task_id: string;
+  kind: string;
+  reason: string;
 }
 
 interface TaskRun {
@@ -735,6 +980,76 @@ async function addDependency(
 async function getTask(runtime: BrowserRuntime, taskID: string): Promise<TaskDetailView> {
   return (await runtime.requestJSON<TaskDetailEnvelope>(`/api/tasks/${encodeURIComponent(taskID)}`))
     .task;
+}
+
+async function blockTask(
+  runtime: BrowserRuntime,
+  taskID: string,
+  kind: string,
+  reason: string
+): Promise<TaskBlockPayload> {
+  return (
+    await runtime.requestJSON<{ block: TaskBlockPayload }>(
+      `/api/tasks/${encodeURIComponent(taskID)}/blocks`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind, reason }),
+      }
+    )
+  ).block;
+}
+
+async function clearTaskBlock(
+  runtime: BrowserRuntime,
+  taskID: string,
+  blockID: string
+): Promise<void> {
+  await runtime.requestJSON<{ block: TaskBlockPayload }>(
+    `/api/tasks/${encodeURIComponent(taskID)}/blocks/${encodeURIComponent(blockID)}/clear`,
+    {
+      method: "POST",
+      body: JSON.stringify({ note: "clear before re-block to drive the recurrence breaker" }),
+    }
+  );
+}
+
+// escalateTaskToNeedsAttention drives the same-kind block-recurrence breaker
+// (default limit 2) by repeatedly blocking then clearing the same kind until the
+// task derives `needs_attention`. The final escalating block is intentionally
+// left open so the task stays escalated for the caller to recover.
+async function escalateTaskToNeedsAttention(
+  runtime: BrowserRuntime,
+  taskID: string
+): Promise<void> {
+  const maxCycles = 6;
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const block = await blockTask(runtime, taskID, "needs_input", `escalation cycle ${cycle}`);
+    if ((await getTask(runtime, taskID)).task.status === "needs_attention") {
+      return;
+    }
+    await clearTaskBlock(runtime, taskID, block.id);
+  }
+  throw new Error(
+    `task ${taskID} did not escalate to needs_attention after ${maxCycles} block cycles`
+  );
+}
+
+async function createAgentTask(
+  runtime: BrowserRuntime,
+  sessionID: string,
+  agentName: string,
+  body: Record<string, unknown>
+): Promise<TaskRecord> {
+  return (
+    await runtime.requestJSON<{ task: TaskRecord }>("/api/tasks", {
+      method: "POST",
+      headers: {
+        [aghSessionHeader]: sessionID,
+        [aghAgentHeader]: agentName,
+      },
+      body: JSON.stringify(body),
+    })
+  ).task;
 }
 
 async function getTaskRun(runtime: BrowserRuntime, runID: string): Promise<TaskRunDetailView> {

@@ -176,6 +176,14 @@ const (
 	ToolIDTaskUpdate ToolID = "agh__task_update"
 	// ToolIDTaskCancel cancels one task through the task service.
 	ToolIDTaskCancel ToolID = "agh__task_cancel"
+	// ToolIDTaskBlock creates one runtime-declared task block.
+	ToolIDTaskBlock ToolID = "agh__task_block"
+	// ToolIDTaskUnblock clears one runtime-declared task block.
+	ToolIDTaskUnblock ToolID = "agh__task_unblock"
+	// ToolIDTaskBlocks lists runtime-declared task blocks.
+	ToolIDTaskBlocks ToolID = "agh__task_blocks"
+	// ToolIDTaskRecover clears task-level needs_attention state.
+	ToolIDTaskRecover ToolID = "agh__task_recover"
 	// ToolIDTaskRunList lists task runs through the task service.
 	ToolIDTaskRunList ToolID = "agh__task_run_list"
 	// ToolIDTaskRunReviewRequest requests a review for one terminal task run.

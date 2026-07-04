@@ -42,6 +42,7 @@ import {
   listTasks,
   markTaskRead,
   publishTask,
+  recoverTask,
   rejectTask,
   removeTaskDependency,
   retryTaskRun,
@@ -379,6 +380,23 @@ describe("task mutations", () => {
       body,
       method: "POST",
       path: "/api/tasks/task_001/children",
+    });
+  });
+
+  it("maps task recover conflict to a needs_attention error", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "Task task_001 is not in needs_attention" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const error = await recoverTask("task_001").catch(err => err);
+
+    expect(error).toBeInstanceOf(TasksApiError);
+    expect(error).toMatchObject({
+      message: "Task task_001 is not in needs_attention",
+      status: 409,
     });
   });
 

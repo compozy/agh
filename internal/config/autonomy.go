@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	configdefaults "github.com/compozy/agh/internal/config/defaults"
 )
 
 const (
@@ -33,6 +35,8 @@ const (
 	DefaultSchedulerNeedsAttentionAfter = 10
 	// DefaultSchedulerMinQueuedAge is the queued age before a claimable run starts escalating.
 	DefaultSchedulerMinQueuedAge = 2 * time.Minute
+	// DefaultBlockRecurrenceLimit is the default same-kind re-block count before escalation.
+	DefaultBlockRecurrenceLimit = configdefaults.BlockRecurrenceLimit
 )
 
 type providerResolver interface {
@@ -43,8 +47,9 @@ var _ providerResolver = (*Config)(nil)
 
 // AutonomyConfig controls opt-in autonomy features.
 type AutonomyConfig struct {
-	Coordinator CoordinatorConfig `toml:"coordinator"`
-	Scheduler   SchedulerConfig   `toml:"scheduler"`
+	BlockRecurrenceLimit int               `toml:"block_recurrence_limit"`
+	Coordinator          CoordinatorConfig `toml:"coordinator"`
+	Scheduler            SchedulerConfig   `toml:"scheduler"`
 }
 
 // SchedulerConfig bounds the mechanical scheduler's convergence escalation ladder. The counts are
@@ -101,6 +106,9 @@ func DefaultCoordinatorAgentDef() AgentDef {
 
 // Validate ensures autonomy config is internally consistent.
 func (c AutonomyConfig) Validate(resolver providerResolver) error {
+	if c.BlockRecurrenceLimit < 0 {
+		return fmt.Errorf("autonomy.block_recurrence_limit must be >= 0: %d", c.BlockRecurrenceLimit)
+	}
 	if err := c.Coordinator.Validate("autonomy.coordinator", resolver); err != nil {
 		return err
 	}

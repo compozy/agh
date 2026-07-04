@@ -40,6 +40,7 @@ type taskRuntime struct {
 	store               taskStore
 	detached            *harnessDetachedWorkBridge
 	reentry             *harnessReentryBridge
+	wakeBridge          *taskWakeBridge
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver
 	networkTaskStatus   *networkTaskStatusObserver
 	roles               atomic.Pointer[taskRoleRuntime]
@@ -355,17 +356,23 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
 	}
+	wakeBridge, err := newTaskWakeBridge(ctx, state.sessions, state.logger)
+	if err != nil {
+		return fmt.Errorf("daemon: create task wake bridge: %w", err)
+	}
 	reviewRequests := newRunReviewRequestedForwarder()
 	eventObserver, bridgeNotifications, networkTaskStatus := d.composeTaskEventObserver(state, store, reentry)
 	manager, err := taskpkg.NewManager(
 		taskManagerOptions(
 			store,
 			bridge,
+			wakeBridge,
 			eventObserver,
 			state.notifier,
 			reviewRequests,
 			state.cfg.Task.Recovery,
 			state.cfg.Autonomy.Scheduler,
+			state.cfg.Autonomy.BlockRecurrenceLimit,
 		)...,
 	)
 	if err != nil {
@@ -381,17 +388,34 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		store:               store,
 		detached:            detached,
 		reentry:             reentry,
+		wakeBridge:          wakeBridge,
 		bridgeNotifications: bridgeNotifications,
 		networkTaskStatus:   networkTaskStatus,
 	}
 	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager
 
+	if err := recoverBootTaskRuns(ctx, state, manager, store); err != nil {
+		return err
+	}
+	if reentry != nil {
+		if err := reentry.recover(ctx); err != nil {
+			return fmt.Errorf("daemon: recover detached harness reentry bridge: %w", err)
+		}
+	}
+	return nil
+}
+
+func recoverBootTaskRuns(
+	ctx context.Context,
+	state *bootState,
+	manager *taskpkg.Service,
+	store taskStore,
+) error {
 	actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
 	if err != nil {
 		return fmt.Errorf("daemon: derive task boot recovery actor: %w", err)
 	}
-
 	stats, err := recoverTaskRunsOnBoot(ctx, manager, store, state.sessions, actor)
 	if err != nil {
 		return err
@@ -403,11 +427,6 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 			"resumed_running_runs", stats.markedRunning,
 			"failed_runs", stats.failed,
 		)
-	}
-	if reentry != nil {
-		if err := reentry.recover(ctx); err != nil {
-			return fmt.Errorf("daemon: recover detached harness reentry bridge: %w", err)
-		}
 	}
 	return nil
 }
@@ -503,15 +522,18 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 func taskManagerOptions(
 	store taskStore,
 	bridge taskpkg.SessionExecutor,
+	wakeNotifier taskpkg.WakeNotifier,
 	events taskpkg.EventObserver,
 	hooks *hooksNotifier,
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	recovery aghconfig.TaskRecoveryConfig,
 	scheduler aghconfig.SchedulerConfig,
+	blockRecurrenceLimit int,
 ) []taskpkg.Option {
 	options := []taskpkg.Option{
 		taskpkg.WithStore(store),
 		taskpkg.WithSessionExecutor(bridge),
+		taskpkg.WithWakeNotifier(wakeNotifier),
 		taskpkg.WithEventObserver(events),
 		taskpkg.WithRunReviewRequestedObserver(reviewRequests),
 		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
@@ -520,6 +542,7 @@ func taskManagerOptions(
 			AllowAgentForce: recovery.AllowAgentForce,
 		}),
 		taskpkg.WithStarvationAge(scheduler.MinQueuedAge),
+		taskpkg.WithBlockRecurrenceLimit(blockRecurrenceLimit),
 	}
 	if hooks != nil {
 		options = append(options, taskpkg.WithTaskRunHooks(hooks))
@@ -543,9 +566,9 @@ func (r *taskRuntime) submitDetachedHarnessWork(
 	return r.detached.submit(ctx, req)
 }
 
-func (r *taskRuntime) shutdown() {
+func (r *taskRuntime) shutdown(ctx context.Context) error {
 	if r == nil {
-		return
+		return nil
 	}
 	if r.bridgeNotifications != nil {
 		r.bridgeNotifications.shutdown()
@@ -556,6 +579,10 @@ func (r *taskRuntime) shutdown() {
 	if r.reentry != nil {
 		r.reentry.shutdown()
 	}
+	if r.wakeBridge != nil {
+		return r.wakeBridge.shutdown(ctx)
+	}
+	return nil
 }
 
 func recoverTaskRunsOnBoot(

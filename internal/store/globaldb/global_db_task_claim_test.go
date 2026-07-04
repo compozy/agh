@@ -281,6 +281,50 @@ func TestGlobalDBClaimNextRunSkipsNeedsAttention(t *testing.T) {
 			t.Fatalf("ClaimNextRun(needs_attention) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 		}
 	})
+
+	t.Run("Should skip a task escalated to needs_attention across a populated queue", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 5, 28, 12, 5, 0, 0, time.UTC)
+		escalatedTask := taskRecordForTest("task-needs-attention-status")
+		escalatedTask.Status = taskpkg.TaskStatusNeedsAttention
+		escalatedTask.NeedsAttention = &taskpkg.NeedsAttention{
+			Reason: "unblock loop detected",
+			At:     now.Add(-time.Minute),
+			By:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "breaker"},
+		}
+		if err := globalDB.CreateTask(ctx, escalatedTask); err != nil {
+			t.Fatalf("CreateTask(escalated) error = %v", err)
+		}
+		escalatedRun := taskRunForTest("run-needs-attention-status", escalatedTask.ID)
+		if err := globalDB.CreateTaskRun(ctx, escalatedRun); err != nil {
+			t.Fatalf("CreateTaskRun(escalated) error = %v", err)
+		}
+		readyTask := taskRecordForTest("task-needs-attention-peer")
+		readyTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, readyTask); err != nil {
+			t.Fatalf("CreateTask(ready) error = %v", err)
+		}
+		readyRun := taskRunForTest("run-needs-attention-peer", readyTask.ID)
+		if err := globalDB.CreateTaskRun(ctx, readyRun); err != nil {
+			t.Fatalf("CreateTaskRun(ready) error = %v", err)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-needs-attention-status",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(populated needs_attention queue) error = %v", err)
+		}
+		if got, want := claim.Run.ID, readyRun.ID; got != want {
+			t.Fatalf("ClaimNextRun() run id = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestGlobalDBClaimNextRunRespectsEffectiveTaskPause(t *testing.T) {
@@ -840,6 +884,205 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	}
 }
 
+func TestGlobalDBCompleteRunLeaseRejectsHallucinatedCreatedTaskIDsBeforeTerminalWrite(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject hallucinated created task ids before terminal write", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-hallucination-gate")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-hallucination-gate", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-gate",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		before, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(before) error = %v", err)
+		}
+
+		_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:          claim.Run.ID,
+			ClaimToken:     claim.ClaimToken,
+			Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			CreatedTaskIDs: []string{"task-phantom-globaldb"},
+			Now:            now.Add(30 * time.Second),
+		})
+		if !errors.Is(err, taskpkg.ErrHallucinatedTaskRefs) {
+			t.Fatalf("CompleteRunLease() error = %v, want %v", err, taskpkg.ErrHallucinatedTaskRefs)
+		}
+		var typed *taskpkg.HallucinatedTaskRefsError
+		if !errors.As(err, &typed) {
+			t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
+		}
+		if got, want := typed.InvalidTaskIDs, []string{"task-phantom-globaldb"}; len(got) != len(want) ||
+			got[0] != want[0] {
+			t.Fatalf("InvalidTaskIDs = %#v, want %#v", got, want)
+		}
+
+		after, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(after) error = %v", err)
+		}
+		assertRunLeaseUnchangedAfterHallucinationRejection(t, after, before)
+		assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, claim.Run.ID)
+
+		var storedRaw sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+			Scan(&storedRaw); err != nil {
+			t.Fatalf("query claim_token error = %v", err)
+		}
+		if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
+			t.Fatalf("stored raw claim_token = %#v, want internal active lease token", storedRaw)
+		}
+	})
+}
+
+func TestGlobalDBCompleteRunLeaseVerifiesCreatedTaskIDOwnership(t *testing.T) {
+	t.Parallel()
+
+	const completingSessionID = "sess-gate-owner"
+
+	tests := []struct {
+		name              string
+		suffix            string
+		childSessionID    string
+		childWorkspaceKey string
+		wantErr           bool
+	}{
+		{
+			name:              "Should accept existing created task ids from the completing session and workspace",
+			suffix:            "valid-owner",
+			childSessionID:    completingSessionID,
+			childWorkspaceKey: "same",
+		},
+		{
+			name:              "Should reject existing created task ids from another session",
+			suffix:            "other-session",
+			childSessionID:    "sess-foreign-owner",
+			childWorkspaceKey: "same",
+			wantErr:           true,
+		},
+		{
+			name:              "Should reject existing created task ids from another workspace",
+			suffix:            "other-workspace",
+			childSessionID:    completingSessionID,
+			childWorkspaceKey: "other",
+			wantErr:           true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 4, 26, 12, 30, 0, 0, time.UTC)
+			workspaceID := registerWorkspaceForGlobalTests(
+				t,
+				globalDB,
+				"completion-gate-"+tt.suffix,
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			otherWorkspaceID := registerWorkspaceForGlobalTests(
+				t,
+				globalDB,
+				"completion-gate-other-"+tt.suffix,
+				filepath.Join(t.TempDir(), "other-workspace"),
+			)
+
+			taskRecord := workspaceTaskRecordForTest("task-gate-owner-"+tt.suffix, workspaceID)
+			taskRecord.Status = taskpkg.TaskStatusReady
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(parent) error = %v", err)
+			}
+			run := taskRunForTest("run-gate-owner-"+tt.suffix, taskRecord.ID)
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(parent) error = %v", err)
+			}
+
+			childWorkspaceID := workspaceID
+			if tt.childWorkspaceKey == "other" {
+				childWorkspaceID = otherWorkspaceID
+			}
+			childTask := workspaceTaskRecordForTest("task-gate-child-"+tt.suffix, childWorkspaceID)
+			childTask.CreatedBy = taskpkg.ActorIdentity{
+				Kind: taskpkg.ActorKindAgentSession,
+				Ref:  tt.childSessionID,
+			}
+			if err := globalDB.CreateTask(ctx, childTask); err != nil {
+				t.Fatalf("CreateTask(child) error = %v", err)
+			}
+
+			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:            taskpkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				ClaimerSessionID: completingSessionID,
+				LeaseDuration:    time.Minute,
+				Now:              now,
+			})
+			if err != nil {
+				t.Fatalf("ClaimNextRun() error = %v", err)
+			}
+			before, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+			if err != nil {
+				t.Fatalf("GetTaskRun(before) error = %v", err)
+			}
+
+			completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+				RunID:          claim.Run.ID,
+				ClaimToken:     claim.ClaimToken,
+				Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+				CreatedTaskIDs: []string{childTask.ID},
+				Now:            now.Add(30 * time.Second),
+			})
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("CompleteRunLease() error = %v", err)
+				}
+				if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
+					t.Fatalf("completed.Status = %q, want %q", got, want)
+				}
+				assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, "")
+				return
+			}
+
+			if !errors.Is(err, taskpkg.ErrHallucinatedTaskRefs) {
+				t.Fatalf("CompleteRunLease() error = %v, want %v", err, taskpkg.ErrHallucinatedTaskRefs)
+			}
+			typed, ok := errors.AsType[*taskpkg.HallucinatedTaskRefsError](err)
+			if !ok {
+				t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
+			}
+			if got, want := typed.InvalidTaskIDs, []string{childTask.ID}; !slices.Equal(got, want) {
+				t.Fatalf("InvalidTaskIDs = %#v, want %#v", got, want)
+			}
+			after, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+			if err != nil {
+				t.Fatalf("GetTaskRun(after) error = %v", err)
+			}
+			assertRunLeaseUnchangedAfterHallucinationRejection(t, after, before)
+			assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, claim.Run.ID)
+		})
+	}
+}
+
 func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -1391,26 +1634,119 @@ func TestGlobalDBReserveQueuedRunCreatesStableWorkspaceCoordinationChannel(t *te
 }
 
 func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	taskRecord := taskRecordForTest("task-blocked-claim")
-	taskRecord.Status = taskpkg.TaskStatusBlocked
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	run := taskRunForTest("run-blocked-claim", taskRecord.ID)
-	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
-	}
+	t.Parallel()
 
-	if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-blocked",
-		LeaseDuration:    time.Minute,
-		Now:              time.Date(2026, 4, 26, 13, 5, 0, 0, time.UTC),
-	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-		t.Fatalf("ClaimNextRun(blocked) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-	}
+	t.Run("Should exclude blocked tasks and re-admit them when ready", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-blocked-claim")
+		taskRecord.Status = taskpkg.TaskStatusBlocked
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-blocked-claim", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-blocked",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 4, 26, 13, 5, 0, 0, time.UTC),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(blocked) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.UpdateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("UpdateTask(ready) error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-unblocked",
+			LeaseDuration:    time.Minute,
+			Now:              time.Date(2026, 4, 26, 13, 6, 0, 0, time.UTC),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(after ready) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun(after ready) run = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should exclude open block rows before status reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 3, 16, 0, 0, 0, time.UTC)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"claim-open-block",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
+		taskRecord := workspaceTaskRecordForTest("task-open-block-claim", workspaceID)
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-open-block-claim", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		blockResult, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Block: taskpkg.TaskBlock{
+				ID:        "block-open-claim",
+				TaskID:    taskRecord.ID,
+				Kind:      taskpkg.BlockKindNeedsInput,
+				Reason:    "creator input required",
+				CreatedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-open-block"},
+				CreatedAt: now,
+			},
+			RecurrenceLimit: 2,
+		})
+		if err != nil {
+			t.Fatalf("CreateTaskBlock() error = %v", err)
+		}
+		block := blockResult.Block
+
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-open-block-claim",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(time.Second),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(open block) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+
+		if _, err := globalDB.ClearTaskBlock(ctx, taskpkg.ClearTaskBlockMutation{
+			TaskID:    taskRecord.ID,
+			BlockID:   block.ID,
+			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+			ClearedAt: now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("ClearTaskBlock() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-open-block-cleared",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(3 * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(cleared block) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("ClaimNextRun(cleared block) run = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog(t *testing.T) {
@@ -1680,6 +2016,21 @@ func assertTaskCurrentRunProjection(
 	}
 	if got := taskRecord.CurrentRunID; got != want {
 		t.Fatalf("task.CurrentRunID = %q, want %q", got, want)
+	}
+}
+
+func assertRunLeaseUnchangedAfterHallucinationRejection(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
+	t.Helper()
+
+	if got.Status != want.Status ||
+		got.Attempt != want.Attempt ||
+		got.SessionID != want.SessionID ||
+		got.ClaimTokenHash != want.ClaimTokenHash ||
+		!got.LeaseUntil.Equal(want.LeaseUntil) ||
+		!got.HeartbeatAt.Equal(want.HeartbeatAt) ||
+		!got.EndedAt.Equal(want.EndedAt) ||
+		string(got.Result) != string(want.Result) {
+		t.Fatalf("run after rejection = %#v, want lease/state unchanged from %#v", got, want)
 	}
 }
 

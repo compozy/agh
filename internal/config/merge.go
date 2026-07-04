@@ -514,8 +514,9 @@ type networkOverlay struct {
 }
 
 type autonomyOverlay struct {
-	Coordinator coordinatorOverlay `toml:"coordinator"`
-	Scheduler   schedulerOverlay   `toml:"scheduler"`
+	BlockRecurrenceLimit *int               `toml:"block_recurrence_limit"`
+	Coordinator          coordinatorOverlay `toml:"coordinator"`
+	Scheduler            schedulerOverlay   `toml:"scheduler"`
 }
 
 type schedulerOverlay struct {
@@ -1610,6 +1611,9 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 }
 
 func (o autonomyOverlay) Apply(dst *AutonomyConfig) {
+	if o.BlockRecurrenceLimit != nil {
+		dst.BlockRecurrenceLimit = *o.BlockRecurrenceLimit
+	}
 	o.Coordinator.Apply(&dst.Coordinator)
 	o.Scheduler.Apply(&dst.Scheduler)
 }

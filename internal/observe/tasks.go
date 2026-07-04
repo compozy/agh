@@ -939,7 +939,8 @@ func taskInboxFromSnapshot(
 
 	view := TaskInboxView{}
 	selectedLane := query.Lane.Normalize()
-	for _, summary := range snapshot.tasks {
+	for idx := range snapshot.tasks {
+		summary := &snapshot.tasks[idx]
 		taskID := strings.TrimSpace(summary.ID)
 		if taskID == "" {
 			continue
@@ -1054,7 +1055,7 @@ func taskEventsByTaskID(events []taskpkg.Event) map[string][]taskpkg.Event {
 }
 
 func taskInboxLatestActivityAt(
-	summary taskpkg.Summary,
+	summary *taskpkg.Summary,
 	runs []taskpkg.Run,
 	events []taskpkg.Event,
 ) time.Time {
@@ -1132,7 +1133,7 @@ func taskInboxSuppressedByDismissal(triage taskpkg.TriageState) bool {
 }
 
 func taskInboxLaneForTask(
-	summary taskpkg.Summary,
+	summary *taskpkg.Summary,
 	latestRun *taskpkg.Run,
 	runs []taskpkg.Run,
 	triage taskpkg.TriageState,
@@ -1158,7 +1159,7 @@ func taskInboxLaneForTask(
 	return "", false
 }
 
-func taskInboxBlockingReason(summary taskpkg.Summary, latestRun *taskpkg.Run) string {
+func taskInboxBlockingReason(summary *taskpkg.Summary, latestRun *taskpkg.Run) string {
 	if summary.ApprovalPolicy.Normalize() == taskpkg.ApprovalPolicyManual {
 		switch summary.ApprovalState.Normalize() {
 		case taskpkg.ApprovalStatePending:
@@ -1177,7 +1178,7 @@ func taskInboxBlockingReason(summary taskpkg.Summary, latestRun *taskpkg.Run) st
 }
 
 func taskInboxIsMyWork(
-	summary taskpkg.Summary,
+	summary *taskpkg.Summary,
 	runs []taskpkg.Run,
 	actor taskpkg.ActorIdentity,
 ) bool {
@@ -1228,7 +1229,7 @@ func taskInboxEligibleForMyWork(status taskpkg.Status) bool {
 	}
 }
 
-func taskInboxReference(summary taskpkg.Summary) taskpkg.Reference {
+func taskInboxReference(summary *taskpkg.Summary) taskpkg.Reference {
 	return taskpkg.Reference{
 		ID:             summary.ID,
 		Identifier:     summary.Identifier,
@@ -1360,7 +1361,8 @@ func countRunStatus(rows []TaskRunTotal, status taskpkg.RunStatus) int {
 
 func countAwaitingApprovalTasks(tasks []taskpkg.Summary) int {
 	count := 0
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		if item.Status.Normalize() == taskpkg.TaskStatusBlocked &&
 			item.ApprovalState.Normalize() == taskpkg.ApprovalStatePending {
 			count++
@@ -1371,7 +1373,8 @@ func countAwaitingApprovalTasks(tasks []taskpkg.Summary) int {
 
 func countDependencyBlockedTasks(tasks []taskpkg.Summary) int {
 	count := 0
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		if item.Status.Normalize() != taskpkg.TaskStatusBlocked {
 			continue
 		}
@@ -1435,7 +1438,8 @@ func dashboardRunAge(run taskpkg.Run, now time.Time) time.Duration {
 
 func latestTaskSnapshotActivityAt(snapshot taskSnapshot) time.Time {
 	var latest time.Time
-	for _, item := range snapshot.tasks {
+	for idx := range snapshot.tasks {
+		item := &snapshot.tasks[idx]
 		for _, candidate := range []time.Time{item.CreatedAt, item.UpdatedAt, item.ClosedAt} {
 			if candidate.After(latest) {
 				latest = candidate
@@ -1636,7 +1640,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		if taskID == "" {
 			continue
 		}
-		tasks[idx].DependencyCount = dependencyCounts[taskID]
+		tasks[idx].DependencyCount = taskpkg.ClampSummaryCount(dependencyCounts[taskID])
 	}
 
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
@@ -1687,12 +1691,13 @@ func taskSummaryIndex(
 ) (map[string]taskpkg.Summary, map[string]struct{}) {
 	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
 	taskIDs := make(map[string]struct{}, len(tasks))
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		taskID := strings.TrimSpace(item.ID)
 		if taskID == "" {
 			continue
 		}
-		tasksByID[taskID] = item
+		tasksByID[taskID] = *item
 		taskIDs[taskID] = struct{}{}
 	}
 	return tasksByID, taskIDs
@@ -1704,7 +1709,8 @@ func (o *Observer) loadTaskDependencyCounts(
 ) (map[string]int, error) {
 	taskIDs := make([]string, 0, len(tasks))
 	seen := make(map[string]struct{}, len(tasks))
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		taskID := strings.TrimSpace(item.ID)
 		if taskID == "" {
 			continue
@@ -1796,7 +1802,8 @@ func queryTaskDependencyCounts(
 
 func summarizeTasks(tasks []taskpkg.Summary) []TaskStatusTotal {
 	counts := make(map[string]TaskStatusTotal)
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		key := string(
 			item.Scope.Normalize(),
 		) + "\x00" + string(
@@ -1829,7 +1836,8 @@ func summarizeTasks(tasks []taskpkg.Summary) []TaskStatusTotal {
 
 func summarizeTaskOrigins(tasks []taskpkg.Summary) []TaskOriginTotal {
 	counts := make(map[string]TaskOriginTotal)
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		key := string(item.Origin.Kind.Normalize()) + "\x00" + strings.TrimSpace(item.NetworkChannel)
 		current := counts[key]
 		current.OriginKind = item.Origin.Kind.Normalize()
@@ -1880,7 +1888,8 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 
 func summarizeOwners(tasks []taskpkg.Summary) []TaskOwnerTotal {
 	counts := make(map[string]TaskOwnerTotal)
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		if item.Owner == nil {
 			continue
 		}
@@ -2171,9 +2180,10 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 		return tasks
 	}
 	filtered := make([]taskpkg.Summary, 0, len(tasks))
-	for _, item := range tasks {
+	for idx := range tasks {
+		item := &tasks[idx]
 		if item.Origin.Kind.Normalize() == normalizedOrigin {
-			filtered = append(filtered, item)
+			filtered = append(filtered, *item)
 		}
 	}
 	return filtered

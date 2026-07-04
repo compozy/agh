@@ -121,6 +121,32 @@ export function buildTaskFixture(overrides: Partial<TaskListItem> = {}): TaskLis
   } as TaskListItem;
 }
 
+export const recoverableTaskFixture: TaskListItem = buildTaskFixture({
+  id: "task_recoverable",
+  identifier: "TASK-RECOVER",
+  title: "Recover transient blocker escalation",
+  status: "needs_attention",
+  needs_attention: true,
+  needs_attention_at: "2026-04-17T10:12:00Z",
+  needs_attention_reason: "Block recurrence limit reached for transient blocks",
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  owner: { kind: "human", ref: storyPeople.primaryOperator },
+});
+
+export const nonEscalatedRecoverTaskFixture: TaskListItem = buildTaskFixture({
+  id: "task_recover_ready",
+  identifier: "TASK-READY",
+  title: "Ready task is not recoverable",
+  status: "ready",
+  needs_attention: false,
+  active_run: null,
+  child_count: 0,
+  dependency_count: 0,
+  owner: { kind: "agent_session", ref: storyAgentNames.product },
+});
+
 export const TASK_FIXTURES: TaskListItem[] = [
   buildTaskFixture(),
   buildTaskFixture({
@@ -343,6 +369,8 @@ export const TASK_FIXTURES: TaskListItem[] = [
     dependency_count: 0,
     owner: { kind: "agent_session", ref: storyAgentNames.product },
   }),
+  recoverableTaskFixture,
+  nonEscalatedRecoverTaskFixture,
 ];
 
 export function buildTaskRecordFixture(

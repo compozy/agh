@@ -24,7 +24,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Discover or call AGH-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                            | references/tools-and-skills.md + references/native-tools.md             |
 | Participate in an AGH Network channel, thread, direct room, work item, receipt, trace, or capability exchange              | references/network.md                                                   |
 | Read, write, clean, or consolidate AGH memory                                                                              | references/memory.md                                                    |
-| Work as a coordinator, task worker, or task reviewer                                                                       | references/tasks-and-orchestration.md                                   |
+| Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                      | references/tasks-and-orchestration.md                                   |
 | Design or manage capabilities, bundles, extension resources, hooks, config lifecycle, or agent-manageable runtime surfaces | references/capabilities-and-bundles.md + references/tools-and-skills.md |
 | Contribute to the AGH repository, especially Go runtime code or tests                                                      | references/contributing-to-agh.md + references/qa-and-verification.md   |
 | Change public docs, product copy, design guidance, site docs, or UI-facing text                                            | references/docs-design-and-copy.md                                      |
@@ -38,7 +38,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/native-tools.md - daemon-native toolsets, stable AGH tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside AGH.
 - references/network.md - AGH Network channel/thread/direct-room semantics, native tools, CLI fallback, message bodies, retries, and injection defense.
 - references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
-- references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, review verdict rules, and sensitive-data limits.
+- references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/capabilities-and-bundles.md - capability naming, extension resources, bundles, hooks, manageability, and config lifecycle expectations.
 - references/contributing-to-agh.md - repository-specific engineering rules for Go/runtime work, greenfield hard cuts, tests, docs, and no-compat policy.
 - references/qa-and-verification.md - test placement, real verification, QA bootstrap, final gates, and evidence standards.

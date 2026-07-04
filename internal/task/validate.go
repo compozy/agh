@@ -37,6 +37,7 @@ func (s Status) Validate(path string) error {
 	case TaskStatusDraft,
 		TaskStatusPending,
 		TaskStatusBlocked,
+		TaskStatusNeedsAttention,
 		TaskStatusReady,
 		TaskStatusInProgress,
 		TaskStatusCompleted,
@@ -47,12 +48,13 @@ func (s Status) Validate(path string) error {
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
 		return fmt.Errorf(
-			"%w: %s must be one of %q, %q, %q, %q, %q, %q, %q, or %q: %q",
+			"%w: %s must be one of %q, %q, %q, %q, %q, %q, %q, %q, or %q: %q",
 			ErrValidation,
 			path,
 			TaskStatusDraft,
 			TaskStatusPending,
 			TaskStatusBlocked,
+			TaskStatusNeedsAttention,
 			TaskStatusReady,
 			TaskStatusInProgress,
 			TaskStatusCompleted,
@@ -262,6 +264,48 @@ func (k DependencyKind) Validate(path string) error {
 	}
 }
 
+// Normalize returns the normalized representation of the task-block kind.
+func (k BlockKind) Normalize() BlockKind {
+	return BlockKind(strings.ToLower(strings.TrimSpace(string(k))))
+}
+
+// Validate reports whether the task-block kind is supported.
+func (k BlockKind) Validate(path string) error {
+	switch k.Normalize() {
+	case BlockKindNeedsInput, BlockKindCapability, BlockKindTransient:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf(
+			"%w: %s must be one of %q, %q, or %q: %q",
+			ErrValidation,
+			path,
+			BlockKindNeedsInput,
+			BlockKindCapability,
+			BlockKindTransient,
+			k,
+		)
+	}
+}
+
+// Normalize returns the normalized representation of the blocked-reason source.
+func (s BlockedSource) Normalize() BlockedSource {
+	return BlockedSource(strings.ToLower(strings.TrimSpace(string(s))))
+}
+
+// Validate reports whether the blocked-reason source is supported.
+func (s BlockedSource) Validate(path string) error {
+	switch s.Normalize() {
+	case BlockedSourceDependency, BlockedSourceApproval, BlockedSourcePaused, BlockedSourceBlock:
+		return nil
+	case "":
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf("%w: %s has unsupported value %q", ErrValidation, path, s)
+	}
+}
+
 // Normalize returns the normalized representation of the session stop reason.
 func (r StopReason) Normalize() StopReason {
 	return StopReason(strings.ToLower(strings.TrimSpace(string(r))))
@@ -305,6 +349,11 @@ func (a ActorIdentity) Validate(path string) error {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "ref"))
 	}
 	return nil
+}
+
+// IsZero reports whether the actor identity is empty.
+func (a ActorIdentity) IsZero() bool {
+	return a.Kind.Normalize() == "" && strings.TrimSpace(a.Ref) == ""
 }
 
 // Validate reports whether the ownership value contains a supported kind and non-empty reference.
@@ -399,6 +448,9 @@ func (t Task) Validate() error {
 	if err := t.CreatedBy.Validate("task.created_by"); err != nil {
 		return err
 	}
+	if err := validateNeedsAttention(t.NeedsAttention); err != nil {
+		return err
+	}
 	if err := t.Origin.Validate("task.origin"); err != nil {
 		return err
 	}
@@ -408,6 +460,22 @@ func (t Task) Validate() error {
 		}
 	}
 	if err := ValidateMetadataSize(t.Metadata, "task.metadata"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateNeedsAttention(attention *NeedsAttention) error {
+	if attention == nil {
+		return nil
+	}
+	if strings.TrimSpace(attention.Reason) == "" {
+		return fmt.Errorf("%w: task.needs_attention.reason is required", ErrValidation)
+	}
+	if attention.At.IsZero() {
+		return fmt.Errorf("%w: task.needs_attention.at is required", ErrValidation)
+	}
+	if err := attention.By.Validate("task.needs_attention.by"); err != nil {
 		return err
 	}
 	return nil
@@ -891,6 +959,11 @@ func (q Query) Validate(path string) error {
 	}
 	if q.OwnerKind.Normalize() != "" {
 		if err := q.OwnerKind.Validate(nestedPath(path, "owner_kind")); err != nil {
+			return err
+		}
+	}
+	if q.CreatedByKind.Normalize() != "" {
+		if err := q.CreatedByKind.Validate(nestedPath(path, "created_by_kind")); err != nil {
 			return err
 		}
 	}

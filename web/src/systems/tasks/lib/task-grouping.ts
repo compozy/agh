@@ -3,15 +3,15 @@ import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
 import type { TaskListItem, TaskStatus } from "../types";
 
 /**
- * Kanban column set (master rollup §2.6): four columns in
- * declared order — `Pending · In progress · Blocked · Done`. The previous
- * `Pending / Running / Done / Failed` set is gone (greenfield, no aliases).
+ * Kanban column set: `Pending · In progress · Blocked · Needs attention · Done`.
+ * `needs_attention` is its own column, distinct from `blocked` (no coercion) so
+ * the unblock-loop breaker's escalation is visible and recoverable on the board.
  *
  * Terminal statuses (`completed`, `failed`, `canceled`) collapse into the
  * `done` column — the proposal's kanban surface treats every terminal state
  * as "off the board" and routes failure detail to the row card itself.
  */
-export type TaskKanbanColumnId = "pending" | "in_progress" | "blocked" | "done";
+export type TaskKanbanColumnId = "pending" | "in_progress" | "blocked" | "needs_attention" | "done";
 
 export interface TaskKanbanColumn {
   id: TaskKanbanColumnId;
@@ -23,18 +23,25 @@ const KANBAN_COLUMNS: TaskKanbanColumn[] = [
   { id: "pending", label: "Pending", statuses: ["draft", "pending", "ready"] },
   { id: "in_progress", label: "In progress", statuses: ["in_progress"] },
   { id: "blocked", label: "Blocked", statuses: ["blocked"] },
+  { id: "needs_attention", label: "Needs attention", statuses: ["needs_attention"] },
   { id: "done", label: "Done", statuses: ["completed", "failed", "canceled"] },
 ];
 
 /**
- * List-view group buckets — six groups in proposal order:
- * Active · Blocked · Stuck · Queued · Done · Failed.
+ * List-view group buckets in order:
+ * Active · Blocked · Needs attention · Queued · Done · Failed.
  *
- * `stuck` carries no status mapping today (techspec MVP excludes the
- * `task.is_stuck` flag); the bucket is preserved so consumers can render it
- * the moment a backing signal lands without re-baselining the grouping API.
+ * `needs_attention` is its own bucket next to `blocked` so an escalated task is
+ * visible and recoverable from the list (not folded into `blocked`).
+ *
  */
-export type TaskListGroupId = "active" | "blocked" | "stuck" | "queued" | "done" | "failed";
+export type TaskListGroupId =
+  | "active"
+  | "blocked"
+  | "needs_attention"
+  | "queued"
+  | "done"
+  | "failed";
 
 export interface TaskListGroupDefinition {
   id: TaskListGroupId;
@@ -53,13 +60,22 @@ const LIST_GROUPS: TaskListGroupDefinition[] = [
     dotVariant: "ring",
   },
   {
+    // `blocked` reads `danger` and `needs_attention` reads `warning`, matching
+    // TASK_STATUS_TONE and taskStatusSignal so the two escalation buckets stay
+    // distinct at the group header too (no coercion).
     id: "blocked",
     label: "Blocked",
     statuses: ["blocked"],
+    dotTone: "danger",
+    dotVariant: "solid",
+  },
+  {
+    id: "needs_attention",
+    label: "Needs attention",
+    statuses: ["needs_attention"],
     dotTone: "warning",
     dotVariant: "solid",
   },
-  { id: "stuck", label: "Stuck", statuses: [], dotTone: "warning", dotVariant: "ring" },
   {
     id: "queued",
     label: "Queued",
@@ -106,11 +122,7 @@ export function resolveTaskListGroupId(status: TaskStatus | string): TaskListGro
   return null;
 }
 
-/**
- * Partition the list into the six ordered group buckets. Mirrors the proposal
- * pattern (`docs/design/new-proposal/agh-refined-7.html:1147`): groups always
- * emit in canonical order, and callers decide how to render empty buckets.
- */
+/** Partition the list into ordered group buckets; callers decide how to render empty buckets. */
 export function groupTasksForList(tasks: TaskListItem[]): TaskListGroupBucket[] {
   const buckets = new Map<TaskListGroupId, TaskListItem[]>();
   for (const group of LIST_GROUPS) {
@@ -130,11 +142,6 @@ export function groupTasksForList(tasks: TaskListItem[]): TaskListGroupBucket[] 
     tasks: buckets.get(group.id) ?? [],
   }));
 }
-
-const MOCK_STATUS_ALIASES: Record<string, TaskKanbanColumnId> = {
-  running: "in_progress",
-  done: "done",
-};
 
 export interface KanbanColumnGroup {
   column: TaskKanbanColumn;
@@ -173,5 +180,5 @@ export function resolveKanbanColumnId(status: TaskStatus | string): TaskKanbanCo
     }
   }
 
-  return MOCK_STATUS_ALIASES[status] ?? null;
+  return null;
 }

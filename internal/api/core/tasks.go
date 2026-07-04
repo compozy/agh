@@ -24,62 +24,68 @@ const (
 	taskDesignationRollupDetailLimit = 20
 	taskDesignationRollupCompleted   = "completed"
 	taskDesignationRollupCanceled    = "canceled"
-	taskActionCreate                 = "create"
-	taskActionGet                    = "get"
-	taskActionInspect                = "inspect"
-	taskActionDelete                 = "delete"
-	taskActionPublish                = "publish"
-	taskActionStart                  = "start"
-	taskActionUpdate                 = "update"
-	taskActionCancel                 = "cancel"
-	taskActionCreateChild            = "create_child"
-	taskActionAddDependency          = "add_dependency"
-	taskActionRemoveDependency       = "remove_dependency"
-	taskActionListRuns               = "list_runs"
-	taskActionGetRun                 = "get_run"
-	taskActionEnqueueRun             = "enqueue_run"
-	taskActionFanOutRuns             = "fan_out_runs"
-	taskActionClaimRun               = "claim_run"
-	taskActionStartRun               = "start_run"
-	taskActionAttachRun              = "attach_run_session"
-	taskActionCompleteRun            = "complete_run"
-	taskActionFailRun                = "fail_run"
-	taskActionForceReleaseRun        = "force_release_run"
-	taskActionForceFailRun           = "force_fail_run"
-	taskActionRetryRun               = "retry_run"
-	taskActionRecoverRun             = "recover_run"
-	taskActionBulkReleaseRuns        = "bulk_release_runs"
-	taskActionBulkFailRuns           = "bulk_fail_runs"
-	taskActionCancelRun              = "cancel_run"
-	taskActionTimeline               = "timeline"
-	taskActionStream                 = "stream"
-	taskActionTree                   = "tree"
-	taskActionGetProfile             = "get_profile"
-	taskActionSetProfile             = "set_profile"
-	taskActionDeleteProfile          = "delete_profile"
-	taskActionRequestReview          = "request_review"
-	taskActionListReviews            = "list_reviews"
-	taskActionGetReview              = "get_review"
-	taskActionSubmitReview           = "submit_review"
-	taskActionCreateBridgeSub        = "create_bridge_notification_subscription"
-	taskActionListBridgeSubs         = "list_bridge_notification_subscriptions"
-	taskActionGetBridgeSub           = "get_bridge_notification_subscription"
-	taskActionDeleteBridgeSub        = "delete_bridge_notification_subscription"
-	taskActionPromoteNetwork         = "promote_network_thread"
-	taskActionDashboard              = "dashboard"
-	taskActionInbox                  = "inbox"
-	taskActionApprove                = "approve"
-	taskActionReject                 = "reject"
-	taskActionTriageRead             = "triage_read"
-	taskActionTriageArchive          = "triage_archive"
-	taskActionTriageDismiss          = "triage_dismiss"
-	taskActionPauseTask              = "pause_task"
-	taskActionResumeTask             = "resume_task"
-	taskActionSchedulerStatus        = "scheduler_status"
-	taskActionSchedulerPause         = "scheduler_pause"
-	taskActionSchedulerResume        = "scheduler_resume"
-	taskActionSchedulerDrain         = "scheduler_drain"
-	taskActionSchedulerBacklog       = "scheduler_backlog"
+	// #nosec G101 -- This is an HTTP header name, not a credential value.
+	taskClaimTokenHeader       = "X-AGH-Claim-Token"
+	taskActionCreate           = "create"
+	taskActionGet              = "get"
+	taskActionInspect          = "inspect"
+	taskActionDelete           = "delete"
+	taskActionPublish          = "publish"
+	taskActionStart            = "start"
+	taskActionUpdate           = "update"
+	taskActionCancel           = "cancel"
+	taskActionBlock            = "block"
+	taskActionListBlocks       = "list_blocks"
+	taskActionClearBlock       = "clear_block"
+	taskActionRecover          = "recover"
+	taskActionCreateChild      = "create_child"
+	taskActionAddDependency    = "add_dependency"
+	taskActionRemoveDependency = "remove_dependency"
+	taskActionListRuns         = "list_runs"
+	taskActionGetRun           = "get_run"
+	taskActionEnqueueRun       = "enqueue_run"
+	taskActionFanOutRuns       = "fan_out_runs"
+	taskActionClaimRun         = "claim_run"
+	taskActionStartRun         = "start_run"
+	taskActionAttachRun        = "attach_run_session"
+	taskActionCompleteRun      = "complete_run"
+	taskActionFailRun          = "fail_run"
+	taskActionForceReleaseRun  = "force_release_run"
+	taskActionForceFailRun     = "force_fail_run"
+	taskActionRetryRun         = "retry_run"
+	taskActionRecoverRun       = "recover_run"
+	taskActionBulkReleaseRuns  = "bulk_release_runs"
+	taskActionBulkFailRuns     = "bulk_fail_runs"
+	taskActionCancelRun        = "cancel_run"
+	taskActionTimeline         = "timeline"
+	taskActionStream           = "stream"
+	taskActionTree             = "tree"
+	taskActionGetProfile       = "get_profile"
+	taskActionSetProfile       = "set_profile"
+	taskActionDeleteProfile    = "delete_profile"
+	taskActionRequestReview    = "request_review"
+	taskActionListReviews      = "list_reviews"
+	taskActionGetReview        = "get_review"
+	taskActionSubmitReview     = "submit_review"
+	taskActionCreateBridgeSub  = "create_bridge_notification_subscription"
+	taskActionListBridgeSubs   = "list_bridge_notification_subscriptions"
+	taskActionGetBridgeSub     = "get_bridge_notification_subscription"
+	taskActionDeleteBridgeSub  = "delete_bridge_notification_subscription"
+	taskActionPromoteNetwork   = "promote_network_thread"
+	taskActionDashboard        = "dashboard"
+	taskActionInbox            = "inbox"
+	taskActionApprove          = "approve"
+	taskActionReject           = "reject"
+	taskActionTriageRead       = "triage_read"
+	taskActionTriageArchive    = "triage_archive"
+	taskActionTriageDismiss    = "triage_dismiss"
+	taskActionPauseTask        = "pause_task"
+	taskActionResumeTask       = "resume_task"
+	taskActionSchedulerStatus  = "scheduler_status"
+	taskActionSchedulerPause   = "scheduler_pause"
+	taskActionSchedulerResume  = "scheduler_resume"
+	taskActionSchedulerDrain   = "scheduler_drain"
+	taskActionSchedulerBacklog = "scheduler_backlog"
 )
 
 func (h *BaseHandlers) requireTaskManager(c *gin.Context) (TaskService, bool) {
@@ -260,6 +266,193 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: payload})
+}
+
+// BlockTask creates one runtime-declared block for a task.
+func (h *BaseHandlers) BlockTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.CreateTaskBlockRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode block task request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionBlock)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	claimToken, err := h.taskBlockClaimToken(c, manager, req)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+	blockReq, err := createTaskBlockFromRequest(taskID, req, claimToken)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+	block, err := manager.BlockTask(c.Request.Context(), blockReq, actor)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, contract.TaskBlockResponse{Block: TaskBlockPayloadFromBlock(block)})
+}
+
+func (h *BaseHandlers) taskBlockClaimToken(
+	c *gin.Context,
+	manager TaskService,
+	req contract.CreateTaskBlockRequest,
+) (string, error) {
+	claimToken := strings.TrimSpace(c.GetHeader(taskClaimTokenHeader))
+	if claimToken != "" || strings.TrimSpace(req.RunID) == "" {
+		return claimToken, nil
+	}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return "", nil
+	}
+	caller, err := h.resolveAgentCallerForWorkspace(
+		c.Request.Context(),
+		credentials,
+		"tasks."+taskActionBlock,
+		"",
+	)
+	if err != nil {
+		return "", err
+	}
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, req.RunID)
+	if err != nil {
+		return "", err
+	}
+	return handle.ClaimToken, nil
+}
+
+// ListTaskBlocks returns task block rows for one task.
+func (h *BaseHandlers) ListTaskBlocks(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	includeCleared, err := parseBoolQuery(c, "include_cleared")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewTaskValidationError(err))
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionListBlocks)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	blocks, err := manager.ListTaskBlocks(c.Request.Context(), taskID, includeCleared, actor)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskBlocksResponse{Blocks: TaskBlockPayloadsFromBlocks(blocks)})
+}
+
+// ClearTaskBlock clears one open task block.
+func (h *BaseHandlers) ClearTaskBlock(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	blockID, err := requiredPathID(c.Param("block_id"), "block id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.ClearTaskBlockRequest
+	if err := decodeOptionalJSON(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode clear task block request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionClearBlock)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	block, err := manager.ClearTaskBlock(c.Request.Context(), taskID, blockID, strings.TrimSpace(req.Note), actor)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskBlockResponse{Block: TaskBlockPayloadFromBlock(block)})
+}
+
+// RecoverTask clears task-level needs_attention state.
+func (h *BaseHandlers) RecoverTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	var req contract.RecoverTaskRequest
+	if err := decodeOptionalJSON(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode recover task request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionRecover)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	record, err := manager.RecoverTask(c.Request.Context(), taskID, strings.TrimSpace(req.Note), actor)
+	if err != nil {
+		h.respondError(c, statusForTaskBlockError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
 }
 
 func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View) (contract.TaskDetailPayload, error) {
@@ -1832,11 +2025,12 @@ func filterTaskListDrafts(tasks []taskpkg.Summary, query contract.TaskListQuery)
 	}
 
 	filtered := make([]taskpkg.Summary, 0, len(tasks))
-	for _, task := range tasks {
+	for idx := range tasks {
+		task := &tasks[idx]
 		if task.Draft || task.Status.Normalize() == taskpkg.TaskStatusDraft {
 			continue
 		}
-		filtered = append(filtered, task)
+		filtered = append(filtered, *task)
 	}
 	if query.Limit > 0 && len(filtered) > query.Limit {
 		filtered = filtered[:query.Limit]
@@ -1924,6 +2118,7 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 		Draft:              req.Draft,
 		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
 		Owner:              cloneOwnership(req.Owner),
+		WakeCreator:        cloneBoolPtr(req.WakeCreator),
 		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
@@ -1959,6 +2154,7 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 		Draft:              req.Draft,
 		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
 		Owner:              cloneOwnership(req.Owner),
+		WakeCreator:        cloneBoolPtr(req.WakeCreator),
 		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_child_task"); err != nil {
@@ -2215,6 +2411,51 @@ func completeTaskRunFromRequest(req contract.CompleteTaskRunRequest) (taskpkg.Ru
 	return result, nil
 }
 
+func createTaskBlockFromRequest(
+	taskID string,
+	req contract.CreateTaskBlockRequest,
+	claimToken string,
+) (taskpkg.BlockRequest, error) {
+	blockReq := taskpkg.BlockRequest{
+		TaskID:     strings.TrimSpace(taskID),
+		Kind:       req.Kind.Normalize(),
+		Reason:     strings.TrimSpace(req.Reason),
+		Details:    cloneRawMessage(req.Details),
+		RunID:      strings.TrimSpace(req.RunID),
+		ClaimToken: strings.TrimSpace(claimToken),
+	}
+	if req.ExpiresAt != nil {
+		blockReq.ExpiresAt = req.ExpiresAt.UTC()
+	}
+	if blockReq.TaskID == "" {
+		return taskpkg.BlockRequest{}, fmt.Errorf("%w: task_block.task_id is required", taskpkg.ErrValidation)
+	}
+	if err := blockReq.Kind.Validate("task_block.kind"); err != nil {
+		return taskpkg.BlockRequest{}, err
+	}
+	if blockReq.Reason == "" {
+		return taskpkg.BlockRequest{}, fmt.Errorf("%w: task_block.reason is required", taskpkg.ErrValidation)
+	}
+	if blockReq.ExpiresAt.IsZero() {
+		return blockReq, nil
+	}
+	if blockReq.Kind != taskpkg.BlockKindTransient {
+		return taskpkg.BlockRequest{}, fmt.Errorf(
+			"%w: task_block.expires_at is only valid for %q blocks",
+			taskpkg.ErrValidation,
+			taskpkg.BlockKindTransient,
+		)
+	}
+	return blockReq, nil
+}
+
+func statusForTaskBlockError(err error) int {
+	if errors.Is(err, taskpkg.ErrValidation) {
+		return http.StatusUnprocessableEntity
+	}
+	return StatusForTaskError(err)
+}
+
 func failTaskRunFromRequest(req contract.FailTaskRunRequest) (taskpkg.RunFailure, error) {
 	failure := taskpkg.RunFailure{
 		Error:    strings.TrimSpace(req.Error),
@@ -2282,48 +2523,58 @@ func decodeOptionalJSON(c *gin.Context, dest any) error {
 // TaskSummaryPayloadsFromSummaries converts task summaries into shared payloads.
 func TaskSummaryPayloadsFromSummaries(tasks []taskpkg.Summary) []contract.TaskSummaryPayload {
 	payloads := make([]contract.TaskSummaryPayload, 0, len(tasks))
-	for _, record := range tasks {
-		payloads = append(payloads, TaskSummaryPayloadFromSummary(record))
+	for idx := range tasks {
+		payloads = append(payloads, TaskSummaryPayloadFromSummary(&tasks[idx]))
 	}
 	return payloads
 }
 
 // TaskSummaryPayloadFromSummary converts one task summary into the shared payload.
-func TaskSummaryPayloadFromSummary(record taskpkg.Summary) contract.TaskSummaryPayload {
+func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummaryPayload {
+	if record == nil {
+		return contract.TaskSummaryPayload{}
+	}
+
 	return contract.TaskSummaryPayload{
-		ID:                 record.ID,
-		Identifier:         record.Identifier,
-		Scope:              record.Scope,
-		WorkspaceID:        record.WorkspaceID,
-		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
-		Title:              record.Title,
-		Priority:           record.Priority,
-		MaxAttempts:        record.MaxAttempts,
-		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
-		Status:             record.Status,
-		ApprovalPolicy:     record.ApprovalPolicy,
-		ApprovalState:      record.ApprovalState,
-		Draft:              record.Draft,
-		Owner:              cloneOwnership(record.Owner),
-		CurrentRunID:       record.CurrentRunID,
-		LatestEventSeq:     record.LatestEventSeq,
-		Paused:             record.Paused,
-		PausedBy:           record.PausedBy,
-		PausedAt:           optionalTime(record.PausedAt),
-		PausedReason:       record.PausedReason,
-		EffectivePaused:    record.EffectivePaused,
-		PausedByTaskID:     record.PausedByTaskID,
-		CreatedBy:          record.CreatedBy,
-		Origin:             record.Origin,
-		CreatedAt:          record.CreatedAt,
-		UpdatedAt:          record.UpdatedAt,
-		ClosedAt:           optionalTime(record.ClosedAt),
-		ChildCount:         record.ChildCount,
-		DependencyCount:    record.DependencyCount,
-		Dependencies:       TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:          TaskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:     optionalTime(record.LastActivityAt),
+		ID:                   record.ID,
+		Identifier:           record.Identifier,
+		Scope:                record.Scope,
+		WorkspaceID:          record.WorkspaceID,
+		ParentTaskID:         record.ParentTaskID,
+		NetworkChannel:       record.NetworkChannel,
+		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Priority:             record.Priority,
+		MaxAttempts:          record.MaxAttempts,
+		AutoEnqueueOnReady:   record.AutoEnqueueOnReady,
+		Status:               record.Status,
+		ApprovalPolicy:       record.ApprovalPolicy,
+		ApprovalState:        record.ApprovalState,
+		Draft:                record.Draft,
+		Owner:                cloneOwnership(record.Owner),
+		CurrentRunID:         record.CurrentRunID,
+		LatestEventSeq:       record.LatestEventSeq,
+		Paused:               record.Paused,
+		PausedBy:             record.PausedBy,
+		PausedAt:             optionalTime(record.PausedAt),
+		PausedReason:         taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
+		EffectivePaused:      record.EffectivePaused,
+		PausedByTaskID:       record.PausedByTaskID,
+		BlockedReasons:       blockedReasonsPayload(record.BlockedReasons),
+		NeedsAttention:       recordNeedsAttention(record.NeedsAttention, record.Status),
+		NeedsAttentionReason: needsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
+		WakeCreator:          record.WakeCreator,
+		CreatedBy:            record.CreatedBy,
+		Origin:               record.Origin,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		ClosedAt:             optionalTime(record.ClosedAt),
+		ChildCount:           int(record.ChildCount),
+		DependencyCount:      int(record.DependencyCount),
+		Dependencies:         TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:            TaskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:       optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -2340,8 +2591,8 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
 		NetworkChannel:     record.NetworkChannel,
-		Title:              record.Title,
-		Description:        record.Description,
+		Title:              taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Description:        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Description)),
 		Priority:           record.Priority,
 		MaxAttempts:        record.MaxAttempts,
 		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
@@ -2355,7 +2606,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		Paused:             record.Paused,
 		PausedBy:           record.PausedBy,
 		PausedAt:           optionalTime(record.PausedAt),
-		PausedReason:       record.PausedReason,
+		PausedReason:       taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
 		EffectivePaused:    record.Paused,
 		PausedByTaskID: func() string {
 			if record.Paused {
@@ -2363,13 +2614,90 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 			}
 			return ""
 		}(),
-		CreatedBy: record.CreatedBy,
-		Origin:    record.Origin,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
-		ClosedAt:  optionalTime(record.ClosedAt),
-		Metadata:  cloneRawMessage(record.Metadata),
+		NeedsAttention:       recordNeedsAttention(record.NeedsAttention, record.Status),
+		NeedsAttentionReason: needsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
+		WakeCreator:          record.WakeCreator,
+		CreatedBy:            record.CreatedBy,
+		Origin:               record.Origin,
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.UpdatedAt,
+		ClosedAt:             optionalTime(record.ClosedAt),
+		Metadata:             redactRawClaimTokenFields(record.Metadata),
 	}
+}
+
+func blockedReasonsPayload(reasons *[]taskpkg.BlockedReason) []taskpkg.BlockedReason {
+	if reasons == nil || len(*reasons) == 0 {
+		return nil
+	}
+	cloned := make([]taskpkg.BlockedReason, len(*reasons))
+	for idx, reason := range *reasons {
+		cloned[idx] = reason
+		cloned[idx].Reason = taskpkg.RedactClaimTokens(strings.TrimSpace(reason.Reason))
+	}
+	return cloned
+}
+
+func recordNeedsAttention(attention *taskpkg.NeedsAttention, status taskpkg.Status) bool {
+	return attention != nil || status.Normalize() == taskpkg.TaskStatusNeedsAttention
+}
+
+func needsAttentionReason(attention *taskpkg.NeedsAttention) string {
+	if attention == nil {
+		return ""
+	}
+	return taskpkg.RedactClaimTokens(strings.TrimSpace(attention.Reason))
+}
+
+func needsAttentionAt(attention *taskpkg.NeedsAttention) *time.Time {
+	if attention == nil {
+		return nil
+	}
+	return optionalTime(attention.At)
+}
+
+func needsAttentionBy(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity {
+	if attention == nil || attention.By.IsZero() {
+		return nil
+	}
+	actor := attention.By
+	return &actor
+}
+
+// TaskBlockPayloadsFromBlocks converts task-block records into shared payloads.
+func TaskBlockPayloadsFromBlocks(blocks []taskpkg.TaskBlock) []contract.TaskBlockPayload {
+	if len(blocks) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskBlockPayload, 0, len(blocks))
+	for _, block := range blocks {
+		payloads = append(payloads, TaskBlockPayloadFromBlock(block))
+	}
+	return payloads
+}
+
+// TaskBlockPayloadFromBlock converts one task-block record into the shared payload.
+func TaskBlockPayloadFromBlock(block taskpkg.TaskBlock) contract.TaskBlockPayload {
+	payload := contract.TaskBlockPayload{
+		ID:          strings.TrimSpace(block.ID),
+		TaskID:      strings.TrimSpace(block.TaskID),
+		WorkspaceID: strings.TrimSpace(block.WorkspaceID),
+		Kind:        block.Kind.Normalize(),
+		Reason:      taskpkg.RedactClaimTokens(strings.TrimSpace(block.Reason)),
+		Details:     redactRawClaimTokenFields(block.Details),
+		CreatedAt:   block.CreatedAt,
+		CreatedBy:   block.CreatedBy,
+		ExpiresAt:   optionalTime(block.ExpiresAt),
+		ClearedAt:   optionalTime(block.ClearedAt),
+		ClearNote:   taskpkg.RedactClaimTokens(strings.TrimSpace(block.ClearNote)),
+	}
+	if !block.ClearedBy.IsZero() {
+		clearedBy := block.ClearedBy
+		payload.ClearedBy = &clearedBy
+	}
+	return payload
 }
 
 // TaskDependencyPayloadsFromDependencies converts dependency records into shared payloads.
@@ -2522,6 +2850,9 @@ func redactRawClaimTokenValue(value any) (any, bool) {
 			changed = changed || nestedChanged
 		}
 		return redacted, changed
+	case string:
+		redacted := taskpkg.RedactClaimTokens(typed)
+		return redacted, redacted != typed
 	default:
 		return value, false
 	}
@@ -2551,10 +2882,11 @@ func TaskDetailPayloadFromView(view *taskpkg.View) contract.TaskDetailPayload {
 		return contract.TaskDetailPayload{}
 	}
 
-	summary := TaskSummaryPayloadFromSummary(view.Summary)
+	summary := TaskSummaryPayloadFromSummary(&view.Summary)
 	taskRecord := TaskPayloadFromTask(&view.Task)
 	taskRecord.EffectivePaused = summary.EffectivePaused
 	taskRecord.PausedByTaskID = summary.PausedByTaskID
+	taskRecord.BlockedReasons = summary.BlockedReasons
 
 	return contract.TaskDetailPayload{
 		Summary:              summary,
@@ -2594,7 +2926,7 @@ func TaskInspectPayloadFromView(view *taskpkg.InspectView) contract.TaskInspectP
 
 	return contract.TaskInspectPayload{
 		Target:       string(view.Target),
-		Task:         TaskSummaryPayloadFromSummary(view.Task),
+		Task:         TaskSummaryPayloadFromSummary(&view.Task),
 		CurrentRun:   TaskInspectRunPayloadFromSummary(view.CurrentRun),
 		BoundSession: TaskInspectSessionPayloadFromSummary(view.BoundSession),
 		RecentRuns:   TaskInspectRunPayloadsFromSummaries(view.RecentRuns),

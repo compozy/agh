@@ -6,10 +6,12 @@ import {
   useEnqueueTaskRun,
   usePauseTask,
   usePublishTask,
+  useRecoverTask,
   useResumeTask,
   useTask,
   useTaskInspect,
   useTaskRuns,
+  useTaskStream,
   useTaskTimeline,
   useTaskTree,
 } from "@/systems/tasks";
@@ -57,6 +59,7 @@ interface UseTaskDetailPageOptions {
   enableTree?: boolean;
   enableRuns?: boolean;
   enableInspect?: boolean;
+  enableStream?: boolean;
 }
 
 const DEFAULT_TIMELINE_LIMIT = 50;
@@ -73,6 +76,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const enableTree = options.enableTree ?? true;
   const enableRuns = options.enableRuns ?? true;
   const enableInspect = options.enableInspect ?? true;
+  const enableStream = options.enableStream ?? true;
 
   const timelineFilters: TaskTimelineFilter = useMemo(
     () => ({
@@ -97,6 +101,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const enqueueMutation = useEnqueueTaskRun();
   const pauseMutation = usePauseTask();
   const resumeMutation = useResumeTask();
+  const recoverMutation = useRecoverTask();
 
   const detail = detailQuery.data ?? null;
   const runs = runsQuery.data ?? [];
@@ -106,6 +111,20 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
 
   const activeRun = useMemo(() => detail?.summary?.active_run ?? null, [detail]);
   const isLive = useMemo(() => isRunActive(activeRun?.status ?? null), [activeRun]);
+
+  // Keep the always-visible header/overview surfaces (status, blocked-reasons,
+  // needs_attention badge, wake indicator) fresh from needs_attention / recover /
+  // run-lifecycle SSE events. The orchestration tab owns its own stream + resume-
+  // card status, so gate this one out on that panel to avoid a duplicate
+  // EventSource. Wait for the detail payload before connecting so we seed from the
+  // real cursor instead of after_sequence=0 (a full-history replay + immediate
+  // reconnect when latest_event_seq resolves).
+  const detailEventSeq = detail?.task?.latest_event_seq;
+  const hasEventSeq = typeof detailEventSeq === "number";
+  useTaskStream(taskId, {
+    enabled: hasTaskId && enableStream && panel !== "orchestration" && hasEventSeq,
+    afterSequence: hasEventSeq ? Math.max(0, detailEventSeq) : undefined,
+  });
 
   const multiAgent = useMemo<MultiAgentView>(
     () => deriveMultiAgentView(tree, treeQuery.isLoading, Boolean(treeQuery.error), isLive),
@@ -204,6 +223,21 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     }
   }, [hasTaskId, resumeMutation, taskId]);
 
+  const handleRecoverTask = useCallback(async () => {
+    if (!hasTaskId) {
+      return;
+    }
+
+    try {
+      await recoverMutation.mutateAsync({ id: taskId });
+      toast.success("Task recovered.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to recover task";
+      toast.error(message);
+      throw error;
+    }
+  }, [hasTaskId, recoverMutation, taskId]);
+
   const isTimelineSaturated =
     typeof timelineFilters.limit === "number" && timeline.length >= timelineFilters.limit;
 
@@ -218,6 +252,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     handlePanelChange,
     handlePauseTask,
     handlePublishTask,
+    handleRecoverTask,
     handleResumeTask,
     handleTimelineLoadMore,
     handleTimelineReset,
@@ -226,6 +261,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     isLive,
     isPausePending: pauseMutation.isPending,
     isPublishPending: publishMutation.isPending,
+    isRecoverPending: recoverMutation.isPending,
     isResumePending: resumeMutation.isPending,
     isTimelineSaturated,
     inspect,

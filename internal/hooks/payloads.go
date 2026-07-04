@@ -872,6 +872,60 @@ type CoordinatorSpawnPatch struct {
 // CoordinatorObservationPatch is the observation patch surface for committed coordinator hooks.
 type CoordinatorObservationPatch = AutonomyObservationPatch
 
+// TaskContext carries task-level identifiers shared across task lifecycle hooks.
+type TaskContext struct {
+	TaskID                string `json:"task_id,omitempty"`
+	WorkspaceID           string `json:"workspace_id,omitempty"`
+	WorkflowID            string `json:"workflow_id,omitempty"`
+	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
+	NetworkChannel        string `json:"network_channel,omitempty"`
+	AgentName             string `json:"agent_name,omitempty"`
+	ActorKind             string `json:"actor_kind,omitempty"`
+	ActorID               string `json:"actor_id,omitempty"`
+	OriginKind            string `json:"origin_kind,omitempty"`
+	OriginRef             string `json:"origin_ref,omitempty"`
+	TaskStatus            string `json:"task_status,omitempty"`
+	RunID                 string `json:"run_id,omitempty"`
+	ReleaseReason         string `json:"release_reason,omitempty"`
+	ClaimTokenHash        string `json:"claim_token_hash,omitempty"`
+}
+
+// TaskBlockPayload is shared by task block and unblock hooks.
+type TaskBlockPayload struct {
+	PayloadBase
+	TaskContext
+	BlockID   string          `json:"block_id,omitempty"`
+	Kind      string          `json:"kind,omitempty"`
+	Reason    string          `json:"reason,omitempty"`
+	Details   json.RawMessage `json:"details,omitempty"`
+	ClearedAt time.Time       `json:"cleared_at,omitzero"`
+	ClearNote string          `json:"clear_note,omitempty"`
+}
+
+// TaskBlockedPayload is delivered after a task block is committed.
+type TaskBlockedPayload = TaskBlockPayload
+
+// TaskUnblockedPayload is delivered after a task block clear is committed.
+type TaskUnblockedPayload = TaskBlockPayload
+
+// TaskAttentionPayload is shared by task-level needs-attention lifecycle hooks.
+type TaskAttentionPayload struct {
+	PayloadBase
+	TaskContext
+	Reason string    `json:"reason,omitempty"`
+	Note   string    `json:"note,omitempty"`
+	At     time.Time `json:"at,omitzero"`
+}
+
+// TaskNeedsAttentionPayload is delivered after a task escalates to needs_attention.
+type TaskNeedsAttentionPayload = TaskAttentionPayload
+
+// TaskRecoveredPayload is delivered after a task leaves needs_attention.
+type TaskRecoveredPayload = TaskAttentionPayload
+
+// TaskObservationPatch is the observation patch surface for committed task lifecycle hooks.
+type TaskObservationPatch = AutonomyObservationPatch
+
 // TaskRunClaimCriteria carries the mutable claim criteria exposed to task-run pre-claim hooks.
 type TaskRunClaimCriteria struct {
 	WorkspaceID           string   `json:"workspace_id,omitempty"`
@@ -1157,6 +1211,14 @@ func (p CoordinatorLifecyclePayload) hookSessionContext() SessionContext {
 	}
 }
 
+func (p TaskBlockPayload) hookSessionContext() SessionContext {
+	return taskSessionContext(p.TaskContext)
+}
+
+func (p TaskAttentionPayload) hookSessionContext() SessionContext {
+	return taskSessionContext(p.TaskContext)
+}
+
 func (p TaskRunEnqueuedPayload) hookSessionContext() SessionContext {
 	return taskRunSessionContext(p.TaskRunContext)
 }
@@ -1179,6 +1241,13 @@ func (p SpawnPreCreatePayload) hookSessionContext() SessionContext {
 
 func (p SpawnLifecyclePayload) hookSessionContext() SessionContext {
 	return spawnSessionContext(p.SpawnContext)
+}
+
+func taskSessionContext(ctx TaskContext) SessionContext {
+	return SessionContext{
+		AgentName:   ctx.AgentName,
+		WorkspaceID: ctx.WorkspaceID,
+	}
 }
 
 func taskRunSessionContext(ctx TaskRunContext) SessionContext {

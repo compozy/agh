@@ -42,6 +42,15 @@ const KANBAN_TASKS: TaskListItem[] = [
     active_run: null,
   }),
   buildTaskFixture({
+    id: "task_k7",
+    identifier: "TASK-17",
+    status: "needs_attention",
+    title: "Escalated: unblock-loop breaker tripped",
+    active_run: null,
+    needs_attention: true,
+    needs_attention_reason: "Re-blocked twice with needs_input blocks",
+  }),
+  buildTaskFixture({
     id: "task_k3",
     identifier: "TASK-13",
     status: "in_progress",

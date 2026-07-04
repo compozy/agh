@@ -150,6 +150,10 @@ export type HookEvent =
   | "coordinator.decision"
   | "coordinator.stopped"
   | "coordinator.failed"
+  | "task.blocked"
+  | "task.unblocked"
+  | "task.needs_attention"
+  | "task.recovered"
   | "task.run.enqueued"
   | "task.run.pre_claim"
   | "task.run.post_claim"
@@ -1821,6 +1825,7 @@ export type HookEventFamily =
   | "permission"
   | "context"
   | "coordinator"
+  | "task"
   | "task.run"
   | "spawn"
   | "network";
@@ -4040,6 +4045,18 @@ export type ApprovalPolicy = string;
 
 export type ApprovalState = string;
 
+export type BlockedSource = string;
+
+export type BlockKind = string;
+
+export interface BlockedReason {
+  source: BlockedSource;
+  kind?: BlockKind;
+  reason?: string;
+  block_id?: string;
+  depends_on_task_ids?: string[];
+}
+
 export type ActorKind = string;
 
 export interface ActorIdentity {
@@ -4077,6 +4094,12 @@ export interface Task {
   paused_reason?: string;
   effective_paused?: boolean;
   paused_by_task_id?: string;
+  blocked_reasons?: BlockedReason[];
+  needs_attention?: boolean;
+  needs_attention_reason?: string;
+  needs_attention_at?: ISODateTime;
+  needs_attention_by?: ActorIdentity;
+  wake_creator: boolean;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -4085,10 +4108,52 @@ export interface Task {
   metadata?: JSONValue;
 }
 
+export interface TaskBlockedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
+  block_id?: string;
+  kind?: string;
+  reason?: string;
+  details?: JSONValue;
+  cleared_at?: ISODateTime;
+  clear_note?: string;
+}
+
 export interface TaskCancelParams {
   id: string;
   reason?: string;
   metadata?: JSONValue;
+}
+
+export interface TaskContext {
+  task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
 }
 
 export interface TaskCreateParams {
@@ -4105,6 +4170,7 @@ export interface TaskCreateParams {
   draft?: boolean;
   approval_policy?: ApprovalPolicy;
   owner?: Ownership;
+  wake_creator?: boolean;
   metadata?: JSONValue;
 }
 
@@ -4357,6 +4423,12 @@ export interface TaskSummary {
   paused_reason?: string;
   effective_paused?: boolean;
   paused_by_task_id?: string;
+  blocked_reasons?: BlockedReason[];
+  needs_attention?: boolean;
+  needs_attention_reason?: string;
+  needs_attention_at?: ISODateTime;
+  needs_attention_by?: ActorIdentity;
+  wake_creator: boolean;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -4481,6 +4553,54 @@ export interface TaskInboxParams {
   limit?: number;
 }
 
+export interface TaskNeedsAttentionPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
+  reason?: string;
+  note?: string;
+  at?: ISODateTime;
+}
+
+export interface TaskObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface TaskRecoveredPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
+  reason?: string;
+  note?: string;
+  at?: ISODateTime;
+}
+
 export interface TaskRunAttachSessionParams {
   id: string;
   session_id: string;
@@ -4509,6 +4629,7 @@ export interface TaskRunClaimParams {
 export interface TaskRunCompleteParams {
   id: string;
   result?: JSONValue;
+  created_task_ids?: string[];
 }
 
 export interface TaskRunCompletedPayload {
@@ -4927,6 +5048,31 @@ export interface TaskTreeParams {
   id: string;
 }
 
+export interface TaskUnblockedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
+  block_id?: string;
+  kind?: string;
+  reason?: string;
+  details?: JSONValue;
+  cleared_at?: ISODateTime;
+  clear_note?: string;
+}
+
 export interface TaskUpdateParams {
   id: string;
   title?: string;
@@ -5267,6 +5413,10 @@ export interface HookPayloadByEvent {
   "coordinator.decision": CoordinatorDecisionPayload;
   "coordinator.stopped": CoordinatorStoppedPayload;
   "coordinator.failed": CoordinatorFailedPayload;
+  "task.blocked": TaskBlockedPayload;
+  "task.unblocked": TaskUnblockedPayload;
+  "task.needs_attention": TaskNeedsAttentionPayload;
+  "task.recovered": TaskRecoveredPayload;
   "task.run.enqueued": TaskRunEnqueuedPayload;
   "task.run.pre_claim": TaskRunPreClaimPayload;
   "task.run.post_claim": TaskRunPostClaimPayload;
@@ -5342,6 +5492,10 @@ export interface HookPatchByEvent {
   "coordinator.decision": CoordinatorObservationPatch;
   "coordinator.stopped": CoordinatorObservationPatch;
   "coordinator.failed": CoordinatorObservationPatch;
+  "task.blocked": TaskObservationPatch;
+  "task.unblocked": TaskObservationPatch;
+  "task.needs_attention": TaskObservationPatch;
+  "task.recovered": TaskObservationPatch;
   "task.run.enqueued": TaskRunObservationPatch;
   "task.run.pre_claim": TaskRunPreClaimPatch;
   "task.run.post_claim": TaskRunObservationPatch;

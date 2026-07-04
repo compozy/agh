@@ -128,6 +128,10 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 			ActorKind:            dispatchEventsAgentSessionKey,
 			ActorID:              strings.TrimSpace(typed.CoordinatorSessionID),
 		}
+	case TaskBlockPayload:
+		return correlationFromTaskContext(typed.TaskContext)
+	case TaskAttentionPayload:
+		return correlationFromTaskContext(typed.TaskContext)
 	case TaskRunEnqueuedPayload:
 		return correlationFromTaskRunContext(typed.TaskRunContext)
 	case TaskRunPreClaimPayload:
@@ -162,6 +166,17 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 			ActorKind: dispatchEventsAgentSessionKey,
 			ActorID:   sessionID,
 		}
+	}
+}
+
+func correlationFromTaskContext(ctx TaskContext) DispatchCorrelation {
+	return DispatchCorrelation{
+		TaskID:        strings.TrimSpace(ctx.TaskID),
+		RunID:         strings.TrimSpace(ctx.RunID),
+		WorkflowID:    strings.TrimSpace(ctx.WorkflowID),
+		ActorKind:     strings.TrimSpace(ctx.ActorKind),
+		ActorID:       strings.TrimSpace(ctx.ActorID),
+		ReleaseReason: strings.TrimSpace(ctx.ReleaseReason),
 	}
 }
 

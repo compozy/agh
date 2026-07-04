@@ -10,6 +10,7 @@ import {
   taskOwnerLabel,
   taskPriorityLabel,
   taskPriorityTone,
+  taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { TasksListRow } from "./tasks-list-row";
@@ -31,6 +32,7 @@ export interface TaskCardProps {
  */
 export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
+  const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
   const activeRun = task.active_run ?? null;
   const ownerLabel = taskOwnerLabel(task.owner);
@@ -100,13 +102,28 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
           </Pill>
         ) : null}
         {isBlocked ? (
-          <Pill data-testid={`task-card-blocked-${task.id}`} mono size="sm" tone="warning">
+          <Pill
+            data-testid={`task-card-blocked-${task.id}`}
+            mono
+            size="sm"
+            tone={taskStatusTone("blocked")}
+          >
             Blocked
+          </Pill>
+        ) : null}
+        {needsAttention ? (
+          <Pill
+            data-testid={`task-card-needs-attention-${task.id}`}
+            mono
+            size="sm"
+            tone={taskStatusTone("needs_attention")}
+          >
+            Needs attention
           </Pill>
         ) : null}
       </>
     ),
-    [isBlocked, showApproval, task.approval_state, task.id, task.priority]
+    [isBlocked, needsAttention, showApproval, task.approval_state, task.id, task.priority]
   );
 
   return (

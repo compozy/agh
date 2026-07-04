@@ -915,8 +915,8 @@ func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSumm
 		CreatedAt:          record.CreatedAt,
 		UpdatedAt:          record.UpdatedAt,
 		ClosedAt:           optionalTime(record.ClosedAt),
-		ChildCount:         record.ChildCount,
-		DependencyCount:    record.DependencyCount,
+		ChildCount:         int(record.ChildCount),
+		DependencyCount:    int(record.DependencyCount),
 		Dependencies:       taskDependencyReferencePayloadsFromReferences(record.Dependencies),
 		ActiveRun:          taskRunSummaryPayloadFromSummary(record.ActiveRun),
 		LastActivityAt:     optionalTime(record.LastActivityAt),
@@ -1443,11 +1443,12 @@ func filterTaskListDrafts(tasks []taskpkg.Summary, query apicontract.TaskListQue
 	}
 
 	filtered := make([]taskpkg.Summary, 0, len(tasks))
-	for _, task := range tasks {
+	for idx := range tasks {
+		task := &tasks[idx]
 		if task.Draft || task.Status.Normalize() == taskpkg.TaskStatusDraft {
 			continue
 		}
-		filtered = append(filtered, task)
+		filtered = append(filtered, *task)
 	}
 	if query.Limit > 0 && len(filtered) > query.Limit {
 		return filtered[:query.Limit]

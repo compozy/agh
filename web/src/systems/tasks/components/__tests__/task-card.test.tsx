@@ -32,7 +32,7 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 }
 
 describe("TaskCard", () => {
-  it("renders enriched task data inline through the meta slot", () => {
+  it("Should render enriched task data inline through the meta slot", () => {
     const { container } = render(<TaskCard task={buildTask()} />);
 
     expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("TaskCard", () => {
     expect(screen.getByText("High")).toBeInTheDocument();
   });
 
-  it("invokes onSelect when the card is clicked and reflects selection state", () => {
+  it("Should invoke onSelect when the card is clicked and reflect selection state", () => {
     const onSelect = vi.fn();
     render(<TaskCard onSelect={onSelect} selected task={buildTask()} />);
 
@@ -57,7 +57,7 @@ describe("TaskCard", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the failed-run error inline in the meta row (no inline retry button)", () => {
+  it("Should render the failed-run error inline in the meta row (no inline retry button)", () => {
     render(
       <TaskCard
         task={buildTask({
@@ -82,13 +82,23 @@ describe("TaskCard", () => {
     expect(screen.queryByTestId("task-card-retry-task_001")).not.toBeInTheDocument();
   });
 
-  it("does not render a publish button on draft rows (publish lives on the detail header)", () => {
+  it("Should not render a publish button on draft rows (publish lives on the detail header)", () => {
     render(<TaskCard task={buildTask({ status: "draft", draft: true, active_run: null })} />);
     expect(screen.queryByTestId("task-card-publish-task_001")).not.toBeInTheDocument();
   });
 
-  it("renders a Blocked pill in the trailing slot for blocked tasks", () => {
+  it("Should render a Blocked pill in the trailing slot for blocked tasks", () => {
     render(<TaskCard task={buildTask({ status: "blocked", active_run: null })} />);
     expect(screen.getByTestId("task-card-blocked-task_001")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-card-needs-attention-task_001")).not.toBeInTheDocument();
+  });
+
+  it("Should surface needs_attention as its own truthful pill, distinct from blocked", () => {
+    render(<TaskCard task={buildTask({ status: "needs_attention", active_run: null })} />);
+
+    const pill = screen.getByTestId("task-card-needs-attention-task_001");
+    expect(pill).toHaveTextContent("Needs attention");
+    // Not coerced into the Blocked pill.
+    expect(screen.queryByTestId("task-card-blocked-task_001")).not.toBeInTheDocument();
   });
 });

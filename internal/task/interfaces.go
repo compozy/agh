@@ -19,6 +19,17 @@ type Manager interface {
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
 	PauseTask(ctx context.Context, id string, req PauseTaskRequest, actor ActorContext) (*Task, error)
 	ResumeTask(ctx context.Context, id string, req ResumeTaskRequest, actor ActorContext) (*Task, error)
+	BlockTask(ctx context.Context, req BlockRequest, actor ActorContext) (TaskBlock, error)
+	RecoverTask(ctx context.Context, id string, note string, actor ActorContext) (*Task, error)
+	ClearTaskBlock(
+		ctx context.Context,
+		taskID string,
+		blockID string,
+		note string,
+		actor ActorContext,
+	) (TaskBlock, error)
+	ExpireTaskBlocks(ctx context.Context, now time.Time, actor ActorContext) (ExpireTaskBlocksResult, error)
+	ListTaskBlocks(ctx context.Context, taskID string, includeCleared bool, actor ActorContext) ([]TaskBlock, error)
 	MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 	ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 	DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
@@ -102,6 +113,7 @@ type RecordStore interface {
 // DeleteTaskMutationStore is the narrowed persistence surface required to
 // execute task deletion and dependent reconciliation as one unit.
 type DeleteTaskMutationStore interface {
+	BlockReader
 	GetTask(ctx context.Context, id string) (Task, error)
 	UpdateTask(ctx context.Context, task Task) error
 	DeleteTask(ctx context.Context, id string) error
@@ -126,6 +138,25 @@ type DependencyStore interface {
 	ListDependents(ctx context.Context, dependsOnTaskID string) ([]Dependency, error)
 	CountDependencies(ctx context.Context, taskID string) (int, error)
 	HasDependencyPath(ctx context.Context, fromTaskID string, toTaskID string) (bool, error)
+}
+
+// BlockReader is the persistence surface for read-only task-block projections.
+type BlockReader interface {
+	ListTaskBlocks(ctx context.Context, taskID string, includeCleared bool) ([]TaskBlock, error)
+	HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error)
+}
+
+// BlockStore is the persistence surface for task-block lifecycle mutations.
+type BlockStore interface {
+	BlockReader
+	CreateTaskBlock(ctx context.Context, mutation CreateTaskBlockMutation) (BlockMutationResult, error)
+	ClearTaskBlock(ctx context.Context, mutation ClearTaskBlockMutation) (TaskBlock, error)
+	ClearTaskNeedsAttention(ctx context.Context, mutation NeedsAttentionClearMutation) (Task, error)
+	ExpireTaskBlocks(ctx context.Context, mutation ExpireTaskBlocksMutation) (ExpireTaskBlocksResult, error)
+	BlockTaskAndReleaseRun(
+		ctx context.Context,
+		mutation BlockTaskAndReleaseRunMutation,
+	) (BlockTaskAndReleaseRunResult, error)
 }
 
 // RunStore is the persistence surface for durable task-run records.
@@ -211,6 +242,7 @@ type RunReviewStore interface {
 type Store interface {
 	RecordStore
 	DependencyStore
+	BlockStore
 	RunStore
 	EventStore
 	EventSequenceStore

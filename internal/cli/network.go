@@ -1277,7 +1277,7 @@ func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
 		networkChannelKey,
 		automationWorkspaceIDKey,
 		"purpose",
-		"created_by",
+		createdByKey,
 		"peer_count",
 		"session_count",
 		networkMessageCountKey,

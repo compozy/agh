@@ -190,6 +190,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/scheduler/backlog",
 		"GET /api/tasks",
 		"GET /api/tasks/:id",
+		"GET /api/tasks/:id/blocks",
 		"GET /api/tasks/:id/inspect",
 		"GET /api/tasks/:id/notifications/bridges",
 		"GET /api/tasks/:id/notifications/bridges/:subscription_id",
@@ -319,12 +320,15 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/task-reviews/:id/verdict",
 		"POST /api/tasks",
 		"POST /api/tasks/:id/approve",
+		"POST /api/tasks/:id/blocks",
+		"POST /api/tasks/:id/blocks/:block_id/clear",
 		"POST /api/tasks/:id/notifications/bridges",
 		"POST /api/tasks/:id/cancel",
 		"POST /api/tasks/:id/children",
 		"POST /api/tasks/:id/dependencies",
 		"POST /api/tasks/:id/pause",
 		"POST /api/tasks/:id/publish",
+		"POST /api/tasks/:id/recover",
 		"POST /api/tasks/:id/reject",
 		"POST /api/tasks/:id/resume",
 		"POST /api/tasks/:id/runs",
@@ -428,6 +432,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"GET /api/task-runs/:id":                                       "GetTaskRun",
 		"GET /api/task-runs/:id/reviews":                               "ListTaskRunReviews",
 		"GET /api/task-reviews/:id":                                    "GetTaskRunReview",
+		"GET /api/tasks/:id/blocks":                                    "ListTaskBlocks",
 		"GET /api/tasks/:id/execution-profile":                         "GetTaskExecutionProfile",
 		"GET /api/tasks/:id/inspect":                                   "InspectTask",
 		"GET /api/tasks/:id/notifications/bridges":                     "ListTaskBridgeNotificationSubscriptions",
@@ -441,9 +446,12 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"DELETE /api/tasks/:id/execution-profile":                      "DeleteTaskExecutionProfile",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop": "StopSession",
 		"POST /api/tasks/:id/approve":                                  "ApproveTask",
+		"POST /api/tasks/:id/blocks":                                   "BlockTask",
+		"POST /api/tasks/:id/blocks/:block_id/clear":                   "ClearTaskBlock",
 		"POST /api/tasks/:id/notifications/bridges":                    "CreateTaskBridgeNotificationSubscription",
 		"POST /api/tasks/:id/pause":                                    "PauseTask",
 		"POST /api/tasks/:id/publish":                                  "PublishTask",
+		"POST /api/tasks/:id/recover":                                  "RecoverTask",
 		"POST /api/tasks/:id/reject":                                   "RejectTask",
 		"POST /api/tasks/:id/resume":                                   "ResumeTask",
 		"POST /api/tasks/:id/runs/fan-out":                             "FanOutTaskRuns",
@@ -473,6 +481,373 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		if !strings.Contains(matched.Handler, handlerName) {
 			t.Fatalf("route %q handler = %q, want substring %q", key, matched.Handler, handlerName)
 		}
+	}
+}
+
+func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
+	const rawClaimToken = "agh_claim_secret"
+
+	newEngine := func(t *testing.T, manager apitestutil.StubTaskManager) *gin.Engine {
+		t.Helper()
+
+		return newTestRouter(t, newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+			t,
+			stubSessionManager{},
+			stubObserver{},
+			nil,
+			manager,
+			nil,
+			stubWorkspaceService{},
+			newTestHomePaths(t),
+		))
+	}
+
+	t.Run("Should create a block response without leaking raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+
+		var blockReq taskpkg.BlockRequest
+		engine := newEngine(t, apitestutil.StubTaskManager{
+			BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
+				blockReq = req
+				return taskpkg.TaskBlock{
+					ID:        "block-1",
+					TaskID:    req.TaskID,
+					Kind:      req.Kind,
+					Reason:    "waiting on " + rawClaimToken,
+					Details:   json.RawMessage(`{"note":"` + rawClaimToken + `"}`),
+					CreatedBy: actor.Actor,
+					CreatedAt: now,
+				}, nil
+			},
+		})
+
+		recorder := performRequestWithHeaders(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/tasks/task-1/blocks",
+			[]byte(`{"kind":"needs_input","reason":"creator decision","run_id":"run-1"}`),
+			map[string]string{"X-AGH-Claim-Token": rawClaimToken},
+		)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("block status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+		}
+		if blockReq.TaskID != "task-1" || blockReq.RunID != "run-1" || blockReq.ClaimToken != rawClaimToken {
+			t.Fatalf("block request = %#v, want task/run/claim token propagated", blockReq)
+		}
+		if strings.Contains(recorder.Body.String(), rawClaimToken) {
+			t.Fatalf("block response leaked raw claim token: %s", recorder.Body.String())
+		}
+		var response contract.TaskBlockResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Block.ID != "block-1" || response.Block.TaskID != "task-1" {
+			t.Fatalf("block response = %#v, want block-1 for task-1", response.Block)
+		}
+	})
+
+	t.Run("Should list blocks with include cleared and redact raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+
+		listIncludeCleared := false
+		engine := newEngine(t, apitestutil.StubTaskManager{
+			ListTaskBlocksFn: func(
+				_ context.Context,
+				taskID string,
+				includeCleared bool,
+				_ taskpkg.ActorContext,
+			) ([]taskpkg.TaskBlock, error) {
+				listIncludeCleared = includeCleared
+				return []taskpkg.TaskBlock{{
+					ID:        "block-1",
+					TaskID:    taskID,
+					Kind:      taskpkg.BlockKindNeedsInput,
+					Reason:    "waiting on " + rawClaimToken,
+					Details:   json.RawMessage(`{"note":"` + rawClaimToken + `"}`),
+					CreatedAt: now,
+				}}, nil
+			},
+		})
+
+		recorder := performRequest(t, engine, http.MethodGet, "/api/tasks/task-1/blocks?include_cleared=true", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("list status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if !listIncludeCleared {
+			t.Fatal("ListTaskBlocks includeCleared = false, want true")
+		}
+		if strings.Contains(recorder.Body.String(), rawClaimToken) {
+			t.Fatalf("list response leaked raw claim token: %s", recorder.Body.String())
+		}
+		var response contract.TaskBlocksResponse
+		decodeJSONResponse(t, recorder, &response)
+		if len(response.Blocks) != 1 || response.Blocks[0].ID != "block-1" {
+			t.Fatalf("list response = %#v, want block-1", response.Blocks)
+		}
+	})
+
+	t.Run("Should get blocked task details without leaking raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newEngine(t, apitestutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
+				blockedReasons := []taskpkg.BlockedReason{{
+					Source:  taskpkg.BlockedSourceBlock,
+					Kind:    taskpkg.BlockKindNeedsInput,
+					Reason:  "waiting on " + rawClaimToken,
+					BlockID: "block-1",
+				}}
+				return &taskpkg.View{
+					Summary: taskpkg.Summary{
+						ID:             id,
+						Title:          "Blocked task " + rawClaimToken,
+						Status:         taskpkg.TaskStatusBlocked,
+						PausedReason:   "paused on " + rawClaimToken,
+						NeedsAttention: &taskpkg.NeedsAttention{Reason: "attention " + rawClaimToken},
+						BlockedReasons: &blockedReasons,
+					},
+					Task: taskpkg.Task{
+						ID:           id,
+						Title:        "Blocked task " + rawClaimToken,
+						Description:  "description " + rawClaimToken,
+						Status:       taskpkg.TaskStatusBlocked,
+						WakeCreator:  true,
+						Paused:       true,
+						PausedReason: "paused on " + rawClaimToken,
+						NeedsAttention: &taskpkg.NeedsAttention{
+							Reason: "attention " + rawClaimToken,
+						},
+						Metadata: json.RawMessage(`{"note":"` + rawClaimToken + `"}`),
+					},
+				}, nil
+			},
+		})
+
+		recorder := performRequest(t, engine, http.MethodGet, "/api/tasks/task-1", nil)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("get status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if strings.Contains(recorder.Body.String(), rawClaimToken) {
+			t.Fatalf("get response leaked raw claim token: %s", recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), "agh_claim_[REDACTED]") {
+			t.Fatalf("get response = %s, want redacted claim token marker", recorder.Body.String())
+		}
+		var response contract.TaskDetailResponse
+		decodeJSONResponse(t, recorder, &response)
+		if got := response.Task.Task.BlockedReasons; len(got) != 1 || got[0].BlockID != "block-1" {
+			t.Fatalf("get blocked_reasons = %#v, want block-1", got)
+		}
+	})
+
+	t.Run("Should clear a task block and return clear metadata", func(t *testing.T) {
+		t.Parallel()
+
+		clearNote := ""
+		engine := newEngine(t, apitestutil.StubTaskManager{
+			ClearTaskBlockFn: func(
+				_ context.Context,
+				taskID string,
+				blockID string,
+				note string,
+				actor taskpkg.ActorContext,
+			) (taskpkg.TaskBlock, error) {
+				clearNote = note
+				return taskpkg.TaskBlock{
+					ID:        blockID,
+					TaskID:    taskID,
+					Kind:      taskpkg.BlockKindNeedsInput,
+					Reason:    "creator answered",
+					CreatedAt: now.Add(-time.Minute),
+					ClearedAt: now,
+					ClearedBy: actor.Actor,
+					ClearNote: note,
+				}, nil
+			},
+		})
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/tasks/task-1/blocks/block-1/clear",
+			mustJSONBody(t, contract.ClearTaskBlockRequest{Note: "resolved"}),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("clear status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if clearNote != "resolved" {
+			t.Fatalf("clear note = %q, want resolved", clearNote)
+		}
+		var response contract.TaskBlockResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Block.ClearedAt == nil || response.Block.ClearedBy == nil {
+			t.Fatalf("clear response = %#v, want clear metadata", response.Block)
+		}
+	})
+
+	t.Run("Should recover a task and return the ready task", func(t *testing.T) {
+		t.Parallel()
+
+		recoverNote := ""
+		engine := newEngine(t, apitestutil.StubTaskManager{
+			RecoverTaskFn: func(
+				_ context.Context,
+				id string,
+				note string,
+				_ taskpkg.ActorContext,
+			) (*taskpkg.Task, error) {
+				recoverNote = note
+				return &taskpkg.Task{
+					ID:          id,
+					Title:       "Recovered task",
+					Status:      taskpkg.TaskStatusReady,
+					WakeCreator: true,
+				}, nil
+			},
+		})
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/tasks/task-1/recover",
+			mustJSONBody(t, contract.RecoverTaskRequest{Note: "operator reviewed"}),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("recover status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if recoverNote != "operator reviewed" {
+			t.Fatalf("recover note = %q, want operator reviewed", recoverNote)
+		}
+		var response contract.TaskResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Task.ID != "task-1" || response.Task.Status != taskpkg.TaskStatusReady {
+			t.Fatalf("recover response task = %#v, want ready task-1", response.Task)
+		}
+	})
+}
+
+func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		manager    apitestutil.StubTaskManager
+		wantStatus int
+	}{
+		{
+			name:   "block missing task",
+			method: http.MethodPost,
+			path:   "/api/tasks/missing/blocks",
+			body:   []byte(`{"kind":"needs_input","reason":"missing task"}`),
+			manager: apitestutil.StubTaskManager{
+				BlockTaskFn: func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
+					return taskpkg.TaskBlock{}, taskpkg.ErrTaskNotFound
+				},
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "block invalid kind or reason",
+			method: http.MethodPost,
+			path:   "/api/tasks/task-1/blocks",
+			body:   []byte(`{"kind":"missing","reason":"bad kind"}`),
+			manager: apitestutil.StubTaskManager{
+				BlockTaskFn: func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
+					return taskpkg.TaskBlock{}, errors.Join(taskpkg.ErrValidation, errors.New("invalid task block"))
+				},
+			},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:   "clear already cleared block",
+			method: http.MethodPost,
+			path:   "/api/tasks/task-1/blocks/block-1/clear",
+			body:   []byte(`{"note":"again"}`),
+			manager: apitestutil.StubTaskManager{
+				ClearTaskBlockFn: func(
+					context.Context,
+					string,
+					string,
+					string,
+					taskpkg.ActorContext,
+				) (taskpkg.TaskBlock, error) {
+					return taskpkg.TaskBlock{}, taskpkg.ErrConflict
+				},
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:   "list returns 404 body when service reports task not found",
+			method: http.MethodGet,
+			path:   "/api/tasks/foreign-task/blocks?include_cleared=true",
+			manager: apitestutil.StubTaskManager{
+				ListTaskBlocksFn: func(
+					_ context.Context,
+					taskID string,
+					includeCleared bool,
+					_ taskpkg.ActorContext,
+				) ([]taskpkg.TaskBlock, error) {
+					if taskID != "foreign-task" || !includeCleared {
+						t.Fatalf("ListTaskBlocks task/include = %q/%v, want foreign-task/true", taskID, includeCleared)
+					}
+					return nil, taskpkg.ErrTaskNotFound
+				},
+			},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "recover non escalated task",
+			method: http.MethodPost,
+			path:   "/api/tasks/task-1/recover",
+			body:   []byte(`{"note":"too soon"}`),
+			manager: apitestutil.StubTaskManager{
+				RecoverTaskFn: func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Task, error) {
+					return nil, taskpkg.ErrInvalidStatusTransition
+				},
+			},
+			wantStatus: http.StatusConflict,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run("Should "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			engine := newTestRouter(t, newTestHandlersWithAutomationBridgesTasksAndWorkspace(
+				t,
+				stubSessionManager{},
+				stubObserver{},
+				nil,
+				tc.manager,
+				nil,
+				stubWorkspaceService{},
+				homePaths,
+			))
+			recorder := performRequest(t, engine, tc.method, tc.path, tc.body)
+			if recorder.Code != tc.wantStatus {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					tc.method,
+					tc.path,
+					recorder.Code,
+					tc.wantStatus,
+					recorder.Body.String(),
+				)
+			}
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, recorder, &payload)
+			if payload.Error == "" {
+				t.Fatalf("error payload = %#v, want message", payload)
+			}
+		})
 	}
 }
 

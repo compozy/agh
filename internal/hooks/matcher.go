@@ -12,6 +12,7 @@ const (
 	matcherChannelKey               = "channel"
 	matcherCoordinationChannelIDKey = "coordination_channel_id"
 	matcherInputClassKey            = "input_class"
+	matcherReleaseReasonKey         = "release_reason"
 	matcherRunIDKey                 = "run_id"
 	matcherTaskIDKey                = "task_id"
 	matcherWorkStateKey             = "work_state"
@@ -102,6 +103,15 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherCoordinationChannelIDKey: {},
 		"coordinator_session_id":        {},
 	},
+	HookEventFamilyTask: {
+		matcherAgentNameKey:             {},
+		matcherWorkspaceIDKey:           {},
+		matcherTaskIDKey:                {},
+		matcherRunIDKey:                 {},
+		matcherWorkflowIDKey:            {},
+		matcherCoordinationChannelIDKey: {},
+		matcherReleaseReasonKey:         {},
+	},
 	HookEventFamilyTaskRun: {
 		matcherAgentNameKey:             {},
 		matcherWorkspaceIDKey:           {},
@@ -109,7 +119,7 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherRunIDKey:                 {},
 		matcherWorkflowIDKey:            {},
 		matcherCoordinationChannelIDKey: {},
-		"release_reason":                {},
+		matcherReleaseReasonKey:         {},
 	},
 	HookEventFamilySpawn: {
 		matcherAgentNameKey:             {},
@@ -348,16 +358,49 @@ func (m HookMatcher) MatchesCoordinator(payload CoordinatorContext) bool {
 		matchStringField(autonomy.CoordinatorSessionID, payload.CoordinatorSessionID)
 }
 
+// MatchesTask matches task-family hooks.
+func (m HookMatcher) MatchesTask(payload TaskContext) bool {
+	return m.matchTaskAutonomyFields(
+		payload.AgentName,
+		payload.WorkspaceID,
+		payload.TaskID,
+		payload.RunID,
+		payload.WorkflowID,
+		payload.CoordinationChannelID,
+		payload.ReleaseReason,
+	)
+}
+
 // MatchesTaskRun matches task-run-family hooks.
 func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
+	return m.matchTaskAutonomyFields(
+		payload.AgentName,
+		payload.WorkspaceID,
+		payload.TaskID,
+		payload.RunID,
+		payload.WorkflowID,
+		payload.CoordinationChannelID,
+		payload.ReleaseReason,
+	)
+}
+
+func (m HookMatcher) matchTaskAutonomyFields(
+	agentName string,
+	workspaceID string,
+	taskID string,
+	runID string,
+	workflowID string,
+	coordinationChannelID string,
+	releaseReason string,
+) bool {
 	autonomy := m.autonomy()
-	return matchStringField(m.AgentName, payload.AgentName) &&
-		matchStringField(m.WorkspaceID, payload.WorkspaceID) &&
-		matchStringField(autonomy.TaskID, payload.TaskID) &&
-		matchStringField(autonomy.RunID, payload.RunID) &&
-		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, payload.CoordinationChannelID) &&
-		matchStringField(autonomy.ReleaseReason, payload.ReleaseReason)
+	return matchStringField(m.AgentName, agentName) &&
+		matchStringField(m.WorkspaceID, workspaceID) &&
+		matchStringField(autonomy.TaskID, taskID) &&
+		matchStringField(autonomy.RunID, runID) &&
+		matchStringField(autonomy.WorkflowID, workflowID) &&
+		matchStringField(autonomy.CoordinationChannelID, coordinationChannelID) &&
+		matchStringField(autonomy.ReleaseReason, releaseReason)
 }
 
 // MatchesSpawn matches spawn-family hooks.
@@ -569,6 +612,14 @@ func matchCoordinatorPreSpawn(matcher HookMatcher, payload CoordinatorPreSpawnPa
 
 func matchCoordinatorLifecycle(matcher HookMatcher, payload CoordinatorLifecyclePayload) bool {
 	return matcher.MatchesCoordinator(payload.CoordinatorContext)
+}
+
+func matchTaskBlock(matcher HookMatcher, payload TaskBlockPayload) bool {
+	return matcher.MatchesTask(payload.TaskContext)
+}
+
+func matchTaskAttention(matcher HookMatcher, payload TaskAttentionPayload) bool {
+	return matcher.MatchesTask(payload.TaskContext)
 }
 
 func matchTaskRunEnqueued(matcher HookMatcher, payload TaskRunEnqueuedPayload) bool {
@@ -830,7 +881,7 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 	appendIf("root_session_id", matcher.RootSessionID != "")
 	appendIf("child_session_id", matcher.ChildSessionID != "")
 	appendIf("spawn_role", matcher.SpawnRole != "")
-	appendIf("release_reason", matcher.ReleaseReason != "")
+	appendIf(matcherReleaseReasonKey, matcher.ReleaseReason != "")
 }
 
 func validateMatcherPatterns(matcher HookMatcher) error {
@@ -928,7 +979,7 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		{field: "root_session_id", pattern: matcher.RootSessionID},
 		{field: "child_session_id", pattern: matcher.ChildSessionID},
 		{field: "spawn_role", pattern: matcher.SpawnRole},
-		{field: "release_reason", pattern: matcher.ReleaseReason},
+		{field: matcherReleaseReasonKey, pattern: matcher.ReleaseReason},
 	}
 	for _, item := range patterns {
 		if err := validateMatcherPattern(item.field, item.pattern); err != nil {

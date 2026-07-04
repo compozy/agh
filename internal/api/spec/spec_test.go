@@ -836,6 +836,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks", method: "POST"},
 					{path: "/api/tasks/{id}", method: "GET"},
 					{path: "/api/tasks/{id}", method: "PATCH"},
+					{path: "/api/tasks/{id}/blocks", method: "POST"},
+					{path: "/api/tasks/{id}/blocks", method: "GET"},
+					{path: "/api/tasks/{id}/blocks/{block_id}/clear", method: "POST"},
+					{path: "/api/tasks/{id}/recover", method: "POST"},
 					{path: "/api/tasks/{id}/execution-profile", method: "GET"},
 					{path: "/api/tasks/{id}/execution-profile", method: "PUT"},
 					{path: "/api/tasks/{id}/execution-profile", method: "DELETE"},
@@ -1083,6 +1087,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"draft",
 					"approval_policy",
 					"owner",
+					"wake_creator",
 					"metadata",
 				)
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace")
@@ -1098,6 +1103,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.TaskStatusDraft),
 					string(taskpkg.TaskStatusPending),
 					string(taskpkg.TaskStatusBlocked),
+					string(taskpkg.TaskStatusNeedsAttention),
 					string(taskpkg.TaskStatusReady),
 					string(taskpkg.TaskStatusInProgress),
 					string(taskpkg.TaskStatusCompleted),
@@ -1140,12 +1146,67 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.OriginKindAgentSession),
 					string(taskpkg.OriginKindDaemon),
 				)
+				assertRequired(t, taskSchema, "wake_creator")
+				propertySchema(t, taskSchema, "needs_attention")
+				propertySchema(t, taskSchema, "needs_attention_reason")
+				propertySchema(t, taskSchema, "needs_attention_at")
+				propertySchema(t, taskSchema, "needs_attention_by")
+				blockedReasonsSchema := propertySchema(t, taskSchema, "blocked_reasons")
+				blockedReasonSchema := blockedReasonsSchema.Items.Value
+				assertEnumValues(t, propertySchema(t, blockedReasonSchema, "source"),
+					string(taskpkg.BlockedSourceDependency),
+					string(taskpkg.BlockedSourceApproval),
+					string(taskpkg.BlockedSourcePaused),
+					string(taskpkg.BlockedSourceBlock),
+				)
+				assertEnumValues(t, propertySchema(t, blockedReasonSchema, "kind"),
+					string(taskpkg.BlockKindNeedsInput),
+					string(taskpkg.BlockKindCapability),
+					string(taskpkg.BlockKindTransient),
+				)
 
 				listTasks := operationFor(t, doc, "/api/tasks", "GET")
 				assertParameter(t, listTasks, "priority", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
+
+				blockTask := operationFor(t, doc, "/api/tasks/{id}/blocks", "POST")
+				assertParameter(t, blockTask, "id", openapi3.ParameterInPath, true)
+				blockTaskSchema := jsonRequestSchema(t, blockTask)
+				assertRequired(t, blockTaskSchema, "kind", "reason")
+				assertNotRequired(t, blockTaskSchema, "details", "expires_at", "run_id")
+				assertEnumValues(t, propertySchema(t, blockTaskSchema, "kind"),
+					string(taskpkg.BlockKindNeedsInput),
+					string(taskpkg.BlockKindCapability),
+					string(taskpkg.BlockKindTransient),
+				)
+				blockTaskResponse := jsonResponseSchema(t, blockTask, 201)
+				assertRequired(t, blockTaskResponse, "block")
+				blockSchema := propertySchema(t, blockTaskResponse, "block")
+				assertRequired(t, blockSchema, "id", "task_id", "kind", "reason", "created_by", "created_at")
+
+				listTaskBlocks := operationFor(t, doc, "/api/tasks/{id}/blocks", "GET")
+				assertParameter(t, listTaskBlocks, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, listTaskBlocks, "include_cleared", openapi3.ParameterInQuery, false)
+				assertResponseStatus(t, listTaskBlocks, 400)
+				listTaskBlocksResponse := jsonResponseSchema(t, listTaskBlocks, 200)
+				assertRequired(t, listTaskBlocksResponse, "blocks")
+
+				clearTaskBlock := operationFor(t, doc, "/api/tasks/{id}/blocks/{block_id}/clear", "POST")
+				assertParameter(t, clearTaskBlock, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, clearTaskBlock, "block_id", openapi3.ParameterInPath, true)
+				clearTaskBlockSchema := jsonRequestSchema(t, clearTaskBlock)
+				assertNotRequired(t, clearTaskBlockSchema, "note")
+				clearTaskBlockResponse := jsonResponseSchema(t, clearTaskBlock, 200)
+				assertRequired(t, clearTaskBlockResponse, "block")
+
+				recoverTask := operationFor(t, doc, "/api/tasks/{id}/recover", "POST")
+				assertParameter(t, recoverTask, "id", openapi3.ParameterInPath, true)
+				recoverTaskSchema := jsonRequestSchema(t, recoverTask)
+				assertNotRequired(t, recoverTaskSchema, "note")
+				recoverTaskResponse := jsonResponseSchema(t, recoverTask, 200)
+				assertRequired(t, recoverTaskResponse, "task")
 
 				getTask := operationFor(t, doc, "/api/tasks/{id}", "GET")
 				getTaskSchema := jsonResponseSchema(t, getTask, 200)
@@ -1174,6 +1235,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"origin",
 					"created_at",
 					"updated_at",
+					"wake_creator",
 				)
 				assertNotRequired(
 					t,
@@ -1191,6 +1253,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listTaskRuns := operationFor(t, doc, "/api/tasks/{id}/runs", "GET")
 				assertParameter(t, listTaskRuns, "status", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTaskRuns, "session_id", openapi3.ParameterInQuery, false)
+
+				completeTaskRun := operationFor(t, doc, "/api/task-runs/{id}/complete", "POST")
+				completeTaskRunSchema := jsonRequestSchema(t, completeTaskRun)
+				propertySchema(t, completeTaskRunSchema, "created_task_ids")
+
+				completeAgentTaskRun := operationFor(t, doc, "/api/agent/tasks/{run_id}/complete", "POST")
+				completeAgentTaskRunSchema := jsonRequestSchema(t, completeAgentTaskRun)
+				propertySchema(t, completeAgentTaskRunSchema, "created_task_ids")
 
 				getRun := operationFor(t, doc, "/api/task-runs/{id}", "GET")
 				getRunSchema := jsonResponseSchema(t, getRun, 200)
@@ -1578,6 +1648,8 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskOwnerKind", typ: taskpkg.OwnerKindPool},
 		{name: "TaskOriginKind", typ: taskpkg.OriginKindHTTP},
 		{name: "TaskDependencyKind", typ: taskpkg.DependencyKindBlocks},
+		{name: "TaskBlockKind", typ: taskpkg.BlockKindNeedsInput},
+		{name: "TaskBlockedSource", typ: taskpkg.BlockedSourceBlock},
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
@@ -1636,6 +1708,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 				string(taskpkg.TaskStatusDraft),
 				string(taskpkg.TaskStatusPending),
 				string(taskpkg.TaskStatusBlocked),
+				string(taskpkg.TaskStatusNeedsAttention),
 				string(taskpkg.TaskStatusReady),
 				string(taskpkg.TaskStatusInProgress),
 				string(taskpkg.TaskStatusCompleted),
@@ -1657,6 +1730,16 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			name: "task approval state values",
 			got:  taskApprovalStateValues(),
 			want: []string{"not_required", "pending", "approved", "rejected"},
+		},
+		{
+			name: "task block kind values",
+			got:  taskBlockKindValues(),
+			want: []string{"needs_input", "capability", "transient"},
+		},
+		{
+			name: "task blocked source values",
+			got:  taskBlockedSourceValues(),
+			want: []string{"dependency", "approval", "paused", "block"},
 		},
 		{
 			name: "task run status values",

@@ -125,7 +125,8 @@ const autonomyCompleteInputSchema = `{
 	"required":["run_id"],
 	"properties":{
 		"run_id":{"type":"string"},
-		"result":{}
+		"result":{},
+		"created_task_ids":{"type":"array","items":{"type":"string"}}
 	},
 	"additionalProperties":false
 }`

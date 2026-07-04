@@ -1622,6 +1622,28 @@ func TestDaemonNativeTools(t *testing.T) {
 				Status: taskpkg.TaskStatusPending,
 				Scope:  taskpkg.ScopeWorkspace,
 			}},
+			getView: func() *taskpkg.View {
+				rawClaimToken := "agh_claim_READSECRET"
+				blockedReasons := []taskpkg.BlockedReason{{
+					Source:  taskpkg.BlockedSourceBlock,
+					Kind:    taskpkg.BlockKindNeedsInput,
+					Reason:  "waiting on " + rawClaimToken,
+					BlockID: "block-read",
+				}}
+				return &taskpkg.View{
+					Summary: taskpkg.Summary{
+						ID:             "task-read",
+						Title:          "Read task",
+						Status:         taskpkg.TaskStatusBlocked,
+						BlockedReasons: &blockedReasons,
+					},
+					Task: taskpkg.Task{
+						ID:     "task-read",
+						Title:  "Read task",
+						Status: taskpkg.TaskStatusBlocked,
+					},
+				}
+			}(),
 			runs: []taskpkg.Run{{
 				ID:     "run-listed",
 				TaskID: "task-run",
@@ -1650,7 +1672,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("ListTasks calls/query = %d/%#v, want workspace pending query", tasks.listCalls, tasks.lastQuery)
 		}
 
-		_, err = registry.Call(
+		readResult, err := registry.Call(
 			t.Context(),
 			scope,
 			toolspkg.CallRequest{
@@ -1664,6 +1686,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if tasks.getCalls != 1 || tasks.lastGetID != "task-read" {
 			t.Fatalf("GetTask calls/id = %d/%q, want task-read", tasks.getCalls, tasks.lastGetID)
 		}
+		requireNativeStructuredContains(t, readResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, readResult, []byte(`agh_claim_READSECRET`))
 
 		_, err = registry.Call(
 			t.Context(),
@@ -2141,7 +2165,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{
 				name:   "Should complete with internal lease token",
 				toolID: toolspkg.ToolIDTaskRunComplete,
-				input:  json.RawMessage(`{"run_id":"run-1","result":{"ok":true}}`),
+				input:  json.RawMessage(`{"run_id":"run-1","result":{"ok":true},"created_task_ids":["task-child"]}`),
 			},
 			{
 				name:   "Should fail with internal lease token",
@@ -2175,6 +2199,207 @@ func TestDaemonNativeTools(t *testing.T) {
 				tasks.lastCompletion.ClaimToken,
 				tasks.lastFailure.ClaimToken,
 				tasks.lastRelease.ClaimToken,
+			)
+		}
+		if !slices.Equal(tasks.lastCompletion.CreatedTaskIDs, []string{"task-child"}) {
+			t.Fatalf("completion created task ids = %#v, want task-child", tasks.lastCompletion.CreatedTaskIDs)
+		}
+	})
+
+	t.Run("Should gate task block native tools by leased task and operator scope", func(t *testing.T) {
+		t.Parallel()
+
+		rawToken := "agh_claim_TASKBLOCK123"
+		hash, err := taskpkg.ClaimTokenHash(rawToken)
+		if err != nil {
+			t.Fatalf("ClaimTokenHash() error = %v", err)
+		}
+		tasks := &nativeTaskManager{
+			lookupHandle: taskpkg.AutonomyLeaseHandle{
+				RunID:          "run-1",
+				TaskID:         "task-1",
+				WorkspaceID:    "ws-1",
+				SessionID:      "sess-agent",
+				Status:         taskpkg.TaskRunStatusClaimed,
+				ClaimToken:     rawToken,
+				ClaimTokenHash: hash,
+				LeaseUntil:     time.Now().UTC().Add(time.Minute),
+			},
+			blockResult: taskpkg.TaskBlock{
+				ID:      "block-native",
+				TaskID:  "task-1",
+				Kind:    taskpkg.BlockKindNeedsInput,
+				Reason:  "creator input " + rawToken,
+				Details: json.RawMessage(`{"note":"` + rawToken + `"}`),
+			},
+			clearBlockResult: taskpkg.TaskBlock{
+				ID:        "block-native",
+				TaskID:    "task-1",
+				Kind:      taskpkg.BlockKindNeedsInput,
+				Reason:    "creator input " + rawToken,
+				ClearNote: "done " + rawToken,
+			},
+			blockList: []taskpkg.TaskBlock{
+				{
+					ID:        "block-native",
+					TaskID:    "task-1",
+					Kind:      taskpkg.BlockKindNeedsInput,
+					Reason:    "creator input " + rawToken,
+					ClearNote: "done " + rawToken,
+				},
+			},
+			recoverTask: &taskpkg.Task{
+				ID:          "task-1",
+				Title:       "Recovered " + rawToken,
+				Description: "description " + rawToken,
+				Status:      taskpkg.TaskStatusReady,
+				Metadata:    json.RawMessage(`{"note":"` + rawToken + `"}`),
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1", AgentName: "coder"}
+
+		blockResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskBlock,
+				Input: json.RawMessage(
+					`{"task_id":"task-1","kind":"needs_input","reason":"creator input","run_id":"run-1"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_block) error = %v", err)
+		}
+		requireNativeStructuredContains(t, blockResult, []byte(`"block-native"`))
+		requireNativeStructuredContains(t, blockResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, blockResult, []byte(rawToken))
+		if tasks.blockCalls != 1 ||
+			tasks.lookupCalls != 1 ||
+			tasks.lastLookupSessionID != "sess-agent" ||
+			tasks.lastLookupRunID != "run-1" ||
+			tasks.lastBlockRequest.TaskID != "task-1" ||
+			tasks.lastBlockRequest.RunID != "run-1" ||
+			tasks.lastBlockRequest.ClaimToken != rawToken {
+			t.Fatalf(
+				"task block calls/lookup/request = %d/%d/%q/%q/%#v, want leased task block",
+				tasks.blockCalls,
+				tasks.lookupCalls,
+				tasks.lastLookupSessionID,
+				tasks.lastLookupRunID,
+				tasks.lastBlockRequest,
+			)
+		}
+
+		unblockResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskUnblock,
+				Input: json.RawMessage(
+					`{"task_id":"task-1","block_id":"block-native","run_id":"run-1","note":"done"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_unblock) error = %v", err)
+		}
+		requireNativeStructuredContains(t, unblockResult, []byte(`"block-native"`))
+		requireNativeStructuredContains(t, unblockResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, unblockResult, []byte(rawToken))
+		if tasks.clearBlockCalls != 1 ||
+			tasks.lookupCalls != 2 ||
+			tasks.lastClearBlockTaskID != "task-1" ||
+			tasks.lastClearBlockID != "block-native" ||
+			tasks.lastClearBlockNote != "done" {
+			t.Fatalf(
+				"task unblock calls/lookup/task/block/note = %d/%d/%q/%q/%q, want leased unblock",
+				tasks.clearBlockCalls,
+				tasks.lookupCalls,
+				tasks.lastClearBlockTaskID,
+				tasks.lastClearBlockID,
+				tasks.lastClearBlockNote,
+			)
+		}
+
+		blocksResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskBlocks,
+				Input:  json.RawMessage(`{"task_id":"task-1","include_cleared":true}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_blocks) error = %v", err)
+		}
+		requireNativeStructuredContains(t, blocksResult, []byte(`"block-native"`))
+		requireNativeStructuredContains(t, blocksResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, blocksResult, []byte(rawToken))
+		if tasks.listBlockCalls != 1 ||
+			tasks.lastListBlockTaskID != "task-1" ||
+			!tasks.lastListIncludeCleared {
+			t.Fatalf(
+				"task blocks calls/task/include = %d/%q/%v, want cleared block list",
+				tasks.listBlockCalls,
+				tasks.lastListBlockTaskID,
+				tasks.lastListIncludeCleared,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskBlock,
+				Input: json.RawMessage(
+					`{"task_id":"task-other","kind":"needs_input","reason":"foreign","run_id":"run-1"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonAutonomyForeignRun)
+		if tasks.blockCalls != 1 {
+			t.Fatalf("BlockTask calls = %d, want 1 after foreign task denial", tasks.blockCalls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRecover,
+				Input:  json.RawMessage(`{"task_id":"task-1","note":"reviewed"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+		if tasks.recoverCalls != 0 {
+			t.Fatalf("RecoverTask calls = %d, want 0 for session-scoped recover", tasks.recoverCalls)
+		}
+
+		recoverResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRecover,
+				Input:  json.RawMessage(`{"task_id":"task-1","note":"operator reviewed"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_recover operator) error = %v", err)
+		}
+		requireNativeStructuredContains(t, recoverResult, []byte(`"task-1"`))
+		requireNativeStructuredContains(t, recoverResult, []byte(`agh_claim_[REDACTED]`))
+		requireNativeStructuredExcludes(t, recoverResult, []byte(rawToken))
+		if tasks.recoverCalls != 1 ||
+			tasks.lastRecoverTaskID != "task-1" ||
+			tasks.lastRecoverNote != "operator reviewed" {
+			t.Fatalf(
+				"RecoverTask calls/task/note = %d/%q/%q, want operator recover",
+				tasks.recoverCalls,
+				tasks.lastRecoverTaskID,
+				tasks.lastRecoverNote,
 			)
 		}
 	})
@@ -6597,6 +6822,26 @@ type nativeTaskManager struct {
 	lastCancelID            string
 	lastCancel              taskpkg.CancelTask
 	cancelTask              *taskpkg.Task
+	blockCalls              int
+	lastBlockRequest        taskpkg.BlockRequest
+	blockResult             taskpkg.TaskBlock
+	blockErr                error
+	clearBlockCalls         int
+	lastClearBlockTaskID    string
+	lastClearBlockID        string
+	lastClearBlockNote      string
+	clearBlockResult        taskpkg.TaskBlock
+	clearBlockErr           error
+	listBlockCalls          int
+	lastListBlockTaskID     string
+	lastListIncludeCleared  bool
+	blockList               []taskpkg.TaskBlock
+	listBlockErr            error
+	recoverCalls            int
+	lastRecoverTaskID       string
+	lastRecoverNote         string
+	recoverTask             *taskpkg.Task
+	recoverErr              error
 	runListCalls            int
 	lastRunListTaskID       string
 	lastRunQuery            taskpkg.RunQuery
@@ -6707,6 +6952,92 @@ func (m *nativeTaskManager) CancelTask(
 		return m.cancelTask, nil
 	}
 	return &taskpkg.Task{ID: id, Title: "Canceled task", Status: taskpkg.TaskStatusCanceled}, nil
+}
+
+func (m *nativeTaskManager) BlockTask(
+	_ context.Context,
+	req taskpkg.BlockRequest,
+	_ taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	m.blockCalls++
+	m.lastBlockRequest = req
+	if m.blockErr != nil {
+		return taskpkg.TaskBlock{}, m.blockErr
+	}
+	if m.blockResult.ID != "" {
+		return m.blockResult, nil
+	}
+	return taskpkg.TaskBlock{
+		ID:     "block-native",
+		TaskID: req.TaskID,
+		Kind:   req.Kind,
+		Reason: req.Reason,
+	}, nil
+}
+
+func (m *nativeTaskManager) ClearTaskBlock(
+	_ context.Context,
+	taskID string,
+	blockID string,
+	note string,
+	_ taskpkg.ActorContext,
+) (taskpkg.TaskBlock, error) {
+	m.clearBlockCalls++
+	m.lastClearBlockTaskID = taskID
+	m.lastClearBlockID = blockID
+	m.lastClearBlockNote = note
+	if m.clearBlockErr != nil {
+		return taskpkg.TaskBlock{}, m.clearBlockErr
+	}
+	if m.clearBlockResult.ID != "" {
+		return m.clearBlockResult, nil
+	}
+	return taskpkg.TaskBlock{
+		ID:        blockID,
+		TaskID:    taskID,
+		ClearNote: note,
+	}, nil
+}
+
+func (m *nativeTaskManager) RecoverTask(
+	_ context.Context,
+	id string,
+	note string,
+	_ taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	m.recoverCalls++
+	m.lastRecoverTaskID = id
+	m.lastRecoverNote = note
+	if m.recoverErr != nil {
+		return nil, m.recoverErr
+	}
+	if m.recoverTask != nil {
+		return m.recoverTask, nil
+	}
+	return &taskpkg.Task{ID: id, Status: taskpkg.TaskStatusReady}, nil
+}
+
+func (m *nativeTaskManager) ExpireTaskBlocks(
+	context.Context,
+	time.Time,
+	taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, nil
+}
+
+func (m *nativeTaskManager) ListTaskBlocks(
+	_ context.Context,
+	taskID string,
+	includeCleared bool,
+	_ taskpkg.ActorContext,
+) ([]taskpkg.TaskBlock, error) {
+	m.listBlockCalls++
+	m.lastListBlockTaskID = taskID
+	m.lastListIncludeCleared = includeCleared
+	if m.listBlockErr != nil {
+		return nil, m.listBlockErr
+	}
+	return append([]taskpkg.TaskBlock(nil), m.blockList...), nil
 }
 
 func (m *nativeTaskManager) GetTask(
@@ -7453,6 +7784,32 @@ func (unsupportedNativeTaskManager) RecoverExpiredRunLeases(
 	taskpkg.ExpiredLeaseRecovery,
 	taskpkg.ActorContext,
 ) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) RecoverTask(
+	context.Context,
+	string,
+	string,
+	taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ExpireTaskBlocks(
+	context.Context,
+	time.Time,
+	taskpkg.ActorContext,
+) (taskpkg.ExpireTaskBlocksResult, error) {
+	return taskpkg.ExpireTaskBlocksResult{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ListTaskBlocks(
+	context.Context,
+	string,
+	bool,
+	taskpkg.ActorContext,
+) ([]taskpkg.TaskBlock, error) {
 	return nil, errUnexpectedNativeTaskCall
 }
 

@@ -18,6 +18,9 @@ func TestDefaultWithHomeIncludesAutonomyCoordinatorDefaults(t *testing.T) {
 	}
 
 	cfg := DefaultWithHome(homePaths)
+	if got, want := cfg.Autonomy.BlockRecurrenceLimit, DefaultBlockRecurrenceLimit; got != want {
+		t.Fatalf("DefaultWithHome() Autonomy.BlockRecurrenceLimit = %d, want %d", got, want)
+	}
 	coordinator := cfg.Autonomy.Coordinator
 	if coordinator.Enabled {
 		t.Fatal("DefaultWithHome() Autonomy.Coordinator.Enabled = true, want false")
@@ -41,6 +44,32 @@ func TestDefaultWithHomeIncludesAutonomyCoordinatorDefaults(t *testing.T) {
 	if got, want := coordinator.MaxActiveSessionsPerWorkspace, DefaultCoordinatorMaxActiveSessionsPerWorkspace; got != want {
 		t.Fatalf("DefaultWithHome() coordinator MaxActiveSessionsPerWorkspace = %d, want %d", got, want)
 	}
+}
+
+func TestAutonomyConfigValidatesBlockRecurrenceLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept zero as breaker disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Autonomy.BlockRecurrenceLimit = 0
+		if err := cfg.Autonomy.Validate(&cfg); err != nil {
+			t.Fatalf("Autonomy.Validate(block_recurrence_limit=0) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject negative block recurrence limit", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Autonomy.BlockRecurrenceLimit = -1
+		err := cfg.Autonomy.Validate(&cfg)
+		if err == nil {
+			t.Fatal("Autonomy.Validate(block_recurrence_limit=-1) error = nil, want rejection")
+		}
+		if !strings.Contains(err.Error(), "autonomy.block_recurrence_limit") {
+			t.Fatalf("Autonomy.Validate() error = %v, want block_recurrence_limit path", err)
+		}
+	})
 }
 
 func TestCoordinatorConfigValidatesMaxActiveSessions(t *testing.T) {
@@ -188,6 +217,43 @@ model = "workspace-model"
 	}
 	if got, want := coordinator.MaxActiveSessionsPerWorkspace, 6; got != want {
 		t.Fatalf("Load() coordinator MaxActiveSessionsPerWorkspace = %d, want %d", got, want)
+	}
+}
+
+func TestLoadWorkspaceOverridesAutonomyBlockRecurrenceLimit(t *testing.T) {
+	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
+
+	writeFile(t, homePaths.ConfigFile, `
+[autonomy]
+block_recurrence_limit = 3
+`)
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[autonomy]
+block_recurrence_limit = 0
+`)
+
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.Autonomy.BlockRecurrenceLimit, 0; got != want {
+		t.Fatalf("Load() BlockRecurrenceLimit = %d, want %d", got, want)
+	}
+}
+
+func TestLoadRejectsInvalidAutonomyBlockRecurrenceLimit(t *testing.T) {
+	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
+	writeFile(t, homePaths.ConfigFile, `
+[autonomy]
+block_recurrence_limit = -1
+`)
+
+	_, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil {
+		t.Fatal("Load() error = nil, want validation failure")
+	}
+	if !strings.Contains(err.Error(), "autonomy.block_recurrence_limit") {
+		t.Fatalf("Load() error = %v, want block_recurrence_limit path", err)
 	}
 }
 
@@ -348,6 +414,27 @@ unknown = true
 				t.Fatalf("Load() error = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRootExampleConfigIncludesBlockRecurrenceLimit(t *testing.T) {
+	examplePath := filepath.Join("..", "..", "config.toml")
+	contents, err := os.ReadFile(examplePath)
+	if err != nil {
+		t.Fatalf("ReadFile(config.toml) error = %v", err)
+	}
+	if !strings.Contains(string(contents), "block_recurrence_limit = 2") {
+		t.Fatalf("config.toml missing block_recurrence_limit example")
+	}
+
+	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
+	writeFile(t, homePaths.ConfigFile, string(contents))
+	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("Load(config.toml example) error = %v", err)
+	}
+	if got, want := cfg.Autonomy.BlockRecurrenceLimit, 2; got != want {
+		t.Fatalf("Load(config.toml example) BlockRecurrenceLimit = %d, want %d", got, want)
 	}
 }
 

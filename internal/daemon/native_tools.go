@@ -37,6 +37,7 @@ import (
 )
 
 const (
+	daemonBlockKey          = "block"
 	nativeToolsClaimedKey   = "claimed"
 	nativeToolsDirectKey    = "direct"
 	nativeToolsEventsKey    = "events"
@@ -877,6 +878,22 @@ func (n *daemonNativeTools) taskToolBindings(
 		},
 		toolspkg.ToolIDTaskCancel: {
 			call:         n.taskCancel,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskBlock: {
+			call:         n.taskBlock,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskUnblock: {
+			call:         n.taskUnblock,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskBlocks: {
+			call:         n.taskBlocks,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskRecover: {
+			call:         n.taskRecover,
 			availability: availability,
 		},
 		toolspkg.ToolIDTaskRunList: {
@@ -2739,7 +2756,8 @@ func (n *daemonNativeTools) taskRead(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsTaskKey: view}, view.Summary.Title)
+	payload := core.TaskDetailPayloadFromView(view)
+	return structuredResult(map[string]any{nativeToolsTaskKey: payload}, payload.Summary.Title)
 }
 
 func (n *daemonNativeTools) taskCreate(
@@ -2820,6 +2838,125 @@ func (n *daemonNativeTools) taskCancel(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{nativeToolsTaskKey: canceled}, canceled.Title)
+}
+
+func (n *daemonNativeTools) taskBlock(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskBlockInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, runID, claimToken, err := n.nativeTaskBlockActor(ctx, req.ToolID, scope, input.TaskID, input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	block, err := n.deps.Tasks.BlockTask(ctx, taskpkg.BlockRequest{
+		TaskID:     strings.TrimSpace(input.TaskID),
+		Kind:       taskpkg.BlockKind(strings.TrimSpace(input.Kind)),
+		Reason:     strings.TrimSpace(input.Reason),
+		Details:    cloneJSON(input.Details),
+		ExpiresAt:  nativeTaskBlockExpiresAt(input.ExpiresAt),
+		RunID:      runID,
+		ClaimToken: claimToken,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{daemonBlockKey: core.TaskBlockPayloadFromBlock(block)},
+		fmt.Sprintf("blocked %s", block.TaskID),
+	)
+}
+
+func (n *daemonNativeTools) taskUnblock(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskUnblockInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := n.nativeTaskClearActor(ctx, req.ToolID, scope, input.TaskID, input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	block, err := n.deps.Tasks.ClearTaskBlock(
+		ctx,
+		strings.TrimSpace(input.TaskID),
+		strings.TrimSpace(input.BlockID),
+		strings.TrimSpace(input.Note),
+		actor,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{daemonBlockKey: core.TaskBlockPayloadFromBlock(block)},
+		fmt.Sprintf("unblocked %s", block.TaskID),
+	)
+}
+
+func (n *daemonNativeTools) taskBlocks(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskBlocksInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	blocks, err := n.deps.Tasks.ListTaskBlocks(
+		ctx,
+		strings.TrimSpace(input.TaskID),
+		input.IncludeCleared,
+		actor,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{"blocks": core.TaskBlockPayloadsFromBlocks(blocks)},
+		fmt.Sprintf("listed %d task blocks", len(blocks)),
+	)
+}
+
+func (n *daemonNativeTools) taskRecover(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskRecoverInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if strings.TrimSpace(scope.SessionID) != "" && !scope.Operator {
+		return toolspkg.ToolResult{}, nativeSessionTaskRecoverDenied(req.ToolID)
+	}
+	actor, err := nativeOperatorActorContext(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	recovered, err := n.deps.Tasks.RecoverTask(
+		ctx,
+		strings.TrimSpace(input.TaskID),
+		strings.TrimSpace(input.Note),
+		actor,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{nativeToolsTaskKey: core.TaskPayloadFromTask(recovered)},
+		fmt.Sprintf("recovered %s", recovered.ID),
+	)
 }
 
 func (n *daemonNativeTools) taskRunList(
@@ -3303,9 +3440,10 @@ func (n *daemonNativeTools) autonomyComplete(
 		return toolspkg.ToolResult{}, err
 	}
 	run, err := n.deps.Tasks.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID:      runID,
-		ClaimToken: handle.ClaimToken,
-		Result:     result,
+		RunID:          runID,
+		ClaimToken:     handle.ClaimToken,
+		Result:         result,
+		CreatedTaskIDs: trimNativeStrings(input.CreatedTaskIDs),
 	}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
@@ -4070,6 +4208,7 @@ type taskCreateInput struct {
 	Draft          bool               `json:"draft,omitempty"`
 	ApprovalPolicy string             `json:"approval_policy,omitempty"`
 	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
+	WakeCreator    *bool              `json:"wake_creator,omitempty"`
 	Metadata       json.RawMessage    `json:"metadata,omitempty"`
 }
 
@@ -4092,6 +4231,7 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 		Draft:          i.Draft,
 		ApprovalPolicy: taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
 		Owner:          cloneTaskOwner(i.Owner),
+		WakeCreator:    cloneBoolPtr(i.WakeCreator),
 		Metadata:       cloneJSON(i.Metadata),
 	}
 }
@@ -4145,6 +4285,32 @@ func (i taskCancelInput) cancel() taskpkg.CancelTask {
 		Reason:   strings.TrimSpace(i.Reason),
 		Metadata: cloneJSON(i.Metadata),
 	}
+}
+
+type taskBlockInput struct {
+	TaskID    string          `json:"task_id"`
+	Kind      string          `json:"kind"`
+	Reason    string          `json:"reason"`
+	Details   json.RawMessage `json:"details,omitempty"`
+	ExpiresAt *time.Time      `json:"expires_at,omitempty"`
+	RunID     string          `json:"run_id,omitempty"`
+}
+
+type taskUnblockInput struct {
+	TaskID  string `json:"task_id"`
+	BlockID string `json:"block_id"`
+	RunID   string `json:"run_id,omitempty"`
+	Note    string `json:"note,omitempty"`
+}
+
+type taskBlocksInput struct {
+	TaskID         string `json:"task_id"`
+	IncludeCleared bool   `json:"include_cleared,omitempty"`
+}
+
+type taskRecoverInput struct {
+	TaskID string `json:"task_id"`
+	Note   string `json:"note,omitempty"`
 }
 
 type taskPromoteFromThreadInput struct {
@@ -4219,8 +4385,9 @@ type autonomyHeartbeatInput struct {
 }
 
 type autonomyCompleteInput struct {
-	RunID  string          `json:"run_id"`
-	Result json.RawMessage `json:"result,omitempty"`
+	RunID          string          `json:"run_id"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }
 
 type autonomyFailInput struct {
@@ -4279,6 +4446,167 @@ func nativeUnavailableError(id toolspkg.ToolID, message string) error {
 		fmt.Errorf("%w: %s", toolspkg.ErrToolUnavailable, strings.TrimSpace(message)),
 		toolspkg.ReasonBackendUnhealthy,
 	)
+}
+
+func (n *daemonNativeTools) nativeTaskBlockActor(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	scope toolspkg.Scope,
+	taskID string,
+	runID string,
+) (taskpkg.ActorContext, string, string, error) {
+	if strings.TrimSpace(scope.SessionID) == "" || scope.Operator {
+		actor, err := nativeOperatorActorContext(scope)
+		if err != nil {
+			return taskpkg.ActorContext{}, "", "", err
+		}
+		return actor, strings.TrimSpace(runID), "", nil
+	}
+	actor, handle, err := n.nativeTaskLeaseActor(ctx, id, scope, taskID, runID)
+	if err != nil {
+		return taskpkg.ActorContext{}, "", "", err
+	}
+	return actor, handle.RunID, handle.ClaimToken, nil
+}
+
+func (n *daemonNativeTools) nativeTaskClearActor(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	scope toolspkg.Scope,
+	taskID string,
+	runID string,
+) (taskpkg.ActorContext, error) {
+	if strings.TrimSpace(scope.SessionID) == "" || scope.Operator {
+		return nativeOperatorActorContext(scope)
+	}
+	actor, _, err := n.nativeTaskLeaseActor(ctx, id, scope, taskID, runID)
+	return actor, err
+}
+
+func (n *daemonNativeTools) nativeTaskLeaseActor(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	scope toolspkg.Scope,
+	taskID string,
+	runID string,
+) (taskpkg.ActorContext, taskpkg.AutonomyLeaseHandle, error) {
+	actor, sessionID, err := autonomyActorContext(id, scope)
+	if err != nil {
+		return taskpkg.ActorContext{}, taskpkg.AutonomyLeaseHandle{}, err
+	}
+	normalizedTaskID, err := requiredNativeString(id, "task_id", taskID)
+	if err != nil {
+		return taskpkg.ActorContext{}, taskpkg.AutonomyLeaseHandle{}, err
+	}
+	normalizedRunID, err := requiredNativeString(id, "run_id", runID)
+	if err != nil {
+		return taskpkg.ActorContext{}, taskpkg.AutonomyLeaseHandle{}, err
+	}
+	handle, err := n.lookupAutonomyLease(ctx, id, sessionID, normalizedRunID)
+	if err != nil {
+		return taskpkg.ActorContext{}, taskpkg.AutonomyLeaseHandle{}, err
+	}
+	if strings.TrimSpace(handle.TaskID) != normalizedTaskID {
+		return taskpkg.ActorContext{}, taskpkg.AutonomyLeaseHandle{}, nativeAutonomyForeignRunTaskError(
+			id,
+			normalizedTaskID,
+			normalizedRunID,
+		)
+	}
+	return actor, handle, nil
+}
+
+func nativeTaskBlockExpiresAt(expiresAt *time.Time) time.Time {
+	if expiresAt == nil {
+		return time.Time{}
+	}
+	return expiresAt.UTC()
+}
+
+func nativeOperatorActorContext(scope toolspkg.Scope) (taskpkg.ActorContext, error) {
+	if scope.Operator {
+		return taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
+	}
+	return actorContextFromScope(scope)
+}
+
+func nativeAutonomyForeignRunTaskError(id toolspkg.ToolID, taskID string, runID string) error {
+	message := fmt.Sprintf("run %q is not leased for task %q", strings.TrimSpace(runID), strings.TrimSpace(taskID))
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		message,
+		fmt.Errorf("%w: %s", toolspkg.ErrToolDenied, message),
+		toolspkg.ReasonAutonomyForeignRun,
+	)
+}
+
+func nativeSessionTaskRecoverDenied(id toolspkg.ToolID) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		"task recover requires operator scope",
+		fmt.Errorf("%w: task recover requires operator scope", toolspkg.ErrToolDenied),
+		toolspkg.ReasonSessionDenied,
+	)
+}
+
+func nativeTaskToolError(id toolspkg.ToolID, err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := taskpkg.AutonomyReasonOf(err); ok {
+		return nativeAutonomyToolError(id, err)
+	}
+	switch {
+	case errors.Is(err, taskpkg.ErrValidation),
+		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
+		errors.Is(err, taskpkg.ErrImmutableField),
+		errors.Is(err, taskpkg.ErrPayloadTooLarge):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	case errors.Is(err, taskpkg.ErrTaskNotFound),
+		errors.Is(err, taskpkg.ErrTaskBlockNotFound),
+		errors.Is(err, taskpkg.ErrTaskRunNotFound):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
+		)
+	case errors.Is(err, taskpkg.ErrConflict),
+		errors.Is(err, taskpkg.ErrInvalidClaimToken),
+		errors.Is(err, taskpkg.ErrLeaseExpired),
+		errors.Is(err, taskpkg.ErrInvalidStatusTransition),
+		errors.Is(err, taskpkg.ErrHallucinatedTaskRefs):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
+		)
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonSessionDenied,
+		)
+	default:
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolBackendFailed, err),
+			toolspkg.ReasonBackendUnhealthy,
+		)
+	}
 }
 
 func autonomyActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.ActorContext, string, error) {
@@ -4381,14 +4709,22 @@ func nativeAutonomyToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonSessionDenied,
 		)
 	case errors.Is(err, taskpkg.ErrInvalidClaimToken),
-		errors.Is(err, taskpkg.ErrLeaseExpired),
-		errors.Is(err, taskpkg.ErrInvalidStatusTransition):
+		errors.Is(err, taskpkg.ErrLeaseExpired):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeConflict,
 			id,
 			taskpkg.RedactClaimTokens(err.Error()),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 			toolspkg.ReasonAutonomyLeaseExpired,
+		)
+	case errors.Is(err, taskpkg.ErrInvalidStatusTransition),
+		errors.Is(err, taskpkg.ErrConflict),
+		errors.Is(err, taskpkg.ErrHallucinatedTaskRefs):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			id,
+			taskpkg.RedactClaimTokens(err.Error()),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
 		)
 	default:
 		return err
@@ -5704,6 +6040,14 @@ func cloneTrimmedStrings(values []string) []string {
 }
 
 func cloneIntPtr(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneBoolPtr(value *bool) *bool {
 	if value == nil {
 		return nil
 	}

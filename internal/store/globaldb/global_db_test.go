@@ -710,6 +710,16 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_run_designations",
 			checksum: "2026-07-01-add-task-run-designations",
 		},
+		{
+			version:  48,
+			name:     "rebuild_tasks_for_task_blocks",
+			checksum: "2026-07-02-rebuild-tasks-for-task-blocks",
+		},
+		{
+			version:  49,
+			name:     "add_task_block_tables",
+			checksum: "2026-07-02-add-task-block-tables",
+		},
 	}
 }
 
@@ -929,7 +939,7 @@ func TestOpenGlobalDBDropsTaskRunStatusCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 		}
-		preV39 := globalSchemaMigrations[:len(globalSchemaMigrations)-2]
+		preV39 := globalSchemaMigrations[:migrationIndexByName(t, "drop_task_run_status_check")]
 		if err := store.RunMigrations(ctx, db, preV39); err != nil {
 			t.Fatalf("RunMigrations(pre-v39) error = %v", err)
 		}

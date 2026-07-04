@@ -25,39 +25,45 @@ type TaskReferencePayload struct {
 
 // TaskSummaryPayload is the shared list-oriented task response payload.
 type TaskSummaryPayload struct {
-	ID                 string                           `json:"id"`
-	Identifier         string                           `json:"identifier,omitempty"`
-	Scope              taskpkg.Scope                    `json:"scope"`
-	WorkspaceID        string                           `json:"workspace_id,omitempty"`
-	ParentTaskID       string                           `json:"parent_task_id,omitempty"`
-	NetworkChannel     string                           `json:"network_channel,omitempty"`
-	Title              string                           `json:"title"`
-	Priority           taskpkg.Priority                 `json:"priority,omitempty"`
-	MaxAttempts        int                              `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady bool                             `json:"auto_enqueue_on_ready,omitempty"`
-	Status             taskpkg.Status                   `json:"status"`
-	ApprovalPolicy     taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
-	ApprovalState      taskpkg.ApprovalState            `json:"approval_state,omitempty"`
-	Draft              bool                             `json:"draft,omitempty"`
-	Owner              *taskpkg.Ownership               `json:"owner,omitempty"`
-	CurrentRunID       string                           `json:"current_run_id,omitempty"`
-	LatestEventSeq     int64                            `json:"latest_event_seq"`
-	Paused             bool                             `json:"paused,omitempty"`
-	PausedBy           string                           `json:"paused_by,omitempty"`
-	PausedAt           *time.Time                       `json:"paused_at,omitempty"`
-	PausedReason       string                           `json:"paused_reason,omitempty"`
-	EffectivePaused    bool                             `json:"effective_paused,omitempty"`
-	PausedByTaskID     string                           `json:"paused_by_task_id,omitempty"`
-	CreatedBy          taskpkg.ActorIdentity            `json:"created_by"`
-	Origin             taskpkg.Origin                   `json:"origin"`
-	CreatedAt          time.Time                        `json:"created_at"`
-	UpdatedAt          time.Time                        `json:"updated_at"`
-	ClosedAt           *time.Time                       `json:"closed_at,omitempty"`
-	ChildCount         int                              `json:"child_count,omitempty"`
-	DependencyCount    int                              `json:"dependency_count,omitempty"`
-	Dependencies       []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
-	ActiveRun          *TaskRunSummaryPayload           `json:"active_run,omitempty"`
-	LastActivityAt     *time.Time                       `json:"last_activity_at,omitempty"`
+	ID                   string                           `json:"id"`
+	Identifier           string                           `json:"identifier,omitempty"`
+	Scope                taskpkg.Scope                    `json:"scope"`
+	WorkspaceID          string                           `json:"workspace_id,omitempty"`
+	ParentTaskID         string                           `json:"parent_task_id,omitempty"`
+	NetworkChannel       string                           `json:"network_channel,omitempty"`
+	Title                string                           `json:"title"`
+	Priority             taskpkg.Priority                 `json:"priority,omitempty"`
+	MaxAttempts          int                              `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                             `json:"auto_enqueue_on_ready,omitempty"`
+	Status               taskpkg.Status                   `json:"status"`
+	ApprovalPolicy       taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
+	ApprovalState        taskpkg.ApprovalState            `json:"approval_state,omitempty"`
+	Draft                bool                             `json:"draft,omitempty"`
+	Owner                *taskpkg.Ownership               `json:"owner,omitempty"`
+	CurrentRunID         string                           `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64                            `json:"latest_event_seq"`
+	Paused               bool                             `json:"paused,omitempty"`
+	PausedBy             string                           `json:"paused_by,omitempty"`
+	PausedAt             *time.Time                       `json:"paused_at,omitempty"`
+	PausedReason         string                           `json:"paused_reason,omitempty"`
+	EffectivePaused      bool                             `json:"effective_paused,omitempty"`
+	PausedByTaskID       string                           `json:"paused_by_task_id,omitempty"`
+	BlockedReasons       []taskpkg.BlockedReason          `json:"blocked_reasons,omitempty"`
+	NeedsAttention       bool                             `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                           `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time                       `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                             `json:"wake_creator"`
+	CreatedBy            taskpkg.ActorIdentity            `json:"created_by"`
+	Origin               taskpkg.Origin                   `json:"origin"`
+	CreatedAt            time.Time                        `json:"created_at"`
+	UpdatedAt            time.Time                        `json:"updated_at"`
+	ClosedAt             *time.Time                       `json:"closed_at,omitempty"`
+	ChildCount           int                              `json:"child_count,omitempty"`
+	DependencyCount      int                              `json:"dependency_count,omitempty"`
+	Dependencies         []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
+	ActiveRun            *TaskRunSummaryPayload           `json:"active_run,omitempty"`
+	LastActivityAt       *time.Time                       `json:"last_activity_at,omitempty"`
 }
 
 // TaskPayload is the shared full task response payload.
@@ -86,12 +92,19 @@ type TaskPayload struct {
 	PausedReason       string                 `json:"paused_reason,omitempty"`
 	EffectivePaused    bool                   `json:"effective_paused,omitempty"`
 	PausedByTaskID     string                 `json:"paused_by_task_id,omitempty"`
-	CreatedBy          taskpkg.ActorIdentity  `json:"created_by"`
-	Origin             taskpkg.Origin         `json:"origin"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
-	ClosedAt           *time.Time             `json:"closed_at,omitempty"`
-	Metadata           json.RawMessage        `json:"metadata,omitempty"`
+	// BlockedReasons is populated on read/detail projections and may be omitted by mutation responses.
+	BlockedReasons       []taskpkg.BlockedReason `json:"blocked_reasons,omitempty"`
+	NeedsAttention       bool                    `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                  `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time              `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *taskpkg.ActorIdentity  `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                    `json:"wake_creator"`
+	CreatedBy            taskpkg.ActorIdentity   `json:"created_by"`
+	Origin               taskpkg.Origin          `json:"origin"`
+	CreatedAt            time.Time               `json:"created_at"`
+	UpdatedAt            time.Time               `json:"updated_at"`
+	ClosedAt             *time.Time              `json:"closed_at,omitempty"`
+	Metadata             json.RawMessage         `json:"metadata,omitempty"`
 }
 
 // TaskExecutionProfilePayload is the task-owned orchestration profile read model.
@@ -126,6 +139,32 @@ type TaskDependencyPayload struct {
 	DependsOnTaskID string                 `json:"depends_on_task_id"`
 	Kind            taskpkg.DependencyKind `json:"kind"`
 	CreatedAt       time.Time              `json:"created_at"`
+}
+
+// TaskBlockPayload is the public task-block read model.
+type TaskBlockPayload struct {
+	ID          string                 `json:"id"`
+	TaskID      string                 `json:"task_id"`
+	WorkspaceID string                 `json:"workspace_id,omitempty"`
+	Kind        taskpkg.BlockKind      `json:"kind"`
+	Reason      string                 `json:"reason"`
+	Details     json.RawMessage        `json:"details,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	CreatedBy   taskpkg.ActorIdentity  `json:"created_by"`
+	ExpiresAt   *time.Time             `json:"expires_at,omitempty"`
+	ClearedAt   *time.Time             `json:"cleared_at,omitempty"`
+	ClearedBy   *taskpkg.ActorIdentity `json:"cleared_by,omitempty"`
+	ClearNote   string                 `json:"clear_note,omitempty"`
+}
+
+// TaskBlockResponse wraps one task-block payload.
+type TaskBlockResponse struct {
+	Block TaskBlockPayload `json:"block"`
+}
+
+// TaskBlocksResponse wraps a task-block list.
+type TaskBlocksResponse struct {
+	Blocks []TaskBlockPayload `json:"blocks"`
 }
 
 // TaskDependencyReferencePayload enriches one dependency edge with the referenced blocker identity.
@@ -653,6 +692,7 @@ type CreateTaskRequest struct {
 	Draft              bool                   `json:"draft,omitempty"`
 	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator        *bool                  `json:"wake_creator,omitempty"`
 	Metadata           json.RawMessage        `json:"metadata,omitempty"`
 }
 
@@ -671,6 +711,7 @@ type CreateTaskChildRequest struct {
 	Draft              bool                   `json:"draft,omitempty"`
 	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator        *bool                  `json:"wake_creator,omitempty"`
 	Metadata           json.RawMessage        `json:"metadata,omitempty"`
 }
 
@@ -721,6 +762,25 @@ type EnqueueTaskRunRequest struct {
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
+// CreateTaskBlockRequest captures one task-block create request.
+type CreateTaskBlockRequest struct {
+	Kind      taskpkg.BlockKind `json:"kind"`
+	Reason    string            `json:"reason"`
+	Details   json.RawMessage   `json:"details,omitempty"`
+	ExpiresAt *time.Time        `json:"expires_at,omitempty"`
+	RunID     string            `json:"run_id,omitempty"`
+}
+
+// ClearTaskBlockRequest captures one task-block clear request.
+type ClearTaskBlockRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// RecoverTaskRequest captures one task-level needs_attention recovery request.
+type RecoverTaskRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
 // TaskExecutionRequest is the shared task publish/start/approval execution payload.
 type TaskExecutionRequest struct {
 	IdempotencyKey string          `json:"idempotency_key,omitempty"`
@@ -745,7 +805,8 @@ type AttachTaskRunSessionRequest struct {
 
 // CompleteTaskRunRequest is the shared run-complete request payload.
 type CompleteTaskRunRequest struct {
-	Result json.RawMessage `json:"result,omitempty"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }
 
 // FailTaskRunRequest is the shared run-fail request payload.

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	configdefaults "github.com/compozy/agh/internal/config/defaults"
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
@@ -23,91 +24,108 @@ const (
 )
 
 const (
-	taskEventCreated                   = eventspkg.TaskCreated
-	taskEventUpdated                   = eventspkg.TaskUpdated
-	taskEventPublished                 = eventspkg.TaskPublished
-	taskEventApproved                  = eventspkg.TaskApproved
-	taskEventRejected                  = eventspkg.TaskRejected
-	taskEventCanceled                  = eventspkg.TaskCanceled
-	taskEventChildCreated              = eventspkg.TaskChildCreated
-	taskEventDependencyAdded           = eventspkg.TaskDependencyAdded
-	taskEventDependencyRemoved         = eventspkg.TaskDependencyRemoved
-	taskEventPaused                    = eventspkg.TaskPaused
-	taskEventResumed                   = eventspkg.TaskResumed
-	taskEventRunEnqueued               = eventspkg.TaskRunEnqueued
-	taskEventRunClaimed                = eventspkg.TaskRunClaimed
-	taskEventRunStarting               = eventspkg.TaskRunStarting
-	taskEventRunSessionBound           = eventspkg.TaskRunSessionBound
-	taskEventRunStarted                = eventspkg.TaskRunStarted
-	taskEventRunCompleted              = eventspkg.TaskRunCompleted
-	taskEventRunFailed                 = eventspkg.TaskRunFailed
-	taskEventRunCanceled               = eventspkg.TaskRunCanceled
-	taskEventRunForceStopped           = eventspkg.TaskRunForceStopped
-	taskEventRunRecovered              = eventspkg.TaskRunRecovered
-	taskEventRunRejected               = eventspkg.TaskRunRejected
-	taskEventRunLeaseExtended          = eventspkg.TaskRunLeaseExtended
-	taskEventRunLeaseExpired           = eventspkg.TaskRunLeaseExpired
-	taskEventRunReleased               = eventspkg.TaskRunReleased
-	taskEventRunOperatorForcedFail     = eventspkg.TaskRunOperatorForcedFail
-	taskEventRunOperatorRetry          = eventspkg.TaskRunOperatorRetry
-	taskEventRunRecoveredFromAttention = eventspkg.TaskRunRecoveredFromAttention
-	taskEventRunStarved                = eventspkg.TaskRunStarved
-	taskEventRunNeedsAttention         = eventspkg.TaskRunNeedsAttention
-	taskEventProfileUpdated            = eventspkg.TaskExecutionProfileUpdated
-	taskEventProfileDeleted            = eventspkg.TaskExecutionProfileDeleted
-	taskEventRunReviewRequested        = eventspkg.TaskRunReviewRequested
-	taskEventRunReviewBound            = eventspkg.TaskRunReviewBound
-	taskEventRunReviewRecorded         = eventspkg.TaskRunReviewRecorded
-	taskEventRunReviewApproved         = eventspkg.TaskRunReviewApproved
-	taskEventRunReviewRejected         = eventspkg.TaskRunReviewRejected
-	taskEventRunReviewBlocked          = eventspkg.TaskRunReviewBlocked
-	taskEventRunReviewError            = eventspkg.TaskRunReviewError
-	taskEventRunReviewTimeout          = eventspkg.TaskRunReviewTimeout
-	taskEventRunReviewInvalid          = eventspkg.TaskRunReviewInvalidOutput
-	taskEventRunReviewRetry            = eventspkg.TaskRunReviewRetryEnqueued
+	taskEventCreated                          = eventspkg.TaskCreated
+	taskEventUpdated                          = eventspkg.TaskUpdated
+	taskEventPublished                        = eventspkg.TaskPublished
+	taskEventApproved                         = eventspkg.TaskApproved
+	taskEventRejected                         = eventspkg.TaskRejected
+	taskEventCanceled                         = eventspkg.TaskCanceled
+	taskEventChildCreated                     = eventspkg.TaskChildCreated
+	taskEventDependencyAdded                  = eventspkg.TaskDependencyAdded
+	taskEventDependencyRemoved                = eventspkg.TaskDependencyRemoved
+	taskEventPaused                           = eventspkg.TaskPaused
+	taskEventResumed                          = eventspkg.TaskResumed
+	taskEventBlockCreated                     = eventspkg.TaskBlockCreated
+	taskEventBlockCleared                     = eventspkg.TaskBlockCleared
+	taskEventBlockExpired                     = eventspkg.TaskBlockExpired
+	taskEventNeedsAttention                   = eventspkg.TaskNeedsAttention
+	taskEventRecovered                        = eventspkg.TaskRecovered
+	taskEventRunEnqueued                      = eventspkg.TaskRunEnqueued
+	taskEventRunClaimed                       = eventspkg.TaskRunClaimed
+	taskEventRunStarting                      = eventspkg.TaskRunStarting
+	taskEventRunSessionBound                  = eventspkg.TaskRunSessionBound
+	taskEventRunStarted                       = eventspkg.TaskRunStarted
+	taskEventRunCompleted                     = eventspkg.TaskRunCompleted
+	taskEventRunFailed                        = eventspkg.TaskRunFailed
+	taskEventRunCanceled                      = eventspkg.TaskRunCanceled
+	taskEventRunForceStopped                  = eventspkg.TaskRunForceStopped
+	taskEventRunRecovered                     = eventspkg.TaskRunRecovered
+	taskEventRunRejected                      = eventspkg.TaskRunRejected
+	taskEventRunLeaseExtended                 = eventspkg.TaskRunLeaseExtended
+	taskEventRunLeaseExpired                  = eventspkg.TaskRunLeaseExpired
+	taskEventRunReleased                      = eventspkg.TaskRunReleased
+	taskEventRunOperatorForcedFail            = eventspkg.TaskRunOperatorForcedFail
+	taskEventRunOperatorRetry                 = eventspkg.TaskRunOperatorRetry
+	taskEventRunRecoveredFromAttention        = eventspkg.TaskRunRecoveredFromAttention
+	taskEventRunStarved                       = eventspkg.TaskRunStarved
+	taskEventRunNeedsAttention                = eventspkg.TaskRunNeedsAttention
+	taskEventProfileUpdated                   = eventspkg.TaskExecutionProfileUpdated
+	taskEventProfileDeleted                   = eventspkg.TaskExecutionProfileDeleted
+	taskEventRunReviewRequested               = eventspkg.TaskRunReviewRequested
+	taskEventRunReviewBound                   = eventspkg.TaskRunReviewBound
+	taskEventRunReviewRecorded                = eventspkg.TaskRunReviewRecorded
+	taskEventRunReviewApproved                = eventspkg.TaskRunReviewApproved
+	taskEventRunReviewRejected                = eventspkg.TaskRunReviewRejected
+	taskEventRunReviewBlocked                 = eventspkg.TaskRunReviewBlocked
+	taskEventRunReviewError                   = eventspkg.TaskRunReviewError
+	taskEventRunReviewTimeout                 = eventspkg.TaskRunReviewTimeout
+	taskEventRunReviewInvalid                 = eventspkg.TaskRunReviewInvalidOutput
+	taskEventRunReviewRetry                   = eventspkg.TaskRunReviewRetryEnqueued
+	taskEventAutoEnqueueTriggered             = eventspkg.TaskAutoEnqueueTriggered
+	taskEventCompletionHallucinationBlocked   = eventspkg.TaskCompletionHallucinationBlocked
+	taskEventCompletionHallucinationSuspected = eventspkg.TaskCompletionHallucinationSuspected
+	taskEventWakeDelivered                    = eventspkg.TaskWakeDelivered
+	taskEventWakeSuppressed                   = eventspkg.TaskWakeSuppressed
 )
 
 // Option customizes Service construction.
 type Option func(*managerOptions)
 
 type managerOptions struct {
-	store             Store
-	sessions          SessionExecutor
-	runtimeViews      RuntimeViewReader
-	inspectReader     InspectStateReader
-	eventObserver     EventObserver
-	reviewObserver    RunReviewRequestedObserver
-	taskHooks         RunHookDispatcher
-	channelValidator  func(string) error
-	profileValidation ExecutionProfileValidationOptions
-	forceRecovery     ForceRecoveryOptions
-	now               func() time.Time
-	newID             func(prefix string) string
-	cancelGracePeriod time.Duration
-	starvationAge     time.Duration
+	store                Store
+	sessions             SessionExecutor
+	runtimeViews         RuntimeViewReader
+	inspectReader        InspectStateReader
+	eventObserver        EventObserver
+	reviewObserver       RunReviewRequestedObserver
+	taskHooks            RunHookDispatcher
+	wakeNotifier         WakeNotifier
+	channelValidator     func(string) error
+	profileValidation    ExecutionProfileValidationOptions
+	forceRecovery        ForceRecoveryOptions
+	now                  func() time.Time
+	newID                func(prefix string) string
+	cancelGracePeriod    time.Duration
+	starvationAge        time.Duration
+	blockRecurrenceLimit int
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
 // graph-management rules above the persistence layer.
 type Service struct {
-	store             Store
-	sessions          SessionExecutor
-	runtimeViews      RuntimeViewReader
-	inspectReader     InspectStateReader
-	eventObserver     EventObserver
-	reviewObserver    RunReviewRequestedObserver
-	taskHooks         RunHookDispatcher
-	channelValidator  func(string) error
-	profileValidation ExecutionProfileValidationOptions
-	forceRecovery     ForceRecoveryOptions
-	now               func() time.Time
-	newID             func(prefix string) string
-	cancelGracePeriod time.Duration
-	starvationAge     time.Duration
-	forceRateLimiter  *forceRunRateLimiter
-	liveMu            sync.Mutex
-	liveSubscribers   map[uint64]*taskStreamSubscriber
-	nextSubscriberID  uint64
+	store                Store
+	sessions             SessionExecutor
+	runtimeViews         RuntimeViewReader
+	inspectReader        InspectStateReader
+	eventObserver        EventObserver
+	reviewObserver       RunReviewRequestedObserver
+	taskHooks            RunHookDispatcher
+	wakeNotifier         WakeNotifier
+	channelValidator     func(string) error
+	profileValidation    ExecutionProfileValidationOptions
+	forceRecovery        ForceRecoveryOptions
+	now                  func() time.Time
+	newID                func(prefix string) string
+	cancelGracePeriod    time.Duration
+	starvationAge        time.Duration
+	blockRecurrenceLimit int
+	forceRateLimiter     *forceRunRateLimiter
+	wakeMu               sync.Mutex
+	wakeEventIDs         map[string]struct{}
+	wakeEventOrder       []string
+	liveMu               sync.Mutex
+	liveSubscribers      map[uint64]*taskStreamSubscriber
+	nextSubscriberID     uint64
 }
 
 var _ Manager = (*Service)(nil)
@@ -163,6 +181,13 @@ func WithTaskRunHooks(hooks RunHookDispatcher) Option {
 	}
 }
 
+// WithWakeNotifier injects the creator-session wake bridge used at task transitions.
+func WithWakeNotifier(notifier WakeNotifier) Option {
+	return func(opts *managerOptions) {
+		opts.wakeNotifier = notifier
+	}
+}
+
 // WithNetworkChannelValidator injects the active channel validator used to
 // check task and run bindings without coupling the task package to the network
 // runtime implementation.
@@ -208,6 +233,13 @@ func WithCancelGracePeriod(timeout time.Duration) Option {
 	}
 }
 
+// WithBlockRecurrenceLimit overrides the same-kind re-block count before task escalation.
+func WithBlockRecurrenceLimit(limit int) Option {
+	return func(opts *managerOptions) {
+		opts.blockRecurrenceLimit = limit
+	}
+}
+
 // NewManager constructs one task-domain manager with the supplied dependencies.
 func NewManager(opts ...Option) (*Service, error) {
 	options := managerOptions{
@@ -219,8 +251,9 @@ func NewManager(opts ...Option) (*Service, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		newID:         store.NewID,
-		starvationAge: DefaultTaskStarvationAge,
+		newID:                store.NewID,
+		starvationAge:        DefaultTaskStarvationAge,
+		blockRecurrenceLimit: configdefaults.BlockRecurrenceLimit,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -242,24 +275,31 @@ func NewManager(opts ...Option) (*Service, error) {
 	if options.cancelGracePeriod < 0 {
 		return nil, fmt.Errorf("task: manager cancel grace period must be zero or positive")
 	}
+	if options.blockRecurrenceLimit < 0 {
+		return nil, fmt.Errorf("task: block recurrence limit must be zero or positive")
+	}
 
 	return &Service{
-		store:             options.store,
-		sessions:          options.sessions,
-		runtimeViews:      options.runtimeViews,
-		inspectReader:     options.inspectReader,
-		eventObserver:     options.eventObserver,
-		reviewObserver:    options.reviewObserver,
-		taskHooks:         defaultTaskRunHooks(options.taskHooks),
-		channelValidator:  options.channelValidator,
-		profileValidation: options.profileValidation,
-		forceRecovery:     normalizeForceRecoveryOptions(options.forceRecovery),
-		now:               options.now,
-		newID:             options.newID,
-		cancelGracePeriod: options.cancelGracePeriod,
-		starvationAge:     options.starvationAge,
-		forceRateLimiter:  newForceRunRateLimiter(),
-		liveSubscribers:   make(map[uint64]*taskStreamSubscriber),
+		store:                options.store,
+		sessions:             options.sessions,
+		runtimeViews:         options.runtimeViews,
+		inspectReader:        options.inspectReader,
+		eventObserver:        options.eventObserver,
+		reviewObserver:       options.reviewObserver,
+		taskHooks:            defaultTaskRunHooks(options.taskHooks),
+		wakeNotifier:         defaultWakeNotifier(options.wakeNotifier),
+		channelValidator:     options.channelValidator,
+		profileValidation:    options.profileValidation,
+		forceRecovery:        normalizeForceRecoveryOptions(options.forceRecovery),
+		now:                  options.now,
+		newID:                options.newID,
+		cancelGracePeriod:    options.cancelGracePeriod,
+		starvationAge:        options.starvationAge,
+		blockRecurrenceLimit: options.blockRecurrenceLimit,
+		forceRateLimiter:     newForceRunRateLimiter(),
+		wakeEventIDs:         make(map[string]struct{}),
+		wakeEventOrder:       make([]string, 0, wakeEventCacheMaxEntries),
+		liveSubscribers:      make(map[uint64]*taskStreamSubscriber),
 	}, nil
 }
 
@@ -298,6 +338,7 @@ func (m *Service) CreateTask(ctx context.Context, spec CreateTask, actor ActorCo
 		ApprovalPolicy:     normalizedSpec.ApprovalPolicy,
 		ApprovalState:      defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
 		Owner:              cloneOwnership(normalizedSpec.Owner),
+		WakeCreator:        createTaskWakeCreator(normalizedSpec),
 		CreatedBy:          actor.Actor,
 		Origin:             actor.Origin,
 		CreatedAt:          now,
@@ -653,31 +694,21 @@ func (m *Service) executeTaskBoundary(
 		return existing, nil
 	}
 
-	switch action {
-	case ExecutionActionPublish:
-		if _, err := m.publishTaskIntent(ctx, trimmedID, actor); err != nil {
-			return nil, err
-		}
-	case ExecutionActionApproval:
-		if _, err := m.transitionTaskApproval(
-			ctx,
-			trimmedID,
-			ApprovalStateApproved,
-			taskEventApproved,
-			actor,
-		); err != nil {
-			return nil, err
-		}
-	case ExecutionActionStart:
-		taskRecord, err := m.store.GetTask(ctx, trimmedID)
-		if err != nil {
-			return nil, err
-		}
-		if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("%w: unsupported task execution action %q", ErrValidation, action)
+	approvalTask, err := m.prepareTaskExecutionBoundary(ctx, trimmedID, action, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	if execution, ok, err := m.approvalAutoEnqueueExecution(
+		ctx,
+		approvalTask,
+		normalizedReq,
+		idempotencyKey,
+		actor,
+	); err != nil {
+		return nil, err
+	} else if ok {
+		return execution, nil
 	}
 
 	run, err := m.EnqueueRun(ctx, EnqueueRun{
@@ -698,6 +729,98 @@ func (m *Service) executeTaskBoundary(
 		Run:    *run,
 		Action: action,
 	}, nil
+}
+
+func (m *Service) prepareTaskExecutionBoundary(
+	ctx context.Context,
+	taskID string,
+	action ExecutionAction,
+	actor ActorContext,
+) (*Task, error) {
+	switch action {
+	case ExecutionActionPublish:
+		_, err := m.publishTaskIntent(ctx, taskID, actor)
+		return nil, err
+	case ExecutionActionApproval:
+		return m.transitionTaskApproval(ctx, taskID, ApprovalStateApproved, taskEventApproved, actor)
+	case ExecutionActionStart:
+		taskRecord, err := m.store.GetTask(ctx, taskID)
+		if err != nil {
+			return nil, err
+		}
+		return nil, m.ensureTaskExecutable(ctx, taskRecord)
+	default:
+		return nil, fmt.Errorf("%w: unsupported task execution action %q", ErrValidation, action)
+	}
+}
+
+func (m *Service) approvalAutoEnqueueExecution(
+	ctx context.Context,
+	approvalTask *Task,
+	req ExecutionRequest,
+	executionIdempotencyKey string,
+	actor ActorContext,
+) (*Execution, bool, error) {
+	if approvalTask == nil ||
+		!approvalTask.AutoEnqueueOnReady ||
+		approvalTask.Status.Normalize() != TaskStatusReady {
+		return nil, false, nil
+	}
+	trigger := autoEnqueueTrigger{
+		Kind: autoEnqueueTriggerApprovalGranted,
+		Ref:  approvalTask.ID,
+	}
+	run, err := m.EnqueueRun(ctx, EnqueueRun{
+		TaskID:         approvalTask.ID,
+		IdempotencyKey: trigger.idempotencyKey(approvalTask.ID),
+		NetworkChannel: req.NetworkChannel,
+		Metadata:       req.Metadata,
+	}, actor)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := m.saveApprovalAutoEnqueueIdempotencyAlias(
+		ctx,
+		approvalTask.ID,
+		run.ID,
+		executionIdempotencyKey,
+		actor,
+	); err != nil {
+		return nil, false, err
+	}
+	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
+	if err != nil {
+		return nil, false, err
+	}
+	m.recordAutoEnqueueTriggered(ctx, *approvalTask, run, trigger, actor)
+	return &Execution{
+		Task:   taskRecord,
+		Run:    *run,
+		Action: ExecutionActionApproval,
+	}, true, nil
+}
+
+func (m *Service) saveApprovalAutoEnqueueIdempotencyAlias(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	idempotencyKey string,
+	actor ActorContext,
+) error {
+	if err := m.store.SaveTaskRunIdempotency(ctx, RunIdempotency{
+		IdempotencyKey: idempotencyKey,
+		RunID:          runID,
+		Origin:         actor.Origin,
+		CreatedAt:      m.now().UTC(),
+	}); err != nil {
+		return fmt.Errorf(
+			"task: save approval auto-enqueue idempotency alias for task %q run %q: %w",
+			taskID,
+			runID,
+			err,
+		)
+	}
+	return nil
 }
 
 func (m *Service) taskExecutionFromIdempotency(
@@ -1511,8 +1634,8 @@ func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary
 	}
 
 	enriched := make([]Summary, 0, len(summaries))
-	for _, summary := range summaries {
-		item, err := m.enrichTaskSummary(ctx, summary)
+	for idx := range summaries {
+		item, err := m.enrichTaskSummary(ctx, &summaries[idx])
 		if err != nil {
 			return nil, err
 		}
@@ -1521,7 +1644,7 @@ func (m *Service) listTaskSummaries(ctx context.Context, query Query) ([]Summary
 	return enriched, nil
 }
 
-func (m *Service) enrichTaskSummary(ctx context.Context, summary Summary) (Summary, error) {
+func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summary, error) {
 	childCount, err := m.store.CountDirectChildren(ctx, summary.ID)
 	if err != nil {
 		return Summary{}, err
@@ -1557,10 +1680,17 @@ func (m *Service) enrichTaskSummaryFromState(
 	summary := summaryFromTaskRecord(record)
 	summary.Status = status
 	summary.Draft = status == TaskStatusDraft
-	summary.ChildCount = childCount
-	summary.DependencyCount = len(dependencies)
+	summary.ChildCount = ClampSummaryCount(childCount)
+	summary.DependencyCount = ClampSummaryCount(len(dependencies))
 	summary.ActiveRun = activeRunSummary(runs, record.MaxAttempts)
 	summary.LastActivityAt = latestTaskActivityAt(record, runs, events)
+	blockedReasons, err := m.blockedReasonsForSnapshot(ctx, record, dependencies)
+	if err != nil {
+		return Summary{}, err
+	}
+	if len(blockedReasons) > 0 {
+		summary.BlockedReasons = &blockedReasons
+	}
 	if err := m.applyEffectivePauseToSummary(ctx, &summary); err != nil {
 		return Summary{}, err
 	}
@@ -2015,6 +2145,7 @@ func (m *Service) CompleteRun(
 	}); err != nil {
 		return nil, err
 	}
+	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
 
 	return &run, nil
 }
@@ -2432,6 +2563,10 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 		maxAttempts := *normalized.MaxAttempts
 		normalized.MaxAttempts = &maxAttempts
 	}
+	if normalized.WakeCreator != nil {
+		wakeCreator := *normalized.WakeCreator
+		normalized.WakeCreator = &wakeCreator
+	}
 	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
@@ -2441,6 +2576,13 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 		return CreateTask{}, err
 	}
 	return normalized, nil
+}
+
+func createTaskWakeCreator(spec CreateTask) bool {
+	if spec.WakeCreator == nil {
+		return true
+	}
+	return *spec.WakeCreator
 }
 
 func normalizeTaskPatch(patch Patch) (Patch, error) {
@@ -2784,6 +2926,9 @@ func (m *Service) canonicalTaskStatusReadOnlyWithStore(
 				record.Status,
 				true,
 				taskApprovalBlocked(record),
+				taskPausedBlocked(record),
+				false,
+				taskNeedsAttentionBlocked(record),
 				taskAttemptsExhausted(record, runs),
 				runs,
 			), nil
@@ -2796,10 +2941,17 @@ func (m *Service) canonicalTaskStatusReadOnlyWithStore(
 	if err != nil {
 		return "", err
 	}
+	openBlocks, err := store.HasOpenTaskBlocks(ctx, record.ID)
+	if err != nil {
+		return "", err
+	}
 	return taskStatusFromPolicySnapshot(
 		record.Status,
 		unresolvedDependencies,
 		taskApprovalBlocked(record),
+		taskPausedBlocked(record),
+		openBlocks,
+		taskNeedsAttentionBlocked(record),
 		taskAttemptsExhausted(record, runs),
 		runs,
 	), nil
@@ -2833,13 +2985,16 @@ func isTerminalRunStatus(status RunStatus) bool {
 }
 
 func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, runs []Run) Status {
-	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, runs)
+	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, false, false, false, runs)
 }
 
 func taskStatusFromPolicySnapshot(
 	currentStatus Status,
 	unresolvedDependencies bool,
 	approvalBlocked bool,
+	pausedBlocked bool,
+	openBlocks bool,
+	needsAttention bool,
 	attemptsExhausted bool,
 	runs []Run,
 ) Status {
@@ -2848,51 +3003,28 @@ func taskStatusFromPolicySnapshot(
 		return status
 	}
 
-	runnableBlocked := unresolvedDependencies || approvalBlocked
-	hasQueuedOrClaimed := false
-	var latestTerminal Run
-	hasLatestTerminal := false
-	for idx := range runs {
-		run := runs[idx]
-		switch run.Status.Normalize() {
-		case TaskRunStatusStarting, TaskRunStatusRunning:
-			return TaskStatusInProgress
-		case TaskRunStatusQueued, TaskRunStatusClaimed:
-			hasQueuedOrClaimed = true
-		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
-			if !hasLatestTerminal || runComesAfter(run, latestTerminal) {
-				latestTerminal = run
-				hasLatestTerminal = true
-			}
+	runnableBlocked := unresolvedDependencies || approvalBlocked || pausedBlocked || openBlocks
+	runState := taskRunPolicyState(runs)
+	if runState.hasActive {
+		return TaskStatusInProgress
+	}
+	if runState.hasLatestTerminal && !runState.hasQueuedOrClaimed {
+		if terminalStatus, ok := taskStatusFromTerminalRun(runState.latestTerminal, attemptsExhausted); ok {
+			return terminalStatus
 		}
 	}
 
-	if hasQueuedOrClaimed {
+	if isTerminalTaskStatus(status) && !runState.hasQueuedOrClaimed {
+		return status
+	}
+	if needsAttention {
+		return TaskStatusNeedsAttention
+	}
+	if runState.hasQueuedOrClaimed {
 		if runnableBlocked {
 			return TaskStatusBlocked
 		}
 		return TaskStatusReady
-	}
-
-	if hasLatestTerminal {
-		switch latestTerminal.Status.Normalize() {
-		case TaskRunStatusCompleted:
-			return TaskStatusCompleted
-		case TaskRunStatusFailed:
-			if attemptsExhausted {
-				return TaskStatusFailed
-			}
-			if runnableBlocked {
-				return TaskStatusBlocked
-			}
-			return TaskStatusReady
-		case TaskRunStatusCanceled:
-			return TaskStatusCanceled
-		}
-	}
-
-	if isTerminalTaskStatus(status) {
-		return status
 	}
 	if runnableBlocked {
 		return TaskStatusBlocked
@@ -2900,8 +3032,55 @@ func taskStatusFromPolicySnapshot(
 	return TaskStatusReady
 }
 
+type taskRunPolicySnapshot struct {
+	hasActive          bool
+	hasQueuedOrClaimed bool
+	latestTerminal     Run
+	hasLatestTerminal  bool
+}
+
+func taskRunPolicyState(runs []Run) taskRunPolicySnapshot {
+	state := taskRunPolicySnapshot{}
+	for idx := range runs {
+		run := runs[idx]
+		switch run.Status.Normalize() {
+		case TaskRunStatusStarting, TaskRunStatusRunning:
+			state.hasActive = true
+		case TaskRunStatusQueued, TaskRunStatusClaimed:
+			state.hasQueuedOrClaimed = true
+		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
+			if !state.hasLatestTerminal || runComesAfter(run, state.latestTerminal) {
+				state.latestTerminal = run
+				state.hasLatestTerminal = true
+			}
+		}
+	}
+	return state
+}
+
+func taskStatusFromTerminalRun(run Run, attemptsExhausted bool) (Status, bool) {
+	switch run.Status.Normalize() {
+	case TaskRunStatusCompleted:
+		return TaskStatusCompleted, true
+	case TaskRunStatusFailed:
+		return TaskStatusFailed, attemptsExhausted
+	case TaskRunStatusCanceled:
+		return TaskStatusCanceled, true
+	default:
+		return "", false
+	}
+}
+
 func taskApprovalBlocked(record Task) bool {
 	return approvalStateBlocksExecution(record.ApprovalPolicy, record.ApprovalState)
+}
+
+func taskPausedBlocked(record Task) bool {
+	return record.Paused
+}
+
+func taskNeedsAttentionBlocked(record Task) bool {
+	return record.NeedsAttention != nil && !record.NeedsAttention.At.IsZero()
 }
 
 func approvalStateBlocksExecution(policy ApprovalPolicy, state ApprovalState) bool {
@@ -2989,19 +3168,33 @@ func (m *Service) hasUnresolvedDependenciesReadOnlyWithStore(
 	dependencies []Dependency,
 	visited map[string]struct{},
 ) (bool, error) {
+	ids, err := m.unresolvedDependencyTaskIDsReadOnlyWithStore(ctx, store, dependencies, visited)
+	if err != nil {
+		return false, err
+	}
+	return len(ids) > 0, nil
+}
+
+func (m *Service) unresolvedDependencyTaskIDsReadOnlyWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	dependencies []Dependency,
+	visited map[string]struct{},
+) ([]string, error) {
+	unresolved := make([]string, 0)
 	for _, dependency := range dependencies {
 		dependencyTaskID := strings.TrimSpace(dependency.DependsOnTaskID)
 		record, err := store.GetTask(ctx, dependencyTaskID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		nestedDependencies, err := store.ListDependencies(ctx, dependencyTaskID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		nestedRuns, err := store.ListTaskRuns(ctx, RunQuery{TaskID: dependencyTaskID})
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		status, err := m.canonicalTaskStatusReadOnlyWithStore(
 			ctx,
@@ -3012,13 +3205,59 @@ func (m *Service) hasUnresolvedDependenciesReadOnlyWithStore(
 			visited,
 		)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		if status.Normalize() != TaskStatusCompleted {
-			return true, nil
+			unresolved = append(unresolved, dependencyTaskID)
 		}
 	}
-	return false, nil
+	sort.Strings(unresolved)
+	return unresolved, nil
+}
+
+func (m *Service) blockedReasonsForSnapshot(
+	ctx context.Context,
+	record Task,
+	dependencies []Dependency,
+) ([]BlockedReason, error) {
+	reasons := make([]BlockedReason, 0)
+	dependencyIDs, err := m.unresolvedDependencyTaskIDsReadOnlyWithStore(
+		ctx,
+		m.store,
+		dependencies,
+		make(map[string]struct{}, len(dependencies)+1),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(dependencyIDs) > 0 {
+		reasons = append(reasons, BlockedReason{
+			Source:           BlockedSourceDependency,
+			DependsOnTaskIDs: dependencyIDs,
+		})
+	}
+	if taskApprovalBlocked(record) {
+		reasons = append(reasons, BlockedReason{Source: BlockedSourceApproval})
+	}
+	if taskPausedBlocked(record) {
+		reasons = append(reasons, BlockedReason{
+			Source: BlockedSourcePaused,
+			Reason: RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
+		})
+	}
+	blocks, err := m.store.ListTaskBlocks(ctx, record.ID, false)
+	if err != nil {
+		return nil, err
+	}
+	for _, block := range blocks {
+		reasons = append(reasons, BlockedReason{
+			Source:  BlockedSourceBlock,
+			Kind:    block.Kind.Normalize(),
+			Reason:  RedactClaimTokens(strings.TrimSpace(block.Reason)),
+			BlockID: strings.TrimSpace(block.ID),
+		})
+	}
+	return reasons, nil
 }
 
 func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, visited map[string]struct{}) error {
@@ -3127,7 +3366,8 @@ func (m *Service) collectTaskTree(ctx context.Context, rootTaskID string) ([]Tas
 		if err != nil {
 			return nil, err
 		}
-		for _, child := range children {
+		for idx := range children {
+			child := &children[idx]
 			record, err := m.store.GetTask(ctx, child.ID)
 			if err != nil {
 				return nil, err
@@ -3203,6 +3443,7 @@ func (m *Service) failRunRecordWithOptions(
 	}); err != nil {
 		return nil, err
 	}
+	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
 
 	return &run, nil
 }
@@ -3269,6 +3510,7 @@ func (m *Service) cancelRunRecord(
 	}); err != nil {
 		return nil, err
 	}
+	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
 
 	if activeSession {
 		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunForceStopped, actor, forceStoppedRunPayload{
@@ -3586,10 +3828,12 @@ func summaryFromTaskRecord(record Task) Summary {
 		ApprovalPolicy:     record.ApprovalPolicy,
 		ApprovalState:      record.ApprovalState,
 		Draft:              record.Status.Normalize() == TaskStatusDraft,
+		NeedsAttention:     cloneNeedsAttention(record.NeedsAttention),
 		Owner:              cloneOwnership(record.Owner),
 		CurrentRunID:       record.CurrentRunID,
 		LatestEventSeq:     record.LatestEventSeq,
 		Paused:             record.Paused,
+		WakeCreator:        record.WakeCreator,
 		PausedBy:           record.PausedBy,
 		PausedAt:           record.PausedAt,
 		PausedReason:       record.PausedReason,
@@ -3609,7 +3853,7 @@ func summaryFromTaskRecord(record Task) Summary {
 	}
 }
 
-func taskRecordFromSummary(summary Summary) Task {
+func taskRecordFromSummary(summary *Summary) Task {
 	return Task{
 		ID:                 summary.ID,
 		Identifier:         summary.Identifier,
@@ -3624,10 +3868,12 @@ func taskRecordFromSummary(summary Summary) Task {
 		Status:             summary.Status,
 		ApprovalPolicy:     summary.ApprovalPolicy,
 		ApprovalState:      summary.ApprovalState,
+		NeedsAttention:     cloneNeedsAttention(summary.NeedsAttention),
 		Owner:              cloneOwnership(summary.Owner),
 		CurrentRunID:       summary.CurrentRunID,
 		LatestEventSeq:     summary.LatestEventSeq,
 		Paused:             summary.Paused,
+		WakeCreator:        summary.WakeCreator,
 		PausedBy:           summary.PausedBy,
 		PausedAt:           summary.PausedAt,
 		PausedReason:       summary.PausedReason,
@@ -3859,6 +4105,14 @@ func cloneActorIdentity(actor *ActorIdentity) *ActorIdentity {
 	return &cloned
 }
 
+func cloneNeedsAttention(attention *NeedsAttention) *NeedsAttention {
+	if attention == nil {
+		return nil
+	}
+	cloned := *attention
+	return &cloned
+}
+
 func sameOwnership(left *Ownership, right *Ownership) bool {
 	switch {
 	case left == nil && right == nil:
@@ -3969,6 +4223,20 @@ type completedRunPayload struct {
 	TaskStatus     Status          `json:"task_status"`
 	Result         json.RawMessage `json:"result,omitempty"`
 	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
+}
+
+type completionHallucinationBlockedPayload struct {
+	Status         RunStatus `json:"status"`
+	SessionID      string    `json:"session_id,omitempty"`
+	ClaimedTaskIDs []string  `json:"claimed_task_ids,omitempty"`
+	InvalidTaskIDs []string  `json:"invalid_task_ids,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+}
+
+type completionHallucinationSuspectedPayload struct {
+	Status           RunStatus `json:"status"`
+	SuspectedTaskIDs []string  `json:"suspected_task_ids,omitempty"`
+	ClaimTokenHash   string    `json:"claim_token_hash,omitempty"`
 }
 
 type failedRunPayload struct {

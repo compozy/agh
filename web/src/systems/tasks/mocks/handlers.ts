@@ -468,6 +468,31 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
+  http.post("/api/tasks/:id/recover", ({ params }) => {
+    const id = String(params.id);
+    const task = resolveTaskRecord(id);
+    if (!task) {
+      return notFound("Task", id);
+    }
+    if (task.status !== "needs_attention") {
+      return HttpResponse.json({ error: `Task ${id} is not in needs_attention` }, { status: 409 });
+    }
+
+    // Models the all-clear recovery path only (no other open blocking causes):
+    // real recover reconciles through auto-enqueue and would derive `blocked`
+    // when other open blocks remain.
+    return HttpResponse.json({
+      task: {
+        ...task,
+        status: "ready",
+        needs_attention: false,
+        needs_attention_at: null,
+        needs_attention_by: null,
+        needs_attention_reason: undefined,
+        blocked_reasons: [],
+      },
+    });
+  }),
   http.post("/api/tasks/:id/approve", ({ params }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);

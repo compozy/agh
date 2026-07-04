@@ -79,9 +79,14 @@ describe("TasksListRow", () => {
     });
 
     it("renders attention-demanding tones only for statuses that actually demand attention", () => {
+      // Dot tone agrees with the status pill (TASK_STATUS_TONE) and keeps blocked
+      // distinct from the needs_attention escalation — no coercion.
       const { container, rerender } = render(
         <TasksListRow showStatusDot task={buildTask({ status: "blocked" })} />
       );
+      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
+
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "needs_attention" })} />);
       expect(getDot(container)).toHaveAttribute("data-tone", "warning");
 
       rerender(<TasksListRow showStatusDot task={buildTask({ status: "failed" })} />);
