@@ -59,12 +59,23 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		discardLogger(),
 		daemonInstance.harnessResolver,
 		nil,
-		defaultPromptInputAugmenterDescriptors(
-			memory.NewRecallAugmenter(daemonInstance.memoryStore),
-			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
-				return workspaceResolver
-			}),
-			daemonInstance.situationContext.Augment,
+		append(
+			defaultPromptInputAugmenterDescriptors(
+				memory.NewRecallAugmenter(daemonInstance.memoryStore),
+				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+					return workspaceResolver
+				}),
+				daemonInstance.situationContext.Augment,
+			),
+			// Mirror boot.go: register the network response register augmenter so the
+			// resolver can enable it on network turns without tripping the guard.
+			promptInputAugmenterDescriptor{
+				Name:           HarnessAugmenterNetworkResponseRegister,
+				Order:          networkResponseAugmenterOrder,
+				Budget:         cfg.Network.ResponseGuidanceMaxBytes,
+				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
+				Augmenter:      newNetworkResponseRegisterAugmenter(),
+			},
 		)...,
 	)
 	if err != nil {
@@ -140,8 +151,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, networkSkill) {
-		t.Fatalf("start system prompt = %q, want bundled network skill content", got)
+	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, "# AGH Network Response Register") {
+		t.Fatalf("start system prompt = %q, want compact network response register section", got)
+	}
+	if got := driver.startCalls[0].SystemPrompt; strings.Contains(got, networkSkill) {
+		t.Fatalf("start system prompt = %q, want compact register, not full network skill", got)
 	}
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, toolsGuide) {
 		t.Fatalf("start system prompt = %q, want bundled tools guide content", got)
@@ -149,8 +163,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.startCalls[0].SystemPrompt; !strings.Contains(got, nativeToolsGuide) {
 		t.Fatalf("start system prompt = %q, want bundled native tools guide content", got)
 	}
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("network skill occurrences = %d, want 1", got)
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, "# AGH Network Response Register"); got != 1 {
+		t.Fatalf("network response register occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, toolsGuide); got != 1 {
 		t.Fatalf("tools guide occurrences = %d, want 1", got)
@@ -184,7 +198,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		"<available-skills>",
 		toolsGuide,
 		nativeToolsGuide,
-		networkSkill,
+		"# AGH Network Response Register",
 	)
 
 	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
@@ -243,8 +257,14 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if err != nil {
 		t.Fatalf("ResolvePrompt(network) error = %v", err)
 	}
-	if !slices.Equal(networkResolved.Policy.EnableAugmenters, []HarnessAugmenter{HarnessAugmenterSkills}) {
-		t.Fatalf("network EnableAugmenters = %#v, want skills only", networkResolved.Policy.EnableAugmenters)
+	if !slices.Equal(
+		networkResolved.Policy.EnableAugmenters,
+		[]HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterNetworkResponseRegister},
+	) {
+		t.Fatalf(
+			"network EnableAugmenters = %#v, want skills and network response register",
+			networkResolved.Policy.EnableAugmenters,
+		)
 	}
 
 	networkEvents, err := manager.PromptNetwork(
@@ -347,8 +367,11 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 		t.Fatalf("LoadResource(%q, %q) error = %v", bundledAghSkillName, bundledNativeToolsReference, err)
 	}
 	nativeToolsGuide = strings.TrimSpace(nativeToolsGuide)
-	if got := strings.Count(driver.startCalls[1].SystemPrompt, networkSkill); got != 1 {
-		t.Fatalf("resume prompt network skill occurrences = %d, want 1", got)
+	if got := strings.Count(driver.startCalls[1].SystemPrompt, "# AGH Network Response Register"); got != 1 {
+		t.Fatalf("resume prompt network response register occurrences = %d, want 1", got)
+	}
+	if got := driver.startCalls[1].SystemPrompt; strings.Contains(got, networkSkill) {
+		t.Fatalf("resume prompt = %q, want compact register, not full network skill", got)
 	}
 	if got := strings.Count(driver.startCalls[1].SystemPrompt, toolsGuide); got != 1 {
 		t.Fatalf("resume prompt tools guide occurrences = %d, want 1", got)

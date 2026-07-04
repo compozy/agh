@@ -96,7 +96,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 	if got, want := len(globalTasks), 1; got != want {
 		t.Fatalf("len(ListTasks(global)) = %d, want %d", got, want)
 	}
-	assertTaskSummaryMatchesTask(t, globalTasks[0], globalTask)
+	assertTaskSummaryMatchesTask(t, &globalTasks[0], globalTask)
 	if !globalTasks[0].Draft {
 		t.Fatalf("globalTasks[0].Draft = false, want true")
 	}
@@ -108,7 +108,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 	if got, want := len(workspaceTasks), 1; got != want {
 		t.Fatalf("len(ListTasks(workspace)) = %d, want %d", got, want)
 	}
-	assertTaskSummaryMatchesTask(t, workspaceTasks[0], workspaceTask)
+	assertTaskSummaryMatchesTask(t, &workspaceTasks[0], workspaceTask)
 
 	reloadedTask, err := second.GetTask(ctx, workspaceTask.ID)
 	if err != nil {

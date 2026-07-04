@@ -1734,6 +1734,10 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		ThreadID:  &threadID,
 		Kind:      network.KindSay,
 		Body:      body,
+		// The default channel fanout policy is capability_match, which digests
+		// non-activating broadcasts. Mention the recipient so this delivery test
+		// exercises the full inbound-prompt path deterministically.
+		Mentions: []string{"coder.sess-net"},
 	}); err != nil {
 		t.Fatalf("network.Send() error = %v", err)
 	}
@@ -1847,6 +1851,10 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 		ThreadID:  &threadID,
 		Kind:      network.KindSay,
 		Body:      body,
+		// The default channel fanout policy is capability_match, which digests
+		// non-activating broadcasts. Mention the recipient so this delivery test
+		// exercises the full inbound-prompt path deterministically.
+		Mentions: []string{"coder.sess-net"},
 	}); err != nil {
 		t.Fatalf("network.Send() error = %v", err)
 	}

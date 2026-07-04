@@ -726,13 +726,20 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		t.Fatalf("json.Unmarshal(network peers) error = %v", err)
 	}
 	peerSessions := make(map[string]struct{}, len(peers))
+	var receiverPeerID string
 	for _, peer := range peers {
 		if peer.SessionID != nil {
 			peerSessions[*peer.SessionID] = struct{}{}
+			if *peer.SessionID == created.ID {
+				receiverPeerID = peer.PeerID
+			}
 		}
 	}
 	if _, ok := peerSessions[created.ID]; !ok {
 		t.Fatalf("network peers = %#v, want blocked receiver session peer", peers)
+	}
+	if receiverPeerID == "" {
+		t.Fatalf("network peers = %#v, want receiver peer id for mention targeting", peers)
 	}
 	if _, ok := peerSessions[sender.ID]; !ok {
 		t.Fatalf("network peers = %#v, want sender session peer", peers)
@@ -774,6 +781,9 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		t.Fatalf("network send raw claim-token error = %v, want network_raw_token_rejected", err)
 	}
 
+	// The default channel fanout policy is capability_match, which digests
+	// non-activating broadcasts. Mention the blocked receiver so the message is
+	// fully delivered and queued in its inbox while its prompt is blocked.
 	sendOut, _, err := executeRootCommand(t, h.deps,
 		"network", "send",
 		"--session", sender.ID,
@@ -783,6 +793,7 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"--kind", "say",
 		"--body", `{"text":"queued hello"}`,
 		"--ext", `{"agh.workflow_id":"wf-1","agh.handoff_version":3}`,
+		"--mention", receiverPeerID,
 		"-o", "json",
 	)
 	if err != nil {
