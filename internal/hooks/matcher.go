@@ -360,26 +360,47 @@ func (m HookMatcher) MatchesCoordinator(payload CoordinatorContext) bool {
 
 // MatchesTask matches task-family hooks.
 func (m HookMatcher) MatchesTask(payload TaskContext) bool {
-	autonomy := m.autonomy()
-	return matchStringField(m.AgentName, payload.AgentName) &&
-		matchStringField(m.WorkspaceID, payload.WorkspaceID) &&
-		matchStringField(autonomy.TaskID, payload.TaskID) &&
-		matchStringField(autonomy.RunID, payload.RunID) &&
-		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, payload.CoordinationChannelID) &&
-		matchStringField(autonomy.ReleaseReason, payload.ReleaseReason)
+	return m.matchTaskAutonomyFields(
+		payload.AgentName,
+		payload.WorkspaceID,
+		payload.TaskID,
+		payload.RunID,
+		payload.WorkflowID,
+		payload.CoordinationChannelID,
+		payload.ReleaseReason,
+	)
 }
 
 // MatchesTaskRun matches task-run-family hooks.
 func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
+	return m.matchTaskAutonomyFields(
+		payload.AgentName,
+		payload.WorkspaceID,
+		payload.TaskID,
+		payload.RunID,
+		payload.WorkflowID,
+		payload.CoordinationChannelID,
+		payload.ReleaseReason,
+	)
+}
+
+func (m HookMatcher) matchTaskAutonomyFields(
+	agentName string,
+	workspaceID string,
+	taskID string,
+	runID string,
+	workflowID string,
+	coordinationChannelID string,
+	releaseReason string,
+) bool {
 	autonomy := m.autonomy()
-	return matchStringField(m.AgentName, payload.AgentName) &&
-		matchStringField(m.WorkspaceID, payload.WorkspaceID) &&
-		matchStringField(autonomy.TaskID, payload.TaskID) &&
-		matchStringField(autonomy.RunID, payload.RunID) &&
-		matchStringField(autonomy.WorkflowID, payload.WorkflowID) &&
-		matchStringField(autonomy.CoordinationChannelID, payload.CoordinationChannelID) &&
-		matchStringField(autonomy.ReleaseReason, payload.ReleaseReason)
+	return matchStringField(m.AgentName, agentName) &&
+		matchStringField(m.WorkspaceID, workspaceID) &&
+		matchStringField(autonomy.TaskID, taskID) &&
+		matchStringField(autonomy.RunID, runID) &&
+		matchStringField(autonomy.WorkflowID, workflowID) &&
+		matchStringField(autonomy.CoordinationChannelID, coordinationChannelID) &&
+		matchStringField(autonomy.ReleaseReason, releaseReason)
 }
 
 // MatchesSpawn matches spawn-family hooks.

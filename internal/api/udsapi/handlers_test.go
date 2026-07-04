@@ -544,49 +544,53 @@ func TestMemoryRoutesMatchV2Contract(t *testing.T) {
 func TestTaskBlockHandlersReturnUDSStatusAndBody(t *testing.T) {
 	t.Parallel()
 
-	homePaths := newTestHomePaths(t)
-	now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
-	manager := apitestutil.StubTaskManager{
-		BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
-			return taskpkg.TaskBlock{
-				ID:        "block-uds",
-				TaskID:    req.TaskID,
-				Kind:      req.Kind,
-				Reason:    req.Reason,
-				CreatedBy: actor.Actor,
-				CreatedAt: now,
-			}, nil
-		},
-	}
-	engine := newTestRouter(t, newTestHandlersWithRuntime(
-		t,
-		stubSessionManager{},
-		stubObserver{},
-		nil,
-		manager,
-		nil,
-		stubWorkspaceService{},
-		nil,
-		homePaths,
-	))
+	t.Run("Should return 201 with created block payload", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/tasks/task-uds/blocks",
-		[]byte(`{"kind":"capability","reason":"missing gpu"}`),
-	)
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
-	}
-	var response contract.TaskBlockResponse
-	decodeJSONResponse(t, recorder, &response)
-	if response.Block.ID != "block-uds" ||
-		response.Block.TaskID != "task-uds" ||
-		response.Block.Kind != taskpkg.BlockKindCapability {
-		t.Fatalf("response.Block = %#v, want capability block for task-uds", response.Block)
-	}
+		homePaths := newTestHomePaths(t)
+		now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
+		manager := apitestutil.StubTaskManager{
+			BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
+				return taskpkg.TaskBlock{
+					ID:        "block-uds",
+					TaskID:    req.TaskID,
+					Kind:      req.Kind,
+					Reason:    req.Reason,
+					CreatedBy: actor.Actor,
+					CreatedAt: now,
+				}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlersWithRuntime(
+			t,
+			stubSessionManager{},
+			stubObserver{},
+			nil,
+			manager,
+			nil,
+			stubWorkspaceService{},
+			nil,
+			homePaths,
+		))
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/tasks/task-uds/blocks",
+			[]byte(`{"kind":"capability","reason":"missing gpu"}`),
+		)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
+		}
+		var response contract.TaskBlockResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Block.ID != "block-uds" ||
+			response.Block.TaskID != "task-uds" ||
+			response.Block.Kind != taskpkg.BlockKindCapability {
+			t.Fatalf("response.Block = %#v, want capability block for task-uds", response.Block)
+		}
+	})
 }
 
 func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {

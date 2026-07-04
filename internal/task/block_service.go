@@ -1,14 +1,19 @@
 package task
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/diagnostics"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
@@ -133,7 +138,7 @@ func (m *Service) recordTaskBlockCreated(
 		Status:         reconciled.Status,
 		BlockID:        strings.TrimSpace(block.ID),
 		BlockKind:      block.Kind.Normalize(),
-		Reason:         RedactClaimTokens(strings.TrimSpace(block.Reason)),
+		Reason:         redactTaskSecretText(strings.TrimSpace(block.Reason)),
 		ExpiresAt:      block.ExpiresAt,
 		ClaimTokenHash: claimTokenHash,
 	}); eventErr != nil {
@@ -151,8 +156,8 @@ func (m *Service) recordTaskBlockCleared(
 		Status:    reconciled.Status,
 		BlockID:   strings.TrimSpace(block.ID),
 		BlockKind: block.Kind.Normalize(),
-		Reason:    RedactClaimTokens(strings.TrimSpace(block.Reason)),
-		ClearNote: RedactClaimTokens(strings.TrimSpace(block.ClearNote)),
+		Reason:    redactTaskSecretText(strings.TrimSpace(block.Reason)),
+		ClearNote: redactTaskSecretText(strings.TrimSpace(block.ClearNote)),
 		ClearedAt: block.ClearedAt,
 	}); eventErr != nil {
 		m.logTaskBlockEventFailure(eventErr, taskEventBlockCleared, block, "")
@@ -169,7 +174,7 @@ func (m *Service) recordTaskBlockExpired(
 		Status:    reconciled.Status,
 		BlockID:   strings.TrimSpace(block.ID),
 		BlockKind: block.Kind.Normalize(),
-		Reason:    RedactClaimTokens(strings.TrimSpace(block.Reason)),
+		Reason:    redactTaskSecretText(strings.TrimSpace(block.Reason)),
 		ExpiresAt: block.ExpiresAt,
 		ClearedAt: block.ClearedAt,
 	}); eventErr != nil {
@@ -277,7 +282,7 @@ func (m *Service) ClearTaskBlock(
 		return TaskBlock{}, fmt.Errorf("%w: task_block.id is required", ErrValidation)
 	}
 	normalizedNote := strings.TrimSpace(note)
-	if err := rejectRawClaimTokenText("task_block.clear_note", normalizedNote); err != nil {
+	if err := rejectTaskSecretText("task_block.clear_note", normalizedNote); err != nil {
 		return TaskBlock{}, err
 	}
 	if err := m.requireAgentSessionTaskLease(ctx, normalizedTaskID, actor); err != nil {
@@ -326,7 +331,7 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 		)
 	}
 	normalizedNote := strings.TrimSpace(note)
-	if err := rejectRawClaimTokenText("task.recover_note", normalizedNote); err != nil {
+	if err := rejectTaskSecretText("task.recover_note", normalizedNote); err != nil {
 		return nil, err
 	}
 	recoveredAt := m.now().UTC()
@@ -344,7 +349,7 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 	}
 	if eventErr := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventRecovered, actor, recoveredTaskPayload{
 		Status: reconciled.Status,
-		Note:   RedactClaimTokens(normalizedNote),
+		Note:   redactTaskSecretText(normalizedNote),
 		At:     recoveredAt,
 	}); eventErr != nil {
 		slog.Error(
@@ -457,11 +462,11 @@ func (m *Service) taskBlockFromRequest(req BlockRequest, actor ActorContext) (Ta
 	if reason == "" {
 		return TaskBlock{}, "", "", fmt.Errorf("%w: task_block.reason is required", ErrValidation)
 	}
-	if err := rejectRawClaimTokenText("task_block.reason", reason); err != nil {
+	if err := rejectTaskSecretText("task_block.reason", reason); err != nil {
 		return TaskBlock{}, "", "", err
 	}
 	details := cloneRawJSON(req.Details)
-	if err := rejectRawClaimTokenJSON("task_block.details", details); err != nil {
+	if err := rejectTaskSecretJSON("task_block.details", details); err != nil {
 		return TaskBlock{}, "", "", err
 	}
 	expiresAt := req.ExpiresAt
@@ -490,21 +495,110 @@ func (m *Service) taskBlockFromRequest(req BlockRequest, actor ActorContext) (Ta
 	}, runID, claimToken, nil
 }
 
-func rejectRawClaimTokenText(path string, value string) error {
-	if strings.Contains(value, "agh_claim_") {
-		return fmt.Errorf("%w: %s must not embed a raw claim token", ErrValidation, path)
+func rejectTaskSecretText(path string, value string) error {
+	if redactTaskSecretText(value) != value {
+		return fmt.Errorf("%w: %s must not embed raw secret material", ErrValidation, path)
 	}
 	return nil
 }
 
-func rejectRawClaimTokenJSON(path string, value []byte) error {
+func rejectTaskSecretJSON(path string, value []byte) error {
 	if len(value) == 0 {
 		return nil
 	}
-	if strings.Contains(string(value), "agh_claim_") {
-		return fmt.Errorf("%w: %s must not embed a raw claim token", ErrValidation, path)
+	decoded, ok := decodeTaskSecretJSON(value)
+	if !ok {
+		if redactTaskSecretText(string(value)) != string(value) {
+			return fmt.Errorf("%w: %s must not embed raw secret material", ErrValidation, path)
+		}
+		return nil
+	}
+	if taskSecretValueContainsSecret(decoded) {
+		return fmt.Errorf("%w: %s must not embed raw secret material", ErrValidation, path)
 	}
 	return nil
+}
+
+func redactTaskSecretText(value string) string {
+	return diagnostics.Redact(RedactClaimTokens(value))
+}
+
+func redactTaskSecretJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	decoded, ok := decodeTaskSecretJSON(raw)
+	if !ok {
+		return json.RawMessage(redactTaskSecretText(string(raw)))
+	}
+	encoded, err := json.Marshal(redactTaskSecretValue(decoded))
+	if err != nil {
+		return json.RawMessage(redactTaskSecretText(string(raw)))
+	}
+	return json.RawMessage(encoded)
+}
+
+func decodeTaskSecretJSON(raw []byte) (any, bool) {
+	var decoded any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return nil, false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, false
+	}
+	return decoded, true
+}
+
+func taskSecretValueContainsSecret(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			if taskSecretKeyCarriesSecret(key) || taskSecretValueContainsSecret(nested) {
+				return true
+			}
+		}
+	case []any:
+		return slices.ContainsFunc(typed, taskSecretValueContainsSecret)
+	case string:
+		return redactTaskSecretText(typed) != typed
+	}
+	return false
+}
+
+func redactTaskSecretValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		redacted := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if taskSecretKeyCarriesSecret(key) {
+				redacted[key] = "[REDACTED]"
+				continue
+			}
+			redacted[key] = redactTaskSecretValue(nested)
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, 0, len(typed))
+		for _, nested := range typed {
+			redacted = append(redacted, redactTaskSecretValue(nested))
+		}
+		return redacted
+	case string:
+		return redactTaskSecretText(typed)
+	default:
+		return typed
+	}
+}
+
+func taskSecretKeyCarriesSecret(key string) bool {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return false
+	}
+	probe := trimmed + "=value"
+	return diagnostics.Redact(probe) != probe
 }
 
 func (m *Service) recordTaskNeedsAttention(
@@ -533,7 +627,7 @@ func (m *Service) recordTaskNeedsAttention(
 	}
 	if eventErr := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventNeedsAttention, actor, needsAttentionTaskPayload{
 		Status:          reconciled.Status,
-		Reason:          RedactClaimTokens(needsAttention.Reason),
+		Reason:          redactTaskSecretText(needsAttention.Reason),
 		At:              needsAttention.At,
 		BlockID:         strings.TrimSpace(block.ID),
 		BlockKind:       block.Kind.Normalize(),
@@ -566,8 +660,8 @@ func (m *Service) dispatchTaskBlocked(
 		TaskContext: m.taskHookContext(taskRecord, actor, release),
 		BlockID:     strings.TrimSpace(block.ID),
 		Kind:        string(block.Kind.Normalize()),
-		Reason:      RedactClaimTokens(strings.TrimSpace(block.Reason)),
-		Details:     cloneRawJSON(block.Details),
+		Reason:      redactTaskSecretText(strings.TrimSpace(block.Reason)),
+		Details:     redactTaskSecretJSON(cloneRawJSON(block.Details)),
 	}
 	_, err := m.taskHooks.DispatchTaskBlocked(taskRunObservationHookContext(ctx), payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskBlocked, err, taskRecord)
@@ -587,10 +681,10 @@ func (m *Service) dispatchTaskUnblocked(
 		TaskContext: m.taskHookContext(taskRecord, actor, nil),
 		BlockID:     strings.TrimSpace(block.ID),
 		Kind:        string(block.Kind.Normalize()),
-		Reason:      RedactClaimTokens(strings.TrimSpace(block.Reason)),
-		Details:     cloneRawJSON(block.Details),
+		Reason:      redactTaskSecretText(strings.TrimSpace(block.Reason)),
+		Details:     redactTaskSecretJSON(cloneRawJSON(block.Details)),
 		ClearedAt:   block.ClearedAt,
-		ClearNote:   RedactClaimTokens(strings.TrimSpace(block.ClearNote)),
+		ClearNote:   redactTaskSecretText(strings.TrimSpace(block.ClearNote)),
 	}
 	_, err := m.taskHooks.DispatchTaskUnblocked(taskRunObservationHookContext(ctx), payload)
 	m.reportTaskHookFailure(hookspkg.HookTaskUnblocked, err, taskRecord)
@@ -610,7 +704,7 @@ func (m *Service) dispatchTaskNeedsAttention(
 			Timestamp: m.now().UTC(),
 		},
 		TaskContext: m.taskHookContext(taskRecord, actor, release),
-		Reason:      RedactClaimTokens(strings.TrimSpace(reason)),
+		Reason:      redactTaskSecretText(strings.TrimSpace(reason)),
 		At:          at,
 	}
 	_, err := m.taskHooks.DispatchTaskNeedsAttention(taskRunObservationHookContext(ctx), payload)
@@ -630,7 +724,7 @@ func (m *Service) dispatchTaskRecovered(
 			Timestamp: m.now().UTC(),
 		},
 		TaskContext: m.taskHookContext(taskRecord, actor, nil),
-		Note:        RedactClaimTokens(strings.TrimSpace(note)),
+		Note:        redactTaskSecretText(strings.TrimSpace(note)),
 		At:          at,
 	}
 	_, err := m.taskHooks.DispatchTaskRecovered(taskRunObservationHookContext(ctx), payload)

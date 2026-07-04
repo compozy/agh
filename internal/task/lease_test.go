@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
@@ -1080,174 +1082,421 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 }
 
 func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T) {
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	actor := validActorContext()
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope:              ScopeWorkspace,
-		WorkspaceID:        "ws-auto-block-clear",
-		Title:              "Auto enqueue on block clear",
-		AutoEnqueueOnReady: true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	block, err := manager.BlockTask(context.Background(), BlockRequest{
-		TaskID: taskRecord.ID,
-		Kind:   BlockKindCapability,
-		Reason: "capability unavailable",
-	}, actor)
-	if err != nil {
-		t.Fatalf("BlockTask() error = %v", err)
-	}
-	if _, err := manager.ClearTaskBlock(
-		context.Background(),
-		taskRecord.ID,
-		block.ID,
-		"capability restored",
-		actor,
-	); err != nil {
-		t.Fatalf("ClearTaskBlock() error = %v", err)
-	}
-	if got, want := len(store.runs), 1; got != want {
-		t.Fatalf("runs after block-clear auto enqueue = %d, want %d", got, want)
-	}
-	if got, want := countTaskEventsByType(store.events, taskEventAutoEnqueueTriggered), 1; got != want {
-		t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
-	}
+	t.Parallel()
 
-	manager.autoEnqueueReadyTaskDetached(context.Background(), taskRecord.ID, autoEnqueueTrigger{
-		Kind: autoEnqueueTriggerBlockClear,
-		Ref:  block.ID,
-	}, actor)
-	if got, want := len(store.runs), 1; got != want {
-		t.Fatalf("runs after repeated block-clear trigger = %d, want %d", got, want)
-	}
+	t.Run("Should auto enqueue ready opted in task idempotently after block clear", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:              ScopeWorkspace,
+			WorkspaceID:        "ws-auto-block-clear",
+			Title:              "Auto enqueue on block clear",
+			AutoEnqueueOnReady: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		block, err := manager.BlockTask(context.Background(), BlockRequest{
+			TaskID: taskRecord.ID,
+			Kind:   BlockKindCapability,
+			Reason: "capability unavailable",
+		}, actor)
+		if err != nil {
+			t.Fatalf("BlockTask() error = %v", err)
+		}
+		if _, err := manager.ClearTaskBlock(
+			context.Background(),
+			taskRecord.ID,
+			block.ID,
+			"capability restored",
+			actor,
+		); err != nil {
+			t.Fatalf("ClearTaskBlock() error = %v", err)
+		}
+		if got, want := len(store.runs), 1; got != want {
+			t.Fatalf("runs after block-clear auto enqueue = %d, want %d", got, want)
+		}
+		if got, want := countTaskEventsByType(store.events, taskEventAutoEnqueueTriggered), 1; got != want {
+			t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
+		}
+
+		manager.autoEnqueueReadyTaskDetached(context.Background(), taskRecord.ID, autoEnqueueTrigger{
+			Kind: autoEnqueueTriggerBlockClear,
+			Ref:  block.ID,
+		}, actor)
+		if got, want := len(store.runs), 1; got != want {
+			t.Fatalf("runs after repeated block-clear trigger = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	actor := validActorContext()
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope:              ScopeWorkspace,
-		WorkspaceID:        "ws-auto-approval",
-		Title:              "Auto enqueue on approval",
-		ApprovalPolicy:     ApprovalPolicyManual,
-		AutoEnqueueOnReady: true,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	if got, want := taskRecord.Status, TaskStatusBlocked; got != want {
-		t.Fatalf("created Status = %q, want %q", got, want)
-	}
+	t.Parallel()
 
-	execution, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
-	if err != nil {
-		t.Fatalf("ApproveTask() error = %v", err)
-	}
-	wantKey := (autoEnqueueTrigger{
-		Kind: autoEnqueueTriggerApprovalGranted,
-		Ref:  taskRecord.ID,
-	}).idempotencyKey(taskRecord.ID)
-	if got, want := execution.Run.IdempotencyKey, wantKey; got != want {
-		t.Fatalf("approval run idempotency key = %q, want %q", got, want)
-	}
-	if got, want := countTaskEventsByType(store.events, taskEventAutoEnqueueTriggered), 1; got != want {
-		t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
-	}
+	t.Run("Should auto enqueue ready opted in task on approval and replay idempotently", func(t *testing.T) {
+		t.Parallel()
 
-	replayed, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
-	if err != nil {
-		t.Fatalf("ApproveTask(replay) error = %v", err)
-	}
-	if replayed.Run.ID != execution.Run.ID {
-		t.Fatalf("replayed run ID = %q, want %q", replayed.Run.ID, execution.Run.ID)
-	}
-	if got, want := len(store.runs), 1; got != want {
-		t.Fatalf("runs after replay = %d, want %d", got, want)
-	}
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:              ScopeWorkspace,
+			WorkspaceID:        "ws-auto-approval",
+			Title:              "Auto enqueue on approval",
+			ApprovalPolicy:     ApprovalPolicyManual,
+			AutoEnqueueOnReady: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if got, want := taskRecord.Status, TaskStatusBlocked; got != want {
+			t.Fatalf("created Status = %q, want %q", got, want)
+		}
+
+		execution, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		if err != nil {
+			t.Fatalf("ApproveTask() error = %v", err)
+		}
+		wantKey := (autoEnqueueTrigger{
+			Kind: autoEnqueueTriggerApprovalGranted,
+			Ref:  taskRecord.ID,
+		}).idempotencyKey(taskRecord.ID)
+		if got, want := execution.Run.IdempotencyKey, wantKey; got != want {
+			t.Fatalf("approval run idempotency key = %q, want %q", got, want)
+		}
+		if got, want := countTaskEventsByType(store.events, taskEventAutoEnqueueTriggered), 1; got != want {
+			t.Fatalf("auto enqueue triggered events = %d, want %d", got, want)
+		}
+
+		replayed, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		if err != nil {
+			t.Fatalf("ApproveTask(replay) error = %v", err)
+		}
+		if replayed.Run.ID != execution.Run.ID {
+			t.Fatalf("replayed run ID = %q, want %q", replayed.Run.ID, execution.Run.ID)
+		}
+		if got, want := len(store.runs), 1; got != want {
+			t.Fatalf("runs after replay = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should fail approval when auto enqueue idempotency alias cannot persist", func(t *testing.T) {
+		t.Parallel()
+
+		store := &approvalAliasFailureStore{inMemoryManagerStore: newInMemoryManagerStore()}
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:              ScopeWorkspace,
+			WorkspaceID:        "ws-auto-approval-alias-failure",
+			Title:              "Auto enqueue alias failure",
+			ApprovalPolicy:     ApprovalPolicyManual,
+			AutoEnqueueOnReady: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		store.failKey = taskExecutionIdempotencyKey(taskRecord.ID, ExecutionActionApproval, "")
+
+		execution, err := manager.ApproveTask(context.Background(), taskRecord.ID, ExecutionRequest{}, actor)
+		if err == nil {
+			t.Fatal("ApproveTask(alias failure) error = nil, want persistence failure")
+		}
+		if execution != nil {
+			t.Fatalf("ApproveTask(alias failure) execution = %#v, want nil", execution)
+		}
+		if !strings.Contains(err.Error(), "save approval auto-enqueue idempotency alias") {
+			t.Fatalf("ApproveTask(alias failure) error = %v, want alias persistence context", err)
+		}
+	})
 }
 
 func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testing.T) {
-	store := newInMemoryManagerStore()
-	manager := newTaskManagerForTest(t, store)
-	actor := validActorContext()
-	maxAttempts := 3
-	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope:       ScopeGlobal,
-		Title:       "Recurrence reset target",
-		MaxAttempts: &maxAttempts,
-	}, actor)
-	if err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
+	t.Parallel()
+
+	t.Run("Should reset block recurrences only after run completion", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		maxAttempts := 3
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeGlobal,
+			Title:       "Recurrence reset target",
+			MaxAttempts: &maxAttempts,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		first, err := manager.BlockTask(context.Background(), BlockRequest{
+			TaskID: taskRecord.ID,
+			Kind:   BlockKindNeedsInput,
+			Reason: "first loop",
+		}, actor)
+		if err != nil {
+			t.Fatalf("BlockTask(first) error = %v", err)
+		}
+		if _, err := manager.ClearTaskBlock(
+			context.Background(),
+			taskRecord.ID,
+			first.ID,
+			"resolved",
+			actor,
+		); err != nil {
+			t.Fatalf("ClearTaskBlock(first) error = %v", err)
+		}
+		second, err := manager.BlockTask(context.Background(), BlockRequest{
+			TaskID: taskRecord.ID,
+			Kind:   BlockKindNeedsInput,
+			Reason: "second loop",
+		}, actor)
+		if err != nil {
+			t.Fatalf("BlockTask(second) error = %v", err)
+		}
+		if got, want := store.blockRecurrences[blockRecurrenceTestKey(taskRecord.ID, BlockKindNeedsInput)].Count, 1; got != want {
+			t.Fatalf("recurrence count after reblock = %d, want %d", got, want)
+		}
+		if _, err := manager.ClearTaskBlock(
+			context.Background(),
+			taskRecord.ID,
+			second.ID,
+			"resolved again",
+			actor,
+		); err != nil {
+			t.Fatalf("ClearTaskBlock(second) error = %v", err)
+		}
+		if got, want := store.blockRecurrences[blockRecurrenceTestKey(taskRecord.ID, BlockKindNeedsInput)].Count, 1; got != want {
+			t.Fatalf("recurrence count after clear = %d, want %d", got, want)
+		}
+
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		agent := validActorContext()
+		agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-reset"}
+		agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
+		claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "sess-reset",
+			LeaseDuration:    2 * time.Minute,
+			Now:              claimNow,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if claim.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
+		}
+		if _, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        claimNow.Add(time.Minute),
+		}, agent); err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		if got, want := len(store.blockRecurrences), 0; got != want {
+			t.Fatalf("block recurrence rows after completion = %d, want %d", got, want)
+		}
+	})
+}
+
+type approvalAliasFailureStore struct {
+	*inMemoryManagerStore
+	failKey string
+}
+
+func (s *approvalAliasFailureStore) SaveTaskRunIdempotency(
+	ctx context.Context,
+	record RunIdempotency,
+) error {
+	if record.IdempotencyKey == s.failKey {
+		return errors.New("approval alias persistence failed")
 	}
-	first, err := manager.BlockTask(context.Background(), BlockRequest{
-		TaskID: taskRecord.ID,
-		Kind:   BlockKindNeedsInput,
-		Reason: "first loop",
-	}, actor)
-	if err != nil {
-		t.Fatalf("BlockTask(first) error = %v", err)
-	}
-	if _, err := manager.ClearTaskBlock(context.Background(), taskRecord.ID, first.ID, "resolved", actor); err != nil {
-		t.Fatalf("ClearTaskBlock(first) error = %v", err)
-	}
-	second, err := manager.BlockTask(context.Background(), BlockRequest{
-		TaskID: taskRecord.ID,
-		Kind:   BlockKindNeedsInput,
-		Reason: "second loop",
-	}, actor)
-	if err != nil {
-		t.Fatalf("BlockTask(second) error = %v", err)
-	}
-	if got, want := store.blockRecurrences[blockRecurrenceTestKey(taskRecord.ID, BlockKindNeedsInput)].Count, 1; got != want {
-		t.Fatalf("recurrence count after reblock = %d, want %d", got, want)
-	}
-	if _, err := manager.ClearTaskBlock(
-		context.Background(),
-		taskRecord.ID,
-		second.ID,
-		"resolved again",
-		actor,
-	); err != nil {
-		t.Fatalf("ClearTaskBlock(second) error = %v", err)
-	}
-	if got, want := store.blockRecurrences[blockRecurrenceTestKey(taskRecord.ID, BlockKindNeedsInput)].Count, 1; got != want {
-		t.Fatalf("recurrence count after clear = %d, want %d", got, want)
+	return s.inMemoryManagerStore.SaveTaskRunIdempotency(ctx, record)
+}
+
+func TestManagerTaskBlockLifecycleRejectsSecretMaterial(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  func(context.Context, *Service, *inMemoryManagerStore, *Task, ActorContext) error
+	}{
+		{
+			name: "Should reject raw secret material in block reason",
+			run: func(ctx context.Context, manager *Service, _ *inMemoryManagerStore, taskRecord *Task, actor ActorContext) error {
+				_, err := manager.BlockTask(ctx, BlockRequest{
+					TaskID: taskRecord.ID,
+					Kind:   BlockKindNeedsInput,
+					Reason: "mcp_auth_token=raw-mcp-secret",
+				}, actor)
+				return err
+			},
+		},
+		{
+			name: "Should reject raw secret material in block details",
+			run: func(ctx context.Context, manager *Service, _ *inMemoryManagerStore, taskRecord *Task, actor ActorContext) error {
+				_, err := manager.BlockTask(ctx, BlockRequest{
+					TaskID:  taskRecord.ID,
+					Kind:    BlockKindNeedsInput,
+					Reason:  "needs input",
+					Details: json.RawMessage(`{"mcp_auth_token":"raw-mcp-secret"}`),
+				}, actor)
+				return err
+			},
+		},
+		{
+			name: "Should reject raw secret material in clear note",
+			run: func(ctx context.Context, manager *Service, _ *inMemoryManagerStore, taskRecord *Task, actor ActorContext) error {
+				block, err := manager.BlockTask(ctx, BlockRequest{
+					TaskID: taskRecord.ID,
+					Kind:   BlockKindNeedsInput,
+					Reason: "needs input",
+				}, actor)
+				if err != nil {
+					return err
+				}
+				_, err = manager.ClearTaskBlock(ctx, taskRecord.ID, block.ID, "oauth_code=raw-oauth-secret", actor)
+				return err
+			},
+		},
+		{
+			name: "Should reject raw secret material in recover note",
+			run: func(ctx context.Context, manager *Service, _ *inMemoryManagerStore, taskRecord *Task, actor ActorContext) error {
+				_, err := manager.RecoverTask(ctx, taskRecord.ID, "pkce_verifier=raw-pkce-secret", actor)
+				return err
+			},
+		},
 	}
 
-	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			store := newInMemoryManagerStore()
+			manager := newTaskManagerForTest(t, store)
+			actor := validActorContext()
+			taskRecord, err := manager.CreateTask(ctx, CreateTask{
+				Scope:       ScopeWorkspace,
+				WorkspaceID: "ws-secret-reject-" + strconv.Itoa(len(tt.name)),
+				Title:       "Secret rejection target",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+
+			if err := tt.run(ctx, manager, store, taskRecord, actor); !errors.Is(err, ErrValidation) {
+				t.Fatalf("%s error = %v, want %v", tt.name, err, ErrValidation)
+			}
+			for _, block := range store.blocks[taskRecord.ID] {
+				if !block.ClearedAt.IsZero() {
+					t.Fatalf("block %#v was cleared after rejected secret-bearing mutation", block)
+				}
+				if strings.Contains(block.Reason, "raw-mcp-secret") ||
+					strings.Contains(string(block.Details), "raw-mcp-secret") ||
+					strings.Contains(block.ClearNote, "raw-oauth-secret") {
+					t.Fatalf("block %#v persisted raw secret material after rejected mutation", block)
+				}
+			}
+		})
+	}
+}
+
+func TestTaskBlockHookPayloadsRedactStoredSecretMaterial(t *testing.T) {
+	t.Parallel()
+
+	var blocked hookspkg.TaskBlockedPayload
+	var unblocked hookspkg.TaskUnblockedPayload
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+		blocked: func(
+			_ context.Context,
+			payload hookspkg.TaskBlockedPayload,
+		) (hookspkg.TaskBlockedPayload, error) {
+			blocked = payload
+			return payload, nil
+		},
+		unblocked: func(
+			_ context.Context,
+			payload hookspkg.TaskUnblockedPayload,
+		) (hookspkg.TaskUnblockedPayload, error) {
+			unblocked = payload
+			return payload, nil
+		},
+	}))
+	actor := validActorContext()
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	taskRecord := Task{
+		ID:          "task-secret-hook-payload",
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-secret-hook-payload",
+		Title:       "Secret hook payload",
+		Status:      TaskStatusBlocked,
+		CreatedBy:   actor.Actor,
+		Origin:      actor.Origin,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	block := TaskBlock{
+		ID:          "block-secret-hook-payload",
+		WorkspaceID: taskRecord.WorkspaceID,
+		TaskID:      taskRecord.ID,
+		Kind:        BlockKindNeedsInput,
+		Reason:      "mcp_auth_token=raw-mcp-secret",
+		Details: json.RawMessage(
+			`{"mcp_auth_token":"raw-mcp-secret","nested":{"authorization":"Bearer bearer-secret-token","safe":"ok"}}`,
+		),
+		CreatedBy: actor.Actor,
+		CreatedAt: now,
+		ClearedAt: now.Add(time.Minute),
+		ClearedBy: actor.Actor,
+		ClearNote: "oauth_code=raw-oauth-secret",
+	}
+
+	manager.dispatchTaskBlocked(context.Background(), block, taskRecord, actor, nil)
+	manager.dispatchTaskUnblocked(context.Background(), block, taskRecord, actor)
+
+	assertPayloadRedactsStoredTaskBlockSecrets(t, "task.blocked payload", blocked)
+	assertPayloadRedactsStoredTaskBlockSecrets(t, "task.unblocked payload", unblocked)
+	if blocked.Reason == block.Reason {
+		t.Fatalf("blocked.Reason = %q, want redacted reason", blocked.Reason)
+	}
+	if string(blocked.Details) == string(block.Details) {
+		t.Fatalf("blocked.Details = %s, want redacted details", blocked.Details)
+	}
+	if unblocked.ClearNote == block.ClearNote {
+		t.Fatalf("unblocked.ClearNote = %q, want redacted clear note", unblocked.ClearNote)
+	}
+}
+
+func assertPayloadRedactsStoredTaskBlockSecrets(t *testing.T, label string, payload any) {
+	t.Helper()
+
+	encoded, err := json.Marshal(payload)
 	if err != nil {
-		t.Fatalf("EnqueueRun() error = %v", err)
+		t.Fatalf("json.Marshal(%s) error = %v", label, err)
 	}
-	agent := validActorContext()
-	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-reset"}
-	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
-	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
-		Scope:            ScopeGlobal,
-		ClaimerSessionID: "sess-reset",
-		LeaseDuration:    2 * time.Minute,
-		Now:              claimNow,
-	}, agent)
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
+	rendered := string(encoded)
+	for _, forbidden := range []string{
+		"raw-mcp-secret",
+		"bearer-secret-token",
+		"raw-oauth-secret",
+		"Bearer bearer-secret-token",
+	} {
+		if strings.Contains(rendered, forbidden) {
+			t.Fatalf("%s contains forbidden secret %q: %s", label, forbidden, rendered)
+		}
 	}
-	if claim.Run.ID != run.ID {
-		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", claim.Run.ID, run.ID)
-	}
-	if _, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
-		RunID:      claim.Run.ID,
-		ClaimToken: claim.ClaimToken,
-		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
-		Now:        claimNow.Add(time.Minute),
-	}, agent); err != nil {
-		t.Fatalf("CompleteRunLease() error = %v", err)
-	}
-	if got, want := len(store.blockRecurrences), 0; got != want {
-		t.Fatalf("block recurrence rows after completion = %d, want %d", got, want)
+	if !strings.Contains(rendered, "[REDACTED]") {
+		t.Fatalf("%s = %s, want redaction marker", label, rendered)
 	}
 }
 

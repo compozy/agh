@@ -1,3 +1,5 @@
+//go:build !integration
+
 package daemon
 
 import (
@@ -44,58 +46,62 @@ func (s *taskWakeBridgeSessions) PromptSynthetic(
 func TestTaskWakeBridgeWakeCreatorPromptsSyntheticQueueMode(t *testing.T) {
 	t.Parallel()
 
-	sessions := &taskWakeBridgeSessions{}
-	bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
-	if err != nil {
-		t.Fatalf("newTaskWakeBridge() error = %v", err)
-	}
-	event := taskpkg.WakeEvent{
-		WakeEventID: "wake-terminal-task-1-run-1-completed",
-		WorkspaceID: "ws-1",
-		TaskID:      "task-1",
-		RunID:       "run-1",
-		Reason:      taskpkg.WakeReasonTerminal,
-		Summary:     "Task completed",
-	}
+	t.Run("Should prompt the creator with queued synthetic metadata", func(t *testing.T) {
+		t.Parallel()
 
-	if err := bridge.WakeCreator(context.Background(), "sess-creator", event); err != nil {
-		t.Fatalf("WakeCreator() error = %v", err)
-	}
+		sessions := &taskWakeBridgeSessions{}
+		bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+		if err != nil {
+			t.Fatalf("newTaskWakeBridge() error = %v", err)
+		}
+		event := taskpkg.WakeEvent{
+			WakeEventID: "wake-terminal-task-1-run-1-completed",
+			WorkspaceID: "ws-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			Reason:      taskpkg.WakeReasonTerminal,
+			Summary:     "Task completed",
+		}
 
-	if got, want := len(sessions.calls), 1; got != want {
-		t.Fatalf("len(PromptSynthetic calls) = %d, want %d", got, want)
-	}
-	call := sessions.calls[0]
-	if got, want := call.SessionID, "sess-creator"; got != want {
-		t.Fatalf("SessionID = %q, want %q", got, want)
-	}
-	if call.Opts.SkipIfBusy {
-		t.Fatal("SkipIfBusy = true, want false for queued delivery")
-	}
-	if call.Opts.InterruptIfAgentWaiting {
-		t.Fatal("InterruptIfAgentWaiting = true, want false")
-	}
-	meta := call.Opts.Metadata
-	if got, want := meta.TaskID, event.TaskID; got != want {
-		t.Fatalf("Metadata.TaskID = %q, want %q", got, want)
-	}
-	if got, want := meta.TaskRunID, event.RunID; got != want {
-		t.Fatalf("Metadata.TaskRunID = %q, want %q", got, want)
-	}
-	if got, want := meta.WakeEventID, event.WakeEventID; got != want {
-		t.Fatalf("Metadata.WakeEventID = %q, want %q", got, want)
-	}
-	if got, want := meta.Reason, string(event.Reason); got != want {
-		t.Fatalf("Metadata.Reason = %q, want %q", got, want)
-	}
-	if got, want := meta.Summary, event.Summary; got != want {
-		t.Fatalf("Metadata.Summary = %q, want %q", got, want)
-	}
-	if !strings.Contains(call.Opts.Message, event.TaskID) ||
-		!strings.Contains(call.Opts.Message, event.RunID) ||
-		!strings.Contains(call.Opts.Message, event.WakeEventID) {
-		t.Fatalf("Message = %q, want task/run/wake ids", call.Opts.Message)
-	}
+		if err := bridge.WakeCreator(context.Background(), "sess-creator", event); err != nil {
+			t.Fatalf("WakeCreator() error = %v", err)
+		}
+
+		if got, want := len(sessions.calls), 1; got != want {
+			t.Fatalf("len(PromptSynthetic calls) = %d, want %d", got, want)
+		}
+		call := sessions.calls[0]
+		if got, want := call.SessionID, "sess-creator"; got != want {
+			t.Fatalf("SessionID = %q, want %q", got, want)
+		}
+		if call.Opts.SkipIfBusy {
+			t.Fatal("SkipIfBusy = true, want false for queued delivery")
+		}
+		if call.Opts.InterruptIfAgentWaiting {
+			t.Fatal("InterruptIfAgentWaiting = true, want false")
+		}
+		meta := call.Opts.Metadata
+		if got, want := meta.TaskID, event.TaskID; got != want {
+			t.Fatalf("Metadata.TaskID = %q, want %q", got, want)
+		}
+		if got, want := meta.TaskRunID, event.RunID; got != want {
+			t.Fatalf("Metadata.TaskRunID = %q, want %q", got, want)
+		}
+		if got, want := meta.WakeEventID, event.WakeEventID; got != want {
+			t.Fatalf("Metadata.WakeEventID = %q, want %q", got, want)
+		}
+		if got, want := meta.Reason, string(event.Reason); got != want {
+			t.Fatalf("Metadata.Reason = %q, want %q", got, want)
+		}
+		if got, want := meta.Summary, event.Summary; got != want {
+			t.Fatalf("Metadata.Summary = %q, want %q", got, want)
+		}
+		if !strings.Contains(call.Opts.Message, event.TaskID) ||
+			!strings.Contains(call.Opts.Message, event.RunID) ||
+			!strings.Contains(call.Opts.Message, event.WakeEventID) {
+			t.Fatalf("Message = %q, want task/run/wake ids", call.Opts.Message)
+		}
+	})
 }
 
 func TestTaskWakeBridgeWakeCreatorMapsDeadSessions(t *testing.T) {
@@ -137,31 +143,35 @@ func TestTaskWakeBridgeWakeCreatorMapsDeadSessions(t *testing.T) {
 func TestTaskWakeBridgeWakeCreatorRedactsRawClaimTokens(t *testing.T) {
 	t.Parallel()
 
-	rawToken := "agh_claim_secret123"
-	sessions := &taskWakeBridgeSessions{}
-	bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
-	if err != nil {
-		t.Fatalf("newTaskWakeBridge() error = %v", err)
-	}
+	t.Run("Should redact raw claim tokens from wake prompts", func(t *testing.T) {
+		t.Parallel()
 
-	if err := bridge.WakeCreator(context.Background(), "sess-creator", taskpkg.WakeEvent{
-		WakeEventID: "wake-terminal-task-1-run-1-failed",
-		TaskID:      "task-1",
-		RunID:       "run-1",
-		Reason:      taskpkg.WakeReasonTerminal,
-		Summary:     "Task failed with " + rawToken,
-	}); err != nil {
-		t.Fatalf("WakeCreator() error = %v", err)
-	}
+		rawToken := "agh_claim_secret123"
+		sessions := &taskWakeBridgeSessions{}
+		bridge, err := newTaskWakeBridge(context.Background(), sessions, nil)
+		if err != nil {
+			t.Fatalf("newTaskWakeBridge() error = %v", err)
+		}
 
-	if got, want := len(sessions.calls), 1; got != want {
-		t.Fatalf("len(PromptSynthetic calls) = %d, want %d", got, want)
-	}
-	call := sessions.calls[0]
-	if strings.Contains(call.Opts.Message, rawToken) {
-		t.Fatalf("Message contains raw claim token: %q", call.Opts.Message)
-	}
-	if strings.Contains(call.Opts.Metadata.Summary, rawToken) {
-		t.Fatalf("Metadata.Summary contains raw claim token: %q", call.Opts.Metadata.Summary)
-	}
+		if err := bridge.WakeCreator(context.Background(), "sess-creator", taskpkg.WakeEvent{
+			WakeEventID: "wake-terminal-task-1-run-1-failed",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			Reason:      taskpkg.WakeReasonTerminal,
+			Summary:     "Task failed with " + rawToken,
+		}); err != nil {
+			t.Fatalf("WakeCreator() error = %v", err)
+		}
+
+		if got, want := len(sessions.calls), 1; got != want {
+			t.Fatalf("len(PromptSynthetic calls) = %d, want %d", got, want)
+		}
+		call := sessions.calls[0]
+		if strings.Contains(call.Opts.Message, rawToken) {
+			t.Fatalf("Message contains raw claim token: %q", call.Opts.Message)
+		}
+		if strings.Contains(call.Opts.Metadata.Summary, rawToken) {
+			t.Fatalf("Metadata.Summary contains raw claim token: %q", call.Opts.Metadata.Summary)
+		}
+	})
 }

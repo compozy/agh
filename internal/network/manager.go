@@ -1087,13 +1087,13 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	m.inboundWG.Wait()
 	m.deliveries.wait()
 	if m.transport != nil {
 		if err := m.transport.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	m.inboundWG.Wait()
 	m.logger.Info(
 		"network.stopped",
 		"pending_messages", deliveryStats.QueuedMessages+deliveryStats.InFlightMessages,

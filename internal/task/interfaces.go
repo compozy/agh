@@ -113,12 +113,11 @@ type RecordStore interface {
 // DeleteTaskMutationStore is the narrowed persistence surface required to
 // execute task deletion and dependent reconciliation as one unit.
 type DeleteTaskMutationStore interface {
+	BlockReader
 	GetTask(ctx context.Context, id string) (Task, error)
 	UpdateTask(ctx context.Context, task Task) error
 	DeleteTask(ctx context.Context, id string) error
 	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
-	ListTaskBlocks(ctx context.Context, taskID string, includeCleared bool) ([]TaskBlock, error)
-	HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error)
 	ListDependencies(ctx context.Context, taskID string) ([]Dependency, error)
 	ListDependents(ctx context.Context, dependsOnTaskID string) ([]Dependency, error)
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)

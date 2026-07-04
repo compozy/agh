@@ -100,6 +100,7 @@ type StubTaskManager struct {
 		taskpkg.ActorContext,
 	) (taskpkg.TaskBlock, error)
 	RecoverTaskFn         func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Task, error)
+	ExpireTaskBlocksFn    func(context.Context, time.Time, taskpkg.ActorContext) (taskpkg.ExpireTaskBlocksResult, error)
 	ListTaskBlocksFn      func(context.Context, string, bool, taskpkg.ActorContext) ([]taskpkg.TaskBlock, error)
 	MarkTaskReadFn        func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
 	ArchiveTaskFn         func(context.Context, string, taskpkg.ActorContext) (taskpkg.TriageState, error)
@@ -130,11 +131,6 @@ type StubTaskManager struct {
 	BindRunReviewSessionFn func(
 		context.Context,
 		taskpkg.BindRunReviewSessionRequest,
-		taskpkg.ActorContext,
-	) (taskpkg.RunReviewBinding, error)
-	LookupRunReviewForSessionFn func(
-		context.Context,
-		string,
 		taskpkg.ActorContext,
 	) (taskpkg.RunReviewBinding, error)
 	ListRunReviewsFn   func(context.Context, taskpkg.RunReviewQuery, taskpkg.ActorContext) ([]taskpkg.RunReview, error)
@@ -358,10 +354,13 @@ func (s StubTaskManager) RecoverTask(
 }
 
 func (s StubTaskManager) ExpireTaskBlocks(
-	_ context.Context,
-	_ time.Time,
-	_ taskpkg.ActorContext,
+	ctx context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
 ) (taskpkg.ExpireTaskBlocksResult, error) {
+	if s.ExpireTaskBlocksFn != nil {
+		return s.ExpireTaskBlocksFn(ctx, now, actor)
+	}
 	return taskpkg.ExpireTaskBlocksResult{}, nil
 }
 
@@ -489,13 +488,10 @@ func (s StubTaskManager) BindRunReviewSession(
 }
 
 func (s StubTaskManager) LookupRunReviewForSession(
-	ctx context.Context,
-	sessionID string,
-	actor taskpkg.ActorContext,
+	_ context.Context,
+	_ string,
+	_ taskpkg.ActorContext,
 ) (taskpkg.RunReviewBinding, error) {
-	if s.LookupRunReviewForSessionFn != nil {
-		return s.LookupRunReviewForSessionFn(ctx, sessionID, actor)
-	}
 	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
 }
 

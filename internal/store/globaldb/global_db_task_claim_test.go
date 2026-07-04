@@ -885,69 +885,77 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 }
 
 func TestGlobalDBCompleteRunLeaseRejectsHallucinatedCreatedTaskIDsBeforeTerminalWrite(t *testing.T) {
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	taskRecord := taskRecordForTest("task-hallucination-gate")
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	run := taskRunForTest("run-hallucination-gate", taskRecord.ID)
-	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
-	}
-	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "sess-gate",
-		LeaseDuration:    time.Minute,
-		Now:              now,
+	t.Parallel()
+
+	t.Run("Should reject hallucinated created task ids before terminal write", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-hallucination-gate")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-hallucination-gate", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-gate",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		before, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(before) error = %v", err)
+		}
+
+		_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:          claim.Run.ID,
+			ClaimToken:     claim.ClaimToken,
+			Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			CreatedTaskIDs: []string{"task-phantom-globaldb"},
+			Now:            now.Add(30 * time.Second),
+		})
+		if !errors.Is(err, taskpkg.ErrHallucinatedTaskRefs) {
+			t.Fatalf("CompleteRunLease() error = %v, want %v", err, taskpkg.ErrHallucinatedTaskRefs)
+		}
+		var typed *taskpkg.HallucinatedTaskRefsError
+		if !errors.As(err, &typed) {
+			t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
+		}
+		if got, want := typed.InvalidTaskIDs, []string{"task-phantom-globaldb"}; len(got) != len(want) ||
+			got[0] != want[0] {
+			t.Fatalf("InvalidTaskIDs = %#v, want %#v", got, want)
+		}
+
+		after, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(after) error = %v", err)
+		}
+		assertRunLeaseUnchangedAfterHallucinationRejection(t, after, before)
+		assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, claim.Run.ID)
+
+		var storedRaw sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+			Scan(&storedRaw); err != nil {
+			t.Fatalf("query claim_token error = %v", err)
+		}
+		if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
+			t.Fatalf("stored raw claim_token = %#v, want internal active lease token", storedRaw)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	before, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(before) error = %v", err)
-	}
-
-	_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID:          claim.Run.ID,
-		ClaimToken:     claim.ClaimToken,
-		Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
-		CreatedTaskIDs: []string{"task-phantom-globaldb"},
-		Now:            now.Add(30 * time.Second),
-	})
-	if !errors.Is(err, taskpkg.ErrHallucinatedTaskRefs) {
-		t.Fatalf("CompleteRunLease() error = %v, want %v", err, taskpkg.ErrHallucinatedTaskRefs)
-	}
-	var typed *taskpkg.HallucinatedTaskRefsError
-	if !errors.As(err, &typed) {
-		t.Fatalf("CompleteRunLease() error type = %T, want *HallucinatedTaskRefsError", err)
-	}
-	if got, want := typed.InvalidTaskIDs, []string{"task-phantom-globaldb"}; len(got) != len(want) ||
-		got[0] != want[0] {
-		t.Fatalf("InvalidTaskIDs = %#v, want %#v", got, want)
-	}
-
-	after, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
-	if err != nil {
-		t.Fatalf("GetTaskRun(after) error = %v", err)
-	}
-	assertRunLeaseUnchangedAfterHallucinationRejection(t, after, before)
-	assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, claim.Run.ID)
-
-	var storedRaw sql.NullString
-	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
-		Scan(&storedRaw); err != nil {
-		t.Fatalf("query claim_token error = %v", err)
-	}
-	if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
-		t.Fatalf("stored raw claim_token = %#v, want internal active lease token", storedRaw)
-	}
 }
 
 func TestGlobalDBCompleteRunLeaseVerifiesCreatedTaskIDOwnership(t *testing.T) {
+	t.Parallel()
+
 	const completingSessionID = "sess-gate-owner"
 
 	tests := []struct {
@@ -981,6 +989,8 @@ func TestGlobalDBCompleteRunLeaseVerifiesCreatedTaskIDOwnership(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			globalDB := openTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 4, 26, 12, 30, 0, 0, time.UTC)

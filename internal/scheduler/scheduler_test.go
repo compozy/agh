@@ -578,44 +578,50 @@ func TestRunOnceDelegatesExpiredLeaseRecovery(t *testing.T) {
 }
 
 func TestRunOnceDelegatesTransientTaskBlockExpiry(t *testing.T) {
-	base := time.Date(2026, 4, 26, 11, 30, 0, 0, time.UTC)
-	source := &fakeTaskSource{
-		expiredBlocks: taskpkg.ExpireTaskBlocksResult{
-			Blocks: []taskpkg.TaskBlock{{
-				ID:     "block-expired",
-				TaskID: "task-expired",
-				Kind:   taskpkg.BlockKindTransient,
-			}},
-		},
-	}
-	scheduler := newTestScheduler(
-		t,
-		source,
-		&fakeSessionSource{},
-		&fakeWaker{},
-		WithClock(clockwork.NewFakeClockAt(base)),
-	)
+	t.Parallel()
 
-	result, err := scheduler.RunOnce(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("RunOnce() error = %v", err)
-	}
-	if got, want := result.ExpiredBlocks, 1; got != want {
-		t.Fatalf("ExpiredBlocks = %d, want %d", got, want)
-	}
-	if got, want := result.ExpiredBlockIDs, []string{"block-expired"}; !slices.Equal(got, want) {
-		t.Fatalf("ExpiredBlockIDs = %v, want %v", got, want)
-	}
-	calls := source.expiryCallsSnapshot()
-	if got, want := len(calls), 1; got != want {
-		t.Fatalf("expiry calls = %d, want %d", got, want)
-	}
-	if !calls[0].Equal(base) {
-		t.Fatalf("expiry call time = %v, want %v", calls[0], base)
-	}
-	if got := source.expiryActors[0].Actor.Kind; got != taskpkg.ActorKindDaemon {
-		t.Fatalf("expiry actor kind = %q, want daemon", got)
-	}
+	t.Run("Should record expired transient task blocks during RunOnce", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 4, 26, 11, 30, 0, 0, time.UTC)
+		source := &fakeTaskSource{
+			expiredBlocks: taskpkg.ExpireTaskBlocksResult{
+				Blocks: []taskpkg.TaskBlock{{
+					ID:     "block-expired",
+					TaskID: "task-expired",
+					Kind:   taskpkg.BlockKindTransient,
+				}},
+			},
+		}
+		scheduler := newTestScheduler(
+			t,
+			source,
+			&fakeSessionSource{},
+			&fakeWaker{},
+			WithClock(clockwork.NewFakeClockAt(base)),
+		)
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if got, want := result.ExpiredBlocks, 1; got != want {
+			t.Fatalf("ExpiredBlocks = %d, want %d", got, want)
+		}
+		if got, want := result.ExpiredBlockIDs, []string{"block-expired"}; !slices.Equal(got, want) {
+			t.Fatalf("ExpiredBlockIDs = %v, want %v", got, want)
+		}
+		calls := source.expiryCallsSnapshot()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("expiry calls = %d, want %d", got, want)
+		}
+		if !calls[0].Equal(base) {
+			t.Fatalf("expiry call time = %v, want %v", calls[0], base)
+		}
+		if got := source.expiryActors[0].Actor.Kind; got != taskpkg.ActorKindDaemon {
+			t.Fatalf("expiry actor kind = %q, want daemon", got)
+		}
+	})
 }
 
 func TestRunOncePausedSchedulerStillSweepsExpiredLeases(t *testing.T) {

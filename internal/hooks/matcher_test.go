@@ -407,24 +407,32 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 			ReleaseReason:         "blocked",
 		},
 	}
-	if !taskMatcher.MatchesTask(TaskContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "blocked",
-	}) {
-		t.Fatal("MatchesTask() = false, want true")
-	}
-	if taskMatcher.MatchesTask(TaskContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-2",
-		RunID:                 "run-1",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "blocked",
-	}) {
-		t.Fatal("MatchesTask() = true, want false for task mismatch")
-	}
+	t.Run("Should match task contexts with autonomy fields", func(t *testing.T) {
+		t.Parallel()
+
+		if !taskMatcher.MatchesTask(TaskContext{
+			WorkspaceID:           "ws-1",
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-ch-1",
+			ReleaseReason:         "blocked",
+		}) {
+			t.Fatal("MatchesTask() = false, want true")
+		}
+	})
+	t.Run("Should reject task contexts with mismatched task id", func(t *testing.T) {
+		t.Parallel()
+
+		if taskMatcher.MatchesTask(TaskContext{
+			WorkspaceID:           "ws-1",
+			TaskID:                "task-2",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-ch-1",
+			ReleaseReason:         "blocked",
+		}) {
+			t.Fatal("MatchesTask() = true, want false for task mismatch")
+		}
+	})
 
 	spawnMatcher := HookMatcher{
 		WorkspaceID: "ws-1",

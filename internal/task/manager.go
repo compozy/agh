@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	configdefaults "github.com/compozy/agh/internal/config/defaults"
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
@@ -20,8 +21,6 @@ import (
 const (
 	managerActiveKey         = "active"
 	managerOrphanedOnBootKey = "orphaned_on_boot"
-	// Keep aligned with config.DefaultBlockRecurrenceLimit; production injects the config value.
-	defaultBlockRecurrenceLimit = 2
 )
 
 const (
@@ -254,7 +253,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		},
 		newID:                store.NewID,
 		starvationAge:        DefaultTaskStarvationAge,
-		blockRecurrenceLimit: defaultBlockRecurrenceLimit,
+		blockRecurrenceLimit: configdefaults.BlockRecurrenceLimit,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -780,7 +779,15 @@ func (m *Service) approvalAutoEnqueueExecution(
 	if err != nil {
 		return nil, false, err
 	}
-	m.saveApprovalAutoEnqueueIdempotencyAlias(ctx, approvalTask.ID, run.ID, executionIdempotencyKey, actor)
+	if err := m.saveApprovalAutoEnqueueIdempotencyAlias(
+		ctx,
+		approvalTask.ID,
+		run.ID,
+		executionIdempotencyKey,
+		actor,
+	); err != nil {
+		return nil, false, err
+	}
 	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return nil, false, err
@@ -799,20 +806,21 @@ func (m *Service) saveApprovalAutoEnqueueIdempotencyAlias(
 	runID string,
 	idempotencyKey string,
 	actor ActorContext,
-) {
+) error {
 	if err := m.store.SaveTaskRunIdempotency(ctx, RunIdempotency{
 		IdempotencyKey: idempotencyKey,
 		RunID:          runID,
 		Origin:         actor.Origin,
 		CreatedAt:      m.now().UTC(),
 	}); err != nil {
-		slog.Warn(
-			"task: approval auto-enqueue idempotency alias failed",
-			"task_id", taskID,
-			"run_id", runID,
-			"error", err,
+		return fmt.Errorf(
+			"task: save approval auto-enqueue idempotency alias for task %q run %q: %w",
+			taskID,
+			runID,
+			err,
 		)
 	}
+	return nil
 }
 
 func (m *Service) taskExecutionFromIdempotency(

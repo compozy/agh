@@ -414,77 +414,83 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 	}
 	clientClosed = true
 
-	terminalExecutor := createFixtureBackedSession(
-		t,
-		ctx,
-		harness,
-		"mock-wake-creator",
-		"wake-terminal-executor",
-	)
-	terminalRun := completeWakeTaskRunViaSession(
-		t,
-		ctx,
-		harness,
-		terminalTaskID,
-		terminalExecutor.ID,
-		"terminal",
-	)
-	terminalWake := waitForSyntheticWakePrompt(
-		t,
-		registration.DiagnosticsPath,
-		terminalTaskID,
-		terminalRun.ID,
-		5*time.Second,
-	)
-	if strings.TrimSpace(creatorSession.ACPSessionID) == "" {
-		t.Fatalf("creator session ACPSessionID is empty: %#v", creatorSession)
-	}
-	if got, want := terminalWake.SessionID, creatorSession.ACPSessionID; got != want {
-		t.Fatalf("terminal wake ACP session = %q, want creator ACP session %q", got, want)
-	}
-	terminalMeta := terminalWake.PromptMeta.Normalize()
-	if terminalMeta.Synthetic == nil {
-		t.Fatal("terminal wake synthetic metadata = nil")
-	}
-	if got, want := terminalMeta.Synthetic.Reason, string(taskpkg.WakeReasonTerminal); got != want {
-		t.Fatalf("terminal wake reason = %q, want %q", got, want)
-	}
-	if strings.TrimSpace(terminalMeta.Synthetic.WakeEventID) == "" {
-		t.Fatal("terminal wake WakeEventID is empty")
-	}
-	if !diagnosticStepsContainText(terminalWake.Steps, "wake observed") {
-		t.Fatalf("terminal wake steps = %#v, want fixture assistant observation", terminalWake.Steps)
-	}
+	t.Run("Should deliver synthetic wake for eligible terminal task", func(t *testing.T) {
+		terminalExecutor := createFixtureBackedSession(
+			t,
+			ctx,
+			harness,
+			"mock-wake-creator",
+			"wake-terminal-executor",
+		)
+		terminalRun := completeWakeTaskRunViaSession(
+			t,
+			ctx,
+			harness,
+			terminalTaskID,
+			terminalExecutor.ID,
+			"terminal",
+		)
+		terminalWake := waitForSyntheticWakePrompt(
+			t,
+			registration.DiagnosticsPath,
+			terminalTaskID,
+			terminalRun.ID,
+			5*time.Second,
+		)
+		if strings.TrimSpace(creatorSession.ACPSessionID) == "" {
+			t.Fatalf("creator session ACPSessionID is empty: %#v", creatorSession)
+		}
+		if got, want := terminalWake.SessionID, creatorSession.ACPSessionID; got != want {
+			t.Fatalf("terminal wake ACP session = %q, want creator ACP session %q", got, want)
+		}
+		terminalMeta := terminalWake.PromptMeta.Normalize()
+		if terminalMeta.Synthetic == nil {
+			t.Fatal("terminal wake synthetic metadata = nil")
+		}
+		if got, want := terminalMeta.Synthetic.Reason, string(taskpkg.WakeReasonTerminal); got != want {
+			t.Fatalf("terminal wake reason = %q, want %q", got, want)
+		}
+		if strings.TrimSpace(terminalMeta.Synthetic.WakeEventID) == "" {
+			t.Fatal("terminal wake WakeEventID is empty")
+		}
+		if !diagnosticStepsContainText(terminalWake.Steps, "wake observed") {
+			t.Fatalf("terminal wake steps = %#v, want fixture assistant observation", terminalWake.Steps)
+		}
+	})
 
-	disableTaskWakeCreatorForWakeE2E(t, ctx, harness, optOutTaskID)
-	optOutExecutor := createFixtureBackedSession(
-		t,
-		ctx,
-		harness,
-		"mock-wake-creator",
-		"wake-opt-out-executor",
-	)
-	optOutRun := completeWakeTaskRunViaSession(
-		t,
-		ctx,
-		harness,
-		optOutTaskID,
-		optOutExecutor.ID,
-		"opt-out",
-	)
-	assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, optOutTaskID, optOutRun.ID, 500*time.Millisecond)
-	assertTaskWakeSuppressedReason(t, ctx, harness, optOutTaskID, "wake_creator_disabled")
+	t.Run("Should suppress wakes when wake creator is disabled", func(t *testing.T) {
+		disableTaskWakeCreatorForWakeE2E(t, ctx, harness, optOutTaskID)
+		optOutExecutor := createFixtureBackedSession(
+			t,
+			ctx,
+			harness,
+			"mock-wake-creator",
+			"wake-opt-out-executor",
+		)
+		optOutRun := completeWakeTaskRunViaSession(
+			t,
+			ctx,
+			harness,
+			optOutTaskID,
+			optOutExecutor.ID,
+			"opt-out",
+		)
+		assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, optOutTaskID, optOutRun.ID, 500*time.Millisecond)
+		assertTaskWakeSuppressedReason(t, ctx, harness, optOutTaskID, "wake_creator_disabled")
+	})
 
-	selfWakeRun := completeWakeTaskRunViaSession(
-		t,
-		ctx,
-		harness,
-		selfWakeTaskID,
-		creatorSession.ID,
-		"self",
-	)
-	assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, selfWakeTaskID, selfWakeRun.ID, 500*time.Millisecond)
-	assertTaskWakeSuppressedReason(t, ctx, harness, selfWakeTaskID, "self_wake")
+	t.Run("Should suppress self wakes", func(t *testing.T) {
+		selfWakeRun := completeWakeTaskRunViaSession(
+			t,
+			ctx,
+			harness,
+			selfWakeTaskID,
+			creatorSession.ID,
+			"self",
+		)
+		assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, selfWakeTaskID, selfWakeRun.ID, 500*time.Millisecond)
+		assertTaskWakeSuppressedReason(t, ctx, harness, selfWakeTaskID, "self_wake")
+	})
 
 	if err := harness.CaptureMockAgentDiagnostics(registration); err != nil {
 		t.Fatalf("CaptureMockAgentDiagnostics() error = %v", err)

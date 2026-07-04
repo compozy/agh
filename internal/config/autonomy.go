@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	configdefaults "github.com/compozy/agh/internal/config/defaults"
 )
 
 const (
@@ -34,7 +36,7 @@ const (
 	// DefaultSchedulerMinQueuedAge is the queued age before a claimable run starts escalating.
 	DefaultSchedulerMinQueuedAge = 2 * time.Minute
 	// DefaultBlockRecurrenceLimit is the default same-kind re-block count before escalation.
-	DefaultBlockRecurrenceLimit = 2
+	DefaultBlockRecurrenceLimit = configdefaults.BlockRecurrenceLimit
 )
 
 type providerResolver interface {
