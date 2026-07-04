@@ -1,15 +1,21 @@
-## 0.0.8 - 2026-06-22
+## 0.0.9 - 2026-07-04
+
+### ♻️ Refactoring
+
+- Tasks orchestration (#269)
 
 ### 🐛 Bug Fixes
 
-- Acp update and general fixes (#256)
-- Make docs markdown copy retryable
+- Network optimizations (#263)
+- Native tools (#266)
+
+### 📚 Documentation
+
+- Update skills
+- New skill
+- Add feature stories
 
 ### 📦 Build System
 
-- Update deps
-- Fix msw setup
-
-### 🧪 Testing
-
-- Remove not needed test
+- Update go deps
+- Gitignore
