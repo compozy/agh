@@ -1,0 +1,21 @@
+[defaults]
+ide = 'codex'
+model = 'gpt-5.5'
+reasoning_effort = 'xhigh'
+
+# Per-type model routing for `compozy tasks run` (ExecutionModePRDTasks).
+# The task's frontmatter `type:` selects the rule; unmatched types fall back to [defaults].
+# Note: ignored by `compozy exec` (type selector is cleared in non-PRD modes).
+[tasks.run]
+
+[[tasks.run.task_runtime_rules]]
+type = 'frontend'
+ide = 'claude'
+model = 'opus'
+reasoning_effort = 'high'
+
+[[tasks.run.task_runtime_rules]]
+type = 'backend'
+ide = 'codex'
+model = 'gpt-5.5'
+reasoning_effort = 'xhigh'

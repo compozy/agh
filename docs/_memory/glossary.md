@@ -12,11 +12,27 @@ The single canonical name for **reusable agent artifacts** that describe transfe
 
 A capability is **interpretive**, not deterministic — it tells an agent what is available, not how to execute a deterministic program.
 
-**Forbidden synonyms:** `recipe` (used in pre-rename RFC 003-old), `workflow`, `procedure`, `playbook`. If you find these in code, docs, or task artifacts targeting current behavior, rename them.
+**Forbidden synonyms:** `recipe` (used in pre-rename RFC 003-old), `procedure`, `playbook`. If you find these in code, docs, or task artifacts targeting current behavior, rename them. `workflow` is no longer a forbidden synonym: the runtime now owns a first-class **Loop** domain (see below, ADR-001). A capability is still never a workflow/loop — but the word `workflow` no longer implies a naming collision.
 
 **Source:** RFC 003-v0 (`.../agh-rfcs-local/003-agh-network-v0.md`) renamed `recipe` → `capability`. RFC 004 enforces.
 
 **Operational identity:** `(peer_id, capability_id)`.
+
+**Capability vs Loop:** a capability is the interpretive network artifact (what an agent offers to peers); a [Loop](#loop) is the deterministic runtime program the daemon owns and executes. The network carries capabilities, never loop execution.
+
+---
+
+### Loop
+
+The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
+
+Loops ride AGH's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `agh.loop/v1` YAML; the resolved form is what the coordinator runs.
+
+**Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
+
+**Terminal outcomes:** `done`, `no_op`, `blocked`, `failed`, `exhausted`, `stalled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
+
+**Not to be conflated with:** the historical "workflow" positioning. AGH is a runtime with a Loop domain; the AGH Network protocol remains not a workflow engine.
 
 ---
 
@@ -288,7 +304,7 @@ Regenerate / verify drift on `openapi/agh.json`, `web/src/generated/agh-openapi.
 
 ### Real-Scenario QA
 
-Outer scenario orchestrator (`real-scenario-qa` skill) that builds a realistic multi-agent workspace and exercises CLI + Web + API surfaces end-to-end. Delegates to `qa-execution` and `qa-report` for inner mechanics.
+The practice of validating AGH the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `real-scenario-qa` skill adds the playbook harness: an isolated lab (via `agh-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
 
 ---
 
@@ -296,7 +312,7 @@ Outer scenario orchestrator (`real-scenario-qa` skill) that builds a realistic m
 
 For positioning consistency on the marketing site and in docs:
 
-- AGH is **not a workflow engine**. Capabilities are interpretive, not deterministic programs.
+- **AGH Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The AGH *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
 - AGH is **not a federation protocol**. AGH Network v1 is a self-certified pairwise envelope, not a federated trust system.
 - AGH is **not an MCP replacement**. MCP integrates _into_ AGH skills via `metadata.agh.mcp_servers`.
 - AGH is **not an A2A replacement**. AGH Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.

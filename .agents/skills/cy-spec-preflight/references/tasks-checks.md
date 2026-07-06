@@ -20,11 +20,12 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 - [ ] **Status** starts as `pending` unless enriching an existing task tree with known completed work.
 - [ ] **Skills** are named in each task body, not in the master table, when a task requires explicit skill activation.
 - [ ] **Web/Docs Impact** subsection exists in every backend task body, even when "none" (run `cy-web-docs-impact` to populate).
+- [ ] **QA impact** line exists in every task body that changes user-visible behavior: names the `docs/qa/state.csv` scenario ids to reset to `untested` (or new rows to add), or states `none — no user-visible behavior change`.
 - [ ] **Extensibility / Agent Manageability / Config Lifecycle** subsection exists in every feature-bearing backend task body, even when "none with evidence".
 
 ## Trailing QA pair
 
-- [ ] Last two rows: `qa-report` (high) and `qa-execution` (critical), per `.compozy/tasks/hermes` template.
+- [ ] Last two rows: `qa-report` (high) and `qa-execution` (critical), per the `cy-tasks-tail-qa-pair` tail template (living `docs/qa/` contract).
 - [ ] `qa-report` depends on the last implementation task.
 - [ ] `qa-execution` depends on `qa-report` and relies on implementation completion transitively.
 - [ ] UI-bearing features: `qa-execution` body cites Playwright via `browser-use:browser` (fallback `agent-browser`).

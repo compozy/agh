@@ -58,10 +58,26 @@ Resolve every bundled helper relative to the directory that holds this `SKILL.md
 - `--agents <num>` (optional, default 3, hard cap 8): Number of explorer invocations to dispatch in parallel. Caps prevent runaway dispatch when the prompt is vague.
 - `--prompt <text>` (required): The research question. Quoted multi-line strings are supported. If omitted, the parent asks the operator before continuing.
 - `--ide <ide>` (optional, default `claude`): Compozy runtime for each dispatched invocation. Forwarded to `compozy exec --ide`. Accepted values mirror `compozy exec`: `codex`, `claude`, `cursor-agent`, `droid`, `opencode`, `pi`, `gemini`, `copilot`.
-- `--model <name>` (optional, default `opus`): Forwarded to `compozy exec --model`. When the chosen IDE does not support the requested model, `compozy` surfaces the error and the slice fails — re-dispatch with a compatible model.
+- `--model <name>` (optional, default `opus`): Forwarded to `compozy exec --model`. See **Model Options** for the two supported profiles (Opus default; GLM 5.2 via `--ide pi --model openrouter/z-ai/glm-5.2`). When the chosen IDE does not support the requested model, `compozy` surfaces the error and the slice fails — re-dispatch with a compatible model.
 - `--reasoning <effort>` (optional, default `xhigh`): Forwarded to `compozy exec --reasoning-effort`. Accepted values: `low`, `medium`, `high`, `xhigh`.
 
 If `--path` or `--prompt` is missing, the parent asks the operator a single clarification before continuing. Never invent defaults for either. Apply the documented defaults for `--ide`, `--model`, `--reasoning` silently when omitted; reject an invalid `--ide` rather than falling back.
+
+## Model Options
+
+Two dispatch profiles are supported. Opus is the default; GLM 5.2 is a cheaper/faster alternative that, on deep multi-file reasoning, matched Opus on the core findings when its citations were verified against source. Pick per run via `--ide`/`--model`.
+
+| Profile                         | Flags                                            | When                                                              |
+| ------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Opus (default, high-fidelity)   | `--ide claude --model opus --reasoning xhigh`    | Hardest slices; when citation precision must be maximal.          |
+| GLM 5.2 (fast/cheap, via pi)    | `--ide pi --model openrouter/z-ai/glm-5.2`       | Breadth research, cost-sensitive runs, high slice counts.         |
+
+GLM-via-pi caveats (non-negotiable — a GLM run that ignores these fails silently):
+
+- **Use the `pi` harness, never `opencode`, for GLM.** `opencode` routes GLM through an internal explorer subagent that emits little ACP output, starving Compozy's activity watchdog — the run stalls and is killed with zero output (reproduced twice). `pi` streams tool-calls continuously and completes.
+- **`--reasoning` is NOT forwarded to `pi`** (its Compozy runtime spec drops reasoning args). Raise GLM's thinking either on the model — `--model openrouter/z-ai/glm-5.2:xhigh` — or once via `"defaultThinkingLevel": "xhigh"` in `~/.pi/agent/settings.json`. pi's built-in default is `medium`.
+- **GLM auth** lives in `~/.pi/agent/auth.json` (`{"openrouter":{"type":"api_key","key":"sk-or-..."}}`), independent of the daemon env. Requires `pi` + `pi-acp` on PATH (`npm i -g @earendil-works/pi-coding-agent pi-acp`).
+- GLM output can carry cosmetic identifier typos (dropped letters, e.g. `atempt`); Step 5's citation spot-check is the gate that catches them — never skip it on a GLM run.
 
 ## Output Layout
 
@@ -167,6 +183,7 @@ compozy exec \
 
 Notes that apply to both paths:
 - `compozy exec` already defaults `--access-mode` to `full`, so no extra runtime-permission flag is required.
+- **When `--ide pi` (GLM), `--reasoning-effort` is ignored by the runtime** (see Model Options). The dispatch script still passes it harmlessly; to actually control GLM's thinking, pin it on the model (`openrouter/z-ai/glm-5.2:xhigh`) or set pi's `defaultThinkingLevel`. Never dispatch GLM through `--ide opencode` (it stalls).
 - Do not pin `--timeout` in the dispatch template. The Compozy default is an **activity timeout** (job canceled only when no output is received within the period), which the dispatched agent's normal tool-call streaming keeps reset. If a specific slice legitimately needs a longer silent window (e.g., synthesising over 25+ sources), the operator can append `--timeout 30m` (or higher) to that single invocation.
 - Treat any non-zero exit code as a slice failure and re-dispatch that slice with the contract restated. Never synthesise a missing slice's analysis as if its dispatch succeeded.
 

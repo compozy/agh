@@ -39,10 +39,12 @@ if [ -z "$commitlint_config" ] && [ -f package.json ]; then
     fi
 fi
 
-# QA artifact paths. Honor manual override first, otherwise glob the convention.
+# QA artifact paths. Manual override first, then the living docs/qa tree, then the legacy per-round glob.
 qa_paths_json="[]"
 if [ -n "${QA_OUTPUT_PATH:-}" ] && [ -d "$QA_OUTPUT_PATH" ]; then
     qa_paths_json="[$(json_str "$QA_OUTPUT_PATH")]"
+elif [ -d docs/qa ] && [ -n "$(ls docs/qa/reports 2>/dev/null)" ]; then
+    qa_paths_json="[$(json_str "docs/qa")]"
 elif [ -d .compozy/tasks ]; then
     qa_found=()
     while IFS= read -r dir; do

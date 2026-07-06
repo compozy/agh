@@ -1,12 +1,12 @@
 ---
 name: cy-tasks-tail-qa-pair
-description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, mirroring the .compozy/tasks/hermes template. Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy PRD pipeline, for ideation/brainstorming output, or for review-round task lists.
+description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (state.csv, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy PRD pipeline, for ideation/brainstorming output, or for review-round task lists.
 trigger: explicit
 ---
 
 # Tasks Tail QA Pair
 
-Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`. Mirror the Hermes template (`.compozy/tasks/hermes/_tasks.md`) so the implementation agent always closes a program with a real verification pass.
+Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario rows, results become registry bugs and dated reports.
 
 ## Procedures
 
@@ -23,21 +23,21 @@ Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_ta
 3. If no task touches UI but the techspec covers public API/CLI, agent-manageability, extensibility, or config lifecycle surfaces, set `requires_cli_e2e=true`.
 4. Otherwise `requires_e2e=false` (rare — backend-only refactors).
 
-**Step 3: Read the Hermes Template**
+**Step 3: Read the Tail Template**
 
-1. Read `references/hermes-tail-template.md` for the canonical row shape, complexity rating, and required `<critical>` blocks.
+1. Read `references/qa-tail-template.md` for the canonical row shape, complexity rating, and required `<critical>` blocks.
 2. Note the `Dependencies` syntax: the `qa-report` task depends on the last implementation task, and the `qa-execution` task depends on `qa-report`.
 3. Preserve the table column order used in the existing `_tasks.md` (do not reorder columns). The current canonical order is `# | Title | Status | Complexity | Dependencies`.
 
 **Step 4: Compose the QA Pair**
 
 1. Generate the `qa-report` task row using the template:
-   - Title: `QA Plan and Test Coverage`
+   - Title: `QA Plan and Session Charters`
    - Status: `pending`
    - Complexity: `high`
    - Dependencies: last implementation task ID
 2. Generate the `qa-execution` task row:
-   - Title: `Real-Scenario QA Execution`
+   - Title: `Real-User QA Execution`
    - Status: `pending`
    - Complexity: `critical`
    - Dependencies: the new `qa-report` task ID
@@ -48,7 +48,7 @@ Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_ta
 **Step 5: Append and Verify**
 
 1. Append the two rows below the existing list. Do not modify earlier rows.
-2. Create matching `task_NN.md` files for both QA rows using the body guidance in `references/hermes-tail-template.md`.
+2. Create matching `task_NN.md` files for both QA rows using the body guidance in `references/qa-tail-template.md`.
 3. If the `_tasks.md` includes a `## MVP Boundary` section that references "tasks 01-NN", update only the QA range to include the new tasks.
 4. Read `references/qa-pair-checklist.md` and confirm every item passes before exit.
 5. Print the final two-row diff to stdout for human/agent review.

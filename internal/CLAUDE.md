@@ -18,7 +18,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 - **No back-pointers between packages** — inject callbacks or interfaces.
 - **Functional options for constructors** — `NewManager(opts ...Option)`.
 - **Maps for <10 items** — no registry interfaces for small collections.
-- **File-level organization** within packages — sub-packages only when complexity justifies it.
+- **File-level organization** within packages — sub-packages only when complexity justifies it. One cohesive responsibility per file, hard cap 500 lines for production Go (root CLAUDE.md Critical Rules: "No god files"): contract/types, registry/wiring, each implementation, and shared helpers live in separate files, split at design time — never accreted into one file and split later.
 - **CI-enforceable boundaries** — `mage Boundaries` rules prevent import cycles. Update `magefile.go` Boundaries() in the same commit that introduces a new `internal/api/*` subpackage.
 - **Build/CI plumbing tests are exceptional.** Do not parse `.github`, `Makefile`, `magefile.go`, `package.json`, or `turbo.json` to pin exact commands unless the command is a public operator/agent entry point or release contract. Prefer real or dry-run command smoke (`make -n`, `mage -l`, `make verify`, `make codegen-check`, `goreleaser check`) and assert observable lane behavior. Literal script tests must name the contract they protect.
 - **`internal/api/core` is the canonical handler home.** REST/UDS endpoints exist as shared `BaseHandlers` methods; HTTP and UDS only choose registration and authentication. No transport-duplicated parsing/validation.

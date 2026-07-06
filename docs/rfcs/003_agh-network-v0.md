@@ -42,6 +42,10 @@ The agent ecosystem lacks a lightweight open agent network protocol that is prac
 transport-aware, artifact-aware, and operationally observable without becoming a workflow engine or a
 telemetry platform.
 
+> **Scope note (ADR-001):** "not a workflow engine" is scoped to the network wire. The AGH *runtime*
+> now owns a deterministic **Loop** domain (goal → verify → stop; see `docs/_memory/glossary.md`),
+> but envelopes never carry loop execution — the network stays interpretive.
+
 ### 1.2 Scope of v0
 
 v0 delivers:

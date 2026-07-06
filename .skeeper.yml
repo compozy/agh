@@ -9,7 +9,7 @@ settings:
 namespaces:
   - name: agh
     patterns:
-      - .compozy/tasks/**/*.md
+      - .compozy/tasks/**/*
       - docs/rfcs/**
       - docs/_refacs/**
       - docs/prs/**
@@ -17,16 +17,7 @@ namespaces:
       - docs/proposals/**
       - .codex/ledger/**
       - .codex/plans/**
-      - .compozy/tasks/*/state.yaml
-      - .compozy/tasks/**/qa/*.json
-      - .compozy/tasks/**/qa/*.yaml
-      - .compozy/tasks/**/qa/*.jsonl
-      - .compozy/tasks/**/_evidence/**
-      - .compozy/tasks/**/*.html
-      - .compozy/tasks/**/*.md.backup
-      - .compozy/tasks/**/.gitkeep
-      - .compozy/tasks/**/.empty
       - .codex/loop/**
       - .codex/qa/**
-      - .compozy/tasks/_archived/**
       - .compozy/_archived/**
+      - .compozy/_research/**

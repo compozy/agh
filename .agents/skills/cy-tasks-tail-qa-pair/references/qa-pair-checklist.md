@@ -16,10 +16,11 @@ Run before exiting the skill.
 - [ ] `qa-execution` relies on the last implementation task transitively through `qa-report`; do not duplicate the full implementation dependency chain.
 - [ ] No cyclic dependencies introduced.
 
-## Skills
+## Skills & contract
 
-- [ ] `qa-report` task body references the `qa-report` skill.
-- [ ] `qa-execution` task body references `qa-execution` (and `real-scenario-qa` for release scope).
+- [ ] `qa-report` task body references the `qa-report` skill with `qa-docs-path=docs/qa`.
+- [ ] `qa-execution` task body references `qa-execution` with `qa-docs-path=docs/qa` (and `real-scenario-qa` for release-grade runtime scope).
+- [ ] Neither body references per-round `qa/` trees, `qa-output-path`, `TC-*` test cases, or `verification-report.md` — the living-docs contract is `docs/qa/{state.csv, journeys/, charters/, bugs/BUG-NNNN.md, reports/<date>-<slug>.md}`.
 
 ## Complexity
 

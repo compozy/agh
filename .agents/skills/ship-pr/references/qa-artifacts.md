@@ -13,99 +13,87 @@
 
 Include a `## QA` section in the PR description only when the pre-flight detector reports a non-empty `qa_output_paths` array. Those paths are produced by the `qa-report` and `qa-execution` skills (or any equivalent flow). When none are present, **omit the QA section entirely** — do not write "no QA performed", which reads as a red flag to reviewers.
 
-The detector accepts a manual override via the `QA_OUTPUT_PATH` environment variable (point at a single `qa/` directory) for repos that put artifacts somewhere other than `.compozy/tasks/<slug>/qa/`.
+The detector accepts a manual override via the `QA_OUTPUT_PATH` environment variable for repos that keep QA artifacts somewhere non-standard.
 
 ## 2. Where artifacts live
 
-The convention in `compozy/agh` and sister repos is:
+The living-docs convention (current, `compozy/agh` and sister repos):
 
 ```
-.compozy/tasks/<slug>/
-└── qa/
-    ├── verification-report.md          # the summary (may not exist for all runs)
-    ├── issues/                          # one file per bug filed, BUG-NNN.md
-    ├── screenshots/                     # PNGs, named <journey-id>-step<N>.png
-    ├── test-cases/                      # TC-NNN.md
-    ├── test-plans/                      # charters, journey maps
-    └── external-bootstrap/              # tooling bootstrap manifests
+docs/qa/
+├── state.csv                        # scenario tracker (enum statuses, bug links)
+├── reports/<YYYY-MM-DD>-<scope>.md  # dated run reports (Final Status, matrix, fixes)
+├── bugs/BUG-NNNN.md                 # global bug registry
+├── charters/CH-NNN.md               # session charters (+ per-run debriefs)
+└── evidence/<date>-<scope>/         # checkpoint/failure screenshots
 ```
 
-Not every directory is guaranteed to be present. Probe before reading:
+Legacy per-round trees (`.compozy/tasks/<slug>/qa/` with `verification-report.md`, `issues/`, `test-cases/`) may still exist in older branches; the detector falls back to them when no `docs/qa/` is present.
+
+Probe before reading:
 
 ```bash
-QA_DIR=".compozy/tasks/<slug>/qa"
-test -d "$QA_DIR/screenshots" && ls "$QA_DIR/screenshots"
-test -f "$QA_DIR/verification-report.md" && head -40 "$QA_DIR/verification-report.md"
-ls "$QA_DIR/issues" 2>/dev/null | wc -l
+QA_DIR="docs/qa"
+latest_report=$(ls "$QA_DIR/reports" 2>/dev/null | sort | tail -1)
+test -n "$latest_report" && head -60 "$QA_DIR/reports/$latest_report"
+ls "$QA_DIR/bugs" 2>/dev/null | wc -l
 ```
 
 ## 3. What to extract
 
-For the PR body, pull these signals:
+For the PR body, pull these signals — prefer the latest dated report relevant to the branch (match `<scope>` to the branch slug):
 
-- **Bug count and severity** — count files in `qa/issues/`. If each file has a frontmatter `severity:` field, tally by severity (Blocker / Critical / Major / Minor). If `verification-report.md` exists, prefer the totals it states explicitly over re-counting.
-- **Charter coverage** — list the test-plan charter names (filenames in `qa/test-plans/charters/` or section headings in `verification-report.md`).
-- **Screenshot evidence** — pick 2-5 representative PNGs from `qa/screenshots/`. Use repo-relative paths so GitHub renders them inline in the PR description (uploaded screenshots also work, but file paths in the repo are stable).
-- **Blocked sessions / coverage gaps** — quote the `verification-report.md` section that lists what could not be tested, if any.
+- **Final Status** — the report's `## Final Status` verdict line (ready / not ready / ready with blocked items) plus the issues-by-user-impact totals (Blocks-Completion / Data-Loss / Trust-Damage / Friction / Cosmetic).
+- **Bug references** — the `BUG-NNNN` ids filed or updated by this run (from the report's matrix `Issue` column); link the registry files.
+- **Session coverage** — from the report's Session Matrix: which personas walked which journeys/charters.
+- **Screenshot evidence** — pick 2-5 representative PNGs from `docs/qa/evidence/<date>-<scope>/`. Use repo-relative paths so GitHub renders them inline.
+- **Gaps and blocked items** — the report's `Human Verifications Needed` and `Decisions for a Human` sections, plus any disclosed skips.
 
 ## 4. PR-body `## QA` template
 
 ```markdown
 ## QA
 
-**Coverage:** <one sentence — which personas / journeys ran, e.g. "3 personas across 5 user journeys, Money-Tour + Onboarding-Tour charters">
+**Final Status:** <verdict sentence from the report>
 
-**Issues filed:** <total> (Blocker: N, Critical: N, Major: N, Minor: N) — see `.compozy/tasks/<slug>/qa/issues/`.
+**Coverage:** <one sentence — personas × journeys walked, e.g. "3 personas across 5 journeys, Money + Back-Button tours">
+
+**Issues:** <total> (Blocks-Completion: N, Data-Loss: N, Trust-Damage: N, Friction: N, Cosmetic: N) — see `docs/qa/bugs/`.
 
 **Evidence:**
-- ![onboarding-step3](.compozy/tasks/<slug>/qa/screenshots/onboarding-step3.png)
-- ![checkout-step5](.compozy/tasks/<slug>/qa/screenshots/checkout-step5.png)
+- ![onboarding-step3](docs/qa/evidence/<date>-<scope>/CH-012-step3.png)
 
-**Gaps:** <copy the "blocked" or "not tested" paragraph from verification-report.md, or "None">.
+**Blocked / needs human:** <copy from the report, or "None">
 
-**Full report:** [`verification-report.md`](.compozy/tasks/<slug>/qa/verification-report.md)
+**Full report:** [`<date>-<scope>.md`](docs/qa/reports/<date>-<scope>.md)
 ```
-
-Adjust counts and paths to the real artifacts. If `verification-report.md` is absent, drop that line and the **Gaps** field, then add `> No verification-report.md was produced by this QA run — counts derived from `qa/issues/`.` so reviewers know the source.
 
 ## 5. Examples
 
-**With a verification report present:**
+**Living-docs run:**
 
 ```markdown
 ## QA
 
-**Coverage:** 2 personas (free-tier, paid-pro) across the Money Tour and Onboarding Tour charters.
+**Final Status:** ready with blocked items — 1 leg needs human verify (real payment).
 
-**Issues filed:** 4 (Blocker: 0, Critical: 1, Major: 2, Minor: 1) — see `.compozy/tasks/checkout-v2/qa/issues/`.
+**Coverage:** 3 personas (Marina/mobile, Rui/casual, Ana/screen-reader) across checkout + settings journeys, Money and Back-Button tours.
 
-**Evidence:**
-- ![money-tour-step3-pricing-plan-selector](.compozy/tasks/checkout-v2/qa/screenshots/money-tour-step3.png)
-- ![onboarding-step5-welcome-modal](.compozy/tasks/checkout-v2/qa/screenshots/onboarding-step5.png)
-
-**Gaps:** Stripe webhook handler retried but could not be verified end-to-end because the staging webhook secret was unset.
-
-**Full report:** [`verification-report.md`](.compozy/tasks/checkout-v2/qa/verification-report.md)
-```
-
-**Sparse run (issues only, no report):**
-
-```markdown
-## QA
-
-**Coverage:** Manual smoke test on Chrome 121 / macOS 14 for the new auth flow.
-
-**Issues filed:** 1 (Minor: 1) — see `.compozy/tasks/auth-fix/qa/issues/BUG-001.md`.
+**Issues:** 3 (Blocks-Completion: 0, Data-Loss: 0, Trust-Damage: 1, Friction: 2) — BUG-0142 fixed (regression test `web/e2e/checkout-coupon.spec.ts`), BUG-0143/0144 open.
 
 **Evidence:**
-- ![login-error-toast](.compozy/tasks/auth-fix/qa/screenshots/login-error-toast.png)
+- ![money-tour-coupon](docs/qa/evidence/2026-07-05-checkout-v2/CH-031-step4.png)
 
-> No verification-report.md was produced by this QA run — counts derived from `qa/issues/`.
+**Blocked / needs human:** Verify the live Stripe charge on a real card (report row #7, exact steps in the report).
+
+**Full report:** [`2026-07-05-checkout-v2.md`](docs/qa/reports/2026-07-05-checkout-v2.md)
 ```
+
+**Legacy-tree fallback (older branches):** extract totals from `verification-report.md` and bug counts from `qa/issues/`, and say the run predates the living-docs tree.
 
 ## 6. Pitfalls
 
-- **Do not stage QA artifacts into the PR commit unless they are intended to ship.** They are reference material for reviewers, not production code. If they live under `.compozy/tasks/`, they may already be `.gitignore`d — verify before committing.
-- **Do not paste base64-encoded screenshots into the PR body.** Use repo paths or GitHub-uploaded attachments; base64 dumps make the description unreadable in the GitHub UI.
-- **Do not invent severities.** If `qa/issues/` files lack frontmatter severity, report total count only and skip the severity breakdown.
+- **Do not stage evidence into the PR commit unless intended to ship.** `docs/qa/` trackers/reports are normally committed; per-run evidence may be gitignored — verify before committing.
+- **Do not paste base64-encoded screenshots into the PR body.** Use repo paths or GitHub-uploaded attachments.
+- **Do not re-derive totals the report already states.** The report's Final Status block is authoritative; recount only when no report exists.
 - **Do not link absolute paths** (`/Users/...`). Use repo-relative paths so the links work for everyone.

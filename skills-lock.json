@@ -679,13 +679,13 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/qa-execution/SKILL.md",
-            "computedHash": "0bf8f735bc3c5b7a94f94c8d15fb5f3c0d286789212fcd5047f2e76aab336af3"
+            "computedHash": "94ea8955b0215ce4a0eaca83694ad7d3dc0affcb83424797685df2386ac562c0"
         },
         "qa-report": {
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/qa-report/SKILL.md",
-            "computedHash": "04b040c534702daffee00fdd01aeaeadf12f8f1d0144ea2f16e43756b26c6cab"
+            "computedHash": "e18e478ecca5c07118ddb098cfe65c5d10473fc5b41ff596181b9a1f74bd33b5"
         },
         "qmd": {
             "source": "pedronauck/skills",

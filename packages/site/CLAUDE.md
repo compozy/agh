@@ -1,35 +1,31 @@
 # CLAUDE.md (packages/site)
 
-Fumadocs documentation site at `agh.network`. Built with Next.js 16, Fumadocs 16, Remotion (for protocol illustrations), and Velite for the `/blog` and `/changelog` content layer. Bun-managed.
+Fumadocs documentation site at `agh.network` — Next.js 16, Fumadocs 16, Remotion (protocol illustrations), Velite (`/blog` + `/changelog` content layer), Bun-managed. (Root `CLAUDE.md` rules apply — this file adds site-specific ones.)
 
 ## Critical Rules
 
-- **Pull tokens from `packages/ui/src/tokens.css` and generated `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion. Site-only layout/type extensions live in `packages/site/app/global.css` `@theme inline`. After changing runtime or site theme tokens, run `make codegen` and `make codegen-check`; never hand-edit generated `DESIGN.md` token regions.
-- **Eyebrow markup is mandatory.** Every uppercase label in marketing/docs MUST use either (a) the `<Eyebrow>` component from `@agh/ui` (children + `className` only — no `case` / `family` / `tone` / `size` / `weight` props) or (b) the single static utility class `eyebrow` (defined in `packages/ui/src/tokens.css`) on structural elements. Color tone is applied through `className` (`text-(--muted)`, `text-(--subtle)`, `text-(--accent)`, signal palette). Inlining `font-mono` + `uppercase` + arbitrary `text-[…]` + `tracking-[…]` tuples is forbidden — that combination IS the eyebrow utility. The deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals are forbidden. Canonical tokens: `--text-eyebrow` (11 px), `--tracking-eyebrow` (-0.005em); contract is **Inter UC 11/600/-0.005em**. See `DESIGN.md` §3, `web/CLAUDE.md`, and lesson `L-022` for the full rule.
-- **Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, runtime/protocol narrative docs, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording.
+- **Tokens from `packages/ui/src/tokens.css` + generated `DESIGN.md`** — no invented values. Site-only layout/type extensions go in `packages/site/app/global.css` `@theme inline`. After changing runtime/site theme tokens run `make codegen` + `make codegen-check`; never hand-edit generated `DESIGN.md` regions.
+- **Eyebrow markup is mandatory** for every uppercase label: `<Eyebrow>` from `@agh/ui` (children + `className` only) **or** the `eyebrow` utility class on structural elements; tone via `className`. Inlining `font-mono` + `uppercase` + `text-[…]` + `tracking-[…]` tuples is forbidden (that IS the utility), as are the removed `eyebrow-badge`/`eyebrow-micro` literals. Contract **Inter UC 11/600/-0.005em**. Full rule: `DESIGN.md` §3, `web/CLAUDE.md`, lesson `L-022`.
+- **Product language from `COPY.md`** — landing copy, blog/changelog, runtime/protocol docs, site config, OpenGraph/SEO metadata, and CTAs follow the copy system; terms per `docs/_memory/glossary.md` (`capability`, never `recipe`).
 - **Hero positioning is locked**: headline "An open workplace for AI agents." with subhead "AGH runs the agent CLIs you already use as durable sessions — with memory, autonomy, tools, and automation — connected on agh-network/v0 channels where they find each other, share capabilities, and close work with receipts." Open-workplace-first. Do not propose alternative hero copy without explicit user approval.
-- **`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md).
-- **Test placement is mandatory before creating site tests.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites before creating a new file. Do not add prose-string, snapshot, generated-output, or file-existence tests unless that artifact is the product contract and no stronger gate exists.
+- **`packages/site` ships in the same PR as backend contract changes** that affect documented APIs/CLI verbs (per the `internal/api/contract` co-ship rule).
+- **Test placement before any site test.** Name the invariant, owning layer, and canonical suite; update existing content/source/route/component suites first. No prose-string/snapshot/generated/file-existence tests unless that artifact is the product contract and no stronger gate exists.
 
 ## Build Commands
 
 ```bash
-# Turbo-backed validation commands run from the repo root.
-make bun-typecheck                                      # full Bun workspace typecheck through turbo
-make bun-test                                           # full Bun workspace test suite through turbo
-bunx turbo run typecheck --filter=./packages/site       # focused @agh/site typecheck
-bunx turbo run test --filter=./packages/site            # focused @agh/site tests
-bunx turbo run build --filter=./packages/site           # focused @agh/site build
+# Turbo-backed validation from the repo root:
+make bun-typecheck / bun-test                       # full Bun workspace typecheck / test
+bunx turbo run typecheck|test|build --filter=./packages/site   # focused @agh/site
 
-# Site generators and local dev shortcuts.
-cd packages/site && bun run source:generate             # Fumadocs MDX -> .source/
-cd packages/site && bun run content:generate            # Velite MDX/YAML -> .velite/
-cd packages/site && bun run dev                         # next dev (predev runs both generators)
-make site-dev                                           # equivalent dev shortcut
-make cli-docs                                           # regenerate CLI reference from cobra JSON export
+# Generators + local dev:
+cd packages/site && bun run source:generate         # Fumadocs MDX -> .source/
+cd packages/site && bun run content:generate        # Velite MDX/YAML -> .velite/
+cd packages/site && bun run dev  (or make site-dev)  # next dev (predev runs both generators)
+make cli-docs                                        # regenerate CLI reference from cobra JSON export
 ```
 
-`predev`, `prebuild`, `pretypecheck`, `pretest` all run `source:generate` then `content:generate` in series. Both `.source/` and `.velite/` are generated artifacts — never commit them.
+`predev`/`prebuild`/`pretypecheck`/`pretest` run both generators in series. `.source/`, `.velite/`, `out/`, `.next/`, `tsconfig.tsbuildinfo` are generated — never commit them.
 
 ## Skill Dispatch
 
@@ -46,35 +42,21 @@ make cli-docs                                           # regenerate CLI referen
 
 ## Coding Style
 
-- TypeScript strict; no `any` when concrete type is known.
-- Functional React components only. No `React.FC`. Named exports.
-- File names kebab-case. Imports use `@/*` alias.
-- MDX content lives under `content/runtime/` and `content/protocol/` (Fumadocs) and `content/blog/` (Velite). CLI docs are auto-generated under `content/runtime/cli/` — do not hand-edit those files; edit the cobra command source instead.
-- Blog content layout: `content/blog/posts/<slug>.mdx`, `content/blog/changelog/<version>.mdx`, `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts`; broken frontmatter fails the build with line-numbered errors.
-- Truthful UI applies to releases: every `content/blog/changelog/*.mdx` entry must reflect real merged work — source `added`/`changed`/`fixed`/`breaking` lists from `git log` and PR descriptions, not aspirational copy.
-- Pages must have appropriate `<title>` and meta tags via Fumadocs metadata helpers.
-- Code blocks use the project's syntax-highlighting theme; do not introduce new theme variants.
+- TypeScript strict (no `any` when the concrete type is known). Functional React components only — no `React.FC`; named exports; kebab-case files; `@/*` alias.
+- MDX lives under `content/runtime/` + `content/protocol/` (Fumadocs) and `content/blog/` (Velite). CLI docs auto-generate under `content/runtime/cli/` — never hand-edit; edit the cobra command source.
+- Blog layout: `content/blog/posts/<slug>.mdx`, `content/blog/changelog/<version>.mdx`, `content/blog/authors/<handle>.yml`. Frontmatter is zod-validated by `velite.config.ts` (broken frontmatter fails the build with line-numbered errors).
+- Pages need `<title>` + meta via Fumadocs metadata helpers. Code blocks use the project syntax-highlight theme — no new variants.
 
 ## Truthful Docs > Plausible Docs
 
-- Document only behavior the runtime actually supports today. When the AGH Network RFC differs from the implemented daemon, the docs follow the daemon and link the RFC for "future profile" context.
-- API/CLI references are generated from `openapi/agh.json` and the cobra JSON export — do not paraphrase. If the generated reference is wrong, fix the source.
-- Vocabulary follows `docs/_memory/glossary.md`. The canonical artifact name is `capability`, never `recipe`.
+- Document only behavior the runtime supports today. When the AGH Network RFC differs from the daemon, docs follow the daemon and link the RFC as "future profile".
+- API/CLI references are generated from `openapi/agh.json` + the cobra JSON export — never paraphrase; if the generated reference is wrong, fix the source.
+- Changelog entries (`content/blog/changelog/*.mdx`) reflect real merged work — source `added`/`changed`/`fixed`/`breaking` from `git log` + PR descriptions, not aspirational copy.
 
 ## Testing
 
-- Before adding or moving a site test, use `consolidate-test-suites` to record the invariant, owning layer, canonical suite, and verification command.
-- A docs/site task needs a test decision, not automatic new Vitest coverage. "No new automated test" is valid when source generation, route metadata, lint, typecheck, build, link checks, or an existing suite already owns the invariant.
-- The package `test` script is `vitest run`, but validation MUST invoke it through Turbo: `bunx turbo run test --filter=./packages/site` or `make bun-test` from the repo root.
-- Do not use `cd packages/site && bun run test` or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph.
-- Generated docs and MDX snapshots are not automatic coverage. Use source generation, `make codegen-check`, build, route metadata, and link checks first. File-existence, prose-substring, snapshot, or generated CLI/API page tests require a named public docs contract and should assert the source-to-public contract, not arbitrary generated text.
-- After any change to source generation (`source.config.ts`), regenerate via `cd packages/site && bun run source:generate` and re-run `bunx turbo run typecheck --filter=./packages/site`.
-- Do not commit `out/`, `.source/`, `tsconfig.tsbuildinfo`, or `.next/`.
+Use `consolidate-test-suites` before adding/moving a site test (record invariant, owning layer, canonical suite, verification command). A docs/site task needs a test _decision_, not automatic Vitest coverage — "no new test" is valid when source generation, route metadata, `make codegen-check`, build, or link checks already own the invariant. Validation MUST run through Turbo (`bunx turbo run test --filter=./packages/site` or `make bun-test`), never `cd packages/site && bun run test`. After changing `source.config.ts`, regenerate and re-run the focused typecheck.
 
 ## Cross-References
 
-- Root rules and architecture: `/CLAUDE.md`, `/AGENTS.md`.
-- Web runtime UI rules: `/web/CLAUDE.md`.
-- Design token source: `/packages/ui/src/tokens.css`; generated design spec/rationale: `/DESIGN.md`; site-only theme extensions: `/packages/site/app/global.css`.
-- Copy system: `/COPY.md`.
-- Lessons / glossary / standing directives: `/docs/_memory/`.
+Root: `/CLAUDE.md`. Web runtime UI: `/web/CLAUDE.md`. Design tokens: `/packages/ui/src/tokens.css` → `/DESIGN.md`; site theme: `/packages/site/app/global.css`. Copy: `/COPY.md`. Memory/glossary/directives: `/docs/_memory/`.

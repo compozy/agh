@@ -109,9 +109,9 @@ Run exactly one of the branches below. Do not start another phase in the same it
 
 The printed action is either `qa_report` or `qa_execution`. Only run the printed one.
 
-1. If `.compozy/tasks/<slug>/qa/bootstrap-manifest.json` is missing AND a QA bootstrap skill is installed (e.g. `agh-qa-bootstrap` in AGH), activate it first. If no such skill exists in this project, skip and let `qa-report` / `qa-execution` create what they need.
-2. For `qa_report`: activate the `qa-report` skill. After it produces its artifacts under `.compozy/tasks/<slug>/qa/`, run `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
-3. For `qa_execution`: activate `qa-execution`. After it produces `verification-report.md`, run `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`. If verification reports FAIL, also pass `--verify-fail`; otherwise `--verify-pass`.
+1. If a lab is needed (release-grade runtime scope) and no active `bootstrap-manifest.json` exists for this run, activate the QA bootstrap skill when installed (e.g. `agh-qa-bootstrap` in AGH). If no such skill exists in this project, skip and let `qa-report` / `qa-execution` create what they need.
+2. For `qa_report`: activate the `qa-report` skill with `qa-docs-path=docs/qa`. After it updates the living tree (journey flows in `docs/qa/journeys/`, scenario rows in `docs/qa/state.csv`, cycle charters in `docs/qa/charters/`), run `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
+3. For `qa_execution`: activate `qa-execution` with `qa-docs-path=docs/qa`. After it writes the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md` and updates `state.csv` verdicts, run `python3 .agents/skills/cy-codex-loop/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`. If the report's Final Status is "not ready" (or any Blocks-Completion/Data-Loss bug is open), also pass `--verify-fail`; otherwise `--verify-pass`.
 
 ### Phase E — Done
 

@@ -36,34 +36,6 @@ ai-docs/
 .claude/analysis
 .claude/ledger
 
-# Ephemeral QA artifacts under .compozy/tasks/<slug>/qa/
-# Keep only markdown deliverables (test-plans, test-cases, issues, bug-reports,
-# verification-report*.md, behavioral-scenario-charter.md, review*.md, case-*.md)
-.compozy/tasks/**/qa/evidence/
-.compozy/tasks/**/qa/logs/
-.compozy/tasks/**/qa/runs/
-.compozy/tasks/**/qa/screenshots/
-.compozy/tasks/**/qa/runtime-home-manual/
-.compozy/tasks/**/qa/fixtures/
-.compozy/tasks/**/qa/bootstrap-manifest.json
-.compozy/tasks/**/qa/bootstrap.env
-.compozy/tasks/**/qa/peer-review-*
-.compozy/tasks/**/qa/peer-review.*
-.compozy/tasks/**/qa/agh
-
-# Ephemeral spec/review artifacts at task root and in analysis/reviews-NNN/
-# Keep .md deliverables under reviews-NNN/peer-review/ (impl-review-summary, etc.)
-.compozy/tasks/*/_codex_*
-.compozy/tasks/*/analysis/_codex_*
-.compozy/tasks/*/analysis/claude-research-*
-.compozy/tasks/*/reviews-*/raw/
-.compozy/tasks/*/reviews-*/**/*.log
-.compozy/tasks/*/reviews-*/**/*.err
-.compozy/tasks/*/reviews-*/peer-review/*.json
-.compozy/tasks/*/reviews-*/peer-review/*.patch
-.compozy/tasks/*/reviews-*/peer-review/*.txt
-.compozy/tasks/**/*/.dispatch
-
 # Python
 __pycache__/
 *.py[cod]
@@ -86,7 +58,7 @@ next-env.d.ts
 
 # >>> skeeper ignored specs >>>
 .skeeper/
-.compozy/tasks/**/*.md
+.compozy/tasks/**/*
 docs/rfcs/**
 docs/_refacs/**
 docs/prs/**
@@ -96,17 +68,8 @@ docs/design/**
 docs/tweets/**
 .codex/ledger/**
 .codex/plans/**
-.compozy/tasks/*/state.yaml
-.compozy/tasks/**/qa/*.json
-.compozy/tasks/**/qa/*.yaml
-.compozy/tasks/**/qa/*.jsonl
-.compozy/tasks/**/_evidence/**
-.compozy/tasks/**/*.html
-.compozy/tasks/**/*.md.backup
-.compozy/tasks/**/.gitkeep
-.compozy/tasks/**/.empty
 .codex/loop/**
 .codex/qa/**
-.compozy/tasks/_archived/**
 .compozy/_archived/**
+.compozy/_research/**
 # <<< skeeper ignored specs <<<

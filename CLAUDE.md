@@ -1,124 +1,82 @@
 ## Project Overview
 
-AGH is an agent operating system — a Go single-binary daemon that manages AI agent sessions via ACP (Agent Client Protocol). It spawns ACP-compatible agents (Claude Code, OpenClaw, Hermes, etc.) as subprocesses, communicates via JSON-RPC over stdio, persists events in SQLite, and exposes interfaces via HTTP/SSE (web UI) and UDS (CLI). A Fumadocs site at `agh.network` documents the runtime and the AGH Network protocol.
+AGH is an agent operating system: a Go single-binary daemon that manages AI agent sessions via ACP — spawning ACP agents (Claude Code, OpenClaw, Hermes) as subprocesses over JSON-RPC/stdio, persisting events in SQLite, exposing HTTP/SSE (web UI) + UDS (CLI). Docs live at `agh.network` (Fumadocs).
 
-**Goals**: daemon single-binary in background, strong observability, agent-first system (agents manipulate via CLI + REST), highly extensible, highly configurable.
-
-**Core product premise**: every capability must be both extensible by the runtime and manageable by agents. Features are incomplete if they only work through internal Go calls or the web UI.
+**Core premise:** every capability must be both extensible by the runtime and manageable by agents (CLI/HTTP/UDS with structured output). A feature that only works through internal Go calls or the web UI is incomplete.
 
 ## Greenfield Alpha — Zero Legacy Tolerance
 
-- **No production users exist.**
-- Never sacrifice code quality for backward compatibility.
-- Never write migration, compatibility, or defensive code for old state — delete obsolete code instead of working around it.
-- **Hard cuts, not bridges:**
-  - Renames must update code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` artifacts all in a single change.
-  - Do not create aliases, dual fields, or schema fallback paths.
-- Every breaking-change techspec **MUST** explicitly list its delete targets.
+No production users. Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change techspec MUST list its delete targets.
 
 ## Critical Rules
 
-- **`make verify` MUST pass** before completing ANY task (runs `codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries` across the entire monorepo, not just `web/`). Zero warnings, zero errors. Exceptions are just if you just update documentation that don't affect test, lint or typecheck.
-- **`make lint` (Go golangci-lint) and `make bun-lint` (oxfmt + oxlint over every workspace) both have zero tolerance** — any warning or lint issue is a blocking failure.
+- **`make verify` MUST pass before completing any task** (full monorepo gate — see Build Commands). Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
+- **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
-- **Never add dependencies by hand in `go.mod`** — always use `go get`.
-- **Never run destructive git commands** (`git restore`, `git checkout`, `git reset`, `git clean`, `git rm`) **without explicit user permission**. If the worktree contains unexpected edits, read and work around them.
-- <critical>NEVER ignore errors with `_` in production code or in tests — every error must be handled or have a written justification.</critical>
-- **Test placement is mandatory before test creation.** Before adding, moving, or expanding any test, name the invariant, owning layer, and canonical suite. Default to editing an existing canonical suite; do not create standalone or duplicate regression tests unless no existing suite can own that invariant. Static/prose/CSS/generated/snapshot/config tests require explicit product-contract rationale.
-- **Static-artifact tests are exceptional.** Forbidden by default: Storybook setup/config/globs/decorators/bootstrap, CI workflow/action YAML, Mage/Make/package-script plumbing, generic config/file existence, generated-output drift, snapshots/goldens, prose/CSS literals, and coverage-padding. Prefer stronger gates (`make verify`, `make codegen-check`, builds, link checks, Storybook visual capture, or real command smoke). Coverage floors never justify filler tests.
-- <critical>NEVER COMMITS `ai-docs/` or `.tmp/` TO THE REPO. They are local tracking artifacts.</critical>
-- **Always use subagents for exploration** to avoid bloating your own context. Route by shape:
-  - **Single-file lookup or one targeted question** ("where is X defined?", "which files reference Y?") → `Explore` subagent (read-only, returns excerpts inline).
-  - **Multi-area research that needs written analysis artifacts** (3+ distinct slices, cross-cutting question, output must persist for a TechSpec / ADR / task) → activate the `agent-exploration` skill, which scouts the territory, dispatches N `explorer` subagents in parallel under the scoped-write contract, and synthesizes `summary.md`.
-  - **Competitor / reference-repo research** against `.resources/<repo>/` → activate `cy-research-competitors` (the specialized variant) instead of `agent-exploration`.
-- **Subagents default to read-only.** Use them for analysis, exploration, and parallel research. The author of every code change is the agent paired with the user, and subagent output is treated as evidence. A subagent may write, edit, or commit only when the parent's prompt explicitly delegates that action (e.g. "write the analysis file at X", "apply the fix in Y"); otherwise it must return its output for the parent to write.
-- **ALWAYS CHECK** the `internal/CLAUDE.md` when doing Go-related stuff
-- **ALWAYS CHECK** the `web/CLAUDE.md` when doing things related to the web package
+- **Never hand-edit `go.mod`** — use `go get`. **Never hand-add JS deps** — use `bun add`.
+- **Never run destructive git** (`restore`, `checkout`, `reset`, `clean`, `rm`) without explicit user permission. Work around unexpected worktree edits; don't touch files you didn't change.
+- <critical>NEVER discard errors with `_` in production or tests — handle every error or write a justification.</critical>
+- <critical>NEVER commit `ai-docs/` or `.tmp/` — they are local tracking artifacts.</critical>
+- <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
+- **Test placement before test creation** (skill: `consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
+- **Subagents for exploration** (keeps your context clean): single-file lookup → `Explore`; multi-area research needing written artifacts → `agent-exploration`; competitor/`.resources/` research → `cy-research-competitors`.
+- **Subagents are read-only by default.** The paired agent authors every code change; subagent output is evidence. A subagent writes/edits/commits only when the parent prompt explicitly delegates it.
 
 ## Workflow Rules
 
-These govern how features move from idea to ship. Internalize them before opening a TechSpec or running a task.
-
-- **Multi-LLM pipeline is the default dev model.** Codex (`gpt-5.4` with `reasoning_effort=xhigh`) authors specs; Claude Opus pressure-tests them; `gpt-5.4-mini` with `reasoning_effort=high` does parallel breadth exploration when explicitly delegated. Do not substitute models without explicit user approval.
-- **TechSpec peer review is opt-in and happens after draft approval.** `cy-create-techspec` must first present the complete draft, get the user's approval on that draft, and save `_techspec.md`. Only then should the agent ask whether to run `cy-spec-peer-review`. If the user opts in, run `compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file <prompt>`, summarize blockers/nits/readiness, ask which findings to incorporate, apply only the selected findings, and ask whether to run another round or stop.
-- **Every backend task carries a `Web/Docs Impact` subitem.** List affected `web/` routes/components/hooks AND `packages/site` doc pages. Backend-only tasks may declare "no impact" but only after analysis.
-- **Every spec/feature carries an extensibility + agent-manageability + config lifecycle analysis.** Creating, updating, or removing a feature MUST state how it integrates with AGH extensibility surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and whether `config.toml` keys/defaults/docs are added, changed, or removed. "No impact" is acceptable only with explicit evidence.
-- **Reference competitors by file path in tasks.** When a TechSpec relies on `.resources/<repo>/` references, generated tasks must include explicit competitor file paths so implementing agents read them too. Reference-bearing analysis files belong under `.compozy/tasks/<slug>/analysis/`.
-- **Worktree isolation is mandatory for parallel QA.** Concurrent runs use unique `AGH_HOME`, unique daemon ports, and unique `tmux-bridge` socket paths. Default home/port use is forbidden when concurrency is signaled.
-- **Deterministic QA bootstrap is mandatory for local release/scenario QA.** Start with `agh-qa-bootstrap`, create a fresh lab for each new QA pass by default, and reuse a `bootstrap-manifest.json` only when continuing the same active QA session/loop.
-- **Provider-home policy must match the provider contract during local QA.** Bound-secret and brokered QA credentials use `PROVIDER_HOME` and `PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` providers with `home_policy = operator` (for example direct Claude Code on the operator machine) must preserve the operator `HOME` / native login state unless a scenario explicitly tests isolated provider-home behavior.
-- **Isolated Web QA must export `AGH_WEB_API_PROXY_TARGET`.** When the daemon is not on the default `:2123`, derive the proxy target from the bootstrap manifest/env instead of hardcoding localhost defaults.
-- **Never parallelize config writes against one isolated QA home.** `agh config set` and similar config mutations must run sequentially when they target the same provider or runtime home.
-- **Skill helpers must use explicit repo-root paths.** Do not write or execute ambiguous `scripts/...` helper paths when the helper actually lives under `.agents/skills/<skill>/scripts/`.
-- **Two-touch rule.** If the same package or behavior has been patched twice in the same workstream, the third change MUST be a structural redesign, not a third patch. Open a new TechSpec.
-- **Conversation in Brazilian Portuguese; artifacts in English.** Spoken/typed exchanges may use BR-PT. TechSpecs, ADRs, code, commit messages, docs are always English.
+- **Multi-LLM pipeline is the default.** Codex (`gpt-5.4`, `reasoning_effort=xhigh`) authors specs; Claude Opus pressure-tests; `gpt-5.4-mini` (`high`) does breadth exploration when delegated. No model substitution without user approval.
+- **TechSpec peer review is opt-in, after draft approval.** `cy-create-techspec` presents + saves the approved draft first, then offers `cy-spec-peer-review`. Apply only user-selected findings.
+- **Every backend task carries a `Web/Docs Impact` subitem** — affected `web/` routes/components/hooks AND `packages/site` docs. "No impact" only after analysis.
+- **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
+- **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
+- **Worktree isolation is mandatory for parallel QA** — unique `AGH_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
+- **Deterministic QA bootstrap for local release/scenario QA** — start with `agh-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, dated reports); the lab holds only run-scratch evidence indexed by path.
+- **QA tracker impact flag before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/state.csv`: new behavior → add `untested` rows; changed behavior → reset the affected rows' `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, don't retest** — retests belong to the next QA cycle (`untested` rows ARE its scope).
+- **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
+- **Isolated Web QA exports `AGH_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
+- **Never parallelize config writes against one isolated QA home** — `agh config set` and peers run sequentially per provider/runtime home.
+- **Skill helpers use explicit repo-root paths** (`.agents/skills/<skill>/scripts/`), never ambiguous `scripts/...`.
+- **Two-touch rule.** After two patches to the same package/behavior in one workstream, the third change MUST be a structural redesign in a new TechSpec, not a third patch.
+- **Conversation in Brazilian Portuguese; artifacts in English** (TechSpecs, ADRs, code, commits, docs).
 
 ## AGH Cross-Surface Impact Audit
 
-Every feature, bug fix, refactor, public contract change, CLI/API/native-tool/config/docs update, or runtime behavior change MUST include an `AGH Impact Audit` in the plan, task body, review-fix notes, or completion notes. Purely editorial docs may state `not applicable — editorial only` only when they do not describe runtime behavior.
-
-Use this exact four-row shape:
+Every feature, bug fix, refactor, public-contract/CLI/API/native-tool/config/docs change, or runtime behavior change MUST include this audit in the plan/task/completion notes. Purely editorial docs that describe no runtime behavior may state `not applicable — editorial only`.
 
 ```markdown
 AGH Impact Audit:
 
-- Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact with checked surfaces>
-- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact with checked surfaces>
-- Workspace data isolation: <global/workspace/session/agent scope decision, workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events, tests, or no impact with checked surfaces>
-- Official AGH skill: <skills/agh/SKILL.md or skills/agh/references/\*.md updates, or no impact with checked surfaces>
+- Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact + checked surfaces>
+- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact + checked surfaces>
+- Workspace data isolation: <global/workspace/session/agent scope + workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events + tests, or no impact + checked surfaces>
+- Official AGH skill: <skills/agh/ updates, or no impact + checked surfaces>
 ```
 
-Audit rules:
-
-- `No impact` is valid only when the artifact names the exact checked surfaces and why they remain unchanged.
-- **Native tools** includes `agh__*` IDs, toolsets, descriptors, input/output schemas, schema digests, risk flags, availability diagnostics, capability gates, and CLI/API fallbacks used by agents.
-- **Extensibility and hooks** includes extension manifests/resources, hook taxonomy and dispatch call sites, skill/capability declarations, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, `config.toml` lifecycle, docs, and tests.
-- **Workspace data isolation** is runtime data ownership, not QA/worktree isolation. Decide whether each new or changed datum is global, workspace-scoped, session-scoped, or agent-scoped; prove list/read/cache/SSE/event paths cannot leak data across workspaces when the surface crosses those boundaries.
-- **Official AGH skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, memory/network/task semantics, or agent guidance changes. The canonical bundled skill lives under `skills/agh/`.
+- `No impact` is valid only when it names the exact checked surfaces and why they're unchanged.
+- **Native tools** = `agh__*` IDs, toolsets, descriptors, I/O schemas, digests, risk flags, availability diagnostics, capability gates, CLI/API fallbacks.
+- **Workspace data isolation** = runtime data ownership (not QA/worktree isolation): classify each new/changed datum as global/workspace/session/agent-scoped and prove list/read/cache/SSE/event paths can't leak across workspaces.
+- **Official AGH skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, or memory/network/task semantics change. Canonical bundled skill: `skills/agh/`.
 
 ## Design System
 
-**`packages/ui/src/tokens.css` is the canonical runtime token source. `DESIGN.md` is the generated design-system specification plus stable rationale for every AGH surface** — runtime UI, marketing site, and docs. Any UI or asset work MUST:
+`packages/ui/src/tokens.css` is the canonical token source; `DESIGN.md` (repo root) is its generated spec + rationale. Full grammar (flat depth model, signal palette, type stack) lives in `DESIGN.md` — pull from there, never invent.
 
-- Pull values from `packages/ui/src/tokens.css` and the generated `DESIGN.md` tables/frontmatter (colors, type, radii, spacing, motion) — never invent values.
-- Keep site-only theme extensions in `packages/site/app/global.css` `@theme inline`; run `make codegen` after changing runtime or site theme tokens so `DESIGN.md` is regenerated.
-- Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN:tokens:* -->` / `<!-- END:tokens:* -->` regions. Use `scripts/sync-design-md.mjs --write`; `make codegen-check` enforces drift.
-- Follow the flat depth model: warm-dark surface ramp, tokenized hairlines, no decorative freehand shadows. Use only exported `--shadow-*` tokens where the system explicitly defines overlay, highlight, or focus depth.
-- Respect the signal palette: accent `#E8572A` = action, `#5FBF85` = success, `#E0635A` = danger, `#D6A647` = warning, `#8E8EB5` = info.
-- For design-system or UI redesign tasks, run them through the `designer` agent (`.claude/agents/designer.md`) in **execution mode only** and activate the mandatory design skills listed below.
-- **Truthful UI > plausible UI.** Don't render controls or metrics the runtime doesn't actually support. When Paper artboards conflict with daemon truth, daemon wins. Paper governs _composition_, `DESIGN.md` governs _grammar_.
-
-### Using `ui-craft` for design work
-
-`agh-design` (skill body: `.agents/skills/agh/agh-design/SKILL.md`) carries brand truth; `ui-craft` is the discipline on top. Activate both for any non-trivial UI pass — designing, generating, reviewing, or refactoring visible surfaces.
-
-- Project token values live in `packages/ui/src/tokens.css`; `DESIGN.md` is generated from those tokens and remains the brand/rationale authority. Both override `ui-craft`'s generic guidance.
-- `ui-craft` is reference-routed: match the task to a row in `.agents/skills/ui-craft/SKILL.md` and read the listed reference files **in full before generating any visual output**.
-- Mandatory pulls (load JIT, never all at once): `accessibility-floor.md` (any interactive widget), `ai-slop-patterns.md` + `anti-defaults.md` (auditing AI-generated UI), `component-patterns.md` (pattern selection), `microcopy-quality.md` (user-visible text), `motion-patterns.md` (animation), `human-ai-ux.md` (chat/agent surfaces), `dark-mode.md` (dark surfaces).
-
-### Verifying UI with `agh-ui-screenshot`
-
-Every UI change in `web/` or `packages/ui/` MUST be visually verified with `agh-ui-screenshot` before completion. Tests verify code, not pixels.
-
-- Capture the matching Storybook story (`components-button--*`, `routes-app-stories-*`, etc.) and diff against a trusted prior baseline.
-- For surface-wide passes (token retune, primitive swap), capture before + after.
-- Cite the capture file(s) when reporting done. Claiming success without screenshots is non-compliant.
+- Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
+- Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
+- **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
+- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `agh-design` + `ui-craft` (reference-routed — read the matched rows in full). **Verify every `web/` or `packages/ui/` UI change with `agh-ui-screenshot` before completion** and cite the capture; tests verify code, not pixels.
 
 ## Copy System
 
-**`COPY.md` (repo root) is the authoritative product-language specification for every AGH surface** - marketing copy, docs prose, release copy, package metadata, UI microcopy, CLI help, and public social/SEO/OpenGraph text. Any product-facing copy work MUST:
+`COPY.md` (repo root) is the authoritative product-language spec for all public text (marketing, docs, release, metadata, UI microcopy, CLI help, SEO/OpenGraph). Read it before writing/changing product-facing copy.
 
-- Read `COPY.md` before writing or changing public copy, narrative docs, UI labels, metadata, changelog/release copy, or CLI/help text.
-- Treat runtime truth as stronger than copy preference: generated API/CLI references, implemented code, tests, and release artifacts beat aspirational wording.
-- Follow `docs/_memory/glossary.md` for canonical terms. The canonical artifact name is `capability`, never `recipe`, `workflow`, `procedure`, or `playbook` for current AGH behavior.
-- Keep `DESIGN.md` as the visual authority and `COPY.md` as the verbal/product-language authority.
-- Use the `COPY.md` claim standards before saying "today", "shipping", "supported", "live", "complete", or using product counts.
+- Runtime truth beats copy preference: generated API/CLI refs, code, tests, and release artifacts win over aspirational wording.
+- Follow `docs/_memory/glossary.md`. The canonical artifact name is `capability` — never `recipe`, `workflow`, `procedure`, or `playbook`.
+- Apply the `COPY.md` claim standards before "today", "shipping", "supported", "live", "complete", or product counts.
 
 ## Skill Dispatch
 
-<critical>**ALWAYS** Activate skills **before** writing code.</critical>
-
-Match task domain → activate all required skills
+<critical>**ALWAYS** activate skills **before** writing code.</critical> Match task domain → activate all required skills. Multiple domains → activate multiple. No skipping "because it's small".
 
 | Domain                                | Required Skills                                                                          | Conditional Skills                                        |
 | ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -143,6 +101,7 @@ Match task domain → activate all required skills
 | PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                                         |
 | TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review` + `cy-research-competitors`         |
 | Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                           |
+| Research → executable issue backlog   | `cy-research-issues`                                                                     | `cy-research-competitors` + `consolidate-test-suites`     |
 | Competitor research                   | `cy-research-competitors`                                                                | `context7`                                                |
 | Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                                      |
 | Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                                           |
@@ -157,140 +116,81 @@ Match task domain → activate all required skills
 | UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                                       |
 | UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                                           |
 
-Web-specific skill dispatch is in `web/CLAUDE.md` and `web/AGENTS.md`. Site-specific dispatch is in `packages/site/CLAUDE.md`.
-
-Every domain change requires its skill — no skipping "because it's a small change". Activate multiple skills when code touches multiple domains.
+Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 
 ## Build Commands
 
-### Monorepo gate
+`make verify` is the only gate that exercises the entire monorepo — `codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries`.
 
-`make verify` is the only gate that exercises the entire monorepo (Go + every Bun workspace). The targets below let you run individual stages in isolation.
+**Run the full `make verify` once, as the completion/PR gate — not per micro-task, not twice per commit.** A full run fans one `-race` test binary per package across every core and takes minutes; running it on every small change needlessly saturates the machine. During iteration, gate only the lane you touched; reserve `make verify` for when the task is done. This scopes the dev loop _before_ the final gate — `cy-final-verify` still requires the full pipeline (no subset) at completion.
 
-### Bun workspaces (monorepo-wide)
+- **Go change** → `make lint` + `go test -race ./internal/<pkg>/...` (scoped path, never `./...`).
+- **Web / `packages/ui` / site change** → `bunx turbo run lint typecheck test --filter=./web` (or `./packages/ui`, `./packages/site`).
 
-```bash
-make bun-lint            # bun run lint at repo root → oxfmt + oxlint over every workspace (zero tolerance)
-make bun-typecheck       # bun run typecheck at repo root → turbo run typecheck across @agh/create-extension, @agh/extension-sdk, @agh/site, @agh/ui, agh-web
-make bun-test            # bun run tests at repo root → turbo run test across every Bun workspace
-```
-
-These three are the bun-side commands the `Verify` gate runs. `make web-lint` is an alias for the repo-root lint gate so web, `packages/ui`, and `packages/site` share the same zero-warning policy. Never substitute the other per-package web shortcuts or `cd packages/site && bun run …` commands when you need a guardrail-quality check — they only cover their own workspace and miss every other Bun package.
-
-Frontend tests MUST run through Turborepo. Do not use `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run test`, or package-local equivalents as validation evidence; they bypass Turbo's cache/task graph. For focused iteration, run Turbo from the repo root:
+**Frontend validation MUST run through Turborepo from the repo root.** Never use `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run …`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
 
 ```bash
-bunx turbo run test --filter=./web            # agh-web only
-bunx turbo run test --filter=./packages/ui    # @agh/ui only
-bunx turbo run test --filter=./packages/site  # @agh/site only
+make bun-lint / bun-typecheck / bun-test   # repo-root Bun gates (oxfmt+oxlint / turbo typecheck / turbo test)
+make lint                                  # strict golangci-lint (zero issues)
+make test / test-integration               # Go unit (-race) / +integration tag
+make test-e2e-runtime / test-e2e-web       # daemon-side (Go harness) / browser-side (Playwright)
+make build / codegen                       # compile binary / regen openapi + TS types + DESIGN.md tokens
 ```
 
-### Go (backend)
-
-```bash
-make lint                # Strict golangci-lint (zero issues)
-make test                # Run unit tests with -race flag
-make test-integration    # Add -tags integration tests
-make test-e2e-runtime    # Daemon-side E2E (Go harness)
-make test-e2e-web        # Browser-side E2E (Playwright)
-make test-e2e            # Both lanes
-make test-e2e-nightly    # Heavy E2E (release PR dry-run only)
-make build               # Compile binary
-make codegen             # Regenerate openapi/agh.json + web/src/generated/agh-openapi.d.ts + DESIGN.md generated token regions
-```
-
-Web (`web/`) workspace-local dev/build/format commands (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`. They are scoped to `web/` only. `make web-lint` intentionally runs the repo-root frontend lint gate; for typecheck/test validation use the Turbo-backed commands above, and for the full guardrail use the `make bun-*` targets.
+Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`.
 
 ## Commit style
 
-- ALWAYS USE: `<type>: <description>`
-- Allowed commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:`
-- **Do NOT use**: `chore:`, `style:`, or `ci:`.
-- Use `build:` for tooling and CI changes.
-- For PR-merged commits, append a `(#NN)` suffix.
-- **Create exactly one commit per remediation batch.**
-- Each `cy-fix-reviews` round must produce one local commit.
-- Always run `make verify` **before and after** committing.
-- If a pre-commit hook fails, do **not** use `git commit --amend`. Instead, fix the issue and create a new commit.
+- Format `<type>: <description>`; prefixes `feat|fix|refactor|docs|test|build`. Never `chore`/`style`/`ci`. Use `build:` for tooling/CI. PR-merged commits append `(#NN)`.
+- **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
+- Run `make verify` **once** before a commit batch. Don't re-run after committing — the pre-commit hook only runs `lint-staged` + skeeper spec-sync, so a passing pre-commit verify stays valid. Re-run only if the hook modified tracked source.
+- If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
 
 ## Code Search Hierarchy
 
-1. **Grep / Glob** — for local project code.
-2. **`context7` skill** — for external library documentation.
-3. **`exa-web-search-free`** — for web research, news, external code examples when the local docs tools are insufficient.
+1. **Grep / Glob** — local project code.
+2. **`context7` skill** — external library docs.
+3. **`exa-web-search-free`** — web research, news, external examples.
 
 ## Surface Map
 
-Repo layout. Each surface owns its instructions:
+Repo layout — **open the surface's instructions file before working in it**:
 
-| Path            | Stack                                                                   | Instructions              |
-| --------------- | ----------------------------------------------------------------------- | ------------------------- |
-| `cmd/agh`       | Go binary entry point                                                   | `internal/CLAUDE.md`      |
-| `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network)     | `internal/CLAUDE.md`      |
-| `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                         | `web/CLAUDE.md`           |
-| `packages/site` | Fumadocs documentation site (Bun)                                       | `packages/site/CLAUDE.md` |
-| `packages/ui`   | Shared UI primitives (`@agh/ui`) consumed by `web/` and `packages/site` | `web/CLAUDE.md`           |
-
-Backend architecture, autonomy contracts, security invariants, package layout, and `internal/`-specific debugging now live in **`internal/CLAUDE.md`**. Open it before touching any Go code under `cmd/` or `internal/`.
+| Path            | Stack                                                               | Instructions              |
+| --------------- | ------------------------------------------------------------------- | ------------------------- |
+| `cmd/agh`       | Go binary entry point                                               | `internal/CLAUDE.md`      |
+| `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network) | `internal/CLAUDE.md`      |
+| `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                     | `web/CLAUDE.md`           |
+| `packages/site` | Fumadocs documentation site (Bun)                                   | `packages/site/CLAUDE.md` |
+| `packages/ui`   | Shared UI primitives (`@agh/ui`) for `web/` + `packages/site`       | `web/CLAUDE.md`           |
 
 ## Coding Style
 
-- **Skill**: `agh-code-guidelines` (`.agents/skills/agh-code-guidelines/`).
-- **When**: before writing or editing any production `*.go` file under `cmd/` or `internal/`.
-- **Covers**: error wrapping (`%w`), `errors.Is`/`As` only, `slog` logging, `context.Context` discipline, compile-time interface assertions, no hardcoded config, CLI flag presence detection, comments policy, generic concurrency patterns.
-- **Top-level invariants restated in Critical Rules**: no `_`-discarded errors, `make verify` must pass, `make lint` zero tolerance.
+Before editing any production `*.go` under `cmd/`/`internal/`, activate `agh-code-guidelines` (error wrapping `%w`, `errors.Is/As`, `slog`, `context` discipline, compile-time interface assertions, no hardcoded config). Hard invariants are in Critical Rules.
 
 ## Testing
 
-- **Skill**: `consolidate-test-suites` (`.agents/skills/consolidate-test-suites/`).
-- **When**: before creating a new test file, moving a test, broadening a regression suite, or adding tests primarily to satisfy a task checklist or coverage target.
-- **Covers**: invariant naming, owning-layer selection, canonical-suite reuse, duplicate regression rejection, and no-new-test rationale when an existing gate already proves the behavior.
-- **Rule**: every task needs a test decision, not necessarily new tests. Do not add filler tests for coverage or tests that only pin implementation details.
-- **Static artifacts**: allow tests over generated/static/tooling files only when the artifact itself is the product, operator, agent, security, or release contract and no stronger gate owns the invariant. Any surviving static-artifact test should make that contract obvious in the test name or a short `KEEP:` comment.
-- **Skill**: `agh-test-conventions` (`.agents/skills/agh-test-conventions/`).
-- **When**: before writing or editing any `*_test.go` file.
-- **Covers**:
-  - `t.Run("Should ...")` subtests, `t.Parallel` default (with `t.Setenv` opt-out), table-driven layout.
-  - Status-code + body assertions (status-code-only is insufficient).
-  - `-race` / `CGO_ENABLED=1` discipline; Linux-Race CI parity for race-sensitive packages.
-  - Integration / E2E build tags (`//go:build integration`, `make test-integration`, `make test-e2e-runtime`, `make test-e2e-web`).
-  - Runtime-contract co-ship (E2E mock + matchers ship with contract changes).
-  - 80% coverage floor per package.
-  - Commit-gate semantics (`make verify` blocks; test failures are production bugs).
+- Activate `agh-test-conventions` before writing/editing any `*_test.go`; `consolidate-test-suites` before adding/moving a test (see the Critical Rules test-placement rule). Both skills carry their own detail.
+- Non-negotiables: `t.Run("Should …")` subtests + `t.Parallel` default; status-code **and** body assertions; `-race`/`CGO_ENABLED=1`; integration/E2E build tags; runtime-contract co-ship (E2E mock + matchers ship with contract changes); 80% per-package coverage floor. `make verify` is the commit gate — test failures are production bugs.
 
 ### Schema Migrations
 
-- **Skill**: `agh-schema-migration`.
-- **When**: any SQLite column, index, or constraint change.
-- **Mandatory**: numbered migration in the registry — `EnsureSchema`-style boot reconciliation is forbidden for column changes.
-- **Append-only identity**: migration `version`, `name`, and `checksum` are persisted data contracts. Never insert, reorder, rename, renumber, or change an existing migration after it may have reached any developer, QA, or release database; append new migrations at the registry tail.
-- **Integrity mismatch response**: stop and investigate the recorded history. Fix the registry order or write an ADR-backed one-pass repair; never weaken mismatch checks and never manually edit a live `schema_migrations` row as the fix.
-- **Covers**: numbered registry, transactional wrap (`BEGIN IMMEDIATE`), `-wal` / `-shm` companion handling on recovery, `ORDER BY 0` pitfall, fresh-DB + reopen-after-restart tests.
+Any SQLite column/index/constraint change → activate `agh-schema-migration`; use a numbered migration in the registry (`EnsureSchema` boot reconciliation is forbidden for columns). **Append-only identity:** `version`/`name`/`checksum` are persisted contracts — never insert, reorder, rename, renumber, or edit an existing migration; append at the tail. On integrity mismatch, stop and investigate (fix registry order or write an ADR-backed one-pass repair) — never weaken the check or hand-edit a live `schema_migrations` row.
 
 ## Memory & Lessons Learned
 
-`docs/_memory/` is the project's institutional memory — durable engineering knowledge distilled from real incidents, ADR forensics, and standing engineering posture. Treat it as authoritative when CLAUDE.md is silent or ambiguous.
+`docs/_memory/` is institutional memory — authoritative when CLAUDE.md is silent. Read the relevant file before the matching work:
 
-- **Standing directives** — `docs/_memory/standing_directives.md`. Perpetually-active engineering posture (SD-001..SD-011): long-running session supervision, greenfield-delete, BR-PT/EN, multi-LLM pipeline, real-scenario QA, forensic-first bug fixes, truthful UI, composition-root discipline, detached lifetime, extensible-and-agent-manageable design. Read before opening a TechSpec, defending an architecture pivot, or whenever someone proposes a compat shim.
-- **Spec authoring playbook** — `docs/_memory/spec-authoring-playbook.md`. Mandatory preflight for `cy-create-prd` / `cy-create-techspec` / `cy-create-tasks`, with phase-by-phase MUST / MUST-NOT and evidence references. The `cy-spec-preflight` skill enforces this — always read before producing any `_idea.md` / `_prd.md` / `_techspec.md` / `_tasks.md`.
-- **Lessons learned** — `docs/_memory/lessons/` (`L-001..L-021`, plus `README.md` index). One file per durable lesson with confirmed root cause + fix + evidence (ADR, commit, review issue, or QA bug). Scan the index whenever you hit a class of issue: concurrency / API, testing discipline, autonomy architecture, persistence, spec authoring.
-- **Glossary** — `docs/_memory/glossary.md`. Canonical vocabulary (`capability` vs `recipe`, `AGENT.md` vs `AGENTS.md`, Peer Card vs Agent Card, autonomy primitives). Authoritative when older RFCs / ledgers conflict. Read when naming anything new, reviewing a rename PR, or when a term feels overloaded.
-- **Cross-source synthesis** — `docs/_memory/_synthesis.md`. Cross-referenced findings from 8 forensic analyses, ranked by source count — the evidence corpus behind every rule in CLAUDE.md and the standing directives. Read when challenging or evolving a rule.
-- **Forensic analyses** — `docs/_memory/analysis/analysis_*.md`. Per-source raw analyses (codex sessions / plans / ledger, compozy tasks, qmd collections, local / global runs, existing surfaces) feeding `_synthesis.md`. Read when synthesis cites a finding and you need the underlying evidence.
+- `standing_directives.md` — active engineering posture (SD-001..011); read before a TechSpec or architecture pivot.
+- `spec-authoring-playbook.md` — mandatory preflight for `cy-create-prd`/`techspec`/`tasks` (enforced by `cy-spec-preflight`).
+- `lessons/` (`L-001..021` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
+- `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
+- `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.
 
-**Authoring rules:**
-
-- New lesson → numbered file `L-NNN-kebab-title.md` + update `lessons/README.md`. One lesson per file. Cite specific evidence (file path, commit, review issue, ledger entry). Activate the `lesson-learned` skill.
-- Don't duplicate CLAUDE.md or `standing_directives.md` rules in lessons — lessons explain **why** a rule exists; rules go in their respective files.
-- Don't add speculative warnings — only confirmed incidents with evidence.
-- New standing directive → next `SD-NNN` block in `standing_directives.md` with Posture / Required behavior / Source / Triggers re-evaluation when.
+Authoring: new lesson → `L-NNN-*.md` + update `lessons/README.md` (activate `lesson-learned`); new directive → next `SD-NNN` block. Lessons explain _why_ a rule exists — don't duplicate rules, don't add speculative warnings.
 
 ## Cross-References
 
-- **Backend rules**: `internal/CLAUDE.md` (Go architecture, autonomy contracts, security invariants, package layout, forensic bug-fix patterns).
-- **Web rules**: `web/CLAUDE.md`.
-- **Site rules**: `packages/site/CLAUDE.md`.
-- **Institutional memory**: `docs/_memory/` — see the **Memory & Lessons Learned** section above for the per-surface map.
-- **Authoritative design tokens**: `packages/ui/src/tokens.css`; generated spec/rationale: `DESIGN.md` (repo root).
-- **Authoritative copy system**: `COPY.md` (repo root).
-- **Product/register context**: `PRODUCT.md` (repo root) — strategic who/what/why: default register (`product` = runtime UI in `web/` + `packages/ui`; per-task `brand` override for the `packages/site` marketing/docs site), users, design principles, and WCAG 2.2 AA floor. Complements `DESIGN.md` (how it looks) and `COPY.md` (what it says); consumed by the `impeccable` design skill, which reads all three and never overrides the generated `DESIGN.md`/`COPY.md`.
+- Backend/Go (architecture, autonomy, security, package layout): `internal/CLAUDE.md`. Web: `web/CLAUDE.md`. Site: `packages/site/CLAUDE.md`.
+- Design tokens: `packages/ui/src/tokens.css` → generated spec `DESIGN.md`. Copy: `COPY.md`. Strategy/register/users/WCAG floor: `PRODUCT.md`.
+- Institutional memory: `docs/_memory/`.
