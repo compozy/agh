@@ -139,10 +139,32 @@ func (payload TaskRunPreClaimPayload) cloneForAsync() TaskRunPreClaimPayload {
 }
 
 func (payload TaskRunPostClaimPayload) cloneForAsync() TaskRunPostClaimPayload {
+	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
 	return payload
 }
 
 func (payload TaskRunLeasePayload) cloneForAsync() TaskRunLeasePayload {
+	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
+	return payload
+}
+
+func (payload LoopLifecyclePayload) cloneForAsync() LoopLifecyclePayload {
+	payload.Details = cloneRawJSON(payload.Details)
+	return payload
+}
+
+func (payload LoopGenerationPayload) cloneForAsync() LoopGenerationPayload {
+	payload.Details = cloneRawJSON(payload.Details)
+	return payload
+}
+
+func (payload LoopGatePayload) cloneForAsync() LoopGatePayload {
+	payload.Details = cloneRawJSON(payload.Details)
+	return payload
+}
+
+func (payload LoopNodeTerminalPayload) cloneForAsync() LoopNodeTerminalPayload {
+	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
@@ -226,11 +248,21 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 }
 
 func cloneTaskRunEnqueuedPayload(payload TaskRunEnqueuedPayload) TaskRunEnqueuedPayload {
+	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
 	return payload
 }
 
 func cloneTaskRunPreClaimPayload(payload TaskRunPreClaimPayload) TaskRunPreClaimPayload {
+	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
 	payload.Criteria.RequiredCapabilities = cloneStringSlice(payload.Criteria.RequiredCapabilities)
+	return payload
+}
+
+func cloneTaskRunContext(payload TaskRunContext) TaskRunContext {
+	if payload.RunKind != nil {
+		runKind := *payload.RunKind
+		payload.RunKind = &runKind
+	}
 	return payload
 }
 

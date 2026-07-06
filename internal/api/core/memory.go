@@ -1384,7 +1384,7 @@ func (h *BaseHandlers) respondMemoryError(c *gin.Context, status int, err error,
 func (h *BaseHandlers) respondUnsupportedMemoryOperation(c *gin.Context, operation string) {
 	normalized := strings.TrimSpace(operation)
 	if normalized == "" {
-		normalized = "unknown"
+		normalized = unknownValue
 	}
 	err := fmt.Errorf("%w: %s", ErrMemoryUnsupported, normalized)
 	h.respondMemoryError(c, memoryUnsupportedStatus, err, map[string]any{"operation": normalized})
@@ -2361,7 +2361,7 @@ func locationFilename(location MemoryLocation, header memcontract.Header) string
 
 func (h *BaseHandlers) memoryOrigin() memcontract.Origin {
 	switch h.transportName() {
-	case "udsapi":
+	case transportNameUDSAPI:
 		return memcontract.OriginUDS
 	default:
 		return memcontract.OriginHTTP

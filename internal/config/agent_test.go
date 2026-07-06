@@ -475,6 +475,12 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 	if got, want := roots[3].SkillsDir(), filepath.Join(homePaths.HomeDir, SkillsDirName); got != want {
 		t.Fatalf("roots[3].SkillsDir() = %q, want %q", got, want)
 	}
+	if got, want := roots[0].LoopsDir(), filepath.Join(root, DirName, LoopsDirName); got != want {
+		t.Fatalf("roots[0].LoopsDir() = %q, want %q", got, want)
+	}
+	if got, want := roots[3].LoopsDir(), filepath.Join(homePaths.HomeDir, LoopsDirName); got != want {
+		t.Fatalf("roots[3].LoopsDir() = %q, want %q", got, want)
+	}
 }
 
 func TestLoadWorkspaceAgentDefsAppliesDocumentedPrecedence(t *testing.T) {

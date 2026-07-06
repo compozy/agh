@@ -38,6 +38,7 @@ type configOverlay struct {
 	Extensions    extensionsOverlay          `toml:"extensions"`
 	Tools         toolsOverlay               `toml:"tools"`
 	Automation    automationOverlay          `toml:"automation"`
+	Loops         loopsOverlay               `toml:"loops"`
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 	Network       networkOverlay             `toml:"network"`
@@ -674,6 +675,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	if err := o.Automation.Apply(&dst.Automation); err != nil {
 		return err
 	}
+	o.Loops.Apply(&dst.Loops)
 	o.Task.Apply(&dst.Task)
 	o.Network.Apply(&dst.Network)
 	o.Autonomy.Apply(&dst.Autonomy)

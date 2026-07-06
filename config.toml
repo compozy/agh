@@ -31,6 +31,33 @@ external_default = "disabled"
 approval_timeout_seconds = 120
 trusted_sources = []
 
+[loops.defaults.delivery]
+iteration_cap = 50
+fan_out_width = 4
+
+[loops.defaults.delivery.no_progress]
+window = 3
+
+[loops.defaults.delivery.gates]
+max_revisions = 10
+
+[loops.defaults.delivery.budget]
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
+
+[loops.defaults.watch]
+iteration_cap = 0
+fan_out_width = 2
+
+[loops.defaults.watch.no_progress]
+window = 2
+
+[loops.defaults.watch.budget]
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
+
 [providers.claude.models]
 default = "claude-sonnet-4-6"
 

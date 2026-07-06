@@ -279,7 +279,7 @@ func inspectRunSummaryFromRun(run Run, asOf time.Time) InspectRunSummary {
 		EndedAt:                 run.EndedAt,
 		PreviousRunID:           inspectPreviousRunID(run),
 		QueuedAt:                run.QueuedAt,
-		Attempt:                 run.Attempt,
+		Attempt:                 int(run.Attempt),
 	}
 }
 
@@ -299,7 +299,7 @@ func inspectRetryCount(run Run) int {
 	if run.Attempt <= 1 {
 		return 0
 	}
-	return run.Attempt - 1
+	return int(run.Attempt - 1)
 }
 
 func inspectErrorSummary(raw string) string {

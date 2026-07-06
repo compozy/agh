@@ -1,0 +1,147 @@
+import { CheckCircle2, Info, Play } from "lucide-react";
+
+import { Button, Section } from "@agh/ui";
+
+import { useLoopRunForm } from "../../hooks/use-loop-run-form";
+import type { LoopDetail } from "../../types";
+import { LoopRunInputField } from "./loop-run-input-field";
+import { LoopRunOverrides } from "./loop-run-overrides";
+import { LoopRunPreview } from "./loop-run-preview";
+
+interface LoopRunFormProps {
+  workspaceId: string;
+  loop: LoopDetail;
+  onRunStarted?: (runId: string) => void;
+  onCancel?: () => void;
+}
+
+/**
+ * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
+ * inputs, an Advanced per-run override grid (clamped, no cost cap), a live contract
+ * preview, and the Dry run / Run actions. State + the run/dry calls live in
+ * `useLoopRunForm`; this component is the presentation.
+ */
+export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopRunFormProps) {
+  const form = useLoopRunForm({ workspaceId, loop, onRunStarted });
+  const inputNames = form.schema ? Object.keys(form.schema) : [];
+
+  return (
+    <div
+      className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]"
+      data-testid="loop-run-form"
+    >
+      <form
+        className="flex min-w-0 flex-col gap-6 overflow-y-auto px-6 py-5"
+        onSubmit={event => {
+          event.preventDefault();
+          form.handleRun();
+        }}
+      >
+        <div>
+          <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
+            Run {loop.name}
+          </h1>
+          <p className="mt-2 max-w-prose text-sm text-muted">{form.contract.goal}</p>
+        </div>
+
+        <Section
+          label="Inputs"
+          note={inputNames.length > 0 ? "Generated from the loop's declared inputs" : undefined}
+        >
+          {inputNames.length === 0 ? (
+            <p className="text-sm text-subtle">This Loop declares no inputs — run it directly.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {inputNames.map(name => (
+                <LoopRunInputField
+                  key={name}
+                  name={name}
+                  field={form.schema![name]}
+                  value={form.inputs[name]}
+                  disabled={form.busy}
+                  error={
+                    form.submitAttempted && form.missing.has(name)
+                      ? `${name} is required to run this loop.`
+                      : undefined
+                  }
+                  onChange={value => form.setInput(name, value)}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <LoopRunOverrides
+          contract={form.contract}
+          draft={form.overrides}
+          disabled={form.busy}
+          onChange={form.setOverridesDraft}
+        />
+
+        <p className="flex items-start gap-2 text-[11.5px] leading-relaxed text-subtle">
+          <Info className="mt-0.5 size-3 shrink-0 text-faint" aria-hidden="true" />
+          <span>
+            Dry run validates inputs and renders the first-generation plan without starting a run.
+            Manage automated starts in <b className="font-medium text-muted">Start bindings</b> on
+            the loop page.
+          </span>
+        </p>
+      </form>
+
+      <div className="flex min-w-0 flex-col border-t border-line-soft bg-canvas-tint lg:border-t-0 lg:border-l">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <LoopRunPreview
+            loopName={loop.name}
+            contract={form.contract}
+            inputs={form.schema}
+            plan={form.plan}
+          />
+        </div>
+        <div className="flex items-center gap-2 border-t border-line-soft px-5 py-3.5">
+          {form.plan ? (
+            <span className="flex flex-1 items-center gap-1.5 text-[11.5px] text-success">
+              <CheckCircle2 className="size-3.5" aria-hidden="true" />
+              Plan rendered
+            </span>
+          ) : (
+            <span className="flex-1 text-[11.5px] text-subtle">
+              {form.valid ? "Ready to run." : "Fill the required inputs, then run."}
+            </span>
+          )}
+          {onCancel ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={form.busy}
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="loop-run-dry-button"
+            disabled={form.busy || !form.valid}
+            onClick={form.handleDryRun}
+          >
+            Dry run
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            data-testid="loop-run-submit-button"
+            disabled={form.busy || !form.valid}
+            onClick={form.handleRun}
+          >
+            <Play className="size-3.5" aria-hidden="true" />
+            Run loop
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -429,6 +429,7 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			expected: DispatchCorrelation{
 				TaskID:               "task-1",
 				RunID:                "run-1",
+				LoopRunID:            "loop-run-1",
 				WorkflowID:           "workflow-1",
 				ActorKind:            "agent_session",
 				ActorID:              "session-actor",
@@ -460,6 +461,31 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 			name:     "Should derive correlation from task lease payload",
 			payload:  TaskRunLeasePayload{TaskRunContext: taskRunCorrelationContext()},
 			expected: taskRunDispatchCorrelation(),
+		},
+		{
+			name: "Should derive correlation from loop terminal payload",
+			payload: LoopTerminalPayload{LoopContext: LoopContext{
+				TaskID:     " task-loop ",
+				RunID:      " run-loop ",
+				LoopRunID:  " loop-run ",
+				LoopName:   " daily-review ",
+				NodeID:     " node-a ",
+				WorkflowID: " workflow-loop ",
+				ActorKind:  " daemon ",
+				ActorID:    " loop-hook ",
+				SessionID:  " coordinator-session ",
+			}},
+			expected: DispatchCorrelation{
+				TaskID:               "task-loop",
+				RunID:                "run-loop",
+				LoopRunID:            "loop-run",
+				LoopName:             "daily-review",
+				NodeID:               "node-a",
+				WorkflowID:           "workflow-loop",
+				CoordinatorSessionID: "coordinator-session",
+				ActorKind:            "daemon",
+				ActorID:              "loop-hook",
+			},
 		},
 		{
 			name: "Should derive correlation from spawn pre-create payload",
@@ -714,6 +740,7 @@ func taskRunCorrelationContext() TaskRunContext {
 	return TaskRunContext{
 		TaskID:        " task-1 ",
 		RunID:         " run-1 ",
+		LoopRunID:     " loop-run-1 ",
 		WorkflowID:    " workflow-1 ",
 		ActorKind:     " agent_session ",
 		ActorID:       " session-actor ",
@@ -726,6 +753,7 @@ func taskRunDispatchCorrelation() DispatchCorrelation {
 	return DispatchCorrelation{
 		TaskID:               "task-1",
 		RunID:                "run-1",
+		LoopRunID:            "loop-run-1",
 		WorkflowID:           "workflow-1",
 		ActorKind:            "agent_session",
 		ActorID:              "session-actor",

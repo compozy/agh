@@ -1,0 +1,212 @@
+apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: reviews-watch
+  description: Watch CodeRabbit PR reviews, apply fixes, resolve threads, and optionally push the branch.
+  catalog:
+    use_when: "You want CodeRabbit review comments remediated until the current PR is clean."
+    keywords: [reviews, coderabbit, watch, remediate]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  pr:
+    type: number
+    required: true
+  fixer:
+    type: agent
+    default: review_fixer
+  auto_push:
+    type: boolean
+    default: false
+  push_remote:
+    type: string
+    default: origin
+  poll_interval:
+    type: string
+    default: "30s"
+  quiet_period:
+    type: string
+    default: "20s"
+
+contract:
+  goal: "Zero unresolved CodeRabbit threads on PR #{{ .inputs.pr }} for a review of the current HEAD."
+  definition_of_done: >
+    A fresh CodeRabbit review of the pushed HEAD reports no unresolved actionable threads.
+  stop_when: "nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0"
+  iteration_cap: 0
+  no_progress:
+    window: 2
+    hash_fields: [gate_verdict]
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: escalate
+  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: new_review
+      class: source
+      kind: watch-source
+      watch:
+        kind: coderabbit_pr_review
+        pr: "{{ .inputs.pr }}"
+        poll_interval: "{{ .inputs.poll_interval }}"
+        quiet_period: "{{ .inputs.quiet_period }}"
+      produces:
+        review:
+          type: object
+          properties:
+            head_sha:
+              type: string
+            review_id:
+              type: string
+            submitted_at:
+              type: string
+
+    - id: fetch_issues
+      class: action
+      kind: ext__dev_cycle__coderabbit_fetch_unresolved
+      params:
+        pr: "{{ .inputs.pr }}"
+      produces:
+        pr: string
+        unresolved_count: integer
+        issues: array
+
+    - id: fix_batches
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.fetch_issues.output.issues }}"
+      batch_size: 10
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: fix_batch
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.fixer }}"
+        prompt: |
+          Remediate this batch of CodeRabbit review issues using the installed cy-fix-reviews
+          discipline, then verify once with cy-final-verify. The issues below are the entire
+          scope of this run; touch nothing else.
+
+          {{ range .item }}
+          Issue {{ .id }} - {{ .title }}
+          File: {{ .file }}:{{ .line }} (severity: {{ .severity }})
+
+          {{ .body }}
+          {{ end }}
+
+          Contract, per issue:
+          1. Triage first: decide valid or invalid with reasoning.
+          2. If valid, implement a complete fix with tests.
+          3. If invalid, document why.
+
+          Your structured output must contain a result for every issue in this batch. Do not
+          resolve provider threads, push, or call gh mutations; the loop owns provider-side
+          resolution.
+          {{ if .inputs.auto_push }}Make exactly one commit for this batch after verification.{{ end }}
+        output_schema:
+          type: object
+          required: [results]
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                required: [id, triage]
+                properties:
+                  id:
+                    type: string
+                  triage:
+                    enum: [valid, invalid]
+                  resolution:
+                    enum: [fixed, documented]
+                  summary:
+                    type: string
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: collect_fixes
+      class: control
+      kind: collect
+
+    - id: verify
+      class: control
+      kind: gate
+      criteria:
+        - id: all_issues_handled
+          type: agent-judge
+          agent: reviewer
+          rubric: >
+            Every fetched issue across all batches has a triage decision and every valid issue has
+            a complete, tested fix in the diff. Emit each unhandled issue id as a blocking issue.
+      verdict_policy: revise_until_clean
+      on_result:
+        pass: resolve_threads
+        fail: next_generation
+      max_revisions: 3
+
+    - id: resolve_threads
+      class: action
+      kind: ext__dev_cycle__coderabbit_resolve_threads
+      params:
+        pr: "{{ .inputs.pr }}"
+        issues: "{{ .nodes.fetch_issues.output.issues }}"
+        results: "{{ .nodes.collect_fixes.output.results }}"
+      produces:
+        pr: string
+        resolved_count: integer
+        resolved_threads: array
+
+    - id: should_push
+      class: control
+      kind: branch
+      condition: "inputs.auto_push == true"
+
+    - id: push_changes
+      class: action
+      kind: ext__dev_cycle__git_push
+      params:
+        remote: "{{ .inputs.push_remote }}"
+        require_head_advanced: true
+        expected_head: "{{ .nodes.new_review.output.review.head_sha }}"
+      produces:
+        remote: string
+        branch: string
+        head: string
+        pushed: boolean
+
+  edges:
+    - from: new_review
+      to: fetch_issues
+    - from: fetch_issues
+      to: fix_batches
+    - from: fix_batches
+      to: fix_batch
+    - from: fix_batch
+      to: collect_fixes
+    - from: collect_fixes
+      to: verify
+    - from: verify
+      to: resolve_threads
+    - from: resolve_threads
+      to: should_push
+    - from: should_push
+      to: push_changes
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: trigger
+  - kind: webhook

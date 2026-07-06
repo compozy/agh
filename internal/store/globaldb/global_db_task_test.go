@@ -162,6 +162,9 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"lease_until",
 		"heartbeat_at",
 		"coordination_channel_id",
+		"run_kind",
+		"loop_run_id",
+		"tokens_used",
 	})
 	assertTableColumns(t, globalDB.db, "task_run_required_capabilities", []string{
 		"run_id",
@@ -236,6 +239,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"uq_task_runs_review_id",
 		"idx_task_runs_task_review_round",
 		"idx_task_runs_designation_group",
+		"uq_task_runs_active_loop_coordinator",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_required_capabilities",
 		"idx_task_run_required_capabilities_capability",
@@ -259,9 +263,92 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	)
 	assertIndexSQLContains(t, globalDB.db, "idx_task_blocks_open", "WHERE cleared_at IS NULL")
 	assertIndexSQLContains(t, globalDB.db, "idx_task_blocks_expiry", "expires_at IS NOT NULL")
+	assertIndexSQLContains(t, globalDB.db, "uq_task_runs_active_loop_coordinator", "run_kind = 'coordinator'")
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"uq_task_runs_active_loop_coordinator",
+		"status IN ('queued', 'claimed', 'starting', 'running')",
+	)
 	assertTableSQLContains(t, globalDB.db, "task_blocks", "CHECK (kind IN ('needs_input','capability','transient'))")
 	assertTableSQLContains(t, globalDB.db, "task_blocks", "CHECK (length(reason) > 0)")
 	assertTasksStatusAcceptsNeedsAttention(t, globalDB, "task-schema-needs-attention")
+}
+
+func TestGlobalDBTaskRunsCoordinatorExclusivityIndex(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject concurrent active coordinators for one loop run", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-loop-coordinator-index")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		insertLoopRunForCoordinatorIndexTest(ctx, t, globalDB.db, "loop-run-coordinator-index")
+
+		errs := make(chan error, 2)
+		start := make(chan struct{})
+		for _, runID := range []string{"run-loop-coordinator-a", "run-loop-coordinator-b"} {
+			go func(runID string) {
+				<-start
+				errs <- insertTaskRunForCoordinatorIndexTest(
+					ctx,
+					globalDB.db,
+					runID,
+					taskRecord.ID,
+					"loop-run-coordinator-index",
+					"coordinator",
+					"queued",
+				)
+			}(runID)
+		}
+		close(start)
+
+		successes := 0
+		uniqueFailures := 0
+		for range 2 {
+			err := <-errs
+			if err == nil {
+				successes++
+				continue
+			}
+			if strings.Contains(err.Error(), "UNIQUE constraint failed: task_runs.loop_run_id") {
+				uniqueFailures++
+				continue
+			}
+			t.Fatalf("insert active coordinator error = %v, want unique constraint failure or success", err)
+		}
+		if successes != 1 || uniqueFailures != 1 {
+			t.Fatalf("active coordinator inserts: successes=%d uniqueFailures=%d, want 1/1", successes, uniqueFailures)
+		}
+
+		if err := insertTaskRunForCoordinatorIndexTest(
+			ctx,
+			globalDB.db,
+			"run-loop-worker-same-loop",
+			taskRecord.ID,
+			"loop-run-coordinator-index",
+			"worker",
+			"queued",
+		); err != nil {
+			t.Fatalf("insert worker with same loop_run_id error = %v, want partial index to ignore workers", err)
+		}
+		if err := insertTaskRunForCoordinatorIndexTest(
+			ctx,
+			globalDB.db,
+			"run-loop-coordinator-terminal",
+			taskRecord.ID,
+			"loop-run-coordinator-index",
+			"coordinator",
+			"completed",
+		); err != nil {
+			t.Fatalf("insert terminal coordinator error = %v, want partial index to ignore terminal runs", err)
+		}
+	})
 }
 
 func TestOpenGlobalDBTaskBlockSchemaSurvivesRestart(t *testing.T) {
@@ -372,7 +459,7 @@ func TestOpenGlobalDBTaskRunClaimIndexesSupportPlannedScans(t *testing.T) {
 		 WHERE status = ? AND (lease_until IS NULL OR lease_until <= ?)
 		 ORDER BY queued_at ASC, id ASC`,
 		"idx_task_runs_pending_claim",
-		string(taskpkg.TaskRunStatusQueued),
+		taskpkg.TaskRunStatusQueued.String(),
 		"2026-04-26T12:00:00Z",
 	)
 	assertQueryPlanUsesIndex(
@@ -382,7 +469,7 @@ func TestOpenGlobalDBTaskRunClaimIndexesSupportPlannedScans(t *testing.T) {
 		 FROM task_runs
 		 WHERE status = ? AND lease_until <= ? AND heartbeat_at <= ?`,
 		"idx_task_runs_active_lease_recovery",
-		string(taskpkg.TaskRunStatusClaimed),
+		taskpkg.TaskRunStatusClaimed.String(),
 		"2026-04-26T12:00:00Z",
 		"2026-04-26T11:59:00Z",
 	)
@@ -1677,7 +1764,6 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	runningRun.NetworkChannel = "finance"
 	runningRun.ClaimedAt = queuedRun.QueuedAt.Add(30 * time.Second)
 	runningRun.StartedAt = queuedRun.QueuedAt.Add(time.Minute)
-	runningRun.ClaimToken = "raw-claim-token"
 	runningRun.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 	runningRun.LeaseUntil = runningRun.ClaimedAt.Add(10 * time.Minute)
 	runningRun.HeartbeatAt = runningRun.ClaimedAt.Add(15 * time.Second)
@@ -1687,8 +1773,6 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
 		t.Fatalf("UpdateTaskRun(running) error = %v", err)
 	}
-	expectedRunningRun := runningRun
-	expectedRunningRun.ClaimToken = ""
 
 	runsByTask, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.RunQuery{TaskID: taskRecord.ID})
 	if err != nil {
@@ -1697,7 +1781,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsByTask), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(task)) = %d, want %d", got, want)
 	}
-	assertTaskRunEqual(t, runsByTask[0], expectedRunningRun)
+	assertTaskRunEqual(t, runsByTask[0], runningRun)
 
 	runsBySession, err := globalDB.ListTaskRuns(testutil.Context(t), taskpkg.RunQuery{SessionID: "sess-task-run"})
 	if err != nil {
@@ -1717,7 +1801,7 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsByChannel), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
 	}
-	assertTaskRunEqual(t, runsByChannel[0], expectedRunningRun)
+	assertTaskRunEqual(t, runsByChannel[0], runningRun)
 
 	runsByStatus, err := globalDB.ListTaskRunsByStatus(
 		testutil.Context(t),
@@ -1745,7 +1829,6 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), completedRun); err != nil {
 		t.Fatalf("UpdateTaskRun(completed) error = %v", err)
 	}
-	completedRun.ClaimToken = ""
 
 	storedCompleted, err := globalDB.GetTaskRun(testutil.Context(t), completedRun.ID)
 	if err != nil {
@@ -1782,7 +1865,6 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		claimed.Status = taskpkg.TaskRunStatusClaimed
 		claimed.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, "sess-worker")
 		claimed.SessionID = "sess-worker"
-		claimed.ClaimToken = "raw-token"
 		claimed.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 		claimed.LeaseUntil = claimed.QueuedAt.Add(10 * time.Minute)
 		claimed.HeartbeatAt = claimed.QueuedAt.Add(time.Minute)
@@ -1929,13 +2011,15 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 			defer wg.Done()
 			taskCopy, runCopy, existing, err := globalDB.ReserveQueuedRun(
 				ctx,
-				taskRecord.ID,
-				runIDs[i],
-				"dup-key",
-				origin,
-				"ops",
-				metadata,
-				queuedAt,
+				queuedRunReservationForTest(
+					taskRecord.ID,
+					runIDs[i],
+					"dup-key",
+					origin,
+					"ops",
+					metadata,
+					queuedAt,
+				),
 			)
 			results[i] = reserveResult{
 				task:     taskCopy,
@@ -1960,7 +2044,7 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 		if got, want := result.run.IdempotencyKey, "dup-key"; got != want {
 			t.Fatalf("ReserveQueuedRun(%d) idempotency key = %q, want %q", idx, got, want)
 		}
-		if got, want := result.run.Attempt, 1; got != want {
+		if got, want := result.run.Attempt, int32(1); got != want {
 			t.Fatalf("ReserveQueuedRun(%d) attempt = %d, want %d", idx, got, want)
 		}
 		if got, want := string(result.run.Metadata), string(metadata); got != want {
@@ -2068,13 +2152,15 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 			queuedAt := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 			_, firstRun, existing, err := globalDB.ReserveQueuedRun(
 				ctx,
-				taskRecord.ID,
-				"run-reserved-open-a",
-				"open-key",
-				origin,
-				"ops",
-				nil,
-				queuedAt,
+				queuedRunReservationForTest(
+					taskRecord.ID,
+					"run-reserved-open-a",
+					"open-key",
+					origin,
+					"ops",
+					nil,
+					queuedAt,
+				),
 			)
 			if err != nil {
 				t.Fatalf("ReserveQueuedRun(first) error = %v", err)
@@ -2095,13 +2181,15 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 
 			_, duplicateRun, duplicateExisting, err := globalDB.ReserveQueuedRun(
 				ctx,
-				taskRecord.ID,
-				"run-reserved-open-duplicate",
-				"open-key",
-				origin,
-				"ops",
-				nil,
-				queuedAt.Add(time.Second),
+				queuedRunReservationForTest(
+					taskRecord.ID,
+					"run-reserved-open-duplicate",
+					"open-key",
+					origin,
+					"ops",
+					nil,
+					queuedAt.Add(time.Second),
+				),
 			)
 			if err != nil {
 				t.Fatalf("ReserveQueuedRun(idempotent duplicate) error = %v", err)
@@ -2115,13 +2203,15 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 
 			_, secondRun, secondExisting, err := globalDB.ReserveQueuedRun(
 				ctx,
-				taskRecord.ID,
-				"run-reserved-open-b",
-				"new-open-key",
-				origin,
-				"ops",
-				nil,
-				queuedAt.Add(2*time.Second),
+				queuedRunReservationForTest(
+					taskRecord.ID,
+					"run-reserved-open-b",
+					"new-open-key",
+					origin,
+					"ops",
+					nil,
+					queuedAt.Add(2*time.Second),
+				),
 			)
 			if secondExisting {
 				t.Fatal("ReserveQueuedRun(second) existing = true, want false")
@@ -2165,14 +2255,16 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 		queuedAt := time.Date(2026, 7, 1, 16, 0, 0, 0, time.UTC)
 		_, firstRun, firstExisting, err := globalDB.ReserveQueuedRun(
 			ctx,
-			taskRecord.ID,
-			"run-designated-sibling-a",
-			"designated-key-a",
-			origin,
-			"ops",
-			nil,
-			queuedAt,
-			"designation-group-a",
+			queuedRunReservationForTest(
+				taskRecord.ID,
+				"run-designated-sibling-a",
+				"designated-key-a",
+				origin,
+				"ops",
+				nil,
+				queuedAt,
+				"designation-group-a",
+			),
 		)
 		if err != nil {
 			t.Fatalf("ReserveQueuedRun(first) error = %v", err)
@@ -2182,14 +2274,16 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 		}
 		_, secondRun, secondExisting, err := globalDB.ReserveQueuedRun(
 			ctx,
-			taskRecord.ID,
-			"run-designated-sibling-b",
-			"designated-key-b",
-			origin,
-			"ops",
-			nil,
-			queuedAt.Add(time.Second),
-			"designation-group-a",
+			queuedRunReservationForTest(
+				taskRecord.ID,
+				"run-designated-sibling-b",
+				"designated-key-b",
+				origin,
+				"ops",
+				nil,
+				queuedAt.Add(time.Second),
+				"designation-group-a",
+			),
 		)
 		if err != nil {
 			t.Fatalf("ReserveQueuedRun(second same group) error = %v", err)
@@ -2208,13 +2302,15 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 
 		_, undesignatedRun, undesignatedExisting, err := globalDB.ReserveQueuedRun(
 			ctx,
-			taskRecord.ID,
-			"run-designated-sibling-undesignated",
-			"designated-key-undesignated",
-			origin,
-			"ops",
-			nil,
-			queuedAt.Add(2*time.Second),
+			queuedRunReservationForTest(
+				taskRecord.ID,
+				"run-designated-sibling-undesignated",
+				"designated-key-undesignated",
+				origin,
+				"ops",
+				nil,
+				queuedAt.Add(2*time.Second),
+			),
 		)
 		if undesignatedExisting {
 			t.Fatal("ReserveQueuedRun(undesignated) existing = true, want false")
@@ -2228,14 +2324,16 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 
 		_, otherGroupRun, otherGroupExisting, err := globalDB.ReserveQueuedRun(
 			ctx,
-			taskRecord.ID,
-			"run-designated-sibling-other-group",
-			"designated-key-other-group",
-			origin,
-			"ops",
-			nil,
-			queuedAt.Add(3*time.Second),
-			"designation-group-b",
+			queuedRunReservationForTest(
+				taskRecord.ID,
+				"run-designated-sibling-other-group",
+				"designated-key-other-group",
+				origin,
+				"ops",
+				nil,
+				queuedAt.Add(3*time.Second),
+				"designation-group-b",
+			),
 		)
 		if otherGroupExisting {
 			t.Fatal("ReserveQueuedRun(other group) existing = true, want false")
@@ -2481,7 +2579,7 @@ func TestTaskNormalizationDefaultsAndHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalizeTaskRunForCreate() error = %v", err)
 	}
-	if got, want := normalizedRun.Attempt, 1; got != want {
+	if got, want := normalizedRun.Attempt, int32(1); got != want {
 		t.Fatalf("normalizeTaskRunForCreate().Attempt = %d, want %d", got, want)
 	}
 	if !normalizedRun.QueuedAt.Equal(globalDB.now()) {
@@ -2716,8 +2814,8 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 		if result.Run.Attempt != source.Attempt+1 {
 			t.Fatalf("Run.Attempt = %d, want %d", result.Run.Attempt, source.Attempt+1)
 		}
-		if result.Run.ClaimToken != "" || !result.Run.LeaseUntil.IsZero() {
-			t.Fatalf("child carries claim/lease state: token=%q lease=%v", result.Run.ClaimToken, result.Run.LeaseUntil)
+		if !result.Run.LeaseUntil.IsZero() {
+			t.Fatalf("child carries lease state: lease=%v", result.Run.LeaseUntil)
 		}
 		stored, err := globalDB.GetTaskRun(ctx, source.ID)
 		if err != nil {
@@ -2946,6 +3044,54 @@ func taskRunForTest(id string, taskID string) taskpkg.Run {
 		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
 		QueuedAt: queuedAt,
 	}
+}
+
+func insertLoopRunForCoordinatorIndexTest(ctx context.Context, t *testing.T, db *sql.DB, id string) {
+	t.Helper()
+
+	now := store.FormatTimestamp(time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC))
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO loop_runs (
+			id, workspace_id, loop_name, status, last_progress_at, inputs_json
+		) VALUES (?, ?, ?, ?, ?, ?)`,
+		id,
+		"ws-loop-index",
+		"software-delivery",
+		"running",
+		now,
+		`{}`,
+	); err != nil {
+		t.Fatalf("insert loop_run %q error = %v", id, err)
+	}
+}
+
+func insertTaskRunForCoordinatorIndexTest(
+	ctx context.Context,
+	db *sql.DB,
+	runID string,
+	taskID string,
+	loopRunID string,
+	runKind string,
+	status string,
+) error {
+	_, err := db.ExecContext(
+		ctx,
+		`INSERT INTO task_runs (
+			id, task_id, status, attempt, origin_kind, origin_ref, queued_at,
+			run_kind, loop_run_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		runID,
+		taskID,
+		status,
+		1,
+		string(taskpkg.OriginKindDaemon),
+		"loop-coordinator-index-test",
+		store.FormatTimestamp(time.Date(2026, 7, 4, 12, 5, 0, 0, time.UTC)),
+		runKind,
+		loopRunID,
+	)
+	return err
 }
 
 func ownershipForTest(kind taskpkg.OwnerKind, ref string) *taskpkg.Ownership {
@@ -3346,7 +3492,6 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.Origin != want.Origin ||
 		got.IdempotencyKey != want.IdempotencyKey ||
 		got.NetworkChannel != want.NetworkChannel ||
-		got.ClaimToken != want.ClaimToken ||
 		got.ClaimTokenHash != want.ClaimTokenHash ||
 		got.CoordinationChannelID != want.CoordinationChannelID ||
 		!got.QueuedAt.Equal(want.QueuedAt) ||
@@ -3452,6 +3597,34 @@ func orderedTaskSummaryIDs(summaries []taskpkg.Summary) []string {
 		ids = append(ids, summaries[idx].ID)
 	}
 	return ids
+}
+
+func queuedRunReservationForTest(
+	taskID string,
+	runID string,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+	requestedChannel string,
+	metadata json.RawMessage,
+	queuedAt time.Time,
+	designationGroupID ...string,
+) taskpkg.QueueRunReservation {
+	reservation := taskpkg.QueueRunReservation{
+		TaskID:           taskID,
+		RunID:            runID,
+		IdempotencyKey:   idempotencyKey,
+		Origin:           origin,
+		RequestedChannel: requestedChannel,
+		Metadata:         metadata,
+		QueuedAt:         queuedAt,
+	}
+	for _, value := range designationGroupID {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			reservation.DesignationGroupID = trimmed
+			break
+		}
+	}
+	return reservation
 }
 
 func sqlNullStringForTest(value string) sql.NullString {

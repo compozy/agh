@@ -62,6 +62,9 @@ func DispatchEventEmitterFromContext(ctx context.Context) DispatchEventEmitter {
 type DispatchCorrelation struct {
 	TaskID               string
 	RunID                string
+	LoopRunID            string
+	LoopName             string
+	NodeID               string
 	WorkflowID           string
 	CoordinatorSessionID string
 	ActorKind            string
@@ -140,6 +143,14 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		return correlationFromTaskRunContext(typed.TaskRunContext)
 	case TaskRunLeasePayload:
 		return correlationFromTaskRunContext(typed.TaskRunContext)
+	case LoopLifecyclePayload:
+		return correlationFromLoopContext(typed.LoopContext)
+	case LoopGenerationPayload:
+		return correlationFromLoopContext(typed.LoopContext)
+	case LoopGatePayload:
+		return correlationFromLoopContext(typed.LoopContext)
+	case LoopNodeTerminalPayload:
+		return correlationFromLoopContext(typed.LoopContext)
 	case SpawnPreCreatePayload:
 		return correlationFromSpawnContext(typed.SpawnContext)
 	case SpawnLifecyclePayload:
@@ -184,11 +195,26 @@ func correlationFromTaskRunContext(ctx TaskRunContext) DispatchCorrelation {
 	return DispatchCorrelation{
 		TaskID:               strings.TrimSpace(ctx.TaskID),
 		RunID:                strings.TrimSpace(ctx.RunID),
+		LoopRunID:            strings.TrimSpace(ctx.LoopRunID),
 		WorkflowID:           strings.TrimSpace(ctx.WorkflowID),
 		ActorKind:            strings.TrimSpace(ctx.ActorKind),
 		ActorID:              strings.TrimSpace(ctx.ActorID),
 		ReleaseReason:        strings.TrimSpace(ctx.ReleaseReason),
 		CoordinatorSessionID: strings.TrimSpace(ctx.SessionID),
+	}
+}
+
+func correlationFromLoopContext(ctx LoopContext) DispatchCorrelation {
+	return DispatchCorrelation{
+		TaskID:               strings.TrimSpace(ctx.TaskID),
+		RunID:                strings.TrimSpace(ctx.RunID),
+		LoopRunID:            strings.TrimSpace(ctx.LoopRunID),
+		LoopName:             strings.TrimSpace(ctx.LoopName),
+		NodeID:               strings.TrimSpace(ctx.NodeID),
+		WorkflowID:           strings.TrimSpace(ctx.WorkflowID),
+		CoordinatorSessionID: strings.TrimSpace(ctx.SessionID),
+		ActorKind:            strings.TrimSpace(ctx.ActorKind),
+		ActorID:              strings.TrimSpace(ctx.ActorID),
 	}
 }
 

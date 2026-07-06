@@ -43,7 +43,7 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 			Timestamp: m.now().UTC(),
 		},
 		TaskRunContext:    contextPayload,
-		PreviousRunStatus: string(recovery.PreviousRunStatus.Normalize()),
+		PreviousRunStatus: recovery.PreviousRunStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
@@ -67,7 +67,7 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 			Timestamp: m.now().UTC(),
 		},
 		TaskRunContext:    m.taskRunHookContext(run, taskRecord, actor),
-		PreviousRunStatus: string(recovery.PreviousRunStatus.Normalize()),
+		PreviousRunStatus: recovery.PreviousRunStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(recovery.PreviousSessionID),
 		RecoveryAction:    string(RunBootRecoveryRequeue),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
@@ -92,7 +92,7 @@ func (m *Service) dispatchTaskRunReleased(
 			Timestamp: m.now().UTC(),
 		},
 		TaskRunContext:    contextPayload,
-		PreviousRunStatus: string(previous.Status.Normalize()),
+		PreviousRunStatus: previous.Status.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(previous.SessionID),
 		RecoveryReason:    strings.TrimSpace(reason),
 	}

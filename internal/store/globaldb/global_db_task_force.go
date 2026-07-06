@@ -247,6 +247,10 @@ func (g *GlobalDB) insertRetryTaskRun(
 	taskRecord taskpkg.Task,
 	nextAttempt int,
 ) (taskpkg.RetryRunResult, error) {
+	runAttempt, err := taskRunAttemptFromInt(nextAttempt)
+	if err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
 	networkChannel := resolveStoredRunChannel(source.NetworkChannel, taskRecord.NetworkChannel)
 	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, args.newRunID)
 	if err := ensureQueuedRunCoordinationChannel(
@@ -263,7 +267,7 @@ func (g *GlobalDB) insertRetryTaskRun(
 		ID:                    args.newRunID,
 		TaskID:                taskRecord.ID,
 		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               nextAttempt,
+		Attempt:               runAttempt,
 		PreviousRunID:         source.ID,
 		Origin:                args.origin,
 		NetworkChannel:        networkChannel,
@@ -429,7 +433,6 @@ func forceReleasedTaskRun(previous taskpkg.Run) taskpkg.Run {
 	next.ClaimedBy = nil
 	next.ClaimedAt = time.Time{}
 	next.SessionID = ""
-	next.ClaimToken = ""
 	next.ClaimTokenHash = ""
 	next.LeaseUntil = time.Time{}
 	next.HeartbeatAt = time.Time{}
@@ -447,7 +450,6 @@ func forceFailedTaskRun(previous taskpkg.Run, reason string, now time.Time) task
 	next.Error = strings.TrimSpace(reason)
 	next.FailureKind = taskpkg.FailureKindOperatorForced
 	next.Result = nil
-	next.ClaimToken = ""
 	next.ClaimTokenHash = ""
 	next.LeaseUntil = time.Time{}
 	next.HeartbeatAt = time.Time{}
@@ -490,7 +492,7 @@ func updateTaskRunRecordWithSnapshotCAS(
 		   AND COALESCE(claim_token_hash, '') = ?
 		   AND COALESCE(lease_until, '') = ?`,
 		next.TaskID,
-		string(next.Status),
+		next.Status.String(),
 		next.Attempt,
 		store.NullableString(next.PreviousRunID),
 		strings.TrimSpace(next.FailureKind),
@@ -524,7 +526,7 @@ func updateTaskRunRecordWithSnapshotCAS(
 		string(lineage.MissingWork),
 		lineage.NextRoundGuidance,
 		next.ID,
-		string(previous.Status.Normalize()),
+		previous.Status.Normalize().String(),
 		strings.TrimSpace(previous.SessionID),
 		strings.TrimSpace(previous.ClaimTokenHash),
 		forceRunCASTimestamp(previous.LeaseUntil),

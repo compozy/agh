@@ -1441,7 +1441,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			Runs: []aghcontract.TaskRunPayload{{
 				ID:             "task-run-1",
 				TaskID:         "task-1",
-				Status:         "completed",
+				Status:         taskpkg.TaskRunStatusCompleted,
 				Attempt:        1,
 				SessionID:      "sess-1",
 				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindAutomation, Ref: "run:run-1"},

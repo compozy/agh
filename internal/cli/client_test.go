@@ -222,6 +222,79 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
+	t.Parallel()
+
+	credentials := agentidentity.Credentials{
+		SessionID: "sess-author",
+		AgentName: "coder",
+	}
+	client := &unixSocketClient{
+		socketPath: "/tmp/agh.sock",
+		httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				assertAgentRequestHeaders(t, req, credentials)
+				switch {
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/loops/release/run":
+					if got := req.URL.Query().Get("dry"); got != "true" {
+						t.Fatalf("run dry query = %q, want true", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"dry_run":{"loop_name":"release","resolved_inputs":{},"generation":1,"nodes":[],"contract":{},"effective_config":{}}}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/loop-runs/run-1/approve":
+					var payload contract.ApproveLoopRunRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(approve body) error = %v", err)
+					}
+					if payload.GateID != "human" || payload.Decision != contract.LoopGateDecisionApprove {
+						t.Fatalf("approve body = %#v, want human/approve", payload)
+					}
+					return newHTTPResponse(http.StatusNoContent, ""), nil
+				default:
+					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+					return nil, nil
+				}
+			}),
+		},
+	}
+
+	t.Run("Should send identity when starting a Loop run", func(t *testing.T) {
+		t.Parallel()
+
+		response, err := client.RunLoop(
+			context.Background(),
+			"ws-1",
+			"release",
+			contract.RunLoopRequest{Inputs: map[string]any{"target": "prod"}},
+			true,
+			credentials,
+		)
+		if err != nil {
+			t.Fatalf("RunLoop() error = %v", err)
+		}
+		if response.DryRun == nil || response.DryRun.LoopName != "release" {
+			t.Fatalf("RunLoop() = %#v, want release dry run", response)
+		}
+	})
+
+	t.Run("Should send identity when approving a Loop gate", func(t *testing.T) {
+		t.Parallel()
+
+		err := client.ApproveLoopRun(
+			context.Background(),
+			"ws-1",
+			"run-1",
+			contract.ApproveLoopRunRequest{GateID: "human", Decision: contract.LoopGateDecisionApprove},
+			credentials,
+		)
+		if err != nil {
+			t.Fatalf("ApproveLoopRun() error = %v", err)
+		}
+	})
+}
+
 func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 	t.Parallel()
 
@@ -548,9 +621,8 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {
 	return newHTTPResponse(
 		http.StatusOK,
-		`{"lease":{"task_id":"task-1","run_id":"run-1","status":"`+string(
-			status,
-		)+`","session_id":"sess-1","coordination_channel_id":"builders"}}`,
+		`{"lease":{"task_id":"task-1","run_id":"run-1","status":"`+
+			status.String()+`","session_id":"sess-1","coordination_channel_id":"builders"}}`,
 	)
 }
 
@@ -2013,6 +2085,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					if got := req.URL.Query().Get("source"); got != "dynamic" {
 						t.Fatalf("job source query = %q, want %q", got, "dynamic")
 					}
+					if got := req.URL.Query().Get("loop"); got != "triage" {
+						t.Fatalf("job loop query = %q, want %q", got, "triage")
+					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("job limit query = %q, want %q", got, "3")
 					}
@@ -2087,6 +2162,9 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					}
 					if got := req.URL.Query().Get("source"); got != "dynamic" {
 						t.Fatalf("trigger source query = %q, want %q", got, "dynamic")
+					}
+					if got := req.URL.Query().Get("loop"); got != "triage" {
+						t.Fatalf("trigger loop query = %q, want %q", got, "triage")
 					}
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("trigger limit query = %q, want %q", got, "2")
@@ -2181,6 +2259,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			WorkspaceID: "ws-alpha",
 			Source:      automationpkg.JobSourceDynamic,
+			LoopName:    "triage",
 			Limit:       3,
 		})
 		if err != nil || len(jobs) != 1 || jobs[0].ID != "job-1" {
@@ -2253,6 +2332,7 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			WorkspaceID: "ws-alpha",
 			Event:       "webhook",
 			Source:      automationpkg.JobSourceDynamic,
+			LoopName:    "triage",
 			Limit:       2,
 		})
 		if err != nil || len(triggers) != 1 || triggers[0].ID != "trg-1" {

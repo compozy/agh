@@ -17,6 +17,8 @@ const (
 	CapabilityToolProvider = "tool.provider"
 	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
 	CapabilityProvideModelSource = "model.source"
+	// CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
+	CapabilityProvideWatchSource = "loop.watch_source"
 )
 
 // ExtensionServiceMethod identifies one AGH -> extension capability service request.
@@ -31,6 +33,7 @@ const (
 	ExtensionServiceMethodProvideTools   ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall      ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList     ExtensionServiceMethod = "models/list"
+	ExtensionServiceMethodWatchPoll      ExtensionServiceMethod = "watch/poll"
 )
 
 const (
@@ -243,6 +246,9 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	},
 	CapabilityProvideModelSource: {
 		ExtensionServiceMethodModelsList,
+	},
+	CapabilityProvideWatchSource: {
+		ExtensionServiceMethodWatchPoll,
 	},
 }
 

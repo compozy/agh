@@ -12,6 +12,9 @@ const (
 	matcherChannelKey               = "channel"
 	matcherCoordinationChannelIDKey = "coordination_channel_id"
 	matcherInputClassKey            = "input_class"
+	matcherLoopNameKey              = "loop_name"
+	matcherLoopRunIDKey             = "loop_run_id"
+	matcherNodeIDKey                = "node_id"
 	matcherReleaseReasonKey         = "release_reason"
 	matcherRunIDKey                 = "run_id"
 	matcherTaskIDKey                = "task_id"
@@ -117,9 +120,21 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherWorkspaceIDKey:           {},
 		matcherTaskIDKey:                {},
 		matcherRunIDKey:                 {},
+		matcherLoopRunIDKey:             {},
 		matcherWorkflowIDKey:            {},
 		matcherCoordinationChannelIDKey: {},
 		matcherReleaseReasonKey:         {},
+	},
+	HookEventFamilyLoop: {
+		matcherAgentNameKey:             {},
+		matcherWorkspaceIDKey:           {},
+		matcherTaskIDKey:                {},
+		matcherRunIDKey:                 {},
+		matcherLoopRunIDKey:             {},
+		matcherLoopNameKey:              {},
+		matcherNodeIDKey:                {},
+		matcherWorkflowIDKey:            {},
+		matcherCoordinationChannelIDKey: {},
 	},
 	HookEventFamilySpawn: {
 		matcherAgentNameKey:             {},
@@ -365,6 +380,9 @@ func (m HookMatcher) MatchesTask(payload TaskContext) bool {
 		payload.WorkspaceID,
 		payload.TaskID,
 		payload.RunID,
+		"",
+		"",
+		"",
 		payload.WorkflowID,
 		payload.CoordinationChannelID,
 		payload.ReleaseReason,
@@ -378,9 +396,28 @@ func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
 		payload.WorkspaceID,
 		payload.TaskID,
 		payload.RunID,
+		payload.LoopRunID,
+		"",
+		"",
 		payload.WorkflowID,
 		payload.CoordinationChannelID,
 		payload.ReleaseReason,
+	)
+}
+
+// MatchesLoop matches loop-family hooks.
+func (m HookMatcher) MatchesLoop(payload LoopContext) bool {
+	return m.matchTaskAutonomyFields(
+		payload.AgentName,
+		payload.WorkspaceID,
+		payload.TaskID,
+		payload.RunID,
+		payload.LoopRunID,
+		payload.LoopName,
+		payload.NodeID,
+		payload.WorkflowID,
+		payload.CoordinationChannelID,
+		"",
 	)
 }
 
@@ -389,6 +426,9 @@ func (m HookMatcher) matchTaskAutonomyFields(
 	workspaceID string,
 	taskID string,
 	runID string,
+	loopRunID string,
+	loopName string,
+	nodeID string,
 	workflowID string,
 	coordinationChannelID string,
 	releaseReason string,
@@ -398,6 +438,9 @@ func (m HookMatcher) matchTaskAutonomyFields(
 		matchStringField(m.WorkspaceID, workspaceID) &&
 		matchStringField(autonomy.TaskID, taskID) &&
 		matchStringField(autonomy.RunID, runID) &&
+		matchStringField(autonomy.LoopRunID, loopRunID) &&
+		matchStringField(autonomy.LoopName, loopName) &&
+		matchStringField(autonomy.NodeID, nodeID) &&
 		matchStringField(autonomy.WorkflowID, workflowID) &&
 		matchStringField(autonomy.CoordinationChannelID, coordinationChannelID) &&
 		matchStringField(autonomy.ReleaseReason, releaseReason)
@@ -638,6 +681,22 @@ func matchTaskRunLease(matcher HookMatcher, payload TaskRunLeasePayload) bool {
 	return matcher.MatchesTaskRun(payload.TaskRunContext)
 }
 
+func matchLoopLifecycle(matcher HookMatcher, payload LoopLifecyclePayload) bool {
+	return matcher.MatchesLoop(payload.LoopContext)
+}
+
+func matchLoopGeneration(matcher HookMatcher, payload LoopGenerationPayload) bool {
+	return matcher.MatchesLoop(payload.LoopContext)
+}
+
+func matchLoopGate(matcher HookMatcher, payload LoopGatePayload) bool {
+	return matcher.MatchesLoop(payload.LoopContext)
+}
+
+func matchLoopNodeTerminal(matcher HookMatcher, payload LoopNodeTerminalPayload) bool {
+	return matcher.MatchesLoop(payload.LoopContext)
+}
+
 func matchSpawnPreCreate(matcher HookMatcher, payload SpawnPreCreatePayload) bool {
 	return matcher.MatchesSpawn(payload.SpawnContext)
 }
@@ -759,6 +818,9 @@ func normalizeAutonomyMatcher(matcher *AutonomyMatcher) *AutonomyMatcher {
 	normalized := AutonomyMatcher{
 		TaskID:                strings.TrimSpace(matcher.TaskID),
 		RunID:                 strings.TrimSpace(matcher.RunID),
+		LoopRunID:             strings.TrimSpace(matcher.LoopRunID),
+		LoopName:              strings.TrimSpace(matcher.LoopName),
+		NodeID:                strings.TrimSpace(matcher.NodeID),
 		WorkflowID:            strings.TrimSpace(matcher.WorkflowID),
 		CoordinationChannelID: strings.TrimSpace(matcher.CoordinationChannelID),
 		CoordinatorSessionID:  strings.TrimSpace(matcher.CoordinatorSessionID),
@@ -790,6 +852,9 @@ func (m *CompactionMatcher) empty() bool {
 func (m *AutonomyMatcher) empty() bool {
 	return m.TaskID == "" &&
 		m.RunID == "" &&
+		m.LoopRunID == "" &&
+		m.LoopName == "" &&
+		m.NodeID == "" &&
 		m.WorkflowID == "" &&
 		m.CoordinationChannelID == "" &&
 		m.CoordinatorSessionID == "" &&
@@ -874,6 +939,9 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 
 	appendIf(matcherTaskIDKey, matcher.TaskID != "")
 	appendIf(matcherRunIDKey, matcher.RunID != "")
+	appendIf(matcherLoopRunIDKey, matcher.LoopRunID != "")
+	appendIf(matcherLoopNameKey, matcher.LoopName != "")
+	appendIf(matcherNodeIDKey, matcher.NodeID != "")
 	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
 	appendIf(matcherCoordinationChannelIDKey, matcher.CoordinationChannelID != "")
 	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
@@ -972,6 +1040,9 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 	}{
 		{field: matcherTaskIDKey, pattern: matcher.TaskID},
 		{field: matcherRunIDKey, pattern: matcher.RunID},
+		{field: matcherLoopRunIDKey, pattern: matcher.LoopRunID},
+		{field: matcherLoopNameKey, pattern: matcher.LoopName},
+		{field: matcherNodeIDKey, pattern: matcher.NodeID},
 		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
 		{field: matcherCoordinationChannelIDKey, pattern: matcher.CoordinationChannelID},
 		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},

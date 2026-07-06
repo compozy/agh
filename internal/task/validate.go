@@ -22,7 +22,14 @@ func (s Scope) Validate(path string) error {
 	case "":
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
-		return fmt.Errorf("%w: %s must be %q or %q: %q", ErrValidation, path, ScopeGlobal, ScopeWorkspace, s)
+		return fmt.Errorf(
+			"%w: %s must be %q or %q: %q",
+			ErrValidation,
+			path,
+			ScopeGlobal,
+			ScopeWorkspace,
+			s,
+		)
 	}
 }
 
@@ -123,7 +130,10 @@ func (s ApprovalState) Normalize() ApprovalState {
 // Validate reports whether the approval state is one of the supported values.
 func (s ApprovalState) Validate(path string) error {
 	switch s.Normalize() {
-	case ApprovalStateNotRequired, ApprovalStatePending, ApprovalStateApproved, ApprovalStateRejected:
+	case ApprovalStateNotRequired,
+		ApprovalStatePending,
+		ApprovalStateApproved,
+		ApprovalStateRejected:
 		return nil
 	case "":
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
@@ -143,7 +153,7 @@ func (s ApprovalState) Validate(path string) error {
 
 // Normalize returns the normalized representation of the task-run status.
 func (s RunStatus) Normalize() RunStatus {
-	return RunStatus(strings.ToLower(strings.TrimSpace(string(s))))
+	return ParseRunStatus(s.String())
 }
 
 // Validate reports whether the task-run status is one of the supported lifecycle states.
@@ -158,23 +168,83 @@ func (s RunStatus) Validate(path string) error {
 		TaskRunStatusCanceled,
 		TaskRunStatusNeedsAttention:
 		return nil
-	case "":
+	case TaskRunStatusUnknown:
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
 		return fmt.Errorf(
 			"%w: %s must be one of %q, %q, %q, %q, %q, %q, %q, or %q: %q",
 			ErrValidation,
 			path,
-			TaskRunStatusQueued,
-			TaskRunStatusClaimed,
-			TaskRunStatusStarting,
-			TaskRunStatusRunning,
-			TaskRunStatusCompleted,
-			TaskRunStatusFailed,
-			TaskRunStatusCanceled,
-			TaskRunStatusNeedsAttention,
-			s,
+			TaskRunStatusQueued.String(),
+			TaskRunStatusClaimed.String(),
+			TaskRunStatusStarting.String(),
+			TaskRunStatusRunning.String(),
+			TaskRunStatusCompleted.String(),
+			TaskRunStatusFailed.String(),
+			TaskRunStatusCanceled.String(),
+			TaskRunStatusNeedsAttention.String(),
+			s.String(),
 		)
+	}
+}
+
+// ParseRunStatus returns the canonical task-run status for a durable string value.
+func ParseRunStatus(value string) RunStatus {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case TaskRunStatusQueued.String():
+		return TaskRunStatusQueued
+	case TaskRunStatusClaimed.String():
+		return TaskRunStatusClaimed
+	case TaskRunStatusStarting.String():
+		return TaskRunStatusStarting
+	case TaskRunStatusRunning.String():
+		return TaskRunStatusRunning
+	case TaskRunStatusCompleted.String():
+		return TaskRunStatusCompleted
+	case TaskRunStatusFailed.String():
+		return TaskRunStatusFailed
+	case TaskRunStatusCanceled.String():
+		return TaskRunStatusCanceled
+	case TaskRunStatusNeedsAttention.String():
+		return TaskRunStatusNeedsAttention
+	default:
+		return TaskRunStatusUnknown
+	}
+}
+
+// Normalize returns the normalized representation of the task-run kind.
+func (k RunKind) Normalize() RunKind {
+	return ParseRunKind(k.String())
+}
+
+// Validate reports whether the task-run kind is one of the supported executor kinds.
+func (k RunKind) Validate(path string) error {
+	switch k.Normalize() {
+	case RunKindWorker, RunKindCoordinator:
+		return nil
+	case RunKindUnknown:
+		return fmt.Errorf("%w: %s is required", ErrValidation, path)
+	default:
+		return fmt.Errorf(
+			"%w: %s must be %q or %q: %q",
+			ErrValidation,
+			path,
+			RunKindWorker.String(),
+			RunKindCoordinator.String(),
+			k.String(),
+		)
+	}
+}
+
+// ParseRunKind returns the canonical task-run kind for a durable string value.
+func ParseRunKind(value string) RunKind {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case RunKindWorker.String():
+		return RunKindWorker
+	case RunKindCoordinator.String():
+		return RunKindCoordinator
+	default:
+		return RunKindUnknown
 	}
 }
 
@@ -314,7 +384,11 @@ func (r StopReason) Normalize() StopReason {
 // Validate reports whether the stop reason is supported.
 func (r StopReason) Validate(path string) error {
 	switch r.Normalize() {
-	case StopReasonCompleted, StopReasonFailed, StopReasonCancellation, StopReasonShutdown, StopReasonOrphanedRun:
+	case StopReasonCompleted,
+		StopReasonFailed,
+		StopReasonCancellation,
+		StopReasonShutdown,
+		StopReasonOrphanedRun:
 		return nil
 	case "":
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
@@ -416,7 +490,8 @@ func (t Task) Validate() error {
 	if err := ValidateScopeBinding(t.Scope, t.WorkspaceID, "task", "workspace_id"); err != nil {
 		return err
 	}
-	if strings.TrimSpace(t.ParentTaskID) != "" && strings.TrimSpace(t.ParentTaskID) == strings.TrimSpace(t.ID) {
+	if strings.TrimSpace(t.ParentTaskID) != "" &&
+		strings.TrimSpace(t.ParentTaskID) == strings.TrimSpace(t.ID) {
 		return fmt.Errorf("%w: task.parent_task_id cannot equal task.id", ErrValidation)
 	}
 	if strings.TrimSpace(t.Title) == "" {
@@ -426,7 +501,11 @@ func (t Task) Validate() error {
 		return err
 	}
 	if t.Status.Normalize() == TaskStatusDraft && !t.ClosedAt.IsZero() {
-		return fmt.Errorf("%w: task.closed_at must be empty while task.status is %q", ErrValidation, TaskStatusDraft)
+		return fmt.Errorf(
+			"%w: task.closed_at must be empty while task.status is %q",
+			ErrValidation,
+			TaskStatusDraft,
+		)
 	}
 	if err := normalizePriorityOrDefault(t.Priority).Validate("task.priority"); err != nil {
 		return err
@@ -500,21 +579,65 @@ func (d Dependency) Validate() error {
 
 // Validate reports whether the task-run record contains the canonical persisted shape.
 func (r Run) Validate() error {
+	if err := validateRunIdentity(r); err != nil {
+		return err
+	}
+	if err := validateRunExecutorBinding(r); err != nil {
+		return err
+	}
+	if err := validateRunActorOriginSession(r); err != nil {
+		return err
+	}
+	if err := ValidateCapabilityIDs(r.RequiredCapabilities, "task_run.required_capabilities"); err != nil {
+		return err
+	}
+	if err := ValidateCapabilityIDs(r.PreferredCapabilities, "task_run.preferred_capabilities"); err != nil {
+		return err
+	}
+	if err := validateTaskRunReviewGateFields(r); err != nil {
+		return err
+	}
+	if r.TokensUsed < 0 {
+		return fmt.Errorf(
+			"%w: task_run.tokens_used must be zero or positive: %d",
+			ErrValidation,
+			r.TokensUsed,
+		)
+	}
+	return validateRunPayloads(r)
+}
+
+func validateRunIdentity(r Run) error {
 	if strings.TrimSpace(r.ID) == "" {
 		return fmt.Errorf("%w: task_run.id is required", ErrValidation)
 	}
 	if strings.TrimSpace(r.TaskID) == "" {
 		return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
 	}
-	if err := r.Status.Validate("task_run.status"); err != nil {
-		return err
-	}
 	if r.Attempt <= 0 {
 		return fmt.Errorf("%w: task_run.attempt must be positive: %d", ErrValidation, r.Attempt)
 	}
-	if err := validateRunLineageFields(r); err != nil {
+	return validateRunLineageFields(r)
+}
+
+func validateRunExecutorBinding(r Run) error {
+	if err := normalizeRunKindOrDefault(r.RunKind).Validate("task_run.run_kind"); err != nil {
 		return err
 	}
+	if normalizeRunKindOrDefault(r.RunKind) == RunKindCoordinator &&
+		strings.TrimSpace(r.LoopRunID) == "" {
+		return fmt.Errorf(
+			"%w: task_run.loop_run_id is required for coordinator runs",
+			ErrValidation,
+		)
+	}
+	if err := r.Status.Validate("task_run.status"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRunActorOriginSession(r Run) error {
 	if r.ClaimedBy != nil {
 		if err := r.ClaimedBy.Validate("task_run.claimed_by"); err != nil {
 			return err
@@ -535,35 +658,45 @@ func (r Run) Validate() error {
 	if err := validateRunLeaseMetadata(r); err != nil {
 		return err
 	}
-	if err := ValidateCapabilityIDs(r.RequiredCapabilities, "task_run.required_capabilities"); err != nil {
-		return err
-	}
-	if err := ValidateCapabilityIDs(r.PreferredCapabilities, "task_run.preferred_capabilities"); err != nil {
-		return err
-	}
-	if err := validateTaskRunReviewGateFields(r); err != nil {
-		return err
-	}
+	return nil
+}
+
+func validateRunPayloads(r Run) error {
 	if err := ValidateMetadataSize(r.Metadata, "task_run.metadata"); err != nil {
 		return err
 	}
 	if hasRawClaimTokenField(r.Metadata) {
-		return fmt.Errorf("%w: task_run.metadata must not contain raw lease credentials", ErrValidation)
+		return fmt.Errorf(
+			"%w: task_run.metadata must not contain raw lease credentials",
+			ErrValidation,
+		)
 	}
 	if err := ValidateResultSize(r.Result, "task_run.result"); err != nil {
 		return err
 	}
 	if hasRawClaimTokenField(r.Result) {
-		return fmt.Errorf("%w: task_run.result must not contain raw lease credentials", ErrValidation)
+		return fmt.Errorf(
+			"%w: task_run.result must not contain raw lease credentials",
+			ErrValidation,
+		)
 	}
 	return nil
+}
+
+func normalizeRunKindOrDefault(kind RunKind) RunKind {
+	normalized := kind.Normalize()
+	if normalized == RunKindUnknown {
+		return RunKindWorker
+	}
+	return normalized
 }
 
 func validateRunLineageFields(r Run) error {
 	if strings.TrimSpace(r.PreviousRunID) == r.ID {
 		return fmt.Errorf("%w: task_run.previous_run_id must not equal task_run.id", ErrValidation)
 	}
-	if strings.TrimSpace(r.FailureKind) == "" || strings.TrimSpace(r.FailureKind) == FailureKindOperatorForced {
+	if strings.TrimSpace(r.FailureKind) == "" ||
+		strings.TrimSpace(r.FailureKind) == FailureKindOperatorForced {
 		return nil
 	}
 	return fmt.Errorf(
@@ -600,10 +733,16 @@ func validateTaskRunReviewGateFields(r Run) error {
 	}
 	if strings.TrimSpace(lineage.ReviewID) != "" {
 		if strings.TrimSpace(lineage.ParentRunID) == "" {
-			return fmt.Errorf("%w: task_run.review.parent_run_id is required when review_id is set", ErrValidation)
+			return fmt.Errorf(
+				"%w: task_run.review.parent_run_id is required when review_id is set",
+				ErrValidation,
+			)
 		}
 		if lineage.ReviewRound <= 0 {
-			return fmt.Errorf("%w: task_run.review.review_round must be positive when review_id is set", ErrValidation)
+			return fmt.Errorf(
+				"%w: task_run.review.review_round must be positive when review_id is set",
+				ErrValidation,
+			)
 		}
 	}
 	if err := validateBoundedReviewText(
@@ -624,19 +763,24 @@ func validateTaskRunReviewGateFields(r Run) error {
 }
 
 func validateRunLeaseMetadata(r Run) error {
-	claimToken := strings.TrimSpace(r.ClaimToken)
 	claimTokenHash := strings.TrimSpace(r.ClaimTokenHash)
-	if claimToken != "" && claimTokenHash == "" {
-		return fmt.Errorf("%w: task_run.claim_token_hash is required when claim_token is set", ErrValidation)
-	}
 	if claimTokenHash != "" && !isCanonicalClaimTokenHash(claimTokenHash) {
-		return fmt.Errorf("%w: task_run.claim_token_hash must be a lowercase sha256 hex hash", ErrValidation)
+		return fmt.Errorf(
+			"%w: task_run.claim_token_hash must be a lowercase sha256 hex hash",
+			ErrValidation,
+		)
 	}
 	if !r.LeaseUntil.IsZero() && claimTokenHash == "" {
-		return fmt.Errorf("%w: task_run.claim_token_hash is required when lease_until is set", ErrValidation)
+		return fmt.Errorf(
+			"%w: task_run.claim_token_hash is required when lease_until is set",
+			ErrValidation,
+		)
 	}
 	if !r.HeartbeatAt.IsZero() && claimTokenHash == "" {
-		return fmt.Errorf("%w: task_run.claim_token_hash is required when heartbeat_at is set", ErrValidation)
+		return fmt.Errorf(
+			"%w: task_run.claim_token_hash is required when heartbeat_at is set",
+			ErrValidation,
+		)
 	}
 	if !r.ClaimedAt.IsZero() && !r.LeaseUntil.IsZero() && !r.LeaseUntil.After(r.ClaimedAt) {
 		return fmt.Errorf("%w: task_run.lease_until must be after claimed_at", ErrValidation)
@@ -678,7 +822,12 @@ func ValidateCapabilityIDs(values []string, path string) error {
 			return fmt.Errorf("%w: %s is required", ErrValidation, field)
 		}
 		if len(value) > maxCapabilityIDLength {
-			return fmt.Errorf("%w: %s exceeds %d bytes", ErrValidation, field, maxCapabilityIDLength)
+			return fmt.Errorf(
+				"%w: %s exceeds %d bytes",
+				ErrValidation,
+				field,
+				maxCapabilityIDLength,
+			)
 		}
 		if containsCapabilitySeparator(value) {
 			return fmt.Errorf("%w: %s must not contain whitespace or commas", ErrValidation, field)
@@ -837,7 +986,12 @@ func (p Patch) Validate(path string) error {
 		return err
 	}
 	if p.Owner != nil && p.ClearOwner {
-		return fmt.Errorf("%w: %s.owner and %s.clear_owner cannot both be set", ErrValidation, path, path)
+		return fmt.Errorf(
+			"%w: %s.owner and %s.clear_owner cannot both be set",
+			ErrValidation,
+			path,
+			path,
+		)
 	}
 	if p.Owner != nil {
 		if err := p.Owner.Validate(nestedPath(path, "owner")); err != nil {
@@ -874,6 +1028,45 @@ func (r AddDependency) Validate(path string) error {
 func (r EnqueueRun) Validate(path string) error {
 	if strings.TrimSpace(r.TaskID) == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
+	}
+	runKind := normalizeRunKindOrDefault(r.RunKind)
+	if err := runKind.Validate(nestedPath(path, "run_kind")); err != nil {
+		return err
+	}
+	if runKind == RunKindCoordinator && strings.TrimSpace(r.LoopRunID) == "" {
+		return fmt.Errorf(
+			"%w: %s is required for coordinator runs",
+			ErrValidation,
+			nestedPath(path, "loop_run_id"),
+		)
+	}
+	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate reports whether the store-level queue reservation input is internally consistent.
+func (r QueueRunReservation) Validate(path string) error {
+	if strings.TrimSpace(r.TaskID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
+	}
+	if strings.TrimSpace(r.RunID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "run_id"))
+	}
+	runKind := normalizeRunKindOrDefault(r.RunKind)
+	if err := runKind.Validate(nestedPath(path, "run_kind")); err != nil {
+		return err
+	}
+	if runKind == RunKindCoordinator && strings.TrimSpace(r.LoopRunID) == "" {
+		return fmt.Errorf(
+			"%w: %s is required for coordinator runs",
+			ErrValidation,
+			nestedPath(path, "loop_run_id"),
+		)
+	}
+	if err := r.Origin.Validate(nestedPath(path, "origin")); err != nil {
+		return err
 	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
@@ -916,7 +1109,11 @@ func (r RunResult) Validate(path string) error {
 		return err
 	}
 	if hasRawClaimTokenField(r.Value) {
-		return fmt.Errorf("%w: %s must not contain raw lease credentials", ErrValidation, nestedPath(path, "value"))
+		return fmt.Errorf(
+			"%w: %s must not contain raw lease credentials",
+			ErrValidation,
+			nestedPath(path, "value"),
+		)
 	}
 	return nil
 }
@@ -930,7 +1127,11 @@ func (r RunFailure) Validate(path string) error {
 		return err
 	}
 	if hasRawClaimTokenField(r.Metadata) {
-		return fmt.Errorf("%w: %s must not contain raw lease credentials", ErrValidation, nestedPath(path, "metadata"))
+		return fmt.Errorf(
+			"%w: %s must not contain raw lease credentials",
+			ErrValidation,
+			nestedPath(path, "metadata"),
+		)
 	}
 	return nil
 }
@@ -968,7 +1169,12 @@ func (q Query) Validate(path string) error {
 		}
 	}
 	if q.Limit < 0 {
-		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "limit"),
+			q.Limit,
+		)
 	}
 	return nil
 }
@@ -983,13 +1189,18 @@ func (q SchedulerBacklogQuery) Validate(path string) error {
 
 // Validate reports whether the task-run query filters are internally consistent.
 func (q RunQuery) Validate(path string) error {
-	if q.Status.Normalize() != "" {
+	if q.Status.Normalize() != TaskRunStatusUnknown {
 		if err := q.Status.Validate(nestedPath(path, "status")); err != nil {
 			return err
 		}
 	}
 	if q.Limit < 0 {
-		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "limit"),
+			q.Limit,
+		)
 	}
 	return nil
 }
@@ -997,7 +1208,12 @@ func (q RunQuery) Validate(path string) error {
 // Validate reports whether the task-event query filters are internally consistent.
 func (q EventQuery) Validate(path string) error {
 	if q.Limit < 0 {
-		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "limit"),
+			q.Limit,
+		)
 	}
 	return nil
 }
@@ -1013,7 +1229,12 @@ func (q TimelineQuery) Validate(path string) error {
 		)
 	}
 	if q.Limit < 0 {
-		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "limit"),
+			q.Limit,
+		)
 	}
 	return nil
 }
@@ -1045,7 +1266,12 @@ func (q EventRecordQuery) Validate(path string) error {
 		)
 	}
 	if q.Limit < 0 {
-		return fmt.Errorf("%w: %s must be zero or positive: %d", ErrValidation, nestedPath(path, "limit"), q.Limit)
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "limit"),
+			q.Limit,
+		)
 	}
 	return nil
 }
@@ -1065,7 +1291,10 @@ func (r *StartTaskSession) Validate() error {
 		return err
 	}
 	if strings.TrimSpace(r.Run.TaskID) != strings.TrimSpace(r.Task.ID) {
-		return fmt.Errorf("%w: start_task_session.run.task_id must match start_task_session.task.id", ErrValidation)
+		return fmt.Errorf(
+			"%w: start_task_session.run.task_id must match start_task_session.task.id",
+			ErrValidation,
+		)
 	}
 	if r.ExecutionProfile != nil {
 		if strings.TrimSpace(r.ExecutionProfile.TaskID) != strings.TrimSpace(r.Task.ID) {
@@ -1090,7 +1319,12 @@ func (r SessionRef) Validate() error {
 }
 
 // ValidateScopeBinding enforces the canonical scope/workspace invariant shared by task-domain records.
-func ValidateScopeBinding(scope Scope, workspaceBinding string, path string, workspaceField string) error {
+func ValidateScopeBinding(
+	scope Scope,
+	workspaceBinding string,
+	path string,
+	workspaceField string,
+) error {
 	scopePath := nestedPath(path, "scope")
 	if err := scope.Validate(scopePath); err != nil {
 		return err
@@ -1258,7 +1492,11 @@ func taskPatchHasMutableFields(p Patch) bool {
 
 func validateTaskPatchTextAndSemantics(p Patch, path string) error {
 	if p.Title != nil && strings.TrimSpace(*p.Title) == "" {
-		return fmt.Errorf("%w: %s is required when provided", ErrValidation, nestedPath(path, "title"))
+		return fmt.Errorf(
+			"%w: %s is required when provided",
+			ErrValidation,
+			nestedPath(path, "title"),
+		)
 	}
 	if p.Priority != nil {
 		if err := p.Priority.Validate(nestedPath(path, "priority")); err != nil {
@@ -1301,7 +1539,13 @@ func validateTaskMaxAttempts(maxAttempts int, path string, allowZeroDefault bool
 		return fmt.Errorf("%w: %s must be positive: %d", ErrValidation, path, maxAttempts)
 	}
 	if maxAttempts > MaxTaskMaxAttempts {
-		return fmt.Errorf("%w: %s must be <= %d: %d", ErrValidation, path, MaxTaskMaxAttempts, maxAttempts)
+		return fmt.Errorf(
+			"%w: %s must be <= %d: %d",
+			ErrValidation,
+			path,
+			MaxTaskMaxAttempts,
+			maxAttempts,
+		)
 	}
 	return nil
 }

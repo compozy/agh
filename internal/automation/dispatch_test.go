@@ -201,6 +201,190 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	}
 }
 
+func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	starter := &recordingLoopStarter{runID: "looprun-schedule"}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+	job := testJob(AutomationScopeWorkspace, "job-loop-backed", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID: "ws_alpha",
+		LoopName:    "triage",
+		Inputs: map[string]any{
+			"tasks": "task-ref",
+		},
+	}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindSchedule,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+
+	if got := len(creator.createCalls()); got != 0 {
+		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+	if got := len(creator.promptCalls()); got != 0 {
+		t.Fatalf("len(Prompt calls) = %d, want 0", got)
+	}
+	if got, want := run.Status, RunDelegated; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got, want := run.LoopRunID, "looprun-schedule"; got != want {
+		t.Fatalf("run.LoopRunID = %q, want %q", got, want)
+	}
+	if got := run.TaskID; got != "" {
+		t.Fatalf("run.TaskID = %q, want empty", got)
+	}
+	if got := run.TaskRunID; got != "" {
+		t.Fatalf("run.TaskRunID = %q, want empty", got)
+	}
+
+	startCalls := starter.startCallSnapshot()
+	if got, want := len(startCalls), 1; got != want {
+		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+	}
+	call := startCalls[0]
+	if got, want := call.Kind, LoopStartKindSchedule; got != want {
+		t.Fatalf("StartLoop().Kind = %q, want %q", got, want)
+	}
+	if got, want := call.WorkspaceID, "ws_alpha"; got != want {
+		t.Fatalf("StartLoop().WorkspaceID = %q, want %q", got, want)
+	}
+	if got, want := call.LoopName, "triage"; got != want {
+		t.Fatalf("StartLoop().LoopName = %q, want %q", got, want)
+	}
+	if got, want := call.AutomationRunID, run.ID; got != want {
+		t.Fatalf("StartLoop().AutomationRunID = %q, want %q", got, want)
+	}
+	if got, want := call.Actor.Actor.Kind, taskpkg.ActorKindAutomation; got != want {
+		t.Fatalf("StartLoop().Actor.Actor.Kind = %q, want %q", got, want)
+	}
+	if got, want := call.Actor.Actor.Ref, job.ID; got != want {
+		t.Fatalf("StartLoop().Actor.Actor.Ref = %q, want %q", got, want)
+	}
+	if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
+		t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
+	}
+	if got, want := call.Inputs["tasks"], "task-ref"; got != want {
+		t.Fatalf("StartLoop().Inputs[tasks] = %v, want %v", got, want)
+	}
+}
+
+func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	starter := &recordingLoopStarter{runID: "looprun-webhook"}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+	trigger := testTrigger(AutomationScopeWorkspace, "trigger-loop-backed", "ws_alpha")
+	trigger.AgentName = ""
+	trigger.Prompt = ""
+	trigger.TargetKind = TargetKindLoop
+	trigger.LoopTarget = &LoopTarget{
+		WorkspaceID: "ws_alpha",
+		LoopName:    "deploy",
+		InputMapping: map[string]string{
+			"title": "{{ .trigger.payload.title }}",
+		},
+	}
+	envelope := testEnvelope(AutomationScopeWorkspace, "ws_alpha")
+	envelope.Data = map[string]any{
+		"title": "Deploy release",
+	}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind:     DispatchKindTrigger,
+		Trigger:  &trigger,
+		Envelope: &envelope,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+
+	if got := len(creator.createCalls()); got != 0 {
+		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+	if got, want := run.Status, RunDelegated; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got, want := run.LoopRunID, "looprun-webhook"; got != want {
+		t.Fatalf("run.LoopRunID = %q, want %q", got, want)
+	}
+
+	startCalls := starter.startCallSnapshot()
+	if got, want := len(startCalls), 1; got != want {
+		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+	}
+	call := startCalls[0]
+	if got, want := call.Kind, LoopStartKindWebhook; got != want {
+		t.Fatalf("StartLoop().Kind = %q, want %q", got, want)
+	}
+	if got, want := call.TriggerPayload["title"], "Deploy release"; got != want {
+		t.Fatalf("StartLoop().TriggerPayload[title] = %v, want %v", got, want)
+	}
+	if got, want := call.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
+		t.Fatalf("StartLoop().InputMapping[title] = %q, want %q", got, want)
+	}
+	if got, want := call.Actor.Actor.Ref, trigger.ID; got != want {
+		t.Fatalf("StartLoop().Actor.Actor.Ref = %q, want %q", got, want)
+	}
+	if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
+		t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
+	}
+}
+
+func TestDispatchLoopTargetFailsRunWhenLoopStarterRejects(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	starter := &recordingLoopStarter{startErr: errors.New("start_kind_not_allowed: schedule not declared")}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+	job := testJob(AutomationScopeWorkspace, "job-loop-rejected", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID: "ws_alpha",
+		LoopName:    "triage",
+	}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindSchedule,
+		Job:  &job,
+	})
+	if err == nil {
+		t.Fatal("Dispatch() error = nil, want loop starter rejection")
+	}
+	if run == nil {
+		t.Fatal("Dispatch() run = nil, want failed automation run")
+	}
+	if got, want := run.Status, RunFailed; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got := run.LoopRunID; got != "" {
+		t.Fatalf("run.LoopRunID = %q, want empty", got)
+	}
+	if !strings.Contains(run.Error, "start_kind_not_allowed") {
+		t.Fatalf("run.Error = %q, want start_kind_not_allowed reason", run.Error)
+	}
+	if got := len(creator.createCalls()); got != 0 {
+		t.Fatalf("len(Create calls) = %d, want 0", got)
+	}
+}
+
 func TestDispatchNonTaskJobStillUsesSessionRuntimeAndRecordsAutomationSessionActor(t *testing.T) {
 	t.Parallel()
 
@@ -1397,6 +1581,94 @@ func (s *recordingTaskService) EnqueueRun(
 		IdempotencyKey: spec.IdempotencyKey,
 		NetworkChannel: spec.NetworkChannel,
 	}, nil
+}
+
+type recordingLoopStarter struct {
+	mu            sync.Mutex
+	validateCalls []LoopTargetValidationRequest
+	startCalls    []LoopStartRequest
+	validateErr   error
+	startErr      error
+	runID         string
+}
+
+func (s *recordingLoopStarter) ValidateLoopTarget(
+	ctx context.Context,
+	req LoopTargetValidationRequest,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.validateCalls = append(s.validateCalls, cloneLoopTargetValidationRequest(req))
+	return s.validateErr
+}
+
+func (s *recordingLoopStarter) StartLoop(ctx context.Context, req LoopStartRequest) (LoopStartResult, error) {
+	if err := ctx.Err(); err != nil {
+		return LoopStartResult{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.startCalls = append(s.startCalls, cloneLoopStartRequest(req))
+	if s.startErr != nil {
+		return LoopStartResult{}, s.startErr
+	}
+	runID := strings.TrimSpace(s.runID)
+	if runID == "" {
+		runID = "looprun-1"
+	}
+	return LoopStartResult{RunID: runID}, nil
+}
+
+func (s *recordingLoopStarter) validateCallSnapshot() []LoopTargetValidationRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]LoopTargetValidationRequest, 0, len(s.validateCalls))
+	for _, call := range s.validateCalls {
+		out = append(out, cloneLoopTargetValidationRequest(call))
+	}
+	return out
+}
+
+func (s *recordingLoopStarter) startCallSnapshot() []LoopStartRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]LoopStartRequest, 0, len(s.startCalls))
+	for _, call := range s.startCalls {
+		out = append(out, cloneLoopStartRequest(call))
+	}
+	return out
+}
+
+func cloneLoopTargetValidationRequest(req LoopTargetValidationRequest) LoopTargetValidationRequest {
+	return LoopTargetValidationRequest{
+		WorkspaceID:  strings.TrimSpace(req.WorkspaceID),
+		LoopName:     strings.TrimSpace(req.LoopName),
+		Kind:         req.Kind,
+		Inputs:       cloneJSONMap(req.Inputs),
+		InputMapping: cloneStringMap(req.InputMapping),
+	}
+}
+
+func cloneLoopStartRequest(req LoopStartRequest) LoopStartRequest {
+	return LoopStartRequest{
+		WorkspaceID:     strings.TrimSpace(req.WorkspaceID),
+		LoopName:        strings.TrimSpace(req.LoopName),
+		Kind:            req.Kind,
+		Inputs:          cloneJSONMap(req.Inputs),
+		InputMapping:    cloneStringMap(req.InputMapping),
+		TriggerPayload:  cloneJSONMap(req.TriggerPayload),
+		Actor:           req.Actor,
+		AutomationRunID: strings.TrimSpace(req.AutomationRunID),
+	}
 }
 
 type recordingTaskActorRecorder struct {

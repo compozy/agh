@@ -853,7 +853,7 @@ func networkThreadPromotionMessageLine(message store.NetworkConversationMessage)
 	if preview == "" {
 		return ""
 	}
-	peer := firstNonEmpty(strings.TrimSpace(message.PeerFrom), strings.TrimSpace(message.SessionID), "unknown")
+	peer := firstNonEmpty(strings.TrimSpace(message.PeerFrom), strings.TrimSpace(message.SessionID), unknownValue)
 	return peer + ": " + preview
 }
 

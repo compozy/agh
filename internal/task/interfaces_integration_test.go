@@ -4,7 +4,6 @@ package task_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -154,17 +153,7 @@ func (fakeStore) RecoverExpiredRunLeases(
 	return nil, nil
 }
 
-func (fakeStore) ReserveQueuedRun(
-	context.Context,
-	string,
-	string,
-	string,
-	taskpkg.Origin,
-	string,
-	json.RawMessage,
-	time.Time,
-	...string,
-) (taskpkg.Task, taskpkg.Run, bool, error) {
+func (fakeStore) ReserveQueuedRun(context.Context, taskpkg.QueueRunReservation) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{
 			ID:             "task-1",
 			Scope:          taskpkg.ScopeGlobal,
@@ -180,6 +169,14 @@ func (fakeStore) ReserveQueuedRun(
 			Status:  taskpkg.TaskRunStatusQueued,
 			Attempt: 1,
 		}, false, nil
+}
+
+func (fakeStore) CompleteCoordinatorAndEnqueueNext(
+	context.Context,
+	taskpkg.CoordinatorCompletion,
+	taskpkg.GenerationStateFinalizer,
+) (taskpkg.CoordinatorCompletionResult, error) {
+	return taskpkg.CoordinatorCompletionResult{}, nil
 }
 
 func (fakeStore) GetTaskTriageState(context.Context, string, taskpkg.ActorIdentity) (taskpkg.TriageState, error) {

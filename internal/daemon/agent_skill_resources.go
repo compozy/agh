@@ -151,6 +151,21 @@ func newSkillProjector(registry *skillspkg.Registry) resources.TypedProjector[sk
 	return &skillResourceProjector{registry: registry}
 }
 
+func appendSkillProjectorRegistration(
+	registrations []resources.ProjectorRegistration,
+	deps *resourceReconcileDriverDeps,
+) ([]resources.ProjectorRegistration, error) {
+	if deps.SkillsRegistry == nil {
+		return registrations, nil
+	}
+	return appendTypedProjectorRegistration(
+		registrations,
+		deps.CodecRegistry,
+		skillspkg.SkillResourceKind,
+		newSkillProjector(deps.SkillsRegistry),
+	)
+}
+
 func (p *skillResourceProjector) Kind() resources.ResourceKind {
 	return skillspkg.SkillResourceKind
 }

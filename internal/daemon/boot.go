@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	devcycle "github.com/compozy/agh/extensions/dev-cycle"
 	core "github.com/compozy/agh/internal/api/core"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
@@ -22,6 +23,7 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	aghlogger "github.com/compozy/agh/internal/logger"
+	looppkg "github.com/compozy/agh/internal/loop"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
@@ -109,9 +111,11 @@ type bootState struct {
 	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog            *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog       *resourceCatalog[aghconfig.MCPServer]
+	loopCatalog            *resourceCatalog[looppkg.ResourceSpec]
 	agentSkillResources    agentSkillPublisher
 	toolMCPResources       toolMCPPublisher
 	bundleResources        bundleResourcePublisher
+	loopResources          loopResourcePublisher
 	extMu                  sync.RWMutex
 	extensions             extensionRuntime
 	resourceReconcile      resources.ReconcileDriver
@@ -123,6 +127,8 @@ type bootState struct {
 	udsServer              Server
 	skillsCancel           context.CancelFunc
 	skillsDone             chan struct{}
+	loopsCancel            context.CancelFunc
+	loopsDone              chan struct{}
 	startedAt              time.Time
 	info                   Info
 	deps                   RuntimeDeps
@@ -713,6 +719,7 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	state.agentCatalog = newResourceCatalog(cloneAgentDef)
 	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
 	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
+	state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
 	return nil
 }
 
@@ -1179,6 +1186,9 @@ func registerDaemonResourceCodecs(registry *resources.CodecRegistry, bridges *br
 	if err := registerDaemonResourceCodec(registry, "skill", skills.NewResourceCodec); err != nil {
 		return err
 	}
+	if err := registerDaemonResourceCodec(registry, "loop", looppkg.NewResourceCodec); err != nil {
+		return err
+	}
 	if err := registerDaemonResourceCodec(registry, "automation job", automationpkg.NewJobResourceCodec); err != nil {
 		return err
 	}
@@ -1283,6 +1293,9 @@ func (d *Daemon) bootResourceReconcile(
 	if state.mcpServerCatalog == nil {
 		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 	}
+	if state.loopCatalog == nil {
+		state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
+	}
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
 		Config:           state.cfg,
@@ -1296,6 +1309,7 @@ func (d *Daemon) bootResourceReconcile(
 		HeartbeatCatalog: state.heartbeatCatalog,
 		ToolCatalog:      state.toolCatalog,
 		MCPServerCatalog: state.mcpServerCatalog,
+		LoopCatalog:      state.loopCatalog,
 		SkillsRegistry:   state.skillsRegistry,
 		Automation:       automationResourceTarget(state.automation),
 		Bridges:          bridgeResourceTarget(state.bridges),
@@ -1401,6 +1415,19 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 		)
 		cleanup.add(func(cleanupCtx context.Context) error {
 			return stopSkillsWatcher(cleanupCtx, state.skillsCancel, state.skillsDone)
+		})
+	}
+	if state.loopResources != nil {
+		state.loopsCancel, state.loopsDone = startLoopWatcher(
+			ctx,
+			state.cfg.Skills.PollInterval,
+			[]string{d.homePaths.LoopsDir},
+			workspaceLoopWatcherRoots(d.homePaths, state.registry),
+			state.loopResources,
+			state.logger,
+		)
+		cleanup.add(func(cleanupCtx context.Context) error {
+			return stopLoopWatcher(cleanupCtx, state.loopsCancel, state.loopsDone)
 		})
 	}
 
@@ -1547,6 +1574,8 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		GlobalWorkspacePath: d.homePaths.HomeDir,
 		ResourceStore:       resourceRawStore(state.resourceKernel),
 		ResourceCodecs:      state.resourceCodecs,
+		LoopCatalog:         state.loopCatalog,
+		ToolRegistry:        state.deps.ToolRegistry,
 		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -1638,6 +1667,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	if err := devcycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: enroll dev-cycle extension: %w", err)
+	}
 	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
 		return err
 	}
@@ -1651,8 +1683,11 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		return manager.Stop(ctx)
 	})
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := manager.Start(ctx); err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
 			return err
 		}
 
@@ -1696,6 +1731,11 @@ func (d *Daemon) configureExtensionResourcePublishers(
 		return err
 	}
 	state.bundleResources = bundleResources
+	loopResources, err := d.newLoopPublisher(state, extRegistry)
+	if err != nil {
+		return err
+	}
+	state.loopResources = loopResources
 	return nil
 }
 
@@ -1717,6 +1757,11 @@ func syncExtensionResourcePublishers(ctx context.Context, state *bootState) erro
 	}
 	if state.bundleResources != nil {
 		if err := state.bundleResources.Sync(ctx); err != nil {
+			return err
+		}
+	}
+	if state.loopResources != nil {
+		if err := state.loopResources.Sync(ctx); err != nil {
 			return err
 		}
 	}
@@ -1770,6 +1815,7 @@ func (d *Daemon) extensionManagerDeps(
 		WakeEvents:      state.deps.WakeEvents,
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
+		AGHExecutable:   d.executable,
 	}
 }
 
@@ -1786,6 +1832,7 @@ func (d *Daemon) attachExtensionRuntime(
 		state.agentSkillResources,
 		state.toolMCPResources,
 		state.bundleResources,
+		state.loopResources,
 		d.homePaths,
 		state.logger,
 		d.now,
@@ -1823,6 +1870,15 @@ func (d *Daemon) attachExtensionRuntime(
 		if err := state.bundleResources.Sync(ctx); err != nil {
 			state.logger.Error(
 				"daemon: sync bundle resources after extension boot failed",
+				"error",
+				err,
+			)
+		}
+	}
+	if state.loopResources != nil {
+		if err := state.loopResources.Sync(ctx); err != nil {
+			state.logger.Error(
+				"daemon: sync loop resources after extension boot failed",
 				"error",
 				err,
 			)
@@ -1889,6 +1945,12 @@ func extensionRuntimeHasRegisteredEntries(
 }
 
 func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	loopAPI, err := newDaemonLoopAPIService(state, d.homePaths, d.now)
+	if err != nil {
+		return err
+	}
+	state.deps.Loops = loopAPI
+
 	httpServer, err := d.httpFactory(ctx, state.deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create http server: %w", err)
@@ -2215,6 +2277,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.heartbeatCatalog = state.heartbeatCatalog
 	d.toolCatalog = state.toolCatalog
 	d.mcpServerCatalog = state.mcpServerCatalog
+	d.loopCatalog = state.loopCatalog
 	d.automation = state.automation
 	d.httpServer = state.httpServer
 	d.udsServer = state.udsServer
@@ -2224,6 +2287,8 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.skillsRegistry = state.skillsRegistry
 	d.skillsCancel = state.skillsCancel
 	d.skillsDone = state.skillsDone
+	d.loopsCancel = state.loopsCancel
+	d.loopsDone = state.loopsDone
 	d.startedAt = state.startedAt
 	d.info = state.info
 	if !d.readyClosed {

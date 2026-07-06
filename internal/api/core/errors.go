@@ -15,6 +15,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/network"
@@ -556,6 +557,8 @@ func StatusForAutomationError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, looppkg.ErrValidation):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, automationpkg.ErrWebhookSecretRequired):
 		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrWebhookEndpointInvalid):

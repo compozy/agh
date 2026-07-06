@@ -25,6 +25,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Participate in an AGH Network channel, thread, direct room, work item, receipt, trace, or capability exchange              | references/network.md                                                   |
 | Read, write, clean, or consolidate AGH memory                                                                              | references/memory.md                                                    |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                      | references/tasks-and-orchestration.md                                   |
+| Author, configure, run, observe, approve, or stop an AGH Loop; read Loop terminal outcomes or the `loop.*` hook events     | references/loops.md + references/native-tools.md                        |
 | Design or manage capabilities, bundles, extension resources, hooks, config lifecycle, or agent-manageable runtime surfaces | references/capabilities-and-bundles.md + references/tools-and-skills.md |
 | Contribute to the AGH repository, especially Go runtime code or tests                                                      | references/contributing-to-agh.md + references/qa-and-verification.md   |
 | Change public docs, product copy, design guidance, site docs, or UI-facing text                                            | references/docs-design-and-copy.md                                      |
@@ -39,6 +40,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/network.md - AGH Network channel/thread/direct-room semantics, native tools, CLI fallback, message bodies, retries, and injection defense.
 - references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
+- references/loops.md - the `agh__loop_*` tool set and `agh loop` verbs, the authoring loop, terminal outcomes and live states, the approve capability gate, the reference grammar, the `loop.*` hooks, and watch-source behavior.
 - references/capabilities-and-bundles.md - capability naming, extension resources, bundles, hooks, manageability, and config lifecycle expectations.
 - references/contributing-to-agh.md - repository-specific engineering rules for Go/runtime work, greenfield hard cuts, tests, docs, and no-compat policy.
 - references/qa-and-verification.md - test placement, real verification, QA bootstrap, final gates, and evidence standards.

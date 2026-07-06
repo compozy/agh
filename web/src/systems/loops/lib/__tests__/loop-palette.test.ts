@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+
+import { LOOP_PALETTE, uniqueNodeId } from "../loop-palette";
+
+describe("loop palette", () => {
+  it("Should group Action / Control / Source with the reserved action kinds + tool entries", () => {
+    const groups = LOOP_PALETTE.map(group => group.label);
+    expect(groups).toEqual(["Action", "Control", "Source"]);
+    const actionKinds = LOOP_PALETTE[0].items.map(item => item.kindLabel);
+    expect(actionKinds).toContain("run-agent");
+    expect(actionKinds).toContain("run-loop");
+    expect(actionKinds).toContain("transform");
+    // The Channel post shortcut is a pre-filled agh__network_send, not a bespoke kind.
+    expect(actionKinds).toContain("agh__network_send");
+  });
+
+  it("Should seed a valid-shaped raw node for each palette item", () => {
+    for (const group of LOOP_PALETTE) {
+      for (const item of group.items) {
+        const raw = item.buildRaw("n1");
+        expect(raw.id).toBe("n1");
+        expect(raw.class).toBe(item.nodeClass);
+      }
+    }
+    const fanOut = LOOP_PALETTE[1].items.find(item => item.kindLabel === "fan-out")!.buildRaw("f");
+    expect(fanOut).toMatchObject({ kind: "fan-out", batch_size: 1, max_parallel: 1 });
+  });
+
+  it("Should generate a unique snake_case node id, suffixing on collision", () => {
+    const existing = new Set(["run_agent", "run_agent_2"]);
+    expect(uniqueNodeId("run_agent", new Set())).toBe("run_agent");
+    expect(uniqueNodeId("run_agent", existing)).toBe("run_agent_3");
+    expect(uniqueNodeId("Bad Id!", new Set())).toBe("bad_id_");
+  });
+});

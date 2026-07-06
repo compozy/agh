@@ -65,6 +65,7 @@ type Manifest struct {
 // ResourcesConfig declares static assets bundled with an extension.
 type ResourcesConfig struct {
 	Skills     []string                   `toml:"skills,omitempty"      json:"skills,omitempty"`
+	Loops      []string                   `toml:"loops,omitempty"       json:"loops,omitempty"`
 	Agents     []string                   `toml:"agents,omitempty"      json:"agents,omitempty"`
 	Bundles    []string                   `toml:"bundles,omitempty"     json:"bundles,omitempty"`
 	Hooks      []HookConfig               `toml:"hooks,omitempty"       json:"hooks,omitempty"`
@@ -648,6 +649,7 @@ func (m *Manifest) MissingEnv(getenv func(string) string) []string {
 func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 	return ResourcesConfig{
 		Skills:     normalizeStrings(cfg.Skills),
+		Loops:      normalizeStrings(cfg.Loops),
 		Agents:     normalizeStrings(cfg.Agents),
 		Bundles:    normalizeStrings(cfg.Bundles),
 		Hooks:      normalizeHooks(cfg.Hooks),

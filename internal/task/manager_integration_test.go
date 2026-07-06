@@ -2939,7 +2939,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		)
 		releasedPayload := decodeIntegrationTaskEventPayload(t, releasedEvent)
 		assertIntegrationPayloadString(t, releasedPayload, "reason", "blocked")
-		assertIntegrationPayloadString(t, releasedPayload, "status", string(taskpkg.TaskRunStatusQueued))
+		assertIntegrationPayloadString(t, releasedPayload, "status", taskpkg.TaskRunStatusQueued.String())
 		assertIntegrationPayloadString(t, releasedPayload, "task_status", string(taskpkg.TaskStatusBlocked))
 		assertIntegrationPayloadOmitsRawValue(t, releasedEvent, releaseClaim.ClaimToken)
 
@@ -3084,7 +3084,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		)
 		clearAutoPayload := decodeIntegrationTaskEventPayload(t, clearAutoEvent)
 		assertIntegrationPayloadString(t, clearAutoPayload, "status", string(taskpkg.TaskStatusReady))
-		assertIntegrationPayloadString(t, clearAutoPayload, "run_status", string(taskpkg.TaskRunStatusQueued))
+		assertIntegrationPayloadString(t, clearAutoPayload, "run_status", taskpkg.TaskRunStatusQueued.String())
 		assertIntegrationPayloadString(t, clearAutoPayload, "trigger_kind", "block_clear")
 		assertIntegrationPayloadString(t, clearAutoPayload, "trigger_ref", clearAutoBlock.ID)
 
@@ -3187,7 +3187,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			taskpkg.OriginKindAgentSession,
 		)
 		blockedPayload := decodeIntegrationTaskEventPayload(t, blockedEvent)
-		assertIntegrationPayloadString(t, blockedPayload, "status", string(taskpkg.TaskRunStatusClaimed))
+		assertIntegrationPayloadString(t, blockedPayload, "status", taskpkg.TaskRunStatusClaimed.String())
 		assertIntegrationPayloadStringSlice(t, blockedPayload, "invalid_task_ids", []string{"task-phantom-0001"})
 		assertIntegrationPayloadHasString(t, blockedPayload, "claim_token_hash")
 		assertIntegrationPayloadOmitsRawValue(t, blockedEvent, blockedClaim.ClaimToken)
@@ -3234,7 +3234,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			taskpkg.OriginKindAgentSession,
 		)
 		suspectedPayload := decodeIntegrationTaskEventPayload(t, suspectedEvent)
-		assertIntegrationPayloadString(t, suspectedPayload, "status", string(taskpkg.TaskRunStatusCompleted))
+		assertIntegrationPayloadString(t, suspectedPayload, "status", taskpkg.TaskRunStatusCompleted.String())
 		assertIntegrationPayloadStringSlice(t, suspectedPayload, "suspected_task_ids", []string{"task-phantom-7777"})
 		assertIntegrationPayloadHasString(t, suspectedPayload, "claim_token_hash")
 		assertIntegrationPayloadOmitsRawValue(t, suspectedEvent, suspectedClaim.ClaimToken)

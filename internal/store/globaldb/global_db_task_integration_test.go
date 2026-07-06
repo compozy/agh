@@ -176,7 +176,6 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.StartedAt = storedQueued.QueuedAt.Add(45 * time.Second)
 	storedQueued.ClaimedAt = storedQueued.QueuedAt.Add(15 * time.Second)
 	storedQueued.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
-	storedQueued.ClaimToken = "raw-reopen-claim-token"
 	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
 	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
 	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
@@ -186,7 +185,6 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {
 		t.Fatalf("UpdateTaskRun(attached) error = %v", err)
 	}
-	storedQueued.ClaimToken = ""
 
 	if err := second.Close(ctx); err != nil {
 		t.Fatalf("Close(second) error = %v", err)

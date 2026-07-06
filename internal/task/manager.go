@@ -89,6 +89,8 @@ type managerOptions struct {
 	eventObserver        EventObserver
 	reviewObserver       RunReviewRequestedObserver
 	taskHooks            RunHookDispatcher
+	coordinatorRunner    CoordinatorRunner
+	generationFinalizer  GenerationStateFinalizer
 	wakeNotifier         WakeNotifier
 	channelValidator     func(string) error
 	profileValidation    ExecutionProfileValidationOptions
@@ -110,6 +112,8 @@ type Service struct {
 	eventObserver        EventObserver
 	reviewObserver       RunReviewRequestedObserver
 	taskHooks            RunHookDispatcher
+	coordinatorRunner    CoordinatorRunner
+	generationFinalizer  GenerationStateFinalizer
 	wakeNotifier         WakeNotifier
 	channelValidator     func(string) error
 	profileValidation    ExecutionProfileValidationOptions
@@ -178,6 +182,20 @@ func WithRunReviewRequestedObserver(observer RunReviewRequestedObserver) Option 
 func WithTaskRunHooks(hooks RunHookDispatcher) Option {
 	return func(opts *managerOptions) {
 		opts.taskHooks = hooks
+	}
+}
+
+// WithCoordinatorRunner injects the in-daemon generation coordinator runner.
+func WithCoordinatorRunner(runner CoordinatorRunner) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorRunner = runner
+	}
+}
+
+// WithGenerationStateFinalizer injects the generation-state writer used inside coordinator finalization.
+func WithGenerationStateFinalizer(finalizer GenerationStateFinalizer) Option {
+	return func(opts *managerOptions) {
+		opts.generationFinalizer = finalizer
 	}
 }
 
@@ -287,6 +305,8 @@ func NewManager(opts ...Option) (*Service, error) {
 		eventObserver:        options.eventObserver,
 		reviewObserver:       options.reviewObserver,
 		taskHooks:            defaultTaskRunHooks(options.taskHooks),
+		coordinatorRunner:    options.coordinatorRunner,
+		generationFinalizer:  options.generationFinalizer,
 		wakeNotifier:         defaultWakeNotifier(options.wakeNotifier),
 		channelValidator:     options.channelValidator,
 		profileValidation:    options.profileValidation,
@@ -305,7 +325,11 @@ func NewManager(opts ...Option) (*Service, error) {
 
 // CreateTask derives one canonical task record from trusted actor context and
 // persists the corresponding immutable audit event.
-func (m *Service) CreateTask(ctx context.Context, spec CreateTask, actor ActorContext) (*Task, error) {
+func (m *Service) CreateTask(
+	ctx context.Context,
+	spec CreateTask,
+	actor ActorContext,
+) (*Task, error) {
 	if err := requireCreateAuthority(actor, spec.Scope); err != nil {
 		return nil, err
 	}
@@ -380,8 +404,12 @@ func (m *Service) CreateChildTask(
 	if trimmedParentID == "" {
 		return nil, fmt.Errorf("%w: child parent task id is required", ErrValidation)
 	}
-	if strings.TrimSpace(spec.ParentTaskID) != "" && strings.TrimSpace(spec.ParentTaskID) != trimmedParentID {
-		return nil, fmt.Errorf("%w: create_task.parent_task_id must match child parent task id", ErrValidation)
+	if strings.TrimSpace(spec.ParentTaskID) != "" &&
+		strings.TrimSpace(spec.ParentTaskID) != trimmedParentID {
+		return nil, fmt.Errorf(
+			"%w: create_task.parent_task_id must match child parent task id",
+			ErrValidation,
+		)
 	}
 
 	spec.ParentTaskID = trimmedParentID
@@ -460,7 +488,12 @@ func (m *Service) deleteTaskWithStore(
 
 // UpdateTask applies one mutable patch while preserving immutable identity and
 // structural fields under manager control.
-func (m *Service) UpdateTask(ctx context.Context, id string, patch Patch, actor ActorContext) (*Task, error) {
+func (m *Service) UpdateTask(
+	ctx context.Context,
+	id string,
+	patch Patch,
+	actor ActorContext,
+) (*Task, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -519,7 +552,12 @@ func (m *Service) UpdateTask(ctx context.Context, id string, patch Patch, actor 
 
 // CancelTask propagates manager-owned cancellation through the target task,
 // affected runs, and all non-terminal descendants.
-func (m *Service) CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error) {
+func (m *Service) CancelTask(
+	ctx context.Context,
+	id string,
+	req CancelTask,
+	actor ActorContext,
+) (*Task, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -742,7 +780,13 @@ func (m *Service) prepareTaskExecutionBoundary(
 		_, err := m.publishTaskIntent(ctx, taskID, actor)
 		return nil, err
 	case ExecutionActionApproval:
-		return m.transitionTaskApproval(ctx, taskID, ApprovalStateApproved, taskEventApproved, actor)
+		return m.transitionTaskApproval(
+			ctx,
+			taskID,
+			ApprovalStateApproved,
+			taskEventApproved,
+			actor,
+		)
 	case ExecutionActionStart:
 		taskRecord, err := m.store.GetTask(ctx, taskID)
 		if err != nil {
@@ -857,7 +901,11 @@ func (m *Service) taskExecutionFromIdempotency(
 	}, true, nil
 }
 
-func (m *Service) publishTaskIntent(ctx context.Context, id string, actor ActorContext) (*Task, error) {
+func (m *Service) publishTaskIntent(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+) (*Task, error) {
 	record, err := m.store.GetTask(ctx, id)
 	if err != nil {
 		return nil, err
@@ -920,7 +968,10 @@ func (m *Service) transitionTaskApproval(
 		return nil, err
 	}
 
-	previousApprovalState := normalizeApprovalStateOrDefault(record.ApprovalPolicy, record.ApprovalState)
+	previousApprovalState := normalizeApprovalStateOrDefault(
+		record.ApprovalPolicy,
+		record.ApprovalState,
+	)
 	if !taskApprovalDecisionAllowed(record, target) {
 		return nil, fmt.Errorf(
 			"%w: task %q cannot transition approval from %q to %q",
@@ -963,12 +1014,19 @@ func taskApprovalDecisionAllowed(record Task, target ApprovalState) bool {
 	default:
 		return false
 	}
-	return normalizeApprovalStateOrDefault(normalizedPolicy, record.ApprovalState) == ApprovalStatePending
+	return normalizeApprovalStateOrDefault(
+		normalizedPolicy,
+		record.ApprovalState,
+	) == ApprovalStatePending
 }
 
 // MarkTaskRead persists the current actor-scoped triage state as read for the
 // task's latest known activity snapshot.
-func (m *Service) MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+func (m *Service) MarkTaskRead(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+) (TriageState, error) {
 	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
 		state.Read = true
 		state.Dismissed = false
@@ -978,7 +1036,11 @@ func (m *Service) MarkTaskRead(ctx context.Context, id string, actor ActorContex
 
 // ArchiveTask persists the current actor-scoped triage state as archived for
 // the task's latest known activity snapshot.
-func (m *Service) ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+func (m *Service) ArchiveTask(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+) (TriageState, error) {
 	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
 		state.Read = true
 		state.Archived = true
@@ -989,7 +1051,11 @@ func (m *Service) ArchiveTask(ctx context.Context, id string, actor ActorContext
 
 // DismissTask persists the current actor-scoped triage state as dismissed for
 // the task's latest known activity snapshot.
-func (m *Service) DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error) {
+func (m *Service) DismissTask(
+	ctx context.Context,
+	id string,
+	actor ActorContext,
+) (TriageState, error) {
 	return m.mutateTaskTriage(ctx, id, actor, func(state *TriageState, latestActivity time.Time) {
 		state.Read = true
 		state.Dismissed = true
@@ -1071,7 +1137,8 @@ func (m *Service) ensureTaskCancelable(ctx context.Context, root Task) error {
 	if err != nil {
 		return err
 	}
-	if isTerminalTaskStatus(rootStatus) && rootStatus != TaskStatusCanceled && !hasOpenRun(rootRuns) {
+	if isTerminalTaskStatus(rootStatus) && rootStatus != TaskStatusCanceled &&
+		!hasOpenRun(rootRuns) {
 		return fmt.Errorf(
 			"%w: task %q cannot transition from %q to %q",
 			ErrInvalidStatusTransition,
@@ -1101,7 +1168,14 @@ func (m *Service) cancelTaskTreeRecord(
 	}
 
 	propagatedFromTaskID := cancellationPropagationRoot(rootTaskID, idx)
-	cancelledRunIDs, err := m.cancelOpenTaskRuns(ctx, record, runs, req, actor, propagatedFromTaskID)
+	cancelledRunIDs, err := m.cancelOpenTaskRuns(
+		ctx,
+		record,
+		runs,
+		req,
+		actor,
+		propagatedFromTaskID,
+	)
 	if err != nil {
 		return Task{}, err
 	}
@@ -1150,10 +1224,17 @@ func (m *Service) cancelOpenTaskRuns(
 		if isTerminalRunStatus(run.Status) {
 			continue
 		}
-		cancelledRun, err := m.cancelRunRecord(ctx, record, run, CancelRun(req), actor, cancelRunOptions{
-			propagatedFromTaskID: propagatedFromTaskID,
-			reconcileTask:        false,
-		})
+		cancelledRun, err := m.cancelRunRecord(
+			ctx,
+			record,
+			run,
+			CancelRun(req),
+			actor,
+			cancelRunOptions{
+				propagatedFromTaskID: propagatedFromTaskID,
+				reconcileTask:        false,
+			},
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -1219,7 +1300,13 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, err
 	}
 
-	sessionID, failedRun, err := m.startRunSession(lifecycleCtx, taskRecord, startingTask, run, actor)
+	sessionID, failedRun, err := m.startRunSession(
+		lifecycleCtx,
+		taskRecord,
+		startingTask,
+		run,
+		actor,
+	)
 	if err != nil {
 		return Run{}, failedRun, err
 	}
@@ -1241,6 +1328,148 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, err
 	}
 	return run, nil, nil
+}
+
+func (m *Service) startCoordinatorRun(
+	ctx context.Context,
+	_ Task,
+	run Run,
+	req StartRun,
+	actor ActorContext,
+) (*Run, error) {
+	if err := m.validateCoordinatorRuntime(run.ID, req); err != nil {
+		return nil, err
+	}
+
+	lifecycleCtx := taskRunLifecycleContext(ctx)
+	run.Status = TaskRunStatusStarting
+	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+		return nil, err
+	}
+	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarting, actor, runTransitionPayload{
+		Status:     run.Status,
+		TaskStatus: startingTask.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	run.Status = TaskRunStatusRunning
+	run.StartedAt = m.now().UTC()
+	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
+		return nil, err
+	}
+	runningTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(lifecycleCtx, run.TaskID, run.ID, taskEventRunStarted, actor, runTransitionPayload{
+		Status:     run.Status,
+		TaskStatus: runningTask.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	plan, err := m.coordinatorRunner.Run(lifecycleCtx, RunID(run.ID))
+	if err != nil {
+		failedRun, failErr := m.FailRunLease(lifecycleCtx, LeaseFailure{
+			RunID:      run.ID,
+			ClaimToken: req.ClaimToken,
+			Failure: RunFailure{
+				Error: fmt.Sprintf("coordinator runner: %v", err),
+			},
+			Now: m.now().UTC(),
+		}, actor)
+		if failErr != nil {
+			return nil, errorsJoin(err, failErr)
+		}
+		return failedRun, fmt.Errorf("task: coordinator run %q failed: %w", run.ID, err)
+	}
+
+	result, err := m.store.CompleteCoordinatorAndEnqueueNext(lifecycleCtx, CoordinatorCompletion{
+		RunID:      run.ID,
+		ClaimToken: req.ClaimToken,
+		Plan:       plan,
+		Actor:      actor,
+		Now:        m.now().UTC(),
+	}, m.generationFinalizer)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor); err != nil {
+		return nil, err
+	}
+	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
+	return &result.Run, nil
+}
+
+func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {
+	if m.coordinatorRunner == nil {
+		return fmt.Errorf("%w: coordinator runner is required", ErrValidation)
+	}
+	if m.generationFinalizer == nil {
+		return fmt.Errorf("%w: generation state finalizer is required", ErrValidation)
+	}
+	if strings.TrimSpace(req.ClaimToken) == "" {
+		return fmt.Errorf(
+			"%w: coordinator run %q requires claim_token",
+			ErrInvalidClaimToken,
+			runID,
+		)
+	}
+	return nil
+}
+
+func (m *Service) recordCoordinatorCompletionEvents(
+	ctx context.Context,
+	result *CoordinatorCompletionResult,
+	actor ActorContext,
+) error {
+	if result == nil {
+		return fmt.Errorf("%w: coordinator completion result is required", ErrValidation)
+	}
+	completedTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID)
+	if err != nil {
+		return err
+	}
+	if err := m.recordTaskEvent(
+		ctx,
+		result.Run.TaskID,
+		result.Run.ID,
+		taskEventRunCompleted,
+		actor,
+		completedRunPayload{
+			Status:         result.Run.Status,
+			TaskStatus:     completedTask.Status,
+			Result:         cloneRawJSON(result.Run.Result),
+			ClaimTokenHash: result.Run.ClaimTokenHash,
+		},
+	); err != nil {
+		return err
+	}
+	m.dispatchTaskRunCompleted(ctx, result.Run, completedTask, actor)
+
+	for _, enqueued := range result.EnqueuedRuns {
+		enqueuedTask, err := m.reconcileTaskCascade(ctx, enqueued.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := m.recordTaskEvent(ctx, enqueued.TaskID, enqueued.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
+			Attempt:               int(enqueued.Attempt),
+			Status:                enqueued.Status,
+			TaskStatus:            enqueuedTask.Status,
+			NetworkChannel:        enqueued.NetworkChannel,
+			CoordinationChannelID: enqueued.CoordinationChannelID,
+			IdempotencyKey:        enqueued.IdempotencyKey,
+		}); err != nil {
+			return err
+		}
+		m.dispatchTaskRunEnqueued(ctx, enqueued, enqueuedTask, actor, enqueued.IdempotencyKey)
+	}
+	return nil
 }
 
 func (m *Service) startRunSession(
@@ -1284,7 +1513,10 @@ func (m *Service) startRunSession(
 		if failErr != nil {
 			return "", nil, failErr
 		}
-		return "", failedRun, fmt.Errorf("%w: start_task_session returned nil session reference", ErrValidation)
+		return "", failedRun, fmt.Errorf(
+			"%w: start_task_session returned nil session reference",
+			ErrValidation,
+		)
 	}
 	if err := sessionRef.Validate(); err != nil {
 		message := fmt.Sprintf("start task session: %v", err)
@@ -1297,13 +1529,19 @@ func (m *Service) startRunSession(
 	return strings.TrimSpace(sessionRef.SessionID), nil, nil
 }
 
-func (m *Service) startTaskExecutionProfile(ctx context.Context, taskID string) (ExecutionProfile, error) {
+func (m *Service) startTaskExecutionProfile(
+	ctx context.Context,
+	taskID string,
+) (ExecutionProfile, error) {
 	profile, err := m.store.GetExecutionProfile(ctx, taskID)
 	switch {
 	case errors.Is(err, ErrExecutionProfileNotFound):
 		return defaultExecutionProfile(taskID), nil
 	case err != nil:
-		return ExecutionProfile{}, fmt.Errorf("task: load execution profile for session start: %w", err)
+		return ExecutionProfile{}, fmt.Errorf(
+			"task: load execution profile for session start: %w",
+			err,
+		)
 	default:
 		return profile, nil
 	}
@@ -1317,7 +1555,11 @@ func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, sessionID s
 	requestErr := m.sessions.RequestTaskStop(ctx, trimmedSessionID, StopReasonFailed)
 	forceErr := m.sessions.ForceTaskStop(ctx, trimmedSessionID, StopReasonFailed)
 	if requestErr != nil {
-		requestErr = fmt.Errorf("task: request stop for unbound session %q: %w", trimmedSessionID, requestErr)
+		requestErr = fmt.Errorf(
+			"task: request stop for unbound session %q: %w",
+			trimmedSessionID,
+			requestErr,
+		)
 	}
 	if forceErr != nil {
 		forceErr = fmt.Errorf("task: force stop unbound session %q: %w", trimmedSessionID, forceErr)
@@ -1365,7 +1607,6 @@ func (m *Service) recoverRunByRequeue(
 	run.ClaimedBy = nil
 	run.ClaimedAt = time.Time{}
 	run.SessionID = ""
-	run.ClaimToken = ""
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
@@ -1498,7 +1739,11 @@ func (m *Service) recoverRunByFailure(
 	return failedRun, nil
 }
 
-func invalidRunRecoveryTransition(run Run, previousStatus RunStatus, action RunBootRecoveryAction) error {
+func invalidRunRecoveryTransition(
+	run Run,
+	previousStatus RunStatus,
+	action RunBootRecoveryAction,
+) error {
 	return fmt.Errorf(
 		"%w: task run %q cannot recover from %q via %q",
 		ErrInvalidStatusTransition,
@@ -1570,7 +1815,14 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	summary, err := m.enrichTaskSummaryFromState(ctx, record, len(children), dependencies, runs, events)
+	summary, err := m.enrichTaskSummaryFromState(
+		ctx,
+		record,
+		len(children),
+		dependencies,
+		runs,
+		events,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1620,7 +1872,11 @@ func (m *Service) ListTaskRuns(
 
 // ListTasks returns task summaries that satisfy the supplied query filters
 // after enforcing read authority.
-func (m *Service) ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error) {
+func (m *Service) ListTasks(
+	ctx context.Context,
+	query Query,
+	actor ActorContext,
+) ([]Summary, error) {
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -1661,7 +1917,14 @@ func (m *Service) enrichTaskSummary(ctx context.Context, summary *Summary) (Summ
 	if err != nil {
 		return Summary{}, err
 	}
-	return m.enrichTaskSummaryFromState(ctx, taskRecordFromSummary(summary), childCount, dependencies, runs, events)
+	return m.enrichTaskSummaryFromState(
+		ctx,
+		taskRecordFromSummary(summary),
+		childCount,
+		dependencies,
+		runs,
+		events,
+	)
 }
 
 func (m *Service) enrichTaskSummaryFromState(
@@ -1745,11 +2008,18 @@ func (m *Service) AddDependency(ctx context.Context, spec AddDependency, actor A
 	if err != nil {
 		return err
 	}
-	return m.recordTaskEvent(ctx, normalizedSpec.TaskID, "", taskEventDependencyAdded, actor, dependencyTaskPayload{
-		DependsOnTaskID: normalizedSpec.DependsOnTaskID,
-		Kind:            normalizedSpec.Kind,
-		Status:          record.Status,
-	})
+	return m.recordTaskEvent(
+		ctx,
+		normalizedSpec.TaskID,
+		"",
+		taskEventDependencyAdded,
+		actor,
+		dependencyTaskPayload{
+			DependsOnTaskID: normalizedSpec.DependsOnTaskID,
+			Kind:            normalizedSpec.Kind,
+			Status:          record.Status,
+		},
+	)
 }
 
 // RemoveDependency deletes one dependency edge through the manager, reconciles
@@ -1781,15 +2051,26 @@ func (m *Service) RemoveDependency(
 	if err != nil {
 		return err
 	}
-	return m.recordTaskEvent(ctx, trimmedTaskID, "", taskEventDependencyRemoved, actor, dependencyTaskPayload{
-		DependsOnTaskID: trimmedDependsOnID,
-		Kind:            DependencyKindBlocks,
-		Status:          record.Status,
-	})
+	return m.recordTaskEvent(
+		ctx,
+		trimmedTaskID,
+		"",
+		taskEventDependencyRemoved,
+		actor,
+		dependencyTaskPayload{
+			DependsOnTaskID: trimmedDependsOnID,
+			Kind:            DependencyKindBlocks,
+			Status:          record.Status,
+		},
+	)
 }
 
 // EnqueueRun persists one new queue-first task run under manager authority.
-func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorContext) (*Run, error) {
+func (m *Service) EnqueueRun(
+	ctx context.Context,
+	spec EnqueueRun,
+	actor ActorContext,
+) (*Run, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -1807,14 +2088,18 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 
 	_, run, existing, err := m.store.ReserveQueuedRun(
 		ctx,
-		normalizedSpec.TaskID,
-		m.newID("run"),
-		normalizedSpec.IdempotencyKey,
-		actor.Origin,
-		normalizedSpec.NetworkChannel,
-		normalizedSpec.Metadata,
-		m.now().UTC(),
-		normalizedSpec.DesignationGroupID,
+		QueueRunReservation{
+			TaskID:             normalizedSpec.TaskID,
+			RunID:              m.newID("run"),
+			RunKind:            normalizedSpec.RunKind,
+			LoopRunID:          normalizedSpec.LoopRunID,
+			IdempotencyKey:     normalizedSpec.IdempotencyKey,
+			Origin:             actor.Origin,
+			RequestedChannel:   normalizedSpec.NetworkChannel,
+			DesignationGroupID: normalizedSpec.DesignationGroupID,
+			Metadata:           normalizedSpec.Metadata,
+			QueuedAt:           m.now().UTC(),
+		},
 	)
 	if err != nil {
 		return nil, err
@@ -1828,7 +2113,7 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		return nil, err
 	}
 	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
-		Attempt:               run.Attempt,
+		Attempt:               int(run.Attempt),
 		Status:                run.Status,
 		TaskStatus:            reconciledTask.Status,
 		NetworkChannel:        run.NetworkChannel,
@@ -1948,7 +2233,12 @@ func (m *Service) ClaimRun(
 }
 
 // StartRun transitions one claimed or starting run into active execution.
-func (m *Service) StartRun(ctx context.Context, runID string, req StartRun, actor ActorContext) (*Run, error) {
+func (m *Service) StartRun(
+	ctx context.Context,
+	runID string,
+	req StartRun,
+	actor ActorContext,
+) (*Run, error) {
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
@@ -1974,6 +2264,9 @@ func (m *Service) StartRun(ctx context.Context, runID string, req StartRun, acto
 
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed:
+		if run.RunKind.Normalize() == RunKindCoordinator {
+			return m.startCoordinatorRun(ctx, taskRecord, run, normalizedReq, actor)
+		}
 		var failedRun *Run
 		run, failedRun, err = m.transitionClaimedRunToStarting(ctx, taskRecord, run, actor)
 		if err != nil {
@@ -2064,7 +2357,10 @@ func (m *Service) AttachRunSession(
 		return nil, err
 	}
 	if sessionRef == nil {
-		return nil, fmt.Errorf("%w: attach_task_session returned nil session reference", ErrValidation)
+		return nil, fmt.Errorf(
+			"%w: attach_task_session returned nil session reference",
+			ErrValidation,
+		)
 	}
 	if err := sessionRef.Validate(); err != nil {
 		return nil, err
@@ -2114,7 +2410,11 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 	if strings.TrimSpace(run.ClaimTokenHash) != "" {
-		return nil, fmt.Errorf("%w: task run %q requires token-fenced completion", ErrInvalidClaimToken, run.ID)
+		return nil, fmt.Errorf(
+			"%w: task run %q requires token-fenced completion",
+			ErrInvalidClaimToken,
+			run.ID,
+		)
 	}
 	if err := requireRunTransition(run, TaskRunStatusCompleted); err != nil {
 		return nil, err
@@ -2123,7 +2423,6 @@ func (m *Service) CompleteRun(
 	run.Status = TaskRunStatusCompleted
 	run.Result = cloneRawJSON(normalizedResult.Value)
 	run.Error = ""
-	run.ClaimToken = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
@@ -2171,7 +2470,11 @@ func (m *Service) FailRun(
 		return nil, err
 	}
 	if strings.TrimSpace(run.ClaimTokenHash) != "" {
-		return nil, fmt.Errorf("%w: task run %q requires token-fenced failure", ErrInvalidClaimToken, run.ID)
+		return nil, fmt.Errorf(
+			"%w: task run %q requires token-fenced failure",
+			ErrInvalidClaimToken,
+			run.ID,
+		)
 	}
 	return m.failRunRecord(ctx, taskRecord, run, normalizedFailure, actor)
 }
@@ -2353,7 +2656,7 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 			Timestamp: m.now().UTC(),
 		},
 		TaskRunContext:    m.taskRunHookContext(run, taskRecord, actor),
-		PreviousRunStatus: string(previousStatus.Normalize()),
+		PreviousRunStatus: previousStatus.Normalize().String(),
 		PreviousSessionID: strings.TrimSpace(previousSessionID),
 		RecoveryAction:    string(recovery.Action.Normalize()),
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
@@ -2381,12 +2684,19 @@ func (m *Service) reportTaskRunHookFailure(
 	)
 }
 
-func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContext) hookspkg.TaskRunContext {
+func (m *Service) taskRunHookContext(
+	run Run,
+	taskRecord Task,
+	actor ActorContext,
+) hookspkg.TaskRunContext {
 	coordinationChannelID := taskRunCoordinationChannelID(run)
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
+	runKind := run.RunKind.Normalize().String()
 	return hookspkg.TaskRunContext{
 		TaskID:                strings.TrimSpace(run.TaskID),
 		RunID:                 strings.TrimSpace(run.ID),
+		RunKind:               &runKind,
+		LoopRunID:             strings.TrimSpace(run.LoopRunID),
 		WorkspaceID:           strings.TrimSpace(taskRecord.WorkspaceID),
 		WorkflowID:            taskRunMetadataString(run.Metadata, "workflow_id"),
 		CoordinationChannelID: coordinationChannelID,
@@ -2398,10 +2708,10 @@ func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContex
 		OriginKind:            string(actor.Origin.Kind.Normalize()),
 		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
 		TaskStatus:            string(taskRecord.Status.Normalize()),
-		RunStatus:             string(run.Status.Normalize()),
+		RunStatus:             run.Status.Normalize().String(),
 		SoulSnapshotID:        soulSnapshotID,
 		SoulDigest:            soulDigest,
-		Attempt:               run.Attempt,
+		Attempt:               int(run.Attempt),
 		LeaseUntil:            run.LeaseUntil,
 		Error:                 strings.TrimSpace(run.Error),
 	}
@@ -2670,6 +2980,8 @@ func taskExecutionIdempotencyKey(taskID string, action ExecutionAction, requeste
 func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized := spec
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
+	normalized.RunKind = normalizeRunKindOrDefault(normalized.RunKind)
+	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
@@ -2692,6 +3004,7 @@ func normalizeClaimRun(claim ClaimRun) (ClaimRun, error) {
 func normalizeStartRun(req StartRun) (StartRun, error) {
 	normalized := req
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
 	if err := normalized.Validate("start_run"); err != nil {
 		return StartRun{}, err
 	}
@@ -2745,7 +3058,11 @@ func requireLifecycleIdempotency(actor ActorContext, key string, path string) er
 		return nil
 	}
 	if strings.TrimSpace(key) == "" {
-		return fmt.Errorf("%w: %s.idempotency_key is required for non-human actors", ErrValidation, path)
+		return fmt.Errorf(
+			"%w: %s.idempotency_key is required for non-human actors",
+			ErrValidation,
+			path,
+		)
 	}
 	return nil
 }
@@ -2784,10 +3101,16 @@ func validateParentChildScope(parent Task, childScope Scope, childWorkspaceID st
 		return nil
 	case ScopeWorkspace:
 		if childScope.Normalize() != ScopeWorkspace {
-			return fmt.Errorf("%w: workspace-scoped parent tasks require workspace-scoped children", ErrValidation)
+			return fmt.Errorf(
+				"%w: workspace-scoped parent tasks require workspace-scoped children",
+				ErrValidation,
+			)
 		}
 		if strings.TrimSpace(parent.WorkspaceID) != strings.TrimSpace(childWorkspaceID) {
-			return fmt.Errorf("%w: child workspace_id must match workspace-scoped parent", ErrValidation)
+			return fmt.Errorf(
+				"%w: child workspace_id must match workspace-scoped parent",
+				ErrValidation,
+			)
 		}
 		return nil
 	default:
@@ -2803,7 +3126,11 @@ func (m *Service) taskDepth(ctx context.Context, record Task) (int, error) {
 	for strings.TrimSpace(current.ParentTaskID) != "" {
 		parentID := strings.TrimSpace(current.ParentTaskID)
 		if _, ok := seen[parentID]; ok {
-			return 0, fmt.Errorf("%w: task hierarchy contains a cycle at %q", ErrValidation, parentID)
+			return 0, fmt.Errorf(
+				"%w: task hierarchy contains a cycle at %q",
+				ErrValidation,
+				parentID,
+			)
 		}
 		seen[parentID] = struct{}{}
 
@@ -2937,7 +3264,12 @@ func (m *Service) canonicalTaskStatusReadOnlyWithStore(
 		defer delete(visited, taskID)
 	}
 
-	unresolvedDependencies, err := m.hasUnresolvedDependenciesReadOnlyWithStore(ctx, store, dependencies, visited)
+	unresolvedDependencies, err := m.hasUnresolvedDependenciesReadOnlyWithStore(
+		ctx,
+		store,
+		dependencies,
+		visited,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -2985,7 +3317,16 @@ func isTerminalRunStatus(status RunStatus) bool {
 }
 
 func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, runs []Run) Status {
-	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, false, false, false, runs)
+	return taskStatusFromPolicySnapshot(
+		currentStatus,
+		unresolvedDependencies,
+		false,
+		false,
+		false,
+		false,
+		false,
+		runs,
+	)
 }
 
 func taskStatusFromPolicySnapshot(
@@ -3260,7 +3601,11 @@ func (m *Service) blockedReasonsForSnapshot(
 	return reasons, nil
 }
 
-func (m *Service) reconcileDependentTasks(ctx context.Context, taskID string, visited map[string]struct{}) error {
+func (m *Service) reconcileDependentTasks(
+	ctx context.Context,
+	taskID string,
+	visited map[string]struct{},
+) error {
 	return m.reconcileDependentTasksWithStore(ctx, m.store, taskID, visited)
 }
 
@@ -3418,7 +3763,6 @@ func (m *Service) failRunRecordWithOptions(
 	run.Status = TaskRunStatusFailed
 	run.Error = failure.Error
 	run.Result = nil
-	run.ClaimToken = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
@@ -3464,7 +3808,8 @@ func (m *Service) cancelRunRecord(
 	}
 
 	sessionID := strings.TrimSpace(run.SessionID)
-	activeSession := (status == TaskRunStatusStarting || status == TaskRunStatusRunning) && sessionID != ""
+	activeSession := (status == TaskRunStatusStarting || status == TaskRunStatusRunning) &&
+		sessionID != ""
 	if activeSession {
 		if err := m.requireSessionExecutor("cancel active run"); err != nil {
 			return nil, err
@@ -3542,7 +3887,11 @@ func (m *Service) stopTerminalRunSession(ctx context.Context, run Run, reason St
 	return nil
 }
 
-func (m *Service) stopRecoveredRunSession(ctx context.Context, run Run, recovery RunBootRecovery) error {
+func (m *Service) stopRecoveredRunSession(
+	ctx context.Context,
+	run Run,
+	recovery RunBootRecovery,
+) error {
 	sessionID := strings.TrimSpace(run.SessionID)
 	if sessionID == "" {
 		return nil
@@ -3559,7 +3908,11 @@ func (m *Service) stopRecoveredRunSession(ctx context.Context, run Run, recovery
 	return nil
 }
 
-func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, reason StopReason) error {
+func (m *Service) waitAndForceStopRun(
+	ctx context.Context,
+	sessionID string,
+	reason StopReason,
+) error {
 	if m.cancelGracePeriod > 0 {
 		timer := time.NewTimer(m.cancelGracePeriod)
 		defer timer.Stop()
@@ -3567,7 +3920,11 @@ func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, rea
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
-			return fmt.Errorf("task: wait for force-stop grace period on session %q: %w", sessionID, ctx.Err())
+			return fmt.Errorf(
+				"task: wait for force-stop grace period on session %q: %w",
+				sessionID,
+				ctx.Err(),
+			)
 		}
 	}
 	if err := m.sessions.ForceTaskStop(ctx, sessionID, reason); err != nil {
@@ -3626,8 +3983,8 @@ func allowsRunTransition(current RunStatus, next RunStatus) bool {
 func nextRunAttempt(runs []Run) int {
 	maxAttempt := 0
 	for _, run := range runs {
-		if run.Attempt > maxAttempt {
-			maxAttempt = run.Attempt
+		if int(run.Attempt) > maxAttempt {
+			maxAttempt = int(run.Attempt)
 		}
 	}
 	return maxAttempt + 1
@@ -3719,7 +4076,7 @@ func runBootRecoveryError(run Run, recovery RunBootRecovery) string {
 func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) json.RawMessage {
 	payload, err := marshalTaskEventPayload(map[string]string{
 		"reason":          normalizedBootRecoveryReason(recovery.Reason),
-		"previous_status": string(run.Status.Normalize()),
+		"previous_status": run.Status.Normalize().String(),
 		"session_id":      strings.TrimSpace(run.SessionID),
 		"session_state":   strings.TrimSpace(recovery.SessionState),
 		"classification":  strings.TrimSpace(recovery.Classification),
@@ -3996,7 +4353,7 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		ID:                    current.ID,
 		TaskID:                current.TaskID,
 		Status:                current.Status,
-		Attempt:               current.Attempt,
+		Attempt:               int(current.Attempt),
 		PreviousRunID:         current.PreviousRunID,
 		FailureKind:           current.FailureKind,
 		MaxAttempts:           maxAttempts,

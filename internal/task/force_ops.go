@@ -93,7 +93,7 @@ func (m *Service) ForceReleaseRun(
 			),
 			diagnosticcontract.SeverityError,
 			fmt.Sprintf("agh task inspect %s", previous.ID),
-			map[string]any{runEvidenceIDKey: previous.ID, leaseStatusKey: string(previous.Status.Normalize())},
+			map[string]any{runEvidenceIDKey: previous.ID, leaseStatusKey: previous.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
 	}
@@ -235,7 +235,7 @@ func (m *Service) RetryRun(
 			fmt.Sprintf("Run %s is %s; only failed runs can be retried.", source.ID, source.Status.Normalize()),
 			diagnosticcontract.SeverityError,
 			fmt.Sprintf("agh task inspect %s", source.ID),
-			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: string(source.Status.Normalize())},
+			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: source.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
 	}
@@ -314,7 +314,7 @@ func (m *Service) RecoverRun(
 			),
 			diagnosticcontract.SeverityError,
 			suggested,
-			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: string(source.Status.Normalize())},
+			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: source.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
 	}
@@ -494,7 +494,7 @@ func requireForceFailStatus(run Run) error {
 			fmt.Sprintf("Run %s is already %s and cannot be force failed.", run.ID, run.Status.Normalize()),
 			diagnosticcontract.SeverityInfo,
 			fmt.Sprintf("agh task inspect %s", run.ID),
-			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: string(run.Status.Normalize())},
+			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
 	default:
@@ -508,7 +508,7 @@ func requireForceFailStatus(run Run) error {
 			),
 			diagnosticcontract.SeverityError,
 			fmt.Sprintf("agh task cancel %s --reason %q", run.ID, "stop before force fail"),
-			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: string(run.Status.Normalize())},
+			map[string]any{runEvidenceIDKey: run.ID, leaseStatusKey: run.Status.Normalize().String()},
 			ErrInvalidStatusTransition,
 		)
 	}

@@ -132,7 +132,7 @@ func buildBenchmarkTaskSnapshot(count int) taskSnapshot {
 			ID:             runID,
 			TaskID:         taskID,
 			Status:         runStatuses[i%len(runStatuses)],
-			Attempt:        (i % 3) + 1,
+			Attempt:        int32((i % 3) + 1),
 			SessionID:      fmt.Sprintf("sess-%04d", i%128),
 			Origin:         origin,
 			NetworkChannel: channel,

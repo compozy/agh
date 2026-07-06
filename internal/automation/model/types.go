@@ -34,6 +34,16 @@ const (
 	JobSourceDynamic JobSource = "dynamic"
 )
 
+// TargetKind identifies which runtime primitive an automation delegates to.
+type TargetKind string
+
+const (
+	// TargetKindAgent starts the existing agent-session automation path.
+	TargetKindAgent TargetKind = "agent"
+	// TargetKindLoop starts a declared Loop through loop.Service.Start.
+	TargetKindLoop TargetKind = "loop"
+)
+
 // ScheduleMode identifies how a scheduled job determines its next fire time.
 type ScheduleMode string
 
@@ -106,16 +116,29 @@ type JobTaskConfig struct {
 	NetworkChannel string             `json:"network_channel,omitempty" toml:"network_channel,omitempty"`
 }
 
+// LoopTarget configures an automation fire to start a Loop instead of an agent session.
+type LoopTarget struct {
+	WorkspaceID string `json:"workspace_id" toml:"workspace_id"`
+
+	LoopName string `json:"loop_name" toml:"loop_name"`
+
+	Inputs map[string]any `json:"inputs,omitempty" toml:"inputs,omitempty"`
+
+	InputMapping map[string]string `json:"input_mapping,omitempty" toml:"input_mapping,omitempty"`
+}
+
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job struct {
 	ID          string          `json:"id"`
 	Scope       Scope           `json:"scope"`
 	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
 	AgentName   string          `json:"agent_name"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Prompt      string          `json:"prompt"`
 	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
 	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
 	Enabled     bool            `json:"enabled"`
 	Retry       RetryConfig     `json:"retry"`
 	FireLimit   FireLimitConfig `json:"fire_limit"`
@@ -137,11 +160,13 @@ type Trigger struct {
 	ID               string            `json:"id"`
 	Scope            Scope             `json:"scope"`
 	Name             string            `json:"name"`
+	TargetKind       TargetKind        `json:"target_kind"`
 	AgentName        string            `json:"agent_name"`
 	WorkspaceID      string            `json:"workspace_id,omitempty"`
 	Prompt           string            `json:"prompt"`
 	Event            string            `json:"event"`
 	Filter           map[string]string `json:"filter,omitempty"`
+	LoopTarget       *LoopTarget       `json:"loop_target,omitempty"`
 	Enabled          bool              `json:"enabled"`
 	Retry            RetryConfig       `json:"retry"`
 	FireLimit        FireLimitConfig   `json:"fire_limit"`
@@ -174,6 +199,7 @@ type Run struct {
 	SessionID       string     `json:"session_id,omitempty"`
 	TaskID          string     `json:"task_id,omitempty"`
 	TaskRunID       string     `json:"task_run_id,omitempty"`
+	LoopRunID       string     `json:"loop_run_id,omitempty"`
 	FireID          string     `json:"fire_id,omitempty"`
 	Status          RunStatus  `json:"status"`
 	Attempt         int        `json:"attempt"`

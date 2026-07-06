@@ -1,0 +1,472 @@
+package loop
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/agh/internal/task"
+)
+
+const branchFalseOutputRef = "branch:false"
+const branchSkippedOutputRef = "branch_skipped"
+const branchTrueOutputRef = "branch:true"
+const subLoopEnteredOutputRef = "sub_loop_entered"
+
+func buildInitialControlAwareCoordinatorPlan(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+) (task.CoordinatorCompletionPlan, error) {
+	graph := resolved.Definition.Graph
+	topology := newControlTopology(graph)
+	outputs := initialGenerationOutputs(graph, topology, generation)
+	plan, err := newInitialControlCoordinatorPlan(
+		run,
+		generation,
+		graph,
+		topology,
+		gateEvaluator != nil,
+		outputs,
+	)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	terminal, err := advanceControlNodes(
+		ctx,
+		&plan,
+		run,
+		generation,
+		resolved,
+		topology,
+		effective,
+		gateEvaluator,
+		fanOutWidth,
+		watchRuntime,
+		&outputs,
+	)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	plan.Snapshot.Payload = GenerationSnapshotPayload{Outputs: outputs}
+	if terminal != nil {
+		plan.Terminal = terminal
+		return plan, nil
+	}
+	if plan.Yield {
+		return plan, nil
+	}
+	postReserveOutputs := cloneGenerationOutputs(outputs)
+	if err := appendReadyNodeRunsControlAware(
+		&plan,
+		run,
+		generation,
+		resolved,
+		topology,
+		gateEvaluator != nil,
+		postReserveOutputs,
+	); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if len(plan.NodeRuns) > 0 {
+		plan.PostReserveSnapshot = &task.GenerationSnapshot{
+			LoopRunID:  string(run.ID),
+			Generation: generation,
+			Payload:    GenerationSnapshotPayload{Outputs: postReserveOutputs},
+		}
+		return plan, nil
+	}
+	if allGenerationOutputsSucceededControlAware(graph, topology, outputs) {
+		plan.Terminal = &task.CoordinatorTerminal{
+			Status: string(StatusDone),
+			Cause:  string(TransitionCauseContract),
+		}
+		return plan, nil
+	}
+	plan.Terminal = noReadyNodesTerminal()
+	return plan, nil
+}
+
+func initialGenerationOutputs(
+	graph dsl.Graph,
+	topology controlTopology,
+	generation int,
+) []GenerationOutput {
+	outputs := make([]GenerationOutput, 0, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		if _, inFanOut := topology.inFanOutBody(node.ID); inFanOut {
+			continue
+		}
+		outputs = append(outputs, GenerationOutput{
+			Generation: generation,
+			NodeID:     string(node.ID),
+			ItemIndex:  0,
+			Status:     generationOutputPending,
+		})
+	}
+	return outputs
+}
+
+func advanceControlNodes(
+	ctx context.Context,
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+	outputs *[]GenerationOutput,
+) (*task.CoordinatorTerminal, error) {
+	for {
+		changed := false
+		indexes := generationOutputIndexMap(*outputs)
+		for _, output := range sortedGenerationOutputs(*outputs) {
+			if output.Status != generationOutputPending {
+				continue
+			}
+			node, ok := graphNode(resolved.Definition.Graph, dsl.NodeID(output.NodeID))
+			if !ok || !isCoordinatorOwnedNodeWithGates(node, gateEvaluator != nil) {
+				continue
+			}
+			if !dependenciesSucceededForOutput(resolved.Definition.Graph, topology, *outputs, output) {
+				continue
+			}
+			updated, terminal, err := evaluateControlNode(
+				ctx,
+				plan,
+				run,
+				generation,
+				resolved,
+				topology,
+				effective,
+				gateEvaluator,
+				fanOutWidth,
+				watchRuntime,
+				output,
+				node,
+				outputs,
+			)
+			if err != nil {
+				return nil, err
+			}
+			key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
+			if idx, ok := indexes[key]; ok {
+				(*outputs)[idx] = updated
+			}
+			if terminal != nil {
+				return terminal, nil
+			}
+			if plan.Yield {
+				return nil, nil
+			}
+			changed = true
+		}
+		if !changed {
+			return nil, nil
+		}
+	}
+}
+
+func evaluateControlNode(
+	ctx context.Context,
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs *[]GenerationOutput,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	if isFileImportSourceNode(node) {
+		return evaluateFileImportNode(run, generation, resolved, topology, output, node, *outputs)
+	}
+	if isWatchSourceNode(node) {
+		return evaluateWatchSourceNode(ctx, plan, run, output, node, watchRuntime)
+	}
+	switch dsl.ControlKind(node.Kind) {
+	case dsl.ControlFanOut:
+		return evaluateFanOutNode(
+			plan,
+			run,
+			generation,
+			resolved,
+			topology,
+			gateEvaluator != nil,
+			fanOutWidth,
+			output,
+			node,
+			outputs,
+		)
+	case dsl.ControlCollect:
+		output.Status = generationOutputSucceeded
+		return output, nil, nil
+	case dsl.ControlBranch:
+		return evaluateBranchNode(run, generation, resolved, topology, output, node, outputs)
+	case dsl.ControlGate:
+		return evaluateGateNode(
+			ctx,
+			run,
+			generation,
+			resolved,
+			topology,
+			effective,
+			gateEvaluator,
+			output,
+			node,
+			*outputs,
+		)
+	case dsl.ControlSubLoop:
+		output.Status = generationOutputSucceeded
+		output.OutputRef = subLoopEnteredOutputRef
+		return output, nil, nil
+	default:
+		return output, nil, nil
+	}
+}
+
+func evaluateFanOutNode(
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	gatesEnabled bool,
+	fanOutWidth int,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs *[]GenerationOutput,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	namespace, err := runtimeNamespace(run, generation, resolved.Definition.Graph, topology, *outputs, node.ID, 0)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	items, err := resolveFanOutCollection(resolved, node, namespace)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	materialization, terminal := buildFanOutMaterialization(node, items, fanOutWidth)
+	if terminal != nil {
+		return GenerationOutput{}, terminal, nil
+	}
+	ref, err := fanOutMaterializationRef(materialization)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	output.Status = generationOutputSucceeded
+	output.OutputRef = ref
+	if err := materializeFanOutBody(
+		plan,
+		run,
+		generation,
+		resolved.Definition.Graph,
+		topology,
+		gatesEnabled,
+		node.ID,
+		materialization,
+		outputs,
+	); err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	return output, nil, nil
+}
+
+func materializeFanOutBody(
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	graph dsl.Graph,
+	topology controlTopology,
+	gatesEnabled bool,
+	fanOutID dsl.NodeID,
+	materialization fanOutMaterialization,
+	outputs *[]GenerationOutput,
+) error {
+	scope := topology.fanOutScopes[fanOutID]
+	indexes := generationOutputIndexMap(*outputs)
+	for itemIndex := 0; itemIndex < materialization.Branches; itemIndex++ {
+		for _, node := range graph.Nodes {
+			if _, ok := scope.body[node.ID]; !ok {
+				continue
+			}
+			key := generationOutputKey{nodeID: string(node.ID), itemIndex: itemIndex}
+			if _, exists := indexes[key]; exists {
+				continue
+			}
+			*outputs = append(*outputs, GenerationOutput{
+				Generation: generation,
+				NodeID:     string(node.ID),
+				ItemIndex:  itemIndex,
+				Status:     generationOutputPending,
+			})
+		}
+	}
+	if err := appendCoordinatorTasksForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gatesEnabled,
+		*outputs,
+	); err != nil {
+		return err
+	}
+	return appendCoordinatorDependenciesForOutputs(plan, run, generation, graph, topology, gatesEnabled, *outputs)
+}
+
+func evaluateBranchNode(
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs *[]GenerationOutput,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	key := fmt.Sprintf("nodes.%s.condition", node.ID)
+	condition := resolved.Conditions[key]
+	if condition == nil {
+		return GenerationOutput{}, nil, fmt.Errorf(
+			"%w: compiled branch condition %q is missing",
+			ErrValidation,
+			key,
+		)
+	}
+	namespace, err := runtimeNamespace(
+		run,
+		generation,
+		resolved.Definition.Graph,
+		topology,
+		*outputs,
+		node.ID,
+		output.ItemIndex,
+	)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	value, _, err := condition.Program.Eval(namespace)
+	if err != nil {
+		return GenerationOutput{}, nil, fmt.Errorf("loop: evaluate branch %s: %w", node.ID, err)
+	}
+	result, ok := value.Value().(bool)
+	if !ok {
+		return GenerationOutput{}, nil, fmt.Errorf(
+			"%w: branch %s condition returned %T",
+			ErrValidation,
+			node.ID,
+			value.Value(),
+		)
+	}
+	output.Status = generationOutputSucceeded
+	if !result {
+		output.OutputRef = branchFalseOutputRef
+		skipBranchDependents(resolved.Definition.Graph, topology, node.ID, output, outputs)
+		return output, nil, nil
+	}
+	output.OutputRef = branchTrueOutputRef
+	return output, nil, nil
+}
+
+func skipBranchDependents(
+	graph dsl.Graph,
+	topology controlTopology,
+	branchID dsl.NodeID,
+	branchOutput GenerationOutput,
+	outputs *[]GenerationOutput,
+) {
+	indexes := generationOutputIndexMap(*outputs)
+	outputMap := generationOutputMap(*outputs)
+	itemIndex := branchOutput.ItemIndex
+	outputMap[generationOutputKey{nodeID: string(branchID), itemIndex: itemIndex}] = branchOutput
+	queue := append([]dsl.NodeID(nil), topology.dependents[branchID]...)
+	for len(queue) > 0 {
+		nodeID := queue[0]
+		queue = queue[1:]
+		node, ok := graphNode(graph, nodeID)
+		if !ok || isControlKind(node, dsl.ControlCollect) {
+			continue
+		}
+		if !allBranchPathDependenciesSkipped(topology, outputMap, nodeID, branchID, itemIndex) {
+			continue
+		}
+		key := generationOutputKey{
+			nodeID:    string(nodeID),
+			itemIndex: itemIndexForSkippedNode(topology, nodeID, branchID, itemIndex),
+		}
+		if idx, exists := indexes[key]; exists && (*outputs)[idx].Status == generationOutputPending {
+			(*outputs)[idx].Status = generationOutputSucceeded
+			(*outputs)[idx].OutputRef = branchSkippedOutputRef
+			outputMap[key] = (*outputs)[idx]
+			queue = append(queue, topology.dependents[nodeID]...)
+		}
+	}
+}
+
+func allBranchPathDependenciesSkipped(
+	topology controlTopology,
+	outputs map[generationOutputKey]GenerationOutput,
+	nodeID dsl.NodeID,
+	branchID dsl.NodeID,
+	itemIndex int,
+) bool {
+	dependencies := topology.dependencies[nodeID]
+	if len(dependencies) == 0 {
+		return false
+	}
+	for _, dependency := range dependencies {
+		dependencyOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
+		if !ok {
+			return false
+		}
+		if dependency == branchID && dependencyOutput.OutputRef == branchFalseOutputRef {
+			continue
+		}
+		if dependencyOutput.OutputRef == branchSkippedOutputRef {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func itemIndexForSkippedNode(
+	topology controlTopology,
+	nodeID dsl.NodeID,
+	branchID dsl.NodeID,
+	itemIndex int,
+) int {
+	if topology.sameFanOutBody(nodeID, branchID) {
+		return itemIndex
+	}
+	return 0
+}
+
+func fanOutCeilingTerminal() *task.CoordinatorTerminal {
+	return &task.CoordinatorTerminal{
+		Status:     string(StatusExhausted),
+		Cause:      string(TransitionCauseContract),
+		ReasonCode: "fan_out_width_exceeded",
+	}
+}
+
+func noReadyNodesTerminal() *task.CoordinatorTerminal {
+	return &task.CoordinatorTerminal{
+		Status:     string(StatusFailed),
+		Cause:      string(TransitionCauseContract),
+		ReasonCode: "no_ready_nodes",
+	}
+}

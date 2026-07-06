@@ -29,6 +29,8 @@ type taskSQLExecutor interface {
 type queuedRunReservationInput struct {
 	taskID             string
 	runID              string
+	runKind            taskpkg.RunKind
+	loopRunID          string
 	idempotencyKey     string
 	origin             taskpkg.Origin
 	requestedChannel   string
@@ -617,29 +619,13 @@ func (g *GlobalDB) ListTaskEventRecords(
 // ReserveQueuedRun atomically allocates one queued run attempt and optional idempotency binding.
 func (g *GlobalDB) ReserveQueuedRun(
 	ctx context.Context,
-	taskID string,
-	runID string,
-	idempotencyKey string,
-	origin taskpkg.Origin,
-	requestedChannel string,
-	metadata json.RawMessage,
-	queuedAt time.Time,
-	designationGroupID ...string,
+	reservation taskpkg.QueueRunReservation,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	if err := g.checkReady(ctx, "reserve queued task run"); err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
 
-	input, err := g.normalizeQueuedRunReservationInput(
-		taskID,
-		runID,
-		idempotencyKey,
-		origin,
-		requestedChannel,
-		metadata,
-		queuedAt,
-		designationGroupID...,
-	)
+	input, err := g.normalizeQueuedRunReservationInput(reservation)
 	if err != nil {
 		return taskpkg.Task{}, taskpkg.Run{}, false, err
 	}
@@ -664,58 +650,44 @@ func (g *GlobalDB) ReserveQueuedRun(
 }
 
 func (g *GlobalDB) normalizeQueuedRunReservationInput(
-	taskID string,
-	runID string,
-	idempotencyKey string,
-	origin taskpkg.Origin,
-	requestedChannel string,
-	metadata json.RawMessage,
-	queuedAt time.Time,
-	designationGroupID ...string,
+	reservation taskpkg.QueueRunReservation,
 ) (queuedRunReservationInput, error) {
-	trimmedTaskID, err := requireTaskValue(taskID, "task id")
-	if err != nil {
-		return queuedRunReservationInput{}, err
+	normalizedReservation := reservation
+	normalizedReservation.TaskID = strings.TrimSpace(normalizedReservation.TaskID)
+	normalizedReservation.RunID = strings.TrimSpace(normalizedReservation.RunID)
+	normalizedReservation.RunKind = normalizedReservation.RunKind.Normalize()
+	if normalizedReservation.RunKind == taskpkg.RunKindUnknown {
+		normalizedReservation.RunKind = taskpkg.RunKindWorker
 	}
-	trimmedRunID, err := requireTaskValue(runID, "task run id")
-	if err != nil {
-		return queuedRunReservationInput{}, err
-	}
+	normalizedReservation.LoopRunID = strings.TrimSpace(normalizedReservation.LoopRunID)
 	normalizedOrigin := taskpkg.Origin{
-		Kind: origin.Kind.Normalize(),
-		Ref:  strings.TrimSpace(origin.Ref),
+		Kind: normalizedReservation.Origin.Kind.Normalize(),
+		Ref:  strings.TrimSpace(normalizedReservation.Origin.Ref),
 	}
-	if err := normalizedOrigin.Validate("task_run.origin"); err != nil {
+	normalizedReservation.Origin = normalizedOrigin
+	normalizedReservation.IdempotencyKey = strings.TrimSpace(normalizedReservation.IdempotencyKey)
+	normalizedReservation.RequestedChannel = strings.TrimSpace(normalizedReservation.RequestedChannel)
+	normalizedReservation.DesignationGroupID = strings.TrimSpace(normalizedReservation.DesignationGroupID)
+	normalizedReservation.Metadata = normalizeTaskJSON(normalizedReservation.Metadata)
+	if err := normalizedReservation.Validate("queue_run_reservation"); err != nil {
 		return queuedRunReservationInput{}, err
 	}
-	trimmedKey := strings.TrimSpace(idempotencyKey)
-	normalizedMetadata := normalizeTaskJSON(metadata)
-	if err := taskpkg.ValidateMetadataSize(normalizedMetadata, "enqueue_run.metadata"); err != nil {
-		return queuedRunReservationInput{}, err
-	}
-	normalizedQueuedAt := queuedAt.UTC()
+	normalizedQueuedAt := normalizedReservation.QueuedAt.UTC()
 	if normalizedQueuedAt.IsZero() {
 		normalizedQueuedAt = g.now()
 	}
 	return queuedRunReservationInput{
-		taskID:             trimmedTaskID,
-		runID:              trimmedRunID,
-		idempotencyKey:     trimmedKey,
+		taskID:             normalizedReservation.TaskID,
+		runID:              normalizedReservation.RunID,
+		runKind:            normalizedReservation.RunKind,
+		loopRunID:          normalizedReservation.LoopRunID,
+		idempotencyKey:     normalizedReservation.IdempotencyKey,
 		origin:             normalizedOrigin,
-		requestedChannel:   strings.TrimSpace(requestedChannel),
-		designationGroupID: firstQueuedRunDesignationGroupID(designationGroupID),
-		metadata:           normalizedMetadata,
+		requestedChannel:   normalizedReservation.RequestedChannel,
+		designationGroupID: normalizedReservation.DesignationGroupID,
+		metadata:           normalizedReservation.Metadata,
 		queuedAt:           normalizedQueuedAt,
 	}, nil
-}
-
-func firstQueuedRunDesignationGroupID(values []string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func (g *GlobalDB) reserveQueuedRunWithExecutor(
@@ -809,6 +781,10 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	runAttempt, err := taskRunAttemptFromInt(nextAttempt)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
 
 	networkChannel := resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel)
 	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, input.runID)
@@ -825,8 +801,10 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 	run := taskpkg.Run{
 		ID:                    input.runID,
 		TaskID:                taskRecord.ID,
+		RunKind:               input.runKind,
+		LoopRunID:             input.loopRunID,
 		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               nextAttempt,
+		Attempt:               runAttempt,
 		Origin:                input.origin,
 		IdempotencyKey:        input.idempotencyKey,
 		NetworkChannel:        networkChannel,
@@ -846,6 +824,14 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 		return taskpkg.Run{}, err
 	}
 	return normalizedRun, nil
+}
+
+func taskRunAttemptFromInt(value int) (int32, error) {
+	const maxTaskRunAttempt = int(^uint32(0) >> 1)
+	if value <= 0 || value > maxTaskRunAttempt {
+		return 0, fmt.Errorf("%w: task run attempt out of range: %d", taskpkg.ErrValidation, value)
+	}
+	return int32(value), nil
 }
 
 func coordinationChannelIDForQueuedRun(taskRecord taskpkg.Task, networkChannel string, runID string) string {
@@ -1059,12 +1045,12 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			tr.id, tr.task_id, tr.status, tr.attempt, tr.previous_run_id, tr.failure_kind,
+			tr.id, tr.task_id, tr.run_kind, tr.loop_run_id, tr.status, tr.attempt, tr.previous_run_id, tr.failure_kind,
 			tr.claimed_by_kind, tr.claimed_by_ref,
 			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
 			tr.designation_group_id, '' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
 			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
-			tr.error, tr.metadata_json, tr.result_json, tr.review_required,
+			tr.tokens_used, tr.error, tr.metadata_json, tr.result_json, tr.review_required,
 			tr.review_request_round, tr.review_policy_snapshot, tr.review_request_id,
 			tr.parent_run_id, tr.review_id, tr.review_round, tr.continuation_reason,
 			tr.missing_work_json, tr.next_round_guidance
@@ -1493,9 +1479,9 @@ func (g *GlobalDB) findOpenRunIDForQueuedRunReservation(
 		  ORDER BY queued_at DESC, id DESC
 		  LIMIT 1`,
 		taskID,
-		string(taskpkg.TaskRunStatusCompleted),
-		string(taskpkg.TaskRunStatusFailed),
-		string(taskpkg.TaskRunStatusCanceled),
+		taskpkg.TaskRunStatusCompleted.String(),
+		taskpkg.TaskRunStatusFailed.String(),
+		taskpkg.TaskRunStatusCanceled.String(),
 		normalizedDesignationGroupID,
 		normalizedDesignationGroupID,
 	)

@@ -131,6 +131,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionCommand(deps))
 	cmd.AddCommand(newHooksCommand(deps))
 	cmd.AddCommand(newAutomationCommand(deps))
+	cmd.AddCommand(newLoopCommand(deps))
 	cmd.AddCommand(newSchedulerCommand(deps))
 	cmd.AddCommand(newTaskCommand(deps))
 	cmd.AddCommand(newSkillCommand(deps))
@@ -144,6 +145,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWhoamiCommand(deps))
 	cmd.AddCommand(newOpenCommand(deps))
 	cmd.AddCommand(newDocCommand())
+	cmd.AddCommand(newInternalCommand())
 
 	return cmd
 }

@@ -356,7 +356,6 @@ func TestDomainValidationHelpers(t *testing.T) {
 		base.SessionID = "sess-1"
 		base.ClaimedAt = base.QueuedAt.Add(time.Minute)
 		base.StartedAt = base.ClaimedAt.Add(time.Minute)
-		base.ClaimToken = "raw-token"
 		base.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 		base.LeaseUntil = base.ClaimedAt.Add(15 * time.Minute)
 		base.HeartbeatAt = base.ClaimedAt.Add(30 * time.Second)
@@ -721,7 +720,7 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 		},
 		{
 			name:    "task run status invalid",
-			run:     func() error { return RunStatus("paused").Validate("run.status") },
+			run:     func() error { return ParseRunStatus("paused").Validate("run.status") },
 			wantErr: ErrValidation,
 		},
 		{name: "actor kind valid", run: func() error { return ActorKindHuman.Validate("actor.kind") }},

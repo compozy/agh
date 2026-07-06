@@ -54,6 +54,7 @@ interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
+    useSearch: () => ({}),
   }),
   Link: ({ children, params, ...props }: MockLinkProps) => (
     <a href={`/session/${params?.id ?? ""}`} {...props}>
@@ -394,7 +395,7 @@ function fillJobAgentFields(name: string, agent = "writer", prompt = "Summarize 
 
 function fillJobTaskFields(name: string, title = "Materialized task") {
   fireEvent.change(screen.getByTestId("job-name-input"), { target: { value: name } });
-  fireEvent.click(screen.getByTestId("job-output-task"));
+  fireEvent.click(screen.getByTestId("job-target-task"));
   fireEvent.change(screen.getByTestId("job-task-title"), { target: { value: title } });
   fireEvent.change(screen.getByTestId("job-task-desc"), {
     target: { value: `Description for ${title}` },
@@ -495,7 +496,7 @@ describe("Jobs create modal", () => {
     const intervalInput = screen.getByLabelText("Interval");
     fireEvent.change(intervalInput, { target: { value: "45m" } });
 
-    fireEvent.click(screen.getByTestId("job-output-task"));
+    fireEvent.click(screen.getByTestId("job-target-task"));
     fireEvent.change(screen.getByTestId("job-task-title"), {
       target: { value: "Audit payout drift" },
     });
@@ -685,7 +686,7 @@ describe("Jobs create modal", () => {
         fireEvent.change(screen.getByLabelText("Cron expression"), {
           target: { value: "0 12 * * *" },
         });
-        fireEvent.click(screen.getByTestId("job-output-task"));
+        fireEvent.click(screen.getByTestId("job-target-task"));
         fireEvent.change(screen.getByTestId("job-task-title"), {
           target: { value: "Cron task output" },
         });
@@ -731,7 +732,7 @@ describe("Jobs create modal", () => {
         fireEvent.change(screen.getByLabelText("Run date and time"), {
           target: { value: "2099-03-01T11:45" },
         });
-        fireEvent.click(screen.getByTestId("job-output-task"));
+        fireEvent.click(screen.getByTestId("job-target-task"));
         fireEvent.change(screen.getByTestId("job-task-title"), {
           target: { value: "At task output" },
         });

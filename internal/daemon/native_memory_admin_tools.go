@@ -22,6 +22,7 @@ import (
 const (
 	nativeMemoryAdminToolsCompletedKey = "completed"
 	nativeMemoryAdminToolsCanceledKey  = "canceled"
+	nativeMemoryAdminToolsFailedKey    = "failed"
 )
 
 type memoryAdminAvailabilitySet struct {
@@ -1410,7 +1411,7 @@ func memoryAdminDreamState(record memorypkg.DreamRunRecord) contract.MemoryDream
 	switch strings.TrimSpace(record.Status) {
 	case "running":
 		return contract.MemoryDreamStateRunning
-	case "failed":
+	case nativeMemoryAdminToolsFailedKey:
 		return contract.MemoryDreamStateFailed
 	case nativeMemoryAdminToolsCompletedKey:
 		if record.PromotedCount > 0 {

@@ -1,7 +1,14 @@
 import type { FormEvent } from "react";
 import { useMemo } from "react";
 
-import { retryDraftForStrategy } from "../lib/automation-drafts";
+import type { LoopTargetDraft } from "@/systems/loops";
+
+import {
+  automationTargetMode,
+  retryDraftForStrategy,
+  setTriggerTargetMode,
+  type AutomationTargetMode,
+} from "../lib/automation-drafts";
 import {
   availableDataFields,
   ENVELOPE_KEYS,
@@ -39,10 +46,12 @@ function computeCanSubmit(
   selection: ReturnType<typeof parseEventSelection>,
   mode: "create" | "edit"
 ): boolean {
+  const targetValid = draft.loop_target
+    ? draft.loop_target.loop_name.trim() !== ""
+    : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
   const baseValid =
     draft.name.trim() !== "" &&
-    draft.agent_name.trim() !== "" &&
-    draft.prompt.trim() !== "" &&
+    targetValid &&
     draft.event.trim() !== "" &&
     (draft.scope === "global" || Boolean(draft.workspace_id));
   if (!baseValid) return false;
@@ -95,6 +104,16 @@ export function useAutomationTriggerForm({
   };
 
   const patch = (next: Partial<CreateAutomationTriggerRequest>) => onChange({ ...draft, ...next });
+
+  const targetMode = automationTargetMode(draft);
+  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
+    loop_name: "",
+    inputs: {},
+    input_mapping: {},
+  };
+  const handleLoopTargetChange = (next: LoopTargetDraft) => {
+    patch({ loop_target: { ...next, workspace_id: draft.workspace_id ?? "" } });
+  };
 
   const handleScopeChange = (scope: AutomationScope) => {
     if (scope === "global") {
@@ -178,6 +197,10 @@ export function useAutomationTriggerForm({
     onFilterChange: (filter: AutomationTriggerFilter) => patch({ filter }),
     onAgentChange: (agent_name: string) => patch({ agent_name }),
     onPromptChange: (prompt: string) => patch({ prompt }),
+    targetMode,
+    loopTarget,
+    onTargetModeChange: (mode: AutomationTargetMode) => onChange(setTriggerTargetMode(draft, mode)),
+    onLoopTargetChange: handleLoopTargetChange,
     onRetryChange: (next: AutomationRetry) => patch({ retry: next }),
     onFireLimitChange: (next: AutomationFireLimit) => patch({ fire_limit: next }),
     onEnabledChange: (enabled: boolean) => patch({ enabled }),

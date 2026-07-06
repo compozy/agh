@@ -11,7 +11,6 @@ import (
 
 	automation "github.com/compozy/agh/internal/automation/model"
 	"github.com/compozy/agh/internal/store"
-	taskpkg "github.com/compozy/agh/internal/task"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
@@ -43,7 +42,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 		return automation.Job{}, err
 	}
 
-	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(normalized)
+	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeJobRecord(normalized)
 	if err != nil {
 		return automation.Job{}, err
 	}
@@ -53,7 +52,8 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 		`UPDATE automation_jobs
 		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
 		     schedule = ?, task = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, updated_at = ?
+		     source = ?, target_kind = ?, loop_workspace_id = ?, loop_name = ?,
+		     loop_inputs = ?, loop_input_mapping = ?, updated_at = ?
 		 WHERE id = ?`,
 		normalized.Scope,
 		normalized.Name,
@@ -66,6 +66,11 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automatio
 		retryJSON,
 		fireLimitJSON,
 		normalized.Source,
+		normalized.TargetKind,
+		store.NullableString(loopTarget.workspaceID),
+		store.NullableString(loopTarget.loopName),
+		loopTarget.inputsJSON,
+		loopTarget.inputMappingJSON,
 		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
@@ -118,7 +123,8 @@ func (g *GlobalDB) GetJob(ctx context.Context, id string) (automation.Job, error
 		ctx,
 		`SELECT
 			id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-			enabled, retry, fire_limit, source, created_at, updated_at
+			enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
+			loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 		 FROM automation_jobs
 		 WHERE id = ?`,
 		trimmedID,
@@ -136,12 +142,14 @@ func (g *GlobalDB) ListJobs(ctx context.Context, query automation.JobListQuery) 
 
 	sqlQuery := `SELECT
 		id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-		enabled, retry, fire_limit, source, created_at, updated_at
+		enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
+		loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 		FROM automation_jobs`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("source", string(query.Source)),
+		store.StringClause("loop_name", query.LoopName),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY name ASC, id ASC"
@@ -198,7 +206,7 @@ func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger
 		return automation.Trigger{}, err
 	}
 
-	filterJSON, retryJSON, fireLimitJSON, err := encodeTriggerRecord(normalized)
+	filterJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeTriggerRecord(normalized)
 	if err != nil {
 		return automation.Trigger{}, err
 	}
@@ -208,7 +216,9 @@ func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger
 		`UPDATE automation_triggers
 		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
 		     event = ?, filter = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, webhook_id = ?, endpoint_slug = ?, webhook_secret_ref = ?, updated_at = ?
+		     source = ?, webhook_id = ?, endpoint_slug = ?, webhook_secret_ref = ?,
+		     target_kind = ?, loop_workspace_id = ?, loop_name = ?, loop_inputs = ?,
+		     loop_input_mapping = ?, updated_at = ?
 		 WHERE id = ?`,
 		normalized.Scope,
 		normalized.Name,
@@ -224,6 +234,11 @@ func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger
 		store.NullableString(normalized.WebhookID),
 		store.NullableString(normalized.EndpointSlug),
 		store.NullableString(normalized.WebhookSecretRef),
+		normalized.TargetKind,
+		store.NullableString(loopTarget.workspaceID),
+		store.NullableString(loopTarget.loopName),
+		loopTarget.inputsJSON,
+		loopTarget.inputMappingJSON,
 		store.FormatTimestamp(normalized.UpdatedAt),
 		normalized.ID,
 	)
@@ -286,7 +301,8 @@ func (g *GlobalDB) GetTrigger(ctx context.Context, id string) (automation.Trigge
 		`SELECT
 				id, scope, name, agent_name, workspace_id, prompt, event, filter,
 				enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-				webhook_secret_ref, created_at, updated_at
+				webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
+				loop_inputs, loop_input_mapping, created_at, updated_at
 			 FROM automation_triggers
 			 WHERE id = ?`,
 		trimmedID,
@@ -309,7 +325,8 @@ func (g *GlobalDB) GetTriggerByWebhookID(ctx context.Context, webhookID string) 
 		`SELECT
 				id, scope, name, agent_name, workspace_id, prompt, event, filter,
 				enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-				webhook_secret_ref, created_at, updated_at
+				webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
+				loop_inputs, loop_input_mapping, created_at, updated_at
 			 FROM automation_triggers
 			 WHERE webhook_id = ?`,
 		trimmedWebhookID,
@@ -325,12 +342,15 @@ func (g *GlobalDB) ListTriggers(ctx context.Context, query automation.TriggerLis
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter, enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref, created_at, updated_at FROM automation_triggers`
+	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter, enabled, retry,
+		fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref, target_kind, loop_workspace_id,
+		loop_name, loop_inputs, loop_input_mapping, created_at, updated_at FROM automation_triggers`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(query.Scope)),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("event", query.Event),
 		store.StringClause("source", string(query.Source)),
+		store.StringClause("loop_name", query.LoopName),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY name ASC, id ASC"
@@ -375,9 +395,9 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 		`INSERT INTO automation_runs (
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at
+			delivery_error, delivery_error_at, loop_run_id
 		)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
@@ -393,6 +413,7 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 		store.NullableString(normalized.Error),
 		store.NullableString(normalized.DeliveryError),
 		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
+		store.NullableString(normalized.LoopRunID),
 	); err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: create automation run %q: %w",
@@ -421,7 +442,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		 SET job_id = ?, trigger_id = ?, session_id = ?, task_id = ?,
 		     task_run_id = ?, fire_id = ?, status = ?, attempt = ?,
 		     scheduled_at = ?, started_at = ?, ended_at = ?, error = ?,
-		     delivery_error = ?, delivery_error_at = ?
+		     delivery_error = ?, delivery_error_at = ?, loop_run_id = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
@@ -437,6 +458,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		store.NullableString(normalized.Error),
 		store.NullableString(normalized.DeliveryError),
 		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
+		store.NullableString(normalized.LoopRunID),
 		normalized.ID,
 	)
 	if err != nil {
@@ -489,7 +511,7 @@ func (g *GlobalDB) GetRun(ctx context.Context, id string) (automation.Run, error
 		`SELECT
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at
+			delivery_error, delivery_error_at, loop_run_id
 		 FROM automation_runs
 		 WHERE id = ?`,
 		trimmedID,
@@ -517,7 +539,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]a
 	sqlQuery := `SELECT
 		id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at
+		delivery_error, delivery_error_at, loop_run_id
 		FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
@@ -806,7 +828,7 @@ func (g *GlobalDB) DeleteTriggerEnabledOverlay(ctx context.Context, triggerID st
 }
 
 func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automation.Job) error {
-	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, err := encodeJobRecord(job)
+	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeJobRecord(job)
 	if err != nil {
 		return err
 	}
@@ -815,8 +837,9 @@ func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automati
 		ctx,
 		`INSERT INTO automation_jobs (
 			id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-			enabled, retry, fire_limit, source, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
+			loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		job.ID,
 		job.Scope,
 		job.Name,
@@ -829,6 +852,11 @@ func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automati
 		retryJSON,
 		fireLimitJSON,
 		job.Source,
+		job.TargetKind,
+		store.NullableString(loopTarget.workspaceID),
+		store.NullableString(loopTarget.loopName),
+		loopTarget.inputsJSON,
+		loopTarget.inputMappingJSON,
 		store.FormatTimestamp(job.CreatedAt),
 		store.FormatTimestamp(job.UpdatedAt),
 	); err != nil {
@@ -839,7 +867,7 @@ func (g *GlobalDB) insertJob(ctx context.Context, exec sqlExecutor, job automati
 }
 
 func (g *GlobalDB) insertTrigger(ctx context.Context, exec sqlExecutor, trigger automation.Trigger) error {
-	filterJSON, retryJSON, fireLimitJSON, err := encodeTriggerRecord(trigger)
+	filterJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeTriggerRecord(trigger)
 	if err != nil {
 		return err
 	}
@@ -849,8 +877,9 @@ func (g *GlobalDB) insertTrigger(ctx context.Context, exec sqlExecutor, trigger 
 		`INSERT INTO automation_triggers (
 			id, scope, name, agent_name, workspace_id, prompt, event, filter,
 			enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
+			target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		trigger.ID,
 		trigger.Scope,
 		trigger.Name,
@@ -866,6 +895,11 @@ func (g *GlobalDB) insertTrigger(ctx context.Context, exec sqlExecutor, trigger 
 		store.NullableString(trigger.WebhookID),
 		store.NullableString(trigger.EndpointSlug),
 		store.NullableString(trigger.WebhookSecretRef),
+		trigger.TargetKind,
+		store.NullableString(loopTarget.workspaceID),
+		store.NullableString(loopTarget.loopName),
+		loopTarget.inputsJSON,
+		loopTarget.inputMappingJSON,
 		store.FormatTimestamp(trigger.CreatedAt),
 		store.FormatTimestamp(trigger.UpdatedAt),
 	); err != nil {
@@ -1005,6 +1039,8 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		retryRaw    string
 		fireLimit   string
 		source      string
+		targetKind  string
+		loopTarget  automationLoopTargetRecord
 		createdAt   string
 		updatedAt   string
 	)
@@ -1021,6 +1057,11 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		&retryRaw,
 		&fireLimit,
 		&source,
+		&targetKind,
+		&loopTarget.workspaceID,
+		&loopTarget.loopName,
+		&loopTarget.inputsRaw,
+		&loopTarget.inputMappingRaw,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -1030,6 +1071,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 	job.Scope = automation.Scope(strings.TrimSpace(scope))
 	job.WorkspaceID = automationNullStringValue(workspaceID)
 	job.Source = automation.JobSource(strings.TrimSpace(source))
+	job.TargetKind = automation.TargetKind(strings.TrimSpace(targetKind))
 
 	if err := decodeAutomationSchedule(scheduleRaw, &job.Schedule); err != nil {
 		return automation.Job{}, err
@@ -1041,6 +1083,9 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		return automation.Job{}, err
 	}
 	if err := decodeAutomationJSON(fireLimit, &job.FireLimit, "job.fire_limit"); err != nil {
+		return automation.Job{}, err
+	}
+	if err := decodeAutomationLoopTarget(loopTarget, job.TargetKind, &job.LoopTarget, "job.loop_target"); err != nil {
 		return automation.Job{}, err
 	}
 
@@ -1070,6 +1115,8 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		webhookID        sql.NullString
 		endpointSlug     sql.NullString
 		webhookSecretRef sql.NullString
+		targetKind       string
+		loopTarget       automationLoopTargetRecord
 		createdAt        string
 		updatedAt        string
 	)
@@ -1089,6 +1136,11 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		&webhookID,
 		&endpointSlug,
 		&webhookSecretRef,
+		&targetKind,
+		&loopTarget.workspaceID,
+		&loopTarget.loopName,
+		&loopTarget.inputsRaw,
+		&loopTarget.inputMappingRaw,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -1101,6 +1153,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 	trigger.WebhookID = automationNullStringValue(webhookID)
 	trigger.EndpointSlug = automationNullStringValue(endpointSlug)
 	trigger.WebhookSecretRef = automationNullStringValue(webhookSecretRef)
+	trigger.TargetKind = automation.TargetKind(strings.TrimSpace(targetKind))
 
 	if err := decodeAutomationFilter(filterRaw, &trigger.Filter); err != nil {
 		return automation.Trigger{}, err
@@ -1111,19 +1164,34 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 	if err := decodeAutomationJSON(fireLimitRaw, &trigger.FireLimit, "trigger.fire_limit"); err != nil {
 		return automation.Trigger{}, err
 	}
+	if err := decodeAutomationLoopTarget(
+		loopTarget,
+		trigger.TargetKind,
+		&trigger.LoopTarget,
+		"trigger.loop_target",
+	); err != nil {
+		return automation.Trigger{}, err
+	}
 
+	if err := assignAutomationTriggerTimestamps(&trigger, createdAt, updatedAt); err != nil {
+		return automation.Trigger{}, err
+	}
+
+	return trigger, nil
+}
+
+func assignAutomationTriggerTimestamps(trigger *automation.Trigger, createdAt string, updatedAt string) error {
 	parsedCreatedAt, err := store.ParseTimestamp(createdAt)
 	if err != nil {
-		return automation.Trigger{}, err
+		return err
 	}
 	parsedUpdatedAt, err := store.ParseTimestamp(updatedAt)
 	if err != nil {
-		return automation.Trigger{}, err
+		return err
 	}
 	trigger.CreatedAt = parsedCreatedAt
 	trigger.UpdatedAt = parsedUpdatedAt
-
-	return trigger, nil
+	return nil
 }
 
 func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
@@ -1142,6 +1210,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		runErr        sql.NullString
 		deliveryErr   sql.NullString
 		deliveryErrAt sql.NullString
+		loopRunID     sql.NullString
 	)
 	if err := scanner.Scan(
 		&run.ID,
@@ -1159,6 +1228,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&runErr,
 		&deliveryErr,
 		&deliveryErrAt,
+		&loopRunID,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: scan automation run: %w", err)
 	}
@@ -1169,43 +1239,61 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	run.TaskID = automationNullStringValue(taskID)
 	run.TaskRunID = automationNullStringValue(taskRunID)
 	run.FireID = automationNullStringValue(fireID)
+	run.LoopRunID = automationNullStringValue(loopRunID)
 	run.Status = automation.RunStatus(strings.TrimSpace(status))
+	if err := assignAutomationRunTimestamps(&run, scheduledAt, startedAt, endedAt, deliveryErrAt); err != nil {
+		return automation.Run{}, err
+	}
+	assignAutomationRunErrors(&run, runErr, deliveryErr)
+
+	return run, nil
+}
+
+func assignAutomationRunTimestamps(
+	run *automation.Run,
+	scheduledAt sql.NullString,
+	startedAt sql.NullString,
+	endedAt sql.NullString,
+	deliveryErrAt sql.NullString,
+) error {
 	if scheduledAt.Valid {
 		value, err := store.ParseTimestamp(scheduledAt.String)
 		if err != nil {
-			return automation.Run{}, err
+			return err
 		}
 		run.ScheduledAt = &value
 	}
 	if startedAt.Valid {
 		value, err := store.ParseTimestamp(startedAt.String)
 		if err != nil {
-			return automation.Run{}, err
+			return err
 		}
 		run.StartedAt = &value
 	}
 	if endedAt.Valid {
 		value, err := store.ParseTimestamp(endedAt.String)
 		if err != nil {
-			return automation.Run{}, err
+			return err
 		}
 		run.EndedAt = &value
 	}
+	if deliveryErrAt.Valid {
+		value, err := store.ParseTimestamp(deliveryErrAt.String)
+		if err != nil {
+			return err
+		}
+		run.DeliveryErrorAt = &value
+	}
+	return nil
+}
+
+func assignAutomationRunErrors(run *automation.Run, runErr sql.NullString, deliveryErr sql.NullString) {
 	if runErr.Valid {
 		run.Error = runErr.String
 	}
 	if deliveryErr.Valid {
 		run.DeliveryError = deliveryErr.String
 	}
-	if deliveryErrAt.Valid {
-		value, err := store.ParseTimestamp(deliveryErrAt.String)
-		if err != nil {
-			return automation.Run{}, err
-		}
-		run.DeliveryErrorAt = &value
-	}
-
-	return run, nil
 }
 
 func scanJobEnabledOverlay(scanner rowScanner) (automation.JobEnabledOverlay, error) {
@@ -1240,42 +1328,50 @@ func scanTriggerEnabledOverlay(scanner rowScanner) (automation.TriggerEnabledOve
 	return overlay, nil
 }
 
-func encodeJobRecord(job automation.Job) (string, any, string, string, error) {
+func encodeJobRecord(job automation.Job) (string, any, string, string, automationLoopTargetEncoded, error) {
 	scheduleJSON, err := encodeAutomationJSON(job.Schedule, "job.schedule")
 	if err != nil {
-		return "", nil, "", "", err
+		return "", nil, "", "", automationLoopTargetEncoded{}, err
 	}
 	taskJSON, err := encodeOptionalAutomationJSON(job.Task, job.Task == nil, "job.task")
 	if err != nil {
-		return "", nil, "", "", err
+		return "", nil, "", "", automationLoopTargetEncoded{}, err
 	}
 	retryJSON, err := encodeAutomationJSON(job.Retry, "job.retry")
 	if err != nil {
-		return "", nil, "", "", err
+		return "", nil, "", "", automationLoopTargetEncoded{}, err
 	}
 	fireLimitJSON, err := encodeAutomationJSON(job.FireLimit, "job.fire_limit")
 	if err != nil {
-		return "", nil, "", "", err
+		return "", nil, "", "", automationLoopTargetEncoded{}, err
+	}
+	loopTarget, err := encodeAutomationLoopTarget(job.LoopTarget, "job.loop_target")
+	if err != nil {
+		return "", nil, "", "", automationLoopTargetEncoded{}, err
 	}
 
-	return scheduleJSON, taskJSON, retryJSON, fireLimitJSON, nil
+	return scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, nil
 }
 
-func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, error) {
+func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, automationLoopTargetEncoded, error) {
 	filterJSON, err := encodeOptionalAutomationJSON(trigger.Filter, len(trigger.Filter) == 0, "trigger.filter")
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", automationLoopTargetEncoded{}, err
 	}
 	retryJSON, err := encodeAutomationJSON(trigger.Retry, "trigger.retry")
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", automationLoopTargetEncoded{}, err
 	}
 	fireLimitJSON, err := encodeAutomationJSON(trigger.FireLimit, "trigger.fire_limit")
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", automationLoopTargetEncoded{}, err
+	}
+	loopTarget, err := encodeAutomationLoopTarget(trigger.LoopTarget, "trigger.loop_target")
+	if err != nil {
+		return nil, "", "", automationLoopTargetEncoded{}, err
 	}
 
-	return filterJSON, retryJSON, fireLimitJSON, nil
+	return filterJSON, retryJSON, fireLimitJSON, loopTarget, nil
 }
 
 func validateAutomationJobListQuery(query automation.JobListQuery) error {
@@ -1341,6 +1437,9 @@ func validateAutomationRunRecord(run automation.Run) error {
 	triggerID := strings.TrimSpace(run.TriggerID)
 	taskID := strings.TrimSpace(run.TaskID)
 	taskRunID := strings.TrimSpace(run.TaskRunID)
+	loopRunID := strings.TrimSpace(run.LoopRunID)
+	taskDelegated := taskID != "" && taskRunID != ""
+	loopDelegated := loopRunID != ""
 	switch {
 	case jobID == "" && triggerID == "":
 		return errors.New("store: automation run job_id or trigger_id is required")
@@ -1348,10 +1447,12 @@ func validateAutomationRunRecord(run automation.Run) error {
 		return errors.New("store: automation run must reference either a job or a trigger, not both")
 	case taskRunID != "" && taskID == "":
 		return errors.New("store: automation run task_id is required when task_run_id is set")
-	case run.Status == automation.RunDelegated && taskID == "":
-		return errors.New("store: automation run task_id is required when status is delegated")
-	case run.Status == automation.RunDelegated && taskRunID == "":
-		return errors.New("store: automation run task_run_id is required when status is delegated")
+	case taskID != "" && taskRunID == "":
+		return errors.New("store: automation run task_run_id is required when task_id is set")
+	case loopRunID != "" && run.Status != automation.RunDelegated:
+		return errors.New("store: automation run loop_run_id requires delegated status")
+	case run.Status == automation.RunDelegated && taskDelegated == loopDelegated:
+		return errors.New("store: delegated automation run requires exactly one task run or loop run target")
 	default:
 		return nil
 	}
@@ -1440,103 +1541,6 @@ func mapAutomationRunConstraintError(err error) error {
 	default:
 		return err
 	}
-}
-
-func normalizeAutomationJob(job automation.Job) automation.Job {
-	job.ID = strings.TrimSpace(job.ID)
-	job.Scope = automation.Scope(strings.TrimSpace(string(job.Scope)))
-	job.Name = strings.TrimSpace(job.Name)
-	job.AgentName = strings.TrimSpace(job.AgentName)
-	job.WorkspaceID = strings.TrimSpace(job.WorkspaceID)
-	job.Source = automation.JobSource(strings.TrimSpace(string(job.Source)))
-	job.Retry.BaseDelay = strings.TrimSpace(job.Retry.BaseDelay)
-	job.Retry.Strategy = automation.RetryStrategy(strings.TrimSpace(string(job.Retry.Strategy)))
-	job.FireLimit.Window = strings.TrimSpace(job.FireLimit.Window)
-	if job.Schedule != nil {
-		schedule := *job.Schedule
-		schedule.Mode = automation.ScheduleMode(strings.TrimSpace(string(schedule.Mode)))
-		schedule.Expr = strings.TrimSpace(schedule.Expr)
-		schedule.Interval = strings.TrimSpace(schedule.Interval)
-		schedule.Time = strings.TrimSpace(schedule.Time)
-		job.Schedule = &schedule
-	}
-	if job.Task != nil {
-		taskConfig := *job.Task
-		taskConfig.Title = strings.TrimSpace(taskConfig.Title)
-		taskConfig.Description = strings.TrimSpace(taskConfig.Description)
-		taskConfig.NetworkChannel = strings.TrimSpace(taskConfig.NetworkChannel)
-		if taskConfig.Owner != nil {
-			owner := *taskConfig.Owner
-			owner.Kind = taskpkg.OwnerKind(strings.TrimSpace(string(owner.Kind)))
-			owner.Ref = strings.TrimSpace(owner.Ref)
-			taskConfig.Owner = &owner
-		}
-		job.Task = &taskConfig
-	}
-	return job
-}
-
-func normalizeAutomationTrigger(trigger automation.Trigger) automation.Trigger {
-	trigger.ID = strings.TrimSpace(trigger.ID)
-	trigger.Scope = automation.Scope(strings.TrimSpace(string(trigger.Scope)))
-	trigger.Name = strings.TrimSpace(trigger.Name)
-	trigger.AgentName = strings.TrimSpace(trigger.AgentName)
-	trigger.WorkspaceID = strings.TrimSpace(trigger.WorkspaceID)
-	trigger.Event = strings.TrimSpace(trigger.Event)
-	trigger.Source = automation.JobSource(strings.TrimSpace(string(trigger.Source)))
-	trigger.WebhookID = strings.TrimSpace(trigger.WebhookID)
-	trigger.EndpointSlug = strings.TrimSpace(trigger.EndpointSlug)
-	trigger.WebhookSecretRef = strings.TrimSpace(trigger.WebhookSecretRef)
-	trigger.Retry.BaseDelay = strings.TrimSpace(trigger.Retry.BaseDelay)
-	trigger.Retry.Strategy = automation.RetryStrategy(strings.TrimSpace(string(trigger.Retry.Strategy)))
-	trigger.FireLimit.Window = strings.TrimSpace(trigger.FireLimit.Window)
-	if len(trigger.Filter) > 0 {
-		normalized := make(map[string]string, len(trigger.Filter))
-		for rawKey, rawValue := range trigger.Filter {
-			normalized[strings.TrimSpace(rawKey)] = strings.TrimSpace(rawValue)
-		}
-		trigger.Filter = normalized
-	}
-	return trigger
-}
-
-func normalizeAutomationRun(run automation.Run) automation.Run {
-	run.ID = strings.TrimSpace(run.ID)
-	run.JobID = strings.TrimSpace(run.JobID)
-	run.TriggerID = strings.TrimSpace(run.TriggerID)
-	run.SessionID = strings.TrimSpace(run.SessionID)
-	run.TaskID = strings.TrimSpace(run.TaskID)
-	run.TaskRunID = strings.TrimSpace(run.TaskRunID)
-	run.FireID = strings.TrimSpace(run.FireID)
-	run.Status = automation.RunStatus(strings.TrimSpace(string(run.Status)))
-	run.Error = strings.TrimSpace(run.Error)
-	run.DeliveryError = strings.TrimSpace(run.DeliveryError)
-	return run
-}
-
-func normalizeJobOverlay(overlay automation.JobEnabledOverlay, now time.Time) (automation.JobEnabledOverlay, error) {
-	overlay.JobID = strings.TrimSpace(overlay.JobID)
-	if overlay.JobID == "" {
-		return automation.JobEnabledOverlay{}, errors.New("store: automation job overlay id is required")
-	}
-	if overlay.UpdatedAt.IsZero() {
-		overlay.UpdatedAt = now
-	}
-	return overlay, nil
-}
-
-func normalizeTriggerOverlay(
-	overlay automation.TriggerEnabledOverlay,
-	now time.Time,
-) (automation.TriggerEnabledOverlay, error) {
-	overlay.TriggerID = strings.TrimSpace(overlay.TriggerID)
-	if overlay.TriggerID == "" {
-		return automation.TriggerEnabledOverlay{}, errors.New("store: automation trigger overlay id is required")
-	}
-	if overlay.UpdatedAt.IsZero() {
-		overlay.UpdatedAt = now
-	}
-	return overlay, nil
 }
 
 func encodeAutomationJSON(value any, label string) (string, error) {

@@ -23,6 +23,7 @@ import (
 // backstop is statically wired, never silently disabled by a failed runtime type assertion.
 var _ schedulerpkg.StarvationStore = (*globaldb.GlobalDB)(nil)
 var _ schedulerpkg.TaskSource = schedulerTaskSource{}
+var _ schedulerpkg.LoopCoordinatorBackstop = schedulerTaskSource{}
 
 const (
 	schedulerRuntimeTaskKey = "task"
@@ -31,6 +32,7 @@ const (
 const (
 	defaultMechanicalSchedulerInterval   = 15 * time.Second
 	defaultMechanicalSchedulerSweepLimit = 100
+	defaultLoopCoordinatorBackstopLimit  = 16
 	mechanicalSchedulerSweepReason       = "scheduler_sweep"
 	mechanicalSchedulerWakeReason        = "pending_task_run"
 )
@@ -297,16 +299,89 @@ func (r *schedulerRuntime) shutdownWaker(ctx context.Context) error {
 	return r.waker.shutdown(ctx)
 }
 
-func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.RunSnapshot, error) {
+func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
+	ctx context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (int, error) {
+	if reconciler, ok := s.store.(loopCoordinatorBootReconciler); ok {
+		if _, err := reconciler.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now); err != nil {
+			return 0, err
+		}
+	}
+	scopes, err := s.loopCoordinatorClaimScopes(ctx)
+	if err != nil {
+		return 0, err
+	}
+	started := 0
+	for _, scope := range scopes {
+		for started < defaultLoopCoordinatorBackstopLimit {
+			claim, err := s.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:            scope.scope,
+				WorkspaceID:      scope.workspaceID,
+				RunKind:          taskpkg.RunKindCoordinator,
+				ClaimerSessionID: "daemon-loop-coordinator",
+				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"},
+				LeaseDuration:    taskpkg.DefaultRunLeaseDuration,
+				Now:              now,
+			}, actor)
+			if errors.Is(err, taskpkg.ErrNoClaimableRun) {
+				break
+			}
+			if err != nil {
+				return started, err
+			}
+			startKey := strings.TrimSpace(claim.Run.IdempotencyKey)
+			if startKey == "" {
+				startKey = "coordinator-start:" + claim.Run.ID
+			}
+			if _, err := s.manager.StartRun(ctx, claim.Run.ID, taskpkg.StartRun{
+				IdempotencyKey: startKey,
+				ClaimToken:     claim.ClaimToken,
+			}, actor); err != nil {
+				return started, err
+			}
+			started++
+		}
+	}
+	return started, nil
+}
+
+type loopCoordinatorClaimScope struct {
+	scope       taskpkg.Scope
+	workspaceID string
+}
+
+func (s schedulerTaskSource) loopCoordinatorClaimScopes(ctx context.Context) ([]loopCoordinatorClaimScope, error) {
 	runs, err := s.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 	if err != nil {
 		return nil, err
 	}
-	snapshots, err := s.joinRunsWithTasks(ctx, runs)
-	if err != nil {
-		return nil, err
+	scopes := make([]loopCoordinatorClaimScope, 0, len(runs))
+	seen := make(map[string]struct{}, len(runs))
+	for _, run := range runs {
+		if run.RunKind.Normalize() != taskpkg.RunKindCoordinator {
+			continue
+		}
+		taskRecord, err := s.store.GetTask(ctx, run.TaskID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: load coordinator task %q for run %q: %w", run.TaskID, run.ID, err)
+		}
+		scope := loopCoordinatorClaimScope{
+			scope:       taskRecord.Scope.Normalize(),
+			workspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		}
+		if scope.scope == "" {
+			scope.scope = taskpkg.ScopeGlobal
+		}
+		key := string(scope.scope) + "\x00" + scope.workspaceID
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		scopes = append(scopes, scope)
 	}
-	return s.filterPausedRuns(ctx, snapshots)
+	return scopes, nil
 }
 
 func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, error) {
@@ -340,63 +415,11 @@ func (s schedulerTaskSource) GetRunStatus(
 	run, err := s.store.GetTaskRun(ctx, strings.TrimSpace(runID))
 	if err != nil {
 		if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
-			return "", false, nil
+			return taskpkg.TaskRunStatusUnknown, false, nil
 		}
-		return "", false, fmt.Errorf("daemon: scheduler read run status %q: %w", runID, err)
+		return taskpkg.TaskRunStatusUnknown, false, fmt.Errorf("daemon: scheduler read run status %q: %w", runID, err)
 	}
 	return run.Status, true, nil
-}
-
-func (s schedulerTaskSource) joinRunsWithTasks(
-	ctx context.Context,
-	runs []taskpkg.Run,
-) ([]schedulerpkg.RunSnapshot, error) {
-	work := make([]schedulerpkg.RunSnapshot, 0, len(runs))
-	for _, run := range runs {
-		taskRecord, err := s.store.GetTask(ctx, run.TaskID)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: scheduler load task %q for run %q: %w", run.TaskID, run.ID, err)
-		}
-		if taskRecord.Paused {
-			continue
-		}
-		if pauseReader, ok := s.store.(interface {
-			IsTaskEffectivelyPaused(context.Context, string) (bool, string, error)
-		}); ok {
-			paused, _, err := pauseReader.IsTaskEffectivelyPaused(ctx, taskRecord.ID)
-			if err != nil {
-				return nil, err
-			}
-			if paused {
-				continue
-			}
-		}
-		work = append(work, schedulerpkg.RunSnapshot{Task: taskRecord, Run: run})
-	}
-	return work, nil
-}
-
-func (s schedulerTaskSource) filterPausedRuns(
-	ctx context.Context,
-	snapshots []schedulerpkg.RunSnapshot,
-) ([]schedulerpkg.RunSnapshot, error) {
-	pauseStore, ok := s.store.(effectiveTaskPauseStore)
-	if !ok {
-		return snapshots, nil
-	}
-	filtered := make([]schedulerpkg.RunSnapshot, 0, len(snapshots))
-	for idx := range snapshots {
-		snapshot := &snapshots[idx]
-		paused, _, err := pauseStore.IsTaskEffectivelyPaused(ctx, snapshot.Task.ID)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: scheduler check task %q pause: %w", snapshot.Task.ID, err)
-		}
-		if paused {
-			continue
-		}
-		filtered = append(filtered, *snapshot)
-	}
-	return filtered, nil
 }
 
 func (s schedulerSessionSource) Sessions(ctx context.Context) ([]schedulerpkg.SessionSnapshot, error) {

@@ -28,6 +28,7 @@ type daemonExtensionService struct {
 	agentSkill        agentSkillPublisher
 	toolMCP           toolMCPPublisher
 	bundles           bundleResourcePublisher
+	loops             loopResourcePublisher
 	homePaths         aghconfig.HomePaths
 	logger            *slog.Logger
 	now               func() time.Time
@@ -63,6 +64,7 @@ func newDaemonExtensionService(
 	agentSkill agentSkillPublisher,
 	toolMCP toolMCPPublisher,
 	bundles bundleResourcePublisher,
+	loops loopResourcePublisher,
 	homePaths aghconfig.HomePaths,
 	logger *slog.Logger,
 	now func() time.Time,
@@ -86,6 +88,7 @@ func newDaemonExtensionService(
 		agentSkill: agentSkill,
 		toolMCP:    toolMCP,
 		bundles:    bundles,
+		loops:      loops,
 		homePaths:  homePaths,
 		logger:     logger,
 		now:        now,
@@ -439,6 +442,9 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	}
 	if s.bundles != nil {
 		syncErr = errors.Join(syncErr, s.bundles.Sync(ctx))
+	}
+	if s.loops != nil {
+		syncErr = errors.Join(syncErr, s.loops.Sync(ctx))
 	}
 	return errors.Join(reloadErr, syncErr)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,6 +33,7 @@ const (
 )
 
 const internalChildFlagName = "internal-child"
+const exitWhenOrphanedFlagName = "exit-when-orphaned"
 
 type daemonProcess interface {
 	PID() int
@@ -53,8 +55,9 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 
 func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 	var (
-		foreground    bool
-		internalChild bool
+		foreground       bool
+		internalChild    bool
+		exitWhenOrphaned bool
 	)
 
 	cmd := &cobra.Command{
@@ -67,7 +70,7 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
   agh daemon start --foreground`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if foreground || internalChild {
-				return runDaemonForeground(cmd.Context(), deps)
+				return runDaemonForeground(cmd.Context(), deps, exitWhenOrphaned)
 			}
 			status, err := runDaemonDetached(cmd.Context(), deps)
 			if err != nil {
@@ -79,6 +82,13 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&foreground, "foreground", false, "Run the daemon in the foreground")
 	cmd.Flags().BoolVar(&internalChild, internalChildFlagName, false, "Internal detached child mode")
 	mustMarkFlagHidden(cmd, internalChildFlagName)
+	cmd.Flags().BoolVar(
+		&exitWhenOrphaned,
+		exitWhenOrphanedFlagName,
+		false,
+		"Exit when the parent process exits (test harness use)",
+	)
+	mustMarkFlagHidden(cmd, exitWhenOrphanedFlagName)
 	return cmd
 }
 
@@ -136,7 +146,7 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func runDaemonForeground(ctx context.Context, deps commandDeps) error {
+func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return err
@@ -154,6 +164,21 @@ func runDaemonForeground(ctx context.Context, deps commandDeps) error {
 	runner, err := deps.newDaemon()
 	if err != nil {
 		return err
+	}
+
+	// A harness-launched daemon self-terminates gracefully when its launcher
+	// dies abruptly (SIGKILL / test timeout), which would otherwise orphan it.
+	if exitWhenOrphaned {
+		watchCtx, cancel := context.WithCancel(ctx)
+		var watchers sync.WaitGroup
+		watchers.Go(func() {
+			procutil.WatchParentExit(watchCtx, 0, cancel)
+		})
+		defer func() {
+			cancel()
+			watchers.Wait()
+		}()
+		ctx = watchCtx
 	}
 	return runner.Run(ctx)
 }

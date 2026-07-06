@@ -13,6 +13,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/diagnostics"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -161,6 +162,9 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 	if got := StatusForAutomationError(automationpkg.ErrWebhookSignatureInvalid); got != http.StatusUnauthorized {
 		t.Fatalf("StatusForAutomationError(signature invalid) = %d, want %d", got, http.StatusUnauthorized)
 	}
+	if got := StatusForAutomationError(looppkg.ErrValidation); got != http.StatusUnprocessableEntity {
+		t.Fatalf("StatusForAutomationError(loop validation) = %d, want %d", got, http.StatusUnprocessableEntity)
+	}
 
 	tests := []struct {
 		name string
@@ -178,6 +182,32 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 			t.Parallel()
 			if got := StatusForNetworkError(tt.err); got != tt.want {
 				t.Fatalf("StatusForNetworkError(%v) = %d, want %d", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoopErrorHelpers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "nil", err: nil, want: http.StatusOK},
+		{name: "duplicate definition", err: looppkg.ErrDefinitionExists, want: http.StatusConflict},
+		{name: "definition missing", err: looppkg.ErrDefinitionNotFound, want: http.StatusNotFound},
+		{name: "validation", err: looppkg.ErrValidation, want: http.StatusBadRequest},
+		{name: "invalid transition", err: looppkg.ErrInvalidTransition, want: http.StatusUnprocessableEntity},
+		{name: "transition conflict", err: looppkg.ErrTransitionConflict, want: http.StatusConflict},
+		{name: "unknown", err: errors.New("boom"), want: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := StatusForLoopError(tt.err); got != tt.want {
+				t.Fatalf("StatusForLoopError(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

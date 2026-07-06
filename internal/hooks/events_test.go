@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 76
+const expectedHookEventCount = 83
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -57,6 +57,11 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookNetworkWorkTransitioned:      {},
 		HookNetworkWorkClosed:            {},
 		HookSessionMessagePersisted:      {},
+		HookLoopStarted:                  {},
+		HookLoopGenerationPost:           {},
+		HookLoopGatePost:                 {},
+		HookLoopNodeTerminal:             {},
+		HookLoopTerminal:                 {},
 	}
 
 	if !HookSessionPreCreate.SyncEligible() {
@@ -74,6 +79,35 @@ func TestSyncEligibleClassification(t *testing.T) {
 		}
 		if !wantAsyncOnly && !got {
 			t.Fatalf("%s.SyncEligible() = false, want true", event)
+		}
+	}
+}
+
+func TestLoopHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
+	t.Parallel()
+
+	expected := map[HookEvent]bool{
+		HookLoopStarted:        false,
+		HookLoopGenerationPre:  true,
+		HookLoopGenerationPost: false,
+		HookLoopGatePre:        true,
+		HookLoopGatePost:       false,
+		HookLoopNodeTerminal:   false,
+		HookLoopTerminal:       false,
+	}
+	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
+	for _, event := range AllHookEvents() {
+		seen[event] = struct{}{}
+	}
+	for event, syncEligible := range expected {
+		if _, ok := seen[event]; !ok {
+			t.Fatalf("AllHookEvents() missing %q", event)
+		}
+		if got := event.Family(); got != HookEventFamilyLoop {
+			t.Fatalf("%s.Family() = %q, want %q", event, got, HookEventFamilyLoop)
+		}
+		if got := event.SyncEligible(); got != syncEligible {
+			t.Fatalf("%s.SyncEligible() = %v, want %v", event, got, syncEligible)
 		}
 	}
 }

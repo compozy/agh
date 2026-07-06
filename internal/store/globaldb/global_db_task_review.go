@@ -645,6 +645,10 @@ func (g *GlobalDB) createReviewContinuationRun(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	runAttempt, err := taskRunAttemptFromInt(nextAttempt)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
 	networkChannel := resolveStoredRunChannel(parentRun.NetworkChannel, taskRecord.NetworkChannel)
 	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, runID)
 	if err := ensureQueuedRunCoordinationChannel(
@@ -661,7 +665,7 @@ func (g *GlobalDB) createReviewContinuationRun(
 		ID:                    strings.TrimSpace(runID),
 		TaskID:                taskRecord.ID,
 		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               nextAttempt,
+		Attempt:               runAttempt,
 		Origin:                actor.Origin,
 		NetworkChannel:        networkChannel,
 		CoordinationChannelID: coordinationChannelID,

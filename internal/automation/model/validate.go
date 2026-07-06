@@ -294,90 +294,6 @@ func (c FireLimitConfig) Validate(path string) error {
 	return nil
 }
 
-// Validate ensures the scheduled job definition is internally consistent.
-func (j Job) Validate(path string) error {
-	if strings.TrimSpace(j.Name) == "" {
-		return errors.New(nestedPath(path, "name") + " is required")
-	}
-	if j.Task == nil && strings.TrimSpace(j.AgentName) == "" {
-		return errors.New(nestedPath(path, "agent_name") + " is required")
-	}
-	if j.Task == nil && strings.TrimSpace(j.Prompt) == "" {
-		return errors.New(nestedPath(path, "prompt") + " is required")
-	}
-	if err := ValidateScopeBinding(j.Scope, j.WorkspaceID, path, "workspace_id"); err != nil {
-		return err
-	}
-	if err := j.Source.Validate(nestedPath(path, "source")); err != nil {
-		return err
-	}
-	if j.Schedule == nil {
-		return errors.New(nestedPath(path, "schedule") + " is required")
-	}
-	if err := j.Schedule.Validate(nestedPath(path, "schedule")); err != nil {
-		return err
-	}
-	if err := j.Retry.Validate(nestedPath(path, "retry")); err != nil {
-		return err
-	}
-	if err := j.FireLimit.Validate(nestedPath(path, "fire_limit")); err != nil {
-		return err
-	}
-	if j.Task != nil {
-		if err := j.Task.Validate(nestedPath(path, "task")); err != nil {
-			return err
-		}
-		if j.Retry.Strategy != RetryStrategyNone {
-			return fmt.Errorf(
-				"%s.strategy must be %q when %s is configured",
-				nestedPath(path, "retry"),
-				RetryStrategyNone,
-				nestedPath(path, "task"),
-			)
-		}
-	}
-
-	return nil
-}
-
-// Validate ensures the trigger definition is internally consistent.
-func (t Trigger) Validate(path string) error {
-	if strings.TrimSpace(t.Name) == "" {
-		return errors.New(nestedPath(path, "name") + " is required")
-	}
-	if strings.TrimSpace(t.AgentName) == "" {
-		return errors.New(nestedPath(path, "agent_name") + " is required")
-	}
-	if strings.TrimSpace(t.Prompt) == "" {
-		return errors.New(nestedPath(path, "prompt") + " is required")
-	}
-	if strings.TrimSpace(t.Event) == "" {
-		return errors.New(nestedPath(path, "event") + " is required")
-	}
-	if err := ValidateScopeBinding(t.Scope, t.WorkspaceID, path, "workspace_id"); err != nil {
-		return err
-	}
-	if err := t.Source.Validate(nestedPath(path, "source")); err != nil {
-		return err
-	}
-	if err := t.Retry.Validate(nestedPath(path, "retry")); err != nil {
-		return err
-	}
-	if err := t.FireLimit.Validate(nestedPath(path, "fire_limit")); err != nil {
-		return err
-	}
-	if err := ValidateTriggerFilter(t.Filter, nestedPath(path, "filter")); err != nil {
-		return err
-	}
-	if err := ValidateTriggerPromptTemplate(t.Prompt); err != nil {
-		return fmt.Errorf("%s is invalid: %w", nestedPath(path, "prompt"), err)
-	}
-	if strings.TrimSpace(t.Event) == "webhook" {
-		return validateWebhookTriggerFields(t, path)
-	}
-	return validateNonWebhookTriggerFields(t, path)
-}
-
 func validateWebhookTriggerFields(t Trigger, path string) error {
 	if strings.TrimSpace(t.EndpointSlug) == "" && strings.TrimSpace(t.WebhookID) == "" {
 		return errors.New(
@@ -409,48 +325,6 @@ func validateNonWebhookTriggerFields(t Trigger, path string) error {
 	}
 	if strings.TrimSpace(t.WebhookSecretRef) != "" {
 		return fmt.Errorf("%s must be empty when event is %q", nestedPath(path, "webhook_secret_ref"), event)
-	}
-	return nil
-}
-
-// Validate ensures the run record is internally consistent.
-func (r Run) Validate(path string) error {
-	if err := r.Status.Validate(nestedPath(path, "status")); err != nil {
-		return err
-	}
-	if r.Attempt < 0 {
-		return fmt.Errorf("%s must be zero or positive: %d", nestedPath(path, "attempt"), r.Attempt)
-	}
-	if r.ScheduledAt != nil && r.ScheduledAt.IsZero() {
-		return errors.New(nestedPath(path, "scheduled_at") + " must not be zero")
-	}
-	if r.StartedAt != nil && r.EndedAt != nil && r.EndedAt.Before(*r.StartedAt) {
-		return fmt.Errorf("%s must not be before %s", nestedPath(path, "ended_at"), nestedPath(path, "started_at"))
-	}
-	if r.DeliveryErrorAt != nil && strings.TrimSpace(r.DeliveryError) == "" {
-		return fmt.Errorf(
-			"%s is required when %s is set",
-			nestedPath(path, "delivery_error"),
-			nestedPath(path, "delivery_error_at"),
-		)
-	}
-	if r.Status == RunDelegated {
-		if strings.TrimSpace(r.TaskID) == "" {
-			return fmt.Errorf(
-				"%s is required when %s is %q",
-				nestedPath(path, "task_id"),
-				nestedPath(path, "status"),
-				RunDelegated,
-			)
-		}
-		if strings.TrimSpace(r.TaskRunID) == "" {
-			return fmt.Errorf(
-				"%s is required when %s is %q",
-				nestedPath(path, "task_run_id"),
-				nestedPath(path, "status"),
-				RunDelegated,
-			)
-		}
 	}
 	return nil
 }

@@ -351,6 +351,45 @@ describe("Extension", () => {
     });
   });
 
+  it("registers watch sources and serves watch/poll", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "review-watcher",
+      version: "0.1.0",
+    });
+
+    extension.watchSource<{ kind: string; query: string }>(
+      "reviews",
+      {},
+      async ({ spec, expectedStateDigest }) => ({
+        ready: spec.query === "open",
+        state_digest: expectedStateDigest === "sha256:previous" ? "sha256:next" : "sha256:first",
+        payload: { review: "r1" },
+        settled_at: "2026-07-05T12:00:00.000Z",
+      })
+    );
+
+    await harness.loadExtension(extension);
+
+    expect(extension.definition.capabilities?.provides).toContain("loop.watch_source");
+    expect(harness.getLastInitializeResponse()?.implemented_methods).toEqual(
+      expect.arrayContaining(["watch/poll"])
+    );
+    expect(harness.getLastInitializeResponse()?.watch_source_kinds).toEqual(["reviews"]);
+
+    await expect(
+      harness.call("watch/poll", {
+        spec: { kind: "reviews", query: "open" },
+        expected_state_digest: "sha256:previous",
+      })
+    ).resolves.toEqual({
+      ready: true,
+      state_digest: "sha256:next",
+      payload: { review: "r1" },
+      settled_at: "2026-07-05T12:00:00.000Z",
+    });
+  });
+
   it("redacts sensitive tool input from handler errors", async () => {
     const harness = new TestHarness();
     const extension = new Extension({

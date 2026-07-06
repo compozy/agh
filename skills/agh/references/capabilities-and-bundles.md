@@ -71,6 +71,8 @@ Hooks may deny, narrow, annotate, or observe. They must not bypass safety primit
 
 Skill-declared hooks are part of the skill contract. Keep hook declarations structured and validated, not buried in prose.
 
+Loop lifecycle hooks use the `loop.*` family for generation, gate, node-terminal, and terminal call sites. `loop.generation.pre` and `loop.gate.pre` are sync control hooks; node and terminal wake behavior is daemon-owned and fail-open.
+
 ## Config Lifecycle
 
 Any feature or refactor must state whether config.toml keys, defaults, docs, and examples are added, changed, or removed. In greenfield alpha, delete obsolete config paths instead of creating aliases or fallback bridges.
@@ -78,6 +80,8 @@ Any feature or refactor must state whether config.toml keys, defaults, docs, and
 If a rename touches code, storage, APIs, CLI, extensions, specs, docs, and task artifacts, update them together.
 
 `[autonomy.scheduler]` tunes the mechanical scheduler's convergence escalation ladder for starved runs. Keys are wake-cycle counts that must stay positive and monotonic (`fan_out_after` ≤ `spawn_after` ≤ `event_after` ≤ `needs_attention_after`) plus a `min_queued_age` duration. Defaults: `fan_out_after = 2`, `spawn_after = 4`, `event_after = 6`, `needs_attention_after = 10`, `min_queued_age = "2m"`. Validation rejects non-monotonic or non-positive values at load.
+
+`[loops.defaults.delivery]` and `[loops.defaults.watch]` seed new loop effective config before per-loop `loop_config` overrides; they are desired-state defaults, not the DB-backed override plane. Delivery defaults are `iteration_cap = 50`, `no_progress.window = 3`, `gates.max_revisions = 10`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 4`. Watch defaults are `iteration_cap = 0`, `no_progress.window = 2`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 2`; gate revisions remain unset for watch unless configured. Operator config may tighten the compile-time ceilings but must not exceed fan-out `64`, no-progress window `30`, or gate revisions `64`. `budget.on_exceeded` accepts only `halt` or `escalate`. These paths are restart-required config lifecycle entries; use `agh config reload -o json` and apply history to inspect activation.
 
 ## Settings Apply Lifecycle
 

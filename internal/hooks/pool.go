@@ -35,7 +35,7 @@ type asyncPool struct {
 
 	mu       sync.RWMutex
 	ctx      context.Context
-	stopCh   chan struct{}
+	cancel   context.CancelFunc
 	stopOnce sync.Once
 	tasks    chan asyncTask
 	wg       sync.WaitGroup
@@ -87,8 +87,7 @@ func (p *asyncPool) Start(parent context.Context) {
 		return
 	}
 
-	p.stopCh = make(chan struct{})
-	p.ctx = asyncPoolContext(parent, p.stopCh)
+	p.ctx, p.cancel = context.WithCancel(parent)
 	p.tasks = make(chan asyncTask, p.queueCapacity)
 	p.started = true
 
@@ -193,9 +192,20 @@ func (p *asyncPool) worker(ctx context.Context, tasks <-chan asyncTask) {
 		select {
 		case <-ctx.Done():
 			return
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			return
 		case task, ok := <-tasks:
 			if !ok {
 				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
 			p.runTask(ctx, task)
 		}
@@ -244,24 +254,8 @@ func (p *asyncPool) stopWorkers() {
 	}
 
 	p.stopOnce.Do(func() {
-		if p.stopCh != nil {
-			close(p.stopCh)
+		if p.cancel != nil {
+			p.cancel()
 		}
 	})
-}
-
-func asyncPoolContext(parent context.Context, stopCh <-chan struct{}) context.Context {
-	if parent == nil {
-		parent = context.Background()
-	}
-
-	ctx, cancel := context.WithCancel(parent)
-	go func() {
-		defer cancel()
-		select {
-		case <-stopCh:
-		case <-ctx.Done():
-		}
-	}()
-	return ctx
 }

@@ -1,10 +1,13 @@
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 
+import type { LoopTargetDraft } from "@/systems/loops";
+
 import {
   jobOutputMode,
   retryDraftForStrategy,
   setJobOutputMode,
+  setJobTargetMode,
   type JobOutputMode,
 } from "../lib/automation-drafts";
 import {
@@ -73,12 +76,24 @@ function scheduleValid(draft: CreateAutomationJobRequest, now: number): boolean 
   return date !== null && date.getTime() > now;
 }
 
+/** A job runs an agent, a durable task, or a Loop (§9.14). */
+export type JobTargetMode = "agent" | "task" | "loop";
+
+function jobTargetMode(draft: CreateAutomationJobRequest): JobTargetMode {
+  if (draft.loop_target) return "loop";
+  return jobOutputMode(draft);
+}
+
 function computeCanSubmit(draft: CreateAutomationJobRequest, now: number): boolean {
   const baseValid =
     draft.name.trim() !== "" && (draft.scope === "global" || Boolean(draft.workspace_id));
   if (!baseValid) return false;
   if (!scheduleValid(draft, now)) return false;
-  if (jobOutputMode(draft) === "task") {
+  const target = jobTargetMode(draft);
+  if (target === "loop") {
+    return Boolean(draft.loop_target?.loop_name.trim());
+  }
+  if (target === "task") {
     // Task mode: owner is optional, title/description fall back to the job — nothing more required.
     return true;
   }
@@ -155,7 +170,24 @@ export function useAutomationJobForm({
     patch({ scope: "workspace", workspace_id: fallback ?? undefined });
   };
 
-  const handleOutputChange = (next: JobOutputMode) => onChange(setJobOutputMode(draft, next));
+  const handleTargetChange = (next: JobTargetMode) => {
+    if (next === "loop") {
+      // Loop mode owns the target; a durable task cannot co-exist with a loop target.
+      onChange(setJobTargetMode({ ...draft, task: undefined }, "loop"));
+      return;
+    }
+    onChange(setJobOutputMode(setJobTargetMode(draft, "agent"), next));
+  };
+
+  const handleLoopTargetChange = (next: LoopTargetDraft) => {
+    patch({ loop_target: { ...next, workspace_id: draft.workspace_id ?? "" } });
+  };
+
+  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
+    loop_name: "",
+    inputs: {},
+    input_mapping: {},
+  };
 
   const handleOwnerKind = (kind: JobOwnerKind | "") => {
     if (kind === "") {
@@ -224,6 +256,8 @@ export function useAutomationJobForm({
 
   return {
     output,
+    targetMode: jobTargetMode(draft),
+    loopTarget,
     retry,
     cronModel,
     resolvedWorkspaces,
@@ -242,8 +276,9 @@ export function useAutomationJobForm({
     onScopeChange: handleScopeChange,
     onWorkspaceChange: (workspace_id: string) => patch({ workspace_id }),
 
-    // output / agent / task
-    onOutputChange: handleOutputChange,
+    // output / agent / task / loop
+    onTargetChange: handleTargetChange,
+    onLoopTargetChange: handleLoopTargetChange,
     onAgentChange: (agent_name: string) => patch({ agent_name }),
     onPromptChange: (prompt: string) => patch({ prompt }),
     onTaskTitle: (title: string) => patchTask({ title }),

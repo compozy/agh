@@ -311,13 +311,13 @@ func seedAutonomyLeaseRun(
 		Status:         TaskRunStatusClaimed,
 		SessionID:      normalizedSessionID,
 		ClaimedBy:      &ActorIdentity{Kind: ActorKindAgentSession, Ref: normalizedSessionID},
-		ClaimToken:     strings.TrimSpace(rawToken),
 		ClaimTokenHash: tokenHash,
 		ClaimedAt:      leaseUntil.Add(-time.Minute),
 		HeartbeatAt:    leaseUntil.Add(-time.Minute),
 		LeaseUntil:     leaseUntil,
 		QueuedAt:       leaseUntil.Add(-2 * time.Minute),
 	}
+	store.claimTokens[normalizedRunID] = rawToken
 }
 
 func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
@@ -367,9 +367,6 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	}
 	if claim.ClaimToken == "" {
 		t.Fatal("ClaimToken is empty")
-	}
-	if claim.Run.ClaimToken != "" {
-		t.Fatalf("Run.ClaimToken = %q, want empty read model", claim.Run.ClaimToken)
 	}
 	if !VerifyClaimToken(claim.ClaimToken, claim.Run.ClaimTokenHash) {
 		t.Fatal("ClaimToken does not verify against persisted hash")

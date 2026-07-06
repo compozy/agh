@@ -67,6 +67,11 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 				patch:   "TaskRunPreClaimPatch",
 			},
 			{
+				event:   hooks.HookLoopGenerationPre,
+				payload: "LoopGenerationPrePayload",
+				patch:   "LoopGenerationPrePatch",
+			},
+			{
 				event:   hooks.HookSpawnPreCreate,
 				payload: "SpawnPreCreatePayload",
 				patch:   "SpawnCreatePatch",

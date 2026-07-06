@@ -617,6 +617,7 @@ func ParseAutomationJobListQuery(c *gin.Context) (automationpkg.JobListQuery, er
 
 	query := automationpkg.JobListQuery{
 		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
+		LoopName:    strings.TrimSpace(c.Query("loop")),
 		Limit:       limit,
 	}
 	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
@@ -644,6 +645,7 @@ func ParseAutomationTriggerListQuery(c *gin.Context) (automationpkg.TriggerListQ
 	query := automationpkg.TriggerListQuery{
 		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
 		Event:       strings.TrimSpace(c.Query("event")),
+		LoopName:    strings.TrimSpace(c.Query("loop")),
 		Limit:       limit,
 	}
 	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
@@ -811,11 +813,13 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 	return automationpkg.Job{
 		Scope:       req.Scope,
 		Name:        strings.TrimSpace(req.Name),
+		TargetKind:  req.TargetKind,
 		AgentName:   strings.TrimSpace(req.AgentName),
 		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
 		Prompt:      strings.TrimSpace(req.Prompt),
 		Schedule:    &schedule,
 		Task:        taskConfig,
+		LoopTarget:  cloneAutomationLoopTarget(req.LoopTarget),
 		Enabled:     enabled,
 		Retry:       retry,
 		FireLimit:   fireLimit,
@@ -833,6 +837,12 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}
+	if req.TargetKind != nil {
+		next.TargetKind = *req.TargetKind
+		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
+			next.LoopTarget = nil
+		}
+	}
 	if req.AgentName != nil {
 		next.AgentName = strings.TrimSpace(*req.AgentName)
 	}
@@ -848,6 +858,9 @@ func applyJobPatch(current automationpkg.Job, req contract.UpdateJobRequest) aut
 	}
 	if req.Task != nil {
 		next.Task = cloneAutomationJobTaskConfig(req.Task)
+	}
+	if req.LoopTarget != nil {
+		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)
 	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
@@ -871,11 +884,13 @@ func validateConfigJobUpdate(req contract.UpdateJobRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
 	case req.Name != nil ||
+		req.TargetKind != nil ||
 		req.AgentName != nil ||
 		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Schedule != nil ||
 		req.Task != nil ||
+		req.LoopTarget != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil:
 		return errors.New("config-backed automation jobs only accept enabled updates")
@@ -926,11 +941,13 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 	return automationpkg.Trigger{
 		Scope:        req.Scope,
 		Name:         strings.TrimSpace(req.Name),
+		TargetKind:   req.TargetKind,
 		AgentName:    strings.TrimSpace(req.AgentName),
 		WorkspaceID:  strings.TrimSpace(req.WorkspaceID),
 		Prompt:       strings.TrimSpace(req.Prompt),
 		Event:        strings.TrimSpace(req.Event),
 		Filter:       cloneAutomationFilter(req.Filter),
+		LoopTarget:   cloneAutomationLoopTarget(req.LoopTarget),
 		Enabled:      enabled,
 		Retry:        retry,
 		FireLimit:    fireLimit,
@@ -953,6 +970,12 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}
+	if req.TargetKind != nil {
+		next.TargetKind = *req.TargetKind
+		if next.TargetKind.Normalize() == automationpkg.TargetKindAgent && req.LoopTarget == nil {
+			next.LoopTarget = nil
+		}
+	}
 	if req.AgentName != nil {
 		next.AgentName = strings.TrimSpace(*req.AgentName)
 	}
@@ -967,6 +990,9 @@ func applyTriggerPatch(current automationpkg.Trigger, req contract.UpdateTrigger
 	}
 	if req.Filter != nil {
 		next.Filter = cloneAutomationFilter(req.Filter)
+	}
+	if req.LoopTarget != nil {
+		next.LoopTarget = cloneAutomationLoopTarget(req.LoopTarget)
 	}
 	if req.Enabled != nil {
 		next.Enabled = *req.Enabled
@@ -1025,11 +1051,13 @@ func validateConfigTriggerUpdate(req contract.UpdateTriggerRequest) error {
 	case req.Enabled == nil:
 		return errors.New("config-backed automation triggers only accept enabled updates")
 	case req.Name != nil ||
+		req.TargetKind != nil ||
 		req.AgentName != nil ||
 		req.WorkspaceID != nil ||
 		req.Prompt != nil ||
 		req.Event != nil ||
 		req.Filter != nil ||
+		req.LoopTarget != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil ||
 		req.WebhookID != nil ||

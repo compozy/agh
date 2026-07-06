@@ -124,19 +124,59 @@ type stubClient struct {
 	getWorkspaceFn               func(context.Context, string) (WorkspaceDetailRecord, error)
 	updateWorkspaceFn            func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn            func(context.Context, string) error
-	listAgentsFn                 func(context.Context, AgentQuery) ([]AgentRecord, error)
-	getAgentFn                   func(context.Context, string, AgentQuery) (AgentRecord, error)
-	getAgentSoulFn               func(context.Context, string, AgentQuery) (AgentSoulRecord, error)
-	validateAgentSoulFn          func(context.Context, string, AgentSoulValidateRequest) (AgentSoulRecord, error)
-	putAgentSoulFn               func(context.Context, string, AgentSoulPutRequest) (AgentSoulMutationRecord, error)
-	deleteAgentSoulFn            func(context.Context, string, AgentSoulDeleteRequest) (AgentSoulMutationRecord, error)
-	listAgentSoulHistoryFn       func(context.Context, string, AgentSoulHistoryRequest) (AgentSoulHistoryRecord, error)
-	rollbackAgentSoulFn          func(context.Context, string, AgentSoulRollbackRequest) (AgentSoulMutationRecord, error)
-	getAgentHeartbeatFn          func(context.Context, string, AgentQuery) (AgentHeartbeatRecord, error)
-	validateAgentHeartbeatFn     func(context.Context, string, AgentHeartbeatValidateRequest) (AgentHeartbeatRecord, error)
-	putAgentHeartbeatFn          func(context.Context, string, AgentHeartbeatPutRequest) (AgentHeartbeatMutationRecord, error)
-	deleteAgentHeartbeatFn       func(context.Context, string, AgentHeartbeatDeleteRequest) (AgentHeartbeatMutationRecord, error)
-	listAgentHeartbeatHistoryFn  func(
+	listLoopsFn                  func(context.Context, string) (contract.LoopsResponse, error)
+	createLoopFn                 func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
+	getLoopFn                    func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn                  func(
+		context.Context,
+		string,
+		string,
+		contract.PatchLoopRequest,
+		agentidentity.Credentials,
+	) (contract.LoopResponse, error)
+	validateLoopFn func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
+	deleteLoopFn   func(context.Context, string, string, agentidentity.Credentials) error
+	runLoopFn      func(
+		context.Context,
+		string,
+		string,
+		contract.RunLoopRequest,
+		bool,
+		agentidentity.Credentials,
+	) (contract.RunLoopResponse, error)
+	getLoopConfigFn func(context.Context, string, string) (contract.LoopConfigResponse, error)
+	putLoopConfigFn func(
+		context.Context,
+		string,
+		string,
+		contract.PutLoopConfigRequest,
+		agentidentity.Credentials,
+	) (contract.LoopConfigResponse, error)
+	listLoopRunsFn   func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
+	getLoopRunFn     func(context.Context, string, string) (contract.LoopRunResponse, error)
+	stopLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) error
+	pauseLoopRunFn   func(context.Context, string, string, agentidentity.Credentials) error
+	resumeLoopRunFn  func(context.Context, string, string, agentidentity.Credentials) error
+	approveLoopRunFn func(
+		context.Context,
+		string,
+		string,
+		contract.ApproveLoopRunRequest,
+		agentidentity.Credentials,
+	) error
+	listAgentsFn                func(context.Context, AgentQuery) ([]AgentRecord, error)
+	getAgentFn                  func(context.Context, string, AgentQuery) (AgentRecord, error)
+	getAgentSoulFn              func(context.Context, string, AgentQuery) (AgentSoulRecord, error)
+	validateAgentSoulFn         func(context.Context, string, AgentSoulValidateRequest) (AgentSoulRecord, error)
+	putAgentSoulFn              func(context.Context, string, AgentSoulPutRequest) (AgentSoulMutationRecord, error)
+	deleteAgentSoulFn           func(context.Context, string, AgentSoulDeleteRequest) (AgentSoulMutationRecord, error)
+	listAgentSoulHistoryFn      func(context.Context, string, AgentSoulHistoryRequest) (AgentSoulHistoryRecord, error)
+	rollbackAgentSoulFn         func(context.Context, string, AgentSoulRollbackRequest) (AgentSoulMutationRecord, error)
+	getAgentHeartbeatFn         func(context.Context, string, AgentQuery) (AgentHeartbeatRecord, error)
+	validateAgentHeartbeatFn    func(context.Context, string, AgentHeartbeatValidateRequest) (AgentHeartbeatRecord, error)
+	putAgentHeartbeatFn         func(context.Context, string, AgentHeartbeatPutRequest) (AgentHeartbeatMutationRecord, error)
+	deleteAgentHeartbeatFn      func(context.Context, string, AgentHeartbeatDeleteRequest) (AgentHeartbeatMutationRecord, error)
+	listAgentHeartbeatHistoryFn func(
 		context.Context,
 		string,
 		AgentHeartbeatHistoryRequest,
@@ -1293,6 +1333,178 @@ func (s *stubClient) DeleteWorkspace(ctx context.Context, ref string) error {
 		return s.deleteWorkspaceFn(ctx, ref)
 	}
 	return errors.New("unexpected DeleteWorkspace call")
+}
+
+func (s *stubClient) ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error) {
+	if s.listLoopsFn != nil {
+		return s.listLoopsFn(ctx, workspaceID)
+	}
+	return contract.LoopsResponse{}, errors.New("unexpected ListLoops call")
+}
+
+func (s *stubClient) CreateLoop(
+	ctx context.Context,
+	workspaceID string,
+	request contract.CreateLoopRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopResponse, error) {
+	if s.createLoopFn != nil {
+		return s.createLoopFn(ctx, workspaceID, request, credentials)
+	}
+	return contract.LoopResponse{}, errors.New("unexpected CreateLoop call")
+}
+
+func (s *stubClient) GetLoop(ctx context.Context, workspaceID string, name string) (contract.LoopResponse, error) {
+	if s.getLoopFn != nil {
+		return s.getLoopFn(ctx, workspaceID, name)
+	}
+	return contract.LoopResponse{}, errors.New("unexpected GetLoop call")
+}
+
+func (s *stubClient) PatchLoop(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	request contract.PatchLoopRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopResponse, error) {
+	if s.patchLoopFn != nil {
+		return s.patchLoopFn(ctx, workspaceID, name, request, credentials)
+	}
+	return contract.LoopResponse{}, errors.New("unexpected PatchLoop call")
+}
+
+func (s *stubClient) ValidateLoop(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	request contract.ValidateLoopRequest,
+) (contract.LoopValidationResponse, error) {
+	if s.validateLoopFn != nil {
+		return s.validateLoopFn(ctx, workspaceID, name, request)
+	}
+	return contract.LoopValidationResponse{}, errors.New("unexpected ValidateLoop call")
+}
+
+func (s *stubClient) DeleteLoop(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	credentials agentidentity.Credentials,
+) error {
+	if s.deleteLoopFn != nil {
+		return s.deleteLoopFn(ctx, workspaceID, name, credentials)
+	}
+	return errors.New("unexpected DeleteLoop call")
+}
+
+func (s *stubClient) RunLoop(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	request contract.RunLoopRequest,
+	dry bool,
+	credentials agentidentity.Credentials,
+) (contract.RunLoopResponse, error) {
+	if s.runLoopFn != nil {
+		return s.runLoopFn(ctx, workspaceID, name, request, dry, credentials)
+	}
+	return contract.RunLoopResponse{}, errors.New("unexpected RunLoop call")
+}
+
+func (s *stubClient) GetLoopConfig(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+) (contract.LoopConfigResponse, error) {
+	if s.getLoopConfigFn != nil {
+		return s.getLoopConfigFn(ctx, workspaceID, name)
+	}
+	return contract.LoopConfigResponse{}, errors.New("unexpected GetLoopConfig call")
+}
+
+func (s *stubClient) PutLoopConfig(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	request contract.PutLoopConfigRequest,
+	credentials agentidentity.Credentials,
+) (contract.LoopConfigResponse, error) {
+	if s.putLoopConfigFn != nil {
+		return s.putLoopConfigFn(ctx, workspaceID, name, request, credentials)
+	}
+	return contract.LoopConfigResponse{}, errors.New("unexpected PutLoopConfig call")
+}
+
+func (s *stubClient) ListLoopRuns(
+	ctx context.Context,
+	workspaceID string,
+	query LoopRunListQuery,
+) (contract.LoopRunsResponse, error) {
+	if s.listLoopRunsFn != nil {
+		return s.listLoopRunsFn(ctx, workspaceID, query)
+	}
+	return contract.LoopRunsResponse{}, errors.New("unexpected ListLoopRuns call")
+}
+
+func (s *stubClient) GetLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+) (contract.LoopRunResponse, error) {
+	if s.getLoopRunFn != nil {
+		return s.getLoopRunFn(ctx, workspaceID, runID)
+	}
+	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
+}
+
+func (s *stubClient) StopLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	credentials agentidentity.Credentials,
+) error {
+	if s.stopLoopRunFn != nil {
+		return s.stopLoopRunFn(ctx, workspaceID, runID, credentials)
+	}
+	return errors.New("unexpected StopLoopRun call")
+}
+
+func (s *stubClient) PauseLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	credentials agentidentity.Credentials,
+) error {
+	if s.pauseLoopRunFn != nil {
+		return s.pauseLoopRunFn(ctx, workspaceID, runID, credentials)
+	}
+	return errors.New("unexpected PauseLoopRun call")
+}
+
+func (s *stubClient) ResumeLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	credentials agentidentity.Credentials,
+) error {
+	if s.resumeLoopRunFn != nil {
+		return s.resumeLoopRunFn(ctx, workspaceID, runID, credentials)
+	}
+	return errors.New("unexpected ResumeLoopRun call")
+}
+
+func (s *stubClient) ApproveLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	request contract.ApproveLoopRunRequest,
+	credentials agentidentity.Credentials,
+) error {
+	if s.approveLoopRunFn != nil {
+		return s.approveLoopRunFn(ctx, workspaceID, runID, request, credentials)
+	}
+	return errors.New("unexpected ApproveLoopRun call")
 }
 
 func (s *stubClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {

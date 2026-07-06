@@ -672,6 +672,7 @@ describe("AppSidebar", () => {
         "nav-dashboard",
         "nav-network",
         "nav-tasks",
+        "nav-loops",
         "nav-jobs",
         "nav-triggers",
         "nav-knowledge",
@@ -687,6 +688,7 @@ describe("AppSidebar", () => {
       ["dashboard", "/"],
       ["network", "/network"],
       ["tasks", "/tasks"],
+      ["loops", "/loops"],
       ["jobs", "/jobs"],
       ["triggers", "/triggers"],
       ["knowledge", "/knowledge"],
@@ -728,6 +730,12 @@ describe("AppSidebar", () => {
       matchedRouteFuzzy["/tasks"] = true;
       renderSidebar(makeProps());
       expect(screen.getByTestId("nav-active-tasks")).toBeInTheDocument();
+    });
+
+    it("Should keep Loops active for loop detail and editor deep links (fuzzy)", () => {
+      matchedRouteFuzzy["/loops"] = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("nav-active-loops")).toBeInTheDocument();
     });
 
     it("Should mark Settings active when the settings route matches (fuzzy)", () => {

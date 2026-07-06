@@ -1626,7 +1626,7 @@ func (s taskStoreStub) ListTaskRuns(_ context.Context, query taskpkg.RunQuery) (
 			strings.TrimSpace(run.TaskID) != strings.TrimSpace(query.TaskID) {
 			continue
 		}
-		if query.Status != "" && run.Status.Normalize() != query.Status.Normalize() {
+		if query.Status != taskpkg.TaskRunStatusUnknown && run.Status.Normalize() != query.Status.Normalize() {
 			continue
 		}
 		if strings.TrimSpace(query.SessionID) != "" &&

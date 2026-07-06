@@ -76,6 +76,8 @@ const (
 	ReasonApprovalTokenMismatch ReasonCode = "approval_token_mismatch"
 	// ReasonApprovalTokenReplayed reports a replayed local approval token.
 	ReasonApprovalTokenReplayed ReasonCode = "approval_token_replayed"
+	// ReasonApprovalSelfDenied reports an attempted self-approval of a human gate.
+	ReasonApprovalSelfDenied ReasonCode = "approval_self_denied"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
 	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
@@ -175,6 +177,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonApprovalTokenExpired:           {},
 	ReasonApprovalTokenMismatch:          {},
 	ReasonApprovalTokenReplayed:          {},
+	ReasonApprovalSelfDenied:             {},
 	ReasonSessionDenied:                  {},
 	ReasonMemorySubagentWriteDenied:      {},
 	ReasonHookDenied:                     {},

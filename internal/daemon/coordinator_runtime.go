@@ -542,7 +542,7 @@ func drainCoordinatorPromptEvents(
 				logger.Warn(
 					"daemon: coordinator prompt returned agent error",
 					"session_id", sessionID,
-					"run_id", runID,
+					daemonLogRunIDKey, runID,
 				)
 			}
 		}
@@ -861,7 +861,7 @@ func (r *coordinatorRuntime) logCoordinatorError(
 	}
 	args := []any{
 		coordinatorRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
-		"run_id", strings.TrimSpace(payload.RunID),
+		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 		coordinatorRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
 		"coordination_channel_id", strings.TrimSpace(payload.CoordinationChannelID),
 	}

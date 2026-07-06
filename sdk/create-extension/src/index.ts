@@ -6,7 +6,8 @@ export type TemplateName =
   | "hook-subprocess"
   | "memory-backend"
   | "tool-provider"
-  | "go-tool-provider";
+  | "go-tool-provider"
+  | "loop-watch-source";
 
 export interface ScaffoldOptions {
   name: string;
@@ -25,6 +26,7 @@ const TEMPLATE_NAMES: TemplateName[] = [
   "memory-backend",
   "tool-provider",
   "go-tool-provider",
+  "loop-watch-source",
 ];
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -104,7 +106,7 @@ export function renderHelp(): string {
     "Usage: create-extension <name> [options]",
     "",
     "Options:",
-    "  --template, -t  hook-subprocess | memory-backend | tool-provider | go-tool-provider",
+    "  --template, -t  hook-subprocess | memory-backend | tool-provider | go-tool-provider | loop-watch-source",
     "  --dir, -d       target directory (defaults to ./<name>)",
     "  --sdk-spec      package spec for @agh/extension-sdk",
     "  --help, -h      show this help message",

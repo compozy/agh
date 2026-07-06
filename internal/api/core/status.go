@@ -234,7 +234,7 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 		}
 		state := strings.TrimSpace(string(info.State))
 		if state == "" {
-			state = "unknown"
+			state = unknownValue
 		}
 		byStatus[state]++
 		badge := string(session.BadgeForInfo(info))

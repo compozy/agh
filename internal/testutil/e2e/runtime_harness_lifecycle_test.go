@@ -19,6 +19,7 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 )
 
@@ -166,6 +167,9 @@ func TestRuntimeHarnessStopFallsBackToInterruptWhenCLIStopFails(t *testing.T) {
 		"-c",
 		"trap 'exit 0' INT; while :; do sleep 1; done",
 	)
+	// Mirror startDaemonProcess: Stop signals the process group, so the harness
+	// process must be its own group leader.
+	procutil.ConfigureCommandProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("cmd.Start() error = %v", err)
 	}

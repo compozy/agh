@@ -550,7 +550,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/jobs?scope=global&source=dynamic&limit=3",
+		"/automation/jobs?scope=global&source=dynamic&limit=3&loop=triage",
 		nil,
 		nil,
 	)
@@ -569,6 +569,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	}
 	if listJobsQuery.Scope != automationpkg.AutomationScopeGlobal ||
 		listJobsQuery.Source != automationpkg.JobSourceDynamic ||
+		listJobsQuery.LoopName != "triage" ||
 		listJobsQuery.Limit != 3 {
 		t.Fatalf("ListJobs() query = %#v", listJobsQuery)
 	}
@@ -638,7 +639,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=dynamic&event=webhook&limit=2",
+		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=dynamic&event=webhook&limit=2&loop=triage",
 		nil,
 		nil,
 	)
@@ -654,6 +655,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		listTriggersQuery.WorkspaceID != "ws-alpha" ||
 		listTriggersQuery.Source != automationpkg.JobSourceDynamic ||
 		listTriggersQuery.Event != "webhook" ||
+		listTriggersQuery.LoopName != "triage" ||
 		listTriggersQuery.Limit != 2 {
 		t.Fatalf("ListTriggers() query = %#v", listTriggersQuery)
 	}

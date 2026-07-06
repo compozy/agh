@@ -1,0 +1,185 @@
+package watch
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+)
+
+func TestAdapterTick(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should confirm a ready settled source", func(t *testing.T) {
+		t.Parallel()
+
+		settledAt := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+		adapter, err := NewAdapter(PollerFunc(func(_ context.Context, req PollRequest) (PollResponse, error) {
+			if string(req.Spec) != `{"kind":"reviews"}` {
+				t.Fatalf("PollRequest.Spec = %s, want reviews spec", string(req.Spec))
+			}
+			if req.ExpectedStateDigest != "sha256:prev" {
+				t.Fatalf("PollRequest.ExpectedStateDigest = %q, want sha256:prev", req.ExpectedStateDigest)
+			}
+			return PollResponse{
+				Ready:       true,
+				StateDigest: "sha256:next",
+				Payload:     json.RawMessage(`{"review":"r1"}`),
+				SettledAt:   &settledAt,
+			}, nil
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+
+		result, err := adapter.Tick(context.Background(), TickRequest{
+			Spec:                json.RawMessage(`{"kind":"reviews"}`),
+			ExpectedStateDigest: "sha256:prev",
+			LastProgressAt:      settledAt.Add(-time.Minute),
+			SilenceWindow:       time.Hour,
+			Now:                 settledAt,
+		})
+		if err != nil {
+			t.Fatalf("Tick() error = %v", err)
+		}
+		if result.Outcome != OutcomeReady {
+			t.Fatalf("Outcome = %q, want ready", result.Outcome)
+		}
+		assertTransitions(t, result.Transitions, []Transition{
+			{Event: watchEventPoll, From: watchStateIdle, To: watchStatePolling},
+			{Event: watchEventReady, From: watchStatePolling, To: watchStateReady},
+			{Event: watchEventSettle, From: watchStateReady, To: watchStateSettling},
+			{Event: watchEventConfirm, From: watchStateSettling, To: watchStateConfirmed},
+		})
+		if string(result.Response.Payload) != `{"review":"r1"}` {
+			t.Fatalf("Response.Payload = %s, want review payload", string(result.Response.Payload))
+		}
+	})
+
+	t.Run("Should wait when source is not ready before silence window", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{Ready: false, StateDigest: "sha256:current"}, nil
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+
+		result, err := adapter.Tick(context.Background(), TickRequest{
+			Spec:           json.RawMessage(`{"kind":"reviews"}`),
+			LastProgressAt: now.Add(-time.Minute),
+			SilenceWindow:  2 * time.Minute,
+			Now:            now,
+		})
+		if err != nil {
+			t.Fatalf("Tick() error = %v", err)
+		}
+		if result.Outcome != OutcomeWaiting {
+			t.Fatalf("Outcome = %q, want waiting", result.Outcome)
+		}
+		if result.Response.StateDigest != "sha256:current" {
+			t.Fatalf("StateDigest = %q, want sha256:current", result.Response.StateDigest)
+		}
+	})
+
+	t.Run("Should stall when source is silent past window", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{Ready: false, StateDigest: "sha256:old"}, nil
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+
+		result, err := adapter.Tick(context.Background(), TickRequest{
+			Spec:           json.RawMessage(`{"kind":"reviews"}`),
+			LastProgressAt: now.Add(-3 * time.Minute),
+			SilenceWindow:  2 * time.Minute,
+			Now:            now,
+		})
+		if err != nil {
+			t.Fatalf("Tick() error = %v", err)
+		}
+		if result.Outcome != OutcomeStalled {
+			t.Fatalf("Outcome = %q, want stalled", result.Outcome)
+		}
+	})
+
+	t.Run("Should surface poll failures", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("provider down")
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{}, wantErr
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+
+		_, err = adapter.Tick(context.Background(), TickRequest{
+			Spec: json.RawMessage(`{"kind":"reviews"}`),
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("Tick() error = %v, want provider down", err)
+		}
+	})
+}
+
+func TestOutputRef(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should carry pending digest into next poll", func(t *testing.T) {
+		t.Parallel()
+
+		ref, err := PendingOutputRef(PollResponse{StateDigest: "sha256:current"})
+		if err != nil {
+			t.Fatalf("PendingOutputRef() error = %v", err)
+		}
+		digest, err := ExpectedStateDigestFromOutputRef(ref)
+		if err != nil {
+			t.Fatalf("ExpectedStateDigestFromOutputRef() error = %v", err)
+		}
+		if digest != "sha256:current" {
+			t.Fatalf("digest = %q, want sha256:current", digest)
+		}
+	})
+
+	t.Run("Should ignore unrelated output refs", func(t *testing.T) {
+		t.Parallel()
+
+		digest, err := ExpectedStateDigestFromOutputRef(
+			`{"kind":"action_output","state_digest":"sha256:other"}`,
+		)
+		if err != nil {
+			t.Fatalf("ExpectedStateDigestFromOutputRef() error = %v", err)
+		}
+		if digest != "" {
+			t.Fatalf("digest = %q, want empty", digest)
+		}
+	})
+
+	t.Run("Should reject corrupt output refs", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := ExpectedStateDigestFromOutputRef("sha256:other"); err == nil {
+			t.Fatal("ExpectedStateDigestFromOutputRef(corrupt) error = nil, want error")
+		}
+	})
+}
+
+func assertTransitions(t *testing.T, got []Transition, want []Transition) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("len(Transitions) = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for idx := range want {
+		if got[idx] != want[idx] {
+			t.Fatalf("Transitions[%d] = %#v, want %#v", idx, got[idx], want[idx])
+		}
+	}
+}

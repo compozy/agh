@@ -1249,6 +1249,133 @@ func (h *Hooks) DispatchTaskRunFailed(
 	)
 }
 
+// DispatchLoopStarted runs the loop.started hook dispatch.
+func (h *Hooks) DispatchLoopStarted(
+	ctx context.Context,
+	payload LoopStartedPayload,
+) (LoopStartedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopStarted,
+		payload,
+		dispatchConfig[LoopStartedPayload, LoopObservationPatch]{
+			match: matchLoopLifecycle,
+			apply: applyNoop[LoopStartedPayload, LoopObservationPatch],
+		},
+	)
+}
+
+// DispatchLoopGenerationPre runs the loop.generation.pre hook pipeline.
+func (h *Hooks) DispatchLoopGenerationPre(
+	ctx context.Context,
+	payload LoopGenerationPrePayload,
+) (LoopGenerationPrePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopGenerationPre,
+		payload,
+		dispatchConfig[LoopGenerationPrePayload, LoopGenerationPrePatch]{
+			match:  matchLoopGeneration,
+			apply:  applyLoopGenerationPrePatch,
+			denied: loopControlPatchDenied,
+			denyErr: func(_ LoopGenerationPrePayload, report dispatchReport) error {
+				return hookDeniedError(HookLoopGenerationPre, report.DenyReason)
+			},
+		},
+	)
+}
+
+// DispatchLoopGenerationPost runs the loop.generation.post hook dispatch.
+func (h *Hooks) DispatchLoopGenerationPost(
+	ctx context.Context,
+	payload LoopGenerationPostPayload,
+) (LoopGenerationPostPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopGenerationPost,
+		payload,
+		dispatchConfig[LoopGenerationPostPayload, LoopObservationPatch]{
+			match: matchLoopGeneration,
+			apply: applyNoop[LoopGenerationPostPayload, LoopObservationPatch],
+		},
+	)
+}
+
+// DispatchLoopGatePre runs the loop.gate.pre hook pipeline.
+func (h *Hooks) DispatchLoopGatePre(
+	ctx context.Context,
+	payload LoopGatePrePayload,
+) (LoopGatePrePayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopGatePre,
+		payload,
+		dispatchConfig[LoopGatePrePayload, LoopGatePrePatch]{
+			match:  matchLoopGate,
+			apply:  applyLoopGatePrePatch,
+			denied: loopControlPatchDenied,
+			denyErr: func(_ LoopGatePrePayload, report dispatchReport) error {
+				return hookDeniedError(HookLoopGatePre, report.DenyReason)
+			},
+		},
+	)
+}
+
+// DispatchLoopGatePost runs the loop.gate.post hook dispatch.
+func (h *Hooks) DispatchLoopGatePost(
+	ctx context.Context,
+	payload LoopGatePostPayload,
+) (LoopGatePostPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopGatePost,
+		payload,
+		dispatchConfig[LoopGatePostPayload, LoopObservationPatch]{
+			match: matchLoopGate,
+			apply: applyNoop[LoopGatePostPayload, LoopObservationPatch],
+		},
+	)
+}
+
+// DispatchLoopNodeTerminal runs the loop.node.terminal hook dispatch.
+func (h *Hooks) DispatchLoopNodeTerminal(
+	ctx context.Context,
+	payload LoopNodeTerminalPayload,
+) (LoopNodeTerminalPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopNodeTerminal,
+		payload,
+		dispatchConfig[LoopNodeTerminalPayload, LoopObservationPatch]{
+			match: matchLoopNodeTerminal,
+			apply: applyNoop[LoopNodeTerminalPayload, LoopObservationPatch],
+		},
+	)
+}
+
+// DispatchLoopTerminal runs the loop.terminal hook dispatch.
+func (h *Hooks) DispatchLoopTerminal(
+	ctx context.Context,
+	payload LoopTerminalPayload,
+) (LoopTerminalPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookLoopTerminal,
+		payload,
+		dispatchConfig[LoopTerminalPayload, LoopObservationPatch]{
+			match: matchLoopLifecycle,
+			apply: applyNoop[LoopTerminalPayload, LoopObservationPatch],
+		},
+	)
+}
+
 // DispatchSpawnPreCreate runs the spawn.pre_create hook pipeline.
 func (h *Hooks) DispatchSpawnPreCreate(
 	ctx context.Context,
@@ -1710,6 +1837,28 @@ func applyTaskRunPreClaimPatch(
 	return payload
 }
 
+func applyLoopGenerationPrePatch(
+	payload LoopGenerationPrePayload,
+	patch LoopGenerationPrePatch,
+) LoopGenerationPrePayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	return payload
+}
+
+func applyLoopGatePrePatch(
+	payload LoopGatePrePayload,
+	patch LoopGatePrePatch,
+) LoopGatePrePayload {
+	if patch.Deny {
+		payload.Denied = true
+		payload.DenyReason = patch.DenyReason
+	}
+	return payload
+}
+
 func applySpawnCreatePatch(payload SpawnPreCreatePayload, patch SpawnCreatePatch) SpawnPreCreatePayload {
 	if patch.Deny {
 		payload.Denied = true
@@ -1807,6 +1956,10 @@ func coordinatorSpawnPatchDenied(patch CoordinatorSpawnPatch) bool {
 }
 
 func taskRunPreClaimPatchDenied(patch TaskRunPreClaimPatch) bool {
+	return patch.Deny
+}
+
+func loopControlPatchDenied(patch LoopControlPatch) bool {
 	return patch.Deny
 }
 

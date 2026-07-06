@@ -81,6 +81,7 @@ interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
     component: opts.component,
+    useSearch: () => ({}),
   }),
   Link: ({ children, params, ...props }: MockLinkProps) => (
     <a href={`/session/${params?.id ?? ""}`} {...props}>
@@ -216,6 +217,7 @@ function makeJob(overrides: Partial<AutomationJob> = {}): AutomationJob {
     schedule: { mode: "cron", expr: "0 9 * * *" },
     scope: "workspace",
     source: "dynamic",
+    target_kind: "agent",
     updated_at: "2026-04-11T09:05:00Z",
     workspace_id: "ws_test",
     ...overrides,
@@ -239,6 +241,7 @@ function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrig
     retry: { strategy: "backoff", max_retries: 4, base_delay: "5s" },
     scope: "workspace",
     source: "dynamic",
+    target_kind: "agent",
     updated_at: "2026-04-11T08:10:00Z",
     webhook_id: "wbh_push_review",
     workspace_id: "ws_test",

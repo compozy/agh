@@ -5,13 +5,13 @@ import { Button, DialogFooter, Field, FieldLabel, Input } from "@agh/ui";
 import { useAutomationTriggerForm } from "../hooks/use-automation-trigger-form";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationTriggerRequest } from "../types";
-import { AgentPromptStep } from "./trigger-form/agent-prompt-step";
 import { EventCatalog } from "./trigger-form/event-catalog";
 import { FilterConditions } from "./trigger-form/filter-conditions";
 import { FlowStep } from "./trigger-form/flow-step";
 import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 import { ReliabilitySection } from "./trigger-form/reliability-section";
 import { ScopeStep } from "./trigger-form/scope-step";
+import { TriggerTargetStep } from "./trigger-form/target-step";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;
@@ -125,20 +125,29 @@ export function AutomationTriggerForm({
             </FlowStep>
 
             <FlowStep
-              active={draft.agent_name.trim() !== ""}
+              active={
+                form.targetMode === "loop"
+                  ? form.loopTarget.loop_name.trim() !== ""
+                  : draft.agent_name.trim() !== ""
+              }
               icon={Bot}
               kicker="Then"
               last
-              subtitle="The agent receives a prompt rendered from the event's data."
-              title="Run this agent"
+              subtitle="Run an agent with a prompt rendered from the event, or start a Loop with typed inputs."
+              title="Run an agent, or a Loop"
             >
-              <AgentPromptStep
+              <TriggerTargetStep
+                mode={form.targetMode}
+                onModeChange={form.onTargetModeChange}
                 agent={draft.agent_name}
                 agents={agents}
-                onAgentChange={form.onAgentChange}
-                onPromptChange={form.onPromptChange}
                 prompt={draft.prompt}
                 variables={form.variables}
+                onAgentChange={form.onAgentChange}
+                onPromptChange={form.onPromptChange}
+                workspaceId={draft.workspace_id ?? activeWorkspaceId ?? ""}
+                loopTarget={form.loopTarget}
+                onLoopTargetChange={form.onLoopTargetChange}
               />
             </FlowStep>
           </div>

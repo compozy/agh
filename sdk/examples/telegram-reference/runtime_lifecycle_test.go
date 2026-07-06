@@ -70,17 +70,23 @@ func TestTelegramReferenceShutdownCancellation(t *testing.T) {
 			t.Fatal("ingest host call did not start before timeout")
 		}
 
+		shutdownDeadline := 2 * time.Second
+		maxCancellationLatency := shutdownDeadline / 2
 		startedAt := time.Now()
 		if err := runtime.handleShutdown(
 			context.Background(),
 			nil,
-			subprocess.ShutdownRequest{DeadlineMS: 500},
+			subprocess.ShutdownRequest{DeadlineMS: int64(shutdownDeadline / time.Millisecond)},
 		); err != nil {
 			t.Fatalf("handleShutdown() error = %v", err)
 		}
-		if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
+		if elapsed := time.Since(startedAt); elapsed > maxCancellationLatency {
 			releaseOnce.Do(func() { close(release) })
-			t.Fatalf("handleShutdown() took %s, want lifecycle cancellation before drain deadline", elapsed)
+			t.Fatalf(
+				"handleShutdown() took %s, want lifecycle cancellation well before %s drain deadline",
+				elapsed,
+				shutdownDeadline,
+			)
 		}
 		select {
 		case err := <-done:

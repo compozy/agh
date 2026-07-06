@@ -67,6 +67,8 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                                  |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                                       |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
+| `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                              | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                             |
+| `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                 | no iteration cap, no-progress window 2, fan-out 2                                                |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                           | block recurrence limit 2                                                                         |
 | `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace |
 | `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5                     |
@@ -469,6 +471,38 @@ enabled = true
 [automation.triggers.filter]
 kind = "session.stopped"
 data.stop_reason = "error"
+
+[loops.defaults.delivery]
+# Global/workspace defaults that seed new delivery loop runs.
+iteration_cap = 50
+fan_out_width = 4
+
+[loops.defaults.delivery.no_progress]
+# Generation-hash no-progress window. Compile-time ceiling: 30.
+window = 3
+
+[loops.defaults.delivery.gates]
+# Gate revision seed default. Compile-time ceiling: 64.
+max_revisions = 10
+
+[loops.defaults.delivery.budget]
+# 0 means unlimited. When set, budgets are enforced with halt or escalate.
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
+
+[loops.defaults.watch]
+# Watch loops run until stopped unless a loop or run override sets a cap.
+iteration_cap = 0
+fan_out_width = 2
+
+[loops.defaults.watch.no_progress]
+window = 2
+
+[loops.defaults.watch.budget]
+tokens = 0
+wall_clock_sec = 0
+on_exceeded = "halt"
 
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
@@ -1239,6 +1273,29 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 
 See [Vault](/runtime/core/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
 surfaces that store and inspect encrypted AGH-managed secret refs.
+
+## `[loops.defaults.*]`
+
+`[loops.defaults.delivery]` and `[loops.defaults.watch]` are global or workspace seed defaults for
+new loop runs. They are a config plane, not the per-loop `loop_config` store: effective loop config is
+resolved as definition defaults, then `[loops.defaults.*]`, then `loop_config`, then per-run overrides.
+Existing loop runs keep the config values materialized at start.
+
+Compile-time ceilings stay in code. Operator config can tighten fan-out, no-progress, and gate
+revision defaults, but it cannot loosen them past the hard runtime ceilings.
+
+| Field                   | Delivery default | Watch default | Valid values              | Description                                                                 |
+| ----------------------- | ---------------- | ------------- | ------------------------- | --------------------------------------------------------------------------- |
+| `iteration_cap`         | `50`             | `0`           | Zero or positive integer. | Maximum loop iterations seeded for new runs. `0` means no configured cap.   |
+| `no_progress.window`    | `3`              | `2`           | `0` through `30`.         | Generation-hash no-progress window. This is not the inactivity clock.       |
+| `gates.max_revisions`   | `10`             | `0`           | `0` through `64`.         | Gate revision seed default. `0` means no gate-revision seed for that class. |
+| `budget.tokens`         | `0`              | `0`           | Zero or positive integer. | Token budget. `0` means unlimited. A set budget is enforced.                |
+| `budget.wall_clock_sec` | `0`              | `0`           | Zero or positive integer. | Wall-clock budget in seconds. `0` means unlimited.                          |
+| `budget.on_exceeded`    | `halt`           | `halt`        | `halt` or `escalate`.     | Enforcement policy once a non-zero budget is exceeded.                      |
+| `fan_out_width`         | `4`              | `2`           | `0` through `64`.         | Fan-out width seed default for new runs.                                    |
+
+These paths are mutable through `agh config set` and the native config tools. Writes return
+`lifecycle="restart-required"` because the daemon does not rewrite active runs after defaults change.
 
 ## `[autonomy]`
 

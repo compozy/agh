@@ -23,6 +23,7 @@ import (
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	looppkg "github.com/compozy/agh/internal/loop"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
@@ -164,6 +165,7 @@ type RuntimeDeps struct {
 	HostedMCP           *mcppkg.HostedService
 	Observer            Observer
 	Automation          core.AutomationManager
+	Loops               core.LoopService
 	Bridges             core.BridgeService
 	Notifications       core.NotificationPresetService
 	Registry            Registry
@@ -270,6 +272,7 @@ type resourceReconcileDriverDeps struct {
 	HeartbeatCatalog *resourceCatalog[heartbeat.ResourceSpec]
 	ToolCatalog      *resourceCatalog[toolspkg.Tool]
 	MCPServerCatalog *resourceCatalog[aghconfig.MCPServer]
+	LoopCatalog      *resourceCatalog[looppkg.ResourceSpec]
 	SkillsRegistry   *skills.Registry
 	Automation       automationResourceProjectorTarget
 	Bridges          bridgeResourceProjectorTarget
@@ -327,31 +330,7 @@ type extensionManagerDeps struct {
 	WakeEvents             core.HeartbeatWakeEventReader
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
-}
-
-type automationRuntime interface {
-	core.AutomationManager
-	extensionpkg.HostAPIAutomationManager
-	Start(ctx context.Context) error
-	Shutdown(ctx context.Context) error
-	SessionObserver() session.Notifier
-	HookTelemetrySink() hookspkg.TelemetrySink
-	MemoryObserver() automationpkg.MemoryConsolidationObserver
-}
-
-type automationManagerDeps struct {
-	Store               automationpkg.Store
-	Sessions            SessionManager
-	Tasks               taskpkg.Manager
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	Config              aghconfig.AutomationConfig
-	Hooks               automationpkg.HookDispatcher
-	WebhookSecrets      automationpkg.WebhookSecretStore
-	Logger              *slog.Logger
-	GlobalWorkspacePath string
-	ResourceStore       resources.RawStore
-	ResourceCodecs      *resources.CodecRegistry
-	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	AGHExecutable          func() (string, error)
 }
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
@@ -445,6 +424,7 @@ type Daemon struct {
 	heartbeatCatalog             *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog                  *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog             *resourceCatalog[aghconfig.MCPServer]
+	loopCatalog                  *resourceCatalog[looppkg.ResourceSpec]
 	automation                   automationRuntime
 	bridges                      *bridgeRuntime
 	httpServer                   Server
@@ -456,6 +436,8 @@ type Daemon struct {
 	modelCatalog                 *modelCatalogRuntime
 	skillsCancel                 context.CancelFunc
 	skillsDone                   chan struct{}
+	loopsCancel                  context.CancelFunc
+	loopsDone                    chan struct{}
 }
 
 type shutdownTargets struct {
@@ -483,6 +465,8 @@ type shutdownTargets struct {
 	modelCatalog        *modelCatalogRuntime
 	skillsCancel        context.CancelFunc
 	skillsDone          chan struct{}
+	loopsCancel         context.CancelFunc
+	loopsDone           chan struct{}
 	retention           observerRetentionStopper
 }
 
@@ -770,6 +754,7 @@ func buildExtensionManagerOptions(
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
 		extensionpkg.WithProcessRegistry(deps.ProcessRegistry),
+		extensionpkg.WithAGHExecutableResolver(deps.AGHExecutable),
 	}
 	if sink, ok := deps.Observer.(extensionpkg.BridgeTelemetrySink); ok {
 		opts = append(opts, extensionpkg.WithBridgeTelemetrySink(sink))
@@ -804,6 +789,16 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 				deps.ResourceTrigger,
 			))
 		}
+		loopStarter, err := newAutomationLoopStarter(
+			deps.Store,
+			deps.LoopCatalog,
+			deps.ToolRegistry,
+			d.homePaths,
+			deps.WorkspaceResolver,
+		)
+		if err != nil {
+			return nil, err
+		}
 
 		managerOpts := []automationpkg.Option{
 			automationpkg.WithStore(deps.Store),
@@ -815,6 +810,9 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithWebhookSecretStore(deps.WebhookSecrets),
 			automationpkg.WithLogger(deps.Logger),
 			automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
+		}
+		if loopStarter != nil {
+			managerOpts = append(managerOpts, automationpkg.WithLoopStarter(loopStarter))
 		}
 		managerOpts = append(managerOpts, resourceOpts...)
 
@@ -958,15 +956,11 @@ func appendCoreProjectorRegistrations(
 	if err != nil {
 		return nil, err
 	}
-	if deps.SkillsRegistry != nil {
-		return appendTypedProjectorRegistration(
-			registrations,
-			deps.CodecRegistry,
-			skills.SkillResourceKind,
-			newSkillProjector(deps.SkillsRegistry),
-		)
+	registrations, err = appendLoopProjectorRegistration(registrations, deps)
+	if err != nil {
+		return nil, err
 	}
-	return registrations, nil
+	return appendSkillProjectorRegistration(registrations, deps)
 }
 
 func appendTypedProjectorRegistration[T any](
@@ -1043,112 +1037,6 @@ func (d *Daemon) applyServerFactoryDefaults() {
 		d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
 			return udsapi.New(udsServerOptions(&deps)...)
 		}
-	}
-}
-
-func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
-	return []httpapi.Option{
-		httpapi.WithHomePaths(deps.HomePaths),
-		httpapi.WithConfig(&deps.Config),
-		httpapi.WithLogger(deps.Logger),
-		httpapi.WithStartedAt(deps.StartedAt),
-		httpapi.WithSessionManager(deps.Sessions),
-		httpapi.WithSessionCatalog(deps.Registry),
-		httpapi.WithTaskService(deps.Tasks),
-		httpapi.WithNetworkService(deps.Network),
-		httpapi.WithNetworkStore(deps.Registry),
-		httpapi.WithOnboardingStore(deps.Registry),
-		httpapi.WithObserver(deps.Observer),
-		httpapi.WithAutomation(deps.Automation),
-		httpapi.WithBridgeService(deps.Bridges),
-		httpapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
-		httpapi.WithBundleService(deps.Bundles),
-		httpapi.WithToolRegistry(deps.ToolRegistry),
-		httpapi.WithToolsetRegistry(deps.Toolsets),
-		httpapi.WithToolApprovalIssuer(deps.ToolApprovals),
-		httpapi.WithSettingsService(deps.Settings),
-		httpapi.WithSettingsRestartController(deps.SettingsRestart),
-		httpapi.WithSettingsUpdateController(deps.SettingsUpdate),
-		httpapi.WithSupportBundleService(deps.SupportBundles),
-		httpapi.WithVaultService(deps.Vault),
-		httpapi.WithResourceService(deps.Resources),
-		httpapi.WithWorkspaceResolver(deps.WorkspaceService),
-		httpapi.WithAgentCatalog(deps.AgentCatalog),
-		httpapi.WithModelCatalogService(deps.ModelCatalog),
-		httpapi.WithAgentContext(deps.AgentContext),
-		httpapi.WithCoordinatorConfig(deps.CoordinatorConfig),
-		httpapi.WithSoulAuthoring(deps.SoulAuthoring),
-		httpapi.WithSoulRefresher(deps.SoulRefresher),
-		httpapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
-		httpapi.WithHeartbeatStatus(deps.HeartbeatStatus),
-		httpapi.WithHeartbeatWake(deps.HeartbeatWake),
-		httpapi.WithSessionHealthReader(deps.SessionHealth),
-		httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
-		httpapi.WithSkillsRegistry(deps.SkillsRegistry),
-		httpapi.WithSkillResourceSyncer(deps.SkillResources),
-		httpapi.WithMemoryStore(deps.MemoryStore),
-		httpapi.WithDreamTrigger(deps.DreamTrigger),
-		httpapi.WithMemoryExtractorService(deps.MemoryExtractor),
-		httpapi.WithMemoryProviderService(deps.MemoryProviders),
-		httpapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
-		httpapi.WithExtensionService(deps.Extensions),
-	}
-}
-
-func notificationPresetServiceFromDeps(deps *RuntimeDeps) core.NotificationPresetService {
-	if deps == nil {
-		return nil
-	}
-	return deps.Notifications
-}
-
-func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
-	return []udsapi.Option{
-		udsapi.WithHomePaths(deps.HomePaths),
-		udsapi.WithConfig(&deps.Config),
-		udsapi.WithLogger(deps.Logger),
-		udsapi.WithStartedAt(deps.StartedAt),
-		udsapi.WithSessionManager(deps.Sessions),
-		udsapi.WithSessionCatalog(deps.Registry),
-		udsapi.WithTaskService(deps.Tasks),
-		udsapi.WithNetworkService(deps.Network),
-		udsapi.WithNetworkStore(deps.Registry),
-		udsapi.WithOnboardingStore(deps.Registry),
-		udsapi.WithObserver(deps.Observer),
-		udsapi.WithAutomation(deps.Automation),
-		udsapi.WithBridgeService(deps.Bridges),
-		udsapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
-		udsapi.WithBundleService(deps.Bundles),
-		udsapi.WithToolRegistry(deps.ToolRegistry),
-		udsapi.WithToolsetRegistry(deps.Toolsets),
-		udsapi.WithToolApprovalIssuer(deps.ToolApprovals),
-		udsapi.WithSettingsService(deps.Settings),
-		udsapi.WithSettingsRestartController(deps.SettingsRestart),
-		udsapi.WithSettingsUpdateController(deps.SettingsUpdate),
-		udsapi.WithSupportBundleService(deps.SupportBundles),
-		udsapi.WithVaultService(deps.Vault),
-		udsapi.WithResourceService(deps.Resources),
-		udsapi.WithWorkspaceResolver(deps.WorkspaceService),
-		udsapi.WithAgentCatalog(deps.AgentCatalog),
-		udsapi.WithModelCatalogService(deps.ModelCatalog),
-		udsapi.WithAgentContext(deps.AgentContext),
-		udsapi.WithSoulAuthoring(deps.SoulAuthoring),
-		udsapi.WithSoulRefresher(deps.SoulRefresher),
-		udsapi.WithHeartbeatAuthoring(deps.HeartbeatAuthor),
-		udsapi.WithHeartbeatStatus(deps.HeartbeatStatus),
-		udsapi.WithHeartbeatWake(deps.HeartbeatWake),
-		udsapi.WithSessionHealthReader(deps.SessionHealth),
-		udsapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
-		udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
-		udsapi.WithSkillsRegistry(deps.SkillsRegistry),
-		udsapi.WithSkillResourceSyncer(deps.SkillResources),
-		udsapi.WithMemoryStore(deps.MemoryStore),
-		udsapi.WithDreamTrigger(deps.DreamTrigger),
-		udsapi.WithMemoryExtractorService(deps.MemoryExtractor),
-		udsapi.WithMemoryProviderService(deps.MemoryProviders),
-		udsapi.WithMemorySessionLedgerService(deps.MemorySessionLedger),
-		udsapi.WithExtensionService(deps.Extensions),
-		udsapi.WithHostedMCP(deps.HostedMCP),
 	}
 }
 
@@ -1321,6 +1209,8 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		modelCatalog:        d.modelCatalog,
 		skillsCancel:        d.skillsCancel,
 		skillsDone:          d.skillsDone,
+		loopsCancel:         d.loopsCancel,
+		loopsDone:           d.loopsDone,
 	}
 	if stopper, ok := d.observer.(observerRetentionStopper); ok {
 		targets.retention = stopper
@@ -1351,6 +1241,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.localMemoryProvider = nil
 	d.modelCatalog = nil
 	d.skillsRegistry = nil
+	d.loopCatalog = nil
 	d.lock = nil
 	d.booting = false
 	d.info = Info{}
@@ -1361,6 +1252,8 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.sandboxRegistry = nil
 	d.skillsCancel = nil
 	d.skillsDone = nil
+	d.loopsCancel = nil
+	d.loopsDone = nil
 	d.bridges = nil
 	d.network = nil
 	d.toolRegistry = nil
@@ -1395,6 +1288,11 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 		errs,
 		"daemon: stop skills watcher",
 		stopSkillsWatcher(ctx, targets.skillsCancel, targets.skillsDone),
+	)
+	appendWrappedError(
+		errs,
+		"daemon: stop loops watcher",
+		stopLoopWatcher(ctx, targets.loopsCancel, targets.loopsDone),
 	)
 	if targets.resourceReconcile != nil {
 		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))

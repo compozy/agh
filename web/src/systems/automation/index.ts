@@ -54,13 +54,21 @@ export {
   automationTriggerRunsOptions,
   automationTriggersListOptions,
 } from "./lib/query-options";
+export type { AutomationLoopTarget, AutomationTargetMode } from "./lib/automation-drafts";
 export {
+  LOOP_TARGET_KIND,
   automationJobToDraft,
+  automationTargetMode,
   automationTriggerToDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
+  createLoopTargetJobDraft,
+  createLoopTargetTriggerDraft,
+  emptyLoopTarget,
   normalizeAutomationRetry,
   retryDraftForStrategy,
+  setJobTargetMode,
+  setTriggerTargetMode,
 } from "./lib/automation-drafts";
 export type { AutomationDialogHandle } from "./lib/dialog-handle";
 export { createAutomationDialogHandle } from "./lib/dialog-handle";

@@ -3,14 +3,12 @@ package extensionpkg
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	toolspkg "github.com/compozy/agh/internal/tools"
-	"github.com/compozy/agh/internal/vault"
 )
 
 var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)
@@ -427,15 +425,15 @@ func ResolveManifestMCPServerResources(
 	servers := make([]aghconfig.MCPServer, 0, len(names))
 	for _, name := range names {
 		decl := manifest.Resources.MCPServers[name]
-		command, err := resolveManifestCommand(rootDir, decl.Command, getenv)
+		command, err := resolveManifestCommand(rootDir, decl.Command, getenv, nil)
 		if err != nil {
 			return nil, err
 		}
-		args, err := resolveManifestStringSlice(rootDir, decl.Args, getenv)
+		args, err := resolveManifestStringSlice(rootDir, decl.Args, getenv, nil)
 		if err != nil {
 			return nil, err
 		}
-		env, err := resolveManifestStringMap(rootDir, decl.Env, getenv)
+		env, err := resolveManifestStringMap(rootDir, decl.Env, getenv, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -452,90 +450,4 @@ func ResolveManifestMCPServerResources(
 		servers = append(servers, server)
 	}
 	return servers, nil
-}
-
-func resolveManifestCommand(rootDir string, value string, getenv func(string) string) (string, error) {
-	resolved, err := resolveManifestString(rootDir, value, getenv)
-	if err != nil {
-		return "", err
-	}
-	if resolved == "" {
-		return "", nil
-	}
-	if filepath.IsAbs(resolved) {
-		return filepath.Clean(resolved), nil
-	}
-	if strings.ContainsRune(resolved, filepath.Separator) || strings.HasPrefix(resolved, ".") {
-		return resolvePathWithinRoot(rootDir, resolved)
-	}
-	return resolved, nil
-}
-
-func resolveManifestStringSlice(rootDir string, values []string, getenv func(string) string) ([]string, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	resolved := make([]string, 0, len(values))
-	for _, value := range values {
-		item, err := resolveManifestString(rootDir, value, getenv)
-		if err != nil {
-			return nil, err
-		}
-		resolved = append(resolved, item)
-	}
-	return resolved, nil
-}
-
-func resolveManifestStringMap(
-	rootDir string,
-	env map[string]string,
-	getenv func(string) string,
-) (map[string]string, error) {
-	if len(env) == 0 {
-		return nil, nil
-	}
-
-	resolved := make(map[string]string, len(env))
-	for key, value := range env {
-		item, err := resolveManifestString(rootDir, value, getenv)
-		if err != nil {
-			return nil, err
-		}
-		resolved[key] = item
-	}
-	return resolved, nil
-}
-
-func resolveManifestString(rootDir string, value string, getenv func(string) string) (string, error) {
-	resolved := strings.TrimSpace(value)
-	if resolved == "" {
-		return "", nil
-	}
-
-	resolved = strings.ReplaceAll(resolved, "{{config_dir}}", rootDir)
-	for {
-		start := strings.Index(resolved, "{{env:")
-		if start < 0 {
-			break
-		}
-		end := strings.Index(resolved[start:], "}}")
-		if end < 0 {
-			return "", fmt.Errorf("invalid env template %q", value)
-		}
-		end += start
-		key := strings.TrimSpace(strings.TrimPrefix(resolved[start:end], "{{env:"))
-		if vault.SecretLikeEnvName(key) {
-			return "", fmt.Errorf("env template %q must use secret_env", key)
-		}
-		resolved = resolved[:start] + getenvValue(getenv, key) + resolved[end+2:]
-	}
-	return resolved, nil
-}
-
-func getenvValue(getenv func(string) string, key string) string {
-	if getenv == nil {
-		return ""
-	}
-	return getenv(key)
 }

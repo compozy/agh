@@ -106,7 +106,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "b3ffa5b1013ad3c3f4b2cfc1cf8ecd26c10697e8aa1da323ac19d0378da1d967",
+        "input_schema_digest": "d2ac41e4a83a936b03005c123cb28968d7368377bfacce325017c899e5b5bddc",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -227,7 +227,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "3b2f2f1608f1b8b444be0f6e4e7e7721a58fe17b2536c33515af73d65ba187e6",
+        "input_schema_digest": "3c3d57c3262a53a33bfa6ee3e6193cdbdc131e193204ddf9f23917c5edaa9539",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -596,6 +596,150 @@
         "destructive": false,
         "open_world": false,
         "input_schema_digest": "f371b9241b5700474a61078a315558a4633d472a757d0d46cd56753b8c04cd86",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_approve",
+        "native_name": "loop_approve",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "3eda05f8954ceb7585ea7d4e2f468c3648b140449e5a7c4fb2eddb81fe38ae5c",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+        "required_capabilities": ["loops.approve"]
+    },
+    {
+        "tool_id": "agh__loop_configure",
+        "native_name": "loop_configure",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "48df61790afb8fa711478bb46a619e661e21a5fd479e71533068193323eb779b",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_create",
+        "native_name": "loop_create",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "c61c9ef31b8ec49a4fa5c3258132f96c8adb3438cb9e9200e87749a869cf8c65",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_delete",
+        "native_name": "loop_delete",
+        "toolsets": ["agh__loops"],
+        "risk": "destructive",
+        "read_only": false,
+        "destructive": true,
+        "open_world": false,
+        "input_schema_digest": "815c90182ef2e26614bca37baf49851f98992cf21185cad52f27dfb589218bc0",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_inspect",
+        "native_name": "loop_inspect",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "815c90182ef2e26614bca37baf49851f98992cf21185cad52f27dfb589218bc0",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_list",
+        "native_name": "loop_list",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "5cbece859b6ee0fcc570b237cc51a118fb92797235bb8fe98e263c979ee6289e",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_pause",
+        "native_name": "loop_pause",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_resume",
+        "native_name": "loop_resume",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_run",
+        "native_name": "loop_run",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "d737b3335c75926daa11269e6081118029b6785269521eb54c9a3149ad9b7426",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_runs",
+        "native_name": "loop_runs",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "976f6b9f34f5d6dabb60d3c9ec42138c0d723edc2ec28c76444da6d1d9d187a3",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_status",
+        "native_name": "loop_status",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_stop",
+        "native_name": "loop_stop",
+        "toolsets": ["agh__loops"],
+        "risk": "destructive",
+        "read_only": false,
+        "destructive": true,
+        "open_world": false,
+        "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_validate",
+        "native_name": "loop_validate",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "6f0758f9fed99cf36d56aa54acd66447af88e6837941598f08ab9475eaa28565",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

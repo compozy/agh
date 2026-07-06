@@ -203,7 +203,7 @@ func insertPreviousReviewGateRows(t *testing.T, db *sql.DB) {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"run-review-migration",
 		"task-review-migration",
-		string(taskpkg.TaskRunStatusQueued),
+		taskpkg.TaskRunStatusQueued.String(),
 		1,
 		nil,
 		nil,

@@ -18,6 +18,8 @@ const (
 	AgentsDirName = "agents"
 	// SkillsDirName is the directory used for persisted user skills.
 	SkillsDirName = "skills"
+	// LoopsDirName is the directory used for persisted user loop definitions.
+	LoopsDirName = "loops"
 	// MemoryDirName is the directory used for persistent memory files.
 	MemoryDirName = "memory"
 	// SessionsDirName is the directory used for persisted session state.
@@ -49,6 +51,7 @@ type HomePaths struct {
 	ConfigFile       string
 	AgentsDir        string
 	SkillsDir        string
+	LoopsDir         string
 	MemoryDir        string
 	SessionsDir      string
 	RestartsDir      string
@@ -189,6 +192,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		ConfigFile:       filepath.Join(root, ConfigName),
 		AgentsDir:        filepath.Join(root, AgentsDirName),
 		SkillsDir:        filepath.Join(root, SkillsDirName),
+		LoopsDir:         filepath.Join(root, LoopsDirName),
 		MemoryDir:        filepath.Join(root, MemoryDirName),
 		SessionsDir:      filepath.Join(root, SessionsDirName),
 		RestartsDir:      filepath.Join(root, RestartsDirName),
@@ -208,6 +212,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.HomeDir,
 		paths.AgentsDir,
 		paths.SkillsDir,
+		paths.LoopsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.RestartsDir,

@@ -720,6 +720,41 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_block_tables",
 			checksum: "2026-07-02-add-task-block-tables",
 		},
+		{
+			version:  50,
+			name:     "add_loop_run_state_schema",
+			checksum: "2026-07-04-add-loop-run-state-schema",
+		},
+		{
+			version:  51,
+			name:     "add_loop_run_queue_ordering",
+			checksum: "2026-07-04-add-loop-run-queue-ordering",
+		},
+		{
+			version:  52,
+			name:     "add_loop_output_blobs",
+			checksum: "2026-07-04-add-loop-output-blobs",
+		},
+		{
+			version:  53,
+			name:     "add_loop_run_iteration_cap",
+			checksum: "2026-07-04-add-loop-run-iteration-cap",
+		},
+		{
+			version:  54,
+			name:     "add_loop_generation_outputs_output_ref_index",
+			checksum: "2026-07-04-add-loop-generation-outputs-output-ref-index",
+		},
+		{
+			version:  55,
+			name:     "add_automation_loop_targets",
+			checksum: "2026-07-05-add-automation-loop-targets",
+		},
+		{
+			version:  56,
+			name:     "add_loop_run_start_actor",
+			checksum: "2026-07-05-add-loop-run-start-actor",
+		},
 	}
 }
 
@@ -1012,7 +1047,7 @@ func taskRunColumnNamesForStatusMigration() []string {
 	for _, part := range parts {
 		columns = append(columns, strings.TrimSpace(part))
 	}
-	return columns
+	return append(columns, "run_kind", "loop_run_id", "tokens_used")
 }
 
 func seedQueuedRunForStatusTest(ctx context.Context, t *testing.T, globalDB *GlobalDB, taskID, runID string) {

@@ -21,6 +21,7 @@ const (
 	HookEventFamilyCoordinator HookEventFamily = "coordinator"
 	HookEventFamilyTask        HookEventFamily = "task"
 	HookEventFamilyTaskRun     HookEventFamily = "task.run"
+	HookEventFamilyLoop        HookEventFamily = "loop"
 	HookEventFamilySpawn       HookEventFamily = "spawn"
 	HookEventFamilyNetwork     HookEventFamily = "network"
 )
@@ -43,6 +44,7 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyCoordinator,
 		HookEventFamilyTask,
 		HookEventFamilyTaskRun,
+		HookEventFamilyLoop,
 		HookEventFamilySpawn,
 		HookEventFamilyNetwork:
 		return nil
@@ -132,6 +134,14 @@ const (
 	HookTaskRunReleased       HookEvent = "task.run.released"
 	HookTaskRunCompleted      HookEvent = "task.run.completed"
 	HookTaskRunFailed         HookEvent = "task.run.failed"
+
+	HookLoopStarted        HookEvent = "loop.started"
+	HookLoopGenerationPre  HookEvent = "loop.generation.pre"
+	HookLoopGenerationPost HookEvent = "loop.generation.post"
+	HookLoopGatePre        HookEvent = "loop.gate.pre"
+	HookLoopGatePost       HookEvent = "loop.gate.post"
+	HookLoopNodeTerminal   HookEvent = "loop.node.terminal"
+	HookLoopTerminal       HookEvent = "loop.terminal"
 
 	HookSpawnPreCreate     HookEvent = "spawn.pre_create"
 	HookSpawnCreated       HookEvent = "spawn.created"
@@ -338,6 +348,34 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
 	},
+	HookLoopStarted: {
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
+	HookLoopGenerationPre: {
+		family:       HookEventFamilyLoop,
+		syncEligible: true,
+	},
+	HookLoopGenerationPost: {
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
+	HookLoopGatePre: {
+		family:       HookEventFamilyLoop,
+		syncEligible: true,
+	},
+	HookLoopGatePost: {
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
+	HookLoopNodeTerminal: {
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
+	HookLoopTerminal: {
+		family:       HookEventFamilyLoop,
+		syncEligible: false,
+	},
 	HookSpawnPreCreate: {
 		family:       HookEventFamilySpawn,
 		syncEligible: true,
@@ -456,6 +494,13 @@ var allHookEvents = []HookEvent{
 	HookTaskRunReleased,
 	HookTaskRunCompleted,
 	HookTaskRunFailed,
+	HookLoopStarted,
+	HookLoopGenerationPre,
+	HookLoopGenerationPost,
+	HookLoopGatePre,
+	HookLoopGatePost,
+	HookLoopNodeTerminal,
+	HookLoopTerminal,
 	HookSpawnPreCreate,
 	HookSpawnCreated,
 	HookSpawnParentStopped,

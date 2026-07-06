@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 )
 
@@ -172,23 +171,18 @@ type RunStore interface {
 	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion) (Run, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure) (Run, error)
+	CompleteCoordinatorAndEnqueueNext(
+		ctx context.Context,
+		completion CoordinatorCompletion,
+		finalizer GenerationStateFinalizer,
+	) (CoordinatorCompletionResult, error)
 	ForceReleaseTaskRun(ctx context.Context, release ForceReleaseRunMutation) (ForceRunMutationResult, error)
 	ForceFailTaskRun(ctx context.Context, failure ForceFailRunMutation) (ForceRunMutationResult, error)
 	RetryTaskRun(ctx context.Context, retry RetryRunMutation) (RetryRunResult, error)
 	RecoverTaskRun(ctx context.Context, mutation RecoverRunMutation) (RetryRunResult, error)
 	MarkTaskRunNeedsAttention(ctx context.Context, runID string, diagnostic string) (Run, error)
 	RecoverExpiredRunLeases(ctx context.Context, recovery ExpiredLeaseRecovery) ([]ExpiredLeaseRecoveryResult, error)
-	ReserveQueuedRun(
-		ctx context.Context,
-		taskID string,
-		runID string,
-		idempotencyKey string,
-		origin Origin,
-		requestedChannel string,
-		metadata json.RawMessage,
-		queuedAt time.Time,
-		designationGroupID ...string,
-	) (Task, Run, bool, error)
+	ReserveQueuedRun(ctx context.Context, reservation QueueRunReservation) (Task, Run, bool, error)
 }
 
 // EventStore is the persistence surface for immutable task audit events.

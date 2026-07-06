@@ -67,6 +67,7 @@ type Server struct {
 	observer          core.Observer
 	resources         core.ResourceService
 	automation        core.AutomationManager
+	loops             core.LoopService
 	bridges           core.BridgeService
 	notifications     core.NotificationPresetService
 	bundles           core.BundleService
@@ -121,6 +122,7 @@ type handlerConfig struct {
 	observer          core.Observer
 	resources         core.ResourceService
 	automation        core.AutomationManager
+	loops             core.LoopService
 	bridges           core.BridgeService
 	notifications     core.NotificationPresetService
 	bundles           core.BundleService
@@ -271,13 +273,6 @@ func WithObserver(observer core.Observer) Option {
 func WithResourceService(service core.ResourceService) Option {
 	return func(server *Server) {
 		server.resources = service
-	}
-}
-
-// WithAutomation injects the daemon-owned automation manager.
-func WithAutomation(manager core.AutomationManager) Option {
-	return func(server *Server) {
-		server.automation = manager
 	}
 }
 
@@ -672,6 +667,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		observer:          s.observer,
 		resources:         s.resources,
 		automation:        s.automation,
+		loops:             s.loops,
 		bridges:           s.bridges,
 		notifications:     s.notifications,
 		bundles:           s.bundles,
@@ -952,6 +948,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Resources:                    cfg.resources,
 			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,
+			Loops:                        cfg.loops,
 			Bridges:                      cfg.bridges,
 			Notifications:                cfg.notifications,
 			Bundles:                      cfg.bundles,

@@ -524,6 +524,7 @@ type Config struct {
 	Extensions    ExtensionsConfig          `toml:"extensions"`
 	Tools         ToolsConfig               `toml:"tools"`
 	Automation    AutomationConfig          `toml:"automation"`
+	Loops         LoopsConfig               `toml:"loops"`
 	Task          TaskConfig                `toml:"task"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Network       NetworkConfig             `toml:"network"`
@@ -739,6 +740,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
+		Loops:   DefaultLoopsConfig(),
 		Task:    DefaultTaskConfig(),
 		Network: DefaultNetworkConfig(),
 		Autonomy: AutonomyConfig{
@@ -983,6 +985,9 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	}
 	if err := c.Automation.validateWithEnv(lookup); err != nil {
 		return fmt.Errorf("validate automation config: %w", err)
+	}
+	if err := c.Loops.Validate(); err != nil {
+		return fmt.Errorf("validate loops config: %w", err)
 	}
 	if err := c.Task.Validate(); err != nil {
 		return fmt.Errorf("validate task config: %w", err)

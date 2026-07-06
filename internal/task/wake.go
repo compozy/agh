@@ -135,7 +135,7 @@ func (m *Service) dispatchTerminalWake(ctx context.Context, taskRecord Task, run
 		taskRecord:         taskRecord,
 		runID:              run.ID,
 		executingSessionID: run.SessionID,
-		wakeEventID:        wakeEventID("terminal", taskRecord.ID, run.ID, string(status)),
+		wakeEventID:        wakeEventID("terminal", taskRecord.ID, run.ID, status.String()),
 		reason:             WakeReasonTerminal,
 		summary:            terminalWakeSummary(taskRecord, run),
 		actor:              actor,

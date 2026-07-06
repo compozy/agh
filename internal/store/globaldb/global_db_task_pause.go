@@ -136,9 +136,9 @@ func (g *GlobalDB) CountActiveTaskRunClaims(ctx context.Context) (int, error) {
 		`SELECT COUNT(1)
 		   FROM task_runs
 		  WHERE status IN (?, ?, ?)`,
-		string(taskpkg.TaskRunStatusClaimed),
-		string(taskpkg.TaskRunStatusStarting),
-		string(taskpkg.TaskRunStatusRunning),
+		taskpkg.TaskRunStatusClaimed.String(),
+		taskpkg.TaskRunStatusStarting.String(),
+		taskpkg.TaskRunStatusRunning.String(),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count active task-run claims: %w", err)
 	}
@@ -154,7 +154,7 @@ func (g *GlobalDB) CountQueuedTaskRuns(ctx context.Context, includePaused bool) 
 		FROM task_runs tr
 		JOIN tasks t ON t.id = tr.task_id
 		WHERE tr.status = ?`
-	args := []any{string(taskpkg.TaskRunStatusQueued)}
+	args := []any{taskpkg.TaskRunStatusQueued.String()}
 	if !includePaused {
 		query += " AND " + effectiveTaskPauseExclusionSQL()
 	}
@@ -186,7 +186,7 @@ func (g *GlobalDB) CountStarvedQueuedTaskRuns(
 	if err := g.db.QueryRowContext(
 		ctx,
 		query,
-		string(taskpkg.TaskRunStatusQueued),
+		taskpkg.TaskRunStatusQueued.String(),
 		cutoff,
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count starved queued task runs: %w", err)
@@ -203,7 +203,7 @@ func (g *GlobalDB) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error)
 	if err := g.db.QueryRowContext(
 		ctx,
 		`SELECT COUNT(1) FROM task_runs WHERE status = ?`,
-		string(taskpkg.TaskRunStatusNeedsAttention),
+		taskpkg.TaskRunStatusNeedsAttention.String(),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count needs attention task runs: %w", err)
 	}
@@ -305,7 +305,7 @@ func effectiveTaskPauseExclusionSQL() string {
 
 func schedulerBacklogWhere(query taskpkg.SchedulerBacklogQuery) (string, []any) {
 	where := []string{"tr.status = ?"}
-	args := []any{string(taskpkg.TaskRunStatusQueued)}
+	args := []any{taskpkg.TaskRunStatusQueued.String()}
 	if query.Scope.Normalize() != "" {
 		where = append(where, "t.scope = ?")
 		args = append(args, string(query.Scope))

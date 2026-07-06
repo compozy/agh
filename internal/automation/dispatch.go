@@ -233,9 +233,10 @@ type DispatcherOption func(*Dispatcher)
 
 // Dispatcher routes every automation activation through one execution path.
 type Dispatcher struct {
-	sessions SessionCreator
-	runs     RunStore
-	tasks    TaskService
+	sessions    SessionCreator
+	runs        RunStore
+	tasks       TaskService
+	loopStarter LoopStarter
 
 	logger              *slog.Logger
 	now                 func() time.Time
@@ -427,6 +428,9 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 	if req.Job != nil && req.Job.Task != nil {
 		return d.dispatchTaskBackedAttempt(ctx, req, scheduledRun, attempt)
+	}
+	if req.loopTarget() != nil {
+		return d.dispatchLoopBackedAttempt(ctx, req, scheduledRun, attempt)
 	}
 
 	prompt, promptErr := req.prompt()

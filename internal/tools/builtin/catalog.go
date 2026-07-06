@@ -11,24 +11,12 @@ const (
 )
 
 const (
-	catalogCatalogKey = "catalog"
+	catalogCatalogKey            = "catalog"
+	toolListMaxResultBytes int64 = 1 << 20
 )
 
 var catalogTools = []toolspkg.Descriptor{
-	nativeDescriptor(
-		toolspkg.ToolIDToolList,
-		"tool_list",
-		"Tool List",
-		"List tools currently callable in the caller's effective registry projection.",
-		toolListInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
-		[]string{catalogToolsKey, catalogRegistryKey, catalogCatalogKey},
-		[]string{"available tools", "tool registry"},
-	),
+	toolListDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDToolSearch,
 		"tool_search",
@@ -57,6 +45,25 @@ var catalogTools = []toolspkg.Descriptor{
 		[]string{catalogToolsKey, catalogRegistryKey, "diagnostics"},
 		[]string{"tool descriptor", "tool policy diagnostics"},
 	),
+}
+
+func toolListDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDToolList,
+		"tool_list",
+		"Tool List",
+		"List tools currently callable in the caller's effective registry projection.",
+		toolListInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
+		[]string{catalogToolsKey, catalogRegistryKey, catalogCatalogKey},
+		[]string{"available tools", "tool registry"},
+	)
+	descriptor.MaxResultBytes = toolListMaxResultBytes
+	return descriptor
 }
 
 func catalogDescriptors() []toolspkg.Descriptor {

@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/systems/loops/hooks/use-loops", async () => {
+  const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
+  return { useLoops: () => ({ data: loopCatalogFixtures, isLoading: false }) };
+});
+
 import { AutomationTriggerForm } from "../automation-trigger-form";
 import { createAutomationTriggerDraft } from "../../lib/automation-drafts";
 import type { CreateAutomationTriggerRequest } from "../../types";
@@ -240,5 +245,34 @@ describe("AutomationTriggerForm", () => {
     fireEvent.submit(screen.getByTestId("automation-trigger-form"));
 
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("switches the Then step to Run loop, seeds a loop target, and picks a loop (§9.14)", () => {
+    const { onChange } = renderTriggerForm();
+
+    // Agent target is the default.
+    expect(screen.getByTestId("trigger-agent-input")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("target-mode-loop"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_kind: "loop",
+        loop_target: expect.objectContaining({ loop_name: "" }),
+      })
+    );
+    // The loop picker + payload mapping table replace the agent prompt.
+    expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
+    expect(screen.queryByTestId("trigger-agent-input")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("loop-target-select"), {
+      target: { value: "software-delivery" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+      })
+    );
+    // A trigger fires from an event, so the payload mapping table is present.
+    expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
   });
 });

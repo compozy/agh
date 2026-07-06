@@ -24,6 +24,7 @@ func TestEnsureHomeLayoutPermissionsContract(t *testing.T) {
 		assertConfigPathMode(t, paths.HomeDir, 0o700)
 		assertConfigPathMode(t, paths.AgentsDir, 0o700)
 		assertConfigPathMode(t, paths.SkillsDir, 0o700)
+		assertConfigPathMode(t, paths.LoopsDir, 0o700)
 		assertConfigPathMode(t, paths.MemoryDir, 0o700)
 		assertConfigPathMode(t, paths.SessionsDir, 0o700)
 		assertConfigPathMode(t, paths.RestartsDir, 0o700)
@@ -85,6 +86,7 @@ func configRuntimeDirectories(paths HomePaths) []string {
 		paths.HomeDir,
 		paths.AgentsDir,
 		paths.SkillsDir,
+		paths.LoopsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.RestartsDir,

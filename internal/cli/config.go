@@ -176,7 +176,7 @@ const (
 var (
 	configDurationType = reflect.TypeFor[time.Duration]()
 
-	configScalarMutationKinds = map[string]configSetValueKind{
+	configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetValueKind{
 		"daemon.socket":                                   configSetString,
 		"daemon.reload_timeouts.providers":                configSetDuration,
 		"daemon.reload_timeouts.mcp":                      configSetDuration,
@@ -330,7 +330,7 @@ var (
 		"network.greet_interval":                                  configSetInt,
 		"network.max_replay_age":                                  configSetInt,
 		"network.max_queue_depth":                                 configSetInt,
-	}
+	}, loopDefaultConfigSetPathKinds())
 )
 
 func newConfigCommand(deps commandDeps) *cobra.Command {
@@ -782,7 +782,7 @@ func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 				Path:             "config.toml",
 				Value:            configReloadCommandName,
 				Scope:            string(aghconfig.WriteScopeGlobal),
-				Target:           "daemon",
+				Target:           configDaemonKey,
 				Lifecycle:        string(result.Lifecycle),
 				ApplyRecordID:    result.ApplyRecordID,
 				Applied:          result.Applied,

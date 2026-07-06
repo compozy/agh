@@ -510,7 +510,7 @@ func runSummaryFromTaskRun(run taskpkg.Run, maxAttempts int) taskpkg.RunSummary 
 		ID:                    strings.TrimSpace(run.ID),
 		TaskID:                strings.TrimSpace(run.TaskID),
 		Status:                run.Status.Normalize(),
-		Attempt:               run.Attempt,
+		Attempt:               int(run.Attempt),
 		MaxAttempts:           maxAttempts,
 		SessionID:             strings.TrimSpace(run.SessionID),
 		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
@@ -620,7 +620,7 @@ func selectTaskContextRun(taskRecord taskpkg.Task, runs []taskpkg.Run) (taskpkg.
 func sortRunsByAttemptAndActivity(runs []taskpkg.Run) {
 	slices.SortStableFunc(runs, func(left, right taskpkg.Run) int {
 		if left.Attempt != right.Attempt {
-			return right.Attempt - left.Attempt
+			return int(right.Attempt - left.Attempt)
 		}
 		leftTime := runActivityTime(left)
 		rightTime := runActivityTime(right)

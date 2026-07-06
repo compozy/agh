@@ -37,6 +37,7 @@ type JobListQuery struct {
 	Scope       Scope     `json:"scope,omitempty"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	Source      JobSource `json:"source,omitempty"`
+	LoopName    string    `json:"loop_name,omitempty"`
 	Limit       int       `json:"limit,omitempty"`
 }
 
@@ -46,6 +47,7 @@ type TriggerListQuery struct {
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	Event       string    `json:"event,omitempty"`
 	Source      JobSource `json:"source,omitempty"`
+	LoopName    string    `json:"loop_name,omitempty"`
 	Limit       int       `json:"limit,omitempty"`
 }
 

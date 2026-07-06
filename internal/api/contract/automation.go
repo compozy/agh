@@ -50,11 +50,13 @@ type JobPayload struct {
 	ID          string                           `json:"id"`
 	Scope       automationpkg.Scope              `json:"scope"`
 	Name        string                           `json:"name"`
+	TargetKind  automationpkg.TargetKind         `json:"target_kind"`
 	AgentName   string                           `json:"agent_name"`
 	WorkspaceID string                           `json:"workspace_id,omitempty"`
 	Prompt      string                           `json:"prompt"`
 	Schedule    *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
 	Task        *automationpkg.JobTaskConfig     `json:"task,omitempty"`
+	LoopTarget  *automationpkg.LoopTarget        `json:"loop_target,omitempty"`
 	Enabled     bool                             `json:"enabled"`
 	Retry       automationpkg.RetryConfig        `json:"retry"`
 	FireLimit   automationpkg.FireLimitConfig    `json:"fire_limit"`
@@ -70,11 +72,13 @@ type TriggerPayload struct {
 	ID                   string                        `json:"id"`
 	Scope                automationpkg.Scope           `json:"scope"`
 	Name                 string                        `json:"name"`
+	TargetKind           automationpkg.TargetKind      `json:"target_kind"`
 	AgentName            string                        `json:"agent_name"`
 	WorkspaceID          string                        `json:"workspace_id,omitempty"`
 	Prompt               string                        `json:"prompt"`
 	Event                string                        `json:"event"`
 	Filter               map[string]string             `json:"filter,omitempty"`
+	LoopTarget           *automationpkg.LoopTarget     `json:"loop_target,omitempty"`
 	Enabled              bool                          `json:"enabled"`
 	Retry                automationpkg.RetryConfig     `json:"retry"`
 	FireLimit            automationpkg.FireLimitConfig `json:"fire_limit"`
@@ -95,11 +99,13 @@ func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) TriggerPayload {
 		ID:                   trigger.ID,
 		Scope:                trigger.Scope,
 		Name:                 trigger.Name,
+		TargetKind:           trigger.TargetKind,
 		AgentName:            trigger.AgentName,
 		WorkspaceID:          trigger.WorkspaceID,
 		Prompt:               trigger.Prompt,
 		Event:                trigger.Event,
 		Filter:               cloneTriggerFilter(trigger.Filter),
+		LoopTarget:           cloneLoopTarget(trigger.LoopTarget),
 		Enabled:              trigger.Enabled,
 		Retry:                trigger.Retry,
 		FireLimit:            trigger.FireLimit,
@@ -149,6 +155,7 @@ type RunPayload struct {
 	SessionID       string                  `json:"session_id,omitempty"`
 	TaskID          string                  `json:"task_id,omitempty"`
 	TaskRunID       string                  `json:"task_run_id,omitempty"`
+	LoopRunID       string                  `json:"loop_run_id,omitempty"`
 	FireID          string                  `json:"fire_id,omitempty"`
 	Status          automationpkg.RunStatus `json:"status"`
 	Attempt         int                     `json:"attempt"`
@@ -170,11 +177,13 @@ type WebhookDeliveryPayload struct {
 type CreateJobRequest struct {
 	Scope       automationpkg.Scope            `json:"scope"`
 	Name        string                         `json:"name"`
+	TargetKind  automationpkg.TargetKind       `json:"target_kind,omitempty"`
 	AgentName   string                         `json:"agent_name"`
 	WorkspaceID string                         `json:"workspace_id,omitempty"`
 	Prompt      string                         `json:"prompt"`
 	Schedule    automationpkg.ScheduleSpec     `json:"schedule"`
 	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget  *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
 	Enabled     *bool                          `json:"enabled,omitempty"`
 	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -183,11 +192,13 @@ type CreateJobRequest struct {
 // UpdateJobRequest is the shared automation job patch payload.
 type UpdateJobRequest struct {
 	Name        *string                        `json:"name,omitempty"`
+	TargetKind  *automationpkg.TargetKind      `json:"target_kind,omitempty"`
 	AgentName   *string                        `json:"agent_name,omitempty"`
 	WorkspaceID *string                        `json:"workspace_id,omitempty"`
 	Prompt      *string                        `json:"prompt,omitempty"`
 	Schedule    *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
 	Task        *automationpkg.JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget  *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
 	Enabled     *bool                          `json:"enabled,omitempty"`
 	Retry       *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit   *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -196,11 +207,13 @@ type UpdateJobRequest struct {
 // HasChanges reports whether the patch includes any mutable field.
 func (r UpdateJobRequest) HasChanges() bool {
 	return r.Name != nil ||
+		r.TargetKind != nil ||
 		r.AgentName != nil ||
 		r.WorkspaceID != nil ||
 		r.Prompt != nil ||
 		r.Schedule != nil ||
 		r.Task != nil ||
+		r.LoopTarget != nil ||
 		r.Enabled != nil ||
 		r.Retry != nil ||
 		r.FireLimit != nil
@@ -210,11 +223,13 @@ func (r UpdateJobRequest) HasChanges() bool {
 type CreateTriggerRequest struct {
 	Scope              automationpkg.Scope            `json:"scope"`
 	Name               string                         `json:"name"`
+	TargetKind         automationpkg.TargetKind       `json:"target_kind,omitempty"`
 	AgentName          string                         `json:"agent_name"`
 	WorkspaceID        string                         `json:"workspace_id,omitempty"`
 	Prompt             string                         `json:"prompt"`
 	Event              string                         `json:"event"`
 	Filter             map[string]string              `json:"filter,omitempty"`
+	LoopTarget         *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
 	Enabled            *bool                          `json:"enabled,omitempty"`
 	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -226,11 +241,13 @@ type CreateTriggerRequest struct {
 // UpdateTriggerRequest is the shared automation trigger patch payload.
 type UpdateTriggerRequest struct {
 	Name               *string                        `json:"name,omitempty"`
+	TargetKind         *automationpkg.TargetKind      `json:"target_kind,omitempty"`
 	AgentName          *string                        `json:"agent_name,omitempty"`
 	WorkspaceID        *string                        `json:"workspace_id,omitempty"`
 	Prompt             *string                        `json:"prompt,omitempty"`
 	Event              *string                        `json:"event,omitempty"`
 	Filter             map[string]string              `json:"filter,omitempty"`
+	LoopTarget         *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
 	Enabled            *bool                          `json:"enabled,omitempty"`
 	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
 	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
@@ -242,15 +259,31 @@ type UpdateTriggerRequest struct {
 // HasChanges reports whether the patch includes any mutable field.
 func (r UpdateTriggerRequest) HasChanges() bool {
 	return r.Name != nil ||
+		r.TargetKind != nil ||
 		r.AgentName != nil ||
 		r.WorkspaceID != nil ||
 		r.Prompt != nil ||
 		r.Event != nil ||
 		r.Filter != nil ||
+		r.LoopTarget != nil ||
 		r.Enabled != nil ||
 		r.Retry != nil ||
 		r.FireLimit != nil ||
 		r.WebhookID != nil ||
 		r.EndpointSlug != nil ||
 		r.WebhookSecretValue != nil
+}
+
+func cloneLoopTarget(source *automationpkg.LoopTarget) *automationpkg.LoopTarget {
+	if source == nil {
+		return nil
+	}
+	cloned := *source
+	if len(source.Inputs) > 0 {
+		cloned.Inputs = maps.Clone(source.Inputs)
+	}
+	if len(source.InputMapping) > 0 {
+		cloned.InputMapping = maps.Clone(source.InputMapping)
+	}
+	return &cloned
 }

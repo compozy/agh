@@ -1716,7 +1716,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				ID:                 runID,
 				TaskID:             spec.TaskID,
 				Status:             taskpkg.TaskRunStatusQueued,
-				Attempt:            len(enqueuedRuns) + 2,
+				Attempt:            int32(len(enqueuedRuns) + 2),
 				Origin:             actor.Origin,
 				IdempotencyKey:     spec.IdempotencyKey,
 				NetworkChannel:     spec.NetworkChannel,

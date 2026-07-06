@@ -131,7 +131,7 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		ID:             strings.TrimSpace(continuationRunID),
 		TaskID:         review.TaskID,
 		Status:         TaskRunStatusQueued,
-		Attempt:        continuationAttempt,
+		Attempt:        int32(continuationAttempt),
 		Origin:         actor.Origin,
 		NetworkChannel: run.NetworkChannel,
 		Review: &RunReviewLineage{

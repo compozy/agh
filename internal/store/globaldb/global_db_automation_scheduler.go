@@ -423,8 +423,8 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		`INSERT INTO automation_runs (
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			delivery_error, delivery_error_at, loop_run_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		store.NullableString(run.JobID),
 		store.NullableString(run.TriggerID),
@@ -440,6 +440,7 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		store.NullableString(run.Error),
 		store.NullableString(run.DeliveryError),
 		nullableAutomationTimestamp(run.DeliveryErrorAt),
+		store.NullableString(run.LoopRunID),
 	); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(

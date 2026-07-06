@@ -68,6 +68,7 @@ type Extension struct {
 	mu                 sync.RWMutex
 	handlers           map[string]ExtensionHandler
 	toolHandlers       map[string]registeredTool
+	watchHandlers      map[string]registeredWatchSource
 	readyCallbacks     []func(context.Context, *HostAPI, ExtensionSession) error
 	initialized        bool
 	shutdownStarted    bool
@@ -115,12 +116,13 @@ func WithSDKVersion(version string) Option {
 // NewExtension creates a public Go extension runtime.
 func NewExtension(definition ExtensionDefinition, options ...Option) *Extension {
 	extension := &Extension{
-		definition:   definition,
-		transport:    NewStdioTransport(StdioTransportOptions{}),
-		stderr:       os.Stderr,
-		sdkVersion:   SDKVersion,
-		handlers:     make(map[string]ExtensionHandler),
-		toolHandlers: make(map[string]registeredTool),
+		definition:    definition,
+		transport:     NewStdioTransport(StdioTransportOptions{}),
+		stderr:        os.Stderr,
+		sdkVersion:    SDKVersion,
+		handlers:      make(map[string]ExtensionHandler),
+		toolHandlers:  make(map[string]registeredTool),
+		watchHandlers: make(map[string]registeredWatchSource),
 	}
 	extension.host = newHostAPI(extension.transport, extension.ready)
 	for _, option := range options {
@@ -153,6 +155,9 @@ func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	}
 	if len(e.toolHandlers) > 0 && isToolProviderMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by Tool", nil)
+	}
+	if len(e.watchHandlers) > 0 && isWatchSourceMethod(cleanMethod) {
+		return NewInvalidParamsError(cleanMethod+" is reserved by WatchSource", nil)
 	}
 	e.handlers[cleanMethod] = handler
 	e.transport.Handle(cleanMethod, e.dispatch)
@@ -251,6 +256,9 @@ func (e *Extension) GetImplementedMethods() []string {
 	if len(e.toolHandlers) > 0 {
 		methods[ExtensionServiceMethodProvideTools] = struct{}{}
 		methods[ExtensionServiceMethodToolsCall] = struct{}{}
+	}
+	if len(e.watchHandlers) > 0 {
+		methods[ExtensionServiceMethodWatchPoll] = struct{}{}
 	}
 	out := make([]string, 0, len(methods))
 	for method := range methods {
@@ -412,6 +420,11 @@ func (e *Extension) dispatch(
 			return nil, err
 		}
 		return e.handleToolCall(ctx, request, params)
+	case ExtensionServiceMethodWatchPoll:
+		if err := e.ensureReady(); err != nil {
+			return nil, err
+		}
+		return e.handleWatchPoll(ctx, request, params)
 	default:
 		if err := e.ensureReady(); err != nil {
 			return nil, err
@@ -477,6 +490,7 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 		},
 		ImplementedMethods:  implemented,
 		SupportedHookEvents: normalizeStrings(e.definition.SupportedHookEvents),
+		WatchSourceKinds:    e.watchSourceKindsLocked(),
 		Supports:            InitializeSupports{HealthCheck: true},
 	}
 	session := ExtensionSession{
@@ -661,6 +675,9 @@ func (e *Extension) implementedMethodsLocked() []string {
 	if len(e.toolHandlers) > 0 {
 		methods[ExtensionServiceMethodProvideTools] = struct{}{}
 		methods[ExtensionServiceMethodToolsCall] = struct{}{}
+	}
+	if len(e.watchHandlers) > 0 {
+		methods[ExtensionServiceMethodWatchPoll] = struct{}{}
 	}
 	out := make([]string, 0, len(methods))
 	for method := range methods {

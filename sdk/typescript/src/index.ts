@@ -35,6 +35,13 @@ export type {
   ExtensionToolOptions,
 } from "./extension.js";
 export type {
+  ExtensionWatchSourceContext,
+  ExtensionWatchSourceHandler,
+  ExtensionWatchSourceOptions,
+  WatchPollRequest,
+  WatchPollResponse,
+} from "./watch-source.js";
+export type {
   AcceptedCapabilities,
   ActionsConfig,
   AgentCrashedPatch,

@@ -256,7 +256,7 @@ func schedulerBacklogBundle(record SchedulerBacklogRecord) outputBundle {
 				rows = append(rows, []string{
 					item.Run.ID,
 					item.Task.ID,
-					string(item.Run.Status),
+					item.Run.Status.String(),
 					strconv.Itoa(item.Run.Attempt),
 					formatTime(item.Run.QueuedAt),
 					strconv.FormatBool(item.Task.EffectivePaused),

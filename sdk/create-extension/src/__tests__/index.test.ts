@@ -134,6 +134,49 @@ describe("@agh/create-extension", () => {
     goTemplateTestTimeoutMs
   );
 
+  it(
+    "scaffolds a buildable Go loop watch-source template",
+    async () => {
+      const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-watch-source-"));
+      tempDirs.push(baseDir);
+
+      const projectDir = path.join(baseDir, "loop-watch-source");
+      await scaffoldExtension({
+        name: "Loop Watch Source",
+        template: "loop-watch-source",
+        directory: projectDir,
+      });
+
+      const extensionManifest = JSON.parse(
+        await readFile(path.join(projectDir, "extension.json"), "utf8")
+      ) as {
+        capabilities: { provides: string[] };
+        subprocess: { command: string };
+      };
+      const source = await readFile(path.join(projectDir, "main.go"), "utf8");
+      const goMod = await readFile(path.join(projectDir, "go.mod"), "utf8");
+
+      expect(extensionManifest.capabilities.provides).toContain("loop.watch_source");
+      expect(extensionManifest.subprocess.command).toBe("./loop-watch-source");
+      expect(source).toContain("aghsdk.WatchSource[ReviewWatchSpec]");
+      expect(source).toContain('Name:    "loop-watch-source"');
+      expect(goMod).toContain("module example.com/loop-watch-source");
+
+      const repoRoot = path.resolve(__dirname, "../../../..");
+      execFileSync("go", ["mod", "edit", "-replace", `github.com/compozy/agh=${repoRoot}`], {
+        cwd: projectDir,
+        stdio: "pipe",
+        timeout: goCommandTimeoutMs,
+      });
+      execFileSync("go", ["build", "./..."], {
+        cwd: projectDir,
+        stdio: "pipe",
+        timeout: goCommandTimeoutMs,
+      });
+    },
+    goTemplateTestTimeoutMs
+  );
+
   it("rejects non-empty target directories", async () => {
     const baseDir = await mkdtemp(path.join(tmpdir(), "agh-create-extension-full-"));
     tempDirs.push(baseDir);
