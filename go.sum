@@ -120,8 +120,8 @@ github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb h1:EDmT6Q9Zs+SbUo
 github.com/codahale/rfc6979 v0.0.0-20141003034818-6a90f24967eb/go.mod h1:ZjrT6AXHbDs86ZSdt/osfBi5qfexBrKUdONk989Wnk4=
 github.com/coder/acp-go-sdk v0.13.5 h1:LI9jq5xon7xslaYlnoktvTVyDlE37yIk2daT7N9ASYk=
 github.com/coder/acp-go-sdk v0.13.5/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
-github.com/compozy/agh-web-assets v0.0.46 h1:qljIdyt5oIRSl2ucmSFKm20bJbGHVI6l+M5Ni4a1Glo=
-github.com/compozy/agh-web-assets v0.0.46/go.mod h1:X4Gwpl8HRswrtrQqM43F4bTd+Mw7iTojtj0JkDOqRGI=
+github.com/compozy/agh-web-assets v0.0.47 h1:rDCcQNABtJg4XsNkeb1/KTL34vU3S21TUf+tXCGIxfg=
+github.com/compozy/agh-web-assets v0.0.47/go.mod h1:X4Gwpl8HRswrtrQqM43F4bTd+Mw7iTojtj0JkDOqRGI=
 github.com/coreos/go-oidc/v3 v3.17.0 h1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=
 github.com/coreos/go-oidc/v3 v3.17.0/go.mod h1:wqPbKFrVnE90vty060SB40FCJ8fTHTxSwyXJqZH+sI8=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
