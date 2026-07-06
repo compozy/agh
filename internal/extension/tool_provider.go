@@ -277,6 +277,9 @@ func (p *ExtensionToolProvider) manifestTools() ([]extensionManifestTool, error)
 
 	manifestTools := make([]extensionManifestTool, 0)
 	for _, info := range infos {
+		if !info.Enabled {
+			continue
+		}
 		manifest, err := loadManifestAtPath(info.ManifestPath)
 		if err != nil {
 			return nil, fmt.Errorf("extension: load tool manifest %q: %w", info.Name, err)

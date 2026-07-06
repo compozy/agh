@@ -1087,6 +1087,66 @@ func TestLoadManifest_RejectsManifestDirectoryEntries(t *testing.T) {
 	}
 }
 
+func TestValidateDaemonCompatibilityNormalizesDaemonBuildVersions(t *testing.T) {
+	tests := []struct {
+		name       string
+		current    string
+		minVersion string
+		wantErr    bool
+	}{
+		{
+			name:       "Should accept current git-describe build at the manifest minimum",
+			current:    "v0.0.9-2-gd2731f105-dirty",
+			minVersion: "0.0.9",
+		},
+		{
+			name:       "Should accept dirty release tag at the manifest minimum",
+			current:    "v0.0.9-dirty",
+			minVersion: "0.0.9",
+		},
+		{
+			name:       "Should accept plain release tag at the manifest minimum",
+			current:    "v0.0.9",
+			minVersion: "0.0.9",
+		},
+		{
+			name:       "Should preserve prerelease semantics instead of widening compatibility",
+			current:    "v1.0.0-rc.1",
+			minVersion: "1.0.0",
+			wantErr:    true,
+		},
+		{
+			name:       "Should preserve short non git describe suffix",
+			current:    "v0.0.9-2-gd2731",
+			minVersion: "0.0.9",
+			wantErr:    true,
+		},
+		{
+			name:       "Should preserve non numeric git describe count",
+			current:    "v0.0.9-build-gd2731f105",
+			minVersion: "0.0.9",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withDaemonVersion(t, tt.current)
+
+			err := validateDaemonCompatibility(tt.minVersion)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("validateDaemonCompatibility() error = nil, want non-nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateDaemonCompatibility() error = %v", err)
+			}
+		})
+	}
+}
+
 func TestSemanticVersion_HelperValidation(t *testing.T) {
 	if _, ok := parseSemanticVersion("1.2"); ok {
 		t.Fatal("parseSemanticVersion(1.2) = true, want false")

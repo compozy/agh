@@ -1107,7 +1107,7 @@ func validateSemanticVersionField(field, value string) error {
 
 func validateDaemonCompatibility(minVersion string) error {
 	current := version.Current().Version
-	currentVersion, ok := parseSemanticVersion(current)
+	currentVersion, ok := parseSemanticVersion(normalizeDaemonVersionForCompatibility(current))
 	if !ok {
 		return nil
 	}
@@ -1129,6 +1129,41 @@ func validateDaemonCompatibility(minVersion string) error {
 		CurrentVersion: current,
 		MinVersion:     strings.TrimSpace(minVersion),
 	}
+}
+
+func normalizeDaemonVersionForCompatibility(value string) string {
+	trimmed := strings.TrimSuffix(strings.TrimSpace(value), "-dirty")
+	commitSep := strings.LastIndex(trimmed, "-g")
+	if commitSep < 0 || commitSep+2 >= len(trimmed) {
+		return trimmed
+	}
+	commit := trimmed[commitSep+2:]
+	if !isGitDescribeShortSHA(commit) {
+		return trimmed
+	}
+	beforeCommit := trimmed[:commitSep]
+	countSep := strings.LastIndex(beforeCommit, "-")
+	if countSep < 0 || countSep+1 >= len(beforeCommit) {
+		return trimmed
+	}
+	for _, char := range beforeCommit[countSep+1:] {
+		if char < '0' || char > '9' {
+			return trimmed
+		}
+	}
+	return beforeCommit[:countSep]
+}
+
+func isGitDescribeShortSHA(value string) bool {
+	if len(value) < 7 {
+		return false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') && (char < 'A' || char > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 func validateDottedIdentifiers(field string, values []string, allowWildcards bool) error {
