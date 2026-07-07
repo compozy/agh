@@ -166,11 +166,18 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 	payload hookspkg.LoopTerminalPayload,
 ) error {
 	var errs []error
-	if err := o.enqueueParentAwaitWake(ctx, payload); err != nil {
+	parentWakeAdded, err := o.enqueueParentAwaitWake(ctx, payload)
+	if err != nil {
 		errs = append(errs, err)
 	}
-	if err := o.promoteQueuedLoop(ctx, payload); err != nil {
+	queuedPromotionAdded, err := o.promoteQueuedLoop(ctx, payload)
+	if err != nil {
 		errs = append(errs, err)
+	}
+	if parentWakeAdded || queuedPromotionAdded {
+		if err := o.startLoopCoordinatorBackstop(ctx); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -178,10 +185,10 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 func (o *loopNativeHookObserver) enqueueParentAwaitWake(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
-) error {
+) (bool, error) {
 	parentLoopRunID := strings.TrimSpace(payload.ParentLoopRunID)
 	if parentLoopRunID == "" {
-		return nil
+		return false, nil
 	}
 	_, added, err := o.store.EnqueueLoopCoordinatorWake(
 		ctx,
@@ -191,31 +198,25 @@ func (o *loopNativeHookObserver) enqueueParentAwaitWake(
 		o.now().UTC(),
 	)
 	if err := normalizeLoopWakeError(err); err != nil {
-		return err
+		return false, err
 	}
-	if added {
-		return o.startLoopCoordinatorBackstop(ctx)
-	}
-	return nil
+	return added, nil
 }
 
 func (o *loopNativeHookObserver) promoteQueuedLoop(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
-) error {
+) (bool, error) {
 	workspaceID := strings.TrimSpace(payload.WorkspaceID)
 	loopName := strings.TrimSpace(payload.LoopName)
 	if workspaceID == "" || loopName == "" {
-		return nil
+		return false, nil
 	}
 	_, added, err := o.store.PromoteOldestQueuedLoopRun(ctx, workspaceID, loopName, o.actor.Origin, o.now().UTC())
 	if err := normalizeLoopWakeError(err); err != nil {
-		return err
+		return false, err
 	}
-	if added {
-		return o.startLoopCoordinatorBackstop(ctx)
-	}
-	return nil
+	return added, nil
 }
 
 func (o *loopNativeHookObserver) startLoopCoordinatorBackstop(ctx context.Context) error {

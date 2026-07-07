@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ func appendLoopNodeTerminalEventsWithExecutor(
 	}, at); err != nil {
 		return err
 	}
-	if payload, ok := loopChannelMessagePayload(run, metadata, resultPayload); ok {
+	if payload, ok := loopChannelMessagePayload(ctx, run, metadata, resultPayload); ok {
 		if err := appendLoopRunEventWithExecutor(
 			ctx,
 			exec,
@@ -124,11 +125,12 @@ func loopRunAndNodeMetadataForTaskRun(
 }
 
 func loopChannelMessagePayload(
+	ctx context.Context,
 	run taskpkg.Run,
 	metadata loopNodeRunMetadata,
 	resultPayload json.RawMessage,
 ) (map[string]any, bool) {
-	text := channelMessageText(resultPayload)
+	text := channelMessageText(ctx, run.ID, resultPayload)
 	if strings.TrimSpace(text) == "" {
 		return nil, false
 	}
@@ -149,12 +151,20 @@ func loopChannelMessagePayload(
 	}, true
 }
 
-func channelMessageText(raw json.RawMessage) string {
+func channelMessageText(ctx context.Context, taskRunID string, raw json.RawMessage) string {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return ""
 	}
 	var envelope map[string]any
 	if err := json.Unmarshal(raw, &envelope); err != nil {
+		slog.Default().DebugContext(
+			ctx,
+			"store: decode loop channel message payload",
+			loopRunEventPayloadKeyTaskRunID,
+			strings.TrimSpace(taskRunID),
+			"error",
+			err,
+		)
 		return ""
 	}
 	for _, key := range []string{"message", "text", loopRunEventPayloadKeySummary} {

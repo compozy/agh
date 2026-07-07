@@ -151,8 +151,8 @@ func (p *codeRabbitProvider) Poll(
 		return watchpkg.PollResponse{}, fmt.Errorf("dev-cycle: encode watch payload: %w", err)
 	}
 	digest := digestBytes(encoded)
-	ready := responsePayload.ProviderState.State == "current_reviewed" ||
-		responsePayload.ProviderState.State == "current_settled"
+	ready := responsePayload.ProviderState.State == codeRabbitWatchCurrentReviewed ||
+		responsePayload.ProviderState.State == codeRabbitWatchCurrentSettled
 	var settledAt *time.Time
 	if ready {
 		settledAt = quietPeriodDeadline(responsePayload, spec.QuietPeriod)

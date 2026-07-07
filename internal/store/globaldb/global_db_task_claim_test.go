@@ -15,6 +15,7 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -2319,9 +2320,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-rollback",
 		"run-coordinator-rollback",
-		"coordinator-rollback",
 		now,
 	)
 
@@ -2402,9 +2401,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-pause",
 		"run-coordinator-pause",
-		"coordinator-pause",
 		now,
 	)
 
@@ -2516,9 +2513,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldKeepNodeOutputsPendingWh
 				t,
 				globalDB,
 				loopRun.ID,
-				"task-coordinator-skip-"+tc.name,
 				"run-coordinator-skip-"+tc.name,
-				"coordinator-skip-"+tc.name,
 				now,
 			)
 			nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.load.0"
@@ -2643,9 +2638,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 				t,
 				globalDB,
 				loopRun.ID,
-				"task-coordinator-inflight-"+tc.name,
 				"run-coordinator-inflight-"+tc.name,
-				"coordinator-inflight-"+tc.name,
 				now,
 			)
 			nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.ready.0"
@@ -2768,9 +2761,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSus
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-suspended",
 		"run-coordinator-suspended",
-		"coordinator-suspended",
 		now,
 	)
 	nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.resume.0"
@@ -2867,9 +2858,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-watch-ready",
 		"run-coordinator-watch-ready",
-		"coordinator-watch-ready",
 		now,
 	)
 	nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.fix_review.0"
@@ -2963,9 +2952,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-yield-pause",
 		"run-coordinator-yield-pause",
-		"coordinator-yield-pause",
 		now,
 	)
 
@@ -3044,9 +3031,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 				t,
 				globalDB,
 				loopRun.ID,
-				"task-coordinator-preempt-pause-"+strings.ReplaceAll(tc.name, " ", "-"),
 				"run-coordinator-preempt-pause-"+strings.ReplaceAll(tc.name, " ", "-"),
-				"coordinator-preempt-pause-"+strings.ReplaceAll(tc.name, " ", "-"),
 				now,
 			)
 
@@ -3137,9 +3122,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 				t,
 				globalDB,
 				loopRun.ID,
-				"task-coordinator-budget-"+tc.name,
 				"run-coordinator-budget-"+tc.name,
-				"coordinator-budget-"+tc.name,
 				now,
 			)
 
@@ -3244,9 +3227,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-wall-budget",
 		"run-coordinator-wall-budget",
-		"coordinator-wall-budget",
 		now,
 	)
 
@@ -3307,9 +3288,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClock
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-wall-started-at",
 		"run-coordinator-wall-started-at",
-		"coordinator-wall-started-at",
 		startedAt,
 	)
 
@@ -3382,9 +3361,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-budget-approval-once",
 		"run-coordinator-budget-approval-once",
-		"coordinator-budget-approval-once",
 		now,
 	)
 
@@ -3512,9 +3489,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 		t,
 		globalDB,
 		parentRun.ID,
-		"task-coordinator-stop-parent",
 		"run-coordinator-stop-parent",
-		"coordinator-stop-parent",
 		now,
 	)
 
@@ -3686,9 +3661,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-coordinator-materialize",
 		"run-coordinator-materialize",
-		"coordinator-materialize",
 		now,
 	)
 	rootTaskID := "loop.looprun-coordinator-materialize.g1.node.load.0"
@@ -4107,6 +4080,134 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 	}
 }
 
+func TestLoopGateVerdictEventPayloadShouldSurfaceCriterionConfidence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep confidence on each criterion and omit ambiguous summary", func(t *testing.T) {
+		t.Parallel()
+
+		firstConfidence := 0.91
+		secondConfidence := 0.42
+		raw := mustJSON(t, gate.Verdict{
+			Outcome: gate.VerdictOutcomeRejected,
+			Criteria: []gate.CriterionResult{
+				{
+					ID:         "all_handled",
+					Type:       dsl.CriterionAgentJudge,
+					Outcome:    gate.VerdictOutcomeRejected,
+					Confidence: &firstConfidence,
+				},
+				{
+					ID:         "docs_current",
+					Type:       dsl.CriterionAgentJudge,
+					Outcome:    gate.VerdictOutcomeApproved,
+					Passed:     true,
+					Confidence: &secondConfidence,
+				},
+			},
+			Route: gate.RouteDecision{
+				Action:     gate.RouteRevise,
+				ReasonCode: "blocking_issues",
+			},
+		})
+
+		payload := loopGateVerdictEventPayload(testutil.Context(t), 2, taskpkg.CoordinatorTerminal{
+			GateID:     "definition_of_done",
+			Status:     string(looppkg.StatusRunning),
+			ReasonCode: "blocking_issues",
+			Details:    raw,
+		})
+
+		if _, ok := payload[loopRunEventPayloadKeyConfidence]; ok {
+			t.Fatalf("payload confidence = %#v, want omitted for multiple confidence-bearing criteria", payload)
+		}
+		criteria, ok := payload["criteria"].([]map[string]any)
+		if !ok {
+			t.Fatalf("payload criteria = %#v, want []map[string]any", payload["criteria"])
+		}
+		if got, want := len(criteria), 2; got != want {
+			t.Fatalf("criteria count = %d, want %d", got, want)
+		}
+		if got := criteria[0][loopRunEventPayloadKeyConfidence]; got != firstConfidence {
+			t.Fatalf("criteria[0].confidence = %#v, want %.2f", got, firstConfidence)
+		}
+		if got := criteria[1][loopRunEventPayloadKeyConfidence]; got != secondConfidence {
+			t.Fatalf("criteria[1].confidence = %#v, want %.2f", got, secondConfidence)
+		}
+	})
+
+	t.Run("Should keep summary confidence when only one criterion has confidence", func(t *testing.T) {
+		t.Parallel()
+
+		confidence := 0.88
+		raw := mustJSON(t, gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Criteria: []gate.CriterionResult{
+				{ID: "compile", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeApproved, Passed: true},
+				{
+					ID:         "review",
+					Type:       dsl.CriterionAgentJudge,
+					Outcome:    gate.VerdictOutcomeApproved,
+					Passed:     true,
+					Confidence: &confidence,
+				},
+			},
+			Route: gate.RouteDecision{Action: gate.RouteContinue},
+		})
+
+		payload := loopGateVerdictEventPayload(testutil.Context(t), 3, taskpkg.CoordinatorTerminal{
+			GateID:  "definition_of_done",
+			Status:  string(looppkg.StatusRunning),
+			Details: raw,
+		})
+
+		if got := payload[loopRunEventPayloadKeyConfidence]; got != confidence {
+			t.Fatalf("payload confidence = %#v, want %.2f", got, confidence)
+		}
+	})
+
+	t.Run("Should degrade malformed verdict details to revise payload", func(t *testing.T) {
+		t.Parallel()
+
+		payload := loopGateVerdictEventPayload(testutil.Context(t), 4, taskpkg.CoordinatorTerminal{
+			GateID:     "definition_of_done",
+			Status:     string(looppkg.StatusRunning),
+			ReasonCode: "malformed_verdict",
+			Details:    json.RawMessage(`{"outcome":`),
+		})
+
+		if got, want := payload["verdict"], loopRunEventVerdictRevise; got != want {
+			t.Fatalf("payload verdict = %#v, want %q", got, want)
+		}
+		if got, want := payload[loopRunEventPayloadKeyReason], "malformed_verdict"; got != want {
+			t.Fatalf("payload reason = %#v, want %q", got, want)
+		}
+	})
+}
+
+func TestLoopChannelMessageTextShouldSuppressMalformedPayload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return empty text for malformed JSON", func(t *testing.T) {
+		t.Parallel()
+
+		text := channelMessageText(testutil.Context(t), "run-invalid-payload", json.RawMessage(`{"message":`))
+		if text != "" {
+			t.Fatalf("channelMessageText() = %q, want empty text for malformed payload", text)
+		}
+	})
+}
+
+func mustJSON(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return raw
+}
+
 func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 	t.Run("Should externalize large loop node result and carry ref on generation output", func(t *testing.T) {
 		t.Parallel()
@@ -4283,9 +4384,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 		t,
 		globalDB,
 		loopRun.ID,
-		"task-output-retention",
 		"run-output-retention",
-		"output-retention",
 		now,
 	)
 
@@ -4348,19 +4447,11 @@ func claimCoordinatorRunForTest(
 	t *testing.T,
 	globalDB *GlobalDB,
 	loopRunID looppkg.RunID,
-	taskID string,
 	runID string,
-	idempotencyKey string,
 	now time.Time,
 ) taskpkg.ClaimResult {
 	t.Helper()
 
-	if strings.TrimSpace(taskID) == "" {
-		t.Fatalf("claimCoordinatorRunForTest(%s) taskID is required", runID)
-	}
-	if strings.TrimSpace(idempotencyKey) == "" {
-		t.Fatalf("claimCoordinatorRunForTest(%s) idempotencyKey is required", runID)
-	}
 	loopRun, err := globalDB.GetLoopRunByID(ctx, loopRunID)
 	if err != nil {
 		t.Fatalf("GetLoopRunByID(%s) error = %v", loopRunID, err)

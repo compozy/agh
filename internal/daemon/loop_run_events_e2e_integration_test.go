@@ -409,14 +409,18 @@ func assertLoopSSEPayloadContains(
 	fragment string,
 ) {
 	t.Helper()
+	matched := make([]loopRunSSEEvent, 0)
 	for _, event := range events {
 		if event.Kind != kind {
 			continue
 		}
+		matched = append(matched, event)
 		if strings.Contains(string(event.Payload), fragment) {
 			return
 		}
-		t.Fatalf("%s payload = %s, want fragment %q", kind, string(event.Payload), fragment)
+	}
+	if len(matched) > 0 {
+		t.Fatalf("%s payloads = %#v, want fragment %q", kind, matched, fragment)
 	}
 	t.Fatalf("events = %#v, want kind %s", events, kind)
 }

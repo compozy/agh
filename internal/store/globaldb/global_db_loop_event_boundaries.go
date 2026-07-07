@@ -4,12 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/gate"
 	taskpkg "github.com/compozy/agh/internal/task"
+)
+
+const (
+	loopRunEventPayloadKeyBlockingIssues = "blocking_issues"
+	loopRunEventPayloadKeyConfidence     = "confidence"
 )
 
 func appendLoopGenerationStartedEventWithExecutor(
@@ -49,17 +55,32 @@ func appendLoopGateVerdictEventWithExecutor(
 	if len(bytes.TrimSpace(terminal.Details)) == 0 {
 		return nil
 	}
-	payload := loopGateVerdictEventPayload(generation, terminal)
+	payload := loopGateVerdictEventPayload(ctx, generation, terminal)
 	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventGateVerdict, payload, at)
 }
 
 func loopGateVerdictEventPayload(
+	ctx context.Context,
 	generation int,
 	terminal taskpkg.CoordinatorTerminal,
 ) map[string]any {
 	gateID := strings.TrimSpace(terminal.GateID)
 	var verdict gate.Verdict
 	if err := json.Unmarshal(terminal.Details, &verdict); err != nil {
+		slog.Default().DebugContext(
+			ctx,
+			"store: decode loop gate verdict payload",
+			"node_id",
+			gateID,
+			loopRunEventPayloadKeyGeneration,
+			generation,
+			loopRunEventPayloadKeyStatus,
+			strings.TrimSpace(terminal.Status),
+			loopRunEventPayloadKeyReason,
+			strings.TrimSpace(terminal.ReasonCode),
+			"error",
+			err,
+		)
 		return map[string]any{
 			"node_id":                        gateID,
 			loopRunEventPayloadKeyGeneration: generation,
@@ -79,12 +100,16 @@ func loopGateVerdictEventPayload(
 		if criterion.Passed {
 			status = "pass"
 		}
-		criteria = append(criteria, map[string]any{
+		criterionPayload := map[string]any{
 			"id":                         strings.TrimSpace(criterion.ID),
 			"type":                       string(criterion.Type),
 			loopRunEventPayloadKeyStatus: status,
 			"note":                       string(criterion.Outcome),
-		})
+		}
+		if criterion.Confidence != nil {
+			criterionPayload[loopRunEventPayloadKeyConfidence] = *criterion.Confidence
+		}
+		criteria = append(criteria, criterionPayload)
 	}
 	issues := make([]map[string]any, 0, len(verdict.BlockingIssues))
 	for _, issue := range verdict.BlockingIssues {
@@ -101,14 +126,30 @@ func loopGateVerdictEventPayload(
 			verdict.Route.ReasonCode,
 			string(verdict.Outcome),
 		),
-		"route":           string(verdict.Route.Action),
-		"criteria":        criteria,
-		"blocking_issues": issues,
+		"route":                              string(verdict.Route.Action),
+		"criteria":                           criteria,
+		loopRunEventPayloadKeyBlockingIssues: issues,
 	}
-	if len(verdict.Criteria) > 0 && verdict.Criteria[0].Confidence != nil {
-		payload["confidence"] = *verdict.Criteria[0].Confidence
+	if confidence, ok := loopGateVerdictSummaryConfidence(verdict.Criteria); ok {
+		payload[loopRunEventPayloadKeyConfidence] = confidence
 	}
 	return payload
+}
+
+func loopGateVerdictSummaryConfidence(criteria []gate.CriterionResult) (float64, bool) {
+	var confidence float64
+	found := false
+	for _, criterion := range criteria {
+		if criterion.Confidence == nil {
+			continue
+		}
+		if found {
+			return 0, false
+		}
+		confidence = *criterion.Confidence
+		found = true
+	}
+	return confidence, found
 }
 
 func appendLoopNeedsApprovalEventWithExecutor(
