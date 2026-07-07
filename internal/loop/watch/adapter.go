@@ -13,6 +13,8 @@ var (
 	ErrPollerRequired = errors.New("loop watch poller is required")
 	// ErrSpecRequired reports an empty watch-source spec.
 	ErrSpecRequired = errors.New("loop watch spec is required")
+	// ErrSpecInvalid reports a malformed watch-source spec.
+	ErrSpecInvalid = errors.New("loop watch spec is invalid")
 )
 
 // Adapter runs one callback-free poll -> ready -> settle -> confirm claim cycle.
@@ -36,8 +38,11 @@ func (a *Adapter) Tick(ctx context.Context, req TickRequest) (TickResult, error)
 	if a == nil || a.poller == nil {
 		return TickResult{}, ErrPollerRequired
 	}
-	if !json.Valid(req.Spec) || len(req.Spec) == 0 {
+	if len(req.Spec) == 0 {
 		return TickResult{}, ErrSpecRequired
+	}
+	if !json.Valid(req.Spec) {
+		return TickResult{}, ErrSpecInvalid
 	}
 	now := req.Now
 	if now.IsZero() {

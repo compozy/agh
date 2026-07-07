@@ -14,7 +14,10 @@ import (
 	"github.com/compozy/agh/internal/resources"
 )
 
-func scanLoopResourceDir(root string, source looppkg.Source) ([]looppkg.ResourceSpec, error) {
+func scanLoopResourceDir(ctx context.Context, root string, source looppkg.Source) ([]looppkg.ResourceSpec, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(root) == "" {
 		return nil, nil
 	}
@@ -30,6 +33,9 @@ func scanLoopResourceDir(root string, source looppkg.Source) ([]looppkg.Resource
 	}
 	files := make([]string, 0)
 	if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return walkErr
 		}
@@ -47,6 +53,9 @@ func scanLoopResourceDir(root string, source looppkg.Source) ([]looppkg.Resource
 
 	specs := make([]looppkg.ResourceSpec, 0, len(files))
 	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		spec, _, err := looppkg.ParseResourceFile(file, looppkg.ResourceParseOptions{
 			Source: source,
 		})

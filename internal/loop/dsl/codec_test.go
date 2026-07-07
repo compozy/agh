@@ -105,7 +105,10 @@ contract:
 func TestCodecShouldStructurallyMergeGraphUnknownFields(t *testing.T) {
 	t.Parallel()
 
-	def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+	t.Run("Should structurally merge graph unknown fields", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
 kind: Loop
 meta: { name: test-loop }
 concurrency: forbid
@@ -138,34 +141,35 @@ graph:
       x_edge_authored: preserve
 start: [{ kind: manual }]
 `))
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
 
-	graph := dsl.DefinitionToGraph(def)
-	merged := dsl.GraphToDefinition(graph)
-	if !reflect.DeepEqual(merged.Graph, def.Graph) {
-		t.Fatalf(
-			"GraphToDefinition(DefinitionToGraph(def)).Graph = %#v, want %#v",
-			merged.Graph,
-			def.Graph,
-		)
-	}
-	if merged.Extra["x_root"] != "keep" {
-		t.Fatalf("merged root extra = %#v, want keep", merged.Extra["x_root"])
-	}
-	if got := merged.Graph.Nodes[0].Extra["x_agent_authored"]; got != "preserve" {
-		t.Fatalf("merged node extra = %#v, want preserve", got)
-	}
-	if got := merged.Graph.Edges[0].Extra["x_edge_authored"]; got != "preserve" {
-		t.Fatalf("merged edge extra = %#v, want preserve", got)
-	}
-	if got := merged.Graph.Edges[0].Extra["label"]; got != "preserve-label" {
-		t.Fatalf("merged edge label extra = %#v, want preserve-label", got)
-	}
-	if got := merged.Graph.Edges[0].Extra["when"]; got != "preserve-when" {
-		t.Fatalf("merged edge when extra = %#v, want preserve-when", got)
-	}
+		graph := dsl.DefinitionToGraph(def)
+		merged := dsl.GraphToDefinition(graph)
+		if !reflect.DeepEqual(merged.Graph, def.Graph) {
+			t.Fatalf(
+				"GraphToDefinition(DefinitionToGraph(def)).Graph = %#v, want %#v",
+				merged.Graph,
+				def.Graph,
+			)
+		}
+		if merged.Extra["x_root"] != "keep" {
+			t.Fatalf("merged root extra = %#v, want keep", merged.Extra["x_root"])
+		}
+		if got := merged.Graph.Nodes[0].Extra["x_agent_authored"]; got != "preserve" {
+			t.Fatalf("merged node extra = %#v, want preserve", got)
+		}
+		if got := merged.Graph.Edges[0].Extra["x_edge_authored"]; got != "preserve" {
+			t.Fatalf("merged edge extra = %#v, want preserve", got)
+		}
+		if got := merged.Graph.Edges[0].Extra["label"]; got != "preserve-label" {
+			t.Fatalf("merged edge label extra = %#v, want preserve-label", got)
+		}
+		if got := merged.Graph.Edges[0].Extra["when"]; got != "preserve-when" {
+			t.Fatalf("merged edge when extra = %#v, want preserve-when", got)
+		}
+	})
 }
 
 func minimalDefinition(contract string) string {

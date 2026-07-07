@@ -66,4 +66,29 @@ describe("loop dsl view", () => {
     expect(text).toContain("criteria: []");
     expect(text).toContain("map: {}");
   });
+
+  it("Should render multiline strings as block scalars without embedding physical newlines", () => {
+    const seeded = {
+      apiVersion: "agh.loop/v1",
+      graph: {
+        nodes: [
+          {
+            id: "prompt",
+            class: "action",
+            kind: "run-agent",
+            params: {
+              prompt: "first line\nsecond line",
+              examples: ["alpha\nbeta"],
+            },
+          },
+        ],
+        edges: [],
+      },
+    };
+    const lines = buildDslView(seeded, new Map());
+    const text = lines.map(line => line.text).join("\n");
+    expect(lines.every(line => !line.text.includes("\n"))).toBe(true);
+    expect(text).toContain("prompt: |\n          first line\n          second line");
+    expect(text).toContain("- |\n            alpha\n            beta");
+  });
 });

@@ -63,4 +63,29 @@ describe("LoopReferenceInput", () => {
     expect(screen.getByTestId("value")).toHaveTextContent("nodes.load_tasks.output");
     expect(screen.getByTestId("value").textContent).not.toContain("{{");
   });
+
+  it("Should replace through an existing template close delimiter", () => {
+    render(<Harness initial="post {{ .inp }}" />);
+    const input = screen.getByTestId("ref") as HTMLInputElement;
+    input.setSelectionRange("post {{ .inp".length, "post {{ .inp".length);
+    fireEvent.click(input);
+    fireEvent.mouseDown(screen.getByText("inputs.slug"));
+    expect(screen.getByTestId("value")).toHaveTextContent("post {{ .inputs.slug }}");
+    expect(screen.getByTestId("value").textContent).not.toContain("}} }}");
+  });
+
+  it("Should move suggestions from the input with arrow keys and accept with Enter", () => {
+    render(<Harness />);
+    const input = screen.getByTestId("ref") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "post {{ ." } });
+    input.setSelectionRange(input.value.length, input.value.length);
+    fireEvent.keyUp(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByText("nodes.load_tasks.output").closest("button")).toHaveAttribute(
+      "data-active",
+      "true"
+    );
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("value")).toHaveTextContent("post {{ .nodes.load_tasks.output }}");
+  });
 });

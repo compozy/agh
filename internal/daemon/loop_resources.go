@@ -39,6 +39,8 @@ type loopSourceSyncer struct {
 	providers []loopDeclarationProvider
 }
 
+var _ loopResourcePublisher = (*loopSourceSyncer)(nil)
+
 func newLoopProjector(
 	catalog *resourceCatalog[looppkg.ResourceSpec],
 ) resources.TypedProjector[looppkg.ResourceSpec] {
@@ -264,7 +266,7 @@ func daemonLoopDeclarationProvider(
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		var desired []loopPublicationInput
 
-		global, err := scanLoopResourceDir(homePaths.LoopsDir, looppkg.SourceUser)
+		global, err := scanLoopResourceDir(ctx, homePaths.LoopsDir, looppkg.SourceUser)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: discover global loops: %w", err)
 		}
@@ -289,7 +291,7 @@ func daemonLoopDeclarationProvider(
 					continue
 				}
 				source := loopSourceForDiscoveryRoot(root.Source)
-				loops, err := scanLoopResourceDir(root.LoopsDir(), source)
+				loops, err := scanLoopResourceDir(ctx, root.LoopsDir(), source)
 				if err != nil {
 					return nil, fmt.Errorf("daemon: discover workspace %q loops: %w", scope.ID, err)
 				}

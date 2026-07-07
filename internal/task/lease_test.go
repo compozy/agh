@@ -128,51 +128,76 @@ func TestClaimCriteriaValidationAndTokenHelpers(t *testing.T) {
 func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 	t.Parallel()
 
-	result := ClaimResult{
-		Task: Task{
-			Metadata: json.RawMessage(`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw","keep":true}}`),
-		},
-		Run: Run{
-			Metadata: json.RawMessage(`{"claim_token":"run-raw","items":[{"claim_token":"item-raw","ok":true}]}`),
-			Result:   json.RawMessage(`{"claim_token":"result-raw","ok":true}`),
-		},
-		CoordinationChannel: &CoordinationChannelMetadata{
-			ID:                  " coord.core ",
-			AllowedMessageKinds: []string{"status", "status", " reply "},
-		},
-	}
+	t.Run("Should redact raw claim token fields", func(t *testing.T) {
+		t.Parallel()
 
-	claimResultWithoutRawTokenInMetadata(&result)
-	for label, raw := range map[string]json.RawMessage{
-		"task metadata": result.Task.Metadata,
-		"run metadata":  result.Run.Metadata,
-		"run result":    result.Run.Result,
-	} {
-		if strings.Contains(strings.ToLower(string(raw)), "claim_token") {
-			t.Fatalf("%s still contains raw claim_token field: %s", label, raw)
+		result := ClaimResult{
+			Task: Task{
+				Metadata: json.RawMessage(
+					`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw","keep":true}}`,
+				),
+			},
+			Run: Run{
+				Metadata: json.RawMessage(`{"claim_token":"run-raw","items":[{"claim_token":"item-raw","ok":true}]}`),
+				Result:   json.RawMessage(`{"claim_token":"result-raw","ok":true}`),
+			},
+			CoordinationChannel: &CoordinationChannelMetadata{
+				ID:                  " coord.core ",
+				AllowedMessageKinds: []string{"status", "status", " reply "},
+			},
 		}
-	}
-	if result.CoordinationChannel == nil {
-		t.Fatal("CoordinationChannel = nil, want sanitized metadata")
-	}
-	if got, want := result.CoordinationChannel.ID, "coord.core"; got != want {
-		t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
-	}
-	if got, want := result.CoordinationChannel.DisplayName, "coord.core"; got != want {
-		t.Fatalf("CoordinationChannel.DisplayName = %q, want %q", got, want)
-	}
-	if got, want := result.CoordinationChannel.AllowedMessageKinds, []string{
-		"status",
-		"reply",
-	}; len(
-		got,
-	) != len(
-		want,
-	) ||
-		got[0] != want[0] ||
-		got[1] != want[1] {
-		t.Fatalf("AllowedMessageKinds = %#v, want %#v", got, want)
-	}
+
+		claimResultWithoutRawTokenInMetadata(&result)
+		for label, raw := range map[string]json.RawMessage{
+			"task metadata": result.Task.Metadata,
+			"run metadata":  result.Run.Metadata,
+			"run result":    result.Run.Result,
+		} {
+			if strings.Contains(strings.ToLower(string(raw)), "claim_token") {
+				t.Fatalf("%s still contains raw claim_token field: %s", label, raw)
+			}
+		}
+		if result.CoordinationChannel == nil {
+			t.Fatal("CoordinationChannel = nil, want sanitized metadata")
+		}
+		if got, want := result.CoordinationChannel.ID, "coord.core"; got != want {
+			t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
+		}
+		if got, want := result.CoordinationChannel.DisplayName, "coord.core"; got != want {
+			t.Fatalf("CoordinationChannel.DisplayName = %q, want %q", got, want)
+		}
+		if got, want := result.CoordinationChannel.AllowedMessageKinds, []string{
+			"status",
+			"reply",
+		}; len(
+			got,
+		) != len(
+			want,
+		) ||
+			got[0] != want[0] ||
+			got[1] != want[1] {
+			t.Fatalf("AllowedMessageKinds = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should drop over-depth metadata before leaking raw claim tokens", func(t *testing.T) {
+		t.Parallel()
+
+		nested := any(map[string]any{"claim_token": "too-deep"})
+		for range maxClaimTokenMetadataRedactionDepth + 2 {
+			nested = map[string]any{"nested": nested}
+		}
+		raw, err := json.Marshal(nested)
+		if err != nil {
+			t.Fatalf("json.Marshal(over-depth metadata) error = %v", err)
+		}
+		result := ClaimResult{Task: Task{Metadata: raw}}
+
+		claimResultWithoutRawTokenInMetadata(&result)
+		if result.Task.Metadata != nil {
+			t.Fatalf("Task.Metadata = %s, want nil over-depth redaction", result.Task.Metadata)
+		}
+	})
 }
 
 func TestManagerLookupActiveRunForSessionRejectsUnsafeLeases(t *testing.T) {

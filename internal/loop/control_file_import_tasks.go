@@ -106,7 +106,7 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 			Path:    taskFile.Path,
 			Body:    taskFile.Body,
 			BodyRef: OutputRefForPayload([]byte(taskFile.Body)),
-			Blocks:  blocksByTarget[taskFile.ID],
+			Blocks:  compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
 		})
 	}
 	return markdownTasksImportResult{Tasks: payloads}, nil

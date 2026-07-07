@@ -80,35 +80,8 @@ func ResolveStartBinding(
 	name string,
 	kind dsl.StartKind,
 ) (*dsl.StartBinding, error) {
-	if resolver == nil {
-		return nil, fmt.Errorf("%w: loop definition resolver is required", ErrValidation)
-	}
-	normalizedKind, err := normalizeStartKind(kind)
-	if err != nil {
-		return nil, err
-	}
-	trimmedName, err := normalizeLoopName(name)
-	if err != nil {
-		return nil, err
-	}
-	resolved, err := resolver.ResolveLoop(ctx, ws, trimmedName)
-	if err != nil {
-		return nil, err
-	}
-	if resolved == nil {
-		return nil, fmt.Errorf("%w: loop definition %q resolved empty", ErrValidation, trimmedName)
-	}
-	for idx := range resolved.Definition.Start {
-		binding := &resolved.Definition.Start[idx]
-		if binding.Kind == normalizedKind {
-			return binding, nil
-		}
-	}
-	return nil, reasonError(
-		ReasonCodeStartKindNotAllowed,
-		fmt.Errorf("%w: loop %q does not declare start kind %q", ErrValidation, trimmedName, normalizedKind),
-		map[string]string{startLoopMetaKey: trimmedName, actionKindMetaKey: string(normalizedKind)},
-	)
+	_, binding, err := resolveStartBindingAndDefinition(ctx, resolver, ws, name, kind)
+	return binding, err
 }
 
 // ValidateStartTarget checks the allowlist and the target input keys/templates without firing a loop.
@@ -194,30 +167,42 @@ func resolveStartTargetDefinition(
 	name string,
 	kind dsl.StartKind,
 ) (*ResolvedDefinition, error) {
+	resolved, _, err := resolveStartBindingAndDefinition(ctx, resolver, ws, name, kind)
+	return resolved, err
+}
+
+func resolveStartBindingAndDefinition(
+	ctx context.Context,
+	resolver DefinitionResolver,
+	ws WorkspaceID,
+	name string,
+	kind dsl.StartKind,
+) (*ResolvedDefinition, *dsl.StartBinding, error) {
 	if resolver == nil {
-		return nil, fmt.Errorf("%w: loop definition resolver is required", ErrValidation)
+		return nil, nil, fmt.Errorf("%w: loop definition resolver is required", ErrValidation)
 	}
 	normalizedKind, err := normalizeStartKind(kind)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	trimmedName, err := normalizeLoopName(name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	resolved, err := resolver.ResolveLoop(ctx, ws, trimmedName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if resolved == nil {
-		return nil, fmt.Errorf("%w: loop definition %q resolved empty", ErrValidation, trimmedName)
+		return nil, nil, fmt.Errorf("%w: loop definition %q resolved empty", ErrValidation, trimmedName)
 	}
-	for _, binding := range resolved.Definition.Start {
+	for idx := range resolved.Definition.Start {
+		binding := &resolved.Definition.Start[idx]
 		if binding.Kind == normalizedKind {
-			return resolved, nil
+			return resolved, binding, nil
 		}
 	}
-	return nil, reasonError(
+	return nil, nil, reasonError(
 		ReasonCodeStartKindNotAllowed,
 		fmt.Errorf("%w: loop %q does not declare start kind %q", ErrValidation, trimmedName, normalizedKind),
 		map[string]string{startLoopMetaKey: trimmedName, actionKindMetaKey: string(normalizedKind)},

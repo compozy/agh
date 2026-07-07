@@ -170,7 +170,7 @@ func newLoopCoordinatorRunner(
 	watchPoller watchpkg.Poller,
 	gateEvaluator gate.GateEvaluator,
 	actions *looppkg.ActionRegistry,
-	schemaSource looppkg.ToolSchemaSource,
+	compilerFactory func(context.Context) *looppkg.Compiler,
 	homePaths aghconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
@@ -200,8 +200,8 @@ func newLoopCoordinatorRunner(
 		return nil, nil
 	}
 	resolver := &daemonLoopDefinitionResolver{
-		catalog:  catalog,
-		compiler: newLoopCompilerWithSchemaSource(schemaSource),
+		catalog:         catalog,
+		compilerFactory: compilerFactory,
 	}
 	options := []looppkg.CoordinatorRunnerOption{
 		looppkg.WithCoordinatorDefaultsResolver(
@@ -285,7 +285,7 @@ func newBootLoopCoordinatorRunner(
 		daemonExtensionWatchPoller{runtime: state.currentExtensionRuntime},
 		gateEvaluator,
 		actions,
-		newLoopToolSchemaSource(toolRegistry),
+		newLoopCompilerFactory(toolRegistry),
 		homePaths,
 		workspaceResolver,
 		state.logger,
@@ -295,6 +295,8 @@ func newBootLoopCoordinatorRunner(
 type daemonExtensionWatchPoller struct {
 	runtime func() extensionRuntime
 }
+
+var _ watchpkg.Poller = daemonExtensionWatchPoller{}
 
 func (p daemonExtensionWatchPoller) Poll(
 	ctx context.Context,
@@ -318,16 +320,18 @@ func (p daemonExtensionWatchPoller) Poll(
 }
 
 type daemonLoopDefinitionResolver struct {
-	catalog  *resourceCatalog[looppkg.ResourceSpec]
-	compiler *looppkg.Compiler
+	catalog         *resourceCatalog[looppkg.ResourceSpec]
+	compilerFactory func(context.Context) *looppkg.Compiler
 }
 
+var _ looppkg.DefinitionResolver = (*daemonLoopDefinitionResolver)(nil)
+
 func (r *daemonLoopDefinitionResolver) ResolveLoop(
-	_ context.Context,
+	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	name string,
 ) (*looppkg.ResolvedDefinition, error) {
-	if r == nil || r.catalog == nil || r.compiler == nil {
+	if r == nil || r.catalog == nil || r.compilerFactory == nil {
 		return nil, fmt.Errorf(
 			"%w: loop definition resolver is not initialized",
 			looppkg.ErrValidation,
@@ -346,7 +350,7 @@ func (r *daemonLoopDefinitionResolver) ResolveLoop(
 		if err != nil {
 			return nil, err
 		}
-		return r.compiler.Compile(definition)
+		return r.compilerFactory(ctx).Compile(definition)
 	}
 	return nil, fmt.Errorf("%w: loop definition %q not found", looppkg.ErrValidation, trimmedName)
 }

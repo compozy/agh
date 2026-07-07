@@ -65,7 +65,7 @@ export function useLoopRunForm({ workspaceId, loop, onRunStarted }: UseLoopRunFo
 
   function handleDryRun() {
     setSubmitAttempted(true);
-    if (!valid) return;
+    if (!valid || busy) return;
     dryMutation.mutate(
       { workspaceId, name: loop.name, data: requestBody(), dry: true },
       {
@@ -80,7 +80,7 @@ export function useLoopRunForm({ workspaceId, loop, onRunStarted }: UseLoopRunFo
 
   function handleRun() {
     setSubmitAttempted(true);
-    if (!valid) return;
+    if (!valid || busy) return;
     runMutation.mutate(
       { workspaceId, name: loop.name, data: requestBody(), dry: false },
       {

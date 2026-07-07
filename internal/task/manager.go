@@ -1340,6 +1340,9 @@ func (m *Service) startCoordinatorRun(
 	if err := m.validateCoordinatorRuntime(run.ID, req); err != nil {
 		return nil, err
 	}
+	if !VerifyClaimToken(req.ClaimToken, run.ClaimTokenHash) {
+		return nil, fmt.Errorf("%w: coordinator run %q claim token mismatch", ErrInvalidClaimToken, run.ID)
+	}
 
 	lifecycleCtx := taskRunLifecycleContext(ctx)
 	run.Status = TaskRunStatusStarting

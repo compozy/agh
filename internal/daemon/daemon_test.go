@@ -829,52 +829,56 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 	t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	homePaths := testHomePaths(t)
-	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
-	runtime := &fakeExtensionRuntime{}
-	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-		return runtime
-	}
-	state := &bootState{
-		logger:   discardLogger(),
-		registry: db,
-		sessions: &fakeSessionManager{},
-		observer: &fakeObserver{},
-		hooks:    &fakeHookRuntime{},
-	}
+	t.Run("Should preserve dev-cycle disable and enable state across boots", func(t *testing.T) {
+		t.Parallel()
 
-	if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootExtensions(first) error = %v", err)
-	}
-	extRegistry := extensionpkg.NewRegistry(db.DB())
-	if err := extRegistry.Disable(devcycle.Name); err != nil {
-		t.Fatalf("registry.Disable(%s) error = %v", devcycle.Name, err)
-	}
-	if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootExtensions(after disable) error = %v", err)
-	}
-	disabled, err := extRegistry.Get(devcycle.Name)
-	if err != nil {
-		t.Fatalf("registry.Get(%s disabled) error = %v", devcycle.Name, err)
-	}
-	if disabled.Enabled {
-		t.Fatalf("dev-cycle enabled after disabled boot = true, want false")
-	}
+		db := openDaemonTestGlobalDB(t)
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		runtime := &fakeExtensionRuntime{}
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return runtime
+		}
+		state := &bootState{
+			logger:   discardLogger(),
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			hooks:    &fakeHookRuntime{},
+		}
 
-	if err := extRegistry.Enable(devcycle.Name); err != nil {
-		t.Fatalf("registry.Enable(%s) error = %v", devcycle.Name, err)
-	}
-	if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootExtensions(after enable) error = %v", err)
-	}
-	enabled, err := extRegistry.Get(devcycle.Name)
-	if err != nil {
-		t.Fatalf("registry.Get(%s enabled) error = %v", devcycle.Name, err)
-	}
-	if !enabled.Enabled {
-		t.Fatalf("dev-cycle enabled after enable boot = false, want true")
-	}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(first) error = %v", err)
+		}
+		extRegistry := extensionpkg.NewRegistry(db.DB())
+		if err := extRegistry.Disable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Disable(%s) error = %v", devcycle.Name, err)
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(after disable) error = %v", err)
+		}
+		disabled, err := extRegistry.Get(devcycle.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%s disabled) error = %v", devcycle.Name, err)
+		}
+		if disabled.Enabled {
+			t.Fatalf("dev-cycle enabled after disabled boot = true, want false")
+		}
+
+		if err := extRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%s) error = %v", devcycle.Name, err)
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(after enable) error = %v", err)
+		}
+		enabled, err := extRegistry.Get(devcycle.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%s enabled) error = %v", devcycle.Name, err)
+		}
+		if !enabled.Enabled {
+			t.Fatalf("dev-cycle enabled after enable boot = false, want true")
+		}
+	})
 }
 
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {

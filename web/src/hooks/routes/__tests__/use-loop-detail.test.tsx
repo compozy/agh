@@ -1,0 +1,87 @@
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  mutateAsync: vi.fn(),
+  navigate: vi.fn(),
+  toastError: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useChildMatches: () => [],
+  useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: vi.fn(), canGoBack: () => false } }),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: mocks.toastError },
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_default" }),
+}));
+
+vi.mock("@/systems/loops", () => {
+  class LoopsApiError extends Error {
+    status: number;
+
+    constructor(message: string, status: number) {
+      super(message);
+      this.status = status;
+    }
+  }
+
+  return {
+    LoopsApiError,
+    readLoopGraph: vi.fn(),
+    useCreateLoop: () => ({ isPending: false, mutateAsync: mocks.mutateAsync }),
+    useLoop: () => ({ data: { source: "marketplace" } }),
+    useLoopRuns: () => ({ data: [] }),
+    useLoops: () => ({ data: [] }),
+  };
+});
+
+vi.mock("../use-loop-bindings", () => ({
+  useLoopBindings: () => ({ rows: [], isLoading: false }),
+}));
+
+const { useLoopDetail } = await import("../use-loop-detail");
+const { LoopsApiError } = await import("@/systems/loops");
+
+describe("useLoopDetail", () => {
+  beforeEach(() => {
+    mocks.mutateAsync.mockReset();
+    mocks.navigate.mockReset();
+    mocks.toastError.mockReset();
+  });
+
+  it("Should surface non-conflict fork failures instead of navigating silently", async () => {
+    mocks.mutateAsync.mockRejectedValue(new Error("daemon unavailable"));
+    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+
+    await act(async () => {
+      await result.current.handlers.onFork();
+    });
+
+    expect(mocks.toastError).toHaveBeenCalledWith("daemon unavailable");
+    expect(mocks.navigate).not.toHaveBeenCalledWith({
+      to: "/loops/$name/editor",
+      params: { name: "reviews-watch" },
+    });
+  });
+
+  it("Should tolerate an existing workspace fork and navigate to the editor", async () => {
+    mocks.mutateAsync.mockRejectedValue(new LoopsApiError("Loop already exists", 409));
+    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+
+    await act(async () => {
+      await result.current.handlers.onFork();
+    });
+
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/loops/$name/editor",
+      params: { name: "reviews-watch" },
+    });
+  });
+});

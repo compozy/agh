@@ -106,4 +106,10 @@ describe("LoopDetailView", () => {
     expect(onConfigure).toHaveBeenCalledTimes(1);
     expect(onFork).toHaveBeenCalledTimes(1);
   });
+
+  it("Should render the version without an unowned publish-state suffix", () => {
+    renderDetail();
+    expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/published/i)).not.toBeInTheDocument();
+  });
 });

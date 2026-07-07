@@ -1394,14 +1394,14 @@ func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) 
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("store: begin loop run state schema migration: %w", err)
 	}
-	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(ctx)
+	defer rollbackCancel()
 	finished := false
 	defer func() {
 		if !finished {
 			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, "loop run state schema migration"))
 		}
 	}()
-
 	if err := addMissingMigrationColumns(ctx, conn, "task_runs", []migrationColumnSpec{
 		{
 			name: "run_kind",

@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/compozy/agh/internal/agentidentity"
@@ -291,7 +290,7 @@ func editLoopDefinition(
 	workspaceID string,
 	name string,
 	editorOverride string,
-) (contract.LoopResponse, error) {
+) (response contract.LoopResponse, err error) {
 	current, err := client.GetLoop(cmd.Context(), workspaceID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
@@ -300,9 +299,28 @@ func editLoopDefinition(
 	if err != nil {
 		return contract.LoopResponse{}, fmt.Errorf("cli: marshal loop definition: %w", err)
 	}
-	tempPath := filepath.Join(os.TempDir(), "agh-loop-"+strings.TrimSpace(name)+".yaml")
-	if err := os.WriteFile(tempPath, body, 0o600); err != nil {
+	tempFile, err := os.CreateTemp("", "agh-loop-*.yaml")
+	if err != nil {
+		return contract.LoopResponse{}, fmt.Errorf("cli: create temp loop definition: %w", err)
+	}
+	tempPath := tempFile.Name()
+	defer func() {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) && err == nil {
+			err = fmt.Errorf("cli: remove temp loop definition: %w", removeErr)
+		}
+	}()
+	if _, err := tempFile.Write(body); err != nil {
+		closeErr := tempFile.Close()
+		if closeErr != nil {
+			return contract.LoopResponse{}, errors.Join(
+				fmt.Errorf("cli: write temp loop definition: %w", err),
+				fmt.Errorf("cli: close temp loop definition: %w", closeErr),
+			)
+		}
 		return contract.LoopResponse{}, fmt.Errorf("cli: write temp loop definition: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return contract.LoopResponse{}, fmt.Errorf("cli: close temp loop definition: %w", err)
 	}
 	editor, err := loopEditorCommand(deps, editorOverride)
 	if err != nil {

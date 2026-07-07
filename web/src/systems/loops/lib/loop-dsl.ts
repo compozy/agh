@@ -42,6 +42,13 @@ function scalar(value: unknown): string {
   return String(value);
 }
 
+function emitMultilineString(value: string, indent: number, lines: string[]): void {
+  const pad = "  ".repeat(indent);
+  for (const line of value.split("\n")) {
+    lines.push(`${pad}${line}`);
+  }
+}
+
 function emit(value: unknown, indent: number, lines: string[]): void {
   const pad = "  ".repeat(indent);
   if (isPlainObject(value)) {
@@ -55,6 +62,9 @@ function emit(value: unknown, indent: number, lines: string[]): void {
       } else if (Array.isArray(child) && child.length > 0) {
         lines.push(`${pad}${key}:`);
         emit(child, indent + 1, lines);
+      } else if (typeof child === "string" && child.includes("\n")) {
+        lines.push(`${pad}${key}: |`);
+        emitMultilineString(child, indent + 1, lines);
       } else {
         lines.push(`${pad}${key}: ${scalar(child)}`);
       }
@@ -70,6 +80,9 @@ function emit(value: unknown, indent: number, lines: string[]): void {
         // an inline `- key: …` would put the first key at a different column.
         lines.push(`${pad}-`);
         emit(item, indent + 1, lines);
+      } else if (typeof item === "string" && item.includes("\n")) {
+        lines.push(`${pad}- |`);
+        emitMultilineString(item, indent + 1, lines);
       } else {
         lines.push(`${pad}- ${scalar(item)}`);
       }

@@ -39,15 +39,18 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 	if r.reentry != nil {
 		r.reentry.shutdown()
 	}
+	var shutdownErr error
 	if r.loopActions != nil {
 		if err := r.loopActions.shutdown(ctx); err != nil {
-			return err
+			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
 	if r.wakeBridge != nil {
-		return r.wakeBridge.shutdown(ctx)
+		if err := r.wakeBridge.shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
 	}
-	return nil
+	return shutdownErr
 }
 
 func recoverTaskRunsOnBoot(

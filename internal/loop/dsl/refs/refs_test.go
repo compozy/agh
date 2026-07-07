@@ -3,6 +3,7 @@ package refs_test
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/loop/dsl/refs"
@@ -158,74 +159,89 @@ func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {
 func TestReferencesShouldUseSameNamespaceForTemplateAndCEL(t *testing.T) {
 	t.Parallel()
 
-	ns := namespace(false)
-	tmpl, err := refs.CompileTemplate("template", `{{ .nodes.load.output.tasks }}`, ns)
-	if err != nil {
-		t.Fatalf("CompileTemplate() error = %v", err)
-	}
-	compiler, err := refs.NewConditionCompiler(ns)
-	if err != nil {
-		t.Fatalf("NewConditionCompiler() error = %v", err)
-	}
-	condition, err := compiler.Compile(`nodes.load.output.tasks != null`)
-	if err != nil {
-		t.Fatalf("Compile() error = %v", err)
-	}
-	if got, want := pathString(tmpl.References[0].Path), pathString(condition.References[0].Path); got != want {
-		t.Fatalf("template path = %q, CEL path = %q", got, want)
-	}
+	t.Run("Should use same namespace for template and CEL", func(t *testing.T) {
+		t.Parallel()
+
+		ns := namespace(false)
+		tmpl, err := refs.CompileTemplate("template", `{{ .nodes.load.output.tasks }}`, ns)
+		if err != nil {
+			t.Fatalf("CompileTemplate() error = %v", err)
+		}
+		compiler, err := refs.NewConditionCompiler(ns)
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		condition, err := compiler.Compile(`nodes.load.output.tasks != null`)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if got, want := pathString(tmpl.References[0].Path), pathString(condition.References[0].Path); got != want {
+			t.Fatalf("template path = %q, CEL path = %q", got, want)
+		}
+	})
 }
 
 func TestTemplateShouldExecuteCuratedFunctionsAndStructuredActions(t *testing.T) {
 	t.Parallel()
 
-	compiled, err := refs.CompileTemplate(
-		"exec",
-		`{{ if .inputs.slug }}{{ default "fallback" .inputs.empty }}{{ end }}|{{ join "," .inputs.tags }}|{{ range .nodes.load.output.tasks }}{{ .title }}{{ end }}|{{ with .nodes.load.output.tasks }}{{ json . }}{{ end }}`,
-		namespace(false),
-	)
-	if err != nil {
-		t.Fatalf("CompileTemplate() error = %v", err)
-	}
+	t.Run("Should execute curated functions and structured actions", func(t *testing.T) {
+		t.Parallel()
 
-	var out bytes.Buffer
-	err = compiled.Parsed.Execute(&out, map[string]any{
-		"inputs": map[string]any{
-			"slug":  "present",
-			"empty": "",
-			"tags":  []string{"one", "two"},
-		},
-		"nodes": map[string]any{
-			"load": map[string]any{
-				"output": map[string]any{
-					"tasks": []map[string]any{{"title": "Task A"}},
+		compiled, err := refs.CompileTemplate(
+			"exec",
+			`{{ if .inputs.slug }}{{ default "fallback" .inputs.empty }}{{ end }}|{{ join "," .inputs.tags }}|{{ range .nodes.load.output.tasks }}{{ .title }}{{ end }}|{{ with .nodes.load.output.tasks }}{{ json . }}{{ end }}`,
+			namespace(false),
+		)
+		if err != nil {
+			t.Fatalf("CompileTemplate() error = %v", err)
+		}
+
+		var out bytes.Buffer
+		err = compiled.Parsed.Execute(&out, map[string]any{
+			"inputs": map[string]any{
+				"slug":  "present",
+				"empty": "",
+				"tags":  []string{"one", "two"},
+			},
+			"nodes": map[string]any{
+				"load": map[string]any{
+					"output": map[string]any{
+						"tasks": []map[string]any{{"title": "Task A"}},
+					},
 				},
 			},
-		},
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		want := `fallback|one,two|Task A|[{"title":"Task A"}]`
+		if out.String() != want {
+			t.Fatalf("Execute() = %q, want %q", out.String(), want)
+		}
+		if len(compiled.References) < 4 {
+			t.Fatalf("References len = %d, want at least 4", len(compiled.References))
+		}
 	})
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	want := `fallback|one,two|Task A|[{"title":"Task A"}]`
-	if out.String() != want {
-		t.Fatalf("Execute() = %q, want %q", out.String(), want)
-	}
-	if len(compiled.References) < 4 {
-		t.Fatalf("References len = %d, want at least 4", len(compiled.References))
-	}
 }
 
 func TestTemplateShouldRejectUnsupportedTemplateInvocationScopes(t *testing.T) {
 	t.Parallel()
 
-	_, err := refs.CompileTemplate(
-		"template-invocation",
-		`{{ define "partial" }}x{{ end }}{{ template "partial" .inputs.slug }}`,
-		namespace(false),
-	)
-	if err == nil {
-		t.Fatal("CompileTemplate() error = nil, want unsupported template invocation scope")
-	}
+	t.Run("Should reject unsupported template invocation scopes", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := refs.CompileTemplate(
+			"template-invocation",
+			`{{ define "partial" }}x{{ end }}{{ template "partial" .inputs.slug }}`,
+			namespace(false),
+		)
+		if err == nil {
+			t.Fatal("CompileTemplate() error = nil, want unsupported template invocation scope")
+		}
+		if !strings.Contains(err.Error(), "unsupported template invocation") {
+			t.Fatalf("CompileTemplate() error = %v, want unsupported template invocation scope", err)
+		}
+	})
 }
 
 func TestNamespaceShouldValidateRootsAndSchemaShapes(t *testing.T) {
@@ -316,17 +332,21 @@ func TestNamespaceShouldValidateRootsAndSchemaShapes(t *testing.T) {
 func TestConditionShouldAcceptCustomCostLimit(t *testing.T) {
 	t.Parallel()
 
-	compiler, err := refs.NewConditionCompiler(namespace(false), refs.WithCostLimit(1))
-	if err != nil {
-		t.Fatalf("NewConditionCompiler() error = %v", err)
-	}
-	condition, err := compiler.Compile("true")
-	if err != nil {
-		t.Fatalf("Compile() error = %v", err)
-	}
-	if condition.Program == nil {
-		t.Fatal("Compile().Program is nil")
-	}
+	t.Run("Should accept custom cost limit", func(t *testing.T) {
+		t.Parallel()
+
+		compiler, err := refs.NewConditionCompiler(namespace(false), refs.WithCostLimit(1))
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		condition, err := compiler.Compile("true")
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if condition.Program == nil {
+			t.Fatal("Compile().Program is nil")
+		}
+	})
 }
 
 func namespace(allowFanout bool) refs.Namespace {

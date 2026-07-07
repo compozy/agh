@@ -1,7 +1,7 @@
 import { Eyebrow } from "@agh/ui";
 
 import type { LoopRun } from "../../types";
-import { LoopRunRow } from "./loop-run-row";
+import { LOOP_RUNS_ROW_GRID, LoopRunRow } from "./loop-run-row";
 
 interface LoopRunsTableProps {
   title: string;
@@ -27,7 +27,9 @@ export function LoopRunsTable({ title, runs, testId }: LoopRunsTableProps) {
         <span className="font-mono text-[11px] tabular-nums text-faint">{runs.length}</span>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        <div className="grid grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_128px_16px] gap-3.5 border-b border-line-soft px-4 py-2.5 max-[1140px]:hidden">
+        <div
+          className={`grid ${LOOP_RUNS_ROW_GRID} gap-3.5 border-b border-line-soft px-4 py-2.5 max-[1140px]:hidden`}
+        >
           {COLUMNS.map(column => (
             <Eyebrow key={column} className="text-faint">
               {column}

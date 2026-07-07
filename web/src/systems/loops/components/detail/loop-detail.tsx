@@ -69,7 +69,7 @@ export function LoopDetailView({
               {sourceLabel}
             </Pill>
             <Pill size="xs" tone="neutral">
-              v{loop.version} · published
+              v{loop.version}
             </Pill>
           </>
         }

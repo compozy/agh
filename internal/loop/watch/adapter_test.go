@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -128,6 +129,25 @@ func TestAdapterTick(t *testing.T) {
 			t.Fatalf("Tick() error = %v, want provider down", err)
 		}
 	})
+
+	t.Run("Should reject malformed specs distinctly from missing specs", func(t *testing.T) {
+		t.Parallel()
+
+		adapter, err := NewAdapter(PollerFunc(func(context.Context, PollRequest) (PollResponse, error) {
+			return PollResponse{}, errors.New("poller should not be called")
+		}))
+		if err != nil {
+			t.Fatalf("NewAdapter() error = %v", err)
+		}
+
+		if _, err := adapter.Tick(context.Background(), TickRequest{}); !errors.Is(err, ErrSpecRequired) {
+			t.Fatalf("Tick(empty spec) error = %v, want ErrSpecRequired", err)
+		}
+		_, err = adapter.Tick(context.Background(), TickRequest{Spec: json.RawMessage(`{`)})
+		if !errors.Is(err, ErrSpecInvalid) {
+			t.Fatalf("Tick(malformed spec) error = %v, want ErrSpecInvalid", err)
+		}
+	})
 }
 
 func TestOutputRef(t *testing.T) {
@@ -168,6 +188,8 @@ func TestOutputRef(t *testing.T) {
 
 		if _, err := ExpectedStateDigestFromOutputRef("sha256:other"); err == nil {
 			t.Fatal("ExpectedStateDigestFromOutputRef(corrupt) error = nil, want error")
+		} else if !strings.Contains(err.Error(), "output ref") {
+			t.Fatalf("ExpectedStateDigestFromOutputRef(corrupt) error = %v, want output ref parse error", err)
 		}
 	})
 }

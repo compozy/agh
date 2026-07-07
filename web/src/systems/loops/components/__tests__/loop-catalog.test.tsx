@@ -83,4 +83,15 @@ describe("LoopCatalog", () => {
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onRun.mock.calls[0][0].name).toBe("software-delivery");
   });
+
+  it("Should keep the inline Run button outside the detail link", () => {
+    render(<Harness onRun={() => {}} />);
+    const deliveryRow = screen
+      .getByText("software-delivery")
+      .closest("[data-testid='loop-catalog-row']");
+    const row = deliveryRow as HTMLElement;
+    const link = within(row).getByRole("link", { name: "Open software-delivery" });
+    const runButton = within(row).getByTestId("loop-catalog-run");
+    expect(link).not.toContainElement(runButton);
+  });
 });

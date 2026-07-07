@@ -10,21 +10,30 @@ import { loopDetailByName } from "../../mocks/fixtures";
 
 const WS = "ws_default";
 const loop = loopDetailByName.get("software-delivery")!;
+const watchLoop = loopDetailByName.get("reviews-watch")!;
 
-function renderForm(onRunStarted = vi.fn()) {
+function stubFetch() {
+  const mswFetch = createMswFetch(() => handlers);
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => mswFetch(input, init));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+let fetchMock: ReturnType<typeof stubFetch>;
+
+function renderForm(onRunStarted = vi.fn(), selectedLoop = loop) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-  render(<LoopRunForm workspaceId={WS} loop={loop} onRunStarted={onRunStarted} />, { wrapper });
+  render(<LoopRunForm workspaceId={WS} loop={selectedLoop} onRunStarted={onRunStarted} />, {
+    wrapper,
+  });
   return { onRunStarted };
 }
 
 describe("LoopRunForm", () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      createMswFetch(() => handlers)
-    );
+    fetchMock = stubFetch();
   });
 
   afterEach(() => {
@@ -74,5 +83,27 @@ describe("LoopRunForm", () => {
     });
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
+  });
+
+  it("Should start a run for the selected Loop, not the fixture default", async () => {
+    const { onRunStarted } = renderForm(vi.fn(), watchLoop);
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_watching"));
+  });
+
+  it("Should ignore a second run submit while the first run mutation is pending", async () => {
+    const { onRunStarted } = renderForm();
+    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
+      target: { value: "ship it" },
+    });
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(onRunStarted).toHaveBeenCalledTimes(1));
+    const runRequests = fetchMock.mock.calls.filter(call => {
+      const input = call[0];
+      const url = input instanceof Request ? input.url : String(input);
+      return url.includes(`/api/workspaces/${WS}/loops/software-delivery/run`);
+    });
+    expect(runRequests).toHaveLength(1);
   });
 });

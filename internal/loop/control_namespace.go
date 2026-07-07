@@ -1,8 +1,11 @@
 package loop
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 
@@ -121,7 +124,7 @@ func outputValue(ref string) any {
 		return nil
 	}
 	var value any
-	if err := json.Unmarshal([]byte(trimmed), &value); err == nil {
+	if err := decodeSingleJSONValue(strings.NewReader(trimmed), &value); err == nil {
 		return value
 	}
 	return trimmed
@@ -160,10 +163,26 @@ func collectionItems(value any) ([]any, error) {
 
 func collectionItemsFromJSON(data []byte) ([]any, error) {
 	var items []any
-	if err := json.Unmarshal(data, &items); err != nil {
+	if err := decodeSingleJSONValue(bytes.NewReader(data), &items); err != nil {
 		return nil, fmt.Errorf("%w: decode fan-out collection: %w", ErrValidation, err)
 	}
 	return items, nil
+}
+
+func decodeSingleJSONValue(reader io.Reader, target any) error {
+	decoder := json.NewDecoder(reader)
+	decoder.UseNumber()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+	return fmt.Errorf("unexpected trailing JSON value")
 }
 
 func cloneAnyMap(values map[string]any) map[string]any {

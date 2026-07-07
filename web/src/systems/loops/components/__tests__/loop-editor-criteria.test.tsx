@@ -45,4 +45,24 @@ describe("LoopEditorCriteria", () => {
     fireEvent.click(screen.getByRole("button", { name: /Remove criterion/i }));
     expect(JSON.parse(screen.getByTestId("json").textContent || "x")).toEqual([]);
   });
+
+  it("Should allocate the next generated id after the highest existing criterion suffix", () => {
+    render(
+      <Harness
+        initial={[
+          { id: "criterion_1", type: "command" },
+          { id: "criterion_2", type: "command" },
+          { id: "criterion_3", type: "command" },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove criterion criterion_1" }));
+    fireEvent.click(screen.getByTestId("loop-editor-criteria-add"));
+    const json = JSON.parse(screen.getByTestId("json").textContent || "[]");
+    expect(json.map((criterion: { id: string }) => criterion.id)).toEqual([
+      "criterion_2",
+      "criterion_3",
+      "criterion_4",
+    ]);
+  });
 });

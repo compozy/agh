@@ -111,6 +111,12 @@ func compozyTaskBlocksByTarget(edges []compozyTaskGraphEdge) map[string][]string
 	return blocks
 }
 
+func compozyTaskBlocksForTarget(blocksByTarget map[string][]string, id string) []string {
+	blocks := blocksByTarget[id]
+	copied := make([]string, 0, len(blocks))
+	return append(copied, blocks...)
+}
+
 func taskNumberFromTaskFile(file string) int {
 	matches := taskFileNamePattern.FindStringSubmatch(pathBaseSlash(file))
 	if len(matches) != 2 {

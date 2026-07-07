@@ -69,8 +69,8 @@ func ensureWritableLoopSource(spec looppkg.ResourceSpec) error {
 	return nil
 }
 
-func (s *daemonLoopAPIService) compileForPublish(def dsl.Definition) error {
-	compiler := newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(s.toolRegistry))
+func (s *daemonLoopAPIService) compileForPublish(ctx context.Context, def dsl.Definition) error {
+	compiler := newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry))
 	if _, err := compiler.Compile(def); err != nil {
 		if lint, ok := errors.AsType[*looppkg.LintFailedError](err); ok {
 			return &core.LoopLintFailedError{Errors: loopLintErrorsPayload(lint.Errors)}
@@ -93,7 +93,7 @@ func (s *daemonLoopAPIService) writeDefinition(
 	_, path, err := looppkg.WriteDefinition(root, data, looppkg.WriteDefinitionOptions{
 		Source:    looppkg.SourceWorkspace,
 		Overwrite: overwrite,
-		Linter:    newLoopLinterWithSchemaSource(newLoopToolSchemaSource(s.toolRegistry)),
+		Linter:    newLoopLinterWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry)),
 	})
 	if err != nil {
 		if lint, ok := errors.AsType[*looppkg.LintFailedError](err); ok {
@@ -176,18 +176,19 @@ func (s *daemonLoopAPIService) upsertPublishedLoopRecord(record resources.Record
 	scope := record.Scope.Normalize()
 	name := strings.TrimSpace(record.Spec.Name)
 	source := record.Spec.Source.Normalize()
-	snapshot := s.catalog.Snapshot()
-	records := make([]resources.Record[looppkg.ResourceSpec], 0, len(snapshot)+1)
-	for _, existing := range snapshot {
-		existingScope := existing.Scope.Normalize()
-		if existingScope.Kind == scope.Kind &&
-			existingScope.ID == scope.ID &&
-			strings.TrimSpace(existing.Spec.Name) == name &&
-			existing.Spec.Source.Normalize() == source {
-			continue
+	s.catalog.Update(func(snapshot []resources.Record[looppkg.ResourceSpec]) []resources.Record[looppkg.ResourceSpec] {
+		records := make([]resources.Record[looppkg.ResourceSpec], 0, len(snapshot)+1)
+		for _, existing := range snapshot {
+			existingScope := existing.Scope.Normalize()
+			if existingScope.Kind == scope.Kind &&
+				existingScope.ID == scope.ID &&
+				strings.TrimSpace(existing.Spec.Name) == name &&
+				existing.Spec.Source.Normalize() == source {
+				continue
+			}
+			records = append(records, existing)
 		}
-		records = append(records, existing)
-	}
-	records = append(records, record)
-	s.catalog.Replace(s.catalog.Revision()+1, records)
+		records = append(records, record)
+		return records
+	})
 }

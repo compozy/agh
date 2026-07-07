@@ -56,6 +56,7 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		return err
 	}
 	for _, output := range payload.Outputs {
+		output = output.normalized()
 		if err := output.validate(); err != nil {
 			return err
 		}
@@ -88,6 +89,12 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		}
 	}
 	return nil
+}
+
+func (o GenerationOutput) normalized() GenerationOutput {
+	o.NodeID = strings.TrimSpace(o.NodeID)
+	o.Status = strings.TrimSpace(o.Status)
+	return o
 }
 
 func normalizeGenerationSnapshotPayload(value any) (GenerationSnapshotPayload, error) {

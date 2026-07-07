@@ -167,7 +167,7 @@ func (w *loopWatcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Sn
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		paths, err := scanLoopWatcherRoot(root)
+		paths, err := scanLoopWatcherRoot(ctx, root)
 		if err != nil {
 			return nil, fmt.Errorf("loops: scan watcher root %q: %w", root, err)
 		}
@@ -199,7 +199,10 @@ func (w *loopWatcher) currentRoots(ctx context.Context) ([]string, error) {
 	return normalizeLoopWatcherRoots(roots), nil
 }
 
-func scanLoopWatcherRoot(root string) ([]string, error) {
+func scanLoopWatcherRoot(ctx context.Context, root string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	trimmed := strings.TrimSpace(root)
 	if trimmed == "" {
 		return nil, nil
@@ -212,6 +215,9 @@ func scanLoopWatcherRoot(root string) ([]string, error) {
 	}
 	paths := make([]string, 0)
 	if err := filepath.WalkDir(trimmed, func(path string, entry fs.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			return walkErr
 		}

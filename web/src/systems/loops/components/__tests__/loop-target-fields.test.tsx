@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const loopsState = vi.hoisted(() => ({
+  current: {
+    data: [] as unknown[] | undefined,
+    isError: false,
+    isLoading: false,
+  },
+}));
 
 vi.mock("../../hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-  return { useLoops: () => ({ data: loopCatalogFixtures, isLoading: false }) };
+  loopsState.current = { data: loopCatalogFixtures, isError: false, isLoading: false };
+  return { useLoops: () => loopsState.current };
 });
 
 const { LoopTargetFields } = await import("../target/loop-target-fields");
@@ -28,6 +36,11 @@ function Harness({ showMapping }: { showMapping?: boolean }) {
 }
 
 describe("LoopTargetFields", () => {
+  beforeEach(async () => {
+    const { loopCatalogFixtures } = await import("../../mocks/fixtures");
+    loopsState.current = { data: loopCatalogFixtures, isError: false, isLoading: false };
+  });
+
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
     render(<Harness />);
     const select = screen.getByTestId("loop-target-select");
@@ -66,5 +79,12 @@ describe("LoopTargetFields", () => {
     });
     expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
     expect(screen.getByTestId("loop-mapping-field-goal")).toBeInTheDocument();
+  });
+
+  it("Should render a load error instead of the empty workspace copy", () => {
+    loopsState.current = { data: undefined, isError: true, isLoading: false };
+    render(<Harness />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load Loops");
+    expect(screen.queryByText("No Loops are available in this workspace.")).not.toBeInTheDocument();
   });
 });

@@ -794,7 +794,7 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 			run:  func() error { return TaskRunStatusNeedsAttention.Validate("run.status") },
 		},
 		{
-			name:    "task run status invalid",
+			name:    "Should reject unsupported task run status",
 			run:     func() error { return ParseRunStatus("paused").Validate("run.status") },
 			wantErr: ErrValidation,
 		},
@@ -1021,6 +1021,28 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			wantErr: ErrValidation,
 		},
 		{
+			name: "Should reject unsupported enqueue run kind",
+			run: func() error {
+				return EnqueueRun{
+					TaskID:  "task-1",
+					RunKind: ParseRunKind("agent"),
+				}.Validate("enqueue")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "Should reject unsupported queue reservation run kind",
+			run: func() error {
+				return QueueRunReservation{
+					TaskID:  "task-1",
+					RunID:   "run-1",
+					RunKind: ParseRunKind("agent"),
+					Origin:  Origin{Kind: OriginKindDaemon, Ref: "loop"},
+				}.Validate("reservation")
+			},
+			wantErr: ErrValidation,
+		},
+		{
 			name: "claim run valid",
 			run: func() error {
 				return ClaimRun{}.Validate("claim")
@@ -1080,6 +1102,13 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			run: func() error {
 				return RunQuery{Status: TaskRunStatusRunning, Limit: 2}.Validate("runs")
 			},
+		},
+		{
+			name: "Should reject unsupported task run query status",
+			run: func() error {
+				return RunQuery{Status: ParseRunStatus("paused")}.Validate("runs")
+			},
+			wantErr: ErrValidation,
 		},
 		{
 			name: "task run query invalid",

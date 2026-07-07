@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -111,6 +112,83 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "delivery")
 		if !errors.Is(err, looppkg.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(other workspace) error = %v, want ErrConfigNotFound", err)
+		}
+	})
+
+	t.Run("Should reject empty loop config keys", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		cases := []struct {
+			name     string
+			ws       looppkg.WorkspaceID
+			loopName string
+			want     string
+		}{
+			{name: "Should reject empty workspace", ws: " ", loopName: "delivery", want: "workspace_id is required"},
+			{name: "Should reject empty loop name", ws: "ws-1", loopName: " ", want: "loop_name is required"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := globalDB.UpsertLoopConfig(ctx, tc.ws, tc.loopName, looppkg.LoopConfig{})
+				if !errors.Is(err, looppkg.ErrValidation) {
+					t.Fatalf("UpsertLoopConfig() error = %v, want ErrValidation", err)
+				}
+				if !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("UpsertLoopConfig() error = %v, want %q", err, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve omitted overrides on partial update", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		humanGate := true
+		reattempt := looppkg.ReattemptFullBody
+		workerModel := "stored-worker"
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
+			HumanGateEnabled:  &humanGate,
+			ReattemptStrategy: &reattempt,
+			EnabledChecks:     []byte(`{"command":true}`),
+			BudgetTokens:      new(2000),
+			FanOutWidth:       new(5),
+			ModelDefaults:     &looppkg.ModelDefaults{Worker: &workerModel},
+		}); err != nil {
+			t.Fatalf("UpsertLoopConfig(initial) error = %v", err)
+		}
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
+			BudgetTokens: new(5000),
+		}); err != nil {
+			t.Fatalf("UpsertLoopConfig(partial) error = %v", err)
+		}
+
+		got, err := globalDB.GetLoopConfig(ctx, "ws-1", "delivery")
+		if err != nil {
+			t.Fatalf("GetLoopConfig() error = %v", err)
+		}
+		if got.HumanGateEnabled == nil || !*got.HumanGateEnabled {
+			t.Fatalf("HumanGateEnabled = %#v, want preserved true", got.HumanGateEnabled)
+		}
+		if got.ReattemptStrategy == nil || *got.ReattemptStrategy != looppkg.ReattemptFullBody {
+			t.Fatalf("ReattemptStrategy = %#v, want preserved full_body", got.ReattemptStrategy)
+		}
+		if string(got.EnabledChecks) != `{"command":true}` {
+			t.Fatalf("EnabledChecks = %s, want preserved command check", got.EnabledChecks)
+		}
+		if got.FanOutWidth == nil || *got.FanOutWidth != 5 {
+			t.Fatalf("FanOutWidth = %#v, want preserved 5", got.FanOutWidth)
+		}
+		if got.BudgetTokens == nil || *got.BudgetTokens != 5000 {
+			t.Fatalf("BudgetTokens = %#v, want updated 5000", got.BudgetTokens)
+		}
+		if got.ModelDefaults == nil || got.ModelDefaults.Worker == nil || *got.ModelDefaults.Worker != "stored-worker" {
+			t.Fatalf("ModelDefaults.Worker = %#v, want preserved stored-worker", got.ModelDefaults)
 		}
 	})
 }

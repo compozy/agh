@@ -41,6 +41,8 @@ type daemonLoopAPIService struct {
 	publishMu         sync.Mutex
 }
 
+var _ core.LoopService = (*daemonLoopAPIService)(nil)
+
 func (s *daemonLoopAPIService) Start(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
@@ -82,10 +84,9 @@ func newDaemonLoopAPIService(
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	schemaSource := newLoopToolSchemaSource(state.deps.ToolRegistry)
 	resolver := &daemonLoopDefinitionResolver{
-		catalog:  state.loopCatalog,
-		compiler: newLoopCompilerWithSchemaSource(schemaSource),
+		catalog:         state.loopCatalog,
+		compilerFactory: newLoopCompilerFactory(state.deps.ToolRegistry),
 	}
 	options := []looppkg.Option{
 		looppkg.WithClock(now),
@@ -191,7 +192,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 		return contract.LoopResponse{}, err
 	}
 	def.Meta.Version = 1
-	if err := s.compileForPublish(def); err != nil {
+	if err := s.compileForPublish(ctx, def); err != nil {
 		return contract.LoopResponse{}, err
 	}
 	path, err := s.writeDefinition(ctx, root, def, false)
@@ -261,7 +262,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 		return contract.LoopResponse{}, err
 	}
 	next.Meta.Version = current.Spec.Version + 1
-	if err := s.compileForPublish(next); err != nil {
+	if err := s.compileForPublish(ctx, next); err != nil {
 		return contract.LoopResponse{}, err
 	}
 	root, err := s.workspaceLoopRoot(ctx, ws)
@@ -276,7 +277,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 }
 
 func (s *daemonLoopAPIService) ValidateLoop(
-	_ context.Context,
+	ctx context.Context,
 	_ string,
 	name string,
 	req contract.ValidateLoopRequest,
@@ -291,7 +292,7 @@ func (s *daemonLoopAPIService) ValidateLoop(
 			looppkg.ErrValidation,
 		)
 	}
-	if err := s.compileForPublish(def); err != nil {
+	if err := s.compileForPublish(ctx, def); err != nil {
 		return contract.LoopValidationResponse{}, err
 	}
 	return contract.LoopValidationResponse{Valid: true}, nil
@@ -328,8 +329,12 @@ func (s *daemonLoopAPIService) RunLoop(
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
+	values, err := cloneLoopAPIMap(req.Inputs)
+	if err != nil {
+		return contract.RunLoopResponse{}, err
+	}
 	inputs := looppkg.Inputs{
-		Values:          cloneLoopAPIMap(req.Inputs),
+		Values:          values,
 		ParentLoopRunID: looppkg.RunID(strings.TrimSpace(req.ParentLoopRunID)),
 	}
 	if req.ConfigOverrides != nil {
@@ -362,6 +367,9 @@ func (s *daemonLoopAPIService) RunLoop(
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
-	payload := loopRunPayload(*run)
+	payload, err := loopRunPayload(*run)
+	if err != nil {
+		return contract.RunLoopResponse{}, err
+	}
 	return contract.RunLoopResponse{Run: &payload}, nil
 }

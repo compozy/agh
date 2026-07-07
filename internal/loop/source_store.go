@@ -78,10 +78,18 @@ func WriteDefinition(root string, data []byte, opts WriteDefinitionOptions) (Res
 		return ResourceSpec{}, "", err
 	}
 
-	if _, statErr := os.Stat(loopDir); statErr == nil && !opts.Overwrite {
-		return ResourceSpec{}, "", fmt.Errorf("%w: %s", ErrDefinitionExists, spec.Name)
-	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-		return ResourceSpec{}, "", fmt.Errorf("loop: inspect %q: %w", loopDir, statErr)
+	parentDir := filepath.Dir(loopDir)
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		return ResourceSpec{}, "", fmt.Errorf("loop: create parent directory %q: %w", parentDir, err)
+	}
+	if err := os.Mkdir(loopDir, 0o755); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			if !opts.Overwrite {
+				return ResourceSpec{}, "", fmt.Errorf("%w: %s", ErrDefinitionExists, spec.Name)
+			}
+		} else {
+			return ResourceSpec{}, "", fmt.Errorf("loop: create definition directory %q: %w", loopDir, err)
+		}
 	}
 	if err := os.MkdirAll(loopDir, 0o755); err != nil {
 		return ResourceSpec{}, "", fmt.Errorf("loop: create definition directory %q: %w", loopDir, err)
@@ -128,12 +136,14 @@ func ForkDefinitionFile(sourceFilePath string, targetRoot string) (_ string, err
 	if err != nil {
 		return "", err
 	}
-	if _, statErr := os.Stat(targetDir); statErr == nil {
-		return "", fmt.Errorf("%w: %s", ErrDefinitionExists, spec.Name)
-	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-		return "", fmt.Errorf("loop: inspect fork target %q: %w", targetDir, statErr)
+	parentDir := filepath.Dir(targetDir)
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		return "", fmt.Errorf("loop: create fork parent %q: %w", parentDir, err)
 	}
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return "", fmt.Errorf("%w: %s", ErrDefinitionExists, spec.Name)
+		}
 		return "", fmt.Errorf("loop: create fork target %q: %w", targetDir, err)
 	}
 	cleanup := true

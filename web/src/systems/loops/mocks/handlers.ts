@@ -157,14 +157,19 @@ export const handlers: HttpHandler[] = [
   }),
   http.post("/api/workspaces/:workspaceId/loops/:name/run", ({ request, params }) => {
     const url = new URL(request.url);
-    const detail = loopRunDetailByRunId.get("looprun_running");
+    const name = String(params.name);
+    const entry = catalogByName.get(name);
+    if (!entry) {
+      return HttpResponse.json({ error: `Loop not found: ${name}` }, { status: 404 });
+    }
+    const detail = entry.last_run ? loopRunDetailByRunId.get(entry.last_run.id) : undefined;
     if (url.searchParams.get("dry") === "true") {
       return HttpResponse.json({
         dry_run: {
-          loop_name: String(params.name),
+          loop_name: name,
           generation: 1,
           resolved_inputs: {},
-          contract: catalogByName.get(String(params.name))?.contract,
+          contract: entry.contract,
           nodes: [{ id: "plan", kind: "run-agent", class: "action" }],
           effective_config: {
             iteration_cap: 12,
@@ -180,6 +185,9 @@ export const handlers: HttpHandler[] = [
           },
         },
       });
+    }
+    if (!detail) {
+      return HttpResponse.json({ error: `Loop run not found for ${name}` }, { status: 404 });
     }
     return HttpResponse.json({ run: detail?.run }, { status: 201 });
   }),

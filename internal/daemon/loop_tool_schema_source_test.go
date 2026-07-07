@@ -16,7 +16,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		t.Parallel()
 
 		descriptor := loopToolSchemaDescriptor(t)
-		source := newLoopToolSchemaSource(loopToolSchemaRegistry{
+		source := newLoopToolSchemaSource(context.Background(), loopToolSchemaRegistry{
 			views: map[toolspkg.ToolID]toolspkg.ToolView{
 				descriptor.ID: {Descriptor: descriptor},
 			},
@@ -55,7 +55,10 @@ func TestLoopToolSchemaSource(t *testing.T) {
 	t.Run("Should reject invalid or unknown tool identifiers", func(t *testing.T) {
 		t.Parallel()
 
-		source := newLoopToolSchemaSource(loopToolSchemaRegistry{views: map[toolspkg.ToolID]toolspkg.ToolView{}})
+		source := newLoopToolSchemaSource(
+			context.Background(),
+			loopToolSchemaRegistry{views: map[toolspkg.ToolID]toolspkg.ToolView{}},
+		)
 		if _, ok := source.Snapshot("not a valid tool id"); ok {
 			t.Fatal("Snapshot(invalid id) ok = true, want false")
 		}
@@ -64,10 +67,27 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pass caller context to registry lookups", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		descriptor := loopToolSchemaDescriptor(t)
+		source := newLoopToolSchemaSource(ctx, loopToolSchemaRegistry{
+			views: map[toolspkg.ToolID]toolspkg.ToolView{
+				descriptor.ID: {Descriptor: descriptor},
+			},
+		})
+
+		if _, ok := source.Snapshot(descriptor.ID.String()); ok {
+			t.Fatalf("Snapshot(%q) ok = true, want false after canceled context", descriptor.ID)
+		}
+	})
+
 	t.Run("Should disable schema source when registry is unavailable", func(t *testing.T) {
 		t.Parallel()
 
-		if source := newLoopToolSchemaSource(nil); source != nil {
+		if source := newLoopToolSchemaSource(context.Background(), nil); source != nil {
 			t.Fatalf("newLoopToolSchemaSource(nil) = %T, want nil", source)
 		}
 	})
@@ -94,10 +114,13 @@ func (r loopToolSchemaRegistry) Search(
 }
 
 func (r loopToolSchemaRegistry) Get(
-	_ context.Context,
+	ctx context.Context,
 	_ toolspkg.Scope,
 	id toolspkg.ToolID,
 ) (toolspkg.ToolView, error) {
+	if err := ctx.Err(); err != nil {
+		return toolspkg.ToolView{}, err
+	}
 	view, ok := r.views[id]
 	if !ok {
 		return toolspkg.ToolView{}, errors.New("tool not found")

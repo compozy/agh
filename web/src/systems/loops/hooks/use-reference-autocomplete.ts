@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 
 import {
   activeReferenceQuery,
@@ -18,7 +19,9 @@ function insertTemplateReference(
   const open = value.slice(0, caret).lastIndexOf("{{");
   if (open === -1) return { value, caret };
   const head = value.slice(0, open);
-  const tail = value.slice(caret);
+  const rawTail = value.slice(caret);
+  const existingClose = rawTail.match(/^\s*}}/);
+  const tail = existingClose ? rawTail.slice(existingClose[0].length) : rawTail;
   const inserted = `{{ .${path} }}`;
   return { value: `${head}${inserted}${tail}`, caret: head.length + inserted.length };
 }
@@ -36,11 +39,14 @@ function insertCelReference(
 }
 
 export interface ReferenceAutocomplete {
-  ref: React.RefObject<FieldElement | null>;
+  ref: RefObject<FieldElement | null>;
   matches: LoopReferenceSuggestion[];
-  onChange: (event: React.ChangeEvent<FieldElement>) => void;
+  activeIndex: number;
+  onChange: (event: ChangeEvent<FieldElement>) => void;
+  onKeyDown: (event: ReactKeyboardEvent<FieldElement>) => void;
   onCaretMove: (event: { currentTarget: FieldElement }) => void;
   onBlur: () => void;
+  setActiveIndex: (index: number) => void;
   select: (path: string) => void;
 }
 
@@ -59,6 +65,7 @@ export function useReferenceAutocomplete(
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const matches =
     query === null ? [] : filterReferences(suggestions, query).slice(0, MAX_SUGGESTIONS);
@@ -80,6 +87,14 @@ export function useReferenceAutocomplete(
   }, [pendingCaret]);
 
   useEffect(() => {
+    setActiveIndex(0);
+  }, [query]);
+
+  useEffect(() => {
+    setActiveIndex(index => (matches.length === 0 ? 0 : Math.min(index, matches.length - 1)));
+  }, [matches.length]);
+
+  useEffect(() => {
     if (query === null) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setQuery(null);
@@ -97,28 +112,56 @@ export function useReferenceAutocomplete(
       )
     );
 
+  const select = (path: string) => {
+    const element = ref.current;
+    if (!element) return;
+    const caret = element.selectionStart ?? element.value.length;
+    const next = cel
+      ? insertCelReference(element.value, caret, path)
+      : insertTemplateReference(element.value, caret, path);
+    onValueChange(next.value);
+    setPendingCaret(next.caret);
+    setQuery(null);
+  };
+
   return {
     ref,
     matches,
+    activeIndex,
     onChange: event => {
       onValueChange(event.target.value);
       refresh(event.target);
+    },
+    onKeyDown: event => {
+      if (matches.length === 0) return;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActiveIndex(index => (index + 1) % matches.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveIndex(index => (index - 1 + matches.length) % matches.length);
+        return;
+      }
+      if (event.key === "Enter") {
+        const match = matches[activeIndex];
+        if (!match) return;
+        event.preventDefault();
+        select(match.path);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setQuery(null);
+      }
     },
     onCaretMove: event => refresh(event.currentTarget),
     onBlur: () => {
       if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
       blurTimerRef.current = setTimeout(() => setQuery(null), 120);
     },
-    select: path => {
-      const element = ref.current;
-      if (!element) return;
-      const caret = element.selectionStart ?? element.value.length;
-      const next = cel
-        ? insertCelReference(element.value, caret, path)
-        : insertTemplateReference(element.value, caret, path);
-      onValueChange(next.value);
-      setPendingCaret(next.caret);
-      setQuery(null);
-    },
+    setActiveIndex,
+    select,
   };
 }

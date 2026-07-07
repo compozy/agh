@@ -393,9 +393,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusNotFound, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("GET missing payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionNotFound.Error())
 	})
 
 	t.Run("Should return a not found error payload for missing PATCH targets", func(t *testing.T) {
@@ -422,9 +420,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusNotFound, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("PATCH missing payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionNotFound.Error())
 	})
 
 	t.Run("Should return a conflict error payload for duplicate Loop creates", func(t *testing.T) {
@@ -440,9 +436,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusConflict, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("POST duplicate payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionExists.Error())
 	})
 
 	t.Run("Should return a not found error payload for missing fork sources", func(t *testing.T) {
@@ -464,9 +458,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusNotFound, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("POST fork missing payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrDefinitionNotFound.Error())
 	})
 
 	t.Run("Should return a bad request error payload for malformed Loop names", func(t *testing.T) {
@@ -482,9 +474,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusBadRequest, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("GET malformed name payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrValidation.Error())
 	})
 
 	t.Run("Should return current version on publish CAS conflicts", func(t *testing.T) {
@@ -523,9 +513,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("pause invalid-transition payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrInvalidTransition.Error())
 	})
 
 	t.Run("Should return conflict error payloads for Loop run CAS races", func(t *testing.T) {
@@ -541,9 +529,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusConflict, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("resume transition-conflict payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrTransitionConflict.Error())
 	})
 
 	t.Run("Should return an error payload for run ancestry rejection", func(t *testing.T) {
@@ -567,9 +553,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("run ancestry payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrAncestryRejected.Error())
 	})
 
 	t.Run("Should map RunLoop caller identity failures without masking them as Loop errors", func(t *testing.T) {
@@ -603,9 +587,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusUnauthorized, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("run identity payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, agentidentity.ErrIdentityStale.Error())
 	})
 
 	t.Run("Should pass approve caller identity through the shared Loop handler", func(t *testing.T) {
@@ -650,10 +632,15 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		assertLoopStatus(t, resp.Code, http.StatusForbidden, resp.Body.String())
 		var payload contract.ErrorPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
-		if payload.Error == "" {
-			t.Fatalf("approve permission payload = %#v, want error", payload)
-		}
+		assertLoopErrorPayloadContains(t, payload, taskpkg.ErrPermissionDenied.Error())
 	})
+}
+
+func assertLoopErrorPayloadContains(t *testing.T, payload contract.ErrorPayload, want string) {
+	t.Helper()
+	if !strings.Contains(payload.Error, want) {
+		t.Fatalf("error payload = %#v, want error containing %q", payload, want)
+	}
 }
 
 func newLoopHandlerFixture(

@@ -195,13 +195,37 @@ func TestLoopErrorHelpers(t *testing.T) {
 		err  error
 		want int
 	}{
-		{name: "nil", err: nil, want: http.StatusOK},
-		{name: "duplicate definition", err: looppkg.ErrDefinitionExists, want: http.StatusConflict},
-		{name: "definition missing", err: looppkg.ErrDefinitionNotFound, want: http.StatusNotFound},
-		{name: "validation", err: looppkg.ErrValidation, want: http.StatusBadRequest},
-		{name: "invalid transition", err: looppkg.ErrInvalidTransition, want: http.StatusUnprocessableEntity},
-		{name: "transition conflict", err: looppkg.ErrTransitionConflict, want: http.StatusConflict},
-		{name: "unknown", err: errors.New("boom"), want: http.StatusInternalServerError},
+		{name: "Should map nil Loop errors to OK", err: nil, want: http.StatusOK},
+		{
+			name: "Should map duplicate Loop definitions to conflict",
+			err:  looppkg.ErrDefinitionExists,
+			want: http.StatusConflict,
+		},
+		{
+			name: "Should map missing Loop definitions to not found",
+			err:  looppkg.ErrDefinitionNotFound,
+			want: http.StatusNotFound,
+		},
+		{
+			name: "Should map Loop validation errors to bad request",
+			err:  looppkg.ErrValidation,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "Should map invalid Loop transitions to unprocessable entity",
+			err:  looppkg.ErrInvalidTransition,
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "Should map Loop transition conflicts to conflict",
+			err:  looppkg.ErrTransitionConflict,
+			want: http.StatusConflict,
+		},
+		{
+			name: "Should map unknown Loop errors to internal server error",
+			err:  errors.New("boom"),
+			want: http.StatusInternalServerError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

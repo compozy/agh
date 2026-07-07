@@ -26,6 +26,11 @@ func (e *RunLoopActionExecutor) Execute(
 			map[string]string{actionDependencyMetaKey: "loop_starter"},
 		)
 	}
+	runCtx, cancel, err := actionContextWithNodeTimeout(ctx, node.Timeout)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
+	defer cancel()
 	params, err := renderNodeParams(node, in.Namespace)
 	if err != nil {
 		return ActionRawResult{}, err
@@ -37,7 +42,7 @@ func (e *RunLoopActionExecutor) Execute(
 	if spec.Mode == "" {
 		spec.Mode = dsl.RunLoopAwait
 	}
-	child, err := e.starter.Start(ctx, in.WorkspaceID, spec.Loop, Inputs{
+	child, err := e.starter.Start(runCtx, in.WorkspaceID, spec.Loop, Inputs{
 		Values:          spec.Inputs,
 		ParentLoopRunID: in.LoopRunID,
 	}, in.Actor)

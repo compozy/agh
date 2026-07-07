@@ -45,14 +45,39 @@ func TestSourceStoreShouldValidateWriteForkAndDelete(t *testing.T) {
 		root := t.TempDir()
 		_, _, err := loop.WriteDefinition(
 			root,
-			[]byte("apiVersion: agh.loop/v1\nkind: Loop\n"),
+			[]byte("apiVersion: agh.loop/v1\nkind: ["),
 			loop.WriteDefinitionOptions{Source: loop.SourceUser},
 		)
 		if err == nil {
 			t.Fatal("WriteDefinition(invalid) error = nil, want validation error")
 		}
+		if !strings.Contains(err.Error(), "parse loop definition") {
+			t.Fatalf("WriteDefinition(invalid) error = %v, want parse loop definition", err)
+		}
 		if entries, readErr := os.ReadDir(root); readErr != nil || len(entries) != 0 {
 			t.Fatalf("os.ReadDir(root) = %#v, %v, want empty directory", entries, readErr)
+		}
+	})
+
+	t.Run("Should reject duplicate writable definitions without overwrite", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		body := []byte(loopDefinitionYAML("duplicate-loop"))
+		if _, _, err := loop.WriteDefinition(
+			root,
+			body,
+			loop.WriteDefinitionOptions{Source: loop.SourceUser},
+		); err != nil {
+			t.Fatalf("WriteDefinition(first) error = %v", err)
+		}
+		_, _, err := loop.WriteDefinition(
+			root,
+			body,
+			loop.WriteDefinitionOptions{Source: loop.SourceUser},
+		)
+		if !errors.Is(err, loop.ErrDefinitionExists) {
+			t.Fatalf("WriteDefinition(second) error = %v, want ErrDefinitionExists", err)
 		}
 	})
 

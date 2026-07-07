@@ -23,7 +23,7 @@ export function setLoopTargetInput(
   inputValue: unknown
 ): LoopTargetDraft {
   const inputs = { ...value.inputs };
-  if (inputValue === undefined || inputValue === "") {
+  if (inputValue === undefined || inputValue === null || inputValue === "") {
     delete inputs[key];
   } else {
     inputs[key] = inputValue;

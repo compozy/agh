@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -37,6 +38,10 @@ func loopCatalogEntryPayload(
 	if err != nil {
 		return contract.LoopCatalogEntryPayload{}, err
 	}
+	lastRun, err := firstLoopRunPayload(runs)
+	if err != nil {
+		return contract.LoopCatalogEntryPayload{}, err
+	}
 	return contract.LoopCatalogEntryPayload{
 		Name:          spec.Name,
 		Version:       spec.Version,
@@ -46,7 +51,7 @@ func loopCatalogEntryPayload(
 		Inputs:        document.Inputs,
 		Start:         document.Start,
 		Contract:      document.Contract,
-		LastRun:       firstLoopRunPayload(runs),
+		LastRun:       lastRun,
 		Aggregate30d:  aggregate,
 		SuccessRate30: loopSuccessRate(aggregate),
 	}, nil
@@ -82,15 +87,26 @@ func loopSuccessRate(aggregate contract.LoopCatalogAggregatePayload) float64 {
 	return float64(aggregate.Succeeded) / float64(aggregate.Runs)
 }
 
-func firstLoopRunPayload(runs []looppkg.Run) *contract.LoopRunPayload {
+func firstLoopRunPayload(runs []looppkg.Run) (*contract.LoopRunPayload, error) {
 	if len(runs) == 0 {
-		return nil
+		return nil, nil
 	}
-	payload := loopRunPayload(runs[0])
-	return &payload
+	payload, err := loopRunPayload(runs[0])
+	if err != nil {
+		return nil, err
+	}
+	return &payload, nil
 }
 
-func loopRunPayload(run looppkg.Run) contract.LoopRunPayload {
+func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
+	startMetadata, err := cloneLoopAPIMap(run.StartMetadata)
+	if err != nil {
+		return contract.LoopRunPayload{}, err
+	}
+	inputs, err := cloneLoopAPIMap(run.Inputs)
+	if err != nil {
+		return contract.LoopRunPayload{}, err
+	}
 	return contract.LoopRunPayload{
 		ID:                  string(run.ID),
 		WorkspaceID:         string(run.WorkspaceID),
@@ -109,7 +125,7 @@ func loopRunPayload(run looppkg.Run) contract.LoopRunPayload {
 		DefinitionDigest:    run.DefinitionDigest,
 		ActiveGateID:        string(run.ActiveGateID),
 		BudgetApprovalSeq:   run.BudgetApprovalSeq,
-		StartMetadata:       cloneLoopAPIMap(run.StartMetadata),
+		StartMetadata:       startMetadata,
 		ConsecutiveFailures: run.ConsecutiveFailures,
 		IterationCap:        run.IterationCap,
 		BudgetTokens:        run.BudgetTokens,
@@ -118,8 +134,8 @@ func loopRunPayload(run looppkg.Run) contract.LoopRunPayload {
 		TokensUsed:          run.TokensUsed,
 		ParentLoopRunID:     string(run.ParentLoopRunID),
 		PauseRequested:      run.PauseRequested,
-		Inputs:              cloneLoopAPIMap(run.Inputs),
-	}
+		Inputs:              inputs,
+	}, nil
 }
 
 func loopRunsAggregate(runs []looppkg.Run) contract.LoopRunsAggregatePayload {
@@ -174,19 +190,19 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 	return payloads
 }
 
-func cloneLoopAPIMap(input map[string]any) map[string]any {
+func cloneLoopAPIMap(input map[string]any) (map[string]any, error) {
 	if input == nil {
-		return nil
+		return nil, nil
 	}
 	data, err := json.Marshal(input)
 	if err != nil {
-		return map[string]any{}
+		return nil, fmt.Errorf("daemon: clone loop api map: %w", err)
 	}
 	var cloned map[string]any
 	if err := json.Unmarshal(data, &cloned); err != nil {
-		return map[string]any{}
+		return nil, fmt.Errorf("daemon: clone loop api map: %w", err)
 	}
-	return cloned
+	return cloned, nil
 }
 
 func cloneRawMessage(input json.RawMessage) json.RawMessage {

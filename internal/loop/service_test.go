@@ -645,27 +645,31 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 	t.Parallel()
 
-	store := newFakeLoopStore()
-	svc := newTestService(t, store, validDefinition())
+	t.Run("Should return plan preview without creating loop run state", func(t *testing.T) {
+		t.Parallel()
 
-	preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
-		Values: map[string]any{"tasks": "task-ref"},
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, validDefinition())
+
+		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		})
+		if err != nil {
+			t.Fatalf("DryRun() error = %v", err)
+		}
+		if preview.Generation != 1 {
+			t.Fatalf("Generation = %d, want 1", preview.Generation)
+		}
+		if got, want := preview.ResolvedInputs["tasks"], "task-ref"; got != want {
+			t.Fatalf("ResolvedInputs[tasks] = %#v, want %q", got, want)
+		}
+		if len(preview.Nodes) == 0 {
+			t.Fatal("Nodes length = 0, want materialized gen-1 nodes")
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0", store.createCount())
+		}
 	})
-	if err != nil {
-		t.Fatalf("DryRun() error = %v", err)
-	}
-	if preview.Generation != 1 {
-		t.Fatalf("Generation = %d, want 1", preview.Generation)
-	}
-	if got, want := preview.ResolvedInputs["tasks"], "task-ref"; got != want {
-		t.Fatalf("ResolvedInputs[tasks] = %#v, want %q", got, want)
-	}
-	if len(preview.Nodes) == 0 {
-		t.Fatal("Nodes length = 0, want materialized gen-1 nodes")
-	}
-	if store.createCount() != 0 {
-		t.Fatalf("CreateLoopRun calls = %d, want 0", store.createCount())
-	}
 }
 
 func TestCostShouldBeDisplayOnly(t *testing.T) {

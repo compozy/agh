@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const maxClaimTokenMetadataRedactionDepth = 64
+
 func normalizeCapabilityCriteria(values []string) []string {
 	return normalizeStringSet(values)
 }
@@ -140,7 +142,10 @@ func removeRawClaimTokenFields(raw json.RawMessage) json.RawMessage {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return nil
 	}
-	cleaned := removeRawClaimTokenFieldValue(decoded)
+	cleaned, ok := removeRawClaimTokenFieldValue(decoded, 0)
+	if !ok {
+		return nil
+	}
 	encoded, err := json.Marshal(cleaned)
 	if err != nil {
 		return nil
@@ -148,7 +153,10 @@ func removeRawClaimTokenFields(raw json.RawMessage) json.RawMessage {
 	return normalizeRawJSON(encoded)
 }
 
-func removeRawClaimTokenFieldValue(value any) any {
+func removeRawClaimTokenFieldValue(value any, depth int) (any, bool) {
+	if depth > maxClaimTokenMetadataRedactionDepth {
+		return nil, false
+	}
 	switch typed := value.(type) {
 	case map[string]any:
 		cleaned := make(map[string]any, len(typed))
@@ -156,15 +164,24 @@ func removeRawClaimTokenFieldValue(value any) any {
 			if strings.EqualFold(strings.TrimSpace(key), "claim_token") {
 				continue
 			}
-			cleaned[key] = removeRawClaimTokenFieldValue(nested)
+			value, ok := removeRawClaimTokenFieldValue(nested, depth+1)
+			if !ok {
+				return nil, false
+			}
+			cleaned[key] = value
 		}
-		return cleaned
+		return cleaned, true
 	case []any:
+		cleaned := make([]any, len(typed))
 		for idx, nested := range typed {
-			typed[idx] = removeRawClaimTokenFieldValue(nested)
+			value, ok := removeRawClaimTokenFieldValue(nested, depth+1)
+			if !ok {
+				return nil, false
+			}
+			cleaned[idx] = value
 		}
-		return typed
+		return cleaned, true
 	default:
-		return value
+		return value, true
 	}
 }

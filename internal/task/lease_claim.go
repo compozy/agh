@@ -107,5 +107,3 @@ func (c ClaimCriteria) Validate(path string) error {
 	}
 	return nil
 }
-
-// Validate reports whether pre-resolved Soul claim provenance is internally consistent.

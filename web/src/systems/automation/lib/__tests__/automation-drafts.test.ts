@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   automationJobToDraft,
+  automationTargetMode,
   automationTriggerToDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
@@ -9,7 +10,9 @@ import {
   jobOutputMode,
   normalizeAutomationRetry,
   retryDraftForStrategy,
+  setJobTargetMode,
   setJobOutputMode,
+  setTriggerTargetMode,
 } from "../automation-drafts";
 
 const jobFixture = {
@@ -190,5 +193,24 @@ describe("job output mode helpers", () => {
       description: "review changes",
       owner: null,
     });
+  });
+});
+
+describe("automation target mode helpers", () => {
+  it("Should derive loop mode from the persisted discriminator before the target payload", () => {
+    expect(automationTargetMode({ target_kind: "loop" })).toBe("loop");
+    expect(automationTargetMode({ target_kind: "agent" })).toBe("agent");
+  });
+
+  it("Should share target-mode switching for trigger and job drafts", () => {
+    const trigger = setTriggerTargetMode(createAutomationTriggerDraft("ws_alpha"), "loop");
+    expect(trigger.target_kind).toBe("loop");
+    expect(trigger.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(setTriggerTargetMode(trigger, "agent").loop_target).toBeUndefined();
+
+    const job = setJobTargetMode(createAutomationJobDraft("ws_alpha"), "loop");
+    expect(job.target_kind).toBe("loop");
+    expect(job.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
+    expect(setJobTargetMode(job, "agent").loop_target).toBeUndefined();
   });
 });

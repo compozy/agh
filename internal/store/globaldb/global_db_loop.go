@@ -364,10 +364,19 @@ func (g *GlobalDB) UpsertLoopConfig(
 	if err := g.checkReady(ctx, "upsert loop config"); err != nil {
 		return err
 	}
+	workspaceID := strings.TrimSpace(string(ws))
+	trimmedLoopName := strings.TrimSpace(loopName)
+	if workspaceID == "" {
+		return fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
+	}
+	if trimmedLoopName == "" {
+		return fmt.Errorf("%w: loop_name is required", looppkg.ErrValidation)
+	}
 	normalized, err := normalizeLoopConfigForStore(cfg)
 	if err != nil {
 		return err
 	}
+	patch := loopConfigPatchFlagsForStore(cfg, normalized)
 	_, err = g.db.ExecContext(
 		ctx,
 		`INSERT INTO loop_config (
@@ -375,22 +384,22 @@ func (g *GlobalDB) UpsertLoopConfig(
 			iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
 			no_progress_window, fan_out_width, gate_max_revisions,
 			model_default_worker, model_default_judge
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, loop_name) DO UPDATE SET
-			human_gate_enabled = excluded.human_gate_enabled,
-			reattempt_strategy = excluded.reattempt_strategy,
-			enabled_checks_json = excluded.enabled_checks_json,
-			iteration_cap = excluded.iteration_cap,
-			budget_tokens = excluded.budget_tokens,
-			budget_wall_sec = excluded.budget_wall_sec,
-			budget_on_exceeded = excluded.budget_on_exceeded,
-			no_progress_window = excluded.no_progress_window,
-			fan_out_width = excluded.fan_out_width,
-			gate_max_revisions = excluded.gate_max_revisions,
-			model_default_worker = excluded.model_default_worker,
-			model_default_judge = excluded.model_default_judge`,
-		string(ws),
-		strings.TrimSpace(loopName),
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(workspace_id, loop_name) DO UPDATE SET
+				human_gate_enabled = CASE WHEN ? THEN excluded.human_gate_enabled ELSE human_gate_enabled END,
+				reattempt_strategy = CASE WHEN ? THEN excluded.reattempt_strategy ELSE reattempt_strategy END,
+				enabled_checks_json = CASE WHEN ? THEN excluded.enabled_checks_json ELSE enabled_checks_json END,
+				iteration_cap = CASE WHEN ? THEN excluded.iteration_cap ELSE iteration_cap END,
+				budget_tokens = CASE WHEN ? THEN excluded.budget_tokens ELSE budget_tokens END,
+				budget_wall_sec = CASE WHEN ? THEN excluded.budget_wall_sec ELSE budget_wall_sec END,
+				budget_on_exceeded = CASE WHEN ? THEN excluded.budget_on_exceeded ELSE budget_on_exceeded END,
+				no_progress_window = CASE WHEN ? THEN excluded.no_progress_window ELSE no_progress_window END,
+				fan_out_width = CASE WHEN ? THEN excluded.fan_out_width ELSE fan_out_width END,
+				gate_max_revisions = CASE WHEN ? THEN excluded.gate_max_revisions ELSE gate_max_revisions END,
+				model_default_worker = CASE WHEN ? THEN excluded.model_default_worker ELSE model_default_worker END,
+				model_default_judge = CASE WHEN ? THEN excluded.model_default_judge ELSE model_default_judge END`,
+		workspaceID,
+		trimmedLoopName,
 		boolPtrToInt(normalized.HumanGateEnabled),
 		nullStringPtr(normalized.ReattemptStrategy),
 		enabledChecksForStore(normalized.EnabledChecks),
@@ -403,9 +412,21 @@ func (g *GlobalDB) UpsertLoopConfig(
 		nullIntPtr(normalized.GateMaxRevisions),
 		modelDefaultNullString(normalized.ModelDefaults, true),
 		modelDefaultNullString(normalized.ModelDefaults, false),
+		patch.HumanGate,
+		patch.Reattempt,
+		patch.EnabledChecks,
+		patch.IterationCap,
+		patch.BudgetTokens,
+		patch.BudgetWallSec,
+		patch.BudgetOnExceeded,
+		patch.NoProgressWindow,
+		patch.FanOutWidth,
+		patch.GateMaxRevisions,
+		patch.ModelWorker,
+		patch.ModelJudge,
 	)
 	if err != nil {
-		return fmt.Errorf("store: upsert loop config %q/%q: %w", ws, loopName, err)
+		return fmt.Errorf("store: upsert loop config %q/%q: %w", workspaceID, trimmedLoopName, err)
 	}
 	return nil
 }

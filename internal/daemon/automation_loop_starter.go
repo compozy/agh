@@ -20,6 +20,7 @@ type automationLoopStarter struct {
 	resolver looppkg.DefinitionResolver
 }
 
+var _ automationpkg.LoopStarter = (*automationLoopStarter)(nil)
 var _ automationpkg.LoopCatchUpPolicyResolver = (*automationLoopStarter)(nil)
 
 func newAutomationLoopStarter(
@@ -29,14 +30,16 @@ func newAutomationLoopStarter(
 	homePaths aghconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) (automationpkg.LoopStarter, error) {
-	loopStore, ok := storeCandidate.(looppkg.Store)
-	if !ok || catalog == nil {
+	if catalog == nil {
 		return nil, nil
 	}
-	schemaSource := newLoopToolSchemaSource(toolRegistry)
+	loopStore, ok := storeCandidate.(looppkg.Store)
+	if !ok {
+		return nil, errors.New("daemon: automation loop starter requires loop store")
+	}
 	resolver := &daemonLoopDefinitionResolver{
-		catalog:  catalog,
-		compiler: newLoopCompilerWithSchemaSource(schemaSource),
+		catalog:         catalog,
+		compilerFactory: newLoopCompilerFactory(toolRegistry),
 	}
 	service, err := looppkg.NewService(
 		loopStore,

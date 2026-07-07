@@ -827,32 +827,47 @@ func (b *fakeActionSessionBinder) cancelHadDeadline() bool {
 }
 
 type fakeActionLoopStarter struct {
-	mu        sync.Mutex
-	starts    []fakeLoopStart
-	returnRun *loop.Run
-	err       error
+	mu                    sync.Mutex
+	starts                []fakeLoopStart
+	returnRun             *loop.Run
+	err                   error
+	blockUntilContextDone bool
 }
 
 type fakeLoopStart struct {
-	ws     loop.WorkspaceID
-	name   string
-	inputs loop.Inputs
-	actor  task.ActorContext
+	ws          loop.WorkspaceID
+	name        string
+	inputs      loop.Inputs
+	actor       task.ActorContext
+	hadDeadline bool
 }
 
 func (s *fakeActionLoopStarter) Start(
-	_ context.Context,
+	ctx context.Context,
 	ws loop.WorkspaceID,
 	name string,
 	inputs loop.Inputs,
 	actor task.ActorContext,
 ) (*loop.Run, error) {
+	_, hadDeadline := ctx.Deadline()
+	if s.blockUntilContextDone {
+		<-ctx.Done()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.starts = append(s.starts, fakeLoopStart{ws: ws, name: name, inputs: inputs, actor: actor})
+	s.starts = append(s.starts, fakeLoopStart{
+		ws:          ws,
+		name:        name,
+		inputs:      inputs,
+		actor:       actor,
+		hadDeadline: hadDeadline,
+	})
 	if s.err != nil {
 		return nil, s.err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return s.returnRun, nil
 }
@@ -898,6 +913,36 @@ func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {
 		}, loop.ActionExecutionInput{})
 		if !errors.Is(err, loop.ErrActionTimeout) {
 			t.Fatalf("Execute() error = %v, want ErrActionTimeout", err)
+		}
+	})
+
+	t.Run("Should bound run-loop start by node timeout", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		starter := &fakeActionLoopStarter{blockUntilContextDone: true}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionLoopStarter(starter))
+		executor, err := actions.Resolve(ctx, tools.Scope{}, string(dsl.ActionRunLoop))
+		if err != nil {
+			t.Fatalf("Resolve(run-loop) error = %v", err)
+		}
+
+		_, err = executor.Execute(ctx, dsl.Node{
+			ID:      "child",
+			Class:   dsl.NodeClassAction,
+			Kind:    string(dsl.ActionRunLoop),
+			Timeout: "1ms",
+			Params: dsl.NodeParams{
+				"loop": "qa-child",
+			},
+		}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Execute(run-loop timeout) error = %v, want context deadline exceeded", err)
+		}
+		if !starter.mustLastStart(t).hadDeadline {
+			t.Fatal("Start context had no deadline, want node timeout deadline")
 		}
 	})
 }

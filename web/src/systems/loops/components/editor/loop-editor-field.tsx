@@ -255,7 +255,13 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
             data-testid={`loop-field-${field.key}`}
             onChange={event => {
               const next = event.target.value;
-              onChange(field.path, next === "" ? undefined : Number(next));
+              if (next === "") {
+                if (event.currentTarget.validity.badInput) return;
+                onChange(field.path, undefined);
+                return;
+              }
+              const parsed = Number(next);
+              if (Number.isFinite(parsed)) onChange(field.path, parsed);
             }}
           />
           {field.ceiling !== undefined ? (

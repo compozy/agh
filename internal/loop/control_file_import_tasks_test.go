@@ -51,6 +51,9 @@ func TestFileImportMDTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		if got, want := payload.Tasks[0].ID, "task_01"; got != want {
 			t.Fatalf("tasks[0].id = %q, want %q", got, want)
 		}
+		if payload.Tasks[0].Blocks == nil || len(payload.Tasks[0].Blocks) != 0 {
+			t.Fatalf("tasks[0].blocks = %#v, want empty JSON array", payload.Tasks[0].Blocks)
+		}
 		third := payload.Tasks[1]
 		if third.ID != "task_03" || third.Number != 3 || third.Title != "Third task" {
 			t.Fatalf("third task = %#v, want task_03 metadata", third)

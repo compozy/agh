@@ -25,8 +25,8 @@ interface LoopCatalogRowProps {
 /**
  * One catalog list row: neutral icon well, name + kind tag + version, one-line
  * goal, meta (inputs / iteration cap / human gate / binding badge), category,
- * last-outcome pill, 30d success-rate, and an inline Run launch. The row is a
- * link to the detail page; Run stops propagation and opens the run form.
+ * last-outcome pill, 30d success-rate, and an inline Run launch. The name/goal
+ * area links to the detail page; Run stays a sibling control.
  */
 export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowProps) {
   const category = loopCategory(entry);
@@ -34,45 +34,50 @@ export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowPro
   const unbounded = isUnboundedCap(entry);
   const sourceLabel = entry.source === "workspace" ? "Workspace" : "Read-only";
   return (
-    <Link
-      to="/loops/$name"
-      params={{ name: entry.name }}
+    <div
       className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-line-soft px-4 py-3.5 transition-colors last:border-b-0 hover:bg-row-hover"
       data-testid="loop-catalog-row"
       data-loop={entry.name}
     >
-      <span className="grid size-[34px] place-items-center rounded-md bg-elevated text-muted">
-        <Repeat2 aria-hidden="true" className="size-[17px]" />
-      </span>
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <b className="truncate text-sm font-medium text-fg-strong">{entry.name}</b>
-          <Pill size="xs" tone="neutral">
-            {sourceLabel}
-          </Pill>
-          {unbounded ? (
+      <Link
+        to="/loops/$name"
+        params={{ name: entry.name }}
+        className="col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5"
+        aria-label={`Open ${entry.name}`}
+      >
+        <span className="grid size-[34px] place-items-center rounded-md bg-elevated text-muted">
+          <Repeat2 aria-hidden="true" className="size-[17px]" />
+        </span>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <b className="truncate text-sm font-medium text-fg-strong">{entry.name}</b>
             <Pill size="xs" tone="neutral">
-              ∞ cap
+              {sourceLabel}
             </Pill>
+            {unbounded ? (
+              <Pill size="xs" tone="neutral">
+                ∞ cap
+              </Pill>
+            ) : null}
+            <span className="shrink-0 font-mono text-[11px] text-faint">v{entry.version}</span>
+          </div>
+          {entry.contract.goal ? (
+            <p className="mt-1 truncate text-[12.5px] text-muted">{entry.contract.goal}</p>
           ) : null}
-          <span className="shrink-0 font-mono text-[11px] text-faint">v{entry.version}</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-faint">
+            <span className="font-mono text-[10px] text-subtle">{inputCount} inputs</span>
+            <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+            <span>iteration cap {iterationCapLabel(entry.contract.iteration_cap)}</span>
+            {hasHumanGate(entry) ? (
+              <>
+                <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+                <span>human gate</span>
+              </>
+            ) : null}
+            <LoopBindingBadge kinds={bindingKinds} />
+          </div>
         </div>
-        {entry.contract.goal ? (
-          <p className="mt-1 truncate text-[12.5px] text-muted">{entry.contract.goal}</p>
-        ) : null}
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-faint">
-          <span className="font-mono text-[10px] text-subtle">{inputCount} inputs</span>
-          <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-          <span>iteration cap {iterationCapLabel(entry.contract.iteration_cap)}</span>
-          {hasHumanGate(entry) ? (
-            <>
-              <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-              <span>human gate</span>
-            </>
-          ) : null}
-          <LoopBindingBadge kinds={bindingKinds} />
-        </div>
-      </div>
+      </Link>
       <div className="flex items-center gap-4.5">
         {category ? (
           <span className="hidden w-24 text-right text-xs text-subtle sm:block">{category}</span>
@@ -88,16 +93,12 @@ export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowPro
           type="button"
           data-testid="loop-catalog-run"
           className="inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-md border border-line bg-btn-default-fill px-2.5 text-xs font-medium text-fg transition-colors hover:border-transparent hover:bg-accent hover:text-accent-ink"
-          onClick={event => {
-            event.preventDefault();
-            event.stopPropagation();
-            onRun(entry);
-          }}
+          onClick={() => onRun(entry)}
         >
           <Play aria-hidden="true" className="size-3" />
           Run
         </button>
       </div>
-    </Link>
+    </div>
   );
 }

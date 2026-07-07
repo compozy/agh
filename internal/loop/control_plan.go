@@ -266,7 +266,7 @@ func evaluateFanOutNode(
 	}
 	materialization, terminal := buildFanOutMaterialization(node, items, fanOutWidth)
 	if terminal != nil {
-		return GenerationOutput{}, terminal, nil
+		return output, terminal, nil
 	}
 	ref, err := fanOutMaterializationRef(materialization)
 	if err != nil {

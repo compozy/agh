@@ -1,4 +1,5 @@
 import { useChildMatches, useNavigate, useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 import {
   LoopsApiError,
@@ -49,6 +50,7 @@ export function useLoopDetail(name: string) {
           await createLoop.mutateAsync({ workspaceId, data: { fork_from_name: name } });
         } catch (error) {
           if (!(error instanceof LoopsApiError && error.status === 409)) {
+            toast.error(error instanceof Error ? error.message : "Failed to fork loop.");
             return;
           }
         }

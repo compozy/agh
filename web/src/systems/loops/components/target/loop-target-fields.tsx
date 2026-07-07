@@ -45,6 +45,10 @@ export function LoopTargetFields({
             <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
             Loading loops…
           </div>
+        ) : loopsQuery.isError ? (
+          <p className="text-[11.5px] text-danger" role="alert">
+            Could not load Loops for this workspace.
+          </p>
         ) : loops.length === 0 ? (
           <p className="text-[11.5px] text-subtle">No Loops are available in this workspace.</p>
         ) : (

@@ -27,6 +27,14 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function nextCriterionId(criteria: readonly Criterion[]): string {
+  const maxSuffix = criteria.reduce((max, criterion) => {
+    const match = /^criterion_(\d+)$/.exec(str(criterion.id));
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `criterion_${maxSuffix + 1}`;
+}
+
 /**
  * The gate criteria list editor (design §4.6): one row per verdict criterion with the
  * per-type fields the DSL carries — command (check + expect), agent-judge (agent +
@@ -51,7 +59,7 @@ export function LoopEditorCriteria({
   const add = () =>
     onChange([
       ...criteria,
-      { id: `criterion_${criteria.length + 1}`, type: "command", check: "", expect: "exit_zero" },
+      { id: nextCriterionId(criteria), type: "command", check: "", expect: "exit_zero" },
     ]);
 
   return (

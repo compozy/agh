@@ -48,6 +48,7 @@ export function LoopReferenceInput({
     value,
     placeholder,
     onChange: auto.onChange,
+    onKeyDown: auto.onKeyDown,
     onKeyUp: auto.onCaretMove,
     onClick: auto.onCaretMove,
     onBlur: auto.onBlur,
@@ -68,7 +69,7 @@ export function LoopReferenceInput({
           className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-line-strong bg-elevated py-1 shadow-lg"
           data-testid="loop-reference-suggestions"
         >
-          {auto.matches.map(match => (
+          {auto.matches.map((match, index) => (
             <li key={match.path}>
               <button
                 type="button"
@@ -77,7 +78,12 @@ export function LoopReferenceInput({
                   event.preventDefault();
                   auto.select(match.path);
                 }}
-                className="flex w-full items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-row-hover"
+                onMouseEnter={() => auto.setActiveIndex(index)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 px-2.5 py-1 text-left hover:bg-row-hover",
+                  index === auto.activeIndex && "bg-row-hover"
+                )}
+                data-active={index === auto.activeIndex ? "true" : "false"}
               >
                 <span className="font-mono text-[11px] text-fg-strong">{match.path}</span>
                 <span className="truncate text-[10px] text-subtle">{match.detail}</span>

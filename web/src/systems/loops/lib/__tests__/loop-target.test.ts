@@ -31,6 +31,7 @@ describe("loop-target", () => {
     const cleared = setLoopTargetInput(set, "branch", "");
     expect(cleared.inputs).toEqual({ slug: "x" });
     expect(setLoopTargetInput(set, "slug", undefined).inputs).toEqual({ branch: "main" });
+    expect(setLoopTargetInput(set, "slug", null).inputs).toEqual({ branch: "main" });
   });
 
   it("Should set and clear event-payload mapping paths", () => {

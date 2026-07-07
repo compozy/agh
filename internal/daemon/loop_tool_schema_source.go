@@ -10,16 +10,20 @@ import (
 )
 
 type loopToolSchemaSource struct {
+	ctx      context.Context
 	registry toolspkg.Registry
 }
 
 var _ looppkg.ToolSchemaSource = loopToolSchemaSource{}
 
-func newLoopToolSchemaSource(registry toolspkg.Registry) looppkg.ToolSchemaSource {
+func newLoopToolSchemaSource(ctx context.Context, registry toolspkg.Registry) looppkg.ToolSchemaSource {
 	if registry == nil {
 		return nil
 	}
-	return loopToolSchemaSource{registry: registry}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return loopToolSchemaSource{ctx: ctx, registry: registry}
 }
 
 func (s loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapshot, bool) {
@@ -30,7 +34,7 @@ func (s loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapsho
 	if err := id.Validate(); err != nil {
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
-	view, err := s.registry.Get(context.Background(), toolspkg.Scope{Operator: true}, id)
+	view, err := s.registry.Get(s.ctx, toolspkg.Scope{Operator: true}, id)
 	if err != nil {
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
@@ -49,6 +53,12 @@ func newLoopCompilerWithSchemaSource(source looppkg.ToolSchemaSource) *looppkg.C
 		return looppkg.NewCompiler()
 	}
 	return looppkg.NewCompiler(looppkg.WithCompilerToolSchemaSource(source))
+}
+
+func newLoopCompilerFactory(registry toolspkg.Registry) func(context.Context) *looppkg.Compiler {
+	return func(ctx context.Context) *looppkg.Compiler {
+		return newLoopCompilerWithSchemaSource(newLoopToolSchemaSource(ctx, registry))
+	}
 }
 
 func newLoopLinterWithSchemaSource(source looppkg.ToolSchemaSource) looppkg.Linter {

@@ -1,6 +1,7 @@
 package loop_test
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -51,9 +52,7 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 			Source:   loop.SourceUser,
 			FilePath: "/tmp/loops/missing-name/loop.yaml",
 		})
-		if err == nil {
-			t.Fatal("ParseResource() error = nil, want validation error")
-		}
+		requireResourceValidationErrorContains(t, err, "loop meta.name is required")
 	})
 
 	t.Run("Should reject unknown start kinds", func(t *testing.T) {
@@ -64,9 +63,7 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 			Source:   loop.SourceUser,
 			FilePath: "/tmp/loops/bad-start/loop.yaml",
 		})
-		if err == nil {
-			t.Fatal("ParseResource() error = nil, want validation error")
-		}
+		requireResourceValidationErrorContains(t, err, "loop start.kind is invalid")
 	})
 
 	t.Run("Should project tool actions without a schema source", func(t *testing.T) {
@@ -91,10 +88,19 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 			FilePath: "/tmp/loops/tool-action-loop/loop.yaml",
 			Linter:   loop.NewLinter(),
 		})
-		if err == nil {
-			t.Fatal("ParseResource(strict linter) error = nil, want schema-source validation error")
-		}
+		requireResourceValidationErrorContains(t, err, loop.CodeUnknownActionKind)
+		requireResourceValidationErrorContains(t, err, "without a schema snapshot source")
 	})
+}
+
+func requireResourceValidationErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+	if !errors.Is(err, resources.ErrValidation) {
+		t.Fatalf("ParseResource() error = %v, want resources.ErrValidation", err)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("ParseResource() error = %v, want to contain %q", err, want)
+	}
 }
 
 func TestResourceSpecShouldResolveLoopPrecedence(t *testing.T) {

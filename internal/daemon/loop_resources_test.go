@@ -212,6 +212,46 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 	})
 
+	t.Run("Should upsert published record without dropping existing catalog records", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+		otherSpec := testLoopSpec(t, "other", looppkg.SourceMarketplace)
+		oldSpec := testLoopSpec(t, "alpha", looppkg.SourceWorkspace)
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
+			{ID: "loop:ext:other", Version: 1, Scope: resources.ResourceScope{}, Spec: otherSpec},
+			{ID: "loop:ws-1:alpha:old", Version: 1, Scope: scope, Spec: oldSpec},
+		})
+		service := &daemonLoopAPIService{catalog: catalog}
+
+		nextSpec := testLoopSpec(t, "alpha", looppkg.SourceWorkspace)
+		nextSpec.Description = "updated"
+		service.upsertPublishedLoopRecord(resources.Record[looppkg.ResourceSpec]{
+			ID:      "loop:ws-1:alpha:new",
+			Version: 2,
+			Scope:   scope,
+			Spec:    nextSpec,
+		})
+
+		records := catalog.Snapshot()
+		if got, want := len(records), 2; got != want {
+			t.Fatalf("len(catalog.Snapshot()) = %d, want %d: %#v", got, want, records)
+		}
+		if got, want := catalog.Revision(), int64(2); got != want {
+			t.Fatalf("catalog.Revision() = %d, want %d", got, want)
+		}
+		if got, want := records[0].Spec.Name, "other"; got != want {
+			t.Fatalf("records[0].Spec.Name = %q, want %q", got, want)
+		}
+		if got, want := records[1].ID, "loop:ws-1:alpha:new"; got != want {
+			t.Fatalf("records[1].ID = %q, want %q", got, want)
+		}
+		if got, want := records[1].Spec.Description, "updated"; got != want {
+			t.Fatalf("records[1].Spec.Description = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should classify missing fork sources as not found", func(t *testing.T) {
 		t.Parallel()
 

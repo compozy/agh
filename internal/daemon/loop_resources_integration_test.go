@@ -55,7 +55,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 			nil,
 			func(context.Context) ([]loopPublicationInput, error) {
 				var desired []loopPublicationInput
-				global, err := scanLoopResourceDir(homePaths.LoopsDir, looppkg.SourceUser)
+				global, err := scanLoopResourceDir(ctx, homePaths.LoopsDir, looppkg.SourceUser)
 				if err != nil {
 					return nil, err
 				}
@@ -65,7 +65,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 					"test/global",
 					global,
 				)
-				workspace, err := scanLoopResourceDir(workspaceLoopsDir, looppkg.SourceWorkspace)
+				workspace, err := scanLoopResourceDir(ctx, workspaceLoopsDir, looppkg.SourceWorkspace)
 				if err != nil {
 					return nil, err
 				}

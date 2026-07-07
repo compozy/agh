@@ -13,6 +13,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useReactFlow, useViewport } from "@xyflow/react";
+import type { ReactNode } from "react";
 
 import { Button, cn } from "@agh/ui";
 
@@ -217,7 +218,7 @@ function ToolIcon({
 }: {
   label: string;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button
@@ -239,7 +240,7 @@ function ViewTab({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button

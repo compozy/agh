@@ -43,6 +43,9 @@ type loopNativeHookObserver struct {
 	now        func() time.Time
 }
 
+var _ taskRunTerminalObserver = (*loopNativeHookObserver)(nil)
+var _ loopTerminalObserver = (*loopNativeHookObserver)(nil)
+
 func newLoopNativeHookObserver(
 	store loopHookCoordinatorStore,
 	dispatcher loopNodeTerminalDispatcher,

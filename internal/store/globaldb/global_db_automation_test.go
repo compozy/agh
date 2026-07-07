@@ -684,162 +684,219 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	globalDB := openTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-loop-targets", t.TempDir())
+	t.Run("Should persist and filter loop-target jobs", func(t *testing.T) {
+		t.Parallel()
 
-	loopJob := automationJobForTest(
-		automation.AutomationScopeWorkspace,
-		"loop-job",
-		workspaceID,
-		automation.JobSourceDynamic,
-	)
-	loopJob.AgentName = ""
-	loopJob.Prompt = ""
-	loopJob.TargetKind = automation.TargetKindLoop
-	loopJob.LoopTarget = &automation.LoopTarget{
-		WorkspaceID: workspaceID,
-		LoopName:    "triage",
-		Inputs: map[string]any{
-			"tasks": "task-ref",
-		},
-	}
-	createdLoopJob, err := globalDB.CreateJob(ctx, loopJob)
-	if err != nil {
-		t.Fatalf("CreateJob(loop target) error = %v", err)
-	}
-	if createdLoopJob.LoopTarget == nil {
-		t.Fatal("CreateJob(loop target).LoopTarget = nil, want persisted target")
-	}
-	if got, want := createdLoopJob.TargetKind, automation.TargetKindLoop; got != want {
-		t.Fatalf("CreateJob(loop target).TargetKind = %q, want %q", got, want)
-	}
-	if got, want := createdLoopJob.LoopTarget.LoopName, "triage"; got != want {
-		t.Fatalf("CreateJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
-	}
-
-	agentJob := automationJobForTest(
-		automation.AutomationScopeWorkspace,
-		"agent-job",
-		workspaceID,
-		automation.JobSourceDynamic,
-	)
-	if _, err := globalDB.CreateJob(ctx, agentJob); err != nil {
-		t.Fatalf("CreateJob(agent target) error = %v", err)
-	}
-	filteredJobs, err := globalDB.ListJobs(ctx, JobListQuery{
-		Scope:       automation.AutomationScopeWorkspace,
-		WorkspaceID: workspaceID,
-		LoopName:    "triage",
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-loop-target-jobs", t.TempDir())
+		loopJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"loop-job",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopJob.AgentName = ""
+		loopJob.Prompt = ""
+		loopJob.TargetKind = automation.TargetKindLoop
+		loopJob.LoopTarget = &automation.LoopTarget{
+			WorkspaceID: workspaceID,
+			LoopName:    "triage",
+			Inputs: map[string]any{
+				"tasks": "task-ref",
+			},
+		}
+		createdLoopJob, err := globalDB.CreateJob(ctx, loopJob)
+		if err != nil {
+			t.Fatalf("CreateJob(loop target) error = %v", err)
+		}
+		if createdLoopJob.LoopTarget == nil {
+			t.Fatal("CreateJob(loop target).LoopTarget = nil, want persisted target")
+		}
+		if got, want := createdLoopJob.TargetKind, automation.TargetKindLoop; got != want {
+			t.Fatalf("CreateJob(loop target).TargetKind = %q, want %q", got, want)
+		}
+		if got, want := createdLoopJob.LoopTarget.LoopName, "triage"; got != want {
+			t.Fatalf("CreateJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
+		}
+		agentJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"agent-job",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		if _, err := globalDB.CreateJob(ctx, agentJob); err != nil {
+			t.Fatalf("CreateJob(agent target) error = %v", err)
+		}
+		filteredJobs, err := globalDB.ListJobs(ctx, JobListQuery{
+			Scope:       automation.AutomationScopeWorkspace,
+			WorkspaceID: workspaceID,
+			LoopName:    "triage",
+		})
+		if err != nil {
+			t.Fatalf("ListJobs(loop filter) error = %v", err)
+		}
+		if got, want := len(filteredJobs), 1; got != want {
+			t.Fatalf("len(ListJobs(loop filter)) = %d, want %d", got, want)
+		}
+		if got, want := filteredJobs[0].ID, createdLoopJob.ID; got != want {
+			t.Fatalf("ListJobs(loop filter)[0].ID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ListJobs(loop filter) error = %v", err)
-	}
-	if got, want := len(filteredJobs), 1; got != want {
-		t.Fatalf("len(ListJobs(loop filter)) = %d, want %d", got, want)
-	}
-	if got, want := filteredJobs[0].ID, createdLoopJob.ID; got != want {
-		t.Fatalf("ListJobs(loop filter)[0].ID = %q, want %q", got, want)
-	}
 
-	loopTrigger := automationWebhookTriggerForTest(
-		automation.AutomationScopeWorkspace,
-		"loop-trigger",
-		workspaceID,
-		automation.JobSourceDynamic,
-	)
-	loopTrigger.AgentName = ""
-	loopTrigger.Prompt = ""
-	loopTrigger.TargetKind = automation.TargetKindLoop
-	loopTrigger.LoopTarget = &automation.LoopTarget{
-		WorkspaceID: workspaceID,
-		LoopName:    "triage",
-		InputMapping: map[string]string{
-			"title": "{{ .trigger.payload.title }}",
-		},
-	}
-	createdLoopTrigger, err := globalDB.CreateTrigger(ctx, loopTrigger)
-	if err != nil {
-		t.Fatalf("CreateTrigger(loop target) error = %v", err)
-	}
-	if createdLoopTrigger.LoopTarget == nil {
-		t.Fatal("CreateTrigger(loop target).LoopTarget = nil, want persisted target")
-	}
-	if got, want := createdLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
-		t.Fatalf("CreateTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
-	}
+	t.Run("Should persist and filter loop-target triggers", func(t *testing.T) {
+		t.Parallel()
 
-	agentTrigger := automationWebhookTriggerForTest(
-		automation.AutomationScopeWorkspace,
-		"agent-trigger",
-		workspaceID,
-		automation.JobSourceDynamic,
-	)
-	agentTrigger.WebhookID = "wbh_agent_trigger"
-	agentTrigger.EndpointSlug = "endpoint-agent-trigger"
-	if _, err := globalDB.CreateTrigger(ctx, agentTrigger); err != nil {
-		t.Fatalf("CreateTrigger(agent target) error = %v", err)
-	}
-	filteredTriggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{
-		Scope:       automation.AutomationScopeWorkspace,
-		WorkspaceID: workspaceID,
-		LoopName:    "triage",
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-loop-target-triggers", t.TempDir())
+		loopTrigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"loop-trigger",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopTrigger.AgentName = ""
+		loopTrigger.Prompt = ""
+		loopTrigger.TargetKind = automation.TargetKindLoop
+		loopTrigger.LoopTarget = &automation.LoopTarget{
+			WorkspaceID: workspaceID,
+			LoopName:    "triage",
+			InputMapping: map[string]string{
+				"title": "{{ .trigger.payload.title }}",
+			},
+		}
+		createdLoopTrigger, err := globalDB.CreateTrigger(ctx, loopTrigger)
+		if err != nil {
+			t.Fatalf("CreateTrigger(loop target) error = %v", err)
+		}
+		if createdLoopTrigger.LoopTarget == nil {
+			t.Fatal("CreateTrigger(loop target).LoopTarget = nil, want persisted target")
+		}
+		if got, want := createdLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
+			t.Fatalf("CreateTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
+		}
+		agentTrigger := automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"agent-trigger",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		agentTrigger.WebhookID = "wbh_agent_trigger"
+		agentTrigger.EndpointSlug = "endpoint-agent-trigger"
+		if _, err := globalDB.CreateTrigger(ctx, agentTrigger); err != nil {
+			t.Fatalf("CreateTrigger(agent target) error = %v", err)
+		}
+		filteredTriggers, err := globalDB.ListTriggers(ctx, TriggerListQuery{
+			Scope:       automation.AutomationScopeWorkspace,
+			WorkspaceID: workspaceID,
+			LoopName:    "triage",
+		})
+		if err != nil {
+			t.Fatalf("ListTriggers(loop filter) error = %v", err)
+		}
+		if got, want := len(filteredTriggers), 1; got != want {
+			t.Fatalf("len(ListTriggers(loop filter)) = %d, want %d", got, want)
+		}
+		if got, want := filteredTriggers[0].ID, createdLoopTrigger.ID; got != want {
+			t.Fatalf("ListTriggers(loop filter)[0].ID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ListTriggers(loop filter) error = %v", err)
-	}
-	if got, want := len(filteredTriggers), 1; got != want {
-		t.Fatalf("len(ListTriggers(loop filter)) = %d, want %d", got, want)
-	}
-	if got, want := filteredTriggers[0].ID, createdLoopTrigger.ID; got != want {
-		t.Fatalf("ListTriggers(loop filter)[0].ID = %q, want %q", got, want)
-	}
 
-	startedAt := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
-	loopRunSeed := testLoopRun("looprun-automation-delegated", startedAt, looppkg.StatusRunning)
-	loopRunSeed.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-	loopRunSeed.LoopName = "triage"
-	createdLoopRun, err := globalDB.CreateLoopRunForStart(ctx, loopRunSeed, dsl.ConcurrencyAllow)
-	if err != nil {
-		t.Fatalf("CreateLoopRunForStart() error = %v", err)
-	}
+	t.Run("Should correlate delegated automation runs to loop runs", func(t *testing.T) {
+		t.Parallel()
 
-	delegatedRun, err := globalDB.CreateRun(ctx, Run{
-		JobID:     createdLoopJob.ID,
-		Status:    automation.RunDelegated,
-		Attempt:   1,
-		StartedAt: timePointer(startedAt),
-		EndedAt:   timePointer(startedAt.Add(time.Second)),
-		LoopRunID: string(createdLoopRun.ID),
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-loop-target-runs", t.TempDir())
+		loopJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"loop-job",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopJob.AgentName = ""
+		loopJob.Prompt = ""
+		loopJob.TargetKind = automation.TargetKindLoop
+		loopJob.LoopTarget = &automation.LoopTarget{WorkspaceID: workspaceID, LoopName: "triage"}
+		createdLoopJob, err := globalDB.CreateJob(ctx, loopJob)
+		if err != nil {
+			t.Fatalf("CreateJob(loop target) error = %v", err)
+		}
+		startedAt := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
+		loopRunSeed := testLoopRun("looprun-automation-delegated", startedAt, looppkg.StatusRunning)
+		loopRunSeed.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		loopRunSeed.LoopName = "triage"
+		createdLoopRun, err := globalDB.CreateLoopRunForStart(ctx, loopRunSeed, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		delegatedRun, err := globalDB.CreateRun(ctx, Run{
+			JobID:     createdLoopJob.ID,
+			Status:    automation.RunDelegated,
+			Attempt:   1,
+			StartedAt: timePointer(startedAt),
+			EndedAt:   timePointer(startedAt.Add(time.Second)),
+			LoopRunID: string(createdLoopRun.ID),
+		})
+		if err != nil {
+			t.Fatalf("CreateRun(loop delegated) error = %v", err)
+		}
+		loadedRun, err := globalDB.GetRun(ctx, delegatedRun.ID)
+		if err != nil {
+			t.Fatalf("GetRun(loop delegated) error = %v", err)
+		}
+		if got, want := loadedRun.LoopRunID, string(createdLoopRun.ID); got != want {
+			t.Fatalf("GetRun(loop delegated).LoopRunID = %q, want %q", got, want)
+		}
+		if got := loadedRun.TaskID; got != "" {
+			t.Fatalf("GetRun(loop delegated).TaskID = %q, want empty", got)
+		}
 	})
-	if err != nil {
-		t.Fatalf("CreateRun(loop delegated) error = %v", err)
-	}
-	loadedRun, err := globalDB.GetRun(ctx, delegatedRun.ID)
-	if err != nil {
-		t.Fatalf("GetRun(loop delegated) error = %v", err)
-	}
-	if got, want := loadedRun.LoopRunID, string(createdLoopRun.ID); got != want {
-		t.Fatalf("GetRun(loop delegated).LoopRunID = %q, want %q", got, want)
-	}
-	if got := loadedRun.TaskID; got != "" {
-		t.Fatalf("GetRun(loop delegated).TaskID = %q, want empty", got)
-	}
 
-	invalidDelegated := automationRunForJob(
-		createdLoopJob.ID,
-		automation.RunDelegated,
-		2,
-		startedAt.Add(time.Minute),
-	)
-	invalidDelegated.TaskID = "task-1"
-	invalidDelegated.TaskRunID = "task-run-1"
-	invalidDelegated.LoopRunID = string(createdLoopRun.ID)
-	if _, err := globalDB.CreateRun(ctx, invalidDelegated); err == nil {
-		t.Fatal("CreateRun(delegated task and loop targets) error = nil, want XOR validation error")
-	} else if !strings.Contains(err.Error(), "requires exactly one") {
-		t.Fatalf("CreateRun(delegated task and loop targets) error = %v, want XOR validation", err)
-	}
+	t.Run("Should enforce XOR validation for delegated run targets", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "automation-loop-target-xor", t.TempDir())
+		loopJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"loop-job",
+			workspaceID,
+			automation.JobSourceDynamic,
+		)
+		loopJob.AgentName = ""
+		loopJob.Prompt = ""
+		loopJob.TargetKind = automation.TargetKindLoop
+		loopJob.LoopTarget = &automation.LoopTarget{WorkspaceID: workspaceID, LoopName: "triage"}
+		createdLoopJob, err := globalDB.CreateJob(ctx, loopJob)
+		if err != nil {
+			t.Fatalf("CreateJob(loop target) error = %v", err)
+		}
+		startedAt := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
+		loopRunSeed := testLoopRun("looprun-automation-xor", startedAt, looppkg.StatusRunning)
+		loopRunSeed.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		loopRunSeed.LoopName = "triage"
+		createdLoopRun, err := globalDB.CreateLoopRunForStart(ctx, loopRunSeed, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		invalidDelegated := automationRunForJob(
+			createdLoopJob.ID,
+			automation.RunDelegated,
+			2,
+			startedAt.Add(time.Minute),
+		)
+		invalidDelegated.TaskID = "task-1"
+		invalidDelegated.TaskRunID = "task-run-1"
+		invalidDelegated.LoopRunID = string(createdLoopRun.ID)
+		if _, err := globalDB.CreateRun(ctx, invalidDelegated); err == nil {
+			t.Fatal("CreateRun(delegated task and loop targets) error = nil, want XOR validation error")
+		} else if !strings.Contains(err.Error(), "requires exactly one") {
+			t.Fatalf("CreateRun(delegated task and loop targets) error = %v, want XOR validation", err)
+		}
+	})
 }
 
 func TestAutomationStoreHelperBranches(t *testing.T) {

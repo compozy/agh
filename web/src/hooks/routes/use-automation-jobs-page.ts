@@ -104,7 +104,7 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
 
   // Open the create sheet pre-targeted at a Loop when arriving from the detail CTA.
   useEffect(() => {
-    if (seededRef.current || !seed.loop) return;
+    if (seededRef.current || !seed.loop || !page.activeWorkspaceId) return;
     seededRef.current = true;
     setEditor({
       draft: createLoopTargetJobDraft(page.activeWorkspaceId, seed.loop),

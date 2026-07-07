@@ -7410,6 +7410,15 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should execute coordinator in daemon without session", func(t *testing.T) {
+		t.Parallel()
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t)
+	})
+}
+
+func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
+	t.Helper()
+
 	store := newInMemoryManagerStore()
 	now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	taskRecord := Task{
@@ -7495,6 +7504,100 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 	if got, want := string(runner.calls[0]), claim.Run.ID; got != want {
 		t.Fatalf("CoordinatorRunner taskRunID = %q, want %q", got, want)
 	}
+}
+
+func TestManagerStartRunShouldRejectCoordinatorClaimTokenMismatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject coordinator claim token mismatch before runner starts", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+		taskRecord := Task{
+			ID:             "task-loop-coordinator-mismatch",
+			Scope:          ScopeGlobal,
+			Title:          "Loop coordinator",
+			Priority:       PriorityMedium,
+			MaxAttempts:    DefaultTaskMaxAttempts,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := store.CreateTask(context.Background(), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:             "run-loop-coordinator-mismatch",
+			TaskID:         taskRecord.ID,
+			RunKind:        RunKindCoordinator,
+			LoopRunID:      "loop-run-mismatch",
+			Status:         TaskRunStatusQueued,
+			Attempt:        1,
+			IdempotencyKey: "coordinator:mismatch",
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			QueuedAt:       now,
+		}
+		if err := store.CreateTaskRun(context.Background(), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		runner := &recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+			Snapshot: GenerationSnapshot{LoopRunID: "loop-run-mismatch", Generation: 1},
+			Terminal: &CoordinatorTerminal{
+				Status: "no-op",
+				Cause:  "contract",
+			},
+		}}
+		manager, err := NewManager(
+			WithStore(store),
+			WithSessionExecutor(&forbiddenSessionExecutor{}),
+			WithCoordinatorRunner(runner),
+			WithGenerationStateFinalizer(noopLoopFinalizer{}),
+			WithManagerNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "daemon-loop",
+			ClaimedBy:        &ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		started, err := manager.StartRun(context.Background(), claim.Run.ID, StartRun{
+			ClaimToken:     "wrong-token",
+			IdempotencyKey: claim.Run.IdempotencyKey,
+		}, actor)
+		if !errors.Is(err, ErrInvalidClaimToken) {
+			t.Fatalf("StartRun(coordinator token mismatch) error = %v, want %v", err, ErrInvalidClaimToken)
+		}
+		if started != nil {
+			t.Fatalf("StartRun(coordinator token mismatch) returned run = %#v, want nil", started)
+		}
+		if got := len(runner.calls); got != 0 {
+			t.Fatalf("CoordinatorRunner calls = %d, want 0", got)
+		}
+		storedRun, err := store.GetTaskRun(context.Background(), claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := storedRun.Status, TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored run status = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing.T) {

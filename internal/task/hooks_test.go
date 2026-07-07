@@ -610,6 +610,15 @@ func assertJSONDoesNotContain(t *testing.T, label string, value any, forbidden s
 func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should carry loop filter keys", func(t *testing.T) {
+		t.Parallel()
+		testTaskRunHookContextCarriesLoopFilterKeys(t)
+	})
+}
+
+func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
+	t.Helper()
+
 	manager := newTaskManagerForTest(t, newInMemoryManagerStore())
 	actor := validActorContext()
 	run := Run{

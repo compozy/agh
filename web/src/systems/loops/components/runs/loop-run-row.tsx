@@ -12,6 +12,9 @@ interface LoopRunRowProps {
   run: LoopRun;
 }
 
+export const LOOP_RUNS_ROW_GRID =
+  "grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_128px_16px]";
+
 /** Trigger line for a run (`schedule`, `cli`). */
 function triggerLabel(run: LoopRun): string {
   return run.started_origin_kind || run.started_by_kind || "manual";
@@ -28,7 +31,7 @@ export function LoopRunRow({ run }: LoopRunRowProps) {
     <Link
       to="/loop-runs/$runId"
       params={{ runId: run.id }}
-      className="grid grid-cols-[128px_minmax(0,1.4fr)_minmax(0,1fr)_84px_112px_128px_16px] items-center gap-3.5 border-b border-line-soft px-4 py-3 transition-colors last:border-b-0 hover:bg-row-hover max-[1140px]:grid-cols-[128px_minmax(0,1fr)_auto] max-[1140px]:gap-3"
+      className={`grid ${LOOP_RUNS_ROW_GRID} items-center gap-3.5 border-b border-line-soft px-4 py-3 transition-colors last:border-b-0 hover:bg-row-hover max-[1140px]:grid-cols-[128px_minmax(0,1fr)_auto] max-[1140px]:gap-3`}
       data-testid="loop-run-row"
       data-status={run.status}
     >

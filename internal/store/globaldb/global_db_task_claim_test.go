@@ -257,6 +257,15 @@ func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
 func TestGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should filter by run kind", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBClaimNextRunShouldFilterByRunKind(t)
+	})
+}
+
+func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
+	t.Helper()
+
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 0, 0, 0, time.UTC)
@@ -2304,6 +2313,15 @@ func containsJSONKeyValue(value any, key string) bool {
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should rollback when finalizer fails", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {
+	t.Helper()
+
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
@@ -2393,6 +2411,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 	t *testing.T,
 ) {
 	t.Parallel()
+
+	t.Run("Should pause at boundary without enqueue", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEnqueue(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEnqueue(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -2744,6 +2771,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSus
 ) {
 	t.Parallel()
 
+	t.Run("Should not dispatch when loop is suspended", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSuspended(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSuspended(t *testing.T) {
+	t.Helper()
+
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 39, 0, 0, time.UTC)
@@ -2833,6 +2869,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 	t *testing.T,
 ) {
 	t.Parallel()
+
+	t.Run("Should resume watching loop for ready poll", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForReadyPoll(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForReadyPoll(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -2927,6 +2972,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should not pause while yielding", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -3204,6 +3258,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should apply wall-clock budget", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *testing.T) {
+	t.Helper()
+
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 20, 0, 0, time.UTC)
@@ -3455,6 +3518,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should apply run stops", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing.T) {
+	t.Helper()
+
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 25, 0, 0, time.UTC)
@@ -3527,6 +3599,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 
 func TestGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should promote oldest queued run", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t)
+	})
+}
+
+func testGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -3616,6 +3697,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	t *testing.T,
 ) {
 	t.Parallel()
+
+	t.Run("Should create node tasks dependencies and runs", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)
@@ -4177,6 +4267,15 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 	t *testing.T,
 ) {
 	t.Parallel()
+
+	t.Run("Should sweep orphaned loop output blobs at terminal boundary", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputBlobsAtTerminalBoundary(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputBlobsAtTerminalBoundary(t *testing.T) {
+	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
 	ctx := testutil.Context(t)

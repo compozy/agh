@@ -112,7 +112,11 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 	}
 	payloads := make([]contract.LoopRunPayload, 0, len(runs))
 	for _, run := range runs {
-		payloads = append(payloads, loopRunPayload(run))
+		payload, err := loopRunPayload(run)
+		if err != nil {
+			return contract.LoopRunsResponse{}, err
+		}
+		payloads = append(payloads, payload)
 	}
 	return contract.LoopRunsResponse{
 		Runs:       payloads,
@@ -145,8 +149,12 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	payload, err := loopRunPayload(*run)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
-		Run:                loopRunPayload(*run),
+		Run:                payload,
 		ExecutedDefinition: &executedDefinition,
 		Generations:        generations,
 	}, nil
@@ -274,9 +282,13 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 	if err != nil {
 		return nil, err
 	}
+	resolvedInputs, err := cloneLoopAPIMap(plan.ResolvedInputs)
+	if err != nil {
+		return nil, err
+	}
 	return &contract.LoopPlanPayload{
 		LoopName:        plan.LoopName,
-		ResolvedInputs:  cloneLoopAPIMap(plan.ResolvedInputs),
+		ResolvedInputs:  resolvedInputs,
 		Generation:      plan.Generation,
 		Nodes:           loopPlanNodesPayload(plan.Nodes),
 		Contract:        loopContract,

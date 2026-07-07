@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"strconv"
 	"testing"
 
 	"github.com/compozy/agh/internal/loop/dsl"
@@ -149,6 +150,10 @@ func TestCoordinatorRunnerShouldExhaustFanOutOverflow(t *testing.T) {
 		}
 		if got, want := len(plan.NodeRuns), 0; got != want {
 			t.Fatalf("node runs = %d, want %d", got, want)
+		}
+		outputs := outputsByNodeAndItemForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		if got, want := outputs["fan/0"].Status, generationOutputPending; got != want {
+			t.Fatalf("fan output status = %q, want %q", got, want)
 		}
 	})
 }
@@ -1020,7 +1025,7 @@ func controlCoordinatorRun(run Run, generation int) task.Run {
 		RunKind:   task.RunKindCoordinator,
 		LoopRunID: string(run.ID),
 		Status:    task.TaskRunStatusClaimed,
-		Metadata:  json.RawMessage(`{"generation":` + string(rune('0'+generation)) + `}`),
+		Metadata:  json.RawMessage(`{"generation":` + strconv.Itoa(generation) + `}`),
 	}
 }
 
@@ -1037,9 +1042,30 @@ func controlWorkerRun(run Run, nodeID dsl.NodeID, itemIndex int, status task.Run
 func outputsByNodeAndItemForTest(outputs []GenerationOutput) map[string]GenerationOutput {
 	mapped := make(map[string]GenerationOutput, len(outputs))
 	for _, output := range outputs {
-		mapped[output.NodeID+"/"+string(rune('0'+output.ItemIndex))] = output
+		mapped[output.NodeID+"/"+strconv.Itoa(output.ItemIndex)] = output
 	}
 	return mapped
+}
+
+func TestCoordinatorControlHelpersShouldFormatMultiDigitIndexes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should format generation and item indexes as decimal strings", func(t *testing.T) {
+		t.Parallel()
+
+		run := controlCoordinatorRun(controlLoopRun("looprun-format", nil), 10)
+		if got, want := string(run.Metadata), `{"generation":10}`; got != want {
+			t.Fatalf("coordinator metadata = %s, want %s", got, want)
+		}
+		outputs := outputsByNodeAndItemForTest([]GenerationOutput{{
+			NodeID:    "worker",
+			ItemIndex: 10,
+			Status:    generationOutputSucceeded,
+		}})
+		if _, ok := outputs["worker/10"]; !ok {
+			t.Fatalf("outputs keys = %#v, want worker/10", outputs)
+		}
+	})
 }
 
 func postReserveOutputsForTest(outputs map[string]GenerationOutput, workZeroRunID string) []GenerationOutput {

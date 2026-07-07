@@ -82,17 +82,18 @@ func (c *unixSocketClient) ValidateLoop(
 	workspaceID string,
 	name string,
 	request contract.ValidateLoopRequest,
-) (contract.LoopValidationResponse, error) {
+) (payload contract.LoopValidationResponse, err error) {
 	path := loopDefinitionPath(workspaceID, name) + "/validate"
 	response, err := c.doRequest(ctx, http.MethodPost, path, nil, request)
 	if err != nil {
 		return contract.LoopValidationResponse{}, err
 	}
 	defer func() {
-		_ = response.Body.Close()
+		if closeErr := response.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("cli: close %s response: %w", path, closeErr)
+		}
 	}()
 
-	var payload contract.LoopValidationResponse
 	if response.StatusCode == http.StatusUnprocessableEntity {
 		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 			return contract.LoopValidationResponse{}, fmt.Errorf("cli: decode %s response: %w", path, err)
