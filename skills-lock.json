@@ -808,7 +808,7 @@
             "source": "compozy/skeeper",
             "sourceType": "github",
             "skillPath": "skills/skeeper/SKILL.md",
-            "computedHash": "cd3198fceecdd44d22c80dc1f4b82cb552e37d7e88526c789b5e9c952d6df8aa"
+            "computedHash": "fee0e0b10b743d95df50c6ba27d6babf72c1edc9d2b3870de575b60a1e820cc5"
         },
         "skill-best-practices": {
             "source": "pedronauck/skills",

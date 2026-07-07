@@ -11,6 +11,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
@@ -252,8 +253,10 @@ def manifest_health(manifest: dict) -> tuple[bool, list[str]]:
 
 def discover_project_contract(repo_root: Path) -> dict:
     script_path = repo_root / ".agents" / "skills" / "qa-execution" / "scripts" / "discover-project-contract.py"
+    if not script_path.exists():
+        return {}
     proc = subprocess.run(
-        ["python3", str(script_path), "--root", str(repo_root)],
+        [sys.executable, str(script_path), "--root", str(repo_root)],
         cwd=repo_root,
         check=True,
         capture_output=True,

@@ -64,12 +64,13 @@ docs/_refacs/**
 docs/prs/**
 docs/ideas/**
 docs/proposals/**
-docs/design/**
-docs/tweets/**
 .codex/ledger/**
 .codex/plans/**
 .codex/loop/**
 .codex/qa/**
 .compozy/_archived/**
 .compozy/_research/**
+docs/qa/evidence/**
+docs/design/**
+docs/tweets/**
 # <<< skeeper ignored specs <<<

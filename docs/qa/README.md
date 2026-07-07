@@ -9,7 +9,7 @@ Canonical QA tree for AGH. Owned by the `qa-report` (planning) + `qa-execution` 
 - `journeys/J-NN-<slug>.md` — journey maps + Mermaid flows (flows before matrix)
 - `charters/CH-NNN.md` — session charters; per-run debriefs appended
 - `reports/<YYYY-MM-DD>-<scope>.md` — one per run, never overwritten
-- `evidence/<date>-<scope>/` — checkpoint/failure screenshots only (lean; bulk stays lab-side, indexed by path)
+- `evidence/<date>-<scope>/` — checkpoint/failure screenshots + cited run artifacts only (lean). **Skeeper-managed** (`git@github.com:compozy/specs.git`, namespace `agh`, pattern `docs/qa/evidence/**`): gitignored from the main repo, mirrored to the sidecar, restored via `skeeper restore --all`. Reports reference evidence by repo-relative path, which resolves after restore. Uncited bulk dumps are pruned before sync.
 - `automation-backlog.md` — AB-NNN entries; automation intent lives here only
 - `templates/` — project copies of bug/charter/report templates
 
@@ -43,5 +43,6 @@ New areas: define the code here first, then mint ids.
 
 ## Changelog
 
+- 2026-07-06 — Loops QA cycle **executed** (task 25, Full tier): report `reports/2026-07-06-loops.md`; `BUG-0018`/`BUG-0019` filed + verified; `state.csv` LP rows + `CH-001..013` debriefed. Evidence for `2026-07-06-loops` routed to skeeper (`docs/qa/evidence/**` now sidecar-managed, gitignored from main); 29 uncited catalog dumps pruned (6.8 MB/68 files → 5.1 MB/39 files), keeping all screenshots, logs, and report/bug/tracker-cited JSON.
 - 2026-07-06 — Loops QA cycle **planned** (task 24, Full tier): `personas.md` (5 personas); 10 journeys `journeys/J-01..J-10`; scenarios `LP-001..LP-038` in `state.csv` (all `untested`); charters `CH-001..CH-013`; automation backlog `AB-001..AB-004`; journey→`_tests.md` E2E matrix + completeness in `reports/2026-07-06-loops-plan.md`. Planning only — execution is task 25. LP area code already defined below.
 - 2026-07-05 — Tree bootstrapped; feature-stories tracker migrated (253 rows, 17 bugs re-minted); seeds adopted; legacy per-round trees retired.
