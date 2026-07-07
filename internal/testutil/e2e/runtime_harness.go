@@ -19,11 +19,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/testutil/acpmock"
@@ -273,25 +275,49 @@ func startDaemonProcess(t testing.TB, harness *RuntimeHarness, env []string) {
 	}
 
 	// #nosec G204 -- test harness intentionally executes the built agh binary against isolated test state.
-	cmd := execabs.CommandContext(context.Background(), harness.BinaryPath, "daemon", "start", "--foreground")
+	cmd := execabs.CommandContext(
+		context.Background(),
+		harness.BinaryPath,
+		"daemon", "start", "--foreground", "--exit-when-orphaned",
+	)
 	cmd.Env = append([]string(nil), env...)
 	cmd.Stdout = processLog
 	cmd.Stderr = processLog
 	cmd.Dir = mustRepoRoot(t)
+	// Own process group + exit-when-orphaned so an abnormally-terminated test
+	// (SIGKILL / timeout) never leaks the daemon subtree.
+	procutil.ConfigureCommandProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
-		_ = processLog.Close()
+		if closeErr := processLog.Close(); closeErr != nil {
+			t.Fatalf("start daemon process error = %v; close process log error = %v", err, closeErr)
+		}
 		t.Fatalf("start daemon process error = %v", err)
+	}
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		if cleanupErr := cleanupStartedDaemonProcess(cmd, processLog); cleanupErr != nil {
+			t.Fatalf("register daemon process group error = %v; cleanup error = %v", err, cleanupErr)
+		}
+		t.Fatalf("register daemon process group error = %v", err)
 	}
 
 	waitCh := make(chan error, 1)
 	go func() {
-		waitCh <- cmd.Wait()
+		waitCh <- errors.Join(cmd.Wait(), processLog.Close())
 		close(waitCh)
-		_ = processLog.Close()
 	}()
 
 	harness.process = cmd
 	harness.waitCh = waitCh
+}
+
+func cleanupStartedDaemonProcess(cmd *exec.Cmd, processLog io.Closer) error {
+	killErr := procutil.KillCommandProcessGroupAndWait(cmd, 5*time.Second)
+	waitErr := cmd.Wait()
+	exitErr, ok := errors.AsType[*exec.ExitError](waitErr)
+	if ok && exitErr != nil {
+		waitErr = nil
+	}
+	return errors.Join(killErr, waitErr, processLog.Close())
 }
 
 func prepareRuntimeLayout(t testing.TB, opts RuntimeHarnessOptions) runtimeLayout {
@@ -355,19 +381,9 @@ func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
 		return err
 	}
 
-	signaledProcess := false
-	if h.process != nil && h.process.Process != nil {
-		if signalErr := h.process.Process.Signal(
-			os.Interrupt,
-		); signalErr != nil &&
-			!errors.Is(signalErr, os.ErrProcessDone) {
-			return fmt.Errorf("interrupt daemon process: %w", signalErr)
-		}
-		signaledProcess = true
-	} else if h.CLI != nil {
-		if _, _, err := h.CLI.Run(ctx, "daemon", "stop", "-o", "json"); err != nil {
-			return fmt.Errorf("stop daemon via CLI: %w", err)
-		}
+	signaledProcess, err := h.requestDaemonStop(ctx)
+	if err != nil {
+		return err
 	}
 
 	waitErr := h.waitForExit(ctx)
@@ -378,17 +394,56 @@ func (h *RuntimeHarness) stopWithContext(ctx context.Context) error {
 		return nil
 	}
 
-	if h.process != nil && h.process.Process != nil {
-		if killErr := h.process.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
-			return fmt.Errorf("kill daemon process: %w", killErr)
-		}
+	if err := h.forceKillDaemonProcess(); err != nil {
+		return err
 	}
-	killCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := h.waitAfterForceKill(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *RuntimeHarness) requestDaemonStop(ctx context.Context) (bool, error) {
+	if h.process != nil && h.process.Process != nil {
+		if signalErr := procutil.SignalCommandProcessGroup(
+			h.process, syscall.SIGINT,
+		); signalErr != nil &&
+			!errors.Is(signalErr, os.ErrProcessDone) &&
+			!errors.Is(signalErr, syscall.ESRCH) {
+			return false, fmt.Errorf("interrupt daemon process group: %w", signalErr)
+		}
+		return true, nil
+	}
+	if h.CLI == nil {
+		return false, nil
+	}
+	if _, _, err := h.CLI.Run(ctx, "daemon", "stop", "-o", "json"); err != nil {
+		return false, fmt.Errorf("stop daemon via CLI: %w", err)
+	}
+	return false, nil
+}
+
+func (h *RuntimeHarness) forceKillDaemonProcess() error {
+	if h.process == nil || h.process.Process == nil {
+		return nil
+	}
+	if killErr := procutil.KillCommandProcessGroupAndWait(
+		h.process, 5*time.Second,
+	); killErr != nil &&
+		!errors.Is(killErr, os.ErrProcessDone) &&
+		!errors.Is(killErr, syscall.ESRCH) {
+		return fmt.Errorf("kill daemon process group: %w", killErr)
+	}
+	return nil
+}
+
+func (h *RuntimeHarness) waitAfterForceKill(ctx context.Context) error {
+	killCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if killWaitErr := h.waitForExit(killCtx); killWaitErr != nil && !errors.Is(killWaitErr, context.DeadlineExceeded) {
 		return killWaitErr
 	}
-	return waitErr
+	return nil
 }
 
 func (h *RuntimeHarness) cleanupFailedStart(ctx context.Context) error {

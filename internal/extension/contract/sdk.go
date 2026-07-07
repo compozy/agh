@@ -53,6 +53,19 @@ const (
 	sdkHeartbeatPolicyPayloadValue              = "HeartbeatPolicyPayload"
 	sdkInputPreSubmitPatchValue                 = "InputPreSubmitPatch"
 	sdkInputPreSubmitPayloadValue               = "InputPreSubmitPayload"
+	sdkLoopContextValue                         = "LoopContext"
+	sdkLoopControlPatchValue                    = "LoopControlPatch"
+	sdkLoopGatePostPayloadValue                 = "LoopGatePostPayload"
+	sdkLoopGatePrePayloadValue                  = "LoopGatePrePayload"
+	sdkLoopGatePrePatchValue                    = "LoopGatePrePatch"
+	sdkLoopGenerationPostPayloadValue           = "LoopGenerationPostPayload"
+	sdkLoopGenerationPrePayloadValue            = "LoopGenerationPrePayload"
+	sdkLoopGenerationPrePatchValue              = "LoopGenerationPrePatch"
+	sdkLoopLifecyclePayloadValue                = "LoopLifecyclePayload"
+	sdkLoopNodeTerminalPayloadValue             = "LoopNodeTerminalPayload"
+	sdkLoopObservationPatchValue                = "LoopObservationPatch"
+	sdkLoopStartedPayloadValue                  = "LoopStartedPayload"
+	sdkLoopTerminalPayloadValue                 = "LoopTerminalPayload"
 	sdkMessagePatchValue                        = "MessagePatch"
 	sdkMessagePayloadValue                      = "MessagePayload"
 	sdkNetworkMessagePersistedPayloadValue      = "NetworkMessagePersistedPayload"
@@ -301,6 +314,19 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkTaskRunPostClaimPayloadValue, Value: hooks.TaskRunPostClaimPayload{}},
 	{Name: sdkTaskRunLeasePayloadValue, Value: hooks.TaskRunLeasePayload{}},
 	{Name: sdkTaskRunPreClaimPatchValue, Value: hooks.TaskRunPreClaimPatch{}},
+	{Name: sdkLoopContextValue, Value: hooks.LoopContext{}},
+	{Name: sdkLoopLifecyclePayloadValue, Value: hooks.LoopLifecyclePayload{}},
+	{Name: sdkLoopStartedPayloadValue, Value: hooks.LoopStartedPayload{}},
+	{Name: sdkLoopTerminalPayloadValue, Value: hooks.LoopTerminalPayload{}},
+	{Name: sdkLoopGenerationPrePayloadValue, Value: hooks.LoopGenerationPrePayload{}},
+	{Name: sdkLoopGenerationPostPayloadValue, Value: hooks.LoopGenerationPostPayload{}},
+	{Name: sdkLoopGatePrePayloadValue, Value: hooks.LoopGatePrePayload{}},
+	{Name: sdkLoopGatePostPayloadValue, Value: hooks.LoopGatePostPayload{}},
+	{Name: sdkLoopNodeTerminalPayloadValue, Value: hooks.LoopNodeTerminalPayload{}},
+	{Name: sdkLoopControlPatchValue, Value: hooks.LoopControlPatch{}},
+	{Name: sdkLoopGenerationPrePatchValue, Value: hooks.LoopGenerationPrePatch{}},
+	{Name: sdkLoopGatePrePatchValue, Value: hooks.LoopGatePrePatch{}},
+	{Name: sdkLoopObservationPatchValue, Value: hooks.LoopObservationPatch{}},
 	{Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
 	{Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
 	{Name: sdkSpawnPreCreatePayloadValue, Value: hooks.SpawnPreCreatePayload{}},
@@ -646,6 +672,37 @@ var namedHookTypes = map[string]NamedType{
 	},
 	sdkTaskRunPreClaimPatchValue: {Name: sdkTaskRunPreClaimPatchValue, Value: hooks.TaskRunPreClaimPatch{}},
 	"TaskRunObservationPatch":    {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
+	sdkLoopContextValue:          {Name: sdkLoopContextValue, Value: hooks.LoopContext{}},
+	sdkLoopLifecyclePayloadValue: {Name: sdkLoopLifecyclePayloadValue, Value: hooks.LoopLifecyclePayload{}},
+	sdkLoopStartedPayloadValue:   {Name: sdkLoopStartedPayloadValue, Value: hooks.LoopStartedPayload{}},
+	sdkLoopTerminalPayloadValue:  {Name: sdkLoopTerminalPayloadValue, Value: hooks.LoopTerminalPayload{}},
+	sdkLoopGenerationPrePayloadValue: {
+		Name:  sdkLoopGenerationPrePayloadValue,
+		Value: hooks.LoopGenerationPrePayload{},
+	},
+	sdkLoopGenerationPostPayloadValue: {
+		Name:  sdkLoopGenerationPostPayloadValue,
+		Value: hooks.LoopGenerationPostPayload{},
+	},
+	sdkLoopGatePrePayloadValue: {
+		Name:  sdkLoopGatePrePayloadValue,
+		Value: hooks.LoopGatePrePayload{},
+	},
+	sdkLoopGatePostPayloadValue: {
+		Name:  sdkLoopGatePostPayloadValue,
+		Value: hooks.LoopGatePostPayload{},
+	},
+	sdkLoopNodeTerminalPayloadValue: {
+		Name:  sdkLoopNodeTerminalPayloadValue,
+		Value: hooks.LoopNodeTerminalPayload{},
+	},
+	sdkLoopControlPatchValue: {Name: sdkLoopControlPatchValue, Value: hooks.LoopControlPatch{}},
+	sdkLoopGenerationPrePatchValue: {
+		Name:  sdkLoopGenerationPrePatchValue,
+		Value: hooks.LoopGenerationPrePatch{},
+	},
+	sdkLoopGatePrePatchValue:     {Name: sdkLoopGatePrePatchValue, Value: hooks.LoopGatePrePatch{}},
+	sdkLoopObservationPatchValue: {Name: sdkLoopObservationPatchValue, Value: hooks.LoopObservationPatch{}},
 	sdkTaskContextValue:          {Name: sdkTaskContextValue, Value: hooks.TaskContext{}},
 	sdkTaskBlockedPayloadValue: {
 		Name:  sdkTaskBlockedPayloadValue,

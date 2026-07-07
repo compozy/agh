@@ -1,0 +1,175 @@
+apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: software-delivery
+  description: Deliver pending Compozy task files for one slug with a configurable verification gate.
+  catalog:
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them shipped unattended."
+    keywords: [delivery, tasks, implement, verify]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  slug:
+    type: string
+    required: true
+  implementer:
+    type: agent
+    default: code_implementer
+  verify_command:
+    type: string
+    default: ""
+  auto_commit:
+    type: boolean
+    default: false
+  target_branch:
+    type: string
+    default: main
+
+contract:
+  goal: >
+    Ship every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order,
+    reviewed to acceptance and verified by the project's own checks.
+  definition_of_done: >
+    All loaded tasks were handled, the acceptance judge approved with evidence, and the optional
+    project verification command passed when configured.
+  iteration_cap: 50
+  no_progress:
+    window: 3
+    hash_fields: [delivery_artifact, gate_verdict]
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: slug_input
+      class: source
+      kind: input
+      input_ref: slug
+
+    - id: load_tasks
+      class: source
+      kind: file-import
+      pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
+      parse: md_tasks
+      produces:
+        tasks: array
+
+    - id: implement
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.load_tasks.output.tasks }}"
+      batch_size: 1
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: execute_task
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.implementer }}"
+        prompt: |
+          Begin work on {{ .item.title }} immediately using the installed cy-execute-task skill.
+          This run is the operator's authorization to proceed.
+
+          Required skills: cy-workflow-memory, cy-execute-task, cy-final-verify.
+
+          Read the repository AGENTS.md/CLAUDE.md and the PRD documents under
+          .compozy/tasks/{{ .inputs.slug }}/ first. Treat the task body below plus _techspec.md
+          and _tasks.md as the source of truth.
+
+          Task file: {{ .item.path }}
+          {{ if .inputs.auto_commit }}Create exactly one commit for this task after verification.
+          {{ else }}Leave changes uncommitted for manual review.{{ end }}
+
+          Task body:
+          {{ .item.body }}
+        output_schema:
+          type: object
+          required: [status, summary]
+          properties:
+            status:
+              enum: [completed, blocked]
+            summary:
+              type: string
+            files_changed:
+              type: array
+      session:
+        isolated: true
+      timeout: 45m
+      retry:
+        max_attempts: 2
+
+    - id: collect
+      class: control
+      kind: collect
+
+    - id: review
+      class: control
+      kind: gate
+      criteria:
+        - id: acceptance
+          type: agent-judge
+          agent: reviewer
+          rubric: >
+            Judge the aggregate diff for {{ .inputs.slug }} against each task's acceptance
+            criteria and the definition of done. Cite evidence for every pass and emit stable
+            blocking issue ids for every failure.
+      verdict_policy: revise_until_clean
+      on_result:
+        pass: verify
+        fail: next_generation
+      max_revisions: 3
+
+    - id: verify
+      class: control
+      kind: gate
+      criteria:
+        - id: project_check
+          type: command
+          check: "{{ .inputs.verify_command }}"
+          expect: exit_zero
+      verdict_policy: fixed_passes
+      on_result:
+        pass: approve
+        fail: next_generation
+
+    - id: approve
+      class: control
+      kind: gate
+      criteria:
+        - id: ship
+          type: human
+          prompt: "Approve the delivered work for {{ .inputs.slug }} into {{ .inputs.target_branch }}?"
+      verdict_policy: fixed_passes
+      on_result:
+        pass: done
+        fail: next_generation
+
+  edges:
+    - from: slug_input
+      to: load_tasks
+    - from: load_tasks
+      to: implement
+    - from: implement
+      to: execute_task
+    - from: execute_task
+      to: collect
+    - from: collect
+      to: review
+    - from: review
+      to: verify
+    - from: verify
+      to: approve
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: schedule

@@ -88,11 +88,11 @@ func addTaskExecutionProfileRuntimeModeColumn(ctx context.Context, tx *sql.Tx) e
 
 func addMissingMigrationColumns(
 	ctx context.Context,
-	tx *sql.Tx,
+	exec globalSQLExecutor,
 	table string,
 	specs []migrationColumnSpec,
 ) error {
-	columns, err := tableColumns(ctx, tx, table)
+	columns, err := tableColumns(ctx, exec, table)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func addMissingMigrationColumns(
 		if _, ok := columns[spec.name]; ok {
 			continue
 		}
-		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
+		if _, err := exec.ExecContext(ctx, spec.sql); err != nil {
 			return fmt.Errorf("store: add %s.%s column: %w", table, spec.name, err)
 		}
 	}

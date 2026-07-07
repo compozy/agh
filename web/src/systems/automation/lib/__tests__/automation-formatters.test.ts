@@ -29,6 +29,7 @@ const triggerFixture = {
   scope: "workspace" as const,
   workspace_id: "ws_alpha",
   source: "dynamic" as const,
+  target_kind: "agent",
   enabled: true,
   retry: { strategy: "backoff" as const, max_retries: 4, base_delay: "5s" },
   fire_limit: { max: 12, window: "1h" },

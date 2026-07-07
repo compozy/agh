@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	devcycle "github.com/compozy/agh/extensions/dev-cycle"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 
 	"github.com/compozy/agh/internal/acp"
@@ -812,6 +813,72 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	if len(cleanup.fns) != 1 {
 		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
 	}
+	extRegistry := extensionpkg.NewRegistry(db.DB())
+	info, err := extRegistry.Get(devcycle.Name)
+	if err != nil {
+		t.Fatalf("registry.Get(%s) error = %v", devcycle.Name, err)
+	}
+	if !info.Enabled || info.Source != extensionpkg.SourceBundled {
+		t.Fatalf("dev-cycle info = %#v, want enabled bundled extension", info)
+	}
+	if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
+		t.Fatalf("dev-cycle manifest file = %q, want %q", got, want)
+	}
+}
+
+func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve dev-cycle disable and enable state across boots", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		runtime := &fakeExtensionRuntime{}
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return runtime
+		}
+		state := &bootState{
+			logger:   discardLogger(),
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			hooks:    &fakeHookRuntime{},
+		}
+
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(first) error = %v", err)
+		}
+		extRegistry := extensionpkg.NewRegistry(db.DB())
+		if err := extRegistry.Disable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Disable(%s) error = %v", devcycle.Name, err)
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(after disable) error = %v", err)
+		}
+		disabled, err := extRegistry.Get(devcycle.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%s disabled) error = %v", devcycle.Name, err)
+		}
+		if disabled.Enabled {
+			t.Fatalf("dev-cycle enabled after disabled boot = true, want false")
+		}
+
+		if err := extRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%s) error = %v", devcycle.Name, err)
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions(after enable) error = %v", err)
+		}
+		enabled, err := extRegistry.Get(devcycle.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%s enabled) error = %v", devcycle.Name, err)
+		}
+		if !enabled.Enabled {
+			t.Fatalf("dev-cycle enabled after enable boot = false, want true")
+		}
+	})
 }
 
 func TestNewHostAPISessionManagerAdapter(t *testing.T) {
@@ -1207,7 +1274,18 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(nil, nil, nil, nil, nil, nil, aghconfig.HomePaths{}, nil, nil); svc != nil {
+	if svc := newDaemonExtensionService(
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		aghconfig.HomePaths{},
+		nil,
+		nil,
+	); svc != nil {
 		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
 	}
 
@@ -1215,6 +1293,7 @@ func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	registry := extensionpkg.NewRegistry(db.DB())
 	if svc := newDaemonExtensionService(
 		registry,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -1385,15 +1464,92 @@ func TestBootExtensionsKeepsHealthyRegisteredExtensionsAfterPartialStartFailure(
 	})
 }
 
+func TestBootExtensionsContinuesAfterExtensionLocalContextFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldContinueAfterExtensionInitializeDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		installDaemonTestExtension(t, db, "ext-timeout", daemonTestExtensionOptions{}, true)
+
+		var logBuffer bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+		runtime := &fakeExtensionRuntime{startErr: context.DeadlineExceeded}
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return runtime
+		}
+
+		rebuilds := 0
+		state := &bootState{
+			logger:   logger,
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			bridges:  &bridgeRuntime{broker: bridgepkg.NewBroker(nil)},
+			hooks: &fakeHookRuntime{
+				onRebuild: func(context.Context) error {
+					rebuilds++
+					return nil
+				},
+			},
+		}
+		cleanup := &bootCleanup{}
+
+		if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+			t.Fatalf("bootExtensions() error = %v, want nil", err)
+		}
+		if runtime.startCount != 1 {
+			t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+		}
+		if rebuilds != 1 {
+			t.Fatalf("hook rebuild count = %d, want 1 after local extension deadline", rebuilds)
+		}
+		if state.currentExtensionRuntime() != runtime {
+			t.Fatalf(
+				"state.extensions = %#v, want runtime after local extension deadline",
+				state.currentExtensionRuntime(),
+			)
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service after local extension deadline")
+		}
+		if !strings.Contains(logBuffer.String(), "extension manager start failed") {
+			t.Fatalf("log output = %q, want extension start failure message", logBuffer.String())
+		}
+	})
+}
+
 func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		startErr error
+		name    string
+		build   func(*testing.T) context.Context
+		wantErr error
 	}{
-		{name: "canceled", startErr: context.Canceled},
-		{name: "deadline exceeded", startErr: context.DeadlineExceeded},
+		{
+			name: "ShouldPropagateCanceledBootContext",
+			build: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancel(testutil.Context(t))
+				cancel()
+				return ctx
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			name: "ShouldPropagateExpiredBootContext",
+			build: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithDeadline(testutil.Context(t), time.Now().Add(-time.Second))
+				t.Cleanup(cancel)
+				return ctx
+			},
+			wantErr: context.DeadlineExceeded,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1403,7 +1559,7 @@ func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
 			db := openDaemonTestGlobalDB(t)
 			installDaemonTestExtension(t, db, "ext-canceled", daemonTestExtensionOptions{}, true)
 
-			runtime := &fakeExtensionRuntime{startErr: tc.startErr}
+			runtime := &fakeExtensionRuntime{startErr: tc.wantErr}
 			homePaths := testHomePaths(t)
 			d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
 			d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
@@ -1425,12 +1581,12 @@ func TestBootExtensionsPropagatesContextCancellation(t *testing.T) {
 			}
 			cleanup := &bootCleanup{}
 
-			err := d.bootExtensions(testutil.Context(t), state, cleanup)
-			if !errors.Is(err, tc.startErr) {
-				t.Fatalf("bootExtensions() error = %v, want %v", err, tc.startErr)
+			err := d.bootExtensions(tc.build(t), state, cleanup)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("bootExtensions() error = %v, want %v", err, tc.wantErr)
 			}
-			if runtime.startCount != 1 {
-				t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+			if runtime.startCount != 0 {
+				t.Fatalf("extension runtime start count = %d, want 0 after canceled boot context", runtime.startCount)
 			}
 			if len(cleanup.fns) != 1 {
 				t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
@@ -1645,6 +1801,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
@@ -1796,6 +1953,7 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			fakeHookBindingPublisher(func(context.Context) error {
 				return nil
 			}),
+			nil,
 			nil,
 			nil,
 			nil,
@@ -4677,6 +4835,7 @@ type fakeSessionManager struct {
 	}
 	syntheticPromptCalls     []fakeSyntheticPromptCall
 	syntheticPromptHook      func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	promptHook               func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	healthRows               map[string]heartbeat.SessionHealth
 	promptStarted            chan struct{}
 	promptRelease            <-chan struct{}
@@ -5073,10 +5232,15 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 		id  string
 		msg string
 	}{id: id, msg: msg})
+	promptHook := f.promptHook
 	promptStarted := f.promptStarted
 	promptRelease := f.promptRelease
 	promptCtxCancelled := f.promptCtxCancelled
 	f.mu.Unlock()
+
+	if promptHook != nil {
+		return promptHook(ctx, id, msg)
+	}
 
 	if promptStarted != nil {
 		select {
@@ -6362,16 +6526,17 @@ func (r *recordingRegistry) RecoverExpiredRunLeases(
 
 func (r *recordingRegistry) ReserveQueuedRun(
 	context.Context,
-	string,
-	string,
-	string,
-	taskpkg.Origin,
-	string,
-	json.RawMessage,
-	time.Time,
-	...string,
+	taskpkg.QueueRunReservation,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{}, taskpkg.Run{}, false, taskpkg.ErrTaskNotFound
+}
+
+func (r *recordingRegistry) CompleteCoordinatorAndEnqueueNext(
+	context.Context,
+	taskpkg.CoordinatorCompletion,
+	taskpkg.GenerationStateFinalizer,
+) (taskpkg.CoordinatorCompletionResult, error) {
+	return taskpkg.CoordinatorCompletionResult{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (r *recordingRegistry) CreateTaskEvent(context.Context, taskpkg.Event) error {
@@ -6769,6 +6934,8 @@ type fakeHookRuntime struct {
 	onTaskRunPreClaim  func(context.Context, hookspkg.TaskRunPreClaimPayload) error
 	onTaskRunPostClaim func(context.Context, hookspkg.TaskRunPostClaimPayload) error
 	onTaskRunRecovered func(context.Context, hookspkg.TaskRunLeaseRecoveredPayload) error
+	onLoopNodeTerminal func(context.Context, hookspkg.LoopNodeTerminalPayload) error
+	onLoopTerminal     func(context.Context, hookspkg.LoopTerminalPayload) error
 	onSpawnPreCreate   func(context.Context, hookspkg.SpawnPreCreatePayload) error
 }
 
@@ -7245,6 +7412,61 @@ func (f *fakeHookRuntime) DispatchTaskRunFailed(
 	_ context.Context,
 	payload hookspkg.TaskRunFailedPayload,
 ) (hookspkg.TaskRunFailedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopStarted(
+	_ context.Context,
+	payload hookspkg.LoopStartedPayload,
+) (hookspkg.LoopStartedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopGenerationPre(
+	_ context.Context,
+	payload hookspkg.LoopGenerationPrePayload,
+) (hookspkg.LoopGenerationPrePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopGenerationPost(
+	_ context.Context,
+	payload hookspkg.LoopGenerationPostPayload,
+) (hookspkg.LoopGenerationPostPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopGatePre(
+	_ context.Context,
+	payload hookspkg.LoopGatePrePayload,
+) (hookspkg.LoopGatePrePayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopGatePost(
+	_ context.Context,
+	payload hookspkg.LoopGatePostPayload,
+) (hookspkg.LoopGatePostPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopNodeTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopNodeTerminalPayload,
+) (hookspkg.LoopNodeTerminalPayload, error) {
+	if f.onLoopNodeTerminal != nil {
+		return payload, f.onLoopNodeTerminal(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchLoopTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) (hookspkg.LoopTerminalPayload, error) {
+	if f.onLoopTerminal != nil {
+		return payload, f.onLoopTerminal(ctx, payload)
+	}
 	return payload, nil
 }
 

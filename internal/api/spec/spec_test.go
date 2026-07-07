@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/hooks"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -1271,14 +1272,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				runSchema := propertySchema(t, runDetailSchema, "run")
 				assertEnumValues(t, propertySchema(t, runSchema, "status"),
-					string(taskpkg.TaskRunStatusQueued),
-					string(taskpkg.TaskRunStatusClaimed),
-					string(taskpkg.TaskRunStatusStarting),
-					string(taskpkg.TaskRunStatusRunning),
-					string(taskpkg.TaskRunStatusCompleted),
-					string(taskpkg.TaskRunStatusFailed),
-					string(taskpkg.TaskRunStatusCanceled),
-					string(taskpkg.TaskRunStatusNeedsAttention),
+					taskpkg.TaskRunStatusQueued.String(),
+					taskpkg.TaskRunStatusClaimed.String(),
+					taskpkg.TaskRunStatusStarting.String(),
+					taskpkg.TaskRunStatusRunning.String(),
+					taskpkg.TaskRunStatusCompleted.String(),
+					taskpkg.TaskRunStatusFailed.String(),
+					taskpkg.TaskRunStatusCanceled.String(),
+					taskpkg.TaskRunStatusNeedsAttention.String(),
 				)
 				assertEnumValues(t, propertySchema(t, propertySchema(t, runSchema, "origin"), "kind"),
 					string(taskpkg.OriginKindCLI),
@@ -1651,6 +1652,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskBlockKind", typ: taskpkg.BlockKindNeedsInput},
 		{name: "TaskBlockedSource", typ: taskpkg.BlockedSourceBlock},
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
+		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkip},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},
@@ -1745,14 +1747,14 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			name: "task run status values",
 			got:  taskRunStatusValues(),
 			want: []string{
-				string(taskpkg.TaskRunStatusQueued),
-				string(taskpkg.TaskRunStatusClaimed),
-				string(taskpkg.TaskRunStatusStarting),
-				string(taskpkg.TaskRunStatusRunning),
-				string(taskpkg.TaskRunStatusCompleted),
-				string(taskpkg.TaskRunStatusFailed),
-				string(taskpkg.TaskRunStatusCanceled),
-				string(taskpkg.TaskRunStatusNeedsAttention),
+				taskpkg.TaskRunStatusQueued.String(),
+				taskpkg.TaskRunStatusClaimed.String(),
+				taskpkg.TaskRunStatusStarting.String(),
+				taskpkg.TaskRunStatusRunning.String(),
+				taskpkg.TaskRunStatusCompleted.String(),
+				taskpkg.TaskRunStatusFailed.String(),
+				taskpkg.TaskRunStatusCanceled.String(),
+				taskpkg.TaskRunStatusNeedsAttention.String(),
 			},
 		},
 		{
@@ -1789,6 +1791,21 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 			name: "task inbox lane values",
 			got:  taskInboxLaneValues(),
 			want: []string{"my_work", "approvals", "failed_runs", "blocked", "archived"},
+		},
+		{
+			name: "automation scheduler catch-up policy values",
+			got:  automationSchedulerCatchUpPolicyValues(),
+			want: []string{"skip", "coalesce", "replay"},
+		},
+		{
+			name: "loop run status values",
+			got:  loopRunStatusValues(),
+			want: contract.LoopRunStatusValues(),
+		},
+		{
+			name: "loop run event kind values",
+			got:  loopRunEventKindValues(),
+			want: contract.LoopRunEventKindValues(),
 		},
 	}
 

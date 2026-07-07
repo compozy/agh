@@ -35,6 +35,8 @@ const (
 	httpMethodPut    = "PUT"
 )
 
+const specContentTypeEventStream = "text/event-stream"
+
 const (
 	specNetworkThreadNotFoundDescription = "Network thread not found"
 )
@@ -185,6 +187,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[automationpkg.Scope]():                       automationScopeValues(),
 	reflect.TypeFor[automationpkg.JobSource]():                   automationSourceValues(),
 	reflect.TypeFor[automationpkg.ScheduleMode]():                automationScheduleModeValues(),
+	reflect.TypeFor[automationpkg.SchedulerCatchUpPolicy]():      automationSchedulerCatchUpPolicyValues(),
 	reflect.TypeFor[automationpkg.RetryStrategy]():               automationRetryStrategyValues(),
 	reflect.TypeFor[automationpkg.RunStatus]():                   automationRunStatusValues(),
 	reflect.TypeFor[taskpkg.Scope]():                             taskScopeValues(),
@@ -210,6 +213,14 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[contract.CoordinationMessageKind]():          coordinationMessageKindValues(),
 	reflect.TypeFor[contract.AgentCreateScope]():                 agentCreateScopeValues(),
 	reflect.TypeFor[contract.CoordinatorConfigSource]():          coordinatorConfigSourceValues(),
+	reflect.TypeFor[contract.LoopSource]():                       loopSourceValues(),
+	reflect.TypeFor[contract.LoopRunStatus]():                    loopRunStatusValues(),
+	reflect.TypeFor[contract.LoopRunEventKind]():                 loopRunEventKindValues(),
+	reflect.TypeFor[contract.LoopNodeClass]():                    loopNodeClassValues(),
+	reflect.TypeFor[contract.LoopReattemptStrategy]():            loopReattemptStrategyValues(),
+	reflect.TypeFor[contract.LoopBudgetExceeded]():               loopBudgetExceededValues(),
+	reflect.TypeFor[contract.LoopGateDecision]():                 loopGateDecisionValues(),
+	reflect.TypeFor[contract.LoopLintSeverity]():                 loopLintSeverityValues(),
 	reflect.TypeFor[contract.AuthoredValidationStatus]():         contract.AuthoredValidationStatusValues(),
 	reflect.TypeFor[contract.AuthoredDiagnosticSeverity]():       contract.AuthoredDiagnosticSeverityValues(),
 	reflect.TypeFor[contract.AgentSoulRevisionAction]():          contract.AgentSoulRevisionActionValues(),
@@ -285,6 +296,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = "binary"
 	},
+	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},
@@ -379,6 +391,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specExtensionsKey},
 			{Name: specHooksKey},
 			{Name: specLogsKey},
+			{Name: specLoopsKey},
 			{Name: specMemoryKey},
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
@@ -3275,7 +3288,7 @@ var operationRegistry = []OperationSpec{
 				Status:      200,
 				Description: "Log event stream",
 				Body:        contract.LogEventPayload{},
-				ContentType: "text/event-stream",
+				ContentType: specContentTypeEventStream,
 			},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -4746,7 +4759,7 @@ var operationRegistry = []OperationSpec{
 				Status:      200,
 				Description: "Task event stream",
 				Body:        contract.TaskStreamEventPayload{},
-				ContentType: "text/event-stream",
+				ContentType: specContentTypeEventStream,
 			},
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task stream query", Body: contract.ErrorPayload{}},
@@ -5880,6 +5893,8 @@ func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
 	ops = append(ops, notificationPresetOperations()...)
 	ops = append(ops, authoredContextOperations()...)
+	ops = append(ops, loopsOperations()...)
+	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)
 	ops = append(ops, providerOperations()...)
 	sort.SliceStable(ops, func(i, j int) bool {
@@ -6404,6 +6419,10 @@ func headerParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: true}
 }
 
+func optionalHeaderParam(name string, description string) ParameterSpec {
+	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: false}
+}
+
 func queryParam(name string, description string, required bool) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInQuery, Description: description, Required: required}
 }
@@ -6515,6 +6534,14 @@ func automationScheduleModeValues() []string {
 	}
 }
 
+func automationSchedulerCatchUpPolicyValues() []string {
+	return []string{
+		string(automationpkg.SchedulerCatchUpPolicySkip),
+		string(automationpkg.SchedulerCatchUpPolicyCoalesce),
+		string(automationpkg.SchedulerCatchUpPolicyReplay),
+	}
+}
+
 func automationRetryStrategyValues() []string {
 	return []string{
 		string(automationpkg.RetryStrategyNone),
@@ -6530,6 +6557,60 @@ func automationRunStatusValues() []string {
 		string(automationpkg.RunCompleted),
 		string(automationpkg.RunFailed),
 		string(automationpkg.RunCancelled),
+	}
+}
+
+func loopSourceValues() []string {
+	return []string{
+		string(contract.LoopSourceMarketplace),
+		string(contract.LoopSourceUser),
+		string(contract.LoopSourceAdditional),
+		string(contract.LoopSourceWorkspace),
+	}
+}
+
+func loopRunStatusValues() []string {
+	return contract.LoopRunStatusValues()
+}
+
+func loopRunEventKindValues() []string {
+	return contract.LoopRunEventKindValues()
+}
+
+func loopNodeClassValues() []string {
+	return []string{
+		string(contract.LoopNodeClassAction),
+		string(contract.LoopNodeClassControl),
+		string(contract.LoopNodeClassSource),
+	}
+}
+
+func loopReattemptStrategyValues() []string {
+	return []string{
+		string(contract.LoopReattemptFailedOnly),
+		string(contract.LoopReattemptFullBody),
+	}
+}
+
+func loopBudgetExceededValues() []string {
+	return []string{
+		string(contract.LoopBudgetExceededHalt),
+		string(contract.LoopBudgetExceededEscalate),
+	}
+}
+
+func loopGateDecisionValues() []string {
+	return []string{
+		string(contract.LoopGateDecisionApprove),
+		string(contract.LoopGateDecisionRequestChanges),
+		string(contract.LoopGateDecisionReject),
+	}
+}
+
+func loopLintSeverityValues() []string {
+	return []string{
+		string(contract.LoopLintSeverityError),
+		string(contract.LoopLintSeverityWarning),
 	}
 }
 
@@ -6581,14 +6662,14 @@ func taskApprovalStateValues() []string {
 
 func taskRunStatusValues() []string {
 	return []string{
-		string(taskpkg.TaskRunStatusQueued),
-		string(taskpkg.TaskRunStatusClaimed),
-		string(taskpkg.TaskRunStatusStarting),
-		string(taskpkg.TaskRunStatusRunning),
-		string(taskpkg.TaskRunStatusCompleted),
-		string(taskpkg.TaskRunStatusFailed),
-		string(taskpkg.TaskRunStatusCanceled),
-		string(taskpkg.TaskRunStatusNeedsAttention),
+		taskpkg.TaskRunStatusQueued.String(),
+		taskpkg.TaskRunStatusClaimed.String(),
+		taskpkg.TaskRunStatusStarting.String(),
+		taskpkg.TaskRunStatusRunning.String(),
+		taskpkg.TaskRunStatusCompleted.String(),
+		taskpkg.TaskRunStatusFailed.String(),
+		taskpkg.TaskRunStatusCanceled.String(),
+		taskpkg.TaskRunStatusNeedsAttention.String(),
 	}
 }
 

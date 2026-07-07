@@ -109,7 +109,9 @@ type daemonNativeToolsDeps struct {
 	ToolMCP             toolMCPPublisher
 	MCPAuth             func() toolspkg.MCPAuthStatusProvider
 	BundleResources     bundleResourcePublisher
+	LoopResources       loopResourcePublisher
 	BundleService       func() core.BundleService
+	Loops               func() core.LoopService
 	Resources           core.ResourceService
 }
 
@@ -289,8 +291,12 @@ func (d *Daemon) nativeToolsDeps(
 		AgentSkills:       state.agentSkillResources,
 		ToolMCP:           state.toolMCPResources,
 		BundleResources:   state.bundleResources,
+		LoopResources:     state.loopResources,
 		BundleService: func() core.BundleService {
 			return state.deps.Bundles
+		},
+		Loops: func() core.LoopService {
+			return state.deps.Loops
 		},
 		Resources: state.deps.Resources,
 	}
@@ -466,6 +472,7 @@ type nativeToolAvailabilitySet struct {
 	hookRead            toolspkg.NativeAvailabilityFunc
 	hookMutation        toolspkg.NativeAvailabilityFunc
 	automation          toolspkg.NativeAvailabilityFunc
+	loops               toolspkg.NativeAvailabilityFunc
 	extensions          toolspkg.NativeAvailabilityFunc
 	bundles             toolspkg.NativeAvailabilityFunc
 	resources           toolspkg.NativeAvailabilityFunc
@@ -505,6 +512,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
+	addNativeToolBindings(bindings, n.loopToolBindings(availability.loops))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
 	addNativeToolBindings(bindings, n.bundleToolBindings(availability.bundles))
@@ -565,6 +573,7 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 			return configReady() && n.deps.Observer != nil
 		}),
 		automation: n.dependencyAvailability(func() bool { return n.automationManager() != nil }),
+		loops:      n.dependencyAvailability(func() bool { return n.loopService() != nil }),
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
@@ -579,6 +588,13 @@ func (n *daemonNativeTools) bundleService() core.BundleService {
 		return nil
 	}
 	return n.deps.BundleService()
+}
+
+func (n *daemonNativeTools) loopService() core.LoopService {
+	if n == nil || n.deps == nil || n.deps.Loops == nil {
+		return nil
+	}
+	return n.deps.Loops()
 }
 
 func extensionRegistryDependency(registry Registry) *extensionpkg.Registry {
@@ -4342,7 +4358,7 @@ type taskRunListInput struct {
 func (i taskRunListInput) query() taskpkg.RunQuery {
 	return taskpkg.RunQuery{
 		TaskID:                strings.TrimSpace(i.TaskID),
-		Status:                taskpkg.RunStatus(strings.TrimSpace(i.Status)),
+		Status:                taskpkg.ParseRunStatus(i.Status),
 		SessionID:             strings.TrimSpace(i.SessionID),
 		CoordinationChannelID: strings.TrimSpace(i.CoordinationChannelID),
 		Limit:                 i.Limit,

@@ -6131,6 +6131,9 @@ func automationJobValues(query AutomationJobQuery) url.Values {
 	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
 		values.Set("source", trimmed)
 	}
+	if trimmed := strings.TrimSpace(query.LoopName); trimmed != "" {
+		values.Set("loop", trimmed)
+	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
@@ -6150,6 +6153,9 @@ func automationTriggerValues(query AutomationTriggerQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
 		values.Set("source", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.LoopName); trimmed != "" {
+		values.Set("loop", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
@@ -6211,7 +6217,7 @@ func taskValues(query TaskListQuery) url.Values {
 
 func taskRunValues(query TaskRunListQuery) url.Values {
 	values := url.Values{}
-	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
+	if trimmed := strings.TrimSpace(query.Status.String()); trimmed != "" {
 		values.Set("status", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {

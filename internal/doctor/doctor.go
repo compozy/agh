@@ -153,7 +153,7 @@ func probeErrorItem(probe Probe, err error) contract.DiagnosticItem {
 	return diagnostics.NewItem(
 		probe.ID(),
 		code,
-		contract.CategoryDaemon,
+		probe.Category(),
 		title,
 		err.Error(),
 		contract.SeverityError,

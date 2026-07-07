@@ -62,6 +62,7 @@ export function createAutomationJobDraft(
       expr: "0 9 * * *",
     },
     scope: workspaceId ? "workspace" : "global",
+    target_kind: "agent",
     workspace_id: workspaceId,
     enabled: true,
     retry: normalizeAutomationRetry(),
@@ -110,6 +111,8 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
       expr: "0 9 * * *",
     },
     scope: job.scope,
+    target_kind: job.target_kind,
+    loop_target: job.loop_target ?? undefined,
     workspace_id: job.workspace_id,
     task: job.task ?? undefined,
     enabled: job.enabled,
@@ -133,10 +136,102 @@ export function createAutomationTriggerDraft(
     event: "session.stopped",
     filter: {},
     scope: workspaceId ? "workspace" : "global",
+    target_kind: "agent",
     workspace_id: workspaceId,
     enabled: true,
     retry: normalizeAutomationRetry(),
     fire_limit: { ...DEFAULT_FIRE_LIMIT },
+  };
+}
+
+/** The `target_kind` discriminator value marking a loop-target automation. */
+export const LOOP_TARGET_KIND = "loop";
+const AGENT_TARGET_KIND = "agent";
+
+export type AutomationTargetMode = "agent" | "loop";
+export type AutomationLoopTarget = NonNullable<CreateAutomationTriggerRequest["loop_target"]>;
+
+/** A draft runs a Loop when it carries a `loop_target`; otherwise it runs an agent. */
+export function automationTargetMode(
+  draft: Pick<CreateAutomationTriggerRequest, "loop_target" | "target_kind">
+): AutomationTargetMode {
+  return draft.target_kind === LOOP_TARGET_KIND || draft.loop_target ? "loop" : "agent";
+}
+
+/** A blank loop target bound to the automation's own workspace. */
+export function emptyLoopTarget(workspaceId?: string | null, loopName = ""): AutomationLoopTarget {
+  return { loop_name: loopName, workspace_id: workspaceId ?? "", inputs: {}, input_mapping: {} };
+}
+
+function applyTargetMode(
+  draft: CreateAutomationTriggerRequest,
+  mode: AutomationTargetMode
+): CreateAutomationTriggerRequest;
+function applyTargetMode(
+  draft: CreateAutomationJobRequest,
+  mode: AutomationTargetMode
+): CreateAutomationJobRequest;
+function applyTargetMode(
+  draft: CreateAutomationTriggerRequest | CreateAutomationJobRequest,
+  mode: AutomationTargetMode
+): CreateAutomationTriggerRequest | CreateAutomationJobRequest {
+  if (mode === "loop") {
+    return {
+      ...draft,
+      target_kind: LOOP_TARGET_KIND,
+      loop_target: draft.loop_target ?? emptyLoopTarget(draft.workspace_id),
+    };
+  }
+  return { ...draft, target_kind: AGENT_TARGET_KIND, loop_target: undefined };
+}
+
+/**
+ * Switches a trigger draft between running an agent and running a Loop. Loop mode
+ * pins the `target_kind` discriminator and seeds an empty loop target scoped to
+ * the automation's workspace; agent mode clears the loop target.
+ */
+export function setTriggerTargetMode(
+  draft: CreateAutomationTriggerRequest,
+  mode: AutomationTargetMode
+): CreateAutomationTriggerRequest {
+  return applyTargetMode(draft, mode);
+}
+
+/** Switches a job draft between agent and Loop targets (see setTriggerTargetMode). */
+export function setJobTargetMode(
+  draft: CreateAutomationJobRequest,
+  mode: AutomationTargetMode
+): CreateAutomationJobRequest {
+  return applyTargetMode(draft, mode);
+}
+
+/** A trigger create draft pre-targeted at one Loop (the detail "Add trigger" CTA). */
+export function createLoopTargetTriggerDraft(
+  workspaceId: string | null | undefined,
+  loopName: string
+): CreateAutomationTriggerRequest {
+  const draft = createAutomationTriggerDraft(workspaceId);
+  return {
+    ...draft,
+    scope: "workspace",
+    workspace_id: workspaceId ?? undefined,
+    target_kind: LOOP_TARGET_KIND,
+    loop_target: emptyLoopTarget(workspaceId, loopName),
+  };
+}
+
+/** A job create draft pre-targeted at one Loop (the detail "Add schedule" CTA). */
+export function createLoopTargetJobDraft(
+  workspaceId: string | null | undefined,
+  loopName: string
+): CreateAutomationJobRequest {
+  const draft = createAutomationJobDraft(workspaceId);
+  return {
+    ...draft,
+    scope: "workspace",
+    workspace_id: workspaceId ?? undefined,
+    target_kind: LOOP_TARGET_KIND,
+    loop_target: emptyLoopTarget(workspaceId, loopName),
   };
 }
 
@@ -150,6 +245,8 @@ export function automationTriggerToDraft(
     event: trigger.event,
     filter: trigger.filter ?? {},
     scope: trigger.scope,
+    target_kind: trigger.target_kind,
+    loop_target: trigger.loop_target ?? undefined,
     workspace_id: trigger.workspace_id,
     enabled: trigger.enabled,
     retry: normalizeAutomationRetry(trigger.retry),

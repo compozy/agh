@@ -53,6 +53,7 @@ type Server struct {
 	networkStore      core.NetworkStore
 	observer          core.Observer
 	automation        core.AutomationManager
+	loops             core.LoopService
 	bridges           core.BridgeService
 	notifications     core.NotificationPresetService
 	bundles           core.BundleService
@@ -202,13 +203,6 @@ func WithNetworkStore(store core.NetworkStore) Option {
 func WithObserver(observer core.Observer) Option {
 	return func(server *Server) {
 		server.observer = observer
-	}
-}
-
-// WithAutomation injects the daemon-owned automation manager.
-func WithAutomation(manager core.AutomationManager) Option {
-	return func(server *Server) {
-		server.automation = manager
 	}
 }
 
@@ -594,6 +588,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		observer:          s.observer,
 		resources:         s.resources,
 		automation:        s.automation,
+		loops:             s.loops,
 		bridges:           s.bridges,
 		notifications:     s.notifications,
 		bundles:           s.bundles,

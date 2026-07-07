@@ -40,6 +40,7 @@ describe("automation list options", () => {
       "ws_alpha",
       "dynamic",
       "10",
+      "",
     ]);
   });
 });

@@ -288,7 +288,7 @@ func ParseTaskRunListQuery(c *gin.Context) (contract.TaskRunListQuery, error) {
 	}
 
 	return contract.TaskRunListQuery{
-		Status:    taskpkg.RunStatus(strings.TrimSpace(c.Query("status"))).Normalize(),
+		Status:    taskpkg.ParseRunStatus(c.Query("status")).Normalize(),
 		SessionID: strings.TrimSpace(c.Query("session_id")),
 		Limit:     limit,
 	}, nil

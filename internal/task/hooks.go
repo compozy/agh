@@ -62,6 +62,13 @@ type RunHookDispatcher interface {
 	) (hookspkg.TaskRunFailedPayload, error)
 }
 
+type terminalHookDispatcher interface {
+	DispatchLoopTerminal(
+		context.Context,
+		hookspkg.LoopTerminalPayload,
+	) (hookspkg.LoopTerminalPayload, error)
+}
+
 var _ RunHookDispatcher = noopTaskRunHooks{}
 
 type noopTaskRunHooks struct{}

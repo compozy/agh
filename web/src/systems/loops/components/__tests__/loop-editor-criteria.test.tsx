@@ -1,0 +1,68 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { describe, expect, it } from "vitest";
+
+import { LoopEditorCriteria } from "../editor/loop-editor-criteria";
+
+function Harness({ initial = [] as unknown[] }: { initial?: unknown[] }) {
+  const [value, setValue] = useState<unknown>(initial);
+  return (
+    <div>
+      <LoopEditorCriteria value={value} onChange={setValue} />
+      <output data-testid="json">{JSON.stringify(value)}</output>
+    </div>
+  );
+}
+
+describe("LoopEditorCriteria", () => {
+  it("Should add a default command criterion", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByTestId("loop-editor-criteria-add"));
+    const json = JSON.parse(screen.getByTestId("json").textContent || "[]");
+    expect(json).toHaveLength(1);
+    expect(json[0]).toMatchObject({ type: "command", expect: "exit_zero" });
+  });
+
+  it("Should switch a criterion type and edit its per-type fields", () => {
+    render(
+      <Harness
+        initial={[{ id: "review", type: "command", check: "make test", expect: "exit_zero" }]}
+      />
+    );
+    fireEvent.change(screen.getByLabelText("Criterion type"), { target: { value: "agent-judge" } });
+    fireEvent.change(screen.getByLabelText("Judge agent"), { target: { value: "reviewer" } });
+    fireEvent.change(screen.getByLabelText("Rubric"), { target: { value: "Cite evidence." } });
+    const json = JSON.parse(screen.getByTestId("json").textContent || "[]");
+    expect(json[0]).toMatchObject({
+      type: "agent-judge",
+      agent: "reviewer",
+      rubric: "Cite evidence.",
+    });
+  });
+
+  it("Should remove a criterion", () => {
+    render(<Harness initial={[{ id: "a", type: "human", prompt: "ok?" }]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Remove criterion/i }));
+    expect(JSON.parse(screen.getByTestId("json").textContent || "x")).toEqual([]);
+  });
+
+  it("Should allocate the next generated id after the highest existing criterion suffix", () => {
+    render(
+      <Harness
+        initial={[
+          { id: "criterion_1", type: "command" },
+          { id: "criterion_2", type: "command" },
+          { id: "criterion_3", type: "command" },
+        ]}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove criterion criterion_1" }));
+    fireEvent.click(screen.getByTestId("loop-editor-criteria-add"));
+    const json = JSON.parse(screen.getByTestId("json").textContent || "[]");
+    expect(json.map((criterion: { id: string }) => criterion.id)).toEqual([
+      "criterion_2",
+      "criterion_3",
+      "criterion_4",
+    ]);
+  });
+});

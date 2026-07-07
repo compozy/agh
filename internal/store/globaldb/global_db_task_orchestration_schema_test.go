@@ -410,7 +410,7 @@ func insertPreviousTaskOrchestrationRows(t *testing.T, db *sql.DB) {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"run-profile-migration",
 		"task-profile-migration",
-		string(taskpkg.TaskRunStatusQueued),
+		taskpkg.TaskRunStatusQueued.String(),
 		1,
 		nil,
 		nil,

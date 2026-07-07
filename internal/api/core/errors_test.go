@@ -13,6 +13,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/diagnostics"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -161,6 +162,9 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 	if got := StatusForAutomationError(automationpkg.ErrWebhookSignatureInvalid); got != http.StatusUnauthorized {
 		t.Fatalf("StatusForAutomationError(signature invalid) = %d, want %d", got, http.StatusUnauthorized)
 	}
+	if got := StatusForAutomationError(looppkg.ErrValidation); got != http.StatusUnprocessableEntity {
+		t.Fatalf("StatusForAutomationError(loop validation) = %d, want %d", got, http.StatusUnprocessableEntity)
+	}
 
 	tests := []struct {
 		name string
@@ -178,6 +182,56 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 			t.Parallel()
 			if got := StatusForNetworkError(tt.err); got != tt.want {
 				t.Fatalf("StatusForNetworkError(%v) = %d, want %d", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoopErrorHelpers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "Should map nil Loop errors to OK", err: nil, want: http.StatusOK},
+		{
+			name: "Should map duplicate Loop definitions to conflict",
+			err:  looppkg.ErrDefinitionExists,
+			want: http.StatusConflict,
+		},
+		{
+			name: "Should map missing Loop definitions to not found",
+			err:  looppkg.ErrDefinitionNotFound,
+			want: http.StatusNotFound,
+		},
+		{
+			name: "Should map Loop validation errors to bad request",
+			err:  looppkg.ErrValidation,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "Should map invalid Loop transitions to unprocessable entity",
+			err:  looppkg.ErrInvalidTransition,
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "Should map Loop transition conflicts to conflict",
+			err:  looppkg.ErrTransitionConflict,
+			want: http.StatusConflict,
+		},
+		{
+			name: "Should map unknown Loop errors to internal server error",
+			err:  errors.New("boom"),
+			want: http.StatusInternalServerError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := StatusForLoopError(tt.err); got != tt.want {
+				t.Fatalf("StatusForLoopError(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

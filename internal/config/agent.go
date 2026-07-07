@@ -179,6 +179,15 @@ func (r WorkspaceDiscoveryRoot) SkillsDir() string {
 	return filepath.Join(r.Dir, DirName, SkillsDirName)
 }
 
+// LoopsDir returns the loop-definition directory for this discovery root.
+func (r WorkspaceDiscoveryRoot) LoopsDir() string {
+	if r.Source == WorkspaceDiscoverySourceGlobal {
+		return filepath.Join(r.Dir, LoopsDirName)
+	}
+
+	return filepath.Join(r.Dir, DirName, LoopsDirName)
+}
+
 // LoadWorkspaceAgentDefs loads workspace-visible agents using root, additional, then global precedence.
 func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths HomePaths) ([]AgentDef, error) {
 	roots := WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths)

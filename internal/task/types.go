@@ -82,27 +82,124 @@ const (
 )
 
 // RunStatus identifies the canonical lifecycle state of a task run.
-type RunStatus string
+type RunStatus uint8
 
 const (
+	taskRunStatusQueuedString         = "queued"
+	taskRunStatusClaimedString        = "claimed"
+	taskRunStatusStartingString       = "starting"
+	taskRunStatusCompletedString      = "completed"
+	taskRunStatusCanceledString       = "canceled"
+	taskRunStatusNeedsAttentionString = "needs_attention"
+)
+
+const (
+	// TaskRunStatusUnknown is the zero value used before normalization.
+	TaskRunStatusUnknown RunStatus = iota
 	// TaskRunStatusQueued reports a run that has been accepted but not yet claimed.
-	TaskRunStatusQueued RunStatus = "queued"
+	TaskRunStatusQueued
 	// TaskRunStatusClaimed reports a run that has been claimed for execution.
-	TaskRunStatusClaimed RunStatus = "claimed"
+	TaskRunStatusClaimed
 	// TaskRunStatusStarting reports a run that is starting its execution session.
-	TaskRunStatusStarting RunStatus = "starting"
+	TaskRunStatusStarting
 	// TaskRunStatusRunning reports a run that is actively executing.
-	TaskRunStatusRunning RunStatus = "running"
+	TaskRunStatusRunning
 	// TaskRunStatusCompleted reports a run that finished successfully.
-	TaskRunStatusCompleted RunStatus = "completed"
+	TaskRunStatusCompleted
 	// TaskRunStatusFailed reports a run that finished with an error.
-	TaskRunStatusFailed RunStatus = "failed"
+	TaskRunStatusFailed
 	// TaskRunStatusCanceled reports a run that was canceled.
-	TaskRunStatusCanceled RunStatus = "canceled"
+	TaskRunStatusCanceled
 	// TaskRunStatusNeedsAttention reports a queued run the scheduler could not converge
 	// (no worker claimed it within the starvation budget); it awaits operator/agent recovery.
-	TaskRunStatusNeedsAttention RunStatus = "needs_attention"
+	TaskRunStatusNeedsAttention
 )
+
+// String returns the durable string representation of the task-run status.
+func (s RunStatus) String() string {
+	switch s {
+	case TaskRunStatusQueued:
+		return taskRunStatusQueuedString
+	case TaskRunStatusClaimed:
+		return taskRunStatusClaimedString
+	case TaskRunStatusStarting:
+		return taskRunStatusStartingString
+	case TaskRunStatusRunning:
+		return string(InspectNextActionRunning)
+	case TaskRunStatusCompleted:
+		return taskRunStatusCompletedString
+	case TaskRunStatusFailed:
+		return string(TaskStatusFailed)
+	case TaskRunStatusCanceled:
+		return taskRunStatusCanceledString
+	case TaskRunStatusNeedsAttention:
+		return taskRunStatusNeedsAttentionString
+	default:
+		return ""
+	}
+}
+
+// MarshalJSON encodes run status as the public/durable string value.
+func (s RunStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON decodes the public/durable run status string.
+func (s *RunStatus) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	parsed := ParseRunStatus(value)
+	if err := parsed.Validate("task_run.status"); err != nil {
+		return err
+	}
+	*s = parsed
+	return nil
+}
+
+// RunKind identifies which executor owns a task-run body.
+type RunKind uint8
+
+const (
+	// RunKindUnknown is the zero value used before normalization.
+	RunKindUnknown RunKind = iota
+	// RunKindWorker identifies normal ACP-backed worker runs.
+	RunKindWorker
+	// RunKindCoordinator identifies in-daemon generation coordinator runs.
+	RunKindCoordinator
+)
+
+// String returns the durable string representation of the task-run kind.
+func (k RunKind) String() string {
+	switch k {
+	case RunKindWorker:
+		return "worker"
+	case RunKindCoordinator:
+		return "coordinator"
+	default:
+		return ""
+	}
+}
+
+// MarshalJSON encodes run kind as the public/durable string value.
+func (k RunKind) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
+// UnmarshalJSON decodes the public/durable run kind string.
+func (k *RunKind) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	parsed := ParseRunKind(value)
+	if err := parsed.Validate("task_run.run_kind"); err != nil {
+		return err
+	}
+	*k = parsed
+	return nil
+}
 
 const (
 	// FailureKindOperatorForced identifies an operator-authored forced terminal failure.
@@ -462,8 +559,10 @@ type RunReviewLineage struct {
 type Run struct {
 	ID                    string            `json:"id"`
 	TaskID                string            `json:"task_id"`
+	Attempt               int32             `json:"attempt"`
+	RunKind               RunKind           `json:"run_kind,omitempty"`
+	LoopRunID             string            `json:"loop_run_id,omitempty"`
 	Status                RunStatus         `json:"status"`
-	Attempt               int               `json:"attempt"`
 	PreviousRunID         string            `json:"previous_run_id,omitempty"`
 	FailureKind           string            `json:"failure_kind,omitempty"`
 	ClaimedBy             *ActorIdentity    `json:"claimed_by,omitempty"`
@@ -472,7 +571,6 @@ type Run struct {
 	IdempotencyKey        string            `json:"idempotency_key,omitempty"`
 	NetworkChannel        string            `json:"network_channel,omitempty"`
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
-	ClaimToken            string            `json:"-"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
 	LeaseUntil            time.Time         `json:"lease_until"`
 	HeartbeatAt           time.Time         `json:"heartbeat_at"`
@@ -485,6 +583,7 @@ type Run struct {
 	ClaimedAt             time.Time         `json:"claimed_at"`
 	StartedAt             time.Time         `json:"started_at"`
 	EndedAt               time.Time         `json:"ended_at"`
+	TokensUsed            int64             `json:"tokens_used,omitempty"`
 	Error                 string            `json:"error,omitempty"`
 	Result                json.RawMessage   `json:"result,omitempty"`
 }
@@ -604,6 +703,8 @@ type DependencyReference struct {
 type RunSummary struct {
 	ID                    string                 `json:"id"`
 	TaskID                string                 `json:"task_id"`
+	RunKind               RunKind                `json:"run_kind,omitempty"`
+	LoopRunID             string                 `json:"loop_run_id,omitempty"`
 	Status                RunStatus              `json:"status"`
 	Attempt               int                    `json:"attempt"`
 	PreviousRunID         string                 `json:"previous_run_id,omitempty"`
@@ -621,6 +722,7 @@ type RunSummary struct {
 	ClaimedAt             time.Time              `json:"claimed_at"`
 	StartedAt             time.Time              `json:"started_at"`
 	EndedAt               time.Time              `json:"ended_at"`
+	TokensUsed            int64                  `json:"tokens_used,omitempty"`
 	Error                 string                 `json:"error,omitempty"`
 }
 
@@ -715,10 +817,26 @@ type AddDependency struct {
 // EnqueueRun captures the mutable inputs accepted when queuing a task run.
 type EnqueueRun struct {
 	TaskID             string          `json:"task_id"`
+	RunKind            RunKind         `json:"run_kind,omitempty"`
+	LoopRunID          string          `json:"loop_run_id,omitempty"`
 	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
 	NetworkChannel     string          `json:"network_channel,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
+}
+
+// QueueRunReservation captures the canonical store-level queue reservation input.
+type QueueRunReservation struct {
+	TaskID             string          `json:"task_id"`
+	RunID              string          `json:"run_id"`
+	RunKind            RunKind         `json:"run_kind,omitempty"`
+	LoopRunID          string          `json:"loop_run_id,omitempty"`
+	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
+	Origin             Origin          `json:"origin"`
+	RequestedChannel   string          `json:"requested_channel,omitempty"`
+	DesignationGroupID string          `json:"designation_group_id,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	QueuedAt           time.Time       `json:"queued_at"`
 }
 
 // ClaimRun captures one run-claim request.
@@ -729,6 +847,7 @@ type ClaimRun struct {
 // StartRun captures one run-start request.
 type StartRun struct {
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	ClaimToken     string `json:"claim_token,omitempty"`
 }
 
 // CancelRun captures one run-cancellation request.
@@ -739,7 +858,8 @@ type CancelRun struct {
 
 // RunResult captures the durable JSON result returned by a completed run.
 type RunResult struct {
-	Value json.RawMessage `json:"value,omitempty"`
+	Value      json.RawMessage `json:"value,omitempty"`
+	TokensUsed int64           `json:"tokens_used,omitempty"`
 }
 
 // RunFailure captures the durable failure payload returned by a failed run.

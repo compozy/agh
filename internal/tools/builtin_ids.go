@@ -254,6 +254,32 @@ const (
 	ToolIDHooksEnable ToolID = "agh__hooks_enable"
 	// ToolIDHooksDisable disables one config-backed hook declaration.
 	ToolIDHooksDisable ToolID = "agh__hooks_disable"
+	// ToolIDLoopList lists Loop definitions available in a workspace.
+	ToolIDLoopList ToolID = "agh__loop_list"
+	// ToolIDLoopInspect reads one Loop definition and authoring contract.
+	ToolIDLoopInspect ToolID = "agh__loop_inspect"
+	// ToolIDLoopValidate lints and compiles one Loop definition without saving it.
+	ToolIDLoopValidate ToolID = "agh__loop_validate"
+	// ToolIDLoopCreate creates or forks one Loop definition.
+	ToolIDLoopCreate ToolID = "agh__loop_create"
+	// ToolIDLoopRun starts or dry-runs one Loop.
+	ToolIDLoopRun ToolID = "agh__loop_run"
+	// ToolIDLoopStatus reads one Loop run status.
+	ToolIDLoopStatus ToolID = "agh__loop_status"
+	// ToolIDLoopRuns lists workspace-scoped Loop runs.
+	ToolIDLoopRuns ToolID = "agh__loop_runs"
+	// ToolIDLoopStop stops one active Loop run.
+	ToolIDLoopStop ToolID = "agh__loop_stop"
+	// ToolIDLoopPause pauses one running Loop at a generation boundary.
+	ToolIDLoopPause ToolID = "agh__loop_pause"
+	// ToolIDLoopResume resumes one paused Loop run.
+	ToolIDLoopResume ToolID = "agh__loop_resume"
+	// ToolIDLoopConfigure writes per-loop runtime config overrides.
+	ToolIDLoopConfigure ToolID = "agh__loop_configure"
+	// ToolIDLoopApprove applies one human-gate decision.
+	ToolIDLoopApprove ToolID = "agh__loop_approve"
+	// ToolIDLoopDelete deletes one user-authored Loop definition.
+	ToolIDLoopDelete ToolID = "agh__loop_delete"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.
 	ToolIDAutomationJobsList ToolID = "agh__automation_jobs_list"
 	// ToolIDAutomationJobsGet reads one automation job through the automation manager.
@@ -361,6 +387,8 @@ const (
 	ToolsetIDConfig ToolsetID = "agh__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.
 	ToolsetIDHooks ToolsetID = "agh__hooks"
+	// ToolsetIDLoops groups Loop authoring, execution, and run-management tools.
+	ToolsetIDLoops ToolsetID = "agh__loops"
 	// ToolsetIDAutomation groups automation lifecycle and run inspection tools.
 	ToolsetIDAutomation ToolsetID = "agh__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.

@@ -200,7 +200,7 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 			ID:             fmt.Sprintf("run-%03d", i),
 			TaskID:         fmt.Sprintf("task-%03d", i),
 			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        i%3 + 1,
+			Attempt:        int32(i%3 + 1),
 			ClaimedBy:      extensionBenchmarkClaimedBy(i),
 			SessionID:      fmt.Sprintf("session-%03d", i),
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "bench-ext"},

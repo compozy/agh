@@ -212,6 +212,116 @@ const taskDesignationRollupsTableStatement = `CREATE TABLE IF NOT EXISTS task_de
 			created_at            TEXT NOT NULL
 		);`
 
+// loop_runs.status uses the TechSpec's 11-state vocabulary:
+// live queued|running|watching|needs-approval|paused; terminal done|no-op|blocked|failed|exhausted|stalled.
+const loopRunsTableStatement = `CREATE TABLE IF NOT EXISTS loop_runs (
+			id                   TEXT PRIMARY KEY,
+			workspace_id         TEXT NOT NULL,
+			loop_name            TEXT NOT NULL,
+			status               TEXT NOT NULL,
+			generation           INTEGER NOT NULL DEFAULT 0,
+			reattempt_strategy   TEXT NOT NULL DEFAULT 'failed_only',
+			last_progress_at     TIMESTAMP NOT NULL,
+			consecutive_failures INTEGER NOT NULL DEFAULT 0,
+			budget_tokens        INTEGER NOT NULL DEFAULT 0,
+			budget_wall_sec      INTEGER NOT NULL DEFAULT 0,
+			budget_on_exceeded   TEXT NOT NULL DEFAULT 'halt',
+			tokens_used          INTEGER NOT NULL DEFAULT 0,
+			parent_loop_run_id   TEXT,
+			pause_requested      INTEGER NOT NULL DEFAULT 0,
+			inputs_json          TEXT NOT NULL
+		);`
+
+// loop_generation_outputs.status uses pending|enqueued|running|awaiting_child|succeeded|failed;
+// awaiting_child is non-terminal for the generation-finish gate.
+const loopGenerationOutputsTableStatement = `CREATE TABLE IF NOT EXISTS loop_generation_outputs (
+			loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+			generation        INTEGER NOT NULL,
+			node_id           TEXT NOT NULL,
+			item_index        INTEGER NOT NULL DEFAULT 0,
+			status            TEXT NOT NULL,
+			output_ref        TEXT,
+			task_run_id       TEXT,
+			child_loop_run_id TEXT,
+			PRIMARY KEY (loop_run_id, generation, node_id, item_index)
+		);`
+
+const loopGenerationOutputsOutputRefIndexStatement = `CREATE INDEX IF NOT EXISTS idx_loop_generation_outputs_output_ref
+			ON loop_generation_outputs(output_ref);`
+
+const loopOutputBlobsTableStatement = `CREATE TABLE IF NOT EXISTS loop_output_blobs (
+			output_ref   TEXT PRIMARY KEY,
+			payload_json TEXT NOT NULL,
+			byte_size    INTEGER NOT NULL CHECK (byte_size >= 0),
+			created_at   TEXT NOT NULL,
+			last_used_at TEXT NOT NULL
+		);`
+
+const loopRunEventsTableStatement = `CREATE TABLE IF NOT EXISTS loop_run_events (
+			id           TEXT PRIMARY KEY,
+			loop_run_id  TEXT NOT NULL,
+			workspace_id TEXT NOT NULL,
+			seq          INTEGER NOT NULL,
+			kind         TEXT NOT NULL,
+			payload_json TEXT NOT NULL,
+			at           TIMESTAMP NOT NULL
+		);`
+
+const loopRunEventsRunSeqIndexStatement = `CREATE INDEX IF NOT EXISTS idx_loop_run_events_run_seq
+			ON loop_run_events(loop_run_id, seq);`
+
+const loopUIAnnotationsTableStatement = `CREATE TABLE IF NOT EXISTS loop_ui_annotations (
+			workspace_id TEXT NOT NULL,
+			loop_name    TEXT NOT NULL,
+			node_id      TEXT NOT NULL,
+			x            REAL NOT NULL,
+			y            REAL NOT NULL,
+			PRIMARY KEY (workspace_id, loop_name, node_id)
+		);`
+
+const loopConfigTableStatement = `CREATE TABLE IF NOT EXISTS loop_config (
+			workspace_id        TEXT NOT NULL,
+			loop_name           TEXT NOT NULL,
+			human_gate_enabled  INTEGER NOT NULL DEFAULT 0,
+			reattempt_strategy  TEXT,
+			enabled_checks_json TEXT NOT NULL DEFAULT '{}',
+			iteration_cap       INTEGER,
+			budget_tokens       INTEGER,
+			budget_wall_sec     INTEGER,
+			budget_on_exceeded  TEXT,
+			no_progress_window  INTEGER,
+			fan_out_width       INTEGER,
+			gate_max_revisions  INTEGER,
+			model_default_worker TEXT,
+			model_default_judge  TEXT,
+			PRIMARY KEY (workspace_id, loop_name)
+		);`
+
+const activeLoopCoordinatorIndexStatement = `CREATE UNIQUE INDEX IF NOT EXISTS uq_task_runs_active_loop_coordinator
+			ON task_runs(loop_run_id)
+			WHERE run_kind = 'coordinator' AND status IN ('queued', 'claimed', 'starting', 'running');`
+
+func loopRunStateSchemaStatements() []string {
+	statements := loopRunStateTableSchemaStatements()
+	return append(
+		statements,
+		loopGenerationOutputsOutputRefIndexStatement,
+		loopRunEventsRunSeqIndexStatement,
+		activeLoopCoordinatorIndexStatement,
+	)
+}
+
+func loopRunStateTableSchemaStatements() []string {
+	return []string{
+		loopRunsTableStatement,
+		loopGenerationOutputsTableStatement,
+		loopOutputBlobsTableStatement,
+		loopRunEventsTableStatement,
+		loopUIAnnotationsTableStatement,
+		loopConfigTableStatement,
+	}
+}
+
 var networkConversationSchemaStatementsBeforeNetworkFeatureTail = []string{
 	networkAuditLogTableStatement,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
@@ -450,7 +560,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
-		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ` +
+			`ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
 		`CREATE TABLE IF NOT EXISTS extensions (
 		name          TEXT PRIMARY KEY,
 		version       TEXT NOT NULL,
@@ -479,6 +590,11 @@ var globalSchemaStatements = appendSchemaStatements(
 		retry        TEXT NOT NULL,
 		fire_limit   TEXT NOT NULL,
 		source       TEXT NOT NULL DEFAULT 'dynamic',
+		target_kind  TEXT NOT NULL DEFAULT 'agent' CHECK (target_kind IN ('agent', 'loop')),
+		loop_workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		loop_name    TEXT,
+		loop_inputs  TEXT,
+		loop_input_mapping TEXT,
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL,
 		CHECK (
@@ -502,6 +618,11 @@ var globalSchemaStatements = appendSchemaStatements(
 		webhook_id    TEXT,
 		endpoint_slug TEXT,
 		webhook_secret_ref TEXT,
+		target_kind   TEXT NOT NULL DEFAULT 'agent' CHECK (target_kind IN ('agent', 'loop')),
+		loop_workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		loop_name     TEXT,
+		loop_inputs   TEXT,
+		loop_input_mapping TEXT,
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL,
 		CHECK (
@@ -520,7 +641,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		attempt    INTEGER NOT NULL DEFAULT 1,
 		started_at TEXT,
 		ended_at   TEXT,
-		error      TEXT
+		error      TEXT,
+		loop_run_id TEXT REFERENCES loop_runs(id) ON DELETE SET NULL
 	);`,
 		`CREATE TABLE IF NOT EXISTS automation_job_overlays (
 		job_id            TEXT PRIMARY KEY,
@@ -538,10 +660,15 @@ var globalSchemaStatements = appendSchemaStatements(
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_workspace_name ON automation_triggers(workspace_id, name) WHERE scope = 'workspace';`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_automation_triggers_webhook_id ON automation_triggers(webhook_id) WHERE webhook_id IS NOT NULL;`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_jobs_enabled ON automation_jobs(enabled);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_jobs_loop_target
+			ON automation_jobs(loop_name, loop_workspace_id) WHERE target_kind = 'loop';`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_triggers_enabled ON automation_triggers(enabled);`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_triggers_event ON automation_triggers(event);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_triggers_loop_target
+			ON automation_triggers(loop_name, loop_workspace_id) WHERE target_kind = 'loop';`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_runs_job ON automation_runs(job_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_runs_trigger ON automation_runs(trigger_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_automation_runs_loop_run ON automation_runs(loop_run_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);`,
 		`CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at);`,
 		`CREATE TABLE IF NOT EXISTS tasks (
@@ -696,6 +823,9 @@ var globalSchemaStatements = appendSchemaStatements(
 		lease_until TEXT,
 		heartbeat_at TEXT,
 		coordination_channel_id TEXT,
+		run_kind TEXT NOT NULL DEFAULT 'worker',
+		loop_run_id TEXT,
+		tokens_used INTEGER NOT NULL DEFAULT 0,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
 			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
@@ -766,6 +896,7 @@ var globalSchemaStatements = appendSchemaStatements(
 	taskReviewGateIndexStatements(),
 	notificationCursorSchemaStatements(),
 	notificationPresetSchemaStatements(),
+	loopRunStateTableSchemaStatements(),
 	[]string{
 		`CREATE TABLE IF NOT EXISTS task_triage_state (
 		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -783,7 +914,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		PRIMARY KEY (task_id, actor_kind, actor_id)
 	);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);`,
-		`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_triage_actor ` +
+			`ON task_triage_state(actor_kind, actor_id, updated_at DESC, task_id);`,
 		`CREATE TABLE IF NOT EXISTS bridge_instances (
 		id                TEXT PRIMARY KEY,
 		scope             TEXT NOT NULL,
@@ -1196,6 +1328,106 @@ var globalSchemaMigrations = []store.Migration{
 		UpConn:   migrateTaskBlockTables,
 		Checksum: "2026-07-02-add-task-block-tables",
 	},
+	{
+		Version:  50,
+		Name:     "add_loop_run_state_schema",
+		UpConn:   migrateLoopRunStateSchema,
+		Checksum: "2026-07-04-add-loop-run-state-schema",
+	},
+	{
+		Version:  51,
+		Name:     "add_loop_run_queue_ordering",
+		Up:       migrateLoopRunQueueOrdering,
+		Checksum: "2026-07-04-add-loop-run-queue-ordering",
+	},
+	{
+		Version:  52,
+		Name:     "add_loop_output_blobs",
+		Up:       migrateLoopOutputBlobs,
+		Checksum: "2026-07-04-add-loop-output-blobs",
+	},
+	{
+		Version:  53,
+		Name:     "add_loop_run_iteration_cap",
+		Up:       migrateLoopRunIterationCap,
+		Checksum: "2026-07-04-add-loop-run-iteration-cap",
+	},
+	{
+		Version:  54,
+		Name:     "add_loop_generation_outputs_output_ref_index",
+		Up:       migrateLoopGenerationOutputsOutputRefIndex,
+		Checksum: "2026-07-04-add-loop-generation-outputs-output-ref-index",
+	},
+	{
+		Version:  55,
+		Name:     "add_automation_loop_targets",
+		Up:       migrateAutomationLoopTargets,
+		Checksum: "2026-07-05-add-automation-loop-targets",
+	},
+	{
+		Version:  56,
+		Name:     "add_loop_run_start_actor",
+		Up:       migrateLoopRunStartActor,
+		Checksum: "2026-07-05-add-loop-run-start-actor",
+	},
+	{
+		Version:  57,
+		Name:     "add_loop_run_pinning",
+		Up:       migrateLoopRunPinning,
+		Checksum: "2026-07-07-add-loop-run-pinning",
+	},
+	{
+		Version:  58,
+		Name:     "add_loop_config_model_defaults",
+		Up:       migrateLoopConfigModelDefaults,
+		Checksum: "2026-07-07-add-loop-config-model-defaults",
+	},
+	{
+		Version:  59,
+		Name:     "update_automation_catch_up_contract",
+		UpConn:   migrateAutomationCatchUpContract,
+		Checksum: "2026-07-07-update-automation-catch-up-contract",
+	},
+}
+
+func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) {
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("store: begin loop run state schema migration: %w", err)
+	}
+	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(ctx)
+	defer rollbackCancel()
+	finished := false
+	defer func() {
+		if !finished {
+			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, "loop run state schema migration"))
+		}
+	}()
+	if err := addMissingMigrationColumns(ctx, conn, "task_runs", []migrationColumnSpec{
+		{
+			name: "run_kind",
+			sql:  `ALTER TABLE task_runs ADD COLUMN run_kind TEXT NOT NULL DEFAULT 'worker'`,
+		},
+		{
+			name: columnLoopRunID,
+			sql:  `ALTER TABLE task_runs ADD COLUMN loop_run_id TEXT`,
+		},
+		{
+			name: columnTokensUsed,
+			sql:  `ALTER TABLE task_runs ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0`,
+		},
+	}); err != nil {
+		return err
+	}
+	for _, statement := range loopRunStateSchemaStatements() {
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: apply loop run state schema: %w", err)
+		}
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return fmt.Errorf("store: commit loop run state schema migration: %w", err)
+	}
+	finished = true
+	return nil
 }
 
 func migrateNetworkActivationPolicyMentions(ctx context.Context, tx *sql.Tx) error {

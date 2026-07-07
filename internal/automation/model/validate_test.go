@@ -86,7 +86,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	valid := SchedulerState{
 		JobID:         "job-daily",
-		CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+		CatchUpPolicy: SchedulerCatchUpPolicySkip,
 		UpdatedAt:     now,
 	}
 	tests := []struct {
@@ -99,9 +99,25 @@ func TestSchedulerStateValidate(t *testing.T) {
 			state: valid,
 		},
 		{
+			name: "Should accept coalesce catch up policy",
+			state: SchedulerState{
+				JobID:         "job-coalesce",
+				CatchUpPolicy: SchedulerCatchUpPolicyCoalesce,
+				UpdatedAt:     now,
+			},
+		},
+		{
+			name: "Should accept replay catch up policy",
+			state: SchedulerState{
+				JobID:         "job-replay",
+				CatchUpPolicy: SchedulerCatchUpPolicyReplay,
+				UpdatedAt:     now,
+			},
+		},
+		{
 			name: "Should reject missing job id",
 			state: SchedulerState{
-				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+				CatchUpPolicy: SchedulerCatchUpPolicySkip,
 				UpdatedAt:     now,
 			},
 			wantErr: "job_id",
@@ -119,7 +135,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative misfire grace",
 			state: SchedulerState{
 				JobID:               "job-daily",
-				CatchUpPolicy:       SchedulerCatchUpPolicySkipMissed,
+				CatchUpPolicy:       SchedulerCatchUpPolicySkip,
 				MisfireGraceSeconds: -1,
 				UpdatedAt:           now,
 			},
@@ -129,7 +145,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative resume failures",
 			state: SchedulerState{
 				JobID:                     "job-daily",
-				CatchUpPolicy:             SchedulerCatchUpPolicySkipMissed,
+				CatchUpPolicy:             SchedulerCatchUpPolicySkip,
 				ConsecutiveResumeFailures: -1,
 				UpdatedAt:                 now,
 			},
@@ -139,7 +155,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject negative misfire count",
 			state: SchedulerState{
 				JobID:         "job-daily",
-				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+				CatchUpPolicy: SchedulerCatchUpPolicySkip,
 				MisfireCount:  -1,
 				UpdatedAt:     now,
 			},
@@ -149,7 +165,7 @@ func TestSchedulerStateValidate(t *testing.T) {
 			name: "Should reject missing updated time",
 			state: SchedulerState{
 				JobID:         "job-daily",
-				CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+				CatchUpPolicy: SchedulerCatchUpPolicySkip,
 			},
 			wantErr: "updated_at",
 		},

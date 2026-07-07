@@ -14,6 +14,7 @@ const (
 	inspectDiagnosticsDocURL             = "/runtime/core/autonomy/task-runs-and-leases#task-inspect-diagnostics"
 	inspectExpectedHeartbeatInterval     = time.Minute
 	inspectQueuedStrandedAfter           = 5 * time.Minute
+	inspectSessionFailedState            = "failed"
 	inspectSessionMissingState           = "missing"
 	inspectSessionStoppedState           = "stopped"
 	inspectStuckHeartbeatThresholdFactor = 2
@@ -204,7 +205,7 @@ func inspectRunEvidence(snapshot *inspectDiagnosticSnapshot, extra map[string]an
 	evidence := map[string]any{
 		taskEvidenceIDKey:            snapshot.Task.ID,
 		runEvidenceIDKey:             run.RunID,
-		leaseStatusKey:               string(run.Status),
+		leaseStatusKey:               run.Status.String(),
 		"attempt":                    run.Attempt,
 		"claim_token_hash_truncated": run.ClaimTokenHashTruncated,
 		"lease_until":                run.LeaseUntil,
@@ -221,7 +222,7 @@ func inspectSessionIsTerminal(session *InspectSessionSummary) bool {
 	}
 	state := strings.ToLower(strings.TrimSpace(session.State))
 	switch state {
-	case inspectSessionMissingState, inspectSessionStoppedState, "failed", "crashed":
+	case inspectSessionMissingState, inspectSessionStoppedState, inspectSessionFailedState, "crashed":
 		return true
 	}
 	return strings.TrimSpace(session.FailureKind) != "" || strings.TrimSpace(session.StopReason) != ""

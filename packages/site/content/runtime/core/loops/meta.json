@@ -1,0 +1,21 @@
+{
+    "title": "Loops",
+    "icon": "Repeat",
+    "pages": [
+        "index",
+        "---Operate---",
+        "catalog",
+        "running",
+        "configure",
+        "---Author---",
+        "authoring",
+        "visual-editor",
+        "converse-and-decide",
+        "---Reference---",
+        "dsl-reference",
+        "reference-grammar",
+        "guardrails",
+        "hooks",
+        "extensions"
+    ]
+}

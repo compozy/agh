@@ -380,7 +380,6 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 			ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
 			SessionID:             "sess-lease",
 			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			ClaimToken:            "raw-secret-token",
 			ClaimTokenHash:        "sha256:" + strings.Repeat("c", 64),
 			LeaseUntil:            claimedAt.Add(15 * time.Minute),
 			HeartbeatAt:           claimedAt.Add(time.Minute),

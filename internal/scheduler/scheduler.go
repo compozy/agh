@@ -290,6 +290,15 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	result := CycleResult{}
 	errs := s.sweepExpiredLeases(ctx, now, &result)
 	errs = append(errs, s.sweepExpiredTaskBlocks(ctx, now, &result)...)
+	if backstop, ok := s.tasks.(LoopCoordinatorBackstop); ok {
+		count, err := backstop.RunLoopCoordinatorBackstop(ctx, now, s.actor)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("scheduler: loop coordinator backstop: %w", err))
+		}
+		if count > 0 {
+			s.logger.Info("scheduler.loop_coordinator_backstop", "started_runs", count)
+		}
+	}
 
 	pending, active, sessions, err := s.loadCycleSnapshots(ctx, &result)
 	if err != nil {

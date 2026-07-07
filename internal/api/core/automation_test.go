@@ -550,7 +550,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/jobs?scope=global&source=dynamic&limit=3",
+		"/automation/jobs?scope=global&source=dynamic&limit=3&loop=triage",
 		nil,
 		nil,
 	)
@@ -569,6 +569,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	}
 	if listJobsQuery.Scope != automationpkg.AutomationScopeGlobal ||
 		listJobsQuery.Source != automationpkg.JobSourceDynamic ||
+		listJobsQuery.LoopName != "triage" ||
 		listJobsQuery.Limit != 3 {
 		t.Fatalf("ListJobs() query = %#v", listJobsQuery)
 	}
@@ -638,7 +639,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=dynamic&event=webhook&limit=2",
+		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=dynamic&event=webhook&limit=2&loop=triage",
 		nil,
 		nil,
 	)
@@ -654,6 +655,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		listTriggersQuery.WorkspaceID != "ws-alpha" ||
 		listTriggersQuery.Source != automationpkg.JobSourceDynamic ||
 		listTriggersQuery.Event != "webhook" ||
+		listTriggersQuery.LoopName != "triage" ||
 		listTriggersQuery.Limit != 2 {
 		t.Fatalf("ListTriggers() query = %#v", listTriggersQuery)
 	}
@@ -795,7 +797,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		LastRun:             &lastRun,
 		LastScheduledAt:     &lastScheduled,
 		LastFireID:          "fire-previous",
-		CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicySkipMissed,
+		CatchUpPolicy:       automationpkg.SchedulerCatchUpPolicySkip,
 		MisfireGraceSeconds: 30,
 		LastMisfireAt:       &lastMisfire,
 		MisfireCount:        2,
@@ -805,7 +807,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			LastRunAt:                 &lastRun,
 			LastScheduledAt:           &lastScheduled,
 			LastFireID:                "fire-previous",
-			CatchUpPolicy:             automationpkg.SchedulerCatchUpPolicySkipMissed,
+			CatchUpPolicy:             automationpkg.SchedulerCatchUpPolicySkip,
 			MisfireGraceSeconds:       30,
 			ConsecutiveResumeFailures: 1,
 			LastMisfireAt:             &lastMisfire,
@@ -827,7 +829,7 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 		if exposedScheduler.JobID != schedulerState.JobID ||
 			!exposedScheduler.Registered ||
 			exposedScheduler.LastFireID != schedulerState.LastFireID ||
-			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkipMissed ||
+			exposedScheduler.CatchUpPolicy != automationpkg.SchedulerCatchUpPolicySkip ||
 			exposedScheduler.MisfireCount != 2 ||
 			exposedScheduler.ConsecutiveResumeFailures != 1 ||
 			exposedScheduler.UpdatedAt == nil ||
@@ -871,6 +873,10 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 	})
 
 	t.Run("Should expose delivery error in run payload", func(t *testing.T) {
+		metadata := map[string]any{
+			"reason":          "loop_concurrency_conflict",
+			"catch_up_policy": "coalesce",
+		}
 		run := RunPayloadFromRun(automationpkg.Run{
 			ID:              "run-scheduler",
 			JobID:           job.ID,
@@ -881,14 +887,21 @@ func TestAutomationPayloadsExposeSchedulerStateAndDeliveryErrors(t *testing.T) {
 			StartedAt:       &lastRun,
 			DeliveryError:   "dispatcher unavailable",
 			DeliveryErrorAt: &deliveryErrorAt,
+			Metadata:        metadata,
 		})
 		if run.FireID != "fire-scheduler" ||
 			run.ScheduledAt == nil ||
 			!run.ScheduledAt.Equal(lastScheduled) ||
 			run.DeliveryError != "dispatcher unavailable" ||
 			run.DeliveryErrorAt == nil ||
-			!run.DeliveryErrorAt.Equal(deliveryErrorAt) {
+			!run.DeliveryErrorAt.Equal(deliveryErrorAt) ||
+			run.Metadata["reason"] != "loop_concurrency_conflict" ||
+			run.Metadata["catch_up_policy"] != "coalesce" {
 			t.Fatalf("RunPayloadFromRun() scheduler diagnostics = %#v", run)
+		}
+		metadata["reason"] = "mutated"
+		if run.Metadata["reason"] != "loop_concurrency_conflict" {
+			t.Fatalf("RunPayloadFromRun() metadata was not cloned: %#v", run.Metadata)
 		}
 	})
 }

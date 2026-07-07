@@ -25,7 +25,10 @@ var (
 	ErrSchedulerStopped = errors.New("automation: scheduler stopped")
 )
 
-const defaultSchedulerStopTimeout = 10 * time.Second
+const (
+	defaultSchedulerStopTimeout = 10 * time.Second
+	schedulerCatchUpJitterGrace = time.Second
+)
 
 // ScheduleDispatcher is the execution surface used by scheduled jobs.
 type ScheduleDispatcher interface {
@@ -45,6 +48,9 @@ type SchedulerStore interface {
 // SchedulerOption customizes scheduled-job runtime behavior.
 type SchedulerOption func(*Scheduler)
 
+// SchedulerCatchUpPolicyResolver classifies a job's default catch-up behavior.
+type SchedulerCatchUpPolicyResolver func(context.Context, Job) (SchedulerCatchUpPolicy, error)
+
 // ScheduledJobState exposes runtime schedule metadata for one registered job.
 type ScheduledJobState struct {
 	JobID               string                 `json:"job_id"`
@@ -62,12 +68,13 @@ type ScheduledJobState struct {
 
 // Scheduler owns durable cursor-driven scheduled-job dispatch.
 type Scheduler struct {
-	dispatcher  ScheduleDispatcher
-	store       SchedulerStore
-	logger      *slog.Logger
-	clock       clockwork.Clock
-	location    *time.Location
-	stopTimeout time.Duration
+	dispatcher   ScheduleDispatcher
+	store        SchedulerStore
+	logger       *slog.Logger
+	clock        clockwork.Clock
+	location     *time.Location
+	stopTimeout  time.Duration
+	policyForJob SchedulerCatchUpPolicyResolver
 
 	mu            sync.RWMutex
 	runtimeCtx    context.Context
@@ -138,6 +145,13 @@ func WithSchedulerLogger(logger *slog.Logger) SchedulerOption {
 func WithSchedulerStore(store SchedulerStore) SchedulerOption {
 	return func(scheduler *Scheduler) {
 		scheduler.store = store
+	}
+}
+
+// WithSchedulerCatchUpPolicyResolver injects target-aware catch-up defaults.
+func WithSchedulerCatchUpPolicyResolver(resolver SchedulerCatchUpPolicyResolver) SchedulerOption {
+	return func(scheduler *Scheduler) {
+		scheduler.policyForJob = resolver
 	}
 }
 
@@ -598,62 +612,33 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 	}
 
 	job := registration.definition
-	scheduledAt := *registration.state.NextRunAt
-	claimedAt := s.now()
-	nextRun := nextRunAfter(job, scheduledAt, s.location)
-	fireID := scheduledFireID(job.ID, scheduledAt)
-	claim := SchedulerClaim{
-		JobID:        job.ID,
-		RunID:        scheduledRunID(job.ID, scheduledAt),
-		FireID:       fireID,
-		ScheduledAt:  scheduledAt,
-		NextRunAt:    cloneTimePointer(nextRun),
-		ClaimedAt:    claimedAt,
-		ScheduleHash: scheduleHash(job.Schedule),
-	}
-
-	var reservedRun *Run
-	var postClaimState SchedulerState
-	if s.store != nil {
-		result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), claim)
-		if err != nil {
-			if errors.Is(err, ErrScheduledFireAlreadyClaimed) {
-				s.updateRegistrationState(job.ID, registration.state)
-				return nil
-			}
-			return fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
+	claimed, err := s.claimScheduledJob(ctx, registration)
+	if err != nil {
+		if errors.Is(err, ErrScheduledFireAlreadyClaimed) {
+			s.updateRegistrationState(job.ID, registration.state)
+			return nil
 		}
-		postClaimState = result.State
-		s.updateRegistrationState(job.ID, postClaimState)
-		reservedRun = &result.Run
-	} else {
-		state := registration.state
-		state.NextRunAt = cloneTimePointer(nextRun)
-		state.LastRunAt = timePointer(claimedAt)
-		state.LastScheduledAt = timePointer(scheduledAt)
-		state.LastFireID = fireID
-		state.ScheduleHash = claim.ScheduleHash
-		state.CatchUpPolicy = SchedulerCatchUpPolicySkipMissed
-		state.UpdatedAt = claimedAt
-		postClaimState = state
-		s.updateRegistrationState(job.ID, postClaimState)
+		return err
 	}
 
-	s.logScheduledFire(job, fireID, scheduledAt)
+	s.logScheduledFire(job, claimed.claim.FireID, claimed.claim.ScheduledAt)
 
 	run, err := s.dispatcher.Dispatch(ctx, DispatchRequest{
-		Kind:        DispatchKindSchedule,
-		Job:         &job,
-		ReservedRun: reservedRun,
+		Kind:          DispatchKindSchedule,
+		Job:           &job,
+		ReservedRun:   claimed.reservedRun,
+		ScheduledAt:   timePointer(claimed.claim.ScheduledAt),
+		CatchUp:       claimed.claim.CatchUp,
+		CatchUpPolicy: claimed.state.CatchUpPolicy,
 	})
 	if fireLimitErr, ok := errors.AsType[*FireLimitError](err); ok {
-		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, postClaimState, fireLimitErr); adjustErr != nil {
+		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, claimed.state, fireLimitErr); adjustErr != nil {
 			return errors.Join(err, adjustErr)
 		}
 		return nil
 	}
 	if err != nil && s.store != nil {
-		runID := strings.TrimSpace(claim.RunID)
+		runID := strings.TrimSpace(claimed.claim.RunID)
 		if run != nil && strings.TrimSpace(run.ID) != "" {
 			runID = run.ID
 		}
@@ -662,6 +647,63 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		}
 	}
 	return err
+}
+
+type scheduledJobClaimResult struct {
+	claim       SchedulerClaim
+	state       SchedulerState
+	reservedRun *Run
+}
+
+func (s *Scheduler) claimScheduledJob(
+	ctx context.Context,
+	registration scheduledRegistration,
+) (scheduledJobClaimResult, error) {
+	job := registration.definition
+	scheduledAt := *registration.state.NextRunAt
+	claimedAt := s.now()
+	nextRun := nextRunAfter(job, scheduledAt, s.location)
+	claim := SchedulerClaim{
+		JobID:        job.ID,
+		RunID:        scheduledRunID(job.ID, scheduledAt),
+		FireID:       scheduledFireID(job.ID, scheduledAt),
+		ScheduledAt:  scheduledAt,
+		NextRunAt:    cloneTimePointer(nextRun),
+		ClaimedAt:    claimedAt,
+		ScheduleHash: scheduleHash(job.Schedule),
+		CatchUp:      scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),
+	}
+	if s.store != nil {
+		result, err := s.store.ClaimScheduledRun(persistenceContext(ctx), claim)
+		if err != nil {
+			return scheduledJobClaimResult{}, fmt.Errorf("automation: claim scheduled job %q: %w", job.ID, err)
+		}
+		s.updateRegistrationState(job.ID, result.State)
+		return scheduledJobClaimResult{claim: claim, state: result.State, reservedRun: &result.Run}, nil
+	}
+	state := schedulerStateAfterInMemoryClaim(registration.state, claim, nextRun)
+	s.updateRegistrationState(job.ID, state)
+	return scheduledJobClaimResult{claim: claim, state: state}, nil
+}
+
+func schedulerStateAfterInMemoryClaim(
+	current SchedulerState,
+	claim SchedulerClaim,
+	nextRun *time.Time,
+) SchedulerState {
+	state := current
+	state.NextRunAt = cloneTimePointer(nextRun)
+	state.LastRunAt = timePointer(claim.ClaimedAt)
+	state.LastScheduledAt = timePointer(claim.ScheduledAt)
+	state.LastFireID = claim.FireID
+	state.ScheduleHash = claim.ScheduleHash
+	state.CatchUpPolicy = SchedulerCatchUpPolicySkip
+	if !claim.CatchUp {
+		state.LastMisfireAt = nil
+		state.MisfireCount = 0
+	}
+	state.UpdatedAt = claim.ClaimedAt
+	return state
 }
 
 func (s *Scheduler) logScheduledFire(job Job, fireID string, scheduledAt time.Time) {
@@ -735,11 +777,15 @@ func (s *Scheduler) reconcileSchedulerState(
 	plan schedulePlan,
 ) (SchedulerState, error) {
 	now := s.now()
+	defaultPolicy, err := s.defaultCatchUpPolicy(ctx, job)
+	if err != nil {
+		return SchedulerState{}, err
+	}
 	state := SchedulerState{
 		JobID:         job.ID,
 		NextRunAt:     timePointer(plan.nextRun),
 		ScheduleHash:  scheduleHash(job.Schedule),
-		CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+		CatchUpPolicy: defaultPolicy,
 		UpdatedAt:     now,
 	}
 	if s.store == nil {
@@ -757,7 +803,7 @@ func (s *Scheduler) reconcileSchedulerState(
 	}
 	if err == nil {
 		state = existing
-		state.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy)
+		state.CatchUpPolicy = schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy, defaultPolicy)
 		state.UpdatedAt = now
 		if strings.TrimSpace(state.ScheduleHash) != scheduleHash(job.Schedule) {
 			state.NextRunAt = timePointer(plan.nextRun)
@@ -783,17 +829,22 @@ func (s *Scheduler) reconcileSchedulerState(
 	}
 
 	if !state.NextRunAt.After(now) {
-		missedAt := *state.NextRunAt
-		state.NextRunAt = nextRunAfterMissed(job, missedAt, now, s.location)
-		state.LastScheduledAt = timePointer(missedAt)
-		state.LastMisfireAt = timePointer(now)
-		state.MisfireCount++
-		state.ConsecutiveResumeFailures = 0
-		state.UpdatedAt = now
+		state = reconcileMissedSchedulerCursor(job, state, now, s.location)
 		return s.store.SaveSchedulerState(ctx, state)
 	}
 
 	return state, nil
+}
+
+func (s *Scheduler) defaultCatchUpPolicy(ctx context.Context, job Job) (SchedulerCatchUpPolicy, error) {
+	if s.policyForJob == nil {
+		return SchedulerCatchUpPolicySkip, nil
+	}
+	policy, err := s.policyForJob(ctx, job)
+	if err != nil {
+		return "", fmt.Errorf("automation: resolve scheduler catch-up policy for job %q: %w", job.ID, err)
+	}
+	return schedulerCatchUpPolicyOrDefault(policy, SchedulerCatchUpPolicySkip), nil
 }
 
 func (s *Scheduler) deleteSchedulerState(ctx context.Context, jobID string) error {
@@ -915,6 +966,82 @@ func nextRunAfterMissed(job Job, missedAt time.Time, now time.Time, location *ti
 	}
 }
 
+func reconcileMissedSchedulerCursor(
+	job Job,
+	state SchedulerState,
+	now time.Time,
+	location *time.Location,
+) SchedulerState {
+	missedAt := *state.NextRunAt
+	state.LastMisfireAt = timePointer(now)
+	state.MisfireCount++
+	state.ConsecutiveResumeFailures = 0
+	state.UpdatedAt = now
+
+	switch schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy, SchedulerCatchUpPolicySkip) {
+	case SchedulerCatchUpPolicyCoalesce:
+		coalescedAt := latestMissedRunAt(job, missedAt, now, location)
+		state.NextRunAt = timePointer(coalescedAt)
+		state.LastScheduledAt = timePointer(coalescedAt)
+	case SchedulerCatchUpPolicyReplay:
+		state.NextRunAt = timePointer(missedAt)
+		state.LastScheduledAt = nil
+	default:
+		state.NextRunAt = nextRunAfterMissed(job, missedAt, now, location)
+		state.LastScheduledAt = timePointer(missedAt)
+	}
+	return state
+}
+
+func scheduledFireIsCatchUp(scheduledAt time.Time, claimedAt time.Time, state SchedulerState) bool {
+	if claimedAt.Sub(scheduledAt) > schedulerCatchUpGrace(state) {
+		return true
+	}
+	if scheduledAt.After(claimedAt) || state.LastMisfireAt == nil {
+		return false
+	}
+	switch schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy, SchedulerCatchUpPolicySkip) {
+	case SchedulerCatchUpPolicyCoalesce, SchedulerCatchUpPolicyReplay:
+		return !scheduledAt.After(*state.LastMisfireAt)
+	default:
+		return false
+	}
+}
+
+func schedulerCatchUpGrace(state SchedulerState) time.Duration {
+	if state.MisfireGraceSeconds > 0 {
+		return time.Duration(state.MisfireGraceSeconds) * time.Second
+	}
+	return schedulerCatchUpJitterGrace
+}
+
+func latestMissedRunAt(job Job, missedAt time.Time, now time.Time, location *time.Location) time.Time {
+	if job.Schedule == nil || missedAt.After(now) {
+		return missedAt
+	}
+	if job.Schedule.Mode == ScheduleModeEvery {
+		interval, err := time.ParseDuration(strings.TrimSpace(job.Schedule.Interval))
+		if err != nil || interval <= 0 {
+			return missedAt
+		}
+		elapsed := now.Sub(missedAt)
+		if elapsed <= 0 {
+			return missedAt
+		}
+		return missedAt.Add(time.Duration(int64(elapsed/interval)) * interval)
+	}
+
+	latest := missedAt
+	for range 10000 {
+		next := nextRunAfter(job, latest, location)
+		if next == nil || next.After(now) {
+			return latest
+		}
+		latest = *next
+	}
+	return latest
+}
+
 func scheduledFireID(jobID string, scheduledAt time.Time) string {
 	return stableSchedulerID("fire", jobID, scheduledAt)
 }
@@ -941,9 +1068,15 @@ func scheduleHash(schedule *ScheduleSpec) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func schedulerCatchUpPolicyOrDefault(policy SchedulerCatchUpPolicy) SchedulerCatchUpPolicy {
+func schedulerCatchUpPolicyOrDefault(
+	policy SchedulerCatchUpPolicy,
+	fallback SchedulerCatchUpPolicy,
+) SchedulerCatchUpPolicy {
 	if policy == "" {
-		return SchedulerCatchUpPolicySkipMissed
+		if fallback != "" {
+			return fallback
+		}
+		return SchedulerCatchUpPolicySkip
 	}
 	return policy
 }

@@ -50,6 +50,12 @@ type TaskSource interface {
 	) (taskpkg.ExpireTaskBlocksResult, error)
 }
 
+// LoopCoordinatorBackstop lets the daemon-owned scheduler wake in-daemon loop coordinators
+// without routing coordinator task_runs to ACP sessions.
+type LoopCoordinatorBackstop interface {
+	RunLoopCoordinatorBackstop(ctx context.Context, now time.Time, actor taskpkg.ActorContext) (int, error)
+}
+
 // StarvationStore persists the durable per-run escalation budget so the convergence tier
 // ladder survives daemon restart (in-memory wake state is wiped on Rebuild; the budget is not).
 type StarvationStore interface {

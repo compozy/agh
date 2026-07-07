@@ -66,7 +66,7 @@ func benchmarkTerminalRuns(count int) []Run {
 	for i := range runs {
 		runs[i] = Run{
 			Status:   TaskRunStatusCompleted,
-			Attempt:  i + 1,
+			Attempt:  int32(i + 1),
 			QueuedAt: base.Add(time.Duration(i) * time.Second),
 		}
 	}

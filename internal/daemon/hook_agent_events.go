@@ -18,6 +18,7 @@ const (
 const (
 	hookAgentEventsCompletedKey = "completed"
 	hookAgentEventsDenyKey      = "deny"
+	hookAgentEventsFailedKey    = "failed"
 	hookAgentEventsResolvedKey  = "resolved"
 	hookAgentEventsToolCallKey  = "tool_call"
 )
@@ -122,7 +123,7 @@ func dispatchToolHookEvent(
 			ToolResult:     acp.CloneRawMessage(raw.ToolResult),
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookToolPostCall, err)
-	case updateType == "tool_call_update" && status == "failed":
+	case updateType == "tool_call_update" && status == hookAgentEventsFailedKey:
 		_, err := hooks.DispatchToolPostError(ctx, hookspkg.ToolPostErrorPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPostError),
 			SessionContext: sessionCtx,

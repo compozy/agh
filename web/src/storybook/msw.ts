@@ -5,6 +5,7 @@ import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
+import { handlers as loopsHandlers } from "@/systems/loops/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
@@ -20,6 +21,7 @@ export type StorybookHandlerGroupName =
   | "bridges"
   | "daemon"
   | "knowledge"
+  | "loops"
   | "network"
   | "onboarding"
   | "session"
@@ -38,6 +40,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   bridges: bridgeHandlers,
   daemon: daemonHandlers,
   knowledge: knowledgeHandlers,
+  loops: loopsHandlers,
   network: networkHandlers,
   onboarding: onboardingHandlers,
   session: sessionHandlers,

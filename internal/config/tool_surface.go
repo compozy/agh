@@ -127,7 +127,7 @@ type PathPolicy struct {
 var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
-	agentMutableConfigKinds = map[string]ValueKind{
+	agentMutableConfigKinds = mergeAgentMutableConfigKinds(map[string]ValueKind{
 		toolSurfaceDefaultsAgentPath:                                  ConfigValueString,
 		"defaults.provider":                                           ConfigValueString,
 		"defaults.sandbox":                                            ConfigValueString,
@@ -277,7 +277,7 @@ var (
 		toolSurfaceTaskOrchestrationReviewFailurePolicyPath:           ConfigValueString,
 		toolSurfaceTaskRecoveryAllowAgentForcePath:                    ConfigValueBool,
 		toolSurfaceToolsDefaultMaxResultBytesPath:                     ConfigValueInt64,
-	}
+	}, loopDefaultToolPathKinds())
 )
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.

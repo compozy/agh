@@ -15,6 +15,7 @@
         "sandbox",
         "workspaces",
         "automation",
+        "loops",
         "bridges",
         "hooks",
         "extensions",

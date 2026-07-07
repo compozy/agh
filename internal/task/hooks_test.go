@@ -607,6 +607,46 @@ func assertJSONDoesNotContain(t *testing.T, label string, value any, forbidden s
 	}
 }
 
+func TestTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should carry loop filter keys", func(t *testing.T) {
+		t.Parallel()
+		testTaskRunHookContextCarriesLoopFilterKeys(t)
+	})
+}
+
+func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
+	t.Helper()
+
+	manager := newTaskManagerForTest(t, newInMemoryManagerStore())
+	actor := validActorContext()
+	run := Run{
+		ID:        "run-loop-node",
+		TaskID:    "task-node",
+		RunKind:   RunKindWorker,
+		LoopRunID: "loop-run-1",
+		Status:    TaskRunStatusCompleted,
+	}
+	taskRecord := Task{
+		ID:           "task-node",
+		ParentTaskID: "task-coordinator",
+		WorkspaceID:  "ws-1",
+		Status:       TaskStatusCompleted,
+	}
+
+	payload := manager.taskRunHookContext(run, taskRecord, actor)
+	if got, want := payload.LoopRunID, "loop-run-1"; got != want {
+		t.Fatalf("LoopRunID = %q, want %q", got, want)
+	}
+	if payload.RunKind == nil {
+		t.Fatal("RunKind = nil, want worker")
+	}
+	if got, want := *payload.RunKind, RunKindWorker.String(); got != want {
+		t.Fatalf("RunKind = %q, want %q", got, want)
+	}
+}
+
 type recordingTaskRunHooks struct {
 	blocked        func(context.Context, hookspkg.TaskBlockedPayload) (hookspkg.TaskBlockedPayload, error)
 	unblocked      func(context.Context, hookspkg.TaskUnblockedPayload) (hookspkg.TaskUnblockedPayload, error)

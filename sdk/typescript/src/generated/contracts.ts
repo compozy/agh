@@ -163,6 +163,13 @@ export type HookEvent =
   | "task.run.released"
   | "task.run.completed"
   | "task.run.failed"
+  | "loop.started"
+  | "loop.generation.pre"
+  | "loop.generation.post"
+  | "loop.gate.pre"
+  | "loop.gate.post"
+  | "loop.node.terminal"
+  | "loop.terminal"
   | "spawn.pre_create"
   | "spawn.created"
   | "spawn.parent_stopped"
@@ -698,6 +705,8 @@ export interface AutomationFirePatch {
 
 export type Scope = string;
 
+export type TargetKind = string;
+
 export type ScheduleMode = string;
 
 export interface ScheduleSpec {
@@ -721,6 +730,13 @@ export interface JobTaskConfig {
   network_channel?: string;
 }
 
+export interface LoopTarget {
+  workspace_id: string;
+  loop_name: string;
+  inputs?: Record<string, JSONValue>;
+  input_mapping?: Record<string, string>;
+}
+
 export type RetryStrategy = string;
 
 export interface RetryConfig {
@@ -737,11 +753,13 @@ export interface FireLimitConfig {
 export interface AutomationJobCreateParams {
   scope: Scope;
   name: string;
+  target_kind?: TargetKind;
   agent_name: string;
   workspace_id?: string;
   prompt: string;
   schedule: ScheduleSpec;
   task?: JobTaskConfig;
+  loop_target?: LoopTarget;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -790,11 +808,13 @@ export interface AutomationJobTriggerParams {
 export interface AutomationJobUpdateParams {
   id: string;
   name?: string;
+  target_kind?: TargetKind;
   agent_name?: string;
   workspace_id?: string;
   prompt?: string;
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
+  loop_target?: LoopTarget;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -845,11 +865,13 @@ export interface AutomationTargetParams {
 export interface AutomationTriggerCreateParams {
   scope: Scope;
   name: string;
+  target_kind?: TargetKind;
   agent_name: string;
   workspace_id?: string;
   prompt: string;
   event: string;
   filter?: Record<string, string>;
+  loop_target?: LoopTarget;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -895,11 +917,13 @@ export interface AutomationTriggerRunsParams {
 export interface AutomationTriggerUpdateParams {
   id: string;
   name?: string;
+  target_kind?: TargetKind;
   agent_name?: string;
   workspace_id?: string;
   prompt?: string;
   event?: string;
   filter?: Record<string, string>;
+  loop_target?: LoopTarget;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -918,6 +942,9 @@ export interface AutomationTriggersParams {
 export interface AutonomyMatcher {
   task_id?: string;
   run_id?: string;
+  loop_run_id?: string;
+  loop_name?: string;
+  node_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
   coordinator_session_id?: string;
@@ -1827,6 +1854,7 @@ export type HookEventFamily =
   | "coordinator"
   | "task"
   | "task.run"
+  | "loop"
   | "spawn"
   | "network";
 
@@ -1980,6 +2008,7 @@ export interface InitializeResponse {
   accepted_capabilities: AcceptedCapabilities;
   implemented_methods: string[];
   supported_hook_events: string[];
+  watch_source_kinds?: string[];
   supports: InitializeSupports;
 }
 
@@ -2017,11 +2046,13 @@ export interface Job {
   id: string;
   scope: Scope;
   name: string;
+  target_kind: TargetKind;
   agent_name: string;
   workspace_id?: string;
   prompt: string;
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
+  loop_target?: LoopTarget;
   enabled: boolean;
   retry: RetryConfig;
   fire_limit: FireLimitConfig;
@@ -2045,6 +2076,270 @@ export interface ListLogsParams {
   after_seq?: number;
   since?: ISODateTime;
   limit?: number;
+}
+
+export interface LoopContext {
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+}
+
+export interface LoopControlPatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGatePostPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  gate_id?: string;
+  decision?: string;
+  status?: string;
+  reason_code?: string;
+  details?: JSONValue;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGatePrePatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGatePrePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  gate_id?: string;
+  decision?: string;
+  status?: string;
+  reason_code?: string;
+  details?: JSONValue;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGenerationPostPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  status?: string;
+  reason_code?: string;
+  details?: JSONValue;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGenerationPrePatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopGenerationPrePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  status?: string;
+  reason_code?: string;
+  details?: JSONValue;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface LoopLifecyclePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  status?: string;
+  cause?: string;
+  reason_code?: string;
+  details?: JSONValue;
+}
+
+export interface LoopNodeTerminalPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_status?: string;
+  error?: string;
+  details?: JSONValue;
+}
+
+export interface LoopObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface LoopStartedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  status?: string;
+  cause?: string;
+  reason_code?: string;
+  details?: JSONValue;
+}
+
+export interface LoopTerminalPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  loop_run_id?: string;
+  parent_loop_run_id?: string;
+  workspace_id?: string;
+  loop_name?: string;
+  generation?: number;
+  task_id?: string;
+  run_id?: string;
+  run_kind?: string;
+  node_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  session_id?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  status?: string;
+  cause?: string;
+  reason_code?: string;
+  details?: JSONValue;
 }
 
 export type MemoryScope = "global" | "workspace" | "agent";
@@ -3213,6 +3508,7 @@ export interface Run {
   session_id?: string;
   task_id?: string;
   task_run_id?: string;
+  loop_run_id?: string;
   fire_id?: string;
   status: RunStatus;
   attempt: number;
@@ -3222,6 +3518,7 @@ export interface Run {
   error?: string;
   delivery_error?: string;
   delivery_error_at?: ISODateTime;
+  metadata?: Record<string, JSONValue>;
 }
 
 export interface SandboxExecParams {
@@ -4637,6 +4934,8 @@ export interface TaskRunCompletedPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4664,6 +4963,8 @@ export interface TaskRunCompletedPayload {
 export interface TaskRunContext {
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4726,6 +5027,8 @@ export interface TaskRunEnqueuedPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4758,6 +5061,8 @@ export interface TaskRunFailedPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4791,6 +5096,8 @@ export interface TaskRunLeaseExpiredPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4820,6 +5127,8 @@ export interface TaskRunLeaseExtendedPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4849,6 +5158,8 @@ export interface TaskRunLeasePayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4878,6 +5189,8 @@ export interface TaskRunLeaseRecoveredPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4911,6 +5224,8 @@ export interface TaskRunPostClaimPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4944,6 +5259,8 @@ export interface TaskRunPreClaimPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4972,6 +5289,8 @@ export interface TaskRunReleasedPayload {
   timestamp: ISODateTime;
   task_id?: string;
   run_id?: string;
+  run_kind?: string;
+  loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -5258,11 +5577,13 @@ export interface Trigger {
   id: string;
   scope: Scope;
   name: string;
+  target_kind: TargetKind;
   agent_name: string;
   workspace_id?: string;
   prompt: string;
   event: string;
   filter?: Record<string, string>;
+  loop_target?: LoopTarget;
   enabled: boolean;
   retry: RetryConfig;
   fire_limit: FireLimitConfig;
@@ -5426,6 +5747,13 @@ export interface HookPayloadByEvent {
   "task.run.released": TaskRunReleasedPayload;
   "task.run.completed": TaskRunCompletedPayload;
   "task.run.failed": TaskRunFailedPayload;
+  "loop.started": LoopStartedPayload;
+  "loop.generation.pre": LoopGenerationPrePayload;
+  "loop.generation.post": LoopGenerationPostPayload;
+  "loop.gate.pre": LoopGatePrePayload;
+  "loop.gate.post": LoopGatePostPayload;
+  "loop.node.terminal": LoopNodeTerminalPayload;
+  "loop.terminal": LoopTerminalPayload;
   "spawn.pre_create": SpawnPreCreatePayload;
   "spawn.created": SpawnCreatedPayload;
   "spawn.parent_stopped": SpawnParentStoppedPayload;
@@ -5505,6 +5833,13 @@ export interface HookPatchByEvent {
   "task.run.released": TaskRunObservationPatch;
   "task.run.completed": TaskRunObservationPatch;
   "task.run.failed": TaskRunObservationPatch;
+  "loop.started": LoopObservationPatch;
+  "loop.generation.pre": LoopGenerationPrePatch;
+  "loop.generation.post": LoopObservationPatch;
+  "loop.gate.pre": LoopGatePrePatch;
+  "loop.gate.post": LoopObservationPatch;
+  "loop.node.terminal": LoopObservationPatch;
+  "loop.terminal": LoopObservationPatch;
   "spawn.pre_create": SpawnCreatePatch;
   "spawn.created": SpawnObservationPatch;
   "spawn.parent_stopped": SpawnObservationPatch;

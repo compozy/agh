@@ -23,6 +23,7 @@ import (
 
 const (
 	hooksBridgeWorkspaceIDKey = "workspace_id"
+	loopHookObserverTimeout   = 10 * time.Second
 )
 
 type hookRuntime interface {
@@ -199,6 +200,34 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.TaskRunFailedPayload,
 	) (hookspkg.TaskRunFailedPayload, error)
+	DispatchLoopStarted(
+		context.Context,
+		hookspkg.LoopStartedPayload,
+	) (hookspkg.LoopStartedPayload, error)
+	DispatchLoopGenerationPre(
+		context.Context,
+		hookspkg.LoopGenerationPrePayload,
+	) (hookspkg.LoopGenerationPrePayload, error)
+	DispatchLoopGenerationPost(
+		context.Context,
+		hookspkg.LoopGenerationPostPayload,
+	) (hookspkg.LoopGenerationPostPayload, error)
+	DispatchLoopGatePre(
+		context.Context,
+		hookspkg.LoopGatePrePayload,
+	) (hookspkg.LoopGatePrePayload, error)
+	DispatchLoopGatePost(
+		context.Context,
+		hookspkg.LoopGatePostPayload,
+	) (hookspkg.LoopGatePostPayload, error)
+	DispatchLoopNodeTerminal(
+		context.Context,
+		hookspkg.LoopNodeTerminalPayload,
+	) (hookspkg.LoopNodeTerminalPayload, error)
+	DispatchLoopTerminal(
+		context.Context,
+		hookspkg.LoopTerminalPayload,
+	) (hookspkg.LoopTerminalPayload, error)
 	DispatchSpawnPreCreate(
 		context.Context,
 		hookspkg.SpawnPreCreatePayload,
@@ -284,6 +313,14 @@ type sessionLifecycleObserver interface {
 
 type taskRunEnqueuedObserver interface {
 	OnTaskRunEnqueued(context.Context, hookspkg.TaskRunEnqueuedPayload)
+}
+
+type taskRunTerminalObserver interface {
+	OnTaskRunTerminal(context.Context, hookspkg.TaskRunLeasePayload) error
+}
+
+type loopTerminalObserver interface {
+	OnLoopTerminal(context.Context, hookspkg.LoopTerminalPayload) error
 }
 
 type dreamCheckEnqueuer interface {
@@ -391,6 +428,8 @@ type hooksNotifier struct {
 	agentEventNotify     session.Notifier
 	eventSummaries       hookEventSummaryWriter
 	taskRunEnqueuedHooks []taskRunEnqueuedObserver
+	taskRunTerminalHooks []taskRunTerminalObserver
+	loopTerminalHooks    []loopTerminalObserver
 }
 
 var _ session.Notifier = (*hooksNotifier)(nil)
@@ -454,6 +493,131 @@ func (n *hooksNotifier) taskRunEnqueuedObservers() []taskRunEnqueuedObserver {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return append([]taskRunEnqueuedObserver(nil), n.taskRunEnqueuedHooks...)
+}
+
+func (n *hooksNotifier) AddTaskRunTerminalObserver(observer taskRunTerminalObserver) {
+	if n == nil || observer == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.taskRunTerminalHooks = append(n.taskRunTerminalHooks, observer)
+}
+
+func (n *hooksNotifier) taskRunTerminalObservers() []taskRunTerminalObserver {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]taskRunTerminalObserver(nil), n.taskRunTerminalHooks...)
+}
+
+func (n *hooksNotifier) AddLoopTerminalObserver(observer loopTerminalObserver) {
+	if n == nil || observer == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.loopTerminalHooks = append(n.loopTerminalHooks, observer)
+}
+
+func (n *hooksNotifier) loopTerminalObservers() []loopTerminalObserver {
+	if n == nil {
+		return nil
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]loopTerminalObserver(nil), n.loopTerminalHooks...)
+}
+
+func (n *hooksNotifier) notifyTaskRunTerminalObservers(
+	ctx context.Context,
+	payload hookspkg.TaskRunLeasePayload,
+) {
+	for _, observer := range n.taskRunTerminalObservers() {
+		n.notifyTaskRunTerminalObserver(ctx, observer, payload)
+	}
+}
+
+func (n *hooksNotifier) notifyTaskRunTerminalObserver(
+	ctx context.Context,
+	observer taskRunTerminalObserver,
+	payload hookspkg.TaskRunLeasePayload,
+) {
+	if observer == nil {
+		return
+	}
+	notifyCtx, cancel := loopObserverContext(ctx)
+	defer cancel()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			n.logger.Warn(
+				"daemon: task-run terminal observer panic",
+				"task_id", payload.TaskID,
+				"run_id", payload.RunID,
+				"loop_run_id", payload.LoopRunID,
+				"panic", recovered,
+			)
+		}
+	}()
+	if err := observer.OnTaskRunTerminal(notifyCtx, payload); err != nil {
+		n.logger.Warn(
+			"daemon: task-run terminal observer failed",
+			"task_id", payload.TaskID,
+			"run_id", payload.RunID,
+			"loop_run_id", payload.LoopRunID,
+			"error", err,
+		)
+	}
+}
+
+func (n *hooksNotifier) notifyLoopTerminalObservers(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) {
+	for _, observer := range n.loopTerminalObservers() {
+		n.notifyLoopTerminalObserver(ctx, observer, payload)
+	}
+}
+
+func (n *hooksNotifier) notifyLoopTerminalObserver(
+	ctx context.Context,
+	observer loopTerminalObserver,
+	payload hookspkg.LoopTerminalPayload,
+) {
+	if observer == nil {
+		return
+	}
+	notifyCtx, cancel := loopObserverContext(ctx)
+	defer cancel()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			n.logger.Warn(
+				"daemon: loop terminal observer panic",
+				"loop_run_id", payload.LoopRunID,
+				"parent_loop_run_id", payload.ParentLoopRunID,
+				"loop_name", payload.LoopName,
+				"panic", recovered,
+			)
+		}
+	}()
+	if err := observer.OnLoopTerminal(notifyCtx, payload); err != nil {
+		n.logger.Warn(
+			"daemon: loop terminal observer failed",
+			"loop_run_id", payload.LoopRunID,
+			"parent_loop_run_id", payload.ParentLoopRunID,
+			"loop_name", payload.LoopName,
+			"error", err,
+		)
+	}
+}
+
+func loopObserverContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), loopHookObserverTimeout)
 }
 
 // OnSessionCreated forwards the full runtime session to the downstream
@@ -1091,26 +1255,123 @@ func (n *hooksNotifier) DispatchTaskRunCompleted(
 	ctx context.Context,
 	payload hookspkg.TaskRunCompletedPayload,
 ) (hookspkg.TaskRunCompletedPayload, error) {
-	return dispatchRuntime(
+	result, err := dispatchRuntime(
 		ctx,
 		n,
 		hookspkg.HookTaskRunCompleted,
 		payload,
 		hookRuntime.DispatchTaskRunCompleted,
 	)
+	n.notifyTaskRunTerminalObservers(ctx, result)
+	return result, err
 }
 
 func (n *hooksNotifier) DispatchTaskRunFailed(
 	ctx context.Context,
 	payload hookspkg.TaskRunFailedPayload,
 ) (hookspkg.TaskRunFailedPayload, error) {
-	return dispatchRuntime(
+	result, err := dispatchRuntime(
 		ctx,
 		n,
 		hookspkg.HookTaskRunFailed,
 		payload,
 		hookRuntime.DispatchTaskRunFailed,
 	)
+	n.notifyTaskRunTerminalObservers(ctx, result)
+	return result, err
+}
+
+func (n *hooksNotifier) DispatchLoopStarted(
+	ctx context.Context,
+	payload hookspkg.LoopStartedPayload,
+) (hookspkg.LoopStartedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopStarted,
+		payload,
+		hookRuntime.DispatchLoopStarted,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopGenerationPre(
+	ctx context.Context,
+	payload hookspkg.LoopGenerationPrePayload,
+) (hookspkg.LoopGenerationPrePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopGenerationPre,
+		payload,
+		hookRuntime.DispatchLoopGenerationPre,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopGenerationPost(
+	ctx context.Context,
+	payload hookspkg.LoopGenerationPostPayload,
+) (hookspkg.LoopGenerationPostPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopGenerationPost,
+		payload,
+		hookRuntime.DispatchLoopGenerationPost,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopGatePre(
+	ctx context.Context,
+	payload hookspkg.LoopGatePrePayload,
+) (hookspkg.LoopGatePrePayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopGatePre,
+		payload,
+		hookRuntime.DispatchLoopGatePre,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopGatePost(
+	ctx context.Context,
+	payload hookspkg.LoopGatePostPayload,
+) (hookspkg.LoopGatePostPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopGatePost,
+		payload,
+		hookRuntime.DispatchLoopGatePost,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopNodeTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopNodeTerminalPayload,
+) (hookspkg.LoopNodeTerminalPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopNodeTerminal,
+		payload,
+		hookRuntime.DispatchLoopNodeTerminal,
+	)
+}
+
+func (n *hooksNotifier) DispatchLoopTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) (hookspkg.LoopTerminalPayload, error) {
+	result, err := dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookLoopTerminal,
+		payload,
+		hookRuntime.DispatchLoopTerminal,
+	)
+	n.notifyLoopTerminalObservers(ctx, result)
+	return result, err
 }
 
 func (n *hooksNotifier) DispatchSpawnPreCreate(

@@ -266,6 +266,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		"--scope", "workspace",
 		"--workspace", "alpha",
 		"--source", "dynamic",
+		"--loop", "triage",
 		"--last", "3",
 		"-o", "json",
 	)
@@ -280,6 +281,7 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 	if len(listed.Jobs) != 1 || listQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listQuery.WorkspaceID != "ws-alpha" ||
 		listQuery.Source != automationpkg.JobSourceDynamic ||
+		listQuery.LoopName != "triage" ||
 		listQuery.Limit != 3 {
 		t.Fatalf("listQuery = %#v, want resolved scope/workspace/source/limit", listQuery)
 	}
@@ -443,6 +445,8 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		"webhook",
 		"--source",
 		"dynamic",
+		"--loop",
+		"triage",
 		"--last",
 		"2",
 		"-o",
@@ -459,6 +463,7 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		listTriggerQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listTriggerQuery.Event != "webhook" ||
 		listTriggerQuery.Source != automationpkg.JobSourceDynamic ||
+		listTriggerQuery.LoopName != "triage" ||
 		listTriggerQuery.Limit != 2 {
 		t.Fatalf("listTriggerQuery = %#v, want resolved workspace/event/source/limit", listTriggerQuery)
 	}

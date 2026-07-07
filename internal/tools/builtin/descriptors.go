@@ -32,6 +32,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		autonomyDescriptors(),
 		configDescriptors(),
 		hookDescriptors(),
+		loopDescriptors(),
 		automationDescriptors(),
 		extensionDescriptors(),
 		bundleDescriptors(),

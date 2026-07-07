@@ -387,6 +387,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		n.deps.AgentSkills,
 		n.deps.ToolMCP,
 		n.deps.BundleResources,
+		n.deps.LoopResources,
 		n.deps.HomePaths,
 		nil,
 		nil,

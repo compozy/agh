@@ -103,6 +103,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 		scopeRaw     string
 		workspaceRef string
 		sourceRaw    string
+		loopName     string
 		last         int
 	)
 
@@ -122,6 +123,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 				scopeRaw,
 				workspaceRef,
 				sourceRaw,
+				loopName,
 				last,
 			)
 			if err != nil {
@@ -139,6 +141,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
 	cmd.Flags().
 		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
+	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N jobs")
 
 	cmd.AddCommand(newAutomationJobsCreateCommand(deps))
@@ -441,6 +444,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 		workspaceRef string
 		eventRaw     string
 		sourceRaw    string
+		loopName     string
 		last         int
 	)
 
@@ -461,6 +465,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 				workspaceRef,
 				eventRaw,
 				sourceRaw,
+				loopName,
 				last,
 			)
 			if err != nil {
@@ -479,6 +484,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")
 	cmd.Flags().
 		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
+	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N triggers")
 
 	cmd.AddCommand(newAutomationTriggersCreateCommand(deps))
@@ -823,6 +829,7 @@ func parseAutomationJobListQuery(
 	scopeRaw string,
 	workspaceRef string,
 	sourceRaw string,
+	loopName string,
 	last int,
 ) (AutomationJobQuery, error) {
 	query := AutomationJobQuery{}
@@ -850,6 +857,7 @@ func parseAutomationJobListQuery(
 		return AutomationJobQuery{}, err
 	}
 	query.Source = source
+	query.LoopName = strings.TrimSpace(loopName)
 	return query, nil
 }
 
@@ -860,6 +868,7 @@ func parseAutomationTriggerListQuery(
 	workspaceRef string,
 	eventRaw string,
 	sourceRaw string,
+	loopName string,
 	last int,
 ) (AutomationTriggerQuery, error) {
 	query := AutomationTriggerQuery{
@@ -889,6 +898,7 @@ func parseAutomationTriggerListQuery(
 		return AutomationTriggerQuery{}, err
 	}
 	query.Source = source
+	query.LoopName = strings.TrimSpace(loopName)
 	return query, nil
 }
 

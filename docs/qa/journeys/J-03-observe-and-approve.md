@@ -78,6 +78,6 @@ e2e_backbone:
   component:
     - "Web-unit-5 (11 statuses → pill + pulse, reduced-motion gated); Web-unit-8 (never render a terminal coercion)."
   followups:
-    - "AB-004 — observing all 11 states (incl. no_op/blocked/queued/paused) needs seeds that actually produce each state; today's daemon emits only status_changed richly."
+    - "AB-004 — observing all 11 states (incl. no-op/blocked/queued/paused) needs seeds that actually produce each state; today's daemon emits only status_changed richly."
     - "AB-001 — real-daemon approval flow in Playwright depends on the loop e2e seed harness."
 ```

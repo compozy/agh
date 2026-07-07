@@ -20,8 +20,11 @@ interface QueryHookOptions {
   enabled?: boolean;
 }
 
-export function useAutomationJobs(filters: AutomationJobListFilter = {}) {
-  return useQuery(automationJobsListOptions(filters));
+export function useAutomationJobs(
+  filters: AutomationJobListFilter = {},
+  options: QueryHookOptions = {}
+) {
+  return useQuery({ ...automationJobsListOptions(filters), enabled: options.enabled ?? true });
 }
 
 export function useAutomationJob(id: string, options: QueryHookOptions = {}) {
@@ -36,8 +39,11 @@ export function useAutomationJobRuns(
   return useQuery(automationJobRunsOptions(id, filters, options.enabled ?? true));
 }
 
-export function useAutomationTriggers(filters: AutomationTriggerListFilter = {}) {
-  return useQuery(automationTriggersListOptions(filters));
+export function useAutomationTriggers(
+  filters: AutomationTriggerListFilter = {},
+  options: QueryHookOptions = {}
+) {
+  return useQuery({ ...automationTriggersListOptions(filters), enabled: options.enabled ?? true });
 }
 
 export function useAutomationTrigger(id: string, options: QueryHookOptions = {}) {

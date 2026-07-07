@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/systems/loops/hooks/use-loops", async () => {
+  const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
+  return { useLoops: () => ({ data: loopCatalogFixtures, isLoading: false }) };
+});
+
 import { AutomationJobForm } from "../automation-job-form";
 import { createAutomationJobDraft } from "../../lib/automation-drafts";
 import type { CreateAutomationJobRequest } from "../../types";
@@ -116,7 +121,7 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-prompt-input")).toBeInTheDocument();
     expect(screen.queryByTestId("job-task-title")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("job-output-task"));
+    fireEvent.click(screen.getByTestId("job-target-task"));
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -128,7 +133,7 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("job-task-desc")).toBeInTheDocument();
     expect(screen.getByTestId("job-owner-kind")).toBeInTheDocument();
     expect(screen.queryByTestId("job-prompt-input")).not.toBeInTheDocument();
-    expect(screen.getByTestId("job-output-task")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("job-target-task")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("Should switch back to agent mode and clear draft.task", () => {
@@ -143,12 +148,39 @@ describe("AutomationJobForm", () => {
 
     expect(screen.getByTestId("job-task-title")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("job-output-agent"));
+    fireEvent.click(screen.getByTestId("job-target-agent"));
 
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ task: undefined }));
     expect(screen.getByTestId("job-prompt-input")).toBeInTheDocument();
     expect(screen.queryByTestId("job-task-title")).not.toBeInTheDocument();
-    expect(screen.getByTestId("job-output-agent")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("job-target-agent")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should switch the target to Run loop with a static input form and no payload mapping (§9.14)", () => {
+    const { onChange } = renderJobForm();
+
+    fireEvent.click(screen.getByTestId("job-target-loop"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_kind: "loop",
+        loop_target: expect.objectContaining({ loop_name: "" }),
+        task: undefined,
+      })
+    );
+    expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
+    expect(screen.queryByTestId("job-prompt-input")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("loop-target-select"), {
+      target: { value: "software-delivery" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({ loop_name: "software-delivery" }),
+      })
+    );
+    // Jobs fire on a schedule, not an event, so there is no payload mapping table.
+    expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-input-control").length).toBeGreaterThan(0);
   });
 
   it("Should switch the schedule mode to every and then to at", () => {

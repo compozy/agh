@@ -635,12 +635,14 @@ type automationJobsListInput struct {
 	Scope       string `json:"scope,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Source      string `json:"source,omitempty"`
+	LoopName    string `json:"loop,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
 func (i automationJobsListInput) query(id toolspkg.ToolID) (automationpkg.JobListQuery, error) {
 	query := automationpkg.JobListQuery{
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
+		LoopName:    strings.TrimSpace(i.LoopName),
 		Limit:       i.Limit,
 	}
 	if scope := strings.TrimSpace(i.Scope); scope != "" {
@@ -663,6 +665,7 @@ type automationTriggersListInput struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Event       string `json:"event,omitempty"`
 	Source      string `json:"source,omitempty"`
+	LoopName    string `json:"loop,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 
@@ -670,6 +673,7 @@ func (i automationTriggersListInput) query(id toolspkg.ToolID) (automationpkg.Tr
 	query := automationpkg.TriggerListQuery{
 		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
 		Event:       strings.TrimSpace(i.Event),
+		LoopName:    strings.TrimSpace(i.LoopName),
 		Limit:       i.Limit,
 	}
 	if scope := strings.TrimSpace(i.Scope); scope != "" {

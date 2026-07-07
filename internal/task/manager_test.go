@@ -25,6 +25,7 @@ type inMemoryManagerStore struct {
 	blockRecurrences  map[string]BlockRecurrence
 	dependencies      map[string]map[string]Dependency
 	runs              map[string]Run
+	claimTokens       map[string]string
 	triageStates      map[string]TriageState
 	profiles          map[string]ExecutionProfile
 	reviews           map[string]RunReview
@@ -81,6 +82,50 @@ func (testSessionExecutor) RequestTaskStop(context.Context, string, StopReason) 
 }
 
 func (testSessionExecutor) ForceTaskStop(context.Context, string, StopReason) error {
+	return nil
+}
+
+type forbiddenSessionExecutor struct {
+	startCalls int
+}
+
+func (e *forbiddenSessionExecutor) StartTaskSession(
+	context.Context,
+	*StartTaskSession,
+) (*SessionRef, error) {
+	e.startCalls++
+	return nil, errors.New("session executor must not be called")
+}
+
+func (e *forbiddenSessionExecutor) AttachTaskSession(context.Context, string, string) (*SessionRef, error) {
+	return nil, errors.New("session executor must not be called")
+}
+
+func (e *forbiddenSessionExecutor) RequestTaskStop(context.Context, string, StopReason) error {
+	return nil
+}
+
+func (e *forbiddenSessionExecutor) ForceTaskStop(context.Context, string, StopReason) error {
+	return nil
+}
+
+type recordingCoordinatorRunner struct {
+	calls []RunID
+	plan  CoordinatorCompletionPlan
+	err   error
+}
+
+func (r *recordingCoordinatorRunner) Run(_ context.Context, taskRunID RunID) (CoordinatorCompletionPlan, error) {
+	r.calls = append(r.calls, taskRunID)
+	if r.err != nil {
+		return CoordinatorCompletionPlan{}, r.err
+	}
+	return r.plan, nil
+}
+
+type noopLoopFinalizer struct{}
+
+func (noopLoopFinalizer) WriteGenerationSnapshot(context.Context, Tx, GenerationSnapshot) error {
 	return nil
 }
 
@@ -327,6 +372,7 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		blockRecurrences:  make(map[string]BlockRecurrence),
 		dependencies:      make(map[string]map[string]Dependency),
 		runs:              make(map[string]Run),
+		claimTokens:       make(map[string]string),
 		triageStates:      make(map[string]TriageState),
 		profiles:          make(map[string]ExecutionProfile),
 		reviews:           make(map[string]RunReview),
@@ -1077,7 +1123,7 @@ func (s *inMemoryManagerStore) ListTaskRuns(_ context.Context, query RunQuery) (
 		if normalized.TaskID != "" && run.TaskID != normalized.TaskID {
 			continue
 		}
-		if normalized.Status.Normalize() != "" && run.Status != normalized.Status {
+		if normalized.Status.Normalize() != TaskRunStatusUnknown && run.Status != normalized.Status {
 			continue
 		}
 		if normalized.SessionID != "" && run.SessionID != normalized.SessionID {
@@ -1199,7 +1245,7 @@ func (s *inMemoryManagerStore) ListAutonomyLeaseHandles(
 			SessionID:      strings.TrimSpace(run.SessionID),
 			Status:         run.Status,
 			ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
-			ClaimToken:     strings.TrimSpace(run.ClaimToken),
+			ClaimToken:     strings.TrimSpace(s.claimTokens[run.ID]),
 			ClaimTokenHash: strings.TrimSpace(run.ClaimTokenHash),
 			LeaseUntil:     run.LeaseUntil,
 			HeartbeatAt:    run.HeartbeatAt,
@@ -1279,8 +1325,8 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 	run.Status = TaskRunStatusClaimed
 	run.ClaimedBy = cloneActorIdentity(normalized.ClaimedBy)
 	run.SessionID = normalized.ClaimerSessionID
-	run.ClaimToken = ""
 	run.ClaimTokenHash = tokenHash
+	s.claimTokens[run.ID] = token
 	run.ClaimedAt = normalized.Now
 	run.HeartbeatAt = normalized.Now
 	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
@@ -1308,6 +1354,9 @@ func (s *inMemoryManagerStore) HeartbeatRunLease(
 	}
 	run.HeartbeatAt = normalized.Now
 	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
+	if normalized.TokensUsed > run.TokensUsed {
+		run.TokensUsed = normalized.TokensUsed
+	}
 	s.runs[run.ID] = cloneTaskRun(run)
 	return cloneTaskRun(run), nil
 }
@@ -1347,6 +1396,7 @@ func (s *inMemoryManagerStore) CompleteRunLease(
 	run.Status = TaskRunStatusCompleted
 	run.Result = cloneRawJSON(normalized.Result.Value)
 	run.Error = ""
+	run.TokensUsed = normalized.TokensUsed
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
@@ -1401,11 +1451,34 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 	run.Status = TaskRunStatusFailed
 	run.Error = normalized.Failure.Error
 	run.Result = nil
+	run.TokensUsed = normalized.TokensUsed
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
 	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
+	_ context.Context,
+	completion CoordinatorCompletion,
+	_ GenerationStateFinalizer,
+) (CoordinatorCompletionResult, error) {
+	normalized, err := completion.Normalize(time.Now().UTC())
+	if err != nil {
+		return CoordinatorCompletionResult{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return CoordinatorCompletionResult{}, err
+	}
+	run.Status = TaskRunStatusCompleted
+	run.Error = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.EndedAt = normalized.Now
+	s.runs[run.ID] = cloneTaskRun(run)
+	return CoordinatorCompletionResult{Run: cloneTaskRun(run), LoopRunID: run.LoopRunID}, nil
 }
 
 func (s *inMemoryManagerStore) ForceReleaseTaskRun(
@@ -1443,7 +1516,6 @@ func (s *inMemoryManagerStore) ForceFailTaskRun(
 	run.Error = strings.TrimSpace(failure.Reason)
 	run.FailureKind = FailureKindOperatorForced
 	run.Result = nil
-	run.ClaimToken = ""
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
@@ -1477,8 +1549,8 @@ func (s *inMemoryManagerStore) RetryTaskRun(
 	}
 	attempt := 1
 	for _, run := range s.runs {
-		if run.TaskID == source.TaskID && run.Attempt >= attempt {
-			attempt = run.Attempt + 1
+		if run.TaskID == source.TaskID && int(run.Attempt) >= attempt {
+			attempt = int(run.Attempt) + 1
 		}
 	}
 	if attempt > taskRecord.MaxAttempts {
@@ -1492,7 +1564,7 @@ func (s *inMemoryManagerStore) RetryTaskRun(
 		ID:                    strings.TrimSpace(retry.NewRunID),
 		TaskID:                source.TaskID,
 		Status:                TaskRunStatusQueued,
-		Attempt:               attempt,
+		Attempt:               int32(attempt),
 		PreviousRunID:         source.ID,
 		Origin:                retry.Origin,
 		NetworkChannel:        source.NetworkChannel,
@@ -1526,8 +1598,8 @@ func (s *inMemoryManagerStore) RecoverTaskRun(
 	}
 	attempt := 1
 	for _, run := range s.runs {
-		if run.TaskID == source.TaskID && run.Attempt >= attempt {
-			attempt = run.Attempt + 1
+		if run.TaskID == source.TaskID && int(run.Attempt) >= attempt {
+			attempt = int(run.Attempt) + 1
 		}
 	}
 	if attempt > taskRecord.MaxAttempts {
@@ -1547,7 +1619,7 @@ func (s *inMemoryManagerStore) RecoverTaskRun(
 		ID:                    strings.TrimSpace(mutation.NewRunID),
 		TaskID:                source.TaskID,
 		Status:                TaskRunStatusQueued,
-		Attempt:               attempt,
+		Attempt:               int32(attempt),
 		PreviousRunID:         source.ID,
 		Origin:                mutation.Origin,
 		NetworkChannel:        source.NetworkChannel,
@@ -1653,7 +1725,6 @@ func requeuedTestRun(run Run) Run {
 	run.Status = TaskRunStatusQueued
 	run.ClaimedBy = nil
 	run.SessionID = ""
-	run.ClaimToken = ""
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
@@ -1667,16 +1738,21 @@ func requeuedTestRun(run Run) Run {
 
 func (s *inMemoryManagerStore) ReserveQueuedRun(
 	_ context.Context,
-	taskID string,
-	runID string,
-	runIdempotencyKey string,
-	origin Origin,
-	requestedChannel string,
-	metadata json.RawMessage,
-	queuedAt time.Time,
-	designationGroupID ...string,
+	reservation QueueRunReservation,
 ) (Task, Run, bool, error) {
-	taskRecord, ok := s.tasks[strings.TrimSpace(taskID)]
+	normalizedReservation := reservation
+	normalizedReservation.TaskID = strings.TrimSpace(normalizedReservation.TaskID)
+	normalizedReservation.RunID = strings.TrimSpace(normalizedReservation.RunID)
+	normalizedReservation.RunKind = normalizeRunKindOrDefault(normalizedReservation.RunKind)
+	normalizedReservation.LoopRunID = strings.TrimSpace(normalizedReservation.LoopRunID)
+	normalizedReservation.IdempotencyKey = strings.TrimSpace(normalizedReservation.IdempotencyKey)
+	normalizedReservation.RequestedChannel = strings.TrimSpace(normalizedReservation.RequestedChannel)
+	normalizedReservation.DesignationGroupID = strings.TrimSpace(normalizedReservation.DesignationGroupID)
+	normalizedReservation.Metadata = normalizeRawJSON(normalizedReservation.Metadata)
+	if err := normalizedReservation.Validate("queue_run_reservation"); err != nil {
+		return Task{}, Run{}, false, err
+	}
+	taskRecord, ok := s.tasks[normalizedReservation.TaskID]
 	if !ok {
 		return Task{}, Run{}, false, ErrTaskNotFound
 	}
@@ -1685,9 +1761,9 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		return Task{}, Run{}, false, err
 	}
 
-	trimmedKey := strings.TrimSpace(runIdempotencyKey)
+	trimmedKey := normalizedReservation.IdempotencyKey
 	if trimmedKey != "" {
-		if record, ok := s.idempotencyByKey[idempotencyKey(origin, trimmedKey)]; ok {
+		if record, ok := s.idempotencyByKey[idempotencyKey(normalizedReservation.Origin, trimmedKey)]; ok {
 			existingRun, err := s.GetTaskRun(context.Background(), record.RunID)
 			if err != nil {
 				return Task{}, Run{}, false, err
@@ -1708,7 +1784,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	if err != nil {
 		return Task{}, Run{}, false, err
 	}
-	requestedDesignationGroupID := firstInMemoryDesignationGroupID(designationGroupID)
+	requestedDesignationGroupID := normalizedReservation.DesignationGroupID
 	if hasBlockingOpenRunForDesignation(existingRuns, requestedDesignationGroupID) {
 		return Task{}, Run{}, false, fmtTestError(
 			"%w: task %q has open run; finish or cancel it before enqueueing another run",
@@ -1727,23 +1803,25 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		)
 	}
 
-	networkChannel := resolvedRunChannel(requestedChannel, taskRecord.NetworkChannel)
+	networkChannel := resolvedRunChannel(normalizedReservation.RequestedChannel, taskRecord.NetworkChannel)
 	run := Run{
-		ID:                 strings.TrimSpace(runID),
+		ID:                 normalizedReservation.RunID,
 		TaskID:             taskRecord.ID,
+		RunKind:            normalizedReservation.RunKind,
+		LoopRunID:          normalizedReservation.LoopRunID,
 		Status:             TaskRunStatusQueued,
-		Attempt:            nextAttempt,
-		Origin:             origin,
+		Attempt:            int32(nextAttempt),
+		Origin:             normalizedReservation.Origin,
 		IdempotencyKey:     trimmedKey,
 		NetworkChannel:     networkChannel,
 		DesignationGroupID: requestedDesignationGroupID,
 		CoordinationChannelID: testCoordinationChannelIDForQueuedRun(
 			taskRecord,
 			networkChannel,
-			runID,
+			normalizedReservation.RunID,
 		),
-		Metadata: normalizeRawJSON(metadata),
-		QueuedAt: queuedAt.UTC(),
+		Metadata: normalizedReservation.Metadata,
+		QueuedAt: normalizedReservation.QueuedAt.UTC(),
 	}
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
 		return Task{}, Run{}, false, err
@@ -1752,22 +1830,13 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		if err := s.SaveTaskRunIdempotency(context.Background(), RunIdempotency{
 			IdempotencyKey: trimmedKey,
 			RunID:          run.ID,
-			Origin:         origin,
-			CreatedAt:      queuedAt.UTC(),
+			Origin:         normalizedReservation.Origin,
+			CreatedAt:      normalizedReservation.QueuedAt.UTC(),
 		}); err != nil {
 			return Task{}, Run{}, false, err
 		}
 	}
 	return taskRecord, run, false, nil
-}
-
-func firstInMemoryDesignationGroupID(values []string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func hasBlockingOpenRunForDesignation(runs []Run, designationGroupID string) bool {
@@ -6658,7 +6727,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(retry) error = %v", err)
 	}
-	if got, want := retryRun.Attempt, 2; got != want {
+	if got, want := retryRun.Attempt, int32(2); got != want {
 		t.Fatalf("retryRun.Attempt = %d, want %d", got, want)
 	}
 	if got, want := retryRun.NetworkChannel, "custom"; got != want {
@@ -7338,6 +7407,199 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 	}
 }
 
+func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should execute coordinator in daemon without session", func(t *testing.T) {
+		t.Parallel()
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t)
+	})
+}
+
+func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
+	t.Helper()
+
+	store := newInMemoryManagerStore()
+	now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+	taskRecord := Task{
+		ID:             "task-loop-coordinator",
+		Scope:          ScopeGlobal,
+		Title:          "Loop coordinator",
+		Priority:       PriorityMedium,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		CreatedBy:      ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := store.CreateTask(context.Background(), taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := Run{
+		ID:             "run-loop-coordinator",
+		TaskID:         taskRecord.ID,
+		RunKind:        RunKindCoordinator,
+		LoopRunID:      "loop-run-1",
+		Status:         TaskRunStatusQueued,
+		Attempt:        1,
+		IdempotencyKey: "coordinator:test",
+		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		QueuedAt:       now,
+	}
+	if err := store.CreateTaskRun(context.Background(), run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	sessionExecutor := &forbiddenSessionExecutor{}
+	runner := &recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+		Snapshot: GenerationSnapshot{LoopRunID: "loop-run-1", Generation: 1},
+		Terminal: &CoordinatorTerminal{
+			Status: "no-op",
+			Cause:  "contract",
+		},
+	}}
+	manager, err := NewManager(
+		WithStore(store),
+		WithSessionExecutor(sessionExecutor),
+		WithCoordinatorRunner(runner),
+		WithGenerationStateFinalizer(noopLoopFinalizer{}),
+		WithManagerNow(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "daemon-loop",
+		ClaimedBy:        &ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+
+	started, err := manager.StartRun(context.Background(), claim.Run.ID, StartRun{
+		ClaimToken:     claim.ClaimToken,
+		IdempotencyKey: claim.Run.IdempotencyKey,
+	}, actor)
+	if err != nil {
+		t.Fatalf("StartRun(coordinator) error = %v", err)
+	}
+	if started.Status != TaskRunStatusCompleted {
+		t.Fatalf("StartRun(coordinator).Status = %q, want %q", started.Status, TaskRunStatusCompleted)
+	}
+	if sessionExecutor.startCalls != 0 {
+		t.Fatalf("StartTaskSession calls = %d, want 0", sessionExecutor.startCalls)
+	}
+	if got, want := len(runner.calls), 1; got != want {
+		t.Fatalf("CoordinatorRunner calls = %d, want %d", got, want)
+	}
+	if got, want := string(runner.calls[0]), claim.Run.ID; got != want {
+		t.Fatalf("CoordinatorRunner taskRunID = %q, want %q", got, want)
+	}
+}
+
+func TestManagerStartRunShouldRejectCoordinatorClaimTokenMismatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject coordinator claim token mismatch before runner starts", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+		taskRecord := Task{
+			ID:             "task-loop-coordinator-mismatch",
+			Scope:          ScopeGlobal,
+			Title:          "Loop coordinator",
+			Priority:       PriorityMedium,
+			MaxAttempts:    DefaultTaskMaxAttempts,
+			Status:         TaskStatusReady,
+			ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState:  ApprovalStateNotRequired,
+			CreatedBy:      ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := store.CreateTask(context.Background(), taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := Run{
+			ID:             "run-loop-coordinator-mismatch",
+			TaskID:         taskRecord.ID,
+			RunKind:        RunKindCoordinator,
+			LoopRunID:      "loop-run-mismatch",
+			Status:         TaskRunStatusQueued,
+			Attempt:        1,
+			IdempotencyKey: "coordinator:mismatch",
+			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			QueuedAt:       now,
+		}
+		if err := store.CreateTaskRun(context.Background(), run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		runner := &recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+			Snapshot: GenerationSnapshot{LoopRunID: "loop-run-mismatch", Generation: 1},
+			Terminal: &CoordinatorTerminal{
+				Status: "no-op",
+				Cause:  "contract",
+			},
+		}}
+		manager, err := NewManager(
+			WithStore(store),
+			WithSessionExecutor(&forbiddenSessionExecutor{}),
+			WithCoordinatorRunner(runner),
+			WithGenerationStateFinalizer(noopLoopFinalizer{}),
+			WithManagerNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: "daemon-loop",
+			ClaimedBy:        &ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+
+		started, err := manager.StartRun(context.Background(), claim.Run.ID, StartRun{
+			ClaimToken:     "wrong-token",
+			IdempotencyKey: claim.Run.IdempotencyKey,
+		}, actor)
+		if !errors.Is(err, ErrInvalidClaimToken) {
+			t.Fatalf("StartRun(coordinator token mismatch) error = %v, want %v", err, ErrInvalidClaimToken)
+		}
+		if started != nil {
+			t.Fatalf("StartRun(coordinator token mismatch) returned run = %#v, want nil", started)
+		}
+		if got := len(runner.calls); got != 0 {
+			t.Fatalf("CoordinatorRunner calls = %d, want 0", got)
+		}
+		storedRun, err := store.GetTaskRun(context.Background(), claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := storedRun.Status, TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored run status = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing.T) {
 	t.Parallel()
 
@@ -7590,6 +7852,7 @@ func assertTaskRunEnqueuedPayload(
 	if coordinationChannelID == "" {
 		coordinationChannelID = strings.TrimSpace(run.NetworkChannel)
 	}
+	runKind := run.RunKind.Normalize().String()
 	want := hookspkg.TaskRunContext{
 		TaskID:                strings.TrimSpace(run.TaskID),
 		RunID:                 strings.TrimSpace(run.ID),
@@ -7603,11 +7866,15 @@ func assertTaskRunEnqueuedPayload(
 		OriginKind:            string(actor.Origin.Kind.Normalize()),
 		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
 		TaskStatus:            string(taskRecord.Status.Normalize()),
-		RunStatus:             string(run.Status.Normalize()),
-		Attempt:               run.Attempt,
+		RunStatus:             run.Status.Normalize().String(),
+		Attempt:               int(run.Attempt),
 		LeaseUntil:            run.LeaseUntil,
 		Error:                 strings.TrimSpace(run.Error),
 	}
+	if payload.RunKind == nil || *payload.RunKind != runKind {
+		t.Fatalf("enqueued hook run_kind = %#v, want %q", payload.RunKind, runKind)
+	}
+	want.RunKind = payload.RunKind
 	if payload.TaskRunContext != want {
 		t.Fatalf("enqueued hook context = %#v, want %#v", payload.TaskRunContext, want)
 	}
@@ -8864,7 +9131,7 @@ func TestRunBootRecoveryHelpersAndWriteAuthority(t *testing.T) {
 		if got, want := payload["reason"], "orphaned_on_boot"; got != want {
 			t.Fatalf("payload[reason] = %q, want %q", got, want)
 		}
-		if got, want := payload["previous_status"], string(TaskRunStatusStarting); got != want {
+		if got, want := payload["previous_status"], TaskRunStatusStarting.String(); got != want {
 			t.Fatalf("payload[previous_status] = %q, want %q", got, want)
 		}
 	})

@@ -1,0 +1,362 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/loop/dsl"
+)
+
+func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should run dry with parsed inputs", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedRequest contract.RunLoopRequest
+		var capturedDry bool
+		var capturedCredentials agentidentity.Credentials
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			runLoopFn: func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				request contract.RunLoopRequest,
+				dry bool,
+				credentials agentidentity.Credentials,
+			) (contract.RunLoopResponse, error) {
+				if workspaceID != "ws-alpha" || name != "release" {
+					t.Fatalf("RunLoop target = %s/%s, want ws-alpha/release", workspaceID, name)
+				}
+				capturedRequest = request
+				capturedDry = dry
+				capturedCredentials = credentials
+				return contract.RunLoopResponse{
+					DryRun: &contract.LoopPlanPayload{LoopName: "release", ResolvedInputs: request.Inputs},
+				}, nil
+			},
+		})
+		deps.getenv = testAgentIdentityEnv("sess-author", "coder")
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run",
+			"--workspace", "alpha",
+			"--name", "release",
+			"--input", "target=prod",
+			"--input", "enabled=true",
+			"--input", "retries=3",
+			"--dry-run",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run) error = %v", err)
+		}
+
+		if !capturedDry {
+			t.Fatal("RunLoop dry = false, want true")
+		}
+		if capturedCredentials.SessionID != "sess-author" || capturedCredentials.AgentName != "coder" {
+			t.Fatalf("RunLoop credentials = %#v, want sess-author/coder", capturedCredentials)
+		}
+		if capturedRequest.Inputs["target"] != "prod" || capturedRequest.Inputs["enabled"] != true {
+			t.Fatalf("RunLoop inputs = %#v, want parsed string/bool", capturedRequest.Inputs)
+		}
+		if got, ok := capturedRequest.Inputs["retries"].(json.Number); !ok || got.String() != "3" {
+			t.Fatalf("RunLoop retries = %#v, want json.Number(3)", capturedRequest.Inputs["retries"])
+		}
+		var response contract.RunLoopResponse
+		if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+			t.Fatalf("json.Unmarshal(loop run response) error = %v", err)
+		}
+		if response.DryRun == nil || response.DryRun.LoopName != "release" {
+			t.Fatalf("response.DryRun = %#v, want release preview", response.DryRun)
+		}
+	})
+
+	t.Run("Should publish file with expected version", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 7)
+		definitionPath := writeTestLoopDefinition(t, definition)
+		var capturedRequest contract.PatchLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			patchLoopFn: func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				request contract.PatchLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.LoopResponse, error) {
+				if workspaceID != "ws-alpha" || name != "release" {
+					t.Fatalf("PatchLoop target = %s/%s, want ws-alpha/release", workspaceID, name)
+				}
+				capturedRequest = request
+				return testLoopResponse(t, definition), nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "create",
+			"--workspace", "alpha",
+			"--file", definitionPath,
+			"--expected-version", "7",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop create --expected-version) error = %v", err)
+		}
+
+		if capturedRequest.ExpectedVersion == nil || *capturedRequest.ExpectedVersion != 7 {
+			t.Fatalf("ExpectedVersion = %#v, want 7", capturedRequest.ExpectedVersion)
+		}
+		if capturedRequest.Definition.Meta.Name != "release" {
+			t.Fatalf("Definition.Meta.Name = %q, want release", capturedRequest.Definition.Meta.Name)
+		}
+		var response contract.LoopResponse
+		if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+			t.Fatalf("json.Unmarshal(loop create response) error = %v", err)
+		}
+		if response.Loop.Version != 7 {
+			t.Fatalf("response.Loop.Version = %d, want 7", response.Loop.Version)
+		}
+	})
+
+	t.Run("Should configure set flags", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedRequest contract.PutLoopConfigRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			putLoopConfigFn: func(
+				_ context.Context,
+				workspaceID string,
+				name string,
+				request contract.PutLoopConfigRequest,
+				_ agentidentity.Credentials,
+			) (contract.LoopConfigResponse, error) {
+				if workspaceID != "ws-alpha" || name != "release" {
+					t.Fatalf("PutLoopConfig target = %s/%s, want ws-alpha/release", workspaceID, name)
+				}
+				capturedRequest = request
+				return contract.LoopConfigResponse{Config: &request.Config}, nil
+			},
+		})
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "configure",
+			"--workspace", "alpha",
+			"--name", "release",
+			"--set", "iteration_cap=9",
+			"--set", "human_gate_enabled=true",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(loop configure) error = %v", err)
+		}
+
+		if capturedRequest.Config.IterationCap == nil || *capturedRequest.Config.IterationCap != 9 {
+			t.Fatalf("IterationCap = %#v, want 9", capturedRequest.Config.IterationCap)
+		}
+		if capturedRequest.Config.HumanGateEnabled == nil || !*capturedRequest.Config.HumanGateEnabled {
+			t.Fatalf("HumanGateEnabled = %#v, want true", capturedRequest.Config.HumanGateEnabled)
+		}
+	})
+
+	t.Run("Should approve gate decision", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedRequest contract.ApproveLoopRunRequest
+		var capturedCredentials agentidentity.Credentials
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			approveLoopRunFn: func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.ApproveLoopRunRequest,
+				credentials agentidentity.Credentials,
+			) error {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" {
+					t.Fatalf("ApproveLoopRun target = %s/%s, want ws-alpha/looprun-1", workspaceID, runID)
+				}
+				capturedRequest = request
+				capturedCredentials = credentials
+				return nil
+			},
+		})
+		deps.getenv = testAgentIdentityEnv("sess-author", "coder")
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "approve",
+			"--workspace", "alpha",
+			"--run-id", "looprun-1",
+			"--gate-id", "human-review",
+			"--decision", "request_changes",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(loop approve) error = %v", err)
+		}
+
+		if capturedRequest.GateID != "human-review" ||
+			capturedRequest.Decision != contract.LoopGateDecisionRequestChanges {
+			t.Fatalf("ApproveLoopRun request = %#v, want human-review/request_changes", capturedRequest)
+		}
+		if capturedCredentials.SessionID != "sess-author" || capturedCredentials.AgentName != "coder" {
+			t.Fatalf("ApproveLoopRun credentials = %#v, want sess-author/coder", capturedCredentials)
+		}
+	})
+
+	t.Run("Should reject positional arguments", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, &stubClient{}),
+			"loop", "run",
+			"--workspace", "alpha",
+			"--name", "release",
+			"release",
+		)
+		if err == nil || (!strings.Contains(err.Error(), "accepts 0 arg(s)") &&
+			!strings.Contains(err.Error(), "unknown command")) {
+			t.Fatalf("loop run positional error = %v, want positional rejection", err)
+		}
+	})
+}
+
+func testAgentIdentityEnv(sessionID string, agentName string) func(string) string {
+	return func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return sessionID
+		case agentidentity.EnvAgent:
+			return agentName
+		default:
+			return ""
+		}
+	}
+}
+
+func resolveTestLoopWorkspace(t *testing.T) func(context.Context, string) (WorkspaceDetailRecord, error) {
+	t.Helper()
+
+	return func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+		if ref != "alpha" {
+			t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+		}
+		return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+	}
+}
+
+func testLoopDefinition(name string, version int) dsl.Definition {
+	return dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Meta: dsl.Meta{
+			Name:        name,
+			Version:     version,
+			Description: "Release loop",
+			Catalog: dsl.CatalogMeta{
+				UseWhen:  "release coordination is needed",
+				Keywords: []string{"release", "qa"},
+				Category: "delivery",
+			},
+		},
+		Inputs: map[string]dsl.Input{
+			"target": {Type: dsl.InputTypeString, Required: true},
+		},
+		Contract: dsl.Contract{
+			Goal:             "Ship a release",
+			DefinitionOfDone: "Release is verified",
+			IterationCap:     2,
+			Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{{
+				ID:       "target",
+				Class:    dsl.NodeClassSource,
+				Kind:     string(dsl.SourceInput),
+				InputRef: "target",
+			}},
+		},
+		Start: []dsl.StartBinding{{Kind: dsl.StartCLI}},
+	}
+}
+
+func testLoopResponse(t testing.TB, definition dsl.Definition) contract.LoopResponse {
+	t.Helper()
+
+	document, err := contract.NewLoopDefinitionDocument(definition)
+	if err != nil {
+		t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+	}
+	return contract.LoopResponse{
+		Loop: contract.LoopDefinitionPayload{
+			Name:        definition.Meta.Name,
+			Version:     definition.Meta.Version,
+			Description: definition.Meta.Description,
+			Source:      contract.LoopSourceUser,
+			Definition:  document,
+		},
+	}
+}
+
+func writeTestLoopDefinition(t *testing.T, definition dsl.Definition) string {
+	t.Helper()
+
+	body := []byte(`apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: ` + definition.Meta.Name + `
+  version: ` + strconv.Itoa(definition.Meta.Version) + `
+  description: Release loop
+  catalog:
+    use_when: release coordination is needed
+    keywords: [release, qa]
+    category: delivery
+inputs:
+  target:
+    type: string
+    required: true
+contract:
+  goal: Ship a release
+  definition_of_done: Release is verified
+  iteration_cap: 2
+  no_progress:
+    window: 0
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+graph:
+  nodes:
+    - id: target
+      class: source
+      kind: input
+      input_ref: target
+  edges: []
+start:
+  - kind: cli
+`)
+	path := filepath.Join(t.TempDir(), definition.Meta.Name+".yaml")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
+	}
+	return path
+}

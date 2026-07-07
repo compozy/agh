@@ -24,6 +24,13 @@ function readRepoFile(...parts: string[]): string {
   return readFileSync(resolve(repoRoot, ...parts), "utf8");
 }
 
+function listRouteSourcePaths(dir: string): string[] {
+  return readdirSync(resolve(repoRoot, dir))
+    .filter(entry => entry === "routes.go" || entry.endsWith("_routes.go"))
+    .sort()
+    .map(entry => `${dir}/${entry}`);
+}
+
 function listManualDocs(dir: string): ManualDoc[] {
   const docs: ManualDoc[] = [];
   for (const entry of readdirSync(dir)) {
@@ -87,9 +94,9 @@ function extractRegisteredRoutes(sourcePath: string): APIRoute[] {
 
 function implementedRoutes(): APIRoute[] {
   return [
-    ...extractRegisteredRoutes("internal/api/httpapi/routes.go"),
-    ...extractRegisteredRoutes("internal/api/udsapi/routes.go"),
-  ];
+    ...listRouteSourcePaths("internal/api/httpapi"),
+    ...listRouteSourcePaths("internal/api/udsapi"),
+  ].flatMap(sourcePath => extractRegisteredRoutes(sourcePath));
 }
 
 function routePattern(route: string): RegExp {

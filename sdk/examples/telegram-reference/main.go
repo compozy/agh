@@ -130,7 +130,8 @@ type telegramReferenceRuntime struct {
 	lifecycleCancel context.CancelFunc
 	stopCh          chan struct{}
 	stopOnce        sync.Once
-	wg              sync.WaitGroup
+	// wg joins background workers during test/process cleanup; shutdown ACK only signals stop.
+	wg sync.WaitGroup
 }
 
 type deliveryState struct {
@@ -371,26 +372,9 @@ func (r *telegramReferenceRuntime) healthCheck() error {
 func (r *telegramReferenceRuntime) handleShutdown(
 	_ context.Context,
 	_ *bridgesdk.Session,
-	request subprocess.ShutdownRequest,
+	_ subprocess.ShutdownRequest,
 ) error {
 	r.stop()
-
-	deadline := time.Now().Add(5 * time.Second)
-	if request.DeadlineMS > 0 {
-		deadline = time.Now().Add(time.Duration(request.DeadlineMS) * time.Millisecond)
-	}
-
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Until(deadline)):
-	}
-
 	r.reportSideEffectError(
 		"write shutdown marker",
 		appendMarkerLine(r.env.shutdownPath, fmt.Sprintf("pid=%d", os.Getpid())),

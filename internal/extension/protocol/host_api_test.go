@@ -128,6 +128,25 @@ func TestCapabilityServiceMethodsShouldIncludeModelSourceMethod(t *testing.T) {
 	})
 }
 
+func TestCapabilityServiceMethodsShouldIncludeWatchPollMethod(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include watch poll method", func(t *testing.T) {
+		t.Parallel()
+
+		got := CapabilityServiceMethods([]string{CapabilityProvideWatchSource})
+		want := []string{string(ExtensionServiceMethodWatchPoll)}
+		if len(got) != len(want) {
+			t.Fatalf("len(CapabilityServiceMethods(loop.watch_source)) = %d, want %d", len(got), len(want))
+		}
+		for idx := range want {
+			if got[idx] != want[idx] {
+				t.Fatalf("CapabilityServiceMethods(loop.watch_source)[%d] = %q, want %q", idx, got[idx], want[idx])
+			}
+		}
+	})
+}
+
 func TestCapabilityServiceMethodsShouldIncludeBridgeTargetSnapshotMethod(t *testing.T) {
 	t.Parallel()
 

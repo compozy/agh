@@ -90,7 +90,7 @@ Ordered highest-impact journey × highest-blast-radius first. Each binds exactly
 | CH-002 | J-03 | Marina (phone) | Interrupt | 60 | Truthful approval; needs-approval ≠ terminal |
 | CH-003 | J-04 | Bruno | Interrupt | 60 | Pause truthful at boundary; Stop→failed |
 | CH-004 | J-07 | Ada | Feature | 60 | Structured parity + no self-approval |
-| CH-005 | J-08 | Bruno | Interrupt | 90 | watching zero-cost; no_op/stalled truthful |
+| CH-005 | J-08 | Bruno | Interrupt | 90 | watching zero-cost; no-op/stalled truthful |
 | CH-006 | J-05 | Bruno | Back-Button | 60 | No-fork boundary; no cost cap |
 | CH-007 | J-06 | Bruno | Multi-Tab | 90 | Linter authority; Publish gate; CAS 409 |
 | CH-008 | J-02 | Lea | Garbage | 30 | Dry-run: no run/no budget leak |
@@ -111,7 +111,7 @@ Recorded in `docs/qa/automation-backlog.md` — not as metadata on scenarios:
 - **AB-001** — Loop web E2E seed harness (real-daemon Playwright): the daemon emits only `status_changed`, and `web/e2e/fixtures/*` has no loop seed. Blocks real-browser E2E for J-01/03/04/06/08/09; covered meanwhile at vitest/component + `agh-ui-screenshot`.
 - **AB-002** — Converse-and-decide seed: no installed template (docs-only); J-10/CH-010 need a hand-built `agh__network_send` + `channel_result` seed to exercise E2E-web-6.
 - **AB-003** — Agent-operability parity harness for the full `agh__loop_*` verb set (J-07).
-- **AB-004** — Seeds that produce all 11 statuses (incl. `no_op`/`blocked`/`queued`/`paused`) to pin the no-coercion invariant (J-03/J-08).
+- **AB-004** — Seeds that produce all 11 statuses (incl. `no-op`/`blocked`/`queued`/`paused`) to pin the no-coercion invariant (J-03/J-08).
 
 **Runtime open risks carried in from prior tasks (not this cycle's bugs):** no effective-config GET endpoint (J-05 inherited-default placeholders can't be shown truthfully vs the operator `[loops.defaults.*]` layer); the run-page forward-contract gap (no pinned executed-definition/gate_id/started_at). Both are flagged for `qa-execution` to verify save-then-run / historical-run behavior empirically rather than trust the UI copy.
 

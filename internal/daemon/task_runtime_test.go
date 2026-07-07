@@ -13,8 +13,14 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	looppkg "github.com/compozy/agh/internal/loop"
+	loopdsl "github.com/compozy/agh/internal/loop/dsl"
+	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -1079,6 +1085,102 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 	if state.deps.Tasks == nil {
 		t.Fatal("bootTasks() runtime deps tasks = nil, want published manager")
 	}
+}
+
+func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wire daemon extension watch poller into the coordinator runner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Now().UTC()
+		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+		loopName := "watch-source-daemon"
+		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{{
+			ID:      loopName,
+			Version: 1,
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Spec:    testWatchLoopSpec(t, loopName),
+		}})
+		seedRun := looppkg.Run{
+			ID:                "looprun-watch-daemon",
+			WorkspaceID:       "ws-1",
+			LoopName:          loopName,
+			Status:            looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly,
+			CreatedAt:         now,
+			LastProgressAt:    now.Add(-time.Minute),
+			IterationCap:      3,
+			BudgetOnExceeded:  loopdsl.BudgetExceededHalt,
+			Inputs:            map[string]any{},
+		}
+		applyLoopRunPinningForTest(&seedRun, now)
+		loopRun, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		taskRecord := daemonTaskRecordForTest("task-watch-daemon", now)
+		if err := db.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, _, _, err := db.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
+			TaskID:           taskRecord.ID,
+			RunID:            "run-watch-daemon",
+			RunKind:          taskpkg.RunKindCoordinator,
+			LoopRunID:        string(loopRun.ID),
+			IdempotencyKey:   "watch-daemon",
+			Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+			RequestedChannel: "default",
+			QueuedAt:         now,
+		}); err != nil {
+			t.Fatalf("ReserveQueuedRun() error = %v", err)
+		}
+		claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			RunKind:          taskpkg.RunKindCoordinator,
+			ClaimerSessionID: "daemon-loop-watch-test",
+			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		var polled bool
+		extensions := &watchPollerExtensionRuntime{
+			poll: func(_ context.Context, req watchpkg.PollRequest) (watchpkg.PollResponse, error) {
+				polled = true
+				if string(req.Spec) != `{"kind":"reviews","query":"open"}` {
+					t.Fatalf("PollRequest.Spec = %s, want watch spec", string(req.Spec))
+				}
+				return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:daemon"}, nil
+			},
+		}
+		state := &bootState{
+			logger:      discardLogger(),
+			loopCatalog: catalog,
+		}
+		runner, err := newBootLoopCoordinatorRunner(db, state, testHomePaths(t))
+		if err != nil {
+			t.Fatalf("newBootLoopCoordinatorRunner() error = %v", err)
+		}
+		state.setExtensionRuntime(extensions)
+		plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if !polled {
+			t.Fatal("extension watch poller was not called")
+		}
+		if plan.Terminal == nil {
+			t.Fatal("Terminal = nil, want watching terminal")
+		}
+		if got, want := plan.Terminal.Status, string(looppkg.StatusWatching); got != want {
+			t.Fatalf("Terminal.Status = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBootTasksWiresSchedulerStarvationAgeToTaskManager(t *testing.T) {
@@ -3146,6 +3248,122 @@ func waitForTaskRuntimeCondition(t *testing.T, timeout time.Duration, check func
 			t.Fatal("timed out waiting for task runtime condition")
 		}
 	}
+}
+
+func daemonTaskRecordForTest(id string, now time.Time) taskpkg.Task {
+	return taskpkg.Task{
+		ID:             id,
+		Identifier:     "identifier-" + id,
+		Scope:          taskpkg.ScopeGlobal,
+		Title:          "Task " + id,
+		Priority:       taskpkg.DefaultPriority,
+		MaxAttempts:    taskpkg.DefaultTaskMaxAttempts,
+		Status:         taskpkg.TaskStatusReady,
+		ApprovalPolicy: taskpkg.ApprovalPolicyNone,
+		ApprovalState:  taskpkg.ApprovalStateNotRequired,
+		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "test"},
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.test"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		WakeCreator:    true,
+	}
+}
+
+func testWatchLoopSpec(t *testing.T, name string) looppkg.ResourceSpec {
+	t.Helper()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "loop.yaml")
+	data := []byte(testWatchLoopYAML(name))
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile(loop.yaml) error = %v", err)
+	}
+	spec, _, err := looppkg.ParseResource(data, looppkg.ResourceParseOptions{
+		Source:   looppkg.SourceUser,
+		Dir:      dir,
+		FilePath: filePath,
+	})
+	if err != nil {
+		t.Fatalf("ParseResource(watch loop) error = %v", err)
+	}
+	return spec
+}
+
+func testWatchLoopYAML(name string) string {
+	return `apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: ` + name + `
+  version: 1
+  description: Test daemon watch-source wiring
+concurrency: queue
+contract:
+  goal: Test daemon watch-source wiring
+  definition_of_done: Watch source yielded
+  terminal_states: [done, blocked, stalled]
+  iteration_cap: 3
+  no_progress:
+    window: 2
+    hash_fields: []
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+start:
+  - kind: cli
+graph:
+  nodes:
+    - id: watch_reviews
+      class: source
+      kind: watch-source
+      watch:
+        kind: reviews
+        query: open
+    - id: normalize_review
+      class: action
+      kind: transform
+      params:
+        map:
+          review:
+            value: ok
+  edges:
+    - from: watch_reviews
+      to: normalize_review
+`
+}
+
+type watchPollerExtensionRuntime struct {
+	poll func(context.Context, watchpkg.PollRequest) (watchpkg.PollResponse, error)
+}
+
+func (*watchPollerExtensionRuntime) Start(context.Context) error {
+	return nil
+}
+
+func (*watchPollerExtensionRuntime) Stop(context.Context) error {
+	return nil
+}
+
+func (*watchPollerExtensionRuntime) Reload(context.Context) error {
+	return nil
+}
+
+func (*watchPollerExtensionRuntime) Get(string) (*extensionpkg.Extension, error) {
+	return nil, nil
+}
+
+func (*watchPollerExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
+	return nil, nil
+}
+
+func (r *watchPollerExtensionRuntime) Poll(
+	ctx context.Context,
+	req watchpkg.PollRequest,
+) (watchpkg.PollResponse, error) {
+	if r == nil || r.poll == nil {
+		return watchpkg.PollResponse{}, errors.New("watch poller test runtime is not configured")
+	}
+	return r.poll(ctx, req)
 }
 
 func newDetachedHarnessTaskRuntimeForTest(

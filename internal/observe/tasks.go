@@ -1251,7 +1251,7 @@ func taskInboxRunSummary(run *taskpkg.Run, maxAttempts int) *taskpkg.RunSummary 
 		ID:                 run.ID,
 		TaskID:             run.TaskID,
 		Status:             run.Status,
-		Attempt:            run.Attempt,
+		Attempt:            int(run.Attempt),
 		MaxAttempts:        maxAttempts,
 		SessionID:          run.SessionID,
 		ClaimedBy:          cloneActorIdentity(run.ClaimedBy),
@@ -1569,7 +1569,7 @@ func taskDashboardActiveRunItems(
 			LatestEventSeq: taskItem.LatestEventSeq,
 			RunID:          run.ID,
 			RunStatus:      run.Status.Normalize(),
-			Attempt:        run.Attempt,
+			Attempt:        int(run.Attempt),
 			MaxAttempts:    taskItem.MaxAttempts,
 			SessionID:      strings.TrimSpace(run.SessionID),
 			NetworkChannel: strings.TrimSpace(run.NetworkChannel),
@@ -1862,7 +1862,7 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 	counts := make(map[string]TaskRunTotal)
 	for _, item := range runs {
 		channel := strings.TrimSpace(item.NetworkChannel)
-		key := string(item.Status.Normalize()) + "\x00" + string(item.Origin.Kind.Normalize()) + "\x00" + channel
+		key := item.Status.Normalize().String() + "\x00" + string(item.Origin.Kind.Normalize()) + "\x00" + channel
 		current := counts[key]
 		current.Status = item.Status.Normalize()
 		current.OriginKind = item.Origin.Kind.Normalize()
@@ -1875,7 +1875,7 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 		rows = append(rows, item)
 	}
 	slices.SortFunc(rows, func(left, right TaskRunTotal) int {
-		if cmp := strings.Compare(string(left.Status), string(right.Status)); cmp != 0 {
+		if cmp := strings.Compare(left.Status.String(), right.Status.String()); cmp != 0 {
 			return cmp
 		}
 		if cmp := strings.Compare(string(left.OriginKind), string(right.OriginKind)); cmp != 0 {

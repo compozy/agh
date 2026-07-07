@@ -168,6 +168,19 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDAutomationTriggersHistory,
 			toolspkg.ToolIDAutomationRunsList,
 			toolspkg.ToolIDAutomationRunsGet,
+			toolspkg.ToolIDLoopList,
+			toolspkg.ToolIDLoopInspect,
+			toolspkg.ToolIDLoopValidate,
+			toolspkg.ToolIDLoopCreate,
+			toolspkg.ToolIDLoopRun,
+			toolspkg.ToolIDLoopStatus,
+			toolspkg.ToolIDLoopRuns,
+			toolspkg.ToolIDLoopStop,
+			toolspkg.ToolIDLoopPause,
+			toolspkg.ToolIDLoopResume,
+			toolspkg.ToolIDLoopConfigure,
+			toolspkg.ToolIDLoopApprove,
+			toolspkg.ToolIDLoopDelete,
 			toolspkg.ToolIDExtensionsSearch,
 			toolspkg.ToolIDExtensionsList,
 			toolspkg.ToolIDExtensionsInfo,
@@ -1096,6 +1109,16 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(automation, toolspkg.ToolIDAutomationRunsGet) ||
 			slices.Contains(automation, toolspkg.ToolID("agh__automation_webhook_secret_set")) {
 			t.Fatalf("automation toolset expansion = %#v, want bounded automation tools", automation)
+		}
+
+		loops, err := catalog.Expand(toolspkg.ToolsetIDLoops, universe)
+		if err != nil {
+			t.Fatalf("Expand(loops) error = %v", err)
+		}
+		if !slices.Contains(loops, toolspkg.ToolIDLoopRun) ||
+			!slices.Contains(loops, toolspkg.ToolIDLoopApprove) ||
+			slices.Contains(loops, toolspkg.ToolID("agh__loop_edit")) {
+			t.Fatalf("loops toolset expansion = %#v, want bounded loop tools without edit", loops)
 		}
 
 		extensions, err := catalog.Expand(toolspkg.ToolsetIDExtensions, universe)

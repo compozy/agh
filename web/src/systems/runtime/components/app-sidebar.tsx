@@ -9,6 +9,7 @@ import {
   ListChecks,
   Network,
   Plus,
+  Repeat2,
   Settings,
   Waypoints,
   Wrench,
@@ -173,6 +174,7 @@ const DASHBOARD_NAV_ITEM: NavItemProps = {
 const OPERATE_NAV_ITEMS: NavItemProps[] = [
   { to: "/network", icon: Network, label: "Network" },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
+  { to: "/loops", icon: Repeat2, label: "Loops", fuzzy: true },
   { to: "/jobs", icon: Clock3, label: "Jobs" },
   { to: "/triggers", icon: Zap, label: "Triggers" },
 ];

@@ -1,4 +1,14 @@
-import { Bot, Box, CalendarCheck, Check, Clock, Info, Repeat } from "lucide-react";
+import {
+  Bot,
+  Box,
+  CalendarCheck,
+  Check,
+  Clock,
+  Info,
+  Repeat,
+  Repeat2,
+  Workflow,
+} from "lucide-react";
 
 import {
   Button,
@@ -9,8 +19,9 @@ import {
   PillGroup,
   type PillGroupItem,
 } from "@agh/ui";
+import { LoopTargetFields } from "@/systems/loops";
 
-import { useAutomationJobForm } from "../hooks/use-automation-job-form";
+import { useAutomationJobForm, type JobTargetMode } from "../hooks/use-automation-job-form";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type {
   AutomationFireLimit,
@@ -20,7 +31,6 @@ import type {
 } from "../types";
 import { AgentRunStep } from "./job-form/agent-run-step";
 import { CronBuilder } from "./job-form/cron-builder";
-import { OutputMode } from "./job-form/output-mode";
 import { JobPreview } from "./job-form/preview/job-preview";
 import { ReliabilitySection } from "./job-form/reliability-section";
 import { ScheduleAt } from "./job-form/schedule-at";
@@ -44,6 +54,39 @@ interface AutomationJobFormProps {
 }
 
 const EMPTY_AGENTS: string[] = [];
+
+const JOB_TARGET_ITEMS: PillGroupItem<JobTargetMode>[] = [
+  {
+    value: "agent",
+    label: (
+      <span className="flex items-center gap-1.5">
+        <Bot aria-hidden="true" className="size-3" />
+        Run agent
+      </span>
+    ),
+    testId: "job-target-agent",
+  },
+  {
+    value: "task",
+    label: (
+      <span className="flex items-center gap-1.5">
+        <Workflow aria-hidden="true" className="size-3" />
+        Run task
+      </span>
+    ),
+    testId: "job-target-task",
+  },
+  {
+    value: "loop",
+    label: (
+      <span className="flex items-center gap-1.5">
+        <Repeat2 aria-hidden="true" className="size-3" />
+        Run loop
+      </span>
+    ),
+    testId: "job-target-loop",
+  },
+];
 
 const SCHEDULE_MODE_ITEMS: PillGroupItem<AutomationScheduleMode>[] = [
   {
@@ -154,12 +197,24 @@ export function AutomationJobForm({
               active
               icon={Bot}
               kicker="Run"
-              subtitle="Prompt an agent directly, or hand the work to a durable task that carries its own owner."
+              subtitle="Prompt an agent, hand the work to a durable task, or start a Loop with typed inputs."
               title="What fires on each tick"
             >
               <div className="space-y-4">
-                <OutputMode onOutputChange={form.onOutputChange} output={form.output} />
-                {form.output === "task" && draft.task ? (
+                <PillGroup
+                  aria-label="Target"
+                  items={JOB_TARGET_ITEMS}
+                  onChange={form.onTargetChange}
+                  size="sm"
+                  value={form.targetMode}
+                />
+                {form.targetMode === "loop" ? (
+                  <LoopTargetFields
+                    workspaceId={draft.workspace_id ?? activeWorkspaceId ?? ""}
+                    value={form.loopTarget}
+                    onChange={form.onLoopTargetChange}
+                  />
+                ) : form.targetMode === "task" && draft.task ? (
                   <TaskRunStep
                     jobName={draft.name}
                     onOwnerKind={form.onOwnerKind}

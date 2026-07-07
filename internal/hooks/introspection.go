@@ -7,6 +7,7 @@ const (
 	introspectionAutomationFirePatchValue             = "AutomationFirePatch"
 	introspectionAutomationObservationPatchValue      = "AutomationObservationPatch"
 	introspectionCoordinatorObservationPatchValue     = "CoordinatorObservationPatch"
+	introspectionLoopObservationPatchValue            = "LoopObservationPatch"
 	introspectionNetworkObservationPatchValue         = "NetworkObservationPatch"
 	introspectionSpawnObservationPatchValue           = "SpawnObservationPatch"
 	introspectionTaskObservationPatchValue            = "TaskObservationPatch"
@@ -495,6 +496,55 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		SyncEligible:  true,
 		PayloadSchema: "TaskRunFailedPayload",
 		PatchSchema:   introspectionTaskRunObservationPatchValue,
+	},
+	HookLoopStarted: {
+		Event:         HookLoopStarted,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  false,
+		PayloadSchema: "LoopStartedPayload",
+		PatchSchema:   introspectionLoopObservationPatchValue,
+	},
+	HookLoopGenerationPre: {
+		Event:         HookLoopGenerationPre,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  true,
+		PayloadSchema: "LoopGenerationPrePayload",
+		PatchSchema:   "LoopGenerationPrePatch",
+	},
+	HookLoopGenerationPost: {
+		Event:         HookLoopGenerationPost,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  false,
+		PayloadSchema: "LoopGenerationPostPayload",
+		PatchSchema:   introspectionLoopObservationPatchValue,
+	},
+	HookLoopGatePre: {
+		Event:         HookLoopGatePre,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  true,
+		PayloadSchema: "LoopGatePrePayload",
+		PatchSchema:   "LoopGatePrePatch",
+	},
+	HookLoopGatePost: {
+		Event:         HookLoopGatePost,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  false,
+		PayloadSchema: "LoopGatePostPayload",
+		PatchSchema:   introspectionLoopObservationPatchValue,
+	},
+	HookLoopNodeTerminal: {
+		Event:         HookLoopNodeTerminal,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  false,
+		PayloadSchema: "LoopNodeTerminalPayload",
+		PatchSchema:   introspectionLoopObservationPatchValue,
+	},
+	HookLoopTerminal: {
+		Event:         HookLoopTerminal,
+		Family:        HookEventFamilyLoop,
+		SyncEligible:  false,
+		PayloadSchema: "LoopTerminalPayload",
+		PatchSchema:   introspectionLoopObservationPatchValue,
 	},
 	HookSpawnPreCreate: {
 		Event:         HookSpawnPreCreate,

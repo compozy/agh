@@ -10,9 +10,24 @@ import {
   ToolExecutionError,
   isRPCError,
 } from "./errors.js";
+import {
+  PROVIDE_TOOLS_METHOD,
+  TOOL_PROVIDER_CAPABILITY,
+  TOOLS_CALL_METHOD,
+  isToolProviderMethod,
+  validateProvidedMethodCoverage,
+} from "./capabilities.js";
 import { HostAPI } from "./host-api.js";
+import { cloneJSON } from "./json.js";
 import { schemaDigest } from "./schema-digest.js";
 import { StdioTransport } from "./transport.js";
+import {
+  ExtensionWatchSources,
+  WATCH_POLL_METHOD,
+  isWatchSourceMethod,
+  type ExtensionWatchSourceHandler,
+  type ExtensionWatchSourceOptions,
+} from "./watch-source.js";
 import type {
   AcceptedCapabilities,
   ExtensionDefinition,
@@ -39,14 +54,6 @@ import type { TransportLike } from "./transport.js";
 const SDK_NAME = "@agh/extension-sdk";
 const SDK_VERSION = "0.1.0";
 const SUPPORTED_PROTOCOL_VERSIONS = ["1"];
-const TOOL_PROVIDER_CAPABILITY = "tool.provider";
-const PROVIDE_TOOLS_METHOD = "provide_tools";
-const TOOLS_CALL_METHOD = "tools/call";
-const REQUIRED_PROVIDES_METHODS: Record<string, string[]> = {
-  "bridge.adapter": ["bridges/deliver"],
-  "memory.backend": ["memory/store", "memory/recall", "memory/forget"],
-  [TOOL_PROVIDER_CAPABILITY]: [PROVIDE_TOOLS_METHOD, TOOLS_CALL_METHOD],
-};
 
 export interface ExtensionOptions {
   transport?: TransportLike;
@@ -112,6 +119,11 @@ export class Extension {
   private readonly sdkVersion: string;
   private readonly handlers = new Map<string, ExtensionHandler>();
   private readonly toolHandlers = new Map<string, RegisteredTool>();
+  private readonly watchSources = new ExtensionWatchSources({
+    bindMethod: method => this.bindMethod(method),
+    hasUserHandler: method => this.handlers.has(method),
+    makeContext: request => this.makeContext(request),
+  });
   private readonly readyCallbacks = new Set<ReadyCallback>();
   private readonly transportBindings = new Set<string>();
   private readonly host: HostAPI;
@@ -162,6 +174,9 @@ export class Extension {
     if (this.toolHandlers.size > 0 && isToolProviderMethod(cleanMethod)) {
       throw new Error(`${cleanMethod} is reserved by extension.tool()`);
     }
+    if (this.watchSources.hasHandlers() && isWatchSourceMethod(cleanMethod)) {
+      throw new Error(`${cleanMethod} is reserved by extension.watchSource()`);
+    }
     this.handlers.set(cleanMethod, handler as ExtensionHandler);
     this.bindMethod(cleanMethod);
     return this;
@@ -206,6 +221,15 @@ export class Extension {
     return this;
   }
 
+  public watchSource<TSpec extends JSONValue = JSONValue>(
+    kind: string,
+    options: ExtensionWatchSourceOptions,
+    handler: ExtensionWatchSourceHandler<TSpec>
+  ): this {
+    this.watchSources.register(this.definition, kind, options, handler);
+    return this;
+  }
+
   public onReady(callback: ReadyCallback): this {
     this.readyCallbacks.add(callback);
     if (this.initialized && this.session) {
@@ -246,6 +270,9 @@ export class Extension {
       methods.add(PROVIDE_TOOLS_METHOD);
       methods.add(TOOLS_CALL_METHOD);
     }
+    for (const method of this.watchSources.implementedMethods()) {
+      methods.add(method);
+    }
     return Array.from(methods).sort();
   }
 
@@ -271,6 +298,7 @@ export class Extension {
       this.bindMethod(PROVIDE_TOOLS_METHOD);
       this.bindMethod(TOOLS_CALL_METHOD);
     }
+    this.watchSources.bindMethods();
   }
 
   private bindMethod(method: string): void {
@@ -314,6 +342,8 @@ export class Extension {
         return this.handleProvideTools();
       case TOOLS_CALL_METHOD:
         return await this.handleToolCall(request, params);
+      case WATCH_POLL_METHOD:
+        return await this.watchSources.handlePoll(request, params);
       default:
         return await this.handleUserMethod(method, request, params);
     }
@@ -353,6 +383,7 @@ export class Extension {
       },
       implemented_methods: implementedMethods,
       supported_hook_events: this.getSupportedHookEvents(),
+      ...this.watchSources.initializeResponseFields(),
       supports: {
         health_check: true,
       },
@@ -610,23 +641,6 @@ function ensureSubset(label: string, requested: string[], granted: readonly stri
   }
 }
 
-function validateProvidedMethodCoverage(
-  provides: readonly string[],
-  implementedMethods: readonly string[]
-): void {
-  const implemented = new Set(implementedMethods);
-  for (const capability of provides) {
-    const requiredMethods = REQUIRED_PROVIDES_METHODS[capability];
-    if (!requiredMethods) {
-      continue;
-    }
-    const missing = requiredMethods.filter(method => !implemented.has(method));
-    if (missing.length > 0) {
-      throw new InternalError(`capability ${capability} requires methods ${missing.join(", ")}`);
-    }
-  }
-}
-
 function parseShutdownRequest(params: unknown): ShutdownRequest {
   if (typeof params !== "object" || params === null) {
     throw new InvalidParamsError("shutdown params must be an object");
@@ -798,25 +812,11 @@ function readPath(value: JSONValue, path: string[]): JSONValue | undefined {
   return readPath(value[head] as JSONValue, rest);
 }
 
-function cloneJSON(value: JSONValue): JSONValue {
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => cloneJSON(item));
-  }
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJSON(entry)]));
-}
-
 function normalizeSchema(value: JSONValue, field: string): JSONValue {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`${field} must be a JSON object`);
   }
   return cloneJSON(value);
-}
-
-function isToolProviderMethod(method: string): boolean {
-  return method === PROVIDE_TOOLS_METHOD || method === TOOLS_CALL_METHOD;
 }
 
 function canonicalExtensionToolID(extensionName: string, handler: string): ToolID {

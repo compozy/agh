@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -1019,6 +1020,259 @@ func TestDispatchRuntimeAndExecutorResolvers(t *testing.T) {
 		!strings.Contains(err.Error(), "missing native hook executor") {
 		t.Fatalf("daemonExecutorResolver(missing native) error = %v, want missing native executor error", err)
 	}
+}
+
+func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter terminal task runs and wake the loop coordinator", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+		var nodePayloads []hookspkg.LoopNodeTerminalPayload
+		notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
+		notifier.setRuntime(&fakeHookRuntime{
+			onLoopNodeTerminal: func(_ context.Context, payload hookspkg.LoopNodeTerminalPayload) error {
+				nodePayloads = append(nodePayloads, payload)
+				return nil
+			},
+		}, nil)
+		loopStore := &recordingLoopHookStore{}
+		observer, err := newLoopNativeHookObserver(loopStore, notifier, func() time.Time { return fixedNow })
+		if err != nil {
+			t.Fatalf("newLoopNativeHookObserver() error = %v", err)
+		}
+		notifier.AddTaskRunTerminalObserver(observer)
+
+		if _, err := notifier.DispatchTaskRunCompleted(t.Context(), hookspkg.TaskRunCompletedPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
+			TaskRunContext: hookspkg.TaskRunContext{
+				TaskID: "task-no-loop",
+				RunID:  "run-no-loop",
+			},
+		}); err != nil {
+			t.Fatalf("DispatchTaskRunCompleted(non-loop) error = %v", err)
+		}
+		coordinatorKind := taskpkg.RunKindCoordinator.String()
+		if _, err := notifier.DispatchTaskRunCompleted(t.Context(), hookspkg.TaskRunCompletedPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
+			TaskRunContext: hookspkg.TaskRunContext{
+				TaskID:    "task-coordinator",
+				RunID:     "run-coordinator",
+				RunKind:   &coordinatorKind,
+				LoopRunID: "loop-run-1",
+			},
+		}); err != nil {
+			t.Fatalf("DispatchTaskRunCompleted(coordinator) error = %v", err)
+		}
+		workerKind := taskpkg.RunKindWorker.String()
+		if _, err := notifier.DispatchTaskRunFailed(t.Context(), hookspkg.TaskRunFailedPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunFailed, Timestamp: fixedNow},
+			TaskRunContext: hookspkg.TaskRunContext{
+				TaskID:      "task-node",
+				RunID:       "run-node",
+				RunKind:     &workerKind,
+				LoopRunID:   "loop-run-1",
+				WorkspaceID: "ws-1",
+				RunStatus:   taskpkg.TaskRunStatusFailed.String(),
+				TaskStatus:  string(taskpkg.TaskStatusFailed),
+				Error:       "node failed",
+			},
+		}); err != nil {
+			t.Fatalf("DispatchTaskRunFailed(loop node) error = %v", err)
+		}
+
+		if got, want := len(nodePayloads), 1; got != want {
+			t.Fatalf("loop.node.terminal payload count = %d, want %d", got, want)
+		}
+		if got, want := nodePayloads[0].LoopRunID, "loop-run-1"; got != want {
+			t.Fatalf("LoopRunID = %q, want %q", got, want)
+		}
+		if got, want := len(loopStore.progress), 1; got != want {
+			t.Fatalf("progress calls = %d, want %d", got, want)
+		}
+		if got, want := loopStore.progress[0].loopRunID, "loop-run-1"; got != want {
+			t.Fatalf("progress loop_run_id = %q, want %q", got, want)
+		}
+		if got, want := len(loopStore.wakes), 1; got != want {
+			t.Fatalf("wake calls = %d, want %d", got, want)
+		}
+		wake := loopStore.wakes[0]
+		if got, want := wake.loopRunID, "loop-run-1"; got != want {
+			t.Fatalf("wake loop_run_id = %q, want %q", got, want)
+		}
+		if got, want := wake.idempotencyKey, "loop.coordinator.node_terminal.loop-run-1.run-node"; got != want {
+			t.Fatalf("IdempotencyKey = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestHooksNotifierCoordinatorTerminalObserverWakesParentAndPromotesQueued(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wake parent awaiters and promote the queued loop FIFO", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 4, 13, 0, 0, 0, time.UTC)
+		notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
+		notifier.setRuntime(&fakeHookRuntime{}, nil)
+		loopStore := &recordingLoopHookStore{}
+		observer, err := newLoopNativeHookObserver(loopStore, notifier, func() time.Time { return fixedNow })
+		if err != nil {
+			t.Fatalf("newLoopNativeHookObserver() error = %v", err)
+		}
+		notifier.AddLoopTerminalObserver(observer)
+
+		if _, err := notifier.DispatchLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
+			LoopContext: hookspkg.LoopContext{
+				LoopRunID:       "child-loop-run",
+				ParentLoopRunID: "parent-loop-run",
+				WorkspaceID:     "ws-1",
+				LoopName:        "daily-review",
+			},
+			Status: "done",
+		}); err != nil {
+			t.Fatalf("DispatchLoopTerminal() error = %v", err)
+		}
+
+		if got, want := len(loopStore.wakes), 1; got != want {
+			t.Fatalf("parent wake calls = %d, want %d", got, want)
+		}
+		wake := loopStore.wakes[0]
+		if got, want := wake.loopRunID, "parent-loop-run"; got != want {
+			t.Fatalf("parent wake loop_run_id = %q, want %q", got, want)
+		}
+		if got, want := wake.idempotencyKey, "loop.coordinator.child_terminal.parent-loop-run.child-loop-run"; got != want {
+			t.Fatalf("parent wake key = %q, want %q", got, want)
+		}
+		if got, want := len(loopStore.promotions), 1; got != want {
+			t.Fatalf("promotion calls = %d, want %d", got, want)
+		}
+		promotion := loopStore.promotions[0]
+		if got, want := promotion.workspaceID, "ws-1"; got != want {
+			t.Fatalf("promotion workspace_id = %q, want %q", got, want)
+		}
+		if got, want := promotion.loopName, "daily-review"; got != want {
+			t.Fatalf("promotion loop_name = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestHooksNotifierCoordinatorTerminalObserversAreFailOpen(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should continue later observers after an earlier panic", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := newHooksNotifier(discardLogger(), time.Now)
+		notifier.setRuntime(&fakeHookRuntime{}, nil)
+		notifier.AddLoopTerminalObserver(panickingLoopTerminalObserver{})
+		recorder := &recordingLoopTerminalObserver{}
+		notifier.AddLoopTerminalObserver(recorder)
+
+		if _, err := notifier.DispatchLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: time.Now().UTC()},
+			LoopContext: hookspkg.LoopContext{
+				LoopRunID:   "loop-run-1",
+				WorkspaceID: "ws-1",
+				LoopName:    "daily-review",
+			},
+			Status: "failed",
+		}); err != nil {
+			t.Fatalf("DispatchLoopTerminal() error = %v", err)
+		}
+		if !recorder.called {
+			t.Fatal("later loop terminal observer did not run after earlier observer panic")
+		}
+	})
+}
+
+type recordingLoopHookStore struct {
+	progress   []recordingLoopProgressCall
+	wakes      []recordingLoopWakeCall
+	promotions []recordingLoopPromotionCall
+}
+
+type recordingLoopProgressCall struct {
+	loopRunID string
+	at        time.Time
+}
+
+type recordingLoopWakeCall struct {
+	loopRunID      string
+	idempotencyKey string
+	origin         taskpkg.Origin
+	now            time.Time
+}
+
+type recordingLoopPromotionCall struct {
+	workspaceID string
+	loopName    string
+	origin      taskpkg.Origin
+	now         time.Time
+}
+
+func (r *recordingLoopHookStore) AdvanceLoopRunProgress(
+	_ context.Context,
+	loopRunID string,
+	at time.Time,
+) error {
+	r.progress = append(r.progress, recordingLoopProgressCall{loopRunID: loopRunID, at: at})
+	return nil
+}
+
+func (r *recordingLoopHookStore) EnqueueLoopCoordinatorWake(
+	_ context.Context,
+	loopRunID string,
+	idempotencyKey string,
+	origin taskpkg.Origin,
+	now time.Time,
+) (taskpkg.Run, bool, error) {
+	r.wakes = append(r.wakes, recordingLoopWakeCall{
+		loopRunID:      loopRunID,
+		idempotencyKey: idempotencyKey,
+		origin:         origin,
+		now:            now,
+	})
+	return taskpkg.Run{ID: "run-parent-wake", LoopRunID: loopRunID}, true, nil
+}
+
+func (r *recordingLoopHookStore) PromoteOldestQueuedLoopRun(
+	_ context.Context,
+	workspaceID string,
+	loopName string,
+	origin taskpkg.Origin,
+	now time.Time,
+) (taskpkg.Run, bool, error) {
+	r.promotions = append(r.promotions, recordingLoopPromotionCall{
+		workspaceID: workspaceID,
+		loopName:    loopName,
+		origin:      origin,
+		now:         now,
+	})
+	return taskpkg.Run{ID: "run-promoted", LoopRunID: "queued-loop-run"}, true, nil
+}
+
+type panickingLoopTerminalObserver struct{}
+
+func (panickingLoopTerminalObserver) OnLoopTerminal(
+	context.Context,
+	hookspkg.LoopTerminalPayload,
+) error {
+	panic("observer failed")
+}
+
+type recordingLoopTerminalObserver struct {
+	called bool
+}
+
+func (r *recordingLoopTerminalObserver) OnLoopTerminal(
+	context.Context,
+	hookspkg.LoopTerminalPayload,
+) error {
+	r.called = true
+	return nil
 }
 
 type spyLifecycleObserver struct {

@@ -30,6 +30,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerResourceRoutes(api, handlers)
 	registerToolRoutes(api, handlers)
 	registerAutomationRoutes(api, handlers)
+	registerLoopRoutes(api, handlers)
 	registerTaskRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
@@ -237,31 +238,6 @@ func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 	toolsets := api.Group("/toolsets")
 	toolsets.GET("", handlers.ListToolsets)
 	toolsets.GET("/:id", handlers.GetToolset)
-}
-
-func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
-	automationGroup := api.Group("/automation")
-
-	jobs := automationGroup.Group("/jobs")
-	jobs.GET("", handlers.ListAutomationJobs)
-	jobs.POST("", handlers.CreateAutomationJob)
-	jobs.GET("/:id", handlers.GetAutomationJob)
-	jobs.PATCH("/:id", handlers.UpdateAutomationJob)
-	jobs.DELETE("/:id", handlers.DeleteAutomationJob)
-	jobs.POST("/:id/trigger", handlers.TriggerAutomationJob)
-	jobs.GET("/:id/runs", handlers.AutomationJobRuns)
-
-	triggers := automationGroup.Group("/triggers")
-	triggers.GET("", handlers.ListAutomationTriggers)
-	triggers.POST("", handlers.CreateAutomationTrigger)
-	triggers.GET("/:id", handlers.GetAutomationTrigger)
-	triggers.PATCH("/:id", handlers.UpdateAutomationTrigger)
-	triggers.DELETE("/:id", handlers.DeleteAutomationTrigger)
-	triggers.GET("/:id/runs", handlers.AutomationTriggerRuns)
-
-	runs := automationGroup.Group("/runs")
-	runs.GET("", handlers.ListAutomationRuns)
-	runs.GET("/:id", handlers.GetAutomationRun)
 }
 
 func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {

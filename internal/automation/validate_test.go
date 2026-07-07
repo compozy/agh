@@ -829,7 +829,7 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 	if err := delegatedMissingTaskID.Validate("run"); err == nil {
 		t.Fatal("Run.Validate(delegated missing task id) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, "run.task_id is required when run.status is \"delegated\"") {
+	} else if got := err.Error(); !strings.Contains(got, "run.task_id is required when run.task_run_id is set") {
 		t.Fatalf("Run.Validate(delegated missing task id) error = %q, want delegated task_id failure", got)
 	}
 
@@ -840,8 +840,30 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 	if err := delegatedMissingTaskRunID.Validate("run"); err == nil {
 		t.Fatal("Run.Validate(delegated missing task run id) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, "run.task_run_id is required when run.status is \"delegated\"") {
+	} else if got := err.Error(); !strings.Contains(got, "run.status requires exactly one of") {
 		t.Fatalf("Run.Validate(delegated missing task run id) error = %q, want delegated task_run_id failure", got)
+	}
+
+	delegatedLoopRun := Run{
+		Status:    RunDelegated,
+		Attempt:   1,
+		LoopRunID: "looprun-1",
+	}
+	if err := delegatedLoopRun.Validate("run"); err != nil {
+		t.Fatalf("Run.Validate(loop delegated) error = %v", err)
+	}
+
+	delegatedBothTargets := Run{
+		Status:    RunDelegated,
+		Attempt:   1,
+		TaskID:    "task-1",
+		TaskRunID: "task-run-1",
+		LoopRunID: "looprun-1",
+	}
+	if err := delegatedBothTargets.Validate("run"); err == nil {
+		t.Fatal("Run.Validate(delegated both targets) error = nil, want non-nil")
+	} else if got := err.Error(); !strings.Contains(got, "run.status requires exactly one of") {
+		t.Fatalf("Run.Validate(delegated both targets) error = %q, want XOR failure", got)
 	}
 
 	if err := (JobTaskConfig{

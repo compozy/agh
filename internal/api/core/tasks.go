@@ -2323,7 +2323,7 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 		taskID = firstNonEmpty(taskID, strings.TrimSpace(run.TaskID))
 		groupID = firstNonEmpty(groupID, strings.TrimSpace(run.DesignationGroupID))
 		status := run.Status.Normalize()
-		statuses[string(status)]++
+		statuses[status.String()]++
 		switch status {
 		case taskpkg.TaskRunStatusCompleted:
 			completed++
@@ -2744,7 +2744,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		ID:                    run.ID,
 		TaskID:                run.TaskID,
 		Status:                run.Status,
-		Attempt:               run.Attempt,
+		Attempt:               int(run.Attempt),
 		PreviousRunID:         run.PreviousRunID,
 		FailureKind:           run.FailureKind,
 		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),

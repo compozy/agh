@@ -88,6 +88,67 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 	}
 }
 
+func TestExtensionToolProviderCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove disabled extension tools from registry projections", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-tool", true)
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor},
+		)
+		registry := newExtensionToolRegistry(t, env.registry, runtime, extensionToolPolicyAllowAll())
+
+		views, err := registry.List(ctx, toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(enabled) error = %v", err)
+		}
+		if !extensionToolViewsContain(views, descriptor.Tool.ID) {
+			t.Fatalf("Registry.List(enabled) omitted %q", descriptor.Tool.ID)
+		}
+
+		if err := env.registry.Disable(fixture.manifest.Name); err != nil {
+			t.Fatalf("Disable(%q) error = %v", fixture.manifest.Name, err)
+		}
+		views, err = registry.List(ctx, toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(disabled) error = %v", err)
+		}
+		if extensionToolViewsContain(views, descriptor.Tool.ID) {
+			t.Fatalf("Registry.List(disabled) contains %q, want removed from catalog", descriptor.Tool.ID)
+		}
+		searchResults, err := registry.Search(ctx, toolspkg.Scope{Operator: true}, toolspkg.SearchQuery{
+			Query: descriptor.Tool.ID.String(),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Search(disabled) error = %v", err)
+		}
+		if len(searchResults) != 0 {
+			t.Fatalf("Registry.Search(disabled) returned %#v, want no disabled extension tools", searchResults)
+		}
+		_, err = registry.Get(ctx, toolspkg.Scope{Operator: true}, descriptor.Tool.ID)
+		if !errors.Is(err, toolspkg.ErrToolNotFound) {
+			t.Fatalf("Registry.Get(disabled) error = %v, want ErrToolNotFound", err)
+		}
+
+		if err := env.registry.Enable(fixture.manifest.Name); err != nil {
+			t.Fatalf("Enable(%q) error = %v", fixture.manifest.Name, err)
+		}
+		views, err = registry.List(ctx, toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Registry.List(restored) error = %v", err)
+		}
+		if !extensionToolViewsContain(views, descriptor.Tool.ID) {
+			t.Fatalf("Registry.List(restored) omitted %q", descriptor.Tool.ID)
+		}
+	})
+}
+
 func TestExtensionToolProviderDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -408,6 +469,15 @@ func extensionToolPolicyAllowAll() toolspkg.PolicyInputs {
 		ExternalDefault:      toolspkg.ExternalDefaultEnabled,
 		ApprovalAvailable:    true,
 	}
+}
+
+func extensionToolViewsContain(views []toolspkg.ToolView, id toolspkg.ToolID) bool {
+	for i := range views {
+		if views[i].Descriptor.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func startExtensionToolSubprocess(

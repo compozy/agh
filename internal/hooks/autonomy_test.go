@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -208,6 +209,152 @@ func TestTaskRunPreClaimDenyAndNarrowCriteriaOnly(t *testing.T) {
 		}
 		if !reflect.DeepEqual(result.Criteria, original.Criteria) {
 			t.Fatalf("result.Criteria = %#v, want unchanged %#v", result.Criteria, original.Criteria)
+		}
+	})
+}
+
+func TestLoopControlHooksDenyAndFailOpen(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deny generation pre as failed", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{{
+				Name:         "deny-generation",
+				Event:        HookLoopGenerationPre,
+				Mode:         HookModeSync,
+				ExecutorKind: HookExecutorNative,
+			}}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"deny-generation": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						_ LoopGenerationPrePayload,
+					) (LoopGenerationPrePatch, error) {
+						return LoopGenerationPrePatch{
+							ControlPatch: ControlPatch{
+								Deny:       true,
+								DenyReason: "capacity gate",
+							},
+						}, nil
+					},
+				),
+			})),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		result, err := hooks.DispatchLoopGenerationPre(t.Context(), baseLoopGenerationPayload())
+		if err == nil || !strings.Contains(err.Error(), string(HookLoopGenerationPre)) {
+			t.Fatalf("DispatchLoopGenerationPre() error = %v, want denial error", err)
+		}
+		if !result.Denied || result.DenyReason != "capacity gate" {
+			t.Fatalf("result denial = denied:%v reason:%q, want generation denial", result.Denied, result.DenyReason)
+		}
+	})
+
+	t.Run("Should deny gate pre as blocked", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{{
+				Name:         "deny-gate",
+				Event:        HookLoopGatePre,
+				Mode:         HookModeSync,
+				ExecutorKind: HookExecutorNative,
+			}}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"deny-gate": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						_ LoopGatePrePayload,
+					) (LoopGatePrePatch, error) {
+						return LoopGatePrePatch{
+							ControlPatch: ControlPatch{
+								Deny:       true,
+								DenyReason: "policy",
+							},
+						}, nil
+					},
+				),
+			})),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		result, err := hooks.DispatchLoopGatePre(t.Context(), baseLoopGatePayload())
+		if err == nil || !strings.Contains(err.Error(), string(HookLoopGatePre)) {
+			t.Fatalf("DispatchLoopGatePre() error = %v, want denial error", err)
+		}
+		if !result.Denied || result.DenyReason != "policy" {
+			t.Fatalf("result denial = denied:%v reason:%q, want gate denial", result.Denied, result.DenyReason)
+		}
+	})
+
+	t.Run("Should fail open for non-required broken loop hook", func(t *testing.T) {
+		t.Parallel()
+
+		ran := false
+		hooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{
+				{
+					Name:         "broken",
+					Event:        HookLoopGenerationPre,
+					Mode:         HookModeSync,
+					ExecutorKind: HookExecutorNative,
+					Priority:     10,
+					PrioritySet:  true,
+				},
+				{
+					Name:         "recorder",
+					Event:        HookLoopGenerationPre,
+					Mode:         HookModeSync,
+					ExecutorKind: HookExecutorNative,
+					Priority:     20,
+					PrioritySet:  true,
+				},
+			}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"broken": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						_ LoopGenerationPrePayload,
+					) (LoopGenerationPrePatch, error) {
+						return LoopGenerationPrePatch{}, errors.New("hook failed")
+					},
+				),
+				"recorder": NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ RegisteredHook,
+						payload LoopGenerationPrePayload,
+					) (LoopGenerationPrePatch, error) {
+						if payload.LoopRunID == "loop-run-1" {
+							ran = true
+						}
+						return LoopGenerationPrePatch{}, nil
+					},
+				),
+			})),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		if _, err := hooks.DispatchLoopGenerationPre(t.Context(), baseLoopGenerationPayload()); err != nil {
+			t.Fatalf("DispatchLoopGenerationPre() error = %v, want fail-open nil", err)
+		}
+		if !ran {
+			t.Fatal("recorder hook did not run after broken non-required hook")
 		}
 	})
 }
@@ -430,6 +577,39 @@ func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 			PriorityMin:           20,
 			CoordinationChannelID: "coord-ch-1",
 		},
+	}
+}
+
+func baseLoopGenerationPayload() LoopGenerationPrePayload {
+	return LoopGenerationPrePayload{
+		PayloadBase: PayloadBase{Event: HookLoopGenerationPre, Timestamp: time.Now().UTC()},
+		LoopContext: LoopContext{
+			LoopRunID:             "loop-run-1",
+			WorkspaceID:           "ws-1",
+			LoopName:              "daily-review",
+			Generation:            1,
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-ch-1",
+		},
+		Status: "running",
+	}
+}
+
+func baseLoopGatePayload() LoopGatePrePayload {
+	return LoopGatePrePayload{
+		PayloadBase: PayloadBase{Event: HookLoopGatePre, Timestamp: time.Now().UTC()},
+		LoopContext: LoopContext{
+			LoopRunID:             "loop-run-1",
+			WorkspaceID:           "ws-1",
+			LoopName:              "daily-review",
+			Generation:            1,
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			CoordinationChannelID: "coord-ch-1",
+		},
+		GateID: "contract",
+		Status: "done",
 	}
 }
 

@@ -25,6 +25,7 @@ type handlerConfig struct {
 	observer          core.Observer
 	resources         core.ResourceService
 	automation        core.AutomationManager
+	loops             core.LoopService
 	bridges           core.BridgeService
 	notifications     core.NotificationPresetService
 	bundles           core.BundleService
@@ -112,6 +113,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Resources:                    cfg.resources,
 			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,
+			Loops:                        cfg.loops,
 			Bridges:                      cfg.bridges,
 			Notifications:                cfg.notifications,
 			Bundles:                      cfg.bundles,

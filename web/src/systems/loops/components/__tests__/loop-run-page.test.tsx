@@ -1,0 +1,197 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
+const { LoopRunContractHeader } = await import("../run-page/loop-run-contract-header");
+const { LoopGenerationTimeline } = await import("../run-page/loop-generation-timeline");
+const { LoopGenerationCard } = await import("../run-page/loop-generation-card");
+const { LoopRunControls } = await import("../run-page/loop-run-controls");
+const { LoopApprovalGate } = await import("../run-page/loop-approval-gate");
+const { buildRunTimeline } = await import("../../lib/loop-timeline");
+type LoopTimelineGeneration = import("../../lib/loop-timeline").LoopTimelineGeneration;
+const { loopDetailByName, loopRunDetailByRunId } = await import("../../mocks/fixtures");
+type LoopRunRecord = import("../../types").LoopRunRecord;
+
+const detail = loopRunDetailByRunId.get("looprun_running")!;
+const definition = loopDetailByName.get("software-delivery")!.definition;
+const contract = definition.contract;
+
+function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
+  return { ...detail.run, ...overrides };
+}
+
+describe("LoopRunContractHeader", () => {
+  it("Should render the goal, definition of done, verification rows, and terminal chips", () => {
+    render(<LoopRunContractHeader run={run()} contract={contract} />);
+    expect(screen.getByTestId("loop-run-goal")).toHaveTextContent(contract.goal);
+    expect(screen.getByTestId("loop-run-dod")).toHaveTextContent(contract.definition_of_done);
+    expect(screen.getAllByTestId("loop-run-verification-row").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("loop-run-terminal-chip")).toHaveLength(6);
+  });
+
+  it("Should render a terminal status truthfully and never coerce it to done (inv5)", () => {
+    const { rerender } = render(
+      <LoopRunContractHeader run={run({ status: "exhausted" })} contract={contract} />
+    );
+    expect(screen.getByTestId("loop-run-status-pill")).toHaveTextContent("Exhausted");
+    expect(screen.getByTestId("loop-run-status-pill")).not.toHaveTextContent("Done");
+    rerender(<LoopRunContractHeader run={run({ status: "stalled" })} contract={contract} />);
+    expect(screen.getByTestId("loop-run-status-pill")).toHaveTextContent("Stalled");
+  });
+});
+
+describe("LoopGenerationTimeline", () => {
+  const timeline = buildRunTimeline(detail.generations, definition);
+  const verdicts = {
+    review: {
+      nodeId: "review",
+      generation: 1,
+      verdict: "revise" as const,
+      confidence: 0.91,
+      route: "revise",
+      criteria: [{ id: "all_handled", type: "agent-judge", status: "revise" as const }],
+      blockingIssues: [{ id: "issue_022" }],
+    },
+  };
+
+  it("Should render collapsible generations newest-first with the node spine", () => {
+    render(
+      <LoopGenerationTimeline
+        generations={timeline}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive
+      />
+    );
+    expect(screen.getByTestId("loop-generation-2")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-generation-1")).toBeInTheDocument();
+  });
+
+  it("Should mark carried-forward nodes and link an awaiting_child node to its child run", () => {
+    render(
+      <LoopGenerationTimeline
+        generations={timeline}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive
+      />
+    );
+    // Fan-out branches carry a per-instance testid suffix (N-003), so target by prefix.
+    expect(
+      screen.getAllByTestId(/^loop-node-carry-forward-execute_task-\d+$/).length
+    ).toBeGreaterThan(0);
+    const childLink = screen.getByTestId("loop-node-child-link-child_delivery");
+    expect(childLink).toHaveAttribute("data-params", JSON.stringify({ runId: "looprun_child" }));
+  });
+
+  it("Should render a gate verdict card with its routing", () => {
+    render(
+      <LoopGenerationTimeline
+        generations={timeline}
+        gateVerdicts={verdicts}
+        channelMessages={[]}
+        isLive
+      />
+    );
+    const cards = screen.getAllByTestId("loop-gate-card");
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards[0]).toHaveAttribute("data-verdict", "revise");
+    expect(cards[0]).toHaveTextContent("issue_022");
+  });
+});
+
+describe("LoopGenerationCard summary", () => {
+  function generation(statuses: string[]): LoopTimelineGeneration {
+    return {
+      generation: 1,
+      isLatest: false,
+      nodes: statuses.map((status, index) => ({
+        nodeId: `n${index}`,
+        classLabel: "action",
+        kind: "run-agent",
+        status,
+        tone: "neutral" as const,
+        pulse: false,
+        isGate: false,
+        isCarriedForward: false,
+      })),
+    };
+  }
+
+  it("Should name blocked and failed nodes separately, never lumping blocked into failed (N-001)", () => {
+    const { rerender } = render(
+      <LoopGenerationCard
+        generation={generation(["succeeded", "blocked"])}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive={false}
+      />
+    );
+    const toggle = () => screen.getByTestId("loop-generation-toggle-1");
+    expect(toggle()).toHaveTextContent("1 blocked");
+    expect(toggle()).not.toHaveTextContent("failed");
+    rerender(
+      <LoopGenerationCard
+        generation={generation(["failed", "blocked"])}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive={false}
+      />
+    );
+    expect(toggle()).toHaveTextContent("1 failed · 1 blocked");
+  });
+});
+
+describe("LoopRunControls", () => {
+  it("Should show Pause + Stop while running and fire the callback", () => {
+    const onPause = vi.fn();
+    render(
+      <LoopRunControls status="running" onPause={onPause} onResume={vi.fn()} onStop={vi.fn()} />
+    );
+    expect(screen.getByTestId("loop-run-pause")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-stop")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-resume")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-run-pause"));
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should show Resume while paused and render nothing for a terminal run", () => {
+    const { rerender } = render(
+      <LoopRunControls status="paused" onPause={vi.fn()} onResume={vi.fn()} onStop={vi.fn()} />
+    );
+    expect(screen.getByTestId("loop-run-resume")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-pause")).not.toBeInTheDocument();
+    rerender(
+      <LoopRunControls status="done" onPause={vi.fn()} onResume={vi.fn()} onStop={vi.fn()} />
+    );
+    expect(screen.queryByTestId("loop-run-controls")).not.toBeInTheDocument();
+  });
+});
+
+describe("LoopApprovalGate", () => {
+  it("Should route each closed HITL decision correctly", () => {
+    const onDecision = vi.fn();
+    render(<LoopApprovalGate run={run({ status: "needs-approval" })} onDecision={onDecision} />);
+    fireEvent.click(screen.getByTestId("loop-approval-approve"));
+    fireEvent.click(screen.getByTestId("loop-approval-request-changes"));
+    fireEvent.click(screen.getByTestId("loop-approval-reject"));
+    expect(onDecision).toHaveBeenNthCalledWith(1, "approve", "approve");
+    expect(onDecision).toHaveBeenNthCalledWith(2, "request_changes", "approve");
+    expect(onDecision).toHaveBeenNthCalledWith(3, "reject", "approve");
+  });
+});

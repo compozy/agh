@@ -428,7 +428,7 @@ func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 		ID:                    run.ID,
 		TaskID:                run.TaskID,
 		Status:                run.Status,
-		Attempt:               run.Attempt,
+		Attempt:               int(run.Attempt),
 		PreviousRunID:         run.PreviousRunID,
 		FailureKind:           run.FailureKind,
 		MaxAttempts:           maxAttempts,

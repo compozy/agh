@@ -1,11 +1,13 @@
 package aghsdk
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -24,11 +26,17 @@ const ProtocolVersion = "1"
 // CapabilityToolProvider is the provide surface for executable extension-host tools.
 const CapabilityToolProvider = "tool.provider"
 
+// CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
+const CapabilityProvideWatchSource = "loop.watch_source"
+
 // ExtensionServiceMethodProvideTools is the runtime descriptor service method.
 const ExtensionServiceMethodProvideTools = "provide_tools"
 
 // ExtensionServiceMethodToolsCall is the tool invocation service method.
 const ExtensionServiceMethodToolsCall = "tools/call"
+
+// ExtensionServiceMethodWatchPoll is the watch-source poll service method.
+const ExtensionServiceMethodWatchPoll = "watch/poll"
 
 const (
 	initializeMethod  = "initialize"
@@ -165,6 +173,7 @@ type InitializeResponse struct {
 	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
 	ImplementedMethods   []string                `json:"implemented_methods"`
 	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
 	Supports             InitializeSupports      `json:"supports"`
 }
 
@@ -254,6 +263,37 @@ type ExtensionToolCallRequest struct {
 type ExtensionToolCallResponse struct {
 	Result ToolResult `json:"result"`
 }
+
+// WatchSourceOptions reserves future watch-source registration options.
+type WatchSourceOptions struct{}
+
+// WatchPollRequest is sent by AGH for watch/poll.
+type WatchPollRequest struct {
+	Spec                json.RawMessage `json:"spec"`
+	ExpectedStateDigest string          `json:"expected_state_digest,omitempty"`
+}
+
+// WatchPollResponse is returned by a watch-source handler.
+type WatchPollResponse struct {
+	Ready       bool            `json:"ready"`
+	StateDigest string          `json:"state_digest,omitempty"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	SettledAt   *time.Time      `json:"settled_at,omitempty"`
+}
+
+// WatchSourceRequest is passed to a typed watch-source handler.
+type WatchSourceRequest[TSpec any] struct {
+	Kind                string
+	Spec                TSpec
+	RawSpec             json.RawMessage
+	ExpectedStateDigest string
+	Context             ExtensionContext
+	Host                *HostAPI
+	Session             ExtensionSession
+}
+
+// WatchSourceHandlerFunc handles one typed watch-source poll.
+type WatchSourceHandlerFunc[TSpec any] func(context.Context, WatchSourceRequest[TSpec]) (WatchPollResponse, error)
 
 // ToolContent is one typed content block returned by a tool.
 type ToolContent struct {
@@ -350,9 +390,10 @@ func validateProvidedMethodCoverage(provides []string, implemented []string) err
 		implementedSet[method] = struct{}{}
 	}
 	requiredByCapability := map[string][]string{
-		"bridge.adapter":       {"bridges/deliver"},
-		"memory.backend":       {"memory/store", "memory/recall", "memory/forget"},
-		CapabilityToolProvider: {ExtensionServiceMethodProvideTools, ExtensionServiceMethodToolsCall},
+		"bridge.adapter":             {"bridges/deliver"},
+		"memory.backend":             {"memory/store", "memory/recall", "memory/forget"},
+		CapabilityToolProvider:       {ExtensionServiceMethodProvideTools, ExtensionServiceMethodToolsCall},
+		CapabilityProvideWatchSource: {ExtensionServiceMethodWatchPoll},
 	}
 	for _, capability := range provides {
 		for _, method := range requiredByCapability[capability] {

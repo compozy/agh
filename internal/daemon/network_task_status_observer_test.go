@@ -328,7 +328,7 @@ func networkStatusObserverRun(
 		ID:                 id,
 		TaskID:             taskID,
 		Status:             status,
-		Attempt:            index + 1,
+		Attempt:            int32(index + 1),
 		Origin:             origin,
 		DesignationGroupID: "tdg-status",
 		Metadata:           metadata,

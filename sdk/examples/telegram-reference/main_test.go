@@ -657,9 +657,11 @@ func TestHealthCheckReflectsLastErrorAndHandleShutdownWritesMarker(t *testing.T)
 		t.Fatalf("healthCheck() error = %v, want boom", err)
 	}
 
-	runtime.wg.Go(func() {
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
 		<-runtime.stopCh
-	})
+	}()
 	if err := runtime.handleShutdown(
 		context.Background(),
 		nil,
@@ -670,6 +672,11 @@ func TestHealthCheckReflectsLastErrorAndHandleShutdownWritesMarker(t *testing.T)
 	lines := waitForNonEmptyLines(t, env.shutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not close stopCh before timeout")
 	}
 }
 
@@ -758,6 +765,7 @@ func newRuntimePeerPair(t *testing.T) (*telegramReferenceRuntime, *bridgesdk.Pee
 			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 				t.Errorf("runtimeConn.Close() error = %v", err)
 			}
+			runtime.wg.Wait()
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
@@ -768,7 +776,6 @@ func newRuntimePeerPair(t *testing.T) (*telegramReferenceRuntime, *bridgesdk.Pee
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
 		})
 	}
 

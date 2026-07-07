@@ -577,6 +577,33 @@ func TestRunOnceDelegatesExpiredLeaseRecovery(t *testing.T) {
 	}
 }
 
+func TestRunOnceRunsLoopCoordinatorBackstop(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 7, 4, 17, 30, 0, 0, time.UTC)
+	source := &fakeLoopBackstopTaskSource{fakeTaskSource: &fakeTaskSource{}}
+	scheduler := newTestScheduler(
+		t,
+		source,
+		&fakeSessionSource{},
+		&fakeWaker{},
+		WithClock(clockwork.NewFakeClockAt(base)),
+	)
+
+	if _, err := scheduler.RunOnce(testutil.Context(t)); err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if source.calls != 1 {
+		t.Fatalf("backstop calls = %d, want 1", source.calls)
+	}
+	if !source.now.Equal(base) {
+		t.Fatalf("backstop now = %s, want %s", source.now, base)
+	}
+	if source.actor.Actor.Kind != taskpkg.ActorKindDaemon {
+		t.Fatalf("backstop actor kind = %q, want daemon", source.actor.Actor.Kind)
+	}
+}
+
 func TestRunOnceDelegatesTransientTaskBlockExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -1076,6 +1103,24 @@ type fakeTaskSource struct {
 	expiryActors  []taskpkg.ActorContext
 }
 
+type fakeLoopBackstopTaskSource struct {
+	*fakeTaskSource
+	calls int
+	now   time.Time
+	actor taskpkg.ActorContext
+}
+
+func (f *fakeLoopBackstopTaskSource) RunLoopCoordinatorBackstop(
+	_ context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (int, error) {
+	f.calls++
+	f.now = now
+	f.actor = actor
+	return 0, nil
+}
+
 type fakePauseStore struct {
 	state taskpkg.SchedulerPauseState
 	err   error
@@ -1114,7 +1159,7 @@ func (f *fakeTaskSource) GetRunStatus(_ context.Context, runID string) (taskpkg.
 			return f.pending[idx].Run.Status, true, nil
 		}
 	}
-	return "", false, nil
+	return taskpkg.TaskRunStatusUnknown, false, nil
 }
 
 type fakeEscalationActor struct {

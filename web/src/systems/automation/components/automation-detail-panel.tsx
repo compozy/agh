@@ -245,7 +245,7 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
           <div>
             <Eyebrow className="text-muted">Catch-up</Eyebrow>
             <p className="mt-1 font-mono text-xs text-muted">
-              {scheduler.catch_up_policy ?? "skip_missed"}
+              {scheduler.catch_up_policy ?? "skip"}
             </p>
           </div>
           <div>

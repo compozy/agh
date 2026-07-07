@@ -11,6 +11,7 @@ export const automationJobFixtures: AutomationJob[] = [
     scope: "workspace",
     workspace_id: storyWorkspaceIds.hq,
     source: "dynamic",
+    target_kind: "agent",
     enabled: true,
     schedule: {
       mode: "cron",
@@ -33,7 +34,7 @@ export const automationJobFixtures: AutomationJob[] = [
       last_run_at: "2026-04-17T18:10:01Z",
       last_scheduled_at: "2026-04-17T18:10:00Z",
       last_fire_id: "fire_launch_command_digest_001",
-      catch_up_policy: "skip_missed",
+      catch_up_policy: "skip",
       misfire_grace_seconds: 0,
       misfire_count: 0,
       updated_at: "2026-04-17T18:10:01Z",
@@ -49,6 +50,7 @@ export const automationJobFixtures: AutomationJob[] = [
       "Release the CRM batch once the launch room confirms canary health and approved pricing copy.",
     scope: "global",
     source: "dynamic",
+    target_kind: "agent",
     enabled: true,
     retry: {
       strategy: "backoff",
@@ -78,6 +80,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     scope: "workspace",
     workspace_id: storyWorkspaceIds.support,
     source: "dynamic",
+    target_kind: "agent",
     enabled: true,
     retry: {
       strategy: "backoff",
@@ -108,6 +111,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     scope: "workspace",
     workspace_id: storyWorkspaceIds.growth,
     source: "dynamic",
+    target_kind: "agent",
     enabled: true,
     retry: {
       strategy: "backoff",

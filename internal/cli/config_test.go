@@ -149,6 +149,14 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantLifecycle: "live",
 			wantApplied:   true,
 		},
+		{
+			name:             "Should report daemon restart for loop defaults",
+			path:             "loops.defaults.delivery.fan_out_width",
+			value:            "3",
+			wantLifecycle:    "restart-required",
+			wantRestart:      true,
+			wantRestartScope: "daemon",
+		},
 	}
 
 	for _, tt := range tests {

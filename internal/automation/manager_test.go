@@ -982,6 +982,92 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	}
 }
 
+func TestManagerDynamicLoopTargetCRUDValidatesLoopStarter(t *testing.T) {
+	t.Parallel()
+
+	h := newManagerHarness(t)
+	starter := &recordingLoopStarter{}
+	manager := h.newManager(t, aghconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+	}, WithLoopStarter(starter))
+
+	job := testJob(AutomationScopeWorkspace, "crud-loop-job", h.workspace.ID)
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID: h.workspace.ID,
+		LoopName:    "triage",
+		Inputs: map[string]any{
+			"tasks": "task-ref",
+		},
+	}
+	createdJob, err := manager.CreateJob(h.ctx, job)
+	if err != nil {
+		t.Fatalf("manager.CreateJob(loop target) error = %v", err)
+	}
+
+	updatedJob := createdJob
+	updatedJob.LoopTarget = &LoopTarget{
+		WorkspaceID: h.workspace.ID,
+		LoopName:    "triage-v2",
+	}
+	if _, err := manager.UpdateJob(h.ctx, updatedJob); err != nil {
+		t.Fatalf("manager.UpdateJob(loop target) error = %v", err)
+	}
+
+	trigger := testTrigger(AutomationScopeWorkspace, "crud-loop-trigger", h.workspace.ID)
+	trigger.AgentName = ""
+	trigger.Prompt = ""
+	trigger.WebhookSecretRef = ""
+	trigger.TargetKind = TargetKindLoop
+	trigger.LoopTarget = &LoopTarget{
+		WorkspaceID: h.workspace.ID,
+		LoopName:    "deploy",
+		InputMapping: map[string]string{
+			"title": "{{ .trigger.payload.title }}",
+		},
+	}
+	if _, err := manager.CreateTrigger(h.ctx, trigger, webhookSecretWrite("secret-v1")); err != nil {
+		t.Fatalf("manager.CreateTrigger(loop target) error = %v", err)
+	}
+
+	validateCalls := starter.validateCallSnapshot()
+	if got, want := len(validateCalls), 3; got != want {
+		t.Fatalf("len(ValidateLoopTarget calls) = %d, want %d", got, want)
+	}
+	if got, want := validateCalls[0].Kind, LoopStartKindSchedule; got != want {
+		t.Fatalf("ValidateLoopTarget(job create).Kind = %q, want %q", got, want)
+	}
+	if got, want := validateCalls[1].LoopName, "triage-v2"; got != want {
+		t.Fatalf("ValidateLoopTarget(job update).LoopName = %q, want %q", got, want)
+	}
+	if got, want := validateCalls[2].Kind, LoopStartKindWebhook; got != want {
+		t.Fatalf("ValidateLoopTarget(trigger create).Kind = %q, want %q", got, want)
+	}
+	if got, want := validateCalls[2].InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
+		t.Fatalf("ValidateLoopTarget(trigger create).InputMapping[title] = %q, want %q", got, want)
+	}
+
+	starter.validateErr = errors.New("start_kind_not_allowed: schedule not declared")
+	rejectedJob := testJob(AutomationScopeWorkspace, "crud-loop-rejected", h.workspace.ID)
+	rejectedJob.AgentName = ""
+	rejectedJob.Prompt = ""
+	rejectedJob.TargetKind = TargetKindLoop
+	rejectedJob.LoopTarget = &LoopTarget{
+		WorkspaceID: h.workspace.ID,
+		LoopName:    "ops",
+	}
+	if _, err := manager.CreateJob(h.ctx, rejectedJob); err == nil {
+		t.Fatal("manager.CreateJob(rejected loop target) error = nil, want validation error")
+	} else if !strings.Contains(err.Error(), "start_kind_not_allowed") {
+		t.Fatalf("manager.CreateJob(rejected loop target) error = %v, want start_kind_not_allowed", err)
+	}
+}
+
 func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	t.Parallel()
 
@@ -1857,11 +1943,11 @@ func TestManagerHelperRollbackAndComparisonCoverage(t *testing.T) {
 	) {
 		t.Fatal("sameSchedule(equal) = false, want true")
 	}
-	if !sameFilter(map[string]string{"a": "b"}, map[string]string{"a": "b"}) {
-		t.Fatal("sameFilter(equal) = false, want true")
+	if !sameStringMap(map[string]string{"a": "b"}, map[string]string{"a": "b"}) {
+		t.Fatal("sameStringMap(equal) = false, want true")
 	}
-	if sameFilter(map[string]string{"a": "b"}, map[string]string{"a": "c"}) {
-		t.Fatal("sameFilter(different) = true, want false")
+	if sameStringMap(map[string]string{"a": "b"}, map[string]string{"a": "c"}) {
+		t.Fatal("sameStringMap(different) = true, want false")
 	}
 
 	managerSessionObserver{}.OnAgentEvent(h.ctx, "sess-ignored", acp.AgentEvent{})

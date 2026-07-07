@@ -283,6 +283,7 @@ const automationJobsListInputSchema = `{
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
 		"source":{"type":"string"},
+		"loop":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -325,6 +326,7 @@ const automationTriggersListInputSchema = `{
 		"workspace_id":{"type":"string"},
 		"event":{"type":"string"},
 		"source":{"type":"string"},
+		"loop":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false

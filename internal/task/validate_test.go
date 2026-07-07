@@ -199,6 +199,81 @@ func TestPayloadSizeGuards(t *testing.T) {
 	}
 }
 
+func TestRunStatusJSONDecodingShouldRejectUnknownValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode known task run status", func(t *testing.T) {
+		t.Parallel()
+
+		var status RunStatus
+		if err := json.Unmarshal([]byte(`"queued"`), &status); err != nil {
+			t.Fatalf("json.Unmarshal(task run status) error = %v", err)
+		}
+		if got, want := status, TaskRunStatusQueued; got != want {
+			t.Fatalf("decoded status = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject unknown task run status", func(t *testing.T) {
+		t.Parallel()
+
+		var status RunStatus
+		err := json.Unmarshal([]byte(`"mystery"`), &status)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("json.Unmarshal(task run status) error = %v, want ErrValidation", err)
+		}
+	})
+}
+
+func TestRunKindJSONDecodingShouldRejectUnknownValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode known task run kind", func(t *testing.T) {
+		t.Parallel()
+
+		var kind RunKind
+		if err := json.Unmarshal([]byte(`"worker"`), &kind); err != nil {
+			t.Fatalf("json.Unmarshal(task run kind) error = %v", err)
+		}
+		if got, want := kind, RunKindWorker; got != want {
+			t.Fatalf("decoded kind = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject unknown task run kind", func(t *testing.T) {
+		t.Parallel()
+
+		var kind RunKind
+		err := json.Unmarshal([]byte(`"sidecar"`), &kind)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("json.Unmarshal(task run kind) error = %v, want ErrValidation", err)
+		}
+	})
+}
+
+func TestCoordinatorTerminalShouldValidateStatusVocabulary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept supported loop run terminal status", func(t *testing.T) {
+		t.Parallel()
+
+		terminal := CoordinatorTerminal{Status: "no-op"}
+		if err := terminal.Validate("coordinator.terminal"); err != nil {
+			t.Fatalf("CoordinatorTerminal.Validate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject unknown loop run terminal status", func(t *testing.T) {
+		t.Parallel()
+
+		terminal := CoordinatorTerminal{Status: "mystery"}
+		err := terminal.Validate("coordinator.terminal")
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("CoordinatorTerminal.Validate() error = %v, want ErrValidation", err)
+		}
+	})
+}
+
 func TestGraphLimitGuards(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +431,6 @@ func TestDomainValidationHelpers(t *testing.T) {
 		base.SessionID = "sess-1"
 		base.ClaimedAt = base.QueuedAt.Add(time.Minute)
 		base.StartedAt = base.ClaimedAt.Add(time.Minute)
-		base.ClaimToken = "raw-token"
 		base.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 		base.LeaseUntil = base.ClaimedAt.Add(15 * time.Minute)
 		base.HeartbeatAt = base.ClaimedAt.Add(30 * time.Second)
@@ -720,8 +794,8 @@ func TestEnumAndIdentityValidation(t *testing.T) {
 			run:  func() error { return TaskRunStatusNeedsAttention.Validate("run.status") },
 		},
 		{
-			name:    "task run status invalid",
-			run:     func() error { return RunStatus("paused").Validate("run.status") },
+			name:    "Should reject unsupported task run status",
+			run:     func() error { return ParseRunStatus("paused").Validate("run.status") },
 			wantErr: ErrValidation,
 		},
 		{name: "actor kind valid", run: func() error { return ActorKindHuman.Validate("actor.kind") }},
@@ -947,6 +1021,28 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			wantErr: ErrValidation,
 		},
 		{
+			name: "Should reject unsupported enqueue run kind",
+			run: func() error {
+				return EnqueueRun{
+					TaskID:  "task-1",
+					RunKind: ParseRunKind("agent"),
+				}.Validate("enqueue")
+			},
+			wantErr: ErrValidation,
+		},
+		{
+			name: "Should reject unsupported queue reservation run kind",
+			run: func() error {
+				return QueueRunReservation{
+					TaskID:  "task-1",
+					RunID:   "run-1",
+					RunKind: ParseRunKind("agent"),
+					Origin:  Origin{Kind: OriginKindDaemon, Ref: "loop"},
+				}.Validate("reservation")
+			},
+			wantErr: ErrValidation,
+		},
+		{
 			name: "claim run valid",
 			run: func() error {
 				return ClaimRun{}.Validate("claim")
@@ -1006,6 +1102,13 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			run: func() error {
 				return RunQuery{Status: TaskRunStatusRunning, Limit: 2}.Validate("runs")
 			},
+		},
+		{
+			name: "Should reject unsupported task run query status",
+			run: func() error {
+				return RunQuery{Status: ParseRunStatus("paused")}.Validate("runs")
+			},
+			wantErr: ErrValidation,
 		},
 		{
 			name: "task run query invalid",

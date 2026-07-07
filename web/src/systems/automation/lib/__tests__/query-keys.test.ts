@@ -4,11 +4,12 @@ import { automationKeys } from "../query-keys";
 
 describe("automationKeys", () => {
   it("separates job, trigger, and run namespaces", () => {
-    expect(automationKeys.jobList()).toEqual(["automation", "jobs", "list", "", "", "", ""]);
+    expect(automationKeys.jobList()).toEqual(["automation", "jobs", "list", "", "", "", "", ""]);
     expect(automationKeys.triggerList()).toEqual([
       "automation",
       "triggers",
       "list",
+      "",
       "",
       "",
       "",
@@ -37,6 +38,7 @@ describe("automationKeys", () => {
       "ws_alpha",
       "",
       "",
+      "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
       "automation",
@@ -44,6 +46,7 @@ describe("automationKeys", () => {
       "list",
       "workspace",
       "ws_beta",
+      "",
       "",
       "",
     ]);

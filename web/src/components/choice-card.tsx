@@ -12,6 +12,8 @@ interface ChoiceCardProps {
   icon?: LucideIcon;
   /** Trailing badge rendered under the description (e.g. a category pill). */
   badge?: ReactNode;
+  /** Disables selection and dims the card (e.g. while a mutation is in flight). */
+  disabled?: boolean;
   className?: string;
   "data-testid"?: string;
   "aria-label"?: string;
@@ -32,6 +34,7 @@ export function ChoiceCard({
   description,
   icon: Icon,
   badge,
+  disabled = false,
   className,
   "data-testid": testId,
   "aria-label": ariaLabel,
@@ -40,8 +43,9 @@ export function ChoiceCard({
     <button
       aria-checked={selected}
       aria-label={ariaLabel}
+      disabled={disabled}
       className={cn(
-        "flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors outline-none focus-visible:shadow-focus-ring",
+        "flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
         selected
           ? "border-transparent bg-accent-tint ring-1 ring-accent-dim ring-inset"
           : "border-line-soft bg-canvas-tint hover:border-line hover:bg-elevated",

@@ -28,6 +28,7 @@ const jobFixture = {
   scope: "workspace" as const,
   workspace_id: "ws_alpha",
   source: "dynamic" as const,
+  target_kind: "agent",
   enabled: true,
   schedule: { mode: "cron" as const, expr: "0 9 * * *" },
   retry: { strategy: "none" as const, max_retries: 3, base_delay: "2s" },
@@ -40,7 +41,7 @@ const jobFixture = {
     last_run_at: "2026-04-11T09:00:01Z",
     last_scheduled_at: "2026-04-11T09:00:00Z",
     last_fire_id: "fire_daily_review_001",
-    catch_up_policy: "skip_missed" as const,
+    catch_up_policy: "skip" as const,
     misfire_grace_seconds: 0,
     misfire_count: 1,
     last_misfire_at: "2026-04-10T09:00:00Z",
@@ -60,11 +61,13 @@ const triggerFixture = {
   scope: "workspace" as const,
   workspace_id: "ws_alpha",
   source: "config" as const,
+  target_kind: "agent",
   enabled: false,
   retry: { strategy: "backoff" as const, max_retries: 4, base_delay: "5s" },
   fire_limit: { max: 12, window: "1h" },
   endpoint_slug: "push-review",
   webhook_id: "wbh_push_review",
+  webhook_secret_present: false,
   created_at: "2026-04-11T08:00:00Z",
   updated_at: "2026-04-11T08:10:00Z",
 };
@@ -154,7 +157,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
     expect(screen.getByText("daily-review")).toBeInTheDocument();
     expect(screen.getByText("Review recent changes.")).toBeInTheDocument();
-    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("skip_missed");
+    expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent("skip");
     expect(screen.getByTestId("automation-job-scheduler")).toHaveTextContent(
       "fire_daily_review_001"
     );

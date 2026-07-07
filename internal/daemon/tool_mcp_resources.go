@@ -57,6 +57,17 @@ func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[
 	c.records = cloneResourceRecords(records, c.cloneSpec)
 }
 
+func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resources.Record[T]) {
+	if c == nil || update == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	records := cloneResourceRecords(c.records, c.cloneSpec)
+	c.records = cloneResourceRecords(update(records), c.cloneSpec)
+	c.revision++
+}
+
 func (c *resourceCatalog[T]) Snapshot() []resources.Record[T] {
 	if c == nil {
 		return nil

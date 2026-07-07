@@ -354,6 +354,92 @@ func TestStdioRuntimeProvidesAndCallsTools(t *testing.T) {
 	})
 }
 
+func TestStdioRuntimeProvidesAndCallsWatchSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should Serve Initialize WatchSourceKinds And WatchPoll", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := newRuntimeHarness(t)
+		extension := aghsdk.NewExtension(
+			aghsdk.ExtensionDefinition{Name: "Go Watch", Version: "0.1.0"},
+			aghsdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			aghsdk.WithStderr(io.Discard),
+		)
+		type watchSpec struct {
+			Kind  string `json:"kind"`
+			Query string `json:"query"`
+		}
+		if err := aghsdk.WatchSource[watchSpec](
+			extension,
+			"reviews",
+			aghsdk.WatchSourceOptions{},
+			func(_ context.Context, req aghsdk.WatchSourceRequest[watchSpec]) (aghsdk.WatchPollResponse, error) {
+				if req.ExpectedStateDigest != "sha256:previous" {
+					t.Fatalf("ExpectedStateDigest = %q, want sha256:previous", req.ExpectedStateDigest)
+				}
+				return aghsdk.WatchPollResponse{
+					Ready:       req.Spec.Query == "open",
+					StateDigest: "sha256:next",
+					Payload:     json.RawMessage(`{"review":"r1"}`),
+				}, nil
+			},
+		); err != nil {
+			t.Fatalf("WatchSource() error = %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() {
+			done <- extension.Run(ctx)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("close input error = %v", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("extension runtime did not stop")
+			}
+		})
+
+		params := initializeParams("Go Watch")
+		params["capabilities"].(map[string]any)["provides"] = []string{"loop.watch_source"}
+		params["methods"].(map[string]any)["extension_services"] = []string{"watch/poll"}
+		initialize := runtime.call(t, 1, "initialize", params)
+		if initialize.Error != nil {
+			t.Fatalf("initialize error = %#v", initialize.Error)
+		}
+		var initResult aghsdk.InitializeResponse
+		decodeResult(t, initialize.Result, &initResult)
+		if !contains(initResult.ImplementedMethods, "watch/poll") {
+			t.Fatalf("implemented methods = %#v, want watch/poll", initResult.ImplementedMethods)
+		}
+		if got, want := initResult.WatchSourceKinds, []string{"reviews"}; !slices.Equal(got, want) {
+			t.Fatalf("watch source kinds = %#v, want %#v", got, want)
+		}
+
+		call := runtime.call(t, 2, "watch/poll", map[string]any{
+			"spec":                  map[string]any{"kind": "reviews", "query": "open"},
+			"expected_state_digest": "sha256:previous",
+		})
+		if call.Error != nil {
+			t.Fatalf("watch/poll error = %#v", call.Error)
+		}
+		var pollResult aghsdk.WatchPollResponse
+		decodeResult(t, call.Result, &pollResult)
+		if !pollResult.Ready || pollResult.StateDigest != "sha256:next" {
+			t.Fatalf("watch poll result = %#v, want ready sha256:next", pollResult)
+		}
+		if got, want := string(pollResult.Payload), `{"review":"r1"}`; got != want {
+			t.Fatalf("watch poll payload = %s, want %s", got, want)
+		}
+	})
+}
+
 func TestSDKHasNoDaemonInternalImports(t *testing.T) {
 	t.Parallel()
 

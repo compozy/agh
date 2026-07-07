@@ -29,9 +29,10 @@ type cliArgs struct {
 }
 
 type sessionState struct {
-	PromptCount        int
-	ConfigOptions      []acpsdk.SessionConfigOption
-	activePromptCancel context.CancelFunc
+	PromptCount          int
+	ConfigOptions        []acpsdk.SessionConfigOption
+	activePromptCancel   context.CancelFunc
+	activePromptCancelID uint64
 }
 
 type mockAgent struct {
@@ -45,6 +46,7 @@ type mockAgent struct {
 	mu          sync.Mutex
 	sessions    map[string]*sessionState
 	nextSession int
+	nextCancel  uint64
 	asyncWG     sync.WaitGroup
 }
 
@@ -401,7 +403,6 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, errors.New("sessionId is required")
 	}
 	a.ensurePromptSession(sessionID)
-	defer a.clearPromptCancel(sessionID)
 
 	promptMeta, err := decodePromptMeta(params.Meta)
 	if err != nil {
@@ -427,10 +428,14 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
 	defer cancelPrompt()
-	a.registerPromptCancel(sessionID, cancelPrompt)
 
 	for _, step := range turn.Steps {
-		entry, execErr := a.executeStep(promptCtx, acpsdk.SessionId(sessionID), step)
+		stepCtx, cancelStep, cancelID := a.stepContext(promptCtx, sessionID, step)
+		entry, execErr := a.executeStep(stepCtx, acpsdk.SessionId(sessionID), step)
+		if cancelStep != nil {
+			a.clearPromptCancel(sessionID, cancelID)
+			cancelStep()
+		}
 		if execErr != nil {
 			record.Steps = append(record.Steps, acpmock.DiagnosticsStep{
 				Kind:  acpmock.StepKind("error"),
@@ -466,8 +471,34 @@ func (a *mockAgent) ensurePromptSession(sessionID string) {
 	}
 }
 
-func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.CancelFunc) {
+func (a *mockAgent) stepContext(
+	promptCtx context.Context,
+	sessionID string,
+	step acpmock.Step,
+) (context.Context, context.CancelFunc, uint64) {
+	if !stepAcceptsExternalCancel(step) {
+		return promptCtx, nil, 0
+	}
+	stepCtx, cancelStep := context.WithCancel(promptCtx)
+	cancelID := a.registerPromptCancel(sessionID, cancelStep)
+	return stepCtx, cancelStep, cancelID
+}
+
+func stepAcceptsExternalCancel(step acpmock.Step) bool {
+	switch step.Kind {
+	case acpmock.StepKindSandbox:
+		return true
+	case acpmock.StepKindDriverControl:
+		return step.DriverControl.Action == acpmock.DriverControlBlockUntilCancel
+	default:
+		return false
+	}
+}
+
+func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.CancelFunc) uint64 {
 	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	session := a.sessions[sessionID]
 	if session == nil {
 		session = &sessionState{
@@ -475,16 +506,20 @@ func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.Cancel
 		}
 		a.sessions[sessionID] = session
 	}
+	a.nextCancel++
+	cancelID := a.nextCancel
 	session.activePromptCancel = cancel
-	a.mu.Unlock()
+	session.activePromptCancelID = cancelID
+	return cancelID
 }
 
-func (a *mockAgent) clearPromptCancel(sessionID string) {
+func (a *mockAgent) clearPromptCancel(sessionID string, cancelID uint64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if session := a.sessions[sessionID]; session != nil {
+	if session := a.sessions[sessionID]; session != nil && session.activePromptCancelID == cancelID {
 		session.activePromptCancel = nil
+		session.activePromptCancelID = 0
 	}
 }
 

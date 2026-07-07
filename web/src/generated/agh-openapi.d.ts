@@ -3802,6 +3802,232 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/loop-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Loop runs */
+    get: operations["listLoopRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one Loop run */
+    get: operations["getLoopRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve one Loop gate */
+    post: operations["approveLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream Loop run events */
+    get: operations["streamLoopRunEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause one Loop run */
+    post: operations["pauseLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume one Loop run */
+    post: operations["resumeLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop one Loop run */
+    post: operations["stopLoopRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Loop catalog entries */
+    get: operations["listLoops"];
+    put?: never;
+    /** Create or fork a Loop definition */
+    post: operations["createLoop"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one Loop definition */
+    get: operations["getLoop"];
+    put?: never;
+    post?: never;
+    /** Delete one writable Loop definition */
+    delete: operations["deleteLoop"];
+    options?: never;
+    head?: never;
+    /** Publish one Loop definition with optimistic concurrency */
+    patch: operations["patchLoop"];
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops/{name}/annotations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Loop editor annotations */
+    get: operations["getLoopAnnotations"];
+    /** Replace Loop editor annotations */
+    put: operations["putLoopAnnotations"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops/{name}/config": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Loop config override */
+    get: operations["getLoopConfig"];
+    /** Replace Loop config override */
+    put: operations["putLoopConfig"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops/{name}/run": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start or dry-run one Loop */
+    post: operations["runLoop"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/loops/{name}/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate one Loop definition without saving */
+    post: operations["validateLoop"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger": {
     parameters: {
       query?: never;
@@ -4455,7 +4681,78 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: never;
+  schemas: {
+    LoopGraph: {
+      edges: ({
+        from: string;
+        to: string;
+      } & {
+        [key: string]: unknown;
+      })[];
+      nodes: ({
+        batch_size?: number;
+        body?: {
+          [key: string]: unknown;
+        };
+        /** @enum {string} */
+        class: "action" | "control" | "source";
+        collection?: string;
+        condition?: string;
+        contract?: {
+          [key: string]: unknown;
+        };
+        criteria?: ({
+          agent?: string;
+          check?: string;
+          expect?: string;
+          id: string;
+          inputs?: {
+            [key: string]: unknown;
+          };
+          prompt?: string;
+          rubric?: string;
+          tool?: string;
+          type: string;
+        } & {
+          [key: string]: unknown;
+        })[];
+        filter?: string;
+        harvest?: {
+          [key: string]: unknown;
+        };
+        id: string;
+        input_ref?: string;
+        kind: string;
+        max_fan_out?: number;
+        max_parallel?: number;
+        max_revisions?: number;
+        on_result?: {
+          [key: string]: unknown;
+        };
+        params?: {
+          [key: string]: unknown;
+        };
+        parse?: string;
+        pattern?: string;
+        produces?: {
+          [key: string]: unknown;
+        };
+        retry?: {
+          [key: string]: unknown;
+        };
+        session?: {
+          [key: string]: unknown;
+        };
+        timeout?: string;
+        verdict_policy?: string;
+        watch?: {
+          [key: string]: unknown;
+        };
+      } & {
+        [key: string]: unknown;
+      })[];
+    };
+  };
   responses: never;
   parameters: never;
   requestBodies: never;
@@ -5512,10 +5809,12 @@ export interface operations {
                     id: string;
                     /** Format: date-time */
                     lease_until: string;
+                    loop_run_id?: string;
                     max_attempts: number;
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
                     started_at: string;
@@ -5530,6 +5829,8 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    /** Format: int64 */
+                    tokens_used?: number;
                   } | null;
                   execution_profile?: {
                     coordinator: {
@@ -5629,10 +5930,12 @@ export interface operations {
                     id: string;
                     /** Format: date-time */
                     lease_until: string;
+                    loop_run_id?: string;
                     max_attempts: number;
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
                     started_at: string;
@@ -5647,6 +5950,8 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    /** Format: int64 */
+                    tokens_used?: number;
                   }[];
                   recent_events: {
                     actor: {
@@ -5708,10 +6013,12 @@ export interface operations {
                       id: string;
                       /** Format: date-time */
                       lease_until: string;
+                      loop_run_id?: string;
                       max_attempts: number;
                       previous_run_id?: string;
                       /** Format: date-time */
                       queued_at: string;
+                      run_kind?: number;
                       session_id?: string;
                       /** Format: date-time */
                       started_at: string;
@@ -5726,6 +6033,8 @@ export interface operations {
                         | "canceled"
                         | "needs_attention";
                       task_id: string;
+                      /** Format: int64 */
+                      tokens_used?: number;
                     } | null;
                     /** Format: int64 */
                     sequence: number;
@@ -13195,6 +13504,8 @@ export interface operations {
         source?: "config" | "dynamic";
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Filter by Loop target name */
+        loop?: string;
       };
       header?: never;
       path?: never;
@@ -13219,6 +13530,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               /** Format: date-time */
               next_run?: string | null;
@@ -13237,7 +13558,8 @@ export interface operations {
                 time?: string;
               } | null;
               scheduler?: {
-                catch_up_policy?: string;
+                /** @enum {string} */
+                catch_up_policy?: "skip" | "coalesce" | "replay";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -13259,6 +13581,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               task?: {
                 description?: string;
                 network_channel?: string;
@@ -13376,6 +13699,16 @@ export interface operations {
             max: number;
             window: string;
           } | null;
+          loop_target?: {
+            input_mapping?: {
+              [key: string]: string;
+            };
+            inputs?: {
+              [key: string]: unknown;
+            };
+            loop_name: string;
+            workspace_id: string;
+          } | null;
           name: string;
           prompt: string;
           retry?: {
@@ -13393,6 +13726,7 @@ export interface operations {
           };
           /** @enum {string} */
           scope: "global" | "workspace";
+          target_kind?: string;
           task?: {
             description?: string;
             network_channel?: string;
@@ -13431,6 +13765,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               /** Format: date-time */
               next_run?: string | null;
@@ -13449,7 +13793,8 @@ export interface operations {
                 time?: string;
               } | null;
               scheduler?: {
-                catch_up_policy?: string;
+                /** @enum {string} */
+                catch_up_policy?: "skip" | "coalesce" | "replay";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -13471,6 +13816,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               task?: {
                 description?: string;
                 network_channel?: string;
@@ -13521,6 +13867,31 @@ export interface operations {
       };
       /** @description Automation job conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation Loop target validation failed */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -13625,6 +13996,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               /** Format: date-time */
               next_run?: string | null;
@@ -13643,7 +14024,8 @@ export interface operations {
                 time?: string;
               } | null;
               scheduler?: {
-                catch_up_policy?: string;
+                /** @enum {string} */
+                catch_up_policy?: "skip" | "coalesce" | "replay";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -13665,6 +14047,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               task?: {
                 description?: string;
                 network_channel?: string;
@@ -13906,6 +14289,16 @@ export interface operations {
             max: number;
             window: string;
           } | null;
+          loop_target?: {
+            input_mapping?: {
+              [key: string]: string;
+            };
+            inputs?: {
+              [key: string]: unknown;
+            };
+            loop_name: string;
+            workspace_id: string;
+          } | null;
           name?: string | null;
           prompt?: string | null;
           retry?: {
@@ -13921,6 +14314,7 @@ export interface operations {
             mode: "cron" | "every" | "at";
             time?: string;
           } | null;
+          target_kind?: string | null;
           task?: {
             description?: string;
             network_channel?: string;
@@ -13959,6 +14353,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               /** Format: date-time */
               next_run?: string | null;
@@ -13977,7 +14381,8 @@ export interface operations {
                 time?: string;
               } | null;
               scheduler?: {
-                catch_up_policy?: string;
+                /** @enum {string} */
+                catch_up_policy?: "skip" | "coalesce" | "replay";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -13999,6 +14404,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               task?: {
                 description?: string;
                 network_channel?: string;
@@ -14074,6 +14480,31 @@ export interface operations {
       };
       /** @description Automation job conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation Loop target validation failed */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -14188,6 +14619,10 @@ export interface operations {
               fire_id?: string;
               id: string;
               job_id?: string;
+              loop_run_id?: string;
+              metadata?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -14334,6 +14769,10 @@ export interface operations {
               fire_id?: string;
               id: string;
               job_id?: string;
+              loop_run_id?: string;
+              metadata?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -14490,6 +14929,10 @@ export interface operations {
               fire_id?: string;
               id: string;
               job_id?: string;
+              loop_run_id?: string;
+              metadata?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -14611,6 +15054,10 @@ export interface operations {
               fire_id?: string;
               id: string;
               job_id?: string;
+              loop_run_id?: string;
+              metadata?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -14715,6 +15162,8 @@ export interface operations {
         event?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Filter by Loop target name */
+        loop?: string;
       };
       header?: never;
       path?: never;
@@ -14744,6 +15193,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               prompt: string;
               retry: {
@@ -14756,6 +15215,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
@@ -14865,6 +15325,16 @@ export interface operations {
             max: number;
             window: string;
           } | null;
+          loop_target?: {
+            input_mapping?: {
+              [key: string]: string;
+            };
+            inputs?: {
+              [key: string]: unknown;
+            };
+            loop_name: string;
+            workspace_id: string;
+          } | null;
           name: string;
           prompt: string;
           retry?: {
@@ -14875,6 +15345,7 @@ export interface operations {
           } | null;
           /** @enum {string} */
           scope: "global" | "workspace";
+          target_kind?: string;
           webhook_id?: string;
           webhook_secret_value?: string;
           workspace_id?: string;
@@ -14904,6 +15375,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               prompt: string;
               retry: {
@@ -14916,6 +15397,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
@@ -14953,6 +15435,31 @@ export interface operations {
       };
       /** @description Automation trigger conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation Loop target validation failed */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -15062,6 +15569,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               prompt: string;
               retry: {
@@ -15074,6 +15591,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
@@ -15307,6 +15825,16 @@ export interface operations {
             max: number;
             window: string;
           } | null;
+          loop_target?: {
+            input_mapping?: {
+              [key: string]: string;
+            };
+            inputs?: {
+              [key: string]: unknown;
+            };
+            loop_name: string;
+            workspace_id: string;
+          } | null;
           name?: string | null;
           prompt?: string | null;
           retry?: {
@@ -15315,6 +15843,7 @@ export interface operations {
             /** @enum {string} */
             strategy: "none" | "backoff";
           } | null;
+          target_kind?: string | null;
           webhook_id?: string | null;
           webhook_secret_value?: string | null;
           workspace_id?: string | null;
@@ -15344,6 +15873,16 @@ export interface operations {
                 window: string;
               };
               id: string;
+              loop_target?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                loop_name: string;
+                workspace_id: string;
+              } | null;
               name: string;
               prompt: string;
               retry: {
@@ -15356,6 +15895,7 @@ export interface operations {
               scope: "global" | "workspace";
               /** @enum {string} */
               source: "config" | "dynamic";
+              target_kind: string;
               /** Format: date-time */
               updated_at: string;
               webhook_id?: string;
@@ -15418,6 +15958,31 @@ export interface operations {
       };
       /** @description Automation trigger conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Automation Loop target validation failed */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -15532,6 +16097,10 @@ export interface operations {
               fire_id?: string;
               id: string;
               job_id?: string;
+              loop_run_id?: string;
+              metadata?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               scheduled_at?: string | null;
               session_id?: string;
@@ -21648,6 +22217,13 @@ export interface operations {
           | "task.run.released"
           | "task.run.completed"
           | "task.run.failed"
+          | "loop.started"
+          | "loop.generation.pre"
+          | "loop.generation.post"
+          | "loop.gate.pre"
+          | "loop.gate.post"
+          | "loop.node.terminal"
+          | "loop.terminal"
           | "spawn.pre_create"
           | "spawn.created"
           | "spawn.parent_stopped"
@@ -21690,6 +22266,9 @@ export interface operations {
                   child_session_id?: string;
                   coordination_channel_id?: string;
                   coordinator_session_id?: string;
+                  loop_name?: string;
+                  loop_run_id?: string;
+                  node_id?: string;
                   parent_session_id?: string;
                   release_reason?: string;
                   root_session_id?: string;
@@ -34342,6 +34921,13 @@ export interface operations {
                   | "task.run.released"
                   | "task.run.completed"
                   | "task.run.failed"
+                  | "loop.started"
+                  | "loop.generation.pre"
+                  | "loop.generation.post"
+                  | "loop.gate.pre"
+                  | "loop.gate.post"
+                  | "loop.node.terminal"
+                  | "loop.terminal"
                   | "spawn.pre_create"
                   | "spawn.created"
                   | "spawn.parent_stopped"
@@ -34365,6 +34951,9 @@ export interface operations {
                     child_session_id?: string;
                     coordination_channel_id?: string;
                     coordinator_session_id?: string;
+                    loop_name?: string;
+                    loop_run_id?: string;
+                    node_id?: string;
                     parent_session_id?: string;
                     release_reason?: string;
                     root_session_id?: string;
@@ -34593,6 +35182,13 @@ export interface operations {
                   | "task.run.released"
                   | "task.run.completed"
                   | "task.run.failed"
+                  | "loop.started"
+                  | "loop.generation.pre"
+                  | "loop.generation.post"
+                  | "loop.gate.pre"
+                  | "loop.gate.post"
+                  | "loop.node.terminal"
+                  | "loop.terminal"
                   | "spawn.pre_create"
                   | "spawn.created"
                   | "spawn.parent_stopped"
@@ -34616,6 +35212,9 @@ export interface operations {
                     child_session_id?: string;
                     coordination_channel_id?: string;
                     coordinator_session_id?: string;
+                    loop_name?: string;
+                    loop_run_id?: string;
+                    node_id?: string;
                     parent_session_id?: string;
                     release_reason?: string;
                     root_session_id?: string;
@@ -35043,6 +35642,13 @@ export interface operations {
               | "task.run.released"
               | "task.run.completed"
               | "task.run.failed"
+              | "loop.started"
+              | "loop.generation.pre"
+              | "loop.generation.post"
+              | "loop.gate.pre"
+              | "loop.gate.post"
+              | "loop.node.terminal"
+              | "loop.terminal"
               | "spawn.pre_create"
               | "spawn.created"
               | "spawn.parent_stopped"
@@ -35066,6 +35672,9 @@ export interface operations {
                 child_session_id?: string;
                 coordination_channel_id?: string;
                 coordinator_session_id?: string;
+                loop_name?: string;
+                loop_run_id?: string;
+                node_id?: string;
                 parent_session_id?: string;
                 release_reason?: string;
                 root_session_id?: string;
@@ -41104,7 +41713,8 @@ export interface operations {
               /** Format: date-time */
               next_fire?: string | null;
               scheduled_jobs?: {
-                catch_up_policy?: string;
+                /** @enum {string} */
+                catch_up_policy?: "skip" | "coalesce" | "replay";
                 consecutive_resume_failures?: number;
                 job_id: string;
                 last_fire_id?: string;
@@ -59156,6 +59766,10 @@ export interface operations {
                 fire_id?: string;
                 id: string;
                 job_id?: string;
+                loop_run_id?: string;
+                metadata?: {
+                  [key: string]: unknown;
+                };
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -59344,6 +59958,10 @@ export interface operations {
                 fire_id?: string;
                 id: string;
                 job_id?: string;
+                loop_run_id?: string;
+                metadata?: {
+                  [key: string]: unknown;
+                };
                 /** Format: date-time */
                 scheduled_at?: string | null;
                 session_id?: string;
@@ -60325,6 +60943,13 @@ export interface operations {
           | "task.run.released"
           | "task.run.completed"
           | "task.run.failed"
+          | "loop.started"
+          | "loop.generation.pre"
+          | "loop.generation.post"
+          | "loop.gate.pre"
+          | "loop.gate.post"
+          | "loop.node.terminal"
+          | "loop.terminal"
           | "spawn.pre_create"
           | "spawn.created"
           | "spawn.parent_stopped"
@@ -60431,6 +61056,4271 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listLoopRuns: {
+    parameters: {
+      query?: {
+        /** @description Filter by Loop name */
+        loop?: string;
+        /** @description Filter by Loop status */
+        status?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            aggregates: {
+              failed: number;
+              live: number;
+              succeeded: number;
+              terminal: number;
+              total: number;
+            };
+            runs: {
+              active_gate_id?: string;
+              budget_approval_seq?: number;
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              consecutive_failures: number;
+              /** Format: date-time */
+              created_at: string;
+              definition_digest?: string;
+              definition_version: number;
+              generation: number;
+              id: string;
+              inputs?: {
+                [key: string]: unknown;
+              };
+              iteration_cap: number;
+              /** Format: date-time */
+              last_progress_at: string;
+              loop_name: string;
+              parent_loop_run_id?: string;
+              pause_requested: boolean;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+              start_metadata?: {
+                [key: string]: unknown;
+              };
+              /** Format: date-time */
+              started_at: string;
+              started_by_kind?: string;
+              started_by_ref?: string;
+              started_origin_kind?: string;
+              started_origin_ref?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled";
+              /** Format: int64 */
+              tokens_used: number;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            executed_definition?: {
+              apiVersion: string;
+              concurrency?: string;
+              contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                model_defaults?: {
+                  judge?: string;
+                  worker?: string;
+                } | null;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  model?: string;
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                }[];
+              };
+              graph: {
+                edges: ({
+                  from: string;
+                  to: string;
+                } & {
+                  [key: string]: unknown;
+                })[];
+                nodes: ({
+                  batch_size?: number;
+                  body?: {
+                    [key: string]: unknown;
+                  };
+                  /** @enum {string} */
+                  class: "action" | "control" | "source";
+                  collection?: string;
+                  condition?: string;
+                  contract?: {
+                    [key: string]: unknown;
+                  };
+                  criteria?: ({
+                    agent?: string;
+                    check?: string;
+                    expect?: string;
+                    id: string;
+                    inputs?: {
+                      [key: string]: unknown;
+                    };
+                    prompt?: string;
+                    rubric?: string;
+                    tool?: string;
+                    type: string;
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                  filter?: string;
+                  harvest?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  input_ref?: string;
+                  kind: string;
+                  max_fan_out?: number;
+                  max_parallel?: number;
+                  max_revisions?: number;
+                  on_result?: {
+                    [key: string]: unknown;
+                  };
+                  params?: {
+                    [key: string]: unknown;
+                  };
+                  parse?: string;
+                  pattern?: string;
+                  produces?: {
+                    [key: string]: unknown;
+                  };
+                  retry?: {
+                    [key: string]: unknown;
+                  };
+                  session?: {
+                    [key: string]: unknown;
+                  };
+                  timeout?: string;
+                  verdict_policy?: string;
+                  watch?: {
+                    [key: string]: unknown;
+                  };
+                } & {
+                  [key: string]: unknown;
+                })[];
+              };
+              inputs?: {
+                [key: string]: {
+                  default?: unknown;
+                  description?: string;
+                  ref?: {
+                    kind: string;
+                  } | null;
+                  required?: boolean;
+                  type: string;
+                };
+              };
+              kind: string;
+              meta: {
+                catalog: {
+                  category?: string;
+                  keywords?: string[];
+                  use_when?: string;
+                };
+                description?: string;
+                name: string;
+                version?: number;
+              };
+              start?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                kind: string;
+              }[];
+            } | null;
+            generations?: {
+              generation: number;
+              outputs: {
+                child_loop_run_id?: string;
+                generation?: number;
+                item_index?: number;
+                node_id: string;
+                output_ref?: string;
+                status: string;
+                task_run_id?: string;
+              }[];
+            }[];
+            run: {
+              active_gate_id?: string;
+              budget_approval_seq?: number;
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              consecutive_failures: number;
+              /** Format: date-time */
+              created_at: string;
+              definition_digest?: string;
+              definition_version: number;
+              generation: number;
+              id: string;
+              inputs?: {
+                [key: string]: unknown;
+              };
+              iteration_cap: number;
+              /** Format: date-time */
+              last_progress_at: string;
+              loop_name: string;
+              parent_loop_run_id?: string;
+              pause_requested: boolean;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+              start_metadata?: {
+                [key: string]: unknown;
+              };
+              /** Format: date-time */
+              started_at: string;
+              started_by_kind?: string;
+              started_by_ref?: string;
+              started_origin_kind?: string;
+              started_origin_ref?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled";
+              /** Format: int64 */
+              tokens_used: number;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  approveLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          decision: "approve" | "request_changes" | "reject";
+          gate_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: boolean;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamLoopRunEvents: {
+    parameters: {
+      query?: {
+        /** @description Resume after this sequence */
+        after_sequence?: string;
+      };
+      header?: {
+        /** @description Last received event sequence */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description SSE stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            /** Format: date-time */
+            at: string;
+            id: string;
+            /** @enum {string} */
+            kind:
+              | "node_running"
+              | "node_succeeded"
+              | "node_failed"
+              | "gate_verdict"
+              | "generation_started"
+              | "channel_msg"
+              | "token_tick"
+              | "needs_approval"
+              | "status_changed";
+            loop_run_id: string;
+            payload: unknown;
+            /** Format: int64 */
+            seq: number;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  pauseLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: boolean;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  resumeLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: boolean;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  stopLoopRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: boolean;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listLoops: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            loops: {
+              aggregate_30d: {
+                failed: number;
+                runs: number;
+                succeeded: number;
+              };
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                model_defaults?: {
+                  judge?: string;
+                  worker?: string;
+                } | null;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  model?: string;
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                }[];
+              };
+              description?: string;
+              inputs?: {
+                [key: string]: {
+                  default?: unknown;
+                  description?: string;
+                  ref?: {
+                    kind: string;
+                  } | null;
+                  required?: boolean;
+                  type: string;
+                };
+              };
+              last_run?: {
+                active_gate_id?: string;
+                budget_approval_seq?: number;
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                consecutive_failures: number;
+                /** Format: date-time */
+                created_at: string;
+                definition_digest?: string;
+                definition_version: number;
+                generation: number;
+                id: string;
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                iteration_cap: number;
+                /** Format: date-time */
+                last_progress_at: string;
+                loop_name: string;
+                parent_loop_run_id?: string;
+                pause_requested: boolean;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body";
+                start_metadata?: {
+                  [key: string]: unknown;
+                };
+                /** Format: date-time */
+                started_at: string;
+                started_by_kind?: string;
+                started_by_ref?: string;
+                started_origin_kind?: string;
+                started_origin_ref?: string;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "running"
+                  | "watching"
+                  | "needs-approval"
+                  | "paused"
+                  | "done"
+                  | "no-op"
+                  | "blocked"
+                  | "failed"
+                  | "exhausted"
+                  | "stalled";
+                /** Format: int64 */
+                tokens_used: number;
+                workspace_id: string;
+              } | null;
+              name: string;
+              /** @enum {string} */
+              source: "marketplace" | "user" | "additional" | "workspace";
+              start?: {
+                input_mapping?: {
+                  [key: string]: string;
+                };
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                kind: string;
+              }[];
+              /** Format: double */
+              success_rate_30d: number;
+              version: number;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  createLoop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          definition?: {
+            apiVersion: string;
+            concurrency?: string;
+            contract: {
+              boundaries?: string[];
+              budget: {
+                /** @enum {string} */
+                on_exceeded?: "halt" | "escalate";
+                tokens: number;
+                wall_clock_sec: number;
+              };
+              constraints?: string[];
+              definition_of_done: string;
+              goal: string;
+              iteration_cap: number;
+              model_defaults?: {
+                judge?: string;
+                worker?: string;
+              } | null;
+              no_progress: {
+                hash_fields?: string[];
+                window: number;
+              };
+              stop_when?: string;
+              terminal_states?: string[];
+              verification?: {
+                agent?: string;
+                check?: string;
+                expect?: string;
+                id: string;
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                model?: string;
+                prompt?: string;
+                rubric?: string;
+                tool?: string;
+                type: string;
+              }[];
+            };
+            graph: {
+              edges: ({
+                from: string;
+                to: string;
+              } & {
+                [key: string]: unknown;
+              })[];
+              nodes: ({
+                batch_size?: number;
+                body?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                class: "action" | "control" | "source";
+                collection?: string;
+                condition?: string;
+                contract?: {
+                  [key: string]: unknown;
+                };
+                criteria?: ({
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                } & {
+                  [key: string]: unknown;
+                })[];
+                filter?: string;
+                harvest?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                input_ref?: string;
+                kind: string;
+                max_fan_out?: number;
+                max_parallel?: number;
+                max_revisions?: number;
+                on_result?: {
+                  [key: string]: unknown;
+                };
+                params?: {
+                  [key: string]: unknown;
+                };
+                parse?: string;
+                pattern?: string;
+                produces?: {
+                  [key: string]: unknown;
+                };
+                retry?: {
+                  [key: string]: unknown;
+                };
+                session?: {
+                  [key: string]: unknown;
+                };
+                timeout?: string;
+                verdict_policy?: string;
+                watch?: {
+                  [key: string]: unknown;
+                };
+              } & {
+                [key: string]: unknown;
+              })[];
+            };
+            inputs?: {
+              [key: string]: {
+                default?: unknown;
+                description?: string;
+                ref?: {
+                  kind: string;
+                } | null;
+                required?: boolean;
+                type: string;
+              };
+            };
+            kind: string;
+            meta: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              description?: string;
+              name: string;
+              version?: number;
+            };
+            start?: {
+              input_mapping?: {
+                [key: string]: string;
+              };
+              inputs?: {
+                [key: string]: unknown;
+              };
+              kind: string;
+            }[];
+          } | null;
+          fork_from_name?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            loop: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              definition: {
+                apiVersion: string;
+                concurrency?: string;
+                contract: {
+                  boundaries?: string[];
+                  budget: {
+                    /** @enum {string} */
+                    on_exceeded?: "halt" | "escalate";
+                    tokens: number;
+                    wall_clock_sec: number;
+                  };
+                  constraints?: string[];
+                  definition_of_done: string;
+                  goal: string;
+                  iteration_cap: number;
+                  model_defaults?: {
+                    judge?: string;
+                    worker?: string;
+                  } | null;
+                  no_progress: {
+                    hash_fields?: string[];
+                    window: number;
+                  };
+                  stop_when?: string;
+                  terminal_states?: string[];
+                  verification?: {
+                    agent?: string;
+                    check?: string;
+                    expect?: string;
+                    id: string;
+                    inputs?: {
+                      [key: string]: unknown;
+                    };
+                    model?: string;
+                    prompt?: string;
+                    rubric?: string;
+                    tool?: string;
+                    type: string;
+                  }[];
+                };
+                graph: {
+                  edges: ({
+                    from: string;
+                    to: string;
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                  nodes: ({
+                    batch_size?: number;
+                    body?: {
+                      [key: string]: unknown;
+                    };
+                    /** @enum {string} */
+                    class: "action" | "control" | "source";
+                    collection?: string;
+                    condition?: string;
+                    contract?: {
+                      [key: string]: unknown;
+                    };
+                    criteria?: ({
+                      agent?: string;
+                      check?: string;
+                      expect?: string;
+                      id: string;
+                      inputs?: {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      rubric?: string;
+                      tool?: string;
+                      type: string;
+                    } & {
+                      [key: string]: unknown;
+                    })[];
+                    filter?: string;
+                    harvest?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    input_ref?: string;
+                    kind: string;
+                    max_fan_out?: number;
+                    max_parallel?: number;
+                    max_revisions?: number;
+                    on_result?: {
+                      [key: string]: unknown;
+                    };
+                    params?: {
+                      [key: string]: unknown;
+                    };
+                    parse?: string;
+                    pattern?: string;
+                    produces?: {
+                      [key: string]: unknown;
+                    };
+                    retry?: {
+                      [key: string]: unknown;
+                    };
+                    session?: {
+                      [key: string]: unknown;
+                    };
+                    timeout?: string;
+                    verdict_policy?: string;
+                    watch?: {
+                      [key: string]: unknown;
+                    };
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                };
+                inputs?: {
+                  [key: string]: {
+                    default?: unknown;
+                    description?: string;
+                    ref?: {
+                      kind: string;
+                    } | null;
+                    required?: boolean;
+                    type: string;
+                  };
+                };
+                kind: string;
+                meta: {
+                  catalog: {
+                    category?: string;
+                    keywords?: string[];
+                    use_when?: string;
+                  };
+                  description?: string;
+                  name: string;
+                  version?: number;
+                };
+                start?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  kind: string;
+                }[];
+              };
+              description?: string;
+              name: string;
+              /** @enum {string} */
+              source: "marketplace" | "user" | "additional" | "workspace";
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            errors?: {
+              code: string;
+              message: string;
+              node_id?: string;
+              /** @enum {string} */
+              severity: "error" | "warning";
+            }[];
+            valid: boolean;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            loop: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              definition: {
+                apiVersion: string;
+                concurrency?: string;
+                contract: {
+                  boundaries?: string[];
+                  budget: {
+                    /** @enum {string} */
+                    on_exceeded?: "halt" | "escalate";
+                    tokens: number;
+                    wall_clock_sec: number;
+                  };
+                  constraints?: string[];
+                  definition_of_done: string;
+                  goal: string;
+                  iteration_cap: number;
+                  model_defaults?: {
+                    judge?: string;
+                    worker?: string;
+                  } | null;
+                  no_progress: {
+                    hash_fields?: string[];
+                    window: number;
+                  };
+                  stop_when?: string;
+                  terminal_states?: string[];
+                  verification?: {
+                    agent?: string;
+                    check?: string;
+                    expect?: string;
+                    id: string;
+                    inputs?: {
+                      [key: string]: unknown;
+                    };
+                    model?: string;
+                    prompt?: string;
+                    rubric?: string;
+                    tool?: string;
+                    type: string;
+                  }[];
+                };
+                graph: {
+                  edges: ({
+                    from: string;
+                    to: string;
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                  nodes: ({
+                    batch_size?: number;
+                    body?: {
+                      [key: string]: unknown;
+                    };
+                    /** @enum {string} */
+                    class: "action" | "control" | "source";
+                    collection?: string;
+                    condition?: string;
+                    contract?: {
+                      [key: string]: unknown;
+                    };
+                    criteria?: ({
+                      agent?: string;
+                      check?: string;
+                      expect?: string;
+                      id: string;
+                      inputs?: {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      rubric?: string;
+                      tool?: string;
+                      type: string;
+                    } & {
+                      [key: string]: unknown;
+                    })[];
+                    filter?: string;
+                    harvest?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    input_ref?: string;
+                    kind: string;
+                    max_fan_out?: number;
+                    max_parallel?: number;
+                    max_revisions?: number;
+                    on_result?: {
+                      [key: string]: unknown;
+                    };
+                    params?: {
+                      [key: string]: unknown;
+                    };
+                    parse?: string;
+                    pattern?: string;
+                    produces?: {
+                      [key: string]: unknown;
+                    };
+                    retry?: {
+                      [key: string]: unknown;
+                    };
+                    session?: {
+                      [key: string]: unknown;
+                    };
+                    timeout?: string;
+                    verdict_policy?: string;
+                    watch?: {
+                      [key: string]: unknown;
+                    };
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                };
+                inputs?: {
+                  [key: string]: {
+                    default?: unknown;
+                    description?: string;
+                    ref?: {
+                      kind: string;
+                    } | null;
+                    required?: boolean;
+                    type: string;
+                  };
+                };
+                kind: string;
+                meta: {
+                  catalog: {
+                    category?: string;
+                    keywords?: string[];
+                    use_when?: string;
+                  };
+                  description?: string;
+                  name: string;
+                  version?: number;
+                };
+                start?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  kind: string;
+                }[];
+              };
+              description?: string;
+              name: string;
+              /** @enum {string} */
+              source: "marketplace" | "user" | "additional" | "workspace";
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteLoop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  patchLoop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          definition: {
+            apiVersion: string;
+            concurrency?: string;
+            contract: {
+              boundaries?: string[];
+              budget: {
+                /** @enum {string} */
+                on_exceeded?: "halt" | "escalate";
+                tokens: number;
+                wall_clock_sec: number;
+              };
+              constraints?: string[];
+              definition_of_done: string;
+              goal: string;
+              iteration_cap: number;
+              model_defaults?: {
+                judge?: string;
+                worker?: string;
+              } | null;
+              no_progress: {
+                hash_fields?: string[];
+                window: number;
+              };
+              stop_when?: string;
+              terminal_states?: string[];
+              verification?: {
+                agent?: string;
+                check?: string;
+                expect?: string;
+                id: string;
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                model?: string;
+                prompt?: string;
+                rubric?: string;
+                tool?: string;
+                type: string;
+              }[];
+            };
+            graph: {
+              edges: ({
+                from: string;
+                to: string;
+              } & {
+                [key: string]: unknown;
+              })[];
+              nodes: ({
+                batch_size?: number;
+                body?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                class: "action" | "control" | "source";
+                collection?: string;
+                condition?: string;
+                contract?: {
+                  [key: string]: unknown;
+                };
+                criteria?: ({
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                } & {
+                  [key: string]: unknown;
+                })[];
+                filter?: string;
+                harvest?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                input_ref?: string;
+                kind: string;
+                max_fan_out?: number;
+                max_parallel?: number;
+                max_revisions?: number;
+                on_result?: {
+                  [key: string]: unknown;
+                };
+                params?: {
+                  [key: string]: unknown;
+                };
+                parse?: string;
+                pattern?: string;
+                produces?: {
+                  [key: string]: unknown;
+                };
+                retry?: {
+                  [key: string]: unknown;
+                };
+                session?: {
+                  [key: string]: unknown;
+                };
+                timeout?: string;
+                verdict_policy?: string;
+                watch?: {
+                  [key: string]: unknown;
+                };
+              } & {
+                [key: string]: unknown;
+              })[];
+            };
+            inputs?: {
+              [key: string]: {
+                default?: unknown;
+                description?: string;
+                ref?: {
+                  kind: string;
+                } | null;
+                required?: boolean;
+                type: string;
+              };
+            };
+            kind: string;
+            meta: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              description?: string;
+              name: string;
+              version?: number;
+            };
+            start?: {
+              input_mapping?: {
+                [key: string]: string;
+              };
+              inputs?: {
+                [key: string]: unknown;
+              };
+              kind: string;
+            }[];
+          };
+          expected_version?: number | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            loop: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              definition: {
+                apiVersion: string;
+                concurrency?: string;
+                contract: {
+                  boundaries?: string[];
+                  budget: {
+                    /** @enum {string} */
+                    on_exceeded?: "halt" | "escalate";
+                    tokens: number;
+                    wall_clock_sec: number;
+                  };
+                  constraints?: string[];
+                  definition_of_done: string;
+                  goal: string;
+                  iteration_cap: number;
+                  model_defaults?: {
+                    judge?: string;
+                    worker?: string;
+                  } | null;
+                  no_progress: {
+                    hash_fields?: string[];
+                    window: number;
+                  };
+                  stop_when?: string;
+                  terminal_states?: string[];
+                  verification?: {
+                    agent?: string;
+                    check?: string;
+                    expect?: string;
+                    id: string;
+                    inputs?: {
+                      [key: string]: unknown;
+                    };
+                    model?: string;
+                    prompt?: string;
+                    rubric?: string;
+                    tool?: string;
+                    type: string;
+                  }[];
+                };
+                graph: {
+                  edges: ({
+                    from: string;
+                    to: string;
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                  nodes: ({
+                    batch_size?: number;
+                    body?: {
+                      [key: string]: unknown;
+                    };
+                    /** @enum {string} */
+                    class: "action" | "control" | "source";
+                    collection?: string;
+                    condition?: string;
+                    contract?: {
+                      [key: string]: unknown;
+                    };
+                    criteria?: ({
+                      agent?: string;
+                      check?: string;
+                      expect?: string;
+                      id: string;
+                      inputs?: {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      rubric?: string;
+                      tool?: string;
+                      type: string;
+                    } & {
+                      [key: string]: unknown;
+                    })[];
+                    filter?: string;
+                    harvest?: {
+                      [key: string]: unknown;
+                    };
+                    id: string;
+                    input_ref?: string;
+                    kind: string;
+                    max_fan_out?: number;
+                    max_parallel?: number;
+                    max_revisions?: number;
+                    on_result?: {
+                      [key: string]: unknown;
+                    };
+                    params?: {
+                      [key: string]: unknown;
+                    };
+                    parse?: string;
+                    pattern?: string;
+                    produces?: {
+                      [key: string]: unknown;
+                    };
+                    retry?: {
+                      [key: string]: unknown;
+                    };
+                    session?: {
+                      [key: string]: unknown;
+                    };
+                    timeout?: string;
+                    verdict_policy?: string;
+                    watch?: {
+                      [key: string]: unknown;
+                    };
+                  } & {
+                    [key: string]: unknown;
+                  })[];
+                };
+                inputs?: {
+                  [key: string]: {
+                    default?: unknown;
+                    description?: string;
+                    ref?: {
+                      kind: string;
+                    } | null;
+                    required?: boolean;
+                    type: string;
+                  };
+                };
+                kind: string;
+                meta: {
+                  catalog: {
+                    category?: string;
+                    keywords?: string[];
+                    use_when?: string;
+                  };
+                  description?: string;
+                  name: string;
+                  version?: number;
+                };
+                start?: {
+                  input_mapping?: {
+                    [key: string]: string;
+                  };
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  kind: string;
+                }[];
+              };
+              description?: string;
+              name: string;
+              /** @enum {string} */
+              source: "marketplace" | "user" | "additional" | "workspace";
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop definition not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop version conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            current_version: number;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            errors?: {
+              code: string;
+              message: string;
+              node_id?: string;
+              /** @enum {string} */
+              severity: "error" | "warning";
+            }[];
+            valid: boolean;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopAnnotations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            annotations: {
+              node_id: string;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putLoopAnnotations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          annotations: {
+            node_id: string;
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            annotations: {
+              node_id: string;
+              /** Format: double */
+              x: number;
+              /** Format: double */
+              y: number;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getLoopConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            config?: {
+              /** @enum {string} */
+              budget_on_exceeded?: "halt" | "escalate";
+              budget_tokens?: number | null;
+              budget_wall_sec?: number | null;
+              enabled_checks_json?: unknown;
+              fan_out_width?: number | null;
+              gate_max_revisions?: number | null;
+              human_gate_enabled?: boolean | null;
+              iteration_cap?: number | null;
+              model_defaults?: {
+                judge?: string | null;
+                worker?: string | null;
+              } | null;
+              no_progress_window?: number | null;
+              /** @enum {string} */
+              reattempt_strategy?: "failed_only" | "full_body";
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop config not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putLoopConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            /** @enum {string} */
+            budget_on_exceeded?: "halt" | "escalate";
+            budget_tokens?: number | null;
+            budget_wall_sec?: number | null;
+            enabled_checks_json?: unknown;
+            fan_out_width?: number | null;
+            gate_max_revisions?: number | null;
+            human_gate_enabled?: boolean | null;
+            iteration_cap?: number | null;
+            model_defaults?: {
+              judge?: string | null;
+              worker?: string | null;
+            } | null;
+            no_progress_window?: number | null;
+            /** @enum {string} */
+            reattempt_strategy?: "failed_only" | "full_body";
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            config?: {
+              /** @enum {string} */
+              budget_on_exceeded?: "halt" | "escalate";
+              budget_tokens?: number | null;
+              budget_wall_sec?: number | null;
+              enabled_checks_json?: unknown;
+              fan_out_width?: number | null;
+              gate_max_revisions?: number | null;
+              human_gate_enabled?: boolean | null;
+              iteration_cap?: number | null;
+              model_defaults?: {
+                judge?: string | null;
+                worker?: string | null;
+              } | null;
+              no_progress_window?: number | null;
+              /** @enum {string} */
+              reattempt_strategy?: "failed_only" | "full_body";
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  runLoop: {
+    parameters: {
+      query?: {
+        /** @description Preview the run without creating durable state */
+        dry?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config_overrides?: {
+            /** @enum {string} */
+            budget_on_exceeded?: "halt" | "escalate";
+            budget_tokens?: number | null;
+            budget_wall_sec?: number | null;
+            enabled_checks_json?: unknown;
+            fan_out_width?: number | null;
+            gate_max_revisions?: number | null;
+            human_gate_enabled?: boolean | null;
+            iteration_cap?: number | null;
+            model_defaults?: {
+              judge?: string | null;
+              worker?: string | null;
+            } | null;
+            no_progress_window?: number | null;
+            /** @enum {string} */
+            reattempt_strategy?: "failed_only" | "full_body";
+          } | null;
+          inputs?: {
+            [key: string]: unknown;
+          };
+          parent_loop_run_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dry_run?: {
+              contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                model_defaults?: {
+                  judge?: string;
+                  worker?: string;
+                } | null;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  model?: string;
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                }[];
+              };
+              effective_config: {
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                enabled_checks_json: unknown;
+                fan_out_width: number;
+                gate_max_revisions: number;
+                human_gate_enabled: boolean;
+                iteration_cap: number;
+                model_defaults: {
+                  judge: string;
+                  worker: string;
+                };
+                no_progress_window: number;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body";
+              };
+              generation: number;
+              loop_name: string;
+              nodes: {
+                /** @enum {string} */
+                class: "action" | "control" | "source";
+                depends_on?: string[];
+                id: string;
+                kind: string;
+              }[];
+              resolved_inputs: {
+                [key: string]: unknown;
+              };
+            } | null;
+            run?: {
+              active_gate_id?: string;
+              budget_approval_seq?: number;
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              consecutive_failures: number;
+              /** Format: date-time */
+              created_at: string;
+              definition_digest?: string;
+              definition_version: number;
+              generation: number;
+              id: string;
+              inputs?: {
+                [key: string]: unknown;
+              };
+              iteration_cap: number;
+              /** Format: date-time */
+              last_progress_at: string;
+              loop_name: string;
+              parent_loop_run_id?: string;
+              pause_requested: boolean;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+              start_metadata?: {
+                [key: string]: unknown;
+              };
+              /** Format: date-time */
+              started_at: string;
+              started_by_kind?: string;
+              started_by_ref?: string;
+              started_origin_kind?: string;
+              started_origin_ref?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled";
+              /** Format: int64 */
+              tokens_used: number;
+              workspace_id: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            dry_run?: {
+              contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                model_defaults?: {
+                  judge?: string;
+                  worker?: string;
+                } | null;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  model?: string;
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                }[];
+              };
+              effective_config: {
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                enabled_checks_json: unknown;
+                fan_out_width: number;
+                gate_max_revisions: number;
+                human_gate_enabled: boolean;
+                iteration_cap: number;
+                model_defaults: {
+                  judge: string;
+                  worker: string;
+                };
+                no_progress_window: number;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body";
+              };
+              generation: number;
+              loop_name: string;
+              nodes: {
+                /** @enum {string} */
+                class: "action" | "control" | "source";
+                depends_on?: string[];
+                id: string;
+                kind: string;
+              }[];
+              resolved_inputs: {
+                [key: string]: unknown;
+              };
+            } | null;
+            run?: {
+              active_gate_id?: string;
+              budget_approval_seq?: number;
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              consecutive_failures: number;
+              /** Format: date-time */
+              created_at: string;
+              definition_digest?: string;
+              definition_version: number;
+              generation: number;
+              id: string;
+              inputs?: {
+                [key: string]: unknown;
+              };
+              iteration_cap: number;
+              /** Format: date-time */
+              last_progress_at: string;
+              loop_name: string;
+              parent_loop_run_id?: string;
+              pause_requested: boolean;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+              start_metadata?: {
+                [key: string]: unknown;
+              };
+              /** Format: date-time */
+              started_at: string;
+              started_by_kind?: string;
+              started_by_ref?: string;
+              started_origin_kind?: string;
+              started_origin_ref?: string;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled";
+              /** Format: int64 */
+              tokens_used: number;
+              workspace_id: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  validateLoop: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Loop name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          definition: {
+            apiVersion: string;
+            concurrency?: string;
+            contract: {
+              boundaries?: string[];
+              budget: {
+                /** @enum {string} */
+                on_exceeded?: "halt" | "escalate";
+                tokens: number;
+                wall_clock_sec: number;
+              };
+              constraints?: string[];
+              definition_of_done: string;
+              goal: string;
+              iteration_cap: number;
+              model_defaults?: {
+                judge?: string;
+                worker?: string;
+              } | null;
+              no_progress: {
+                hash_fields?: string[];
+                window: number;
+              };
+              stop_when?: string;
+              terminal_states?: string[];
+              verification?: {
+                agent?: string;
+                check?: string;
+                expect?: string;
+                id: string;
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                model?: string;
+                prompt?: string;
+                rubric?: string;
+                tool?: string;
+                type: string;
+              }[];
+            };
+            graph: {
+              edges: ({
+                from: string;
+                to: string;
+              } & {
+                [key: string]: unknown;
+              })[];
+              nodes: ({
+                batch_size?: number;
+                body?: {
+                  [key: string]: unknown;
+                };
+                /** @enum {string} */
+                class: "action" | "control" | "source";
+                collection?: string;
+                condition?: string;
+                contract?: {
+                  [key: string]: unknown;
+                };
+                criteria?: ({
+                  agent?: string;
+                  check?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  rubric?: string;
+                  tool?: string;
+                  type: string;
+                } & {
+                  [key: string]: unknown;
+                })[];
+                filter?: string;
+                harvest?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                input_ref?: string;
+                kind: string;
+                max_fan_out?: number;
+                max_parallel?: number;
+                max_revisions?: number;
+                on_result?: {
+                  [key: string]: unknown;
+                };
+                params?: {
+                  [key: string]: unknown;
+                };
+                parse?: string;
+                pattern?: string;
+                produces?: {
+                  [key: string]: unknown;
+                };
+                retry?: {
+                  [key: string]: unknown;
+                };
+                session?: {
+                  [key: string]: unknown;
+                };
+                timeout?: string;
+                verdict_policy?: string;
+                watch?: {
+                  [key: string]: unknown;
+                };
+              } & {
+                [key: string]: unknown;
+              })[];
+            };
+            inputs?: {
+              [key: string]: {
+                default?: unknown;
+                description?: string;
+                ref?: {
+                  kind: string;
+                } | null;
+                required?: boolean;
+                type: string;
+              };
+            };
+            kind: string;
+            meta: {
+              catalog: {
+                category?: string;
+                keywords?: string[];
+                use_when?: string;
+              };
+              description?: string;
+              name: string;
+              version?: number;
+            };
+            start?: {
+              input_mapping?: {
+                [key: string]: string;
+              };
+              inputs?: {
+                [key: string]: unknown;
+              };
+              kind: string;
+            }[];
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            errors?: {
+              code: string;
+              message: string;
+              node_id?: string;
+              /** @enum {string} */
+              severity: "error" | "warning";
+            }[];
+            valid: boolean;
+          };
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop validation failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            errors?: {
+              code: string;
+              message: string;
+              node_id?: string;
+              /** @enum {string} */
+              severity: "error" | "warning";
+            }[];
+            valid: boolean;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };

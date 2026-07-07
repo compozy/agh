@@ -984,7 +984,7 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		ID:             run.ID,
 		TaskID:         run.TaskID,
 		Status:         run.Status,
-		Attempt:        run.Attempt,
+		Attempt:        int(run.Attempt),
 		ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
 		SessionID:      run.SessionID,
 		Origin:         run.Origin,
@@ -1422,7 +1422,8 @@ func taskTriageStatePayloadFromState(state taskpkg.TriageState) apicontract.Task
 func filterTaskRuns(runs []taskpkg.Run, query taskpkg.RunQuery) []taskpkg.Run {
 	filtered := make([]taskpkg.Run, 0, len(runs))
 	for _, run := range runs {
-		if query.Status.Normalize() != "" && run.Status.Normalize() != query.Status.Normalize() {
+		if query.Status.Normalize() != taskpkg.TaskRunStatusUnknown &&
+			run.Status.Normalize() != query.Status.Normalize() {
 			continue
 		}
 		if strings.TrimSpace(query.SessionID) != "" &&

@@ -333,7 +333,29 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 			return runner, nil
 		}
 
-		if err := runDaemonForeground(testutil.Context(t), deps); err != nil {
+		if err := runDaemonForeground(testutil.Context(t), deps, false); err != nil {
+			t.Fatalf("runDaemonForeground() error = %v", err)
+		}
+		if !runner.ran {
+			t.Fatal("daemon runner did not execute")
+		}
+	})
+
+	t.Run("Should run daemon and reap the parent-exit watcher when orphan exit is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		runner := &stubRunner{}
+		deps := newTestDeps(t, &stubClient{})
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{}, os.ErrNotExist
+		}
+		deps.newDaemon = func() (daemonRunner, error) {
+			return runner, nil
+		}
+
+		// Returns only after the watcher goroutine is canceled and joined, so a
+		// hang here would prove the watchdog leaks its goroutine.
+		if err := runDaemonForeground(testutil.Context(t), deps, true); err != nil {
 			t.Fatalf("runDaemonForeground() error = %v", err)
 		}
 		if !runner.ran {

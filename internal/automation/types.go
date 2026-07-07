@@ -30,6 +30,16 @@ const (
 	JobSourceDynamic = modelpkg.JobSourceDynamic
 )
 
+// TargetKind identifies which runtime primitive an automation delegates to.
+type TargetKind = modelpkg.TargetKind
+
+const (
+	// TargetKindAgent starts the existing agent-session automation path.
+	TargetKindAgent = modelpkg.TargetKindAgent
+	// TargetKindLoop starts a declared Loop through loop.Service.Start.
+	TargetKindLoop = modelpkg.TargetKindLoop
+)
+
 // ScheduleMode identifies how a scheduled job determines its next fire time.
 type ScheduleMode = modelpkg.ScheduleMode
 
@@ -74,8 +84,12 @@ const (
 type SchedulerCatchUpPolicy = modelpkg.SchedulerCatchUpPolicy
 
 const (
-	// SchedulerCatchUpPolicySkipMissed advances missed cursors without dispatching stale fires.
-	SchedulerCatchUpPolicySkipMissed = modelpkg.SchedulerCatchUpPolicySkipMissed
+	// SchedulerCatchUpPolicySkip advances missed cursors without dispatching stale fires.
+	SchedulerCatchUpPolicySkip = modelpkg.SchedulerCatchUpPolicySkip
+	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
+	SchedulerCatchUpPolicyCoalesce = modelpkg.SchedulerCatchUpPolicyCoalesce
+	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
+	SchedulerCatchUpPolicyReplay = modelpkg.SchedulerCatchUpPolicyReplay
 )
 
 // ActivationSource identifies which ingress path produced an activation envelope.
@@ -94,6 +108,9 @@ const (
 
 // JobTaskConfig configures direct automation-to-task materialization for one job.
 type JobTaskConfig = modelpkg.JobTaskConfig
+
+// LoopTarget configures an automation fire to start a Loop.
+type LoopTarget = modelpkg.LoopTarget
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job = modelpkg.Job

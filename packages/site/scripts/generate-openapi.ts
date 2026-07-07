@@ -49,6 +49,14 @@ async function readRepoFile(...parts: string[]): Promise<string> {
   return fs.readFile(path.resolve(REPO_ROOT, ...parts), "utf8");
 }
 
+async function listRouteSourcePaths(dir: string): Promise<string[]> {
+  const entries = await fs.readdir(path.resolve(REPO_ROOT, dir));
+  return entries
+    .filter(entry => entry === "routes.go" || entry.endsWith("_routes.go"))
+    .sort()
+    .map(entry => path.join(dir, entry));
+}
+
 function joinRoute(left: string, right: string): string {
   if (!right) {
     return left || "/";
@@ -91,11 +99,14 @@ async function extractRegisteredRoutes(sourcePath: string): Promise<APIRoute[]> 
 }
 
 async function implementedRoutes(): Promise<APIRoute[]> {
-  const [httpRoutes, udsRoutes] = await Promise.all([
-    extractRegisteredRoutes("internal/api/httpapi/routes.go"),
-    extractRegisteredRoutes("internal/api/udsapi/routes.go"),
+  const [httpSources, udsSources] = await Promise.all([
+    listRouteSourcePaths("internal/api/httpapi"),
+    listRouteSourcePaths("internal/api/udsapi"),
   ]);
-  return [...httpRoutes, ...udsRoutes];
+  const routeGroups = await Promise.all(
+    [...httpSources, ...udsSources].map(sourcePath => extractRegisteredRoutes(sourcePath))
+  );
+  return routeGroups.flat();
 }
 
 function routePattern(route: string): RegExp {
@@ -217,6 +228,7 @@ const TAG_ICONS: Record<string, string> = {
   filesystem: "Folder",
   extensions: "Plug",
   hooks: "Waypoints",
+  loops: "Workflow",
   memory: "Brain",
   network: "Network",
   observe: "Compass",

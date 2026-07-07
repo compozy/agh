@@ -34,6 +34,16 @@ const (
 	JobSourceDynamic JobSource = "dynamic"
 )
 
+// TargetKind identifies which runtime primitive an automation delegates to.
+type TargetKind string
+
+const (
+	// TargetKindAgent starts the existing agent-session automation path.
+	TargetKindAgent TargetKind = "agent"
+	// TargetKindLoop starts a declared Loop through loop.Service.Start.
+	TargetKindLoop TargetKind = "loop"
+)
+
 // ScheduleMode identifies how a scheduled job determines its next fire time.
 type ScheduleMode string
 
@@ -79,9 +89,13 @@ const (
 type SchedulerCatchUpPolicy string
 
 const (
-	// SchedulerCatchUpPolicySkipMissed records missed fires as misfires and
-	// advances to the next future cursor without dispatching stale work.
-	SchedulerCatchUpPolicySkipMissed SchedulerCatchUpPolicy = "skip_missed"
+	// SchedulerCatchUpPolicySkip records missed fires as misfires and advances
+	// to the next future cursor without dispatching stale work.
+	SchedulerCatchUpPolicySkip SchedulerCatchUpPolicy = "skip"
+	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
+	SchedulerCatchUpPolicyCoalesce SchedulerCatchUpPolicy = "coalesce"
+	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
+	SchedulerCatchUpPolicyReplay SchedulerCatchUpPolicy = "replay"
 )
 
 // ActivationSource identifies which ingress path produced an activation envelope.
@@ -106,16 +120,29 @@ type JobTaskConfig struct {
 	NetworkChannel string             `json:"network_channel,omitempty" toml:"network_channel,omitempty"`
 }
 
+// LoopTarget configures an automation fire to start a Loop instead of an agent session.
+type LoopTarget struct {
+	WorkspaceID string `json:"workspace_id" toml:"workspace_id"`
+
+	LoopName string `json:"loop_name" toml:"loop_name"`
+
+	Inputs map[string]any `json:"inputs,omitempty" toml:"inputs,omitempty"`
+
+	InputMapping map[string]string `json:"input_mapping,omitempty" toml:"input_mapping,omitempty"`
+}
+
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job struct {
 	ID          string          `json:"id"`
 	Scope       Scope           `json:"scope"`
 	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
 	AgentName   string          `json:"agent_name"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Prompt      string          `json:"prompt"`
 	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
 	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
 	Enabled     bool            `json:"enabled"`
 	Retry       RetryConfig     `json:"retry"`
 	FireLimit   FireLimitConfig `json:"fire_limit"`
@@ -137,11 +164,13 @@ type Trigger struct {
 	ID               string            `json:"id"`
 	Scope            Scope             `json:"scope"`
 	Name             string            `json:"name"`
+	TargetKind       TargetKind        `json:"target_kind"`
 	AgentName        string            `json:"agent_name"`
 	WorkspaceID      string            `json:"workspace_id,omitempty"`
 	Prompt           string            `json:"prompt"`
 	Event            string            `json:"event"`
 	Filter           map[string]string `json:"filter,omitempty"`
+	LoopTarget       *LoopTarget       `json:"loop_target,omitempty"`
 	Enabled          bool              `json:"enabled"`
 	Retry            RetryConfig       `json:"retry"`
 	FireLimit        FireLimitConfig   `json:"fire_limit"`
@@ -168,21 +197,23 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
-	ID              string     `json:"id"`
-	JobID           string     `json:"job_id,omitempty"`
-	TriggerID       string     `json:"trigger_id,omitempty"`
-	SessionID       string     `json:"session_id,omitempty"`
-	TaskID          string     `json:"task_id,omitempty"`
-	TaskRunID       string     `json:"task_run_id,omitempty"`
-	FireID          string     `json:"fire_id,omitempty"`
-	Status          RunStatus  `json:"status"`
-	Attempt         int        `json:"attempt"`
-	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`
-	StartedAt       *time.Time `json:"started_at,omitempty"`
-	EndedAt         *time.Time `json:"ended_at,omitempty"`
-	Error           string     `json:"error,omitempty"`
-	DeliveryError   string     `json:"delivery_error,omitempty"`
-	DeliveryErrorAt *time.Time `json:"delivery_error_at,omitempty"`
+	ID              string         `json:"id"`
+	JobID           string         `json:"job_id,omitempty"`
+	TriggerID       string         `json:"trigger_id,omitempty"`
+	SessionID       string         `json:"session_id,omitempty"`
+	TaskID          string         `json:"task_id,omitempty"`
+	TaskRunID       string         `json:"task_run_id,omitempty"`
+	LoopRunID       string         `json:"loop_run_id,omitempty"`
+	FireID          string         `json:"fire_id,omitempty"`
+	Status          RunStatus      `json:"status"`
+	Attempt         int            `json:"attempt"`
+	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time     `json:"started_at,omitempty"`
+	EndedAt         *time.Time     `json:"ended_at,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	DeliveryError   string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // ActivationEnvelope is the normalized trigger input regardless of source.
@@ -220,6 +251,7 @@ type SchedulerClaim struct {
 	NextRunAt    *time.Time
 	ClaimedAt    time.Time
 	ScheduleHash string
+	CatchUp      bool
 }
 
 // SchedulerClaimResult reports the state and pre-created run for one claimed

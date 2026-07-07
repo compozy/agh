@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/resources"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/subprocess"
@@ -167,6 +168,7 @@ type Extension struct {
 	Agents                []aghconfig.AgentDef
 	Bundles               []BundleSpec
 	Skills                []*skillspkg.Skill
+	Loops                 []looppkg.ResourceSpec
 	GrantedActions        []string
 	GrantedSecurity       []string
 	GrantedResourceKinds  []resources.ResourceKind
@@ -183,6 +185,7 @@ type managedExtension struct {
 	agents                []aghconfig.AgentDef
 	bundles               []BundleSpec
 	skills                []*skillspkg.Skill
+	loops                 []looppkg.ResourceSpec
 	grantedActions        []string
 	grantedSecurity       []string
 	grantedResourceKinds  []resources.ResourceKind
@@ -231,6 +234,7 @@ type Manager struct {
 	logger                *slog.Logger
 	now                   func() time.Time
 	getenv                func(string) string
+	aghExecutable         func() (string, error)
 	secretResolver        SecretRefResolver
 	launch                processLauncher
 
@@ -313,6 +317,13 @@ func WithNow(now func() time.Time) Option {
 func WithGetenv(getenv func(string) string) Option {
 	return func(manager *Manager) {
 		manager.getenv = getenv
+	}
+}
+
+// WithAGHExecutableResolver overrides the binary used by {{agh_executable}} manifest templates.
+func WithAGHExecutableResolver(resolver func() (string, error)) Option {
+	return func(manager *Manager) {
+		manager.aghExecutable = resolver
 	}
 }
 
@@ -412,6 +423,7 @@ func newManagerDefaults(registry *Registry) *Manager {
 		logger:                    slog.Default(),
 		now:                       func() time.Time { return time.Now().UTC() },
 		getenv:                    os.Getenv,
+		aghExecutable:             os.Executable,
 		hostMethods:               make(map[string]subprocess.HandlerFunc),
 		protocolVersion:           defaultProtocolVersion,
 		supportedProtocolVersions: []string{defaultProtocolVersion},
@@ -447,6 +459,9 @@ func normalizeManagerDefaults(manager *Manager) {
 	}
 	if manager.getenv == nil {
 		manager.getenv = os.Getenv
+	}
+	if manager.aghExecutable == nil {
+		manager.aghExecutable = os.Executable
 	}
 	if manager.launch == nil {
 		manager.launch = func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {
@@ -1010,6 +1025,11 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 		m.setFailure(ext, ExtensionPhaseRegister, err)
 		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
 	}
+	loops, err := m.loadLoopResources(ext)
+	if err != nil {
+		m.setFailure(ext, ExtensionPhaseRegister, err)
+		return phaseError(ext.info.Name, ExtensionPhaseRegister, err)
+	}
 	agents, err := m.loadAgentResources(ext)
 	if err != nil {
 		m.setFailure(ext, ExtensionPhaseRegister, err)
@@ -1031,6 +1051,7 @@ func (m *Manager) registerExtension(ctx context.Context, ext *managedExtension) 
 	ext.hooks = hooks
 	ext.bundles = bundles
 	ext.registered = true
+	ext.loops = loops
 	ext.phase = ExtensionPhaseRegister
 	m.mu.Unlock()
 	return nil
@@ -1615,6 +1636,58 @@ func extensionSkillInstalledFrom(info ExtensionInfo) string {
 	return strings.TrimSpace(info.Name)
 }
 
+func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSpec, error) {
+	if ext.manifest == nil || len(ext.manifest.Resources.Loops) == 0 {
+		return nil, nil
+	}
+
+	source := loopSourceForExtension(ext.info.Source)
+	loaded := make(map[string]looppkg.ResourceSpec)
+	for _, resourcePath := range ext.manifest.Resources.Loops {
+		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+		if err != nil {
+			return nil, err
+		}
+		files, err := collectLoopDefinitionFiles(resourceRoot)
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range files {
+			spec, _, err := looppkg.ParseResourceFile(file, looppkg.ResourceParseOptions{
+				Source:                 source,
+				InstalledFromExtension: extensionSkillInstalledFrom(ext.info),
+			})
+			if err != nil {
+				return nil, err
+			}
+			if dirName := filepath.Base(filepath.Dir(file)); dirName != spec.Name {
+				return nil, fmt.Errorf(
+					"loop resource %q directory name %q does not match loop name %q",
+					file,
+					dirName,
+					spec.Name,
+				)
+			}
+			if previous, exists := loaded[spec.Name]; exists {
+				return nil, fmt.Errorf(
+					"duplicate loop resource %q in extension %q: %s and %s",
+					spec.Name,
+					ext.info.Name,
+					previous.FilePath,
+					spec.FilePath,
+				)
+			}
+			loaded[spec.Name] = spec
+		}
+	}
+
+	loops := make([]looppkg.ResourceSpec, 0, len(loaded))
+	for _, name := range sortedKeys(loaded) {
+		loops = append(loops, looppkg.CloneResourceSpec(loaded[name]))
+	}
+	return loops, nil
+}
+
 func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDef, error) {
 	if ext.manifest == nil || len(ext.manifest.Resources.Agents) == 0 {
 		return nil, nil
@@ -1796,15 +1869,15 @@ func hookConfigMatcher(cfg HookMatcherConfig) hookspkg.HookMatcher {
 }
 
 func (m *Manager) resolveCommand(rootDir string, value string) (string, error) {
-	return resolveManifestCommand(rootDir, value, m.getenv)
+	return resolveManifestCommand(rootDir, value, m.getenv, m.aghExecutable)
 }
 
 func (m *Manager) resolveStringSlice(rootDir string, values []string) ([]string, error) {
-	return resolveManifestStringSlice(rootDir, values, m.getenv)
+	return resolveManifestStringSlice(rootDir, values, m.getenv, m.aghExecutable)
 }
 
 func (m *Manager) resolveStringMap(rootDir string, env map[string]string) (map[string]string, error) {
-	return resolveManifestStringMap(rootDir, env, m.getenv)
+	return resolveManifestStringMap(rootDir, env, m.getenv, m.aghExecutable)
 }
 
 func (m *Manager) resolveEnvMap(
@@ -1917,7 +1990,7 @@ func runExtensionRedactionCleanups(cleanups []func()) {
 }
 
 func (m *Manager) resolveString(rootDir string, value string) (string, error) {
-	return resolveManifestString(rootDir, value, m.getenv)
+	return resolveManifestString(rootDir, value, m.getenv, m.aghExecutable)
 }
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
@@ -2154,6 +2227,12 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 		clone.Skills = make([]*skillspkg.Skill, 0, len(ext.skills))
 		for _, skill := range ext.skills {
 			clone.Skills = append(clone.Skills, cloneSkillSnapshot(skill))
+		}
+	}
+	if len(ext.loops) > 0 {
+		clone.Loops = make([]looppkg.ResourceSpec, 0, len(ext.loops))
+		for _, loop := range ext.loops {
+			clone.Loops = append(clone.Loops, looppkg.CloneResourceSpec(loop))
 		}
 	}
 	if ext.initialize != nil {
@@ -2448,6 +2527,17 @@ func skillSourceForExtension(source ExtensionSource) skillspkg.SkillSource {
 	}
 }
 
+func loopSourceForExtension(source ExtensionSource) looppkg.Source {
+	switch source {
+	case SourceBundled, SourceMarketplace:
+		return looppkg.SourceMarketplace
+	case SourceWorkspace:
+		return looppkg.SourceWorkspace
+	default:
+		return looppkg.SourceUser
+	}
+}
+
 func resolveResourcePath(rootDir string, value string) (string, error) {
 	return resolvePathWithinRoot(rootDir, value)
 }
@@ -2507,6 +2597,38 @@ func collectMarkdownFiles(root string) ([]string, error) {
 			return nil
 		}
 		if strings.EqualFold(filepath.Ext(path), ".md") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
+func collectLoopDefinitionFiles(root string) ([]string, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		if looppkg.IsDefinitionFileName(filepath.Base(root)) {
+			return []string{root}, nil
+		}
+		return nil, fmt.Errorf("resource path %q is not a loop YAML file", root)
+	}
+
+	files := make([]string, 0)
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if looppkg.IsDefinitionFileName(entry.Name()) {
 			files = append(files, path)
 		}
 		return nil
@@ -2673,6 +2795,7 @@ func cloneInitializeResponse(src *subprocess.InitializeResponse) *subprocess.Ini
 	cloned := *src
 	cloned.ImplementedMethods = slices.Clone(src.ImplementedMethods)
 	cloned.SupportedHookEvents = slices.Clone(src.SupportedHookEvents)
+	cloned.WatchSourceKinds = slices.Clone(src.WatchSourceKinds)
 	cloned.AcceptedCapabilities.Provides = slices.Clone(src.AcceptedCapabilities.Provides)
 	cloned.AcceptedCapabilities.Actions = slices.Clone(src.AcceptedCapabilities.Actions)
 	cloned.AcceptedCapabilities.Security = slices.Clone(src.AcceptedCapabilities.Security)

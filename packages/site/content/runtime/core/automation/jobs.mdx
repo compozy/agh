@@ -80,10 +80,23 @@ counters. When a scheduled fire is due, AGH advances this cursor and creates the
 before dispatching work to the agent. If the daemon stops after the cursor advances, restart resumes
 from the next cursor and does not dispatch the already claimed fire again.
 
-The current catch-up policy is `skip_missed`. On boot, if the durable cursor points to a fire time
-that passed while the daemon was down, AGH records the missed fire as a misfire and advances the
-cursor to the next future fire. It does not dispatch stale scheduled work during boot
-reconciliation.
+Catch-up policy controls what AGH does when the durable cursor points to one or more fire times
+that passed while the daemon was down.
+
+| Policy     | Behavior on boot                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| `skip`     | Records the missed fire as a misfire and advances the cursor to the next future fire.            |
+| `coalesce` | Dispatches one catch-up fire for the most recent missed instant, then continues from that point. |
+| `replay`   | Dispatches each missed instant in chronological order until the cursor catches up.               |
+
+Non-Loop scheduled jobs default to `skip`. Loop-target jobs are classified by their Loop
+definition: Loops with a `watch-source` node default to `coalesce` so a restart processes one
+fresh observation instead of replaying every missed poll; other Loop-target jobs default to `skip`.
+When a catch-up Loop start is accepted, the created `loop_run.start_metadata` includes the
+automation run id, scheduled instant, catch-up flag, catch-up policy, and original due instant. If a
+catch-up start hits Loop concurrency `forbid`, AGH records the rejected automation run with
+structured catch-up failure metadata and still advances the scheduler cursor so the same fire does
+not replay indefinitely.
 
 Inspect scheduler state through:
 

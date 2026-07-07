@@ -8,6 +8,7 @@
 - Skills and memory tools
 - Network tools
 - Task and autonomy tools
+- Loop tools
 - Config, hooks, automation, extensions, bundles, resources, and MCP tools
 - Observability and bridge tools
 - CLI/HTTP-only management surfaces
@@ -86,6 +87,10 @@ Task tools: `agh__task_list`, `agh__task_read`, `agh__task_create`, `agh__task_c
 Session-bound autonomy tools: `agh__task_run_claim_next`, `agh__task_run_heartbeat`, `agh__task_run_complete`, `agh__task_run_fail`, `agh__task_run_release`, `agh__task_run_review_submit`.
 
 Autonomy tools are bound to the caller session. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
+
+## Loop Tools
+
+Toolset `agh__loops` (13 tools) authors, runs, and manages Loops: `agh__loop_list/_inspect/_validate/_status/_runs/_create/_run/_configure/_pause/_resume/_approve/_stop/_delete`. No `agh__loop_edit` — publish via `agh__loop_create` with `expected_version`. `agh__loop_approve` needs `loops.approve` and denies self-approval. Read references/loops.md.
 
 ## Config, Hooks, Automation, Extensions, Bundles, Resources, And MCP Tools
 

@@ -960,7 +960,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 		if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
 			t.Fatalf("task run JSON = %#v", got)
 		}
-		if got["network_channel"] != "builders" || got["status"] != string(taskpkg.TaskRunStatusRunning) {
+		if got["network_channel"] != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)
 		}
 	})

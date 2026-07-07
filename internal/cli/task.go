@@ -2850,11 +2850,11 @@ func parseOptionalTaskStatus(raw string) (taskpkg.Status, error) {
 func parseOptionalTaskRunStatus(raw string) (taskpkg.RunStatus, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(raw))
 	if trimmed == "" {
-		return "", nil
+		return taskpkg.TaskRunStatusUnknown, nil
 	}
-	status := taskpkg.RunStatus(trimmed)
+	status := taskpkg.ParseRunStatus(trimmed)
 	if err := status.Validate(taskStatusKey); err != nil {
-		return "", fmt.Errorf("cli: %w", err)
+		return taskpkg.TaskRunStatusUnknown, fmt.Errorf("cli: %w", err)
 	}
 	return status, nil
 }
@@ -3814,7 +3814,7 @@ func renderTaskInspectHuman(record *TaskInspectRecord) (string, error) {
 func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 	blocks := []string{
 		renderToonObject("task_inspect", []string{
-			"target",
+			automationTargetKey,
 			taskTaskIDKey,
 			taskTitleKey,
 			taskStatusKey,
@@ -3868,7 +3868,7 @@ func taskInspectRunSectionRows(run *contract.TaskInspectRunPayload) []keyValue {
 	return []keyValue{
 		{Label: taskRunValue, Value: stringOrDash(run.RunID)},
 		{Label: taskTaskValue, Value: stringOrDash(run.TaskID)},
-		{Label: taskStatusValue, Value: stringOrDash(string(run.Status))},
+		{Label: taskStatusValue, Value: stringOrDash(run.Status.String())},
 		{Label: taskAttemptValue, Value: intOrDash(run.Attempt)},
 		{Label: taskSessionValue, Value: stringOrDash(run.BoundSessionID)},
 		{Label: "Claim Hash", Value: stringOrDash(run.ClaimTokenHashTruncated)},
@@ -4236,7 +4236,7 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 			}, []string{
 				detail.Run.ID,
 				detail.Run.TaskID,
-				string(detail.Run.Status),
+				detail.Run.Status.String(),
 				strconv.Itoa(detail.Run.Attempt),
 				detail.Run.SessionID,
 				detail.Task.Title,
@@ -4289,10 +4289,10 @@ func retryTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Task Run Retry", []keyValue{
 				{Label: "Source Run", Value: stringOrDash(record.PreviousRun.ID)},
-				{Label: "Source Status", Value: stringOrDash(string(record.PreviousRun.Status))},
+				{Label: "Source Status", Value: stringOrDash(record.PreviousRun.Status.String())},
 				{Label: "New Run", Value: stringOrDash(record.Run.ID)},
 				{Label: taskTaskValue, Value: stringOrDash(record.Run.TaskID)},
-				{Label: taskStatusValue, Value: stringOrDash(string(record.Run.Status))},
+				{Label: taskStatusValue, Value: stringOrDash(record.Run.Status.String())},
 				{Label: taskAttemptValue, Value: intOrDash(record.Run.Attempt)},
 			}), nil
 		},
@@ -4306,10 +4306,10 @@ func retryTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
 				taskAttemptKey,
 			}, []string{
 				record.PreviousRun.ID,
-				string(record.PreviousRun.Status),
+				record.PreviousRun.Status.String(),
 				record.Run.ID,
 				record.Run.TaskID,
-				string(record.Run.Status),
+				record.Run.Status.String(),
 				strconv.Itoa(record.Run.Attempt),
 			}), nil
 		},
@@ -4322,10 +4322,10 @@ func recoverTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Task Run Recovery", []keyValue{
 				{Label: "Recovered Run", Value: stringOrDash(record.PreviousRun.ID)},
-				{Label: "Recovered Status", Value: stringOrDash(string(record.PreviousRun.Status))},
+				{Label: "Recovered Status", Value: stringOrDash(record.PreviousRun.Status.String())},
 				{Label: "New Run", Value: stringOrDash(record.Run.ID)},
 				{Label: taskTaskValue, Value: stringOrDash(record.Run.TaskID)},
-				{Label: taskStatusValue, Value: stringOrDash(string(record.Run.Status))},
+				{Label: taskStatusValue, Value: stringOrDash(record.Run.Status.String())},
 				{Label: taskAttemptValue, Value: intOrDash(record.Run.Attempt)},
 			}), nil
 		},
@@ -4339,10 +4339,10 @@ func recoverTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
 				taskAttemptKey,
 			}, []string{
 				record.PreviousRun.ID,
-				string(record.PreviousRun.Status),
+				record.PreviousRun.Status.String(),
 				record.Run.ID,
 				record.Run.TaskID,
-				string(record.Run.Status),
+				record.Run.Status.String(),
 				strconv.Itoa(record.Run.Attempt),
 			}), nil
 		},
@@ -4380,7 +4380,7 @@ func bulkForceTaskRunStatus(item BulkForceTaskRunItemRecord) string {
 	if item.Run == nil {
 		return ""
 	}
-	return string(item.Run.Status)
+	return item.Run.Status.String()
 }
 
 func bulkForceTaskRunError(item BulkForceTaskRunItemRecord) string {

@@ -49,11 +49,11 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	)
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
-const taskRunSelectColumnsSQL = `id, task_id, status, attempt, previous_run_id, failure_kind,
+const taskRunSelectColumnsSQL = `id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
 	network_channel, designation_group_id, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
-	claimed_at, started_at, ended_at, error, metadata_json, result_json, review_required,
+	claimed_at, started_at, ended_at, tokens_used, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
 	review_round, continuation_reason, missing_work_json, next_round_guidance`
 
@@ -148,7 +148,11 @@ func (g *GlobalDB) WithDeleteTaskTransaction(
 	})
 }
 
-func (g *GlobalDB) deleteTaskWithExecutor(ctx context.Context, exec taskSQLExecutor, id string) error {
+func (g *GlobalDB) deleteTaskWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	id string,
+) error {
 	trimmedID, err := requireTaskValue(id, "task id")
 	if err != nil {
 		return err
@@ -168,7 +172,11 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 	}
 
 	if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
-		return fmt.Errorf("%w: task %q has child tasks; delete children first", taskpkg.ErrValidation, id)
+		return fmt.Errorf(
+			"%w: task %q has child tasks; delete children first",
+			taskpkg.ErrValidation,
+			id,
+		)
 	}
 	return fmt.Errorf("store: delete task %q: %w", id, err)
 }
@@ -458,24 +466,30 @@ func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 	})
 }
 
-func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
+func updateTaskRunRecordWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+) error {
 	lineage := taskRunReviewLineage(run)
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE task_runs
-		 SET task_id = ?, status = ?, attempt = ?, previous_run_id = ?, failure_kind = ?, claimed_by_kind = ?,
-		     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
+		 SET task_id = ?, run_kind = ?, loop_run_id = ?, status = ?, attempt = ?, previous_run_id = ?,
+		     failure_kind = ?, claimed_by_kind = ?, claimed_by_ref = ?, session_id = ?, origin_kind = ?,
 		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
 		     designation_group_id = ?, claim_token = ?, claim_token_hash = ?, lease_until = ?,
 		     heartbeat_at = ?, coordination_channel_id = ?, queued_at = ?,
-		     claimed_at = ?, started_at = ?, ended_at = ?, error = ?,
+		     claimed_at = ?, started_at = ?, ended_at = ?, tokens_used = ?, error = ?,
 		     metadata_json = ?, result_json = ?, review_required = ?,
 		     review_request_round = ?, review_policy_snapshot = ?, review_request_id = ?,
 		     parent_run_id = ?, review_id = ?, review_round = ?, continuation_reason = ?,
 		     missing_work_json = ?, next_round_guidance = ?
 		 WHERE id = ?`,
 		run.TaskID,
-		string(run.Status),
+		run.RunKind.String(),
+		store.NullableString(run.LoopRunID),
+		run.Status.String(),
 		run.Attempt,
 		store.NullableString(run.PreviousRunID),
 		strings.TrimSpace(run.FailureKind),
@@ -496,6 +510,7 @@ func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 		nullableTaskTimestamp(run.ClaimedAt),
 		nullableTaskTimestamp(run.StartedAt),
 		nullableTaskTimestamp(run.EndedAt),
+		run.TokensUsed,
 		store.NullableString(run.Error),
 		nullableTaskJSON(run.Metadata),
 		nullableTaskJSON(run.Result),
@@ -529,7 +544,8 @@ func allowsManagedTaskRunStartSessionTransfer(current taskpkg.Run, next taskpkg.
 		strings.TrimSpace(current.ClaimedBy.Ref) != currentSessionID {
 		return false
 	}
-	if currentStatus == taskpkg.TaskRunStatusClaimed && nextStatus == taskpkg.TaskRunStatusStarting {
+	if currentStatus == taskpkg.TaskRunStatusClaimed &&
+		nextStatus == taskpkg.TaskRunStatusStarting {
 		return true
 	}
 	return currentStatus == taskpkg.TaskRunStatusStarting &&
@@ -568,7 +584,10 @@ func (g *GlobalDB) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, erro
 }
 
 // ListTaskRuns returns persisted runs that match the supplied filters.
-func (g *GlobalDB) ListTaskRuns(ctx context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error) {
+func (g *GlobalDB) ListTaskRuns(
+	ctx context.Context,
+	query taskpkg.RunQuery,
+) ([]taskpkg.Run, error) {
 	if err := g.checkReady(ctx, "list task runs"); err != nil {
 		return nil, err
 	}
@@ -589,7 +608,7 @@ func (g *GlobalDB) listTaskRunsWithExecutor(
 	sqlQuery := `SELECT ` + taskRunSelectColumnsSQL + ` FROM task_runs`
 	where, args := store.BuildClauses(
 		store.StringClause("task_id", normalized.TaskID),
-		store.StringClause("status", string(normalized.Status)),
+		store.StringClause("status", normalized.Status.String()),
 		store.StringClause("session_id", normalized.SessionID),
 		store.StringClause("coordination_channel_id", normalized.CoordinationChannelID),
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
@@ -641,7 +660,10 @@ func (s *deleteTaskTxStore) DeleteTask(ctx context.Context, id string) error {
 	return s.global.deleteTaskWithExecutor(ctx, s.exec, id)
 }
 
-func (s *deleteTaskTxStore) CountDirectChildren(ctx context.Context, parentTaskID string) (int, error) {
+func (s *deleteTaskTxStore) CountDirectChildren(
+	ctx context.Context,
+	parentTaskID string,
+) (int, error) {
 	return s.global.countDirectChildrenWithExecutor(ctx, s.exec, parentTaskID)
 }
 
@@ -698,7 +720,7 @@ func (g *GlobalDB) ListTaskRunsByStatus(
 			return nil, err
 		}
 		placeholders = append(placeholders, "?")
-		args = append(args, string(normalized))
+		args = append(args, normalized.String())
 	}
 
 	rows, err := g.db.QueryContext(
@@ -754,11 +776,15 @@ func (g *GlobalDB) CountActiveSessionBindings(ctx context.Context, sessionID str
 		 WHERE session_id = ?
 		   AND status IN (?, ?, ?)`,
 		trimmedSessionID,
-		string(taskpkg.TaskRunStatusClaimed),
-		string(taskpkg.TaskRunStatusStarting),
-		string(taskpkg.TaskRunStatusRunning),
+		taskpkg.TaskRunStatusClaimed.String(),
+		taskpkg.TaskRunStatusStarting.String(),
+		taskpkg.TaskRunStatusRunning.String(),
 	).Scan(&count); err != nil {
-		return 0, fmt.Errorf("store: count active task-run session bindings for %q: %w", trimmedSessionID, err)
+		return 0, fmt.Errorf(
+			"store: count active task-run session bindings for %q: %w",
+			trimmedSessionID,
+			err,
+		)
 	}
 
 	return count, nil
@@ -816,20 +842,23 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO task_runs (
-			id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
+			id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
 			claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
 			network_channel, designation_group_id, claim_token, claim_token_hash, lease_until,
 			heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
-			error, metadata_json, result_json, review_required, review_request_round,
+			tokens_used, error, metadata_json, result_json, review_required, review_request_round,
 			review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
 			continuation_reason, missing_work_json, next_round_guidance
 		) VALUES (
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		)`,
 		run.ID,
 		run.TaskID,
-		string(run.Status),
+		run.RunKind.String(),
+		store.NullableString(run.LoopRunID),
+		run.Status.String(),
 		run.Attempt,
 		store.NullableString(run.PreviousRunID),
 		strings.TrimSpace(run.FailureKind),
@@ -850,6 +879,7 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 		nullableTaskTimestamp(run.ClaimedAt),
 		nullableTaskTimestamp(run.StartedAt),
 		nullableTaskTimestamp(run.EndedAt),
+		run.TokensUsed,
 		store.NullableString(run.Error),
 		nullableTaskJSON(run.Metadata),
 		nullableTaskJSON(run.Result),
@@ -1211,6 +1241,8 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	if err := scanner.Scan(
 		&run.ID,
 		&run.TaskID,
+		&fields.runKind,
+		&fields.loopRunID,
 		&fields.status,
 		&run.Attempt,
 		&fields.previousRunID,
@@ -1232,6 +1264,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.claimedAtRaw,
 		&fields.startedAtRaw,
 		&fields.endedAtRaw,
+		&fields.tokensUsed,
 		&fields.runErr,
 		&fields.metadataJSON,
 		&fields.resultJSON,
@@ -1253,6 +1286,8 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 
 type taskRunScanFields struct {
 	status               string
+	runKind              string
+	loopRunID            sql.NullString
 	previousRunID        sql.NullString
 	failureKind          string
 	claimedByKind        sql.NullString
@@ -1271,6 +1306,7 @@ type taskRunScanFields struct {
 	claimedAtRaw         sql.NullString
 	startedAtRaw         sql.NullString
 	endedAtRaw           sql.NullString
+	tokensUsed           int64
 	runErr               sql.NullString
 	metadataJSON         sql.NullString
 	resultJSON           sql.NullString
@@ -1289,6 +1325,8 @@ type taskRunScanFields struct {
 func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	assignScannedTaskRunRecord(
 		&run,
+		fields.runKind,
+		fields.loopRunID,
 		fields.status,
 		fields.previousRunID,
 		fields.failureKind,
@@ -1321,6 +1359,7 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	if err := assignTaskMetadata(&run.Result, fields.resultJSON, "task_run.result_json"); err != nil {
 		return taskpkg.Run{}, err
 	}
+	run.TokensUsed = fields.tokensUsed
 	run.Review = taskRunReviewLineageFromScan(fields)
 	run = normalizeTaskRunRecord(run)
 	if err := run.Validate(); err != nil {
@@ -1398,6 +1437,8 @@ func assignTaskRecordTimestamps(
 
 func assignScannedTaskRunRecord(
 	run *taskpkg.Run,
+	runKind string,
+	loopRunID sql.NullString,
 	status string,
 	previousRunID sql.NullString,
 	failureKind string,
@@ -1408,12 +1449,14 @@ func assignScannedTaskRunRecord(
 	idempotencyKey sql.NullString,
 	networkChannel sql.NullString,
 	designationGroupID string,
-	claimToken sql.NullString,
+	_ sql.NullString,
 	claimTokenHash sql.NullString,
 	coordChannelID sql.NullString,
 	runErr sql.NullString,
 ) {
-	run.Status = taskpkg.RunStatus(strings.TrimSpace(status))
+	run.RunKind = taskpkg.ParseRunKind(runKind)
+	run.LoopRunID = taskNullStringValue(loopRunID)
+	run.Status = taskpkg.ParseRunStatus(status)
 	run.PreviousRunID = taskNullStringValue(previousRunID)
 	run.FailureKind = strings.TrimSpace(failureKind)
 	if claimedByKind.Valid || claimedByRef.Valid {
@@ -1427,7 +1470,6 @@ func assignScannedTaskRunRecord(
 	run.IdempotencyKey = taskNullStringValue(idempotencyKey)
 	run.NetworkChannel = taskNullStringValue(networkChannel)
 	run.DesignationGroupID = strings.TrimSpace(designationGroupID)
-	run.ClaimToken = taskNullStringValue(claimToken)
 	run.ClaimTokenHash = taskNullStringValue(claimTokenHash)
 	run.CoordinationChannelID = taskNullStringValue(coordChannelID)
 	run.Error = taskNullStringValue(runErr)
@@ -1563,6 +1605,11 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized := run
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
+	normalized.RunKind = normalized.RunKind.Normalize()
+	if normalized.RunKind == taskpkg.RunKindUnknown {
+		normalized.RunKind = taskpkg.RunKindWorker
+	}
+	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.Status = normalized.Status.Normalize()
 	normalized.PreviousRunID = strings.TrimSpace(normalized.PreviousRunID)
 	normalized.FailureKind = strings.TrimSpace(normalized.FailureKind)
@@ -1578,11 +1625,12 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
-	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
 	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)
 	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
 	normalized.RequiredCapabilities = normalizeTaskRunCapabilityIDs(normalized.RequiredCapabilities)
-	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(normalized.PreferredCapabilities)
+	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(
+		normalized.PreferredCapabilities,
+	)
 	normalized.Review = normalizeTaskRunReviewLineage(normalized.Review)
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)

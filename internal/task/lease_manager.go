@@ -216,12 +216,14 @@ func (m *Service) CompleteRunLease(
 	defer advisoryCancel()
 	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
-	autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
-	defer cancel()
-	m.autoEnqueueReadyDependents(autoCtx, run.TaskID, autoEnqueueTrigger{
-		Kind: autoEnqueueTriggerDependencyCompletion,
-		Ref:  run.ID,
-	}, actor)
+	if !isLoopNodeRun(run) {
+		autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
+		defer cancel()
+		m.autoEnqueueReadyDependents(autoCtx, run.TaskID, autoEnqueueTrigger{
+			Kind: autoEnqueueTriggerDependencyCompletion,
+			Ref:  run.ID,
+		}, actor)
+	}
 	return &run, nil
 }
 
@@ -360,6 +362,10 @@ func (m *Service) autoEnqueueReadyDependents(
 		taskIDs = append(taskIDs, dependentID)
 	}
 	m.autoEnqueueReadyTasks(ctx, taskIDs, trigger, actor)
+}
+
+func isLoopNodeRun(run Run) bool {
+	return strings.TrimSpace(run.LoopRunID) != "" && run.RunKind.Normalize() != RunKindCoordinator
 }
 
 func (m *Service) autoEnqueueReadyTaskDetached(
@@ -759,7 +765,6 @@ func requeueSessionRunLease(run Run) Run {
 	run.ClaimedBy = nil
 	run.ClaimedAt = time.Time{}
 	run.SessionID = ""
-	run.ClaimToken = ""
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
