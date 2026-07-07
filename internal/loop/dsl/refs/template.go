@@ -67,6 +67,16 @@ func funcMap() template.FuncMap {
 	}
 }
 
+// allowedBuiltinFunctions lists text/template builtins the walker accepts.
+// Builtins are always available at render time, so rejecting them here would
+// make validation stricter than the runtime contract; only side-effect-free
+// builtins loops rely on are allowed.
+func allowedBuiltinFunctions() map[string]struct{} {
+	return map[string]struct{}{
+		"len": {},
+	}
+}
+
 func templateJSON(value any) (string, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -254,7 +264,9 @@ func (w *templateWalker) validateCommand(cmd *parse.CommandNode, state templateS
 		return nil
 	}
 	if ident, ok := cmd.Args[0].(*parse.IdentifierNode); ok {
-		if _, allowed := funcMap()[ident.Ident]; !allowed {
+		_, curated := funcMap()[ident.Ident]
+		_, builtin := allowedBuiltinFunctions()[ident.Ident]
+		if !curated && !builtin {
 			return fmt.Errorf("unsupported template function %q", ident.Ident)
 		}
 	}

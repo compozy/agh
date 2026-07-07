@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/dsl/refs"
 )
 
 func TestCollectionItemsShouldResolveFiniteFanOutArrays(t *testing.T) {
@@ -96,6 +97,90 @@ func TestResolveFanOutCollectionShouldRenderTemplateCollections(t *testing.T) {
 		}
 		if got, want := items[0], "A"; got != want {
 			t.Fatalf("first item = %v, want %q", got, want)
+		}
+	})
+}
+
+func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+			{ID: "body", Class: dsl.NodeClassAction, Kind: "run-agent"},
+		},
+		Edges: []dsl.Edge{{From: "fan", To: "body"}},
+	}
+	topology := newControlTopology(graph)
+	fanOutOutputs := func(t *testing.T, batchSize int, items []any) []GenerationOutput {
+		t.Helper()
+		materialization, terminal := buildFanOutMaterialization(dsl.Node{ID: "fan", BatchSize: batchSize}, items, 1)
+		if terminal != nil {
+			t.Fatalf("buildFanOutMaterialization() terminal = %#v, want nil", terminal)
+		}
+		ref, err := fanOutMaterializationRef(materialization)
+		if err != nil {
+			t.Fatalf("fanOutMaterializationRef() error = %v", err)
+		}
+		return []GenerationOutput{{NodeID: "fan", ItemIndex: 0, Status: "succeeded", OutputRef: ref}}
+	}
+
+	t.Run("Should expose the element itself when batch_size is 1", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := fanOutOutputs(t, 1, []any{
+			map[string]any{"title": "Task A"},
+			map[string]any{"title": "Task B"},
+		})
+		namespace, err := runtimeNamespace(Run{}, 1, graph, topology, outputs, "body", 1)
+		if err != nil {
+			t.Fatalf("runtimeNamespace() error = %v", err)
+		}
+		item, ok := namespace["item"].(map[string]any)
+		if !ok {
+			t.Fatalf("namespace item = %#v, want the fanned element object", namespace["item"])
+		}
+		if got, want := item["title"], "Task B"; got != want {
+			t.Fatalf("item title = %v, want %q", got, want)
+		}
+		rendered, err := refs.RenderTemplateString("body.prompt", "{{ .item.title }}", namespace)
+		if err != nil {
+			t.Fatalf("RenderTemplateString() error = %v", err)
+		}
+		if got, want := rendered, "Task B"; got != want {
+			t.Fatalf("rendered prompt = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should expose the chunk slice when batch_size is greater than 1", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := fanOutOutputs(t, 2, []any{
+			map[string]any{"id": "A"},
+			map[string]any{"id": "B"},
+			map[string]any{"id": "C"},
+		})
+		namespace, err := runtimeNamespace(Run{}, 1, graph, topology, outputs, "body", 1)
+		if err != nil {
+			t.Fatalf("runtimeNamespace() error = %v", err)
+		}
+		chunk, ok := namespace["item"].([]any)
+		if !ok {
+			t.Fatalf("namespace item = %#v, want chunk slice even for a short final chunk", namespace["item"])
+		}
+		if got, want := len(chunk), 1; got != want {
+			t.Fatalf("chunk len = %d, want %d", got, want)
+		}
+		rendered, err := refs.RenderTemplateString(
+			"body.prompt",
+			"{{ len .item }}:{{ range .item }}{{ .id }}{{ end }}",
+			namespace,
+		)
+		if err != nil {
+			t.Fatalf("RenderTemplateString() error = %v", err)
+		}
+		if got, want := rendered, "1:C"; got != want {
+			t.Fatalf("rendered prompt = %q, want %q", got, want)
 		}
 	})
 }

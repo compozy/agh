@@ -17,6 +17,12 @@ inputs:
   fixer:
     type: agent
     default: review_fixer
+  include_nitpicks:
+    type: boolean
+    default: false
+  auto_commit:
+    type: boolean
+    default: false
   auto_push:
     type: boolean
     default: false
@@ -71,6 +77,7 @@ graph:
       kind: ext__dev_cycle__coderabbit_fetch_unresolved
       params:
         pr: "{{ .inputs.pr }}"
+        include_nitpicks: "{{ .inputs.include_nitpicks }}"
       produces:
         pr: string
         unresolved_count: integer
@@ -90,26 +97,62 @@ graph:
       params:
         agent: "{{ .inputs.fixer }}"
         prompt: |
-          Remediate this batch of CodeRabbit review issues using the installed cy-fix-reviews
-          discipline, then verify once with cy-final-verify. The issues below are the entire
-          scope of this run; touch nothing else.
+          Kickoff directive:
+          Remediate this batch of {{ len .item }} CodeRabbit review issues now. This prompt is
+          the operator's authorization to make scoped code changes for PR #{{ .inputs.pr }} —
+          do NOT ask for confirmation and do NOT reply with a greeting before starting.
+
+          Required skills:
+          - systematic-debugging: root-cause triage before any fix.
+          - no-workarounds: complete fixes only, never symptom patches.
+          - cy-fix-reviews: the remediation workflow for review issue batches.
+          - cy-final-verify: required before any completion claim or commit; use it to identify
+            and run the repository's real verification commands.
+
+          Scope and tracking:
+          - Treat the issues below as the entire batch scope — touch nothing else.
+          - Do not resolve provider threads, push, call `gh` mutations, or mutate provider state.
+          - Preserve unrelated worktree changes.
+          - Keep the batch all-or-nothing: every issue below must receive one structured result;
+            a batch with unhandled issues fails as a whole.
+
+          Execution mode:
+          - auto_commit: {{ .inputs.auto_commit }}
+          - auto_push: {{ .inputs.auto_push }}
+          {{ if .inputs.auto_push -}}
+          - Because auto_push is true, create exactly one local fix commit after verification;
+            the loop's push node owns the actual push.
+          {{ else if .inputs.auto_commit -}}
+          - Because auto_commit is true, create exactly one local fix commit after verification
+            and leave the branch unpushed.
+          {{ else -}}
+          - Because auto_commit and auto_push are false, leave verified changes uncommitted for
+            manual review.
+          {{ end }}
 
           {{ range .item }}
           Issue {{ .id }} - {{ .title }}
           File: {{ .file }}:{{ .line }} (severity: {{ .severity }})
+          Provider ref: {{ .provider_ref }}
 
           {{ .body }}
           {{ end }}
 
-          Contract, per issue:
-          1. Triage first: decide valid or invalid with reasoning.
-          2. If valid, implement a complete fix with tests.
-          3. If invalid, document why.
+          Contract:
+          1. Read every issue in this batch completely before editing code.
+          2. Per issue, triage first with local evidence.
+          3. If valid, implement a complete root-cause fix with focused tests or explain why the
+             existing canonical suite already covers it.
+          4. If invalid, use `resolution: documented` and document the evidence in `summary`;
+             do not mark it fixed.
+          5. Use `cy-final-verify` to identify and run the repository's real verification
+             commands for the touched surfaces, and record exact commands and outcomes.
 
-          Your structured output must contain a result for every issue in this batch. Do not
-          resolve provider threads, push, or call gh mutations; the loop owns provider-side
-          resolution.
-          {{ if .inputs.auto_push }}Make exactly one commit for this batch after verification.{{ end }}
+          Closing directive:
+          Return `results` with one entry per issue id. Every result must use `resolution: fixed`
+          or `resolution: documented` and a concise `summary`; invalid issues use
+          `resolution: documented`.
+          Follow the execution mode above exactly for commit/push handling.
         output_schema:
           type: object
           required: [results]
@@ -118,7 +161,7 @@ graph:
               type: array
               items:
                 type: object
-                required: [id, triage]
+                required: [id, triage, resolution, summary]
                 properties:
                   id:
                     type: string
@@ -147,7 +190,8 @@ graph:
           agent: reviewer
           rubric: >
             Every fetched issue across all batches has a triage decision and every valid issue has
-            a complete, tested fix in the diff. Emit each unhandled issue id as a blocking issue.
+            a complete, tested fix in the diff. Emit each unhandled issue id as a blocking issue —
+            a batch with unhandled issues is a failed batch.
       verdict_policy: revise_until_clean
       on_result:
         pass: resolve_threads

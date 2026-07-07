@@ -17,7 +17,12 @@ import (
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 )
 
-const codeRabbitBotLogin = "coderabbitai"
+const (
+	codeRabbitBotLogin = "coderabbitai[bot]"
+	ghAPIArg           = "api"
+	ghGraphQLArg       = "graphql"
+	gitRevParseArg     = "rev-parse"
+)
 
 type codeRabbitProvider struct {
 	runner commandRunner
@@ -47,6 +52,18 @@ func (p *codeRabbitProvider) FetchUnresolved(
 		return codeRabbitFetchOutput{}, err
 	}
 	issues := unresolvedCodeRabbitIssues(payload.Data.Repository.PullRequest.ReviewThreads.Nodes)
+	if input.IncludeNitpicks {
+		owner, name, splitErr := splitRepo(repo)
+		if splitErr != nil {
+			return codeRabbitFetchOutput{}, splitErr
+		}
+		reviews, fetchErr := p.fetchPullRequestReviews(ctx, owner, name, pr)
+		if fetchErr != nil {
+			return codeRabbitFetchOutput{}, fetchErr
+		}
+		issues = append(issues, parseReviewBodyCommentIssues(reviews, codeRabbitBotLogin)...)
+	}
+	sortCodeRabbitIssues(issues)
 	return codeRabbitFetchOutput{
 		PR:              pr,
 		UnresolvedCount: len(issues),
@@ -65,10 +82,13 @@ func (p *codeRabbitProvider) ResolveThreads(
 	if err != nil {
 		return codeRabbitResolveOutput{}, err
 	}
-	threadIDs := resolveThreadIDs(input.Issues, input.Results)
+	threadIDs, err := resolveThreadIDs(input.Issues, input.Results)
+	if err != nil {
+		return codeRabbitResolveOutput{}, err
+	}
 	for _, threadID := range threadIDs {
 		if _, err := p.runner.Run(ctx, "gh", []string{
-			"api", "graphql", "-f",
+			ghAPIArg, ghGraphQLArg, "-f",
 			"query=mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}",
 			"-F", "id=" + threadID,
 		}, ""); err != nil {
@@ -98,20 +118,47 @@ func (p *codeRabbitProvider) Poll(
 	if err != nil {
 		return watchpkg.PollResponse{}, err
 	}
-	responsePayload := buildWatchPayload(pr, payload.Data.Repository.PullRequest)
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return watchpkg.PollResponse{}, err
+	}
+	localHead, err := p.currentGitHead(ctx)
+	if err != nil {
+		return watchpkg.PollResponse{}, err
+	}
+	statuses, err := p.fetchCommitStatuses(ctx, owner, name, payload.Data.Repository.PullRequest.HeadRefOid)
+	if err != nil {
+		return watchpkg.PollResponse{}, err
+	}
+	latestStatus, hasStatus := latestCodeRabbitCommitStatus(statuses)
+	reviews, err := p.fetchPullRequestReviews(ctx, owner, name, pr)
+	if err != nil {
+		return watchpkg.PollResponse{}, err
+	}
+	responsePayload, err := buildWatchPayload(
+		pr,
+		payload.Data.Repository.PullRequest.HeadRefOid,
+		localHead,
+		reviews,
+		latestStatus,
+		hasStatus,
+	)
+	if err != nil {
+		return watchpkg.PollResponse{}, err
+	}
 	encoded, err := json.Marshal(responsePayload)
 	if err != nil {
 		return watchpkg.PollResponse{}, fmt.Errorf("dev-cycle: encode watch payload: %w", err)
 	}
 	digest := digestBytes(encoded)
-	if req.ExpectedStateDigest == digest {
-		return watchpkg.PollResponse{Ready: false, StateDigest: digest}, nil
-	}
-	ready := responsePayload.ProviderState.State == "current_reviewed" ||
-		responsePayload.ProviderState.State == "current_settled"
+	ready := responsePayload.ProviderState.State == codeRabbitWatchCurrentReviewed ||
+		responsePayload.ProviderState.State == codeRabbitWatchCurrentSettled
 	var settledAt *time.Time
 	if ready {
 		settledAt = quietPeriodDeadline(responsePayload, spec.QuietPeriod)
+	}
+	if req.ExpectedStateDigest == digest && !ready {
+		return watchpkg.PollResponse{Ready: false, StateDigest: digest}, nil
 	}
 	return watchpkg.PollResponse{
 		Ready:       ready,
@@ -145,6 +192,18 @@ func (p *codeRabbitProvider) currentRepository(ctx context.Context) (string, err
 	return parseGitHubRemote(strings.TrimSpace(string(remote)))
 }
 
+func (p *codeRabbitProvider) currentGitHead(ctx context.Context) (string, error) {
+	output, err := p.runner.Run(ctx, "git", []string{gitRevParseArg, "HEAD"}, "")
+	if err != nil {
+		return "", fmt.Errorf("dev-cycle: resolve local HEAD: %w", err)
+	}
+	head := strings.TrimSpace(string(output))
+	if head == "" {
+		return "", fmt.Errorf("dev-cycle: local HEAD is empty")
+	}
+	return head, nil
+}
+
 func (p *codeRabbitProvider) fetchPRGraph(ctx context.Context, repo string, pr string) (graphQLResponse, error) {
 	owner, name, err := splitRepo(repo)
 	if err != nil {
@@ -156,12 +215,11 @@ query($owner:String!,$repo:String!,$pr:Int!){
     pullRequest(number:$pr){
       headRefOid
       reviewThreads(first:100){nodes{id isResolved comments(first:20){nodes{body path line author{login} createdAt}}}}
-      reviews(first:100){nodes{id state submittedAt author{login}}}
     }
   }
 }`
 	output, err := p.runner.Run(ctx, "gh", []string{
-		"api", "graphql",
+		ghAPIArg, ghGraphQLArg,
 		"-f", "query=" + query,
 		"-F", "owner=" + owner,
 		"-F", "repo=" + name,
@@ -197,6 +255,7 @@ func unresolvedCodeRabbitIssues(threads []graphQLThread) []codeRabbitIssue {
 			BodyRef:     digestString(comment.Body),
 			File:        strings.TrimSpace(comment.Path),
 			Severity:    "review",
+			Author:      strings.TrimSpace(comment.Author.Login),
 			ProviderRef: thread.ID,
 		}
 		if comment.Line != nil {
@@ -205,6 +264,24 @@ func unresolvedCodeRabbitIssues(threads []graphQLThread) []codeRabbitIssue {
 		issues = append(issues, issue)
 	}
 	return issues
+}
+
+func sortCodeRabbitIssues(issues []codeRabbitIssue) {
+	slices.SortFunc(issues, func(a, b codeRabbitIssue) int {
+		if a.File != b.File {
+			return strings.Compare(a.File, b.File)
+		}
+		if a.Line != b.Line {
+			return a.Line - b.Line
+		}
+		if a.Title != b.Title {
+			return strings.Compare(a.Title, b.Title)
+		}
+		if a.ReviewHash != b.ReviewHash {
+			return strings.Compare(a.ReviewHash, b.ReviewHash)
+		}
+		return strings.Compare(a.ProviderRef, b.ProviderRef)
+	})
 }
 
 func firstCodeRabbitComment(comments []graphQLComment) (graphQLComment, bool) {
@@ -216,87 +293,77 @@ func firstCodeRabbitComment(comments []graphQLComment) (graphQLComment, bool) {
 	return graphQLComment{}, false
 }
 
-func buildWatchPayload(pr string, pullRequest graphQLPullRequest) codeRabbitWatchPayload {
-	review := latestCodeRabbitReview(pullRequest.Reviews.Nodes)
-	state := "current_settled"
-	switch strings.ToUpper(strings.TrimSpace(review.State)) {
-	case "COMMENTED", "CHANGES_REQUESTED", "APPROVED":
-		state = "current_reviewed"
-	case "":
-		state = "pending"
+func resolveThreadIDs(issues []codeRabbitIssue, results []codeRabbitFixEntry) ([]string, error) {
+	acceptedIssueIDs := acceptedCodeRabbitIssueIDs(results)
+	acceptedRefs := acceptedCodeRabbitProviderRefs(results)
+	if len(issues) > 0 && len(acceptedIssueIDs) == 0 && len(acceptedRefs) == 0 {
+		return nil, fmt.Errorf(
+			"%w: CodeRabbit resolve requires at least one result with resolution fixed or documented",
+			watchpkg.ErrSpecInvalid,
+		)
 	}
-	return codeRabbitWatchPayload{
-		PR: pr,
-		Review: codeRabbitReview{
-			HeadSHA:     pullRequest.HeadRefOid,
-			ReviewID:    review.ID,
-			ReviewState: strings.ToLower(strings.TrimSpace(review.State)),
-		},
-		ProviderState: codeRabbitStatus{
-			State:     state,
-			UpdatedAt: review.SubmittedAt,
-		},
-		SubmittedAt: review.SubmittedAt,
-		Metadata: map[string]string{
-			"provider": "coderabbit",
-		},
+	if len(issues) == 0 || (len(acceptedIssueIDs) == 0 && len(acceptedRefs) == 0) {
+		return nil, nil
 	}
-}
-
-func latestCodeRabbitReview(reviews []graphQLReviewNode) graphQLReviewNode {
-	matches := make([]graphQLReviewNode, 0)
-	for _, review := range reviews {
-		if strings.EqualFold(strings.TrimSpace(review.Author.Login), codeRabbitBotLogin) {
-			matches = append(matches, review)
-		}
-	}
-	slices.SortFunc(matches, func(a, b graphQLReviewNode) int {
-		if a.SubmittedAt == nil && b.SubmittedAt == nil {
-			return 0
-		}
-		if a.SubmittedAt == nil {
-			return -1
-		}
-		if b.SubmittedAt == nil {
-			return 1
-		}
-		return a.SubmittedAt.Compare(*b.SubmittedAt)
-	})
-	if len(matches) == 0 {
-		return graphQLReviewNode{}
-	}
-	return matches[len(matches)-1]
-}
-
-func resolveThreadIDs(issues []codeRabbitIssue, results []codeRabbitFixEntry) []string {
 	accepted := make(map[string]bool)
-	for _, result := range results {
-		resolution := strings.ToLower(strings.TrimSpace(result.Resolution))
-		triage := strings.ToLower(strings.TrimSpace(result.Triage))
-		if result.ProviderRef != "" && codeRabbitResolutionAccepted(resolution, triage) {
-			accepted[result.ProviderRef] = true
-		}
-		if result.ID != "" && codeRabbitResolutionAccepted(resolution, triage) {
-			accepted[result.ID] = true
-		}
+	for id := range acceptedIssueIDs {
+		accepted[id] = true
+	}
+	for providerRef := range acceptedRefs {
+		accepted[providerRef] = true
 	}
 	threadIDs := make([]string, 0)
 	for _, issue := range issues {
-		if issue.ProviderRef == "" {
+		if !isResolvableCodeRabbitThreadRef(issue.ProviderRef) {
 			continue
 		}
-		if len(results) == 0 || accepted[issue.ID] || accepted[issue.ProviderRef] {
+		if accepted[issue.ID] || accepted[issue.ProviderRef] {
 			threadIDs = append(threadIDs, issue.ProviderRef)
 		}
 	}
 	slices.Sort(threadIDs)
-	return slices.Compact(threadIDs)
+	return slices.Compact(threadIDs), nil
 }
 
-func codeRabbitResolutionAccepted(resolution string, triage string) bool {
+func isResolvableCodeRabbitThreadRef(providerRef string) bool {
+	trimmed := strings.TrimSpace(providerRef)
+	return trimmed != "" && !strings.HasPrefix(trimmed, reviewBodyCommentProviderRefPrefix)
+}
+
+func acceptedCodeRabbitIssueIDs(results []codeRabbitFixEntry) map[string]struct{} {
+	accepted := make(map[string]struct{})
+	for _, result := range results {
+		if !codeRabbitResolutionAccepted(result.Resolution) {
+			continue
+		}
+		id := strings.TrimSpace(result.ID)
+		if id == "" {
+			continue
+		}
+		accepted[id] = struct{}{}
+	}
+	return accepted
+}
+
+func acceptedCodeRabbitProviderRefs(results []codeRabbitFixEntry) map[string]struct{} {
+	accepted := make(map[string]struct{})
+	for _, result := range results {
+		if !codeRabbitResolutionAccepted(result.Resolution) {
+			continue
+		}
+		providerRef := strings.TrimSpace(result.ProviderRef)
+		if providerRef == "" {
+			continue
+		}
+		accepted[providerRef] = struct{}{}
+	}
+	return accepted
+}
+
+func codeRabbitResolutionAccepted(resolution string) bool {
+	resolution = strings.ToLower(strings.TrimSpace(resolution))
 	return resolution == codeRabbitFixed ||
-		resolution == codeRabbitDocumented ||
-		triage == codeRabbitTriageValid
+		resolution == codeRabbitDocumented
 }
 
 func normalizePR(value any) (string, error) {

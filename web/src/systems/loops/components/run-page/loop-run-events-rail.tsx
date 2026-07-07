@@ -23,8 +23,7 @@ function clock(at: string): string {
 }
 
 /**
- * The "Live events" rail (§4.4): the streamed SSE frames, newest-first. The daemon
- * emits only `status_changed` today; the rail fills as the forward event kinds ship.
+ * The "Live events" rail (§4.4): the streamed rich SSE frames, newest-first.
  */
 export function LoopRunEventsRail({ events, isLive }: LoopRunEventsRailProps) {
   return (

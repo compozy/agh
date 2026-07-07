@@ -1,9 +1,55 @@
 package devcycle
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+)
 
 type codeRabbitFetchInput struct {
-	PR any `json:"pr"`
+	PR              any  `json:"pr"`
+	IncludeNitpicks bool `json:"include_nitpicks,omitempty"`
+}
+
+func (i *codeRabbitFetchInput) UnmarshalJSON(raw []byte) error {
+	type fetchInputWire struct {
+		PR              any `json:"pr"`
+		IncludeNitpicks any `json:"include_nitpicks,omitempty"`
+	}
+	var payload fetchInputWire
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return err
+	}
+	includeNitpicks, err := decodeBoolLike(payload.IncludeNitpicks)
+	if err != nil {
+		return fmt.Errorf("include_nitpicks: %w", err)
+	}
+	i.PR = payload.PR
+	i.IncludeNitpicks = includeNitpicks
+	return nil
+}
+
+func decodeBoolLike(value any) (bool, error) {
+	switch typed := value.(type) {
+	case nil:
+		return false, nil
+	case bool:
+		return typed, nil
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return false, nil
+		}
+		parsed, err := strconv.ParseBool(trimmed)
+		if err != nil {
+			return false, err
+		}
+		return parsed, nil
+	default:
+		return false, fmt.Errorf("unsupported boolean value %T", value)
+	}
 }
 
 type codeRabbitResolveInput struct {
@@ -19,14 +65,18 @@ type codeRabbitWatchSpec struct {
 }
 
 type codeRabbitIssue struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Body        string `json:"body,omitempty"`
-	BodyRef     string `json:"body_ref,omitempty"`
-	File        string `json:"file,omitempty"`
-	Line        int    `json:"line,omitempty"`
-	Severity    string `json:"severity,omitempty"`
-	ProviderRef string `json:"provider_ref,omitempty"`
+	ID                      string `json:"id"`
+	Title                   string `json:"title"`
+	Body                    string `json:"body,omitempty"`
+	BodyRef                 string `json:"body_ref,omitempty"`
+	File                    string `json:"file,omitempty"`
+	Line                    int    `json:"line,omitempty"`
+	Severity                string `json:"severity,omitempty"`
+	Author                  string `json:"author,omitempty"`
+	ProviderRef             string `json:"provider_ref,omitempty"`
+	ReviewHash              string `json:"review_hash,omitempty"`
+	SourceReviewID          string `json:"source_review_id,omitempty"`
+	SourceReviewSubmittedAt string `json:"source_review_submitted_at,omitempty"`
 }
 
 type codeRabbitFixEntry struct {
@@ -57,14 +107,18 @@ type codeRabbitWatchPayload struct {
 }
 
 type codeRabbitReview struct {
-	HeadSHA     string `json:"head_sha"`
-	ReviewID    string `json:"review_id,omitempty"`
-	ReviewState string `json:"review_state"`
+	HeadSHA         string `json:"head_sha"`
+	LocalHeadSHA    string `json:"local_head_sha,omitempty"`
+	ReviewCommitSHA string `json:"review_commit_sha,omitempty"`
+	ReviewID        string `json:"review_id,omitempty"`
+	ReviewState     string `json:"review_state"`
 }
 
 type codeRabbitStatus struct {
-	State     string     `json:"state"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	State         string     `json:"state"`
+	ProviderState string     `json:"provider_state,omitempty"`
+	Description   string     `json:"description,omitempty"`
+	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
 }
 
 type graphQLResponse struct {
@@ -83,7 +137,6 @@ type graphQLRepository struct {
 type graphQLPullRequest struct {
 	HeadRefOid    string            `json:"headRefOid"`
 	ReviewThreads graphQLThreadList `json:"reviewThreads"`
-	Reviews       graphQLReviewList `json:"reviews"`
 }
 
 type graphQLThreadList struct {
@@ -112,17 +165,25 @@ type graphQLAuthor struct {
 	Login string `json:"login"`
 }
 
-type graphQLReviewList struct {
-	Nodes []graphQLReviewNode `json:"nodes"`
-}
-
-type graphQLReviewNode struct {
-	ID          string        `json:"id"`
-	State       string        `json:"state"`
-	SubmittedAt *time.Time    `json:"submittedAt"`
-	Author      graphQLAuthor `json:"author"`
-}
-
 type graphQLError struct {
 	Message string `json:"message"`
+}
+
+type pullRequestReview struct {
+	ID          int    `json:"id"`
+	Body        string `json:"body"`
+	CommitID    string `json:"commit_id"`
+	State       string `json:"state"`
+	SubmittedAt string `json:"submitted_at"`
+	User        struct {
+		Login string `json:"login"`
+	} `json:"user"`
+}
+
+type commitStatus struct {
+	State       string `json:"state"`
+	Description string `json:"description"`
+	Context     string `json:"context"`
+	UpdatedAt   string `json:"updated_at"`
+	CreatedAt   string `json:"created_at"`
 }

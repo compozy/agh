@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -88,11 +89,27 @@ func (g *GlobalDB) EnqueueLoopCoordinatorWake(
 			switch {
 			case err == nil:
 			case errorsIsNoRows(err):
-				return nil
+				current, err := getLoopRunByIDWithExecutor(ctx, exec, looppkg.RunID(trimmedLoopRunID))
+				if err != nil {
+					return err
+				}
+				taskID, err = g.ensureLoopCoordinatorTaskWithExecutor(ctx, exec, current, now)
+				if err != nil {
+					return err
+				}
 			default:
 				return err
 			}
-			run, added, err = g.reserveCoordinatorRun(ctx, exec, taskID, trimmedLoopRunID, key, normalizedOrigin, now)
+			run, added, err = g.reserveCoordinatorRun(
+				ctx,
+				exec,
+				taskID,
+				trimmedLoopRunID,
+				"",
+				key,
+				normalizedOrigin,
+				now,
+			)
 			return err
 		},
 	); err != nil {

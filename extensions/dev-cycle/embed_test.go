@@ -11,6 +11,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/dsl/refs"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
@@ -77,6 +78,91 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep reviews-watch fixer prompt and inputs wired", func(t *testing.T) {
+		t.Parallel()
+
+		def := parseEmbeddedLoopForTest(t, "loops/reviews-watch/loop.yaml")
+		for _, input := range []string{"include_nitpicks", "auto_commit", "auto_push"} {
+			if _, ok := def.Inputs[input]; !ok {
+				t.Fatalf("reviews-watch input %q missing", input)
+			}
+		}
+		if got, want := def.Inputs["include_nitpicks"].Default, false; got != want {
+			t.Fatalf("include_nitpicks default = %#v, want %#v", got, want)
+		}
+		if got, want := def.Inputs["auto_commit"].Default, false; got != want {
+			t.Fatalf("auto_commit default = %#v, want %#v", got, want)
+		}
+		fetchIssues := requireDevCycleNode(t, def, "fetch_issues")
+		if got, want := fetchIssues.Params["include_nitpicks"], "{{ .inputs.include_nitpicks }}"; got != want {
+			t.Fatalf("fetch_issues include_nitpicks param = %#v, want %q", got, want)
+		}
+		fixBatch := requireDevCycleNode(t, def, "fix_batch")
+		prompt := requireStringParam(t, fixBatch, "prompt")
+		for _, required := range []string{
+			"systematic-debugging",
+			"no-workarounds",
+			"cy-fix-reviews",
+			"cy-final-verify",
+			"Remediate this batch of {{ len .item }}",
+			"do NOT ask for confirmation",
+			"Read every issue in this batch completely before editing code",
+			"real verification",
+			"fails as a whole",
+			"auto_commit: {{ .inputs.auto_commit }}",
+			"auto_push: {{ .inputs.auto_push }}",
+			"Because auto_push is true",
+			"Because auto_commit and auto_push are false",
+			"Follow the execution mode above exactly",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("fix_batch prompt missing %q", required)
+			}
+		}
+		pushPrompt := renderReviewsWatchFixerPromptForTest(t, prompt, false, true)
+		for _, required := range []string{
+			"auto_commit: false",
+			"auto_push: true",
+			"Because auto_push is true, create exactly one local fix commit after verification",
+		} {
+			if !strings.Contains(pushPrompt, required) {
+				t.Fatalf("auto_push rendered prompt missing %q", required)
+			}
+		}
+		if strings.Contains(pushPrompt, "leave verified changes uncommitted") {
+			t.Fatalf("auto_push rendered prompt incorrectly leaves changes uncommitted")
+		}
+		manualPrompt := renderReviewsWatchFixerPromptForTest(t, prompt, false, false)
+		for _, required := range []string{
+			"auto_commit: false",
+			"auto_push: false",
+			"Because auto_commit and auto_push are false, leave verified changes uncommitted for",
+		} {
+			if !strings.Contains(manualPrompt, required) {
+				t.Fatalf("manual rendered prompt missing %q", required)
+			}
+		}
+		if strings.Contains(manualPrompt, "Because auto_push is true") {
+			t.Fatalf("manual rendered prompt incorrectly instructs auto_push commit")
+		}
+		if strings.Contains(prompt, "notes") {
+			t.Fatalf("fix_batch prompt contains retired notes contract")
+		}
+		resultsSchema := requireSchemaObject(t, requireSchemaObject(t, fixBatch.Params, "output_schema"), "properties")
+		results := requireSchemaObject(t, resultsSchema, "results")
+		item := requireSchemaObject(t, results, "items")
+		required, ok := item["required"].([]any)
+		if !ok {
+			t.Fatalf("fix_batch result required schema = %#v, want []any", item["required"])
+		}
+		if !schemaStringListContains(required, "summary") {
+			t.Fatalf("fix_batch result required = %#v, want summary", required)
+		}
+		if !schemaStringListContains(required, "resolution") {
+			t.Fatalf("fix_batch result required = %#v, want resolution", required)
+		}
+	})
+
 	t.Run("Should keep software-delivery verification opt-in", func(t *testing.T) {
 		t.Parallel()
 
@@ -97,6 +183,201 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		}
 		if got, want := verify.Criteria[0].Check, "{{ .inputs.verify_command }}"; got != want {
 			t.Fatalf("verify criterion check = %q, want %q", got, want)
+		}
+		execute := requireDevCycleNode(t, def, "execute_task")
+		prompt := requireStringParam(t, execute, "prompt")
+		for _, required := range []string{
+			".compozy/tasks/{{ .inputs.slug }}/memory",
+			".compozy/tasks/{{ .inputs.slug }}/memory/MEMORY.md",
+			".compozy/tasks/{{ .inputs.slug }}/memory/{{ .item.id }}.md",
+			"cy-workflow-memory",
+			"cy-execute-task",
+			"cy-final-verify",
+			"do NOT ask for confirmation",
+			"_techspec.md",
+			"record meaningful follow-up work",
+			"promote only durable cross-task context",
+			"Execute every explicit Validation, Test Plan, or Testing item",
+			"Do not push",
+			"Closing directive:",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("execute_task prompt missing %q", required)
+			}
+		}
+	})
+
+	t.Run("Should render software-delivery implementer prompt for both commit modes", func(t *testing.T) {
+		t.Parallel()
+
+		def := parseEmbeddedLoopForTest(t, "loops/software-delivery/loop.yaml")
+		execute := requireDevCycleNode(t, def, "execute_task")
+		prompt := requireStringParam(t, execute, "prompt")
+
+		autoCommit := renderSoftwareDeliveryImplementerPromptForTest(t, prompt, true)
+		for _, required := range []string{
+			"Begin work on Ship loops immediately",
+			"Depends on: task_01, task_02",
+			"Create exactly one commit for this task after clean verification",
+		} {
+			if !strings.Contains(autoCommit, required) {
+				t.Fatalf("auto_commit rendered prompt missing %q", required)
+			}
+		}
+		if strings.Contains(autoCommit, "Leave changes uncommitted") {
+			t.Fatalf("auto_commit rendered prompt incorrectly leaves changes uncommitted")
+		}
+		manual := renderSoftwareDeliveryImplementerPromptForTest(t, prompt, false)
+		if !strings.Contains(manual, "Leave changes uncommitted for manual review. Do not push.") {
+			t.Fatalf("manual rendered prompt missing leave-uncommitted instruction")
+		}
+		if strings.Contains(manual, "Create exactly one commit") {
+			t.Fatalf("manual rendered prompt incorrectly instructs an automatic commit")
+		}
+	})
+}
+
+func renderSoftwareDeliveryImplementerPromptForTest(
+	t *testing.T,
+	prompt string,
+	autoCommit bool,
+) string {
+	t.Helper()
+
+	rendered, err := refs.RenderTemplateString("software-delivery.execute_task.prompt", prompt, map[string]any{
+		"inputs": map[string]any{
+			"slug":        "loops",
+			"auto_commit": autoCommit,
+		},
+		"item": map[string]any{
+			"id":     "task_03",
+			"title":  "Ship loops",
+			"path":   ".compozy/tasks/loops/task_03.md",
+			"body":   "Implement the loop runtime.",
+			"blocks": []any{"task_01", "task_02"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplateString() error = %v", err)
+	}
+	return rendered
+}
+
+func renderReviewsWatchFixerPromptForTest(
+	t *testing.T,
+	prompt string,
+	autoCommit bool,
+	autoPush bool,
+) string {
+	t.Helper()
+
+	rendered, err := refs.RenderTemplateString("reviews-watch.fix_batch.prompt", prompt, map[string]any{
+		"inputs": map[string]any{
+			"pr":          123,
+			"auto_commit": autoCommit,
+			"auto_push":   autoPush,
+		},
+		"item": []map[string]any{{
+			"id":           "CR-1",
+			"title":        "Fix loop event handling",
+			"file":         "internal/daemon/loop.go",
+			"line":         42,
+			"severity":     "medium",
+			"provider_ref": "THREAD-1",
+			"body":         "Please fix this issue.",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("RenderTemplateString() error = %v", err)
+	}
+	return rendered
+}
+
+func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
+	t.Run("Should require review fixer summary output", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := fs.ReadFile(FS(), "agents/review_fixer/AGENT.md")
+		if err != nil {
+			t.Fatalf("ReadFile(review_fixer) error = %v", err)
+		}
+		prompt := string(data)
+		for _, required := range []string{
+			"systematic-debugging",
+			"no-workarounds",
+			"cy-fix-reviews",
+			"Read every issue in the batch completely before editing code",
+			"fails as a whole",
+			"real verification commands",
+			"`resolution` is accepted only as `fixed` or `documented`",
+			"`id`, `triage`, `resolution`, and `summary`",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("review_fixer prompt missing %q", required)
+			}
+		}
+		if strings.Contains(prompt, "notes") {
+			t.Fatalf("review_fixer prompt contains retired notes field")
+		}
+	})
+
+	t.Run("Should keep implementer role prompt discipline", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := fs.ReadFile(FS(), "agents/code_implementer/AGENT.md")
+		if err != nil {
+			t.Fatalf("ReadFile(code_implementer) error = %v", err)
+		}
+		prompt := string(data)
+		for _, required := range []string{
+			"do not ask for confirmation",
+			"cy-workflow-memory",
+			"cy-execute-task",
+			"cy-final-verify",
+			"_techspec.md",
+			"meaningful follow-up work",
+			"durable cross-task context",
+			"Never push",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("code_implementer prompt missing %q", required)
+			}
+		}
+	})
+
+	t.Run("Should keep reviewer judge discipline", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := fs.ReadFile(FS(), "agents/reviewer/AGENT.md")
+		if err != nil {
+			t.Fatalf("ReadFile(reviewer) error = %v", err)
+		}
+		prompt := string(data)
+		for _, required := range []string{
+			"files, tests, command output",
+			"stable issue ids",
+			"most severe first",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("reviewer prompt missing %q", required)
+			}
+		}
+	})
+
+	t.Run("Should give implementer and reviewer graceful degradation clauses", func(t *testing.T) {
+		t.Parallel()
+
+		for _, path := range []string{
+			"agents/code_implementer/AGENT.md",
+			"agents/reviewer/AGENT.md",
+		} {
+			data, err := fs.ReadFile(FS(), path)
+			if err != nil {
+				t.Fatalf("ReadFile(%q) error = %v", path, err)
+			}
+			if !strings.Contains(string(data), "degrad") {
+				t.Fatalf("%s missing graceful degradation guidance", path)
+			}
 		}
 	})
 }
@@ -234,8 +515,34 @@ func requireSchemaObject(t *testing.T, schema map[string]any, key string) map[st
 	if ok {
 		return map[string]any(typed)
 	}
+	params, ok := raw.(dsl.NodeParams)
+	if ok {
+		return map[string]any(params)
+	}
 	t.Fatalf("schema key %q type = %T, want map[string]any", key, raw)
 	return nil
+}
+
+func requireStringParam(t *testing.T, node dsl.Node, key string) string {
+	t.Helper()
+	raw, ok := node.Params[key]
+	if !ok {
+		t.Fatalf("node %q param %q missing", node.ID, key)
+	}
+	value, ok := raw.(string)
+	if !ok {
+		t.Fatalf("node %q param %q type = %T, want string", node.ID, key, raw)
+	}
+	return value
+}
+
+func schemaStringListContains(values []any, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func devCycleToolSchemaSource(t *testing.T) devCycleToolSchemas {

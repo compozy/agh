@@ -8,6 +8,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	looppkg "github.com/compozy/agh/internal/loop"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -36,19 +37,26 @@ type loopNodeTerminalDispatcher interface {
 	) (hookspkg.LoopNodeTerminalPayload, error)
 }
 
+type loopCoordinatorBackstopRunner interface {
+	RunLoopCoordinatorBackstop(context.Context, time.Time, taskpkg.ActorContext) (int, error)
+}
+
 type loopNativeHookObserver struct {
 	store      loopHookCoordinatorStore
 	dispatcher loopNodeTerminalDispatcher
+	backstop   loopCoordinatorBackstopRunner
 	actor      taskpkg.ActorContext
 	now        func() time.Time
 }
 
+var _ loopStartedObserver = (*loopNativeHookObserver)(nil)
 var _ taskRunTerminalObserver = (*loopNativeHookObserver)(nil)
 var _ loopTerminalObserver = (*loopNativeHookObserver)(nil)
 
 func newLoopNativeHookObserver(
 	store loopHookCoordinatorStore,
 	dispatcher loopNodeTerminalDispatcher,
+	backstop loopCoordinatorBackstopRunner,
 	now func() time.Time,
 ) (*loopNativeHookObserver, error) {
 	if store == nil {
@@ -56,6 +64,9 @@ func newLoopNativeHookObserver(
 	}
 	if dispatcher == nil {
 		return nil, fmt.Errorf("daemon: loop native hook observer requires loop dispatcher")
+	}
+	if backstop == nil {
+		return nil, fmt.Errorf("daemon: loop native hook observer requires coordinator backstop")
 	}
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
@@ -67,9 +78,20 @@ func newLoopNativeHookObserver(
 	return &loopNativeHookObserver{
 		store:      store,
 		dispatcher: dispatcher,
+		backstop:   backstop,
 		actor:      actor,
 		now:        now,
 	}, nil
+}
+
+func (o *loopNativeHookObserver) OnLoopStarted(
+	ctx context.Context,
+	payload hookspkg.LoopStartedPayload,
+) error {
+	if looppkg.Status(strings.TrimSpace(payload.Status)) != looppkg.StatusRunning {
+		return nil
+	}
+	return o.startLoopCoordinatorBackstop(ctx)
 }
 
 func (o *loopNativeHookObserver) OnTaskRunTerminal(
@@ -123,14 +145,20 @@ func (o *loopNativeHookObserver) enqueueNodeTerminalWake(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeasePayload,
 ) error {
-	_, _, err := o.store.EnqueueLoopCoordinatorWake(
+	_, added, err := o.store.EnqueueLoopCoordinatorWake(
 		ctx,
 		strings.TrimSpace(payload.LoopRunID),
 		loopNodeTerminalWakeKey(payload),
 		o.actor.Origin,
 		o.now().UTC(),
 	)
-	return normalizeLoopWakeError(err)
+	if err := normalizeLoopWakeError(err); err != nil {
+		return err
+	}
+	if added {
+		return o.startLoopCoordinatorBackstop(ctx)
+	}
+	return nil
 }
 
 func (o *loopNativeHookObserver) OnLoopTerminal(
@@ -138,11 +166,18 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 	payload hookspkg.LoopTerminalPayload,
 ) error {
 	var errs []error
-	if err := o.enqueueParentAwaitWake(ctx, payload); err != nil {
+	parentWakeAdded, err := o.enqueueParentAwaitWake(ctx, payload)
+	if err != nil {
 		errs = append(errs, err)
 	}
-	if err := o.promoteQueuedLoop(ctx, payload); err != nil {
+	queuedPromotionAdded, err := o.promoteQueuedLoop(ctx, payload)
+	if err != nil {
 		errs = append(errs, err)
+	}
+	if parentWakeAdded || queuedPromotionAdded {
+		if err := o.startLoopCoordinatorBackstop(ctx); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -150,32 +185,43 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 func (o *loopNativeHookObserver) enqueueParentAwaitWake(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
-) error {
+) (bool, error) {
 	parentLoopRunID := strings.TrimSpace(payload.ParentLoopRunID)
 	if parentLoopRunID == "" {
-		return nil
+		return false, nil
 	}
-	_, _, err := o.store.EnqueueLoopCoordinatorWake(
+	_, added, err := o.store.EnqueueLoopCoordinatorWake(
 		ctx,
 		parentLoopRunID,
 		loopParentAwaitWakeKey(payload),
 		o.actor.Origin,
 		o.now().UTC(),
 	)
-	return normalizeLoopWakeError(err)
+	if err := normalizeLoopWakeError(err); err != nil {
+		return false, err
+	}
+	return added, nil
 }
 
 func (o *loopNativeHookObserver) promoteQueuedLoop(
 	ctx context.Context,
 	payload hookspkg.LoopTerminalPayload,
-) error {
+) (bool, error) {
 	workspaceID := strings.TrimSpace(payload.WorkspaceID)
 	loopName := strings.TrimSpace(payload.LoopName)
 	if workspaceID == "" || loopName == "" {
-		return nil
+		return false, nil
 	}
-	_, _, err := o.store.PromoteOldestQueuedLoopRun(ctx, workspaceID, loopName, o.actor.Origin, o.now().UTC())
-	return normalizeLoopWakeError(err)
+	_, added, err := o.store.PromoteOldestQueuedLoopRun(ctx, workspaceID, loopName, o.actor.Origin, o.now().UTC())
+	if err := normalizeLoopWakeError(err); err != nil {
+		return false, err
+	}
+	return added, nil
+}
+
+func (o *loopNativeHookObserver) startLoopCoordinatorBackstop(ctx context.Context) error {
+	_, err := o.backstop.RunLoopCoordinatorBackstop(ctx, o.now().UTC(), o.actor)
+	return err
 }
 
 func optionalRunKind(runKind *string) string {

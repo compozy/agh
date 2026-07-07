@@ -30,8 +30,7 @@ interface UseLoopStreamOptions {
 // with addEventListener("<kind>", ...); they never reach onmessage, which only
 // handles unnamed `message` frames. Keep this list aligned with the enumerated
 // LoopRunEventKind contract (techspec §observability, L-017 named-listener rule):
-// an unenumerated kind silently never renders. Only `status_changed` is produced
-// today; the rest are the forward run-page contract.
+// an unenumerated kind silently never renders.
 const LOOP_STREAM_EVENT_TYPES = LOOP_RUN_EVENT_KINDS satisfies readonly LoopRunEventKind[];
 
 // Lifecycle kinds mutate durable run state, so each one invalidates the run detail +

@@ -13,6 +13,7 @@ structured output. Never guess a schema — resolve `agh__tool_info` for the exa
 - The approve capability gate
 - Reference grammar and reserved action kinds
 - Loop hook events
+- Loop run event stream
 - Watch-source behavior
 - Harvesting a channel decision
 
@@ -135,12 +136,31 @@ hook does not fail a run.
 Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_name`, `generation`,
 `node_id`, and more). Manage them with `agh__hooks_*`.
 
+## Loop Run Event Stream
+
+`GET /loop-runs/:run_id/events` streams durable named SSE frames for a run. Reconnect with
+`Last-Event-ID` or `?after_sequence=` to resume after a sequence number. The daemon persists and
+streams the same enumerated event kinds the web run page consumes: `status_changed`, `node_running`,
+`node_succeeded`, `node_failed`, `generation_started`, `gate_verdict`, `channel_msg`,
+`token_tick`, and `needs_approval`. Payloads are redacted/bounded before storage, and reads are
+scoped to the run's workspace.
+
 ## Watch-Source Behavior
 
 A Loop with a `watch-source` node is a watch Loop. It holds `watching` between ticks, defaults to
 `iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no-op`, and ends on silence past its
 window `stalled` (reason `watch_source_silence`). The default `dev-cycle` `reviews-watch` Loop is a
 watch Loop and requires `gh` to be installed and authenticated for CodeRabbit polling.
+
+`reviews-watch` waits for CodeRabbit evidence on the current PR head. A ready tick requires the
+provider PR head to match local `git rev-parse HEAD`, a successful CodeRabbit commit status for that
+head, and either a current CodeRabbit review for that commit or `current_settled` evidence for the
+current head. The following `fetch_issues` step decides whether unresolved issues remain: zero issues
+ends the tick cleanly, otherwise the fixer runs. Pending status keeps the run watching; failed/error
+status blocks with the provider diagnostic; stale review commits are not treated as ready. Fetching
+review-body nitpicks is opt-in with `include_nitpicks` (default `false`). `auto_push=true` implies the
+fixer creates the local fix commit before the loop's push node runs; `auto_commit=true` does the same
+without pushing.
 
 Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
 `skip`. Explicit schedule policies are `skip`, `coalesce`, and `replay`. Catch-up starts carry

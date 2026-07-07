@@ -58,8 +58,9 @@ The linter reports precise codes, not runtime surprises:
 | `condition_not_bool`  | A CEL condition that does not return `bool`            |
 | `node_id_invalid`     | A node ID that is not snake_case                       |
 
-Value templates run with `missingkey=error` and a curated function set (`json`, `join`, `default`)
-— no arbitrary helpers. CEL conditions are compiled and cost-limited at publish time.
+Value templates run with `missingkey=error` and a curated function set (`json`, `join`, `default`,
+plus the `len` builtin) — no arbitrary helpers. CEL conditions are compiled and cost-limited at
+publish time.
 
 ## snake_case node IDs
 

@@ -46,6 +46,11 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 			template:  `{{ .item.title }}`,
 			namespace: namespace(true),
 		},
+		{
+			name:      "Should accept the len builtin inside fanout",
+			template:  `Batch of {{ len .item }} issues: {{ .item.title }}`,
+			namespace: namespace(true),
+		},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +73,19 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTemplateShouldRejectNonAllowlistedFunctions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject builtins outside the allowlist", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := refs.CompileTemplate("test", `{{ printf "%s" .item.title }}`, namespace(true))
+		if err == nil || !strings.Contains(err.Error(), `unsupported template function "printf"`) {
+			t.Fatalf("CompileTemplate() error = %v, want unsupported template function", err)
+		}
+	})
 }
 
 func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {

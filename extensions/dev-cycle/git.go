@@ -40,7 +40,7 @@ func (p *gitProvider) Push(ctx context.Context, input gitPushInput) (gitPushOutp
 	}
 	branch := strings.TrimSpace(input.Branch)
 	if branch == "" {
-		output, err := p.runner.Run(ctx, "git", []string{"rev-parse", "--abbrev-ref", gitHeadRef}, "")
+		output, err := p.runner.Run(ctx, "git", []string{gitRevParseArg, "--abbrev-ref", gitHeadRef}, "")
 		if err != nil {
 			return gitPushOutput{}, err
 		}
@@ -49,7 +49,7 @@ func (p *gitProvider) Push(ctx context.Context, input gitPushInput) (gitPushOutp
 	if branch == "" || branch == gitHeadRef {
 		return gitPushOutput{}, fmt.Errorf("dev-cycle: branch is required for git_push")
 	}
-	headOutput, err := p.runner.Run(ctx, "git", []string{"rev-parse", gitHeadRef}, "")
+	headOutput, err := p.runner.Run(ctx, "git", []string{gitRevParseArg, gitHeadRef}, "")
 	if err != nil {
 		return gitPushOutput{}, err
 	}

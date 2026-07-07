@@ -553,44 +553,7 @@ func (g *GlobalDB) createCoordinatorTaskIfMissingWithExecutor(
 	if err := g.ensureCoordinatorTaskCreateReferencesWithExecutor(ctx, exec, taskRecord); err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO tasks (
-			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
-			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		taskRecord.ID,
-		store.NullableString(taskRecord.Identifier),
-		string(taskRecord.Scope),
-		store.NullableString(taskRecord.WorkspaceID),
-		store.NullableString(taskRecord.ParentTaskID),
-		store.NullableString(taskRecord.NetworkChannel),
-		taskRecord.Title,
-		store.NullableString(taskRecord.Description),
-		string(taskRecord.Priority),
-		taskRecord.MaxAttempts,
-		taskBoolToInt(taskRecord.AutoEnqueueOnReady),
-		string(taskRecord.Status),
-		string(taskRecord.ApprovalPolicy),
-		string(taskRecord.ApprovalState),
-		taskOwnerKindValue(taskRecord.Owner),
-		taskOwnerRefValue(taskRecord.Owner),
-		string(taskRecord.CreatedBy.Kind),
-		taskRecord.CreatedBy.Ref,
-		string(taskRecord.Origin.Kind),
-		taskRecord.Origin.Ref,
-		store.FormatTimestamp(taskRecord.CreatedAt),
-		store.FormatTimestamp(taskRecord.UpdatedAt),
-		nullableTaskTimestamp(taskRecord.ClosedAt),
-		taskBoolToInt(taskRecord.Paused),
-		taskRecord.PausedBy,
-		nullableTaskTimestamp(taskRecord.PausedAt),
-		taskRecord.PausedReason,
-		taskBoolToInt(taskRecord.WakeCreator),
-		nullableTaskJSON(taskRecord.Metadata),
-	); err != nil {
+	if err := insertTaskWithExecutor(ctx, exec, taskRecord); err != nil {
 		return fmt.Errorf("store: create coordinator node task %q: %w", taskRecord.ID, err)
 	}
 	return nil

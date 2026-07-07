@@ -19,7 +19,13 @@ var (
 		"additionalProperties":false,
 		"required":["pr"],
 		"properties":{
-			"pr":{"oneOf":[{"type":"integer","minimum":1},{"type":"string","minLength":1}]}
+			"pr":{"oneOf":[{"type":"integer","minimum":1},{"type":"string","minLength":1}]},
+			"include_nitpicks":{
+				"oneOf":[
+					{"type":"boolean","default":false},
+					{"type":"string","enum":["true","false"]}
+				]
+			}
 		}
 	}`)
 	fetchOutputSchema = json.RawMessage(`{

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -56,7 +57,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should round trip loop config by workspace and loop name", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
@@ -118,7 +119,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should reject empty loop config keys", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		cases := []struct {
 			name     string
@@ -147,7 +148,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should preserve omitted overrides on partial update", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
@@ -193,13 +194,95 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	})
 }
 
+func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a workspace-scoped coordinator for a running loop", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC)
+		run := testLoopRun("looprun-seed", now, looppkg.StatusRunning)
+		created, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if created.Status != looppkg.StatusRunning {
+			t.Fatalf("created status = %q, want running", created.Status)
+		}
+
+		queued, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
+		if err != nil {
+			t.Fatalf("ListTaskRunsByStatus() error = %v", err)
+		}
+		if got, want := len(queued), 1; got != want {
+			t.Fatalf("queued task runs = %d, want %d", got, want)
+		}
+		coordinator := queued[0]
+		if coordinator.RunKind.Normalize() != taskpkg.RunKindCoordinator {
+			t.Fatalf("RunKind = %q, want coordinator", coordinator.RunKind)
+		}
+		if got, want := coordinator.LoopRunID, string(created.ID); got != want {
+			t.Fatalf("LoopRunID = %q, want %q", got, want)
+		}
+		if got, want := coordinator.ID, loopCoordinatorRunID(created.ID, created.Generation+1); got != want {
+			t.Fatalf("coordinator run id = %q, want %q", got, want)
+		}
+		wantIdempotencyKey := loopCoordinatorIdempotencyKey(created.ID, created.Generation+1)
+		if got, want := coordinator.IdempotencyKey, wantIdempotencyKey; got != want {
+			t.Fatalf("IdempotencyKey = %q, want %q", got, want)
+		}
+
+		taskRecord, err := globalDB.GetTask(ctx, coordinator.TaskID)
+		if err != nil {
+			t.Fatalf("GetTask(coordinator) error = %v", err)
+		}
+		if got, want := taskRecord.ID, loopCoordinatorTaskID(created.ID); got != want {
+			t.Fatalf("coordinator task id = %q, want %q", got, want)
+		}
+		if taskRecord.Scope.Normalize() != taskpkg.ScopeWorkspace {
+			t.Fatalf("coordinator task scope = %q, want workspace", taskRecord.Scope)
+		}
+		if got, want := taskRecord.WorkspaceID, string(created.WorkspaceID); got != want {
+			t.Fatalf("coordinator task workspace_id = %q, want %q", got, want)
+		}
+		if taskRecord.AutoEnqueueOnReady {
+			t.Fatal("coordinator task AutoEnqueueOnReady = true, want false")
+		}
+	})
+
+	t.Run("Should not create a coordinator for queued loop starts", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 7, 9, 5, 0, 0, time.UTC)
+		first := testLoopRun("looprun-seed-running", now, looppkg.StatusRunning)
+		if _, err := globalDB.CreateLoopRunForStart(ctx, first, dsl.ConcurrencyQueue); err != nil {
+			t.Fatalf("CreateLoopRunForStart(first) error = %v", err)
+		}
+		second := testLoopRun("looprun-seed-queued", now.Add(time.Second), looppkg.StatusRunning)
+		queuedRun, err := globalDB.CreateLoopRunForStart(ctx, second, dsl.ConcurrencyQueue)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart(second) error = %v", err)
+		}
+		if queuedRun.Status != looppkg.StatusQueued {
+			t.Fatalf("second status = %q, want queued", queuedRun.Status)
+		}
+		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, queuedRun.ID); got != 0 {
+			t.Fatalf("queued loop coordinator task runs = %d, want 0", got)
+		}
+	})
+}
+
 func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should allow only one concurrent transition from the same status", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 0, 0, 0, time.UTC)
 		run := testLoopRun("looprun-cas", now, looppkg.StatusRunning)
@@ -281,7 +364,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 	t.Run("Should ignore same-status compare-and-swap without appending an event", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 5, 0, 0, time.UTC)
 		run := testLoopRun("looprun-cas-noop", now, looppkg.StatusRunning)
@@ -310,7 +393,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 	t.Run("Should allow only one concurrent forbid start", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 15, 0, 0, time.UTC)
 		attempts := make([]error, 8)
@@ -364,7 +447,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 	t.Run("Should queue concurrent queue starts after the first running run", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 20, 0, 0, time.UTC)
 		attempts := make([]error, 8)
@@ -465,6 +548,24 @@ func countLoopRunEvents(
 		string(runID),
 	).Scan(&count); err != nil {
 		t.Fatalf("count loop_run_events error = %v", err)
+	}
+	return count
+}
+
+func countCoordinatorTaskRunsForLoop(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+) int {
+	t.Helper()
+	var count int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM task_runs WHERE loop_run_id = ? AND run_kind = 'coordinator'`,
+		string(runID),
+	).Scan(&count); err != nil {
+		t.Fatalf("count coordinator task runs error = %v", err)
 	}
 	return count
 }

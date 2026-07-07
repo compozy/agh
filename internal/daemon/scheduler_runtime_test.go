@@ -23,6 +23,15 @@ func TestSchedulerTaskSourcePendingRunsShouldHideLoopActionRuns(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 5, 19, 0, 0, 0, time.UTC)
 		db := openDaemonTestGlobalDB(t)
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        "ws-scheduler",
+			RootDir:   t.TempDir(),
+			Name:      "Scheduler",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace(ws-scheduler) error = %v", err)
+		}
 		normalTask := daemonTaskRecordForTest("task-normal-worker", now)
 		if err := db.CreateTask(ctx, normalTask); err != nil {
 			t.Fatalf("CreateTask(normal) error = %v", err)
@@ -87,15 +96,17 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldLimitPerScope(t *testin
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 7, 10, 0, 0, 0, time.UTC)
 	db := openDaemonTestGlobalDB(t)
-	workspaceID := "ws-backstop"
-	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
-		ID:        workspaceID,
-		RootDir:   t.TempDir(),
-		Name:      "Backstop",
-		CreatedAt: now,
-		UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("InsertWorkspace() error = %v", err)
+	workspaceIDs := []string{"ws-backstop-alpha", "ws-backstop-beta"}
+	for _, workspaceID := range workspaceIDs {
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        workspaceID,
+			RootDir:   t.TempDir(),
+			Name:      workspaceID,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace(%s) error = %v", workspaceID, err)
+		}
 	}
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
@@ -107,8 +118,8 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldLimitPerScope(t *testin
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
 	for index := range defaultLoopCoordinatorBackstopLimit + 1 {
-		seedCoordinatorBackstopRun(t, db, now, "global", index, taskpkg.ScopeGlobal, "")
-		seedCoordinatorBackstopRun(t, db, now, "workspace", index, taskpkg.ScopeWorkspace, workspaceID)
+		seedCoordinatorBackstopRun(t, db, now, "alpha", index, workspaceIDs[0])
+		seedCoordinatorBackstopRun(t, db, now, "beta", index, workspaceIDs[1])
 	}
 	actor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
 	if err != nil {
@@ -119,14 +130,14 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldLimitPerScope(t *testin
 	if err != nil {
 		t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
 	}
-	if got, want := started, defaultLoopCoordinatorBackstopLimit*2; got != want {
+	if got, want := started, defaultLoopCoordinatorBackstopLimit*len(workspaceIDs); got != want {
 		t.Fatalf("started = %d, want %d", got, want)
 	}
 	queued, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
 	if err != nil {
 		t.Fatalf("ListTaskRunsByStatus(queued) error = %v", err)
 	}
-	if got, want := len(queued), 2; got != want {
+	if got, want := len(queued), len(workspaceIDs); got != want {
 		t.Fatalf("queued runs = %d, want one remaining per scope", got)
 	}
 }
@@ -137,46 +148,25 @@ func seedCoordinatorBackstopRun(
 	now time.Time,
 	prefix string,
 	index int,
-	scope taskpkg.Scope,
 	workspaceID string,
 ) {
 	t.Helper()
 
-	taskRecord := daemonTaskRecordForTest("task-backstop-"+prefix+"-"+strconv.Itoa(index), now)
-	taskRecord.Scope = scope
-	taskRecord.WorkspaceID = workspaceID
-	if err := db.CreateTask(testutil.Context(t), taskRecord); err != nil {
-		t.Fatalf("CreateTask(%s/%d) error = %v", prefix, index, err)
-	}
+	at := now.Add(time.Duration(index) * time.Millisecond)
 	loopRun := looppkg.Run{
 		ID:                looppkg.RunID("looprun-backstop-" + prefix + "-" + strconv.Itoa(index)),
-		WorkspaceID:       looppkg.WorkspaceID("ws-backstop-" + prefix),
+		WorkspaceID:       looppkg.WorkspaceID(workspaceID),
 		LoopName:          "backstop-" + prefix + "-" + strconv.Itoa(index),
 		Status:            looppkg.StatusRunning,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly,
 		IterationCap:      50,
 		BudgetOnExceeded:  loopdsl.BudgetExceededHalt,
-		CreatedAt:         now,
-		LastProgressAt:    now,
-	}
-	if workspaceID != "" {
-		loopRun.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		CreatedAt:         at,
+		LastProgressAt:    at,
 	}
 	applyLoopRunPinningForTest(&loopRun, now)
-	createdLoopRun, err := db.CreateLoopRunForStart(testutil.Context(t), loopRun, loopdsl.ConcurrencyAllow)
-	if err != nil {
+	if _, err := db.CreateLoopRunForStart(testutil.Context(t), loopRun, loopdsl.ConcurrencyAllow); err != nil {
 		t.Fatalf("CreateLoopRunForStart(%s/%d) error = %v", prefix, index, err)
-	}
-	if _, _, _, err := db.ReserveQueuedRun(testutil.Context(t), taskpkg.QueueRunReservation{
-		TaskID:         taskRecord.ID,
-		RunID:          "run-backstop-" + prefix + "-" + strconv.Itoa(index),
-		RunKind:        taskpkg.RunKindCoordinator,
-		LoopRunID:      string(createdLoopRun.ID),
-		IdempotencyKey: "backstop." + prefix + "." + strconv.Itoa(index),
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "backstop-test"},
-		QueuedAt:       now.Add(time.Duration(index) * time.Millisecond),
-	}); err != nil {
-		t.Fatalf("ReserveQueuedRun(%s/%d) error = %v", prefix, index, err)
 	}
 }
 

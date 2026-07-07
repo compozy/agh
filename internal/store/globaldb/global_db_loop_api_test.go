@@ -15,7 +15,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Run("Should list only the requested workspace runs with filters and aggregates inputs", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
 
@@ -84,7 +84,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 	t.Run("Should return status_changed events after seq without leaking another workspace", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
 		run := testLoopRun("looprun-api-events", now, looppkg.StatusRunning)
@@ -138,7 +138,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Run("Should round trip positions for same loop name independently per workspace", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 
 		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{

@@ -92,5 +92,5 @@ e2e_backbone:
   component:
     - "Web-unit-3 (right control per input type + block submit until required); Web-unit-4 (clamp + overrides-set badge); Web-unit-6 (meter warn-tint, no cost cap control)."
   followups:
-    - "AB-001 — real-daemon Playwright for the run page needs a loop e2e seed harness + rich-frame SSE emission (daemon emits only status_changed today). Web-lane covers behavior at vitest/component + agh-ui-screenshot until then."
+    - "AB-001 — real-daemon Playwright for the run page needs a loop e2e seed harness that drives rich-frame SSE emission. Web-lane covers behavior at vitest/component + agh-ui-screenshot until then."
 ```

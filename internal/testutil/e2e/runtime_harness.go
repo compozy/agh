@@ -1616,14 +1616,23 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	var lastProbeErr error
 	for {
 		if exited, err := h.pollExit(); exited {
 			return daemonExitedBeforeReadinessError(err)
 		}
+		err := h.probeReady(ctx)
+		if err == nil {
+			return nil
+		}
+		lastProbeErr = err
 		select {
 		case <-ctx.Done():
 			if exited, err := h.pollExit(); exited {
 				return daemonExitedBeforeReadinessError(err)
+			}
+			if lastProbeErr != nil {
+				return fmt.Errorf("daemon did not become ready before timeout: %w", lastProbeErr)
 			}
 			return errors.New("daemon did not become ready before timeout")
 		case err, ok := <-h.waitCh:
@@ -1636,9 +1645,6 @@ func (h *RuntimeHarness) waitForReady(ctx context.Context, pollInterval time.Dur
 			h.processWaitMu.Unlock()
 			return daemonExitedBeforeReadinessError(storedErr)
 		case <-ticker.C:
-			if err := h.probeReady(ctx); err == nil {
-				return nil
-			}
 		}
 	}
 }

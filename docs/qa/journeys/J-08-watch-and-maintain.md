@@ -83,7 +83,7 @@ e2e_backbone:
     - "Unit-6 (zero lease/token for a watching loop); Unit-15 (no false done, exhausted/stalled/needs-approval) + §7-15 (the precise no-op/blocked terminal-not-coerced owner); Unit-2 (stalled on no-progress window)."
   followups:
     - "LP-039 — gh missing/unauthenticated availability path is owned by the dev-cycle provider-failure suite (`_changes_spec.md` v2 R9); walk it with a lab shell whose PATH hides gh (or logged-out gh) — distinct from LP-038's mid-run blocked classification."
-    - "AB-001 — the loop e2e-web seed harness must include a watch-source seed (fake review events) to exercise watching/round/stalled in Playwright; today only status_changed is emitted."
+    - "AB-001 — the loop e2e-web seed harness must include a watch-source seed (fake review events) to exercise watching/round/stalled in Playwright; daemon rich SSE emission exists, but browser seeds still do not drive this journey."
     - "AB-004 — LP-038 owns the truthful-`blocked` guarantee (external dependency impossible, ADR-022), but it needs a behavioral seed (a watch-source missing a credential, or a refused run-loop cycle) to walk a run into `blocked` — not just render the pill; qa-execution seeds it via AB-004."
     - "Watch-source PUSH path (watch/subscribe + loops/watch/notify) and MCP-backed passive sources are v1-deferred (not in scope for this cycle) — recorded, not tested."
 ```
