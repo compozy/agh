@@ -59,6 +59,7 @@ func (g *GlobalDB) FailRunLease(
 			current,
 			"failure",
 			loopFailureReasonCode(normalized.Failure),
+			nil,
 			normalized.Now,
 		); err != nil {
 			return err

@@ -1,5 +1,7 @@
 import type { PillTone } from "@agh/ui";
 
+import { LOOP_RUN_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
+
 import type { LoopRunStatus } from "../types";
 
 export interface LoopStatusSignal {
@@ -21,7 +23,7 @@ const LOOP_STATUS_TONE = {
   "needs-approval": "info",
   paused: "neutral",
   done: "success",
-  no_op: "neutral",
+  "no-op": "neutral",
   blocked: "warning",
   failed: "danger",
   exhausted: "warning",
@@ -41,7 +43,7 @@ const LOOP_STATUS_LABELS = {
   "needs-approval": "Needs Approval",
   paused: "Paused",
   done: "Done",
-  no_op: "No-op",
+  "no-op": "No-op",
   blocked: "Blocked",
   failed: "Failed",
   exhausted: "Exhausted",
@@ -49,23 +51,19 @@ const LOOP_STATUS_LABELS = {
 } as const satisfies Record<LoopRunStatus, string>;
 
 /** The 6 terminal statuses (ADR-013): finished, no resume. */
-const LOOP_TERMINAL_STATUSES = new Set<LoopRunStatus>([
-  "done",
-  "no_op",
-  "blocked",
-  "failed",
-  "exhausted",
-  "stalled",
-]);
+const LOOP_STATUS_SET = new Set<string>(LOOP_RUN_STATUSES);
+const LOOP_TERMINAL_STATUS_SET = new Set<LoopRunStatus>(
+  LOOP_RUN_TERMINAL_STATUSES satisfies readonly LoopRunStatus[]
+);
 
 export function isLoopRunStatus(value: unknown): value is LoopRunStatus {
   // `Object.hasOwn`, not `in`: the latter matches inherited prototype keys
   // (`"toString"`, `"constructor"`), which would misclassify as valid statuses.
-  return typeof value === "string" && Object.hasOwn(LOOP_STATUS_TONE, value);
+  return typeof value === "string" && LOOP_STATUS_SET.has(value);
 }
 
 export function isTerminalLoopStatus(status?: string | null): boolean {
-  return isLoopRunStatus(status) && LOOP_TERMINAL_STATUSES.has(status);
+  return isLoopRunStatus(status) && LOOP_TERMINAL_STATUS_SET.has(status);
 }
 
 export function loopStatusTone(status?: string | null): PillTone {

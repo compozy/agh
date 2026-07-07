@@ -1354,6 +1354,9 @@ func (s *inMemoryManagerStore) HeartbeatRunLease(
 	}
 	run.HeartbeatAt = normalized.Now
 	run.LeaseUntil = normalized.Now.Add(normalized.LeaseDuration)
+	if normalized.TokensUsed > run.TokensUsed {
+		run.TokensUsed = normalized.TokensUsed
+	}
 	s.runs[run.ID] = cloneTaskRun(run)
 	return cloneTaskRun(run), nil
 }
@@ -7444,7 +7447,7 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 	runner := &recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
 		Snapshot: GenerationSnapshot{LoopRunID: "loop-run-1", Generation: 1},
 		Terminal: &CoordinatorTerminal{
-			Status: "no_op",
+			Status: "no-op",
 			Cause:  "contract",
 		},
 	}}

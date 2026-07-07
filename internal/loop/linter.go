@@ -44,6 +44,7 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 	def.Normalize()
 	ctx := newLintContext(def, l)
 	ctx.indexGraph()
+	ctx.lintContractShape()
 	ctx.lintNodeIDs()
 	ctx.lintKindsAndSchemas()
 	ctx.lintGraphShape()
@@ -123,10 +124,21 @@ func (c *lintContext) indexGraphWithDiagnostics(reportDiagnostics bool) {
 	}
 }
 
+func (c *lintContext) lintContractShape() {
+	for _, state := range c.def.Contract.TerminalStates {
+		if !dsl.IsKnownTerminalState(state) {
+			c.add("", CodeUnknownTerminalState, "terminal state %q is not in the closed enum", state)
+		}
+	}
+}
+
 func (c *lintContext) lintNodeIDs() {
 	for _, node := range c.def.Graph.Nodes {
 		if !nodeIDPattern.MatchString(string(node.ID)) {
 			c.add(node.ID, CodeNodeIDInvalid, "node id %q must match ^[a-z][a-z0-9_]*$", node.ID)
+		}
+		if node.ID == BudgetGateID {
+			c.add(node.ID, CodeNodeIDInvalid, "node id %q is reserved for budget approvals", node.ID)
 		}
 	}
 }

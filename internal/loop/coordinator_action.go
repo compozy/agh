@@ -20,10 +20,11 @@ type coordinatorActionRunMetadata struct {
 }
 
 type coordinatorActionRunContext struct {
-	loopRun  Run
-	resolved *ResolvedDefinition
-	node     dsl.Node
-	meta     coordinatorActionRunMetadata
+	loopRun   Run
+	resolved  *ResolvedDefinition
+	effective EffectiveConfig
+	node      dsl.Node
+	meta      coordinatorActionRunMetadata
 }
 
 // ExecuteActionRun executes one queued loop action node run through the configured action registry.
@@ -60,6 +61,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		actor,
 		actionCtx.loopRun,
 		actionCtx.resolved,
+		actionCtx.effective,
 		actionCtx.node,
 		actionCtx.meta,
 		outputs,
@@ -83,7 +85,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	return task.RunResult{Value: payload}, nil
+	return task.RunResult{Value: payload, TokensUsed: raw.TokensUsed}, nil
 }
 
 // ActionRunTimeout returns the parsed node timeout for one queued loop action run.
@@ -121,7 +123,7 @@ func (r *CoordinatorRunner) resolveActionRun(
 	if err != nil {
 		return coordinatorActionRunContext{}, err
 	}
-	resolved, err := r.resolvedLoopForAction(ctx, loopRun)
+	resolved, effective, err := r.resolvedLoopForAction(ctx, loopRun)
 	if err != nil {
 		return coordinatorActionRunContext{}, err
 	}
@@ -130,10 +132,11 @@ func (r *CoordinatorRunner) resolveActionRun(
 		return coordinatorActionRunContext{}, err
 	}
 	return coordinatorActionRunContext{
-		loopRun:  loopRun,
-		resolved: resolved,
-		node:     node,
-		meta:     meta,
+		loopRun:   loopRun,
+		resolved:  resolved,
+		effective: effective,
+		node:      node,
+		meta:      meta,
 	}, nil
 }
 
@@ -142,6 +145,7 @@ func actionExecutionInput(
 	actor task.ActorContext,
 	loopRun Run,
 	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
 	node dsl.Node,
 	meta coordinatorActionRunMetadata,
 	outputs []GenerationOutput,
@@ -166,30 +170,32 @@ func actionExecutionInput(
 		NodeID:        node.ID,
 		ItemIndex:     meta.ItemIndex,
 		Namespace:     namespace,
-		Contract:      resolved.Definition.Contract,
+		Contract:      &resolved.Definition.Contract,
 		ToolScope:     actionToolScope(loopRun, actor),
 		Actor:         actor,
 		CorrelationID: strings.TrimSpace(taskRun.ID),
+		WorkerModel:   effective.ModelDefaults.Worker,
+		JudgeModel:    effective.ModelDefaults.Judge,
 	}, nil
 }
 
 func (r *CoordinatorRunner) resolvedLoopForAction(
 	ctx context.Context,
 	loopRun Run,
-) (*ResolvedDefinition, error) {
+) (*ResolvedDefinition, EffectiveConfig, error) {
 	resolved, err := r.resolver.ResolveLoop(ctx, loopRun.WorkspaceID, loopRun.LoopName)
 	if err != nil {
-		return nil, err
+		return nil, EffectiveConfig{}, err
 	}
 	resolved, err = controlExecutionResolved(resolved)
 	if err != nil {
-		return nil, err
+		return nil, EffectiveConfig{}, err
 	}
 	effective, err := r.resolveCoordinatorEffectiveConfig(ctx, loopRun, resolved)
 	if err != nil {
-		return nil, err
+		return nil, EffectiveConfig{}, err
 	}
-	return coordinatorResolvedWithEffectiveConfig(resolved, effective), nil
+	return coordinatorResolvedWithEffectiveConfig(resolved, effective), effective, nil
 }
 
 func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRunMetadata, error) {

@@ -70,10 +70,12 @@ type ActionExecutionInput struct {
 	NodeID        dsl.NodeID
 	ItemIndex     int
 	Namespace     map[string]any
-	Contract      dsl.Contract
+	Contract      *dsl.Contract
 	ToolScope     tools.Scope
 	Actor         task.ActorContext
 	CorrelationID string
+	WorkerModel   string
+	JudgeModel    string
 }
 
 // ActionRawResult captures backend-specific action output before harvest policy.
@@ -86,6 +88,7 @@ type ActionRawResult struct {
 	SessionID       string
 	EventStartSeq   int64
 	EventEndSeq     int64
+	TokensUsed      int64
 	ChildLoopRunID  RunID
 	Status          string
 	RenderedParams  json.RawMessage
@@ -100,6 +103,7 @@ type ActionOutput struct {
 	SessionID      string
 	EventStartSeq  int64
 	EventEndSeq    int64
+	TokensUsed     int64
 	ChildLoopRunID RunID
 	Status         string
 }
@@ -194,7 +198,8 @@ type ActionSessionBinding struct {
 
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.
 type ActionPromptRequest struct {
-	Message string
+	Message       string
+	UsageReporter ActionUsageReporter
 }
 
 // ActionPromptResult captures one ACP prompt turn.
@@ -203,4 +208,5 @@ type ActionPromptResult struct {
 	Structured    json.RawMessage
 	EventStartSeq int64
 	EventEndSeq   int64
+	TokensUsed    int64
 }

@@ -18,7 +18,14 @@ func TestDaemonLoopAPIServiceApproveLoopRun(t *testing.T) {
 
 		aggregate := &loopApprovalAggregateStub{
 			run: loopApprovalRun("sess-author"),
-			approveFn: func(context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, looppkg.GateDecision) error {
+			approveFn: func(
+				context.Context,
+				looppkg.WorkspaceID,
+				looppkg.RunID,
+				looppkg.NodeID,
+				looppkg.GateDecision,
+				task.ActorContext,
+			) error {
 				t.Fatal("Approve() should not be called for self-approval")
 				return nil
 			},
@@ -50,6 +57,7 @@ func TestDaemonLoopAPIServiceApproveLoopRun(t *testing.T) {
 				runID looppkg.RunID,
 				gateID looppkg.NodeID,
 				decision looppkg.GateDecision,
+				approveActor task.ActorContext,
 			) error {
 				approveCalled = true
 				if ws != looppkg.WorkspaceID("ws-1") ||
@@ -57,6 +65,9 @@ func TestDaemonLoopAPIServiceApproveLoopRun(t *testing.T) {
 					gateID != looppkg.NodeID("human") ||
 					decision != looppkg.GateDecisionApprove {
 					t.Fatalf("Approve() = %s/%s/%s/%s", ws, runID, gateID, decision)
+				}
+				if approveActor.Actor.Ref != "sess-reviewer" {
+					t.Fatalf("Approve() actor = %#v, want sess-reviewer", approveActor.Actor)
 				}
 				return nil
 			},
@@ -106,7 +117,14 @@ func mustLoopApprovalActor(t *testing.T, sessionID string) task.ActorContext {
 
 type loopApprovalAggregateStub struct {
 	run       *looppkg.Run
-	approveFn func(context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, looppkg.GateDecision) error
+	approveFn func(
+		context.Context,
+		looppkg.WorkspaceID,
+		looppkg.RunID,
+		looppkg.NodeID,
+		looppkg.GateDecision,
+		task.ActorContext,
+	) error
 }
 
 func (s *loopApprovalAggregateStub) Start(
@@ -151,11 +169,12 @@ func (s *loopApprovalAggregateStub) Approve(
 	runID looppkg.RunID,
 	gateID looppkg.NodeID,
 	decision looppkg.GateDecision,
+	actor task.ActorContext,
 ) error {
 	if s.approveFn == nil {
 		return errors.New("unexpected Approve call")
 	}
-	return s.approveFn(ctx, ws, runID, gateID, decision)
+	return s.approveFn(ctx, ws, runID, gateID, decision, actor)
 }
 
 func (s *loopApprovalAggregateStub) Configure(

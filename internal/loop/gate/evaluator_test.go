@@ -95,6 +95,53 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 		}
 	})
 
+	t.Run("Should route agent judge through criterion model before effective default", func(t *testing.T) {
+		t.Parallel()
+
+		var models []string
+		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
+			func(_ context.Context, req JudgeRequest) (JudgeResponse, error) {
+				models = append(models, req.Model)
+				return JudgeResponse{
+					Raw: `{"verdict":"approved","confidence":0.9,"evidence":{"checked":["model"]}}`,
+				}, nil
+			},
+		)))
+		_, err := evaluator.Evaluate(context.Background(), Gate{
+			ID:            "judge_gate",
+			VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{
+				{
+					ID:     "explicit",
+					Type:   dsl.CriterionAgentJudge,
+					Rubric: "Check explicit model",
+					Model:  "criterion-model",
+				},
+				{
+					ID:     "defaulted",
+					Type:   dsl.CriterionAgentJudge,
+					Rubric: "Check default model",
+				},
+			},
+		}, GateInput{
+			Placement:  PlacementInBody,
+			Contract:   validContract(),
+			JudgeModel: "default-judge-model",
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if len(models) != 2 {
+			t.Fatalf("judge calls = %d, want 2", len(models))
+		}
+		if models[0] != "criterion-model" {
+			t.Fatalf("explicit model = %q, want criterion-model", models[0])
+		}
+		if models[1] != "default-judge-model" {
+			t.Fatalf("default model = %q, want default-judge-model", models[1])
+		}
+	})
+
 	t.Run("Should map judge transport failure to Broken for fail-open routing", func(t *testing.T) {
 		t.Parallel()
 

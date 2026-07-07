@@ -755,6 +755,21 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_loop_run_start_actor",
 			checksum: "2026-07-05-add-loop-run-start-actor",
 		},
+		{
+			version:  57,
+			name:     "add_loop_run_pinning",
+			checksum: "2026-07-07-add-loop-run-pinning",
+		},
+		{
+			version:  58,
+			name:     "add_loop_config_model_defaults",
+			checksum: "2026-07-07-add-loop-config-model-defaults",
+		},
+		{
+			version:  59,
+			name:     "update_automation_catch_up_contract",
+			checksum: "2026-07-07-update-automation-catch-up-contract",
+		},
 	}
 }
 

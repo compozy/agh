@@ -23813,6 +23813,11 @@
                                                         "nullable": true,
                                                         "properties": {
                                                             "catch_up_policy": {
+                                                                "enum": [
+                                                                    "skip",
+                                                                    "coalesce",
+                                                                    "replay"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "consecutive_resume_failures": {
@@ -24392,6 +24397,7 @@
                                                     "nullable": true,
                                                     "properties": {
                                                         "catch_up_policy": {
+                                                            "enum": ["skip", "coalesce", "replay"],
                                                             "type": "string"
                                                         },
                                                         "consecutive_resume_failures": {
@@ -25231,6 +25237,7 @@
                                                     "nullable": true,
                                                     "properties": {
                                                         "catch_up_policy": {
+                                                            "enum": ["skip", "coalesce", "replay"],
                                                             "type": "string"
                                                         },
                                                         "consecutive_resume_failures": {
@@ -25820,6 +25827,7 @@
                                                     "nullable": true,
                                                     "properties": {
                                                         "catch_up_policy": {
+                                                            "enum": ["skip", "coalesce", "replay"],
                                                             "type": "string"
                                                         },
                                                         "consecutive_resume_failures": {
@@ -26423,6 +26431,10 @@
                                                     "loop_run_id": {
                                                         "type": "string"
                                                     },
+                                                    "metadata": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                    },
                                                     "scheduled_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
@@ -26776,6 +26788,10 @@
                                                 },
                                                 "loop_run_id": {
                                                     "type": "string"
+                                                },
+                                                "metadata": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
                                                 },
                                                 "scheduled_at": {
                                                     "format": "date-time",
@@ -27180,6 +27196,10 @@
                                                     "loop_run_id": {
                                                         "type": "string"
                                                     },
+                                                    "metadata": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                    },
                                                     "scheduled_at": {
                                                         "format": "date-time",
                                                         "nullable": true,
@@ -27471,6 +27491,10 @@
                                                 },
                                                 "loop_run_id": {
                                                     "type": "string"
+                                                },
+                                                "metadata": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
                                                 },
                                                 "scheduled_at": {
                                                     "format": "date-time",
@@ -30051,6 +30075,10 @@
                                                     },
                                                     "loop_run_id": {
                                                         "type": "string"
+                                                    },
+                                                    "metadata": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
                                                     },
                                                     "scheduled_at": {
                                                         "format": "date-time",
@@ -92966,6 +92994,11 @@
                                                     "items": {
                                                         "properties": {
                                                             "catch_up_policy": {
+                                                                "enum": [
+                                                                    "skip",
+                                                                    "coalesce",
+                                                                    "replay"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "consecutive_resume_failures": {
@@ -134357,6 +134390,10 @@
                                                             "loop_run_id": {
                                                                 "type": "string"
                                                             },
+                                                            "metadata": {
+                                                                "additionalProperties": {},
+                                                                "type": "object"
+                                                            },
                                                             "scheduled_at": {
                                                                 "format": "date-time",
                                                                 "nullable": true,
@@ -134821,6 +134858,10 @@
                                                             },
                                                             "loop_run_id": {
                                                                 "type": "string"
+                                                            },
+                                                            "metadata": {
+                                                                "additionalProperties": {},
+                                                                "type": "object"
                                                             },
                                                             "scheduled_at": {
                                                                 "format": "date-time",
@@ -137649,6 +137690,12 @@
                                         "runs": {
                                             "items": {
                                                 "properties": {
+                                                    "active_gate_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "budget_approval_seq": {
+                                                        "type": "integer"
+                                                    },
                                                     "budget_on_exceeded": {
                                                         "enum": ["halt", "escalate"],
                                                         "type": "string"
@@ -137665,6 +137712,12 @@
                                                     "created_at": {
                                                         "format": "date-time",
                                                         "type": "string"
+                                                    },
+                                                    "definition_digest": {
+                                                        "type": "string"
+                                                    },
+                                                    "definition_version": {
+                                                        "type": "integer"
                                                     },
                                                     "generation": {
                                                         "type": "integer"
@@ -137696,6 +137749,14 @@
                                                         "enum": ["failed_only", "full_body"],
                                                         "type": "string"
                                                     },
+                                                    "start_metadata": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                    },
+                                                    "started_at": {
+                                                        "format": "date-time",
+                                                        "type": "string"
+                                                    },
                                                     "started_by_kind": {
                                                         "type": "string"
                                                     },
@@ -137716,7 +137777,7 @@
                                                             "needs-approval",
                                                             "paused",
                                                             "done",
-                                                            "no_op",
+                                                            "no-op",
                                                             "blocked",
                                                             "failed",
                                                             "exhausted",
@@ -137738,6 +137799,7 @@
                                                     "budget_wall_sec",
                                                     "consecutive_failures",
                                                     "created_at",
+                                                    "definition_version",
                                                     "generation",
                                                     "id",
                                                     "iteration_cap",
@@ -137745,6 +137807,7 @@
                                                     "loop_name",
                                                     "pause_requested",
                                                     "reattempt_strategy",
+                                                    "started_at",
                                                     "status",
                                                     "tokens_used",
                                                     "workspace_id"
@@ -137982,6 +138045,399 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "executed_definition": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "apiVersion": {
+                                                    "type": "string"
+                                                },
+                                                "concurrency": {
+                                                    "type": "string"
+                                                },
+                                                "contract": {
+                                                    "properties": {
+                                                        "boundaries": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "budget": {
+                                                            "properties": {
+                                                                "on_exceeded": {
+                                                                    "enum": ["halt", "escalate"],
+                                                                    "type": "string"
+                                                                },
+                                                                "tokens": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "wall_clock_sec": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tokens",
+                                                                "wall_clock_sec"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "constraints": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "definition_of_done": {
+                                                            "type": "string"
+                                                        },
+                                                        "goal": {
+                                                            "type": "string"
+                                                        },
+                                                        "iteration_cap": {
+                                                            "type": "integer"
+                                                        },
+                                                        "model_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "type": "string"
+                                                                },
+                                                                "worker": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "no_progress": {
+                                                            "properties": {
+                                                                "hash_fields": {
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
+                                                                "window": {
+                                                                    "type": "integer"
+                                                                }
+                                                            },
+                                                            "required": ["window"],
+                                                            "type": "object"
+                                                        },
+                                                        "stop_when": {
+                                                            "type": "string"
+                                                        },
+                                                        "terminal_states": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "verification": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "agent": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "check": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "expect": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "inputs": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "model": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "prompt": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "rubric": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "tool": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["id", "type"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "budget",
+                                                        "definition_of_done",
+                                                        "goal",
+                                                        "iteration_cap",
+                                                        "no_progress"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "graph": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "edges": {
+                                                            "items": {
+                                                                "additionalProperties": {},
+                                                                "properties": {
+                                                                    "from": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "to": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["from", "to"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "nodes": {
+                                                            "items": {
+                                                                "additionalProperties": {},
+                                                                "properties": {
+                                                                    "batch_size": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "body": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "class": {
+                                                                        "enum": [
+                                                                            "action",
+                                                                            "control",
+                                                                            "source"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "collection": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "condition": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "contract": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "criteria": {
+                                                                        "items": {
+                                                                            "additionalProperties": {},
+                                                                            "properties": {
+                                                                                "agent": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "check": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "expect": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "inputs": {
+                                                                                    "additionalProperties": {},
+                                                                                    "type": "object"
+                                                                                },
+                                                                                "prompt": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "rubric": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "tool": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": [
+                                                                                "id",
+                                                                                "type"
+                                                                            ],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "filter": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "harvest": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "input_ref": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "max_fan_out": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "max_parallel": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "max_revisions": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "on_result": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "params": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "parse": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "pattern": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "produces": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "retry": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "session": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "timeout": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "verdict_policy": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "watch": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    }
+                                                                },
+                                                                "required": ["class", "id", "kind"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": ["edges", "nodes"],
+                                                    "type": "object"
+                                                },
+                                                "inputs": {
+                                                    "additionalProperties": {
+                                                        "properties": {
+                                                            "default": {},
+                                                            "description": {
+                                                                "type": "string"
+                                                            },
+                                                            "ref": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "kind": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["kind"],
+                                                                "type": "object"
+                                                            },
+                                                            "required": {
+                                                                "type": "boolean"
+                                                            },
+                                                            "type": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["type"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "meta": {
+                                                    "properties": {
+                                                        "catalog": {
+                                                            "properties": {
+                                                                "category": {
+                                                                    "type": "string"
+                                                                },
+                                                                "keywords": {
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
+                                                                "use_when": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "description": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "version": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": ["catalog", "name"],
+                                                    "type": "object"
+                                                },
+                                                "start": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "input_mapping": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "inputs": {
+                                                                "additionalProperties": {},
+                                                                "type": "object"
+                                                            },
+                                                            "kind": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": [
+                                                "apiVersion",
+                                                "contract",
+                                                "graph",
+                                                "kind",
+                                                "meta"
+                                            ],
+                                            "type": "object"
+                                        },
                                         "generations": {
                                             "items": {
                                                 "properties": {
@@ -138026,6 +138482,12 @@
                                         },
                                         "run": {
                                             "properties": {
+                                                "active_gate_id": {
+                                                    "type": "string"
+                                                },
+                                                "budget_approval_seq": {
+                                                    "type": "integer"
+                                                },
                                                 "budget_on_exceeded": {
                                                     "enum": ["halt", "escalate"],
                                                     "type": "string"
@@ -138042,6 +138504,12 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "definition_version": {
+                                                    "type": "integer"
                                                 },
                                                 "generation": {
                                                     "type": "integer"
@@ -138073,6 +138541,14 @@
                                                     "enum": ["failed_only", "full_body"],
                                                     "type": "string"
                                                 },
+                                                "start_metadata": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
                                                 "started_by_kind": {
                                                     "type": "string"
                                                 },
@@ -138093,7 +138569,7 @@
                                                         "needs-approval",
                                                         "paused",
                                                         "done",
-                                                        "no_op",
+                                                        "no-op",
                                                         "blocked",
                                                         "failed",
                                                         "exhausted",
@@ -138115,6 +138591,7 @@
                                                 "budget_wall_sec",
                                                 "consecutive_failures",
                                                 "created_at",
+                                                "definition_version",
                                                 "generation",
                                                 "id",
                                                 "iteration_cap",
@@ -138122,6 +138599,7 @@
                                                 "loop_name",
                                                 "pause_requested",
                                                 "reattempt_strategy",
+                                                "started_at",
                                                 "status",
                                                 "tokens_used",
                                                 "workspace_id"
@@ -140554,6 +141032,18 @@
                                                             "iteration_cap": {
                                                                 "type": "integer"
                                                             },
+                                                            "model_defaults": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "judge": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "worker": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
                                                             "no_progress": {
                                                                 "properties": {
                                                                     "hash_fields": {
@@ -140596,6 +141086,9 @@
                                                                         "inputs": {
                                                                             "additionalProperties": {},
                                                                             "type": "object"
+                                                                        },
+                                                                        "model": {
+                                                                            "type": "string"
                                                                         },
                                                                         "prompt": {
                                                                             "type": "string"
@@ -140660,6 +141153,12 @@
                                                     "last_run": {
                                                         "nullable": true,
                                                         "properties": {
+                                                            "active_gate_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "budget_approval_seq": {
+                                                                "type": "integer"
+                                                            },
                                                             "budget_on_exceeded": {
                                                                 "enum": ["halt", "escalate"],
                                                                 "type": "string"
@@ -140676,6 +141175,12 @@
                                                             "created_at": {
                                                                 "format": "date-time",
                                                                 "type": "string"
+                                                            },
+                                                            "definition_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "definition_version": {
+                                                                "type": "integer"
                                                             },
                                                             "generation": {
                                                                 "type": "integer"
@@ -140710,6 +141215,14 @@
                                                                 ],
                                                                 "type": "string"
                                                             },
+                                                            "start_metadata": {
+                                                                "additionalProperties": {},
+                                                                "type": "object"
+                                                            },
+                                                            "started_at": {
+                                                                "format": "date-time",
+                                                                "type": "string"
+                                                            },
                                                             "started_by_kind": {
                                                                 "type": "string"
                                                             },
@@ -140730,7 +141243,7 @@
                                                                     "needs-approval",
                                                                     "paused",
                                                                     "done",
-                                                                    "no_op",
+                                                                    "no-op",
                                                                     "blocked",
                                                                     "failed",
                                                                     "exhausted",
@@ -140752,6 +141265,7 @@
                                                             "budget_wall_sec",
                                                             "consecutive_failures",
                                                             "created_at",
+                                                            "definition_version",
                                                             "generation",
                                                             "id",
                                                             "iteration_cap",
@@ -140759,6 +141273,7 @@
                                                             "loop_name",
                                                             "pause_requested",
                                                             "reattempt_strategy",
+                                                            "started_at",
                                                             "status",
                                                             "tokens_used",
                                                             "workspace_id"
@@ -141085,6 +141600,18 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
+                                                    "model_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "type": "string"
+                                                            },
+                                                            "worker": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -141127,6 +141654,9 @@
                                                                 "inputs": {
                                                                     "additionalProperties": {},
                                                                     "type": "object"
+                                                                },
+                                                                "model": {
+                                                                    "type": "string"
                                                                 },
                                                                 "prompt": {
                                                                     "type": "string"
@@ -141498,6 +142028,18 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
+                                                                "model_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "worker": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -141540,6 +142082,9 @@
                                                                             "inputs": {
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
+                                                                            },
+                                                                            "model": {
+                                                                                "type": "string"
                                                                             },
                                                                             "prompt": {
                                                                                 "type": "string"
@@ -142661,6 +143206,18 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
+                                                                "model_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "worker": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -142703,6 +143260,9 @@
                                                                             "inputs": {
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
+                                                                            },
+                                                                            "model": {
+                                                                                "type": "string"
                                                                             },
                                                                             "prompt": {
                                                                                 "type": "string"
@@ -143355,6 +143915,18 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
+                                                    "model_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "type": "string"
+                                                            },
+                                                            "worker": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -143397,6 +143969,9 @@
                                                                 "inputs": {
                                                                     "additionalProperties": {},
                                                                     "type": "object"
+                                                                },
+                                                                "model": {
+                                                                    "type": "string"
                                                                 },
                                                                 "prompt": {
                                                                     "type": "string"
@@ -143770,6 +144345,18 @@
                                                                 "iteration_cap": {
                                                                     "type": "integer"
                                                                 },
+                                                                "model_defaults": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "judge": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "worker": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
                                                                 "no_progress": {
                                                                     "properties": {
                                                                         "hash_fields": {
@@ -143812,6 +144399,9 @@
                                                                             "inputs": {
                                                                                 "additionalProperties": {},
                                                                                 "type": "object"
+                                                                            },
+                                                                            "model": {
+                                                                                "type": "string"
                                                                             },
                                                                             "prompt": {
                                                                                 "type": "string"
@@ -145101,6 +145691,20 @@
                                                     "nullable": true,
                                                     "type": "integer"
                                                 },
+                                                "model_defaults": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "judge": {
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "worker": {
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
                                                 "no_progress_window": {
                                                     "nullable": true,
                                                     "type": "integer"
@@ -145430,6 +146034,20 @@
                                                 "nullable": true,
                                                 "type": "integer"
                                             },
+                                            "model_defaults": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "judge": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "worker": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
                                             "no_progress_window": {
                                                 "nullable": true,
                                                 "type": "integer"
@@ -145487,6 +146105,20 @@
                                                 "iteration_cap": {
                                                     "nullable": true,
                                                     "type": "integer"
+                                                },
+                                                "model_defaults": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "judge": {
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        },
+                                                        "worker": {
+                                                            "nullable": true,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
                                                 },
                                                 "no_progress_window": {
                                                     "nullable": true,
@@ -145766,6 +146398,20 @@
                                                 "nullable": true,
                                                 "type": "integer"
                                             },
+                                            "model_defaults": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "judge": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "worker": {
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
                                             "no_progress_window": {
                                                 "nullable": true,
                                                 "type": "integer"
@@ -145843,6 +146489,18 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
+                                                        "model_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "type": "string"
+                                                                },
+                                                                "worker": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
                                                         "no_progress": {
                                                             "properties": {
                                                                 "hash_fields": {
@@ -145885,6 +146543,9 @@
                                                                     "inputs": {
                                                                         "additionalProperties": {},
                                                                         "type": "object"
+                                                                    },
+                                                                    "model": {
+                                                                        "type": "string"
                                                                     },
                                                                     "prompt": {
                                                                         "type": "string"
@@ -145939,6 +146600,18 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
+                                                        "model_defaults": {
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "type": "string"
+                                                                },
+                                                                "worker": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["judge", "worker"],
+                                                            "type": "object"
+                                                        },
                                                         "no_progress_window": {
                                                             "type": "integer"
                                                         },
@@ -145956,6 +146629,7 @@
                                                         "gate_max_revisions",
                                                         "human_gate_enabled",
                                                         "iteration_cap",
+                                                        "model_defaults",
                                                         "no_progress_window",
                                                         "reattempt_strategy"
                                                     ],
@@ -146014,6 +146688,12 @@
                                         "run": {
                                             "nullable": true,
                                             "properties": {
+                                                "active_gate_id": {
+                                                    "type": "string"
+                                                },
+                                                "budget_approval_seq": {
+                                                    "type": "integer"
+                                                },
                                                 "budget_on_exceeded": {
                                                     "enum": ["halt", "escalate"],
                                                     "type": "string"
@@ -146030,6 +146710,12 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "definition_version": {
+                                                    "type": "integer"
                                                 },
                                                 "generation": {
                                                     "type": "integer"
@@ -146061,6 +146747,14 @@
                                                     "enum": ["failed_only", "full_body"],
                                                     "type": "string"
                                                 },
+                                                "start_metadata": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
                                                 "started_by_kind": {
                                                     "type": "string"
                                                 },
@@ -146081,7 +146775,7 @@
                                                         "needs-approval",
                                                         "paused",
                                                         "done",
-                                                        "no_op",
+                                                        "no-op",
                                                         "blocked",
                                                         "failed",
                                                         "exhausted",
@@ -146103,6 +146797,7 @@
                                                 "budget_wall_sec",
                                                 "consecutive_failures",
                                                 "created_at",
+                                                "definition_version",
                                                 "generation",
                                                 "id",
                                                 "iteration_cap",
@@ -146110,6 +146805,7 @@
                                                 "loop_name",
                                                 "pause_requested",
                                                 "reattempt_strategy",
+                                                "started_at",
                                                 "status",
                                                 "tokens_used",
                                                 "workspace_id"
@@ -146173,6 +146869,18 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
+                                                        "model_defaults": {
+                                                            "nullable": true,
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "type": "string"
+                                                                },
+                                                                "worker": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
                                                         "no_progress": {
                                                             "properties": {
                                                                 "hash_fields": {
@@ -146215,6 +146923,9 @@
                                                                     "inputs": {
                                                                         "additionalProperties": {},
                                                                         "type": "object"
+                                                                    },
+                                                                    "model": {
+                                                                        "type": "string"
                                                                     },
                                                                     "prompt": {
                                                                         "type": "string"
@@ -146269,6 +146980,18 @@
                                                         "iteration_cap": {
                                                             "type": "integer"
                                                         },
+                                                        "model_defaults": {
+                                                            "properties": {
+                                                                "judge": {
+                                                                    "type": "string"
+                                                                },
+                                                                "worker": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": ["judge", "worker"],
+                                                            "type": "object"
+                                                        },
                                                         "no_progress_window": {
                                                             "type": "integer"
                                                         },
@@ -146286,6 +147009,7 @@
                                                         "gate_max_revisions",
                                                         "human_gate_enabled",
                                                         "iteration_cap",
+                                                        "model_defaults",
                                                         "no_progress_window",
                                                         "reattempt_strategy"
                                                     ],
@@ -146344,6 +147068,12 @@
                                         "run": {
                                             "nullable": true,
                                             "properties": {
+                                                "active_gate_id": {
+                                                    "type": "string"
+                                                },
+                                                "budget_approval_seq": {
+                                                    "type": "integer"
+                                                },
                                                 "budget_on_exceeded": {
                                                     "enum": ["halt", "escalate"],
                                                     "type": "string"
@@ -146360,6 +147090,12 @@
                                                 "created_at": {
                                                     "format": "date-time",
                                                     "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "definition_version": {
+                                                    "type": "integer"
                                                 },
                                                 "generation": {
                                                     "type": "integer"
@@ -146391,6 +147127,14 @@
                                                     "enum": ["failed_only", "full_body"],
                                                     "type": "string"
                                                 },
+                                                "start_metadata": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "started_at": {
+                                                    "format": "date-time",
+                                                    "type": "string"
+                                                },
                                                 "started_by_kind": {
                                                     "type": "string"
                                                 },
@@ -146411,7 +147155,7 @@
                                                         "needs-approval",
                                                         "paused",
                                                         "done",
-                                                        "no_op",
+                                                        "no-op",
                                                         "blocked",
                                                         "failed",
                                                         "exhausted",
@@ -146433,6 +147177,7 @@
                                                 "budget_wall_sec",
                                                 "consecutive_failures",
                                                 "created_at",
+                                                "definition_version",
                                                 "generation",
                                                 "id",
                                                 "iteration_cap",
@@ -146440,6 +147185,7 @@
                                                 "loop_name",
                                                 "pause_requested",
                                                 "reattempt_strategy",
+                                                "started_at",
                                                 "status",
                                                 "tokens_used",
                                                 "workspace_id"
@@ -146968,6 +147714,18 @@
                                                     "iteration_cap": {
                                                         "type": "integer"
                                                     },
+                                                    "model_defaults": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "judge": {
+                                                                "type": "string"
+                                                            },
+                                                            "worker": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "no_progress": {
                                                         "properties": {
                                                             "hash_fields": {
@@ -147010,6 +147768,9 @@
                                                                 "inputs": {
                                                                     "additionalProperties": {},
                                                                     "type": "object"
+                                                                },
+                                                                "model": {
+                                                                    "type": "string"
                                                                 },
                                                                 "prompt": {
                                                                     "type": "string"

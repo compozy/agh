@@ -1,24 +1,13 @@
 import { Eyebrow, type PillTone } from "@agh/ui";
 
+import { LOOP_RUN_LIVE_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
+
 import { LOOP_STATUS_LABELS, loopStatusTone } from "../../lib/loop-formatters";
 import type { LoopRunStatus } from "../../types";
 
 /** The 5 live and 6 terminal statuses in their design display order (§3.3). */
-const LIVE_STATUSES: LoopRunStatus[] = [
-  "queued",
-  "running",
-  "watching",
-  "needs-approval",
-  "paused",
-];
-const TERMINAL_STATUSES: LoopRunStatus[] = [
-  "done",
-  "no_op",
-  "blocked",
-  "failed",
-  "exhausted",
-  "stalled",
-];
+const LIVE_STATUSES = LOOP_RUN_LIVE_STATUSES satisfies readonly LoopRunStatus[];
+const TERMINAL_STATUSES = LOOP_RUN_TERMINAL_STATUSES satisfies readonly LoopRunStatus[];
 
 const DOT_CLASS: Record<PillTone, string> = {
   neutral: "bg-neutral",
@@ -37,7 +26,7 @@ const STATUS_HINT: Record<LoopRunStatus, string> = {
   "needs-approval": "live pause",
   paused: "operator suspended",
   done: "goal verified",
-  no_op: "ran, nothing to do",
+  "no-op": "ran, nothing to do",
   blocked: "external dependency",
   failed: "unrecoverable error",
   exhausted: "limit reached",

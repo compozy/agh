@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -306,8 +307,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		binder := &fakeActionSessionBinder{
 			binding: loop.ActionSessionBinding{SessionID: "sess-shared", Handle: "main"},
 			promptResults: []loop.ActionPromptResult{
-				{Text: "not json", EventStartSeq: 1, EventEndSeq: 2},
-				{Text: "```json\n{\"summary\":\"done\"}\n```", EventStartSeq: 3, EventEndSeq: 4},
+				{Text: "not json", EventStartSeq: 1, EventEndSeq: 2, TokensUsed: 11},
+				{Text: "```json\n{\"summary\":\"done\"}\n```", EventStartSeq: 3, EventEndSeq: 4, TokensUsed: 13},
 			},
 		}
 		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
@@ -315,6 +316,13 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(run-agent) error = %v", err)
 		}
+		reportedTokens := []int64{}
+		ctx := loop.ContextWithActionUsageReporter(
+			context.Background(),
+			loop.ActionUsageReporterFunc(func(tokensUsed int64) {
+				reportedTokens = append(reportedTokens, tokensUsed)
+			}),
+		)
 		node := dsl.Node{
 			ID:    "agent",
 			Class: dsl.NodeClassAction,
@@ -328,13 +336,13 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				"output_schema": map[string]any{"summary": "string"},
 			},
 		}
-		raw, err := executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+		raw, err := executor.Execute(ctx, node, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			ItemIndex:   2,
 			Namespace: map[string]any{
 				"inputs": map[string]any{"topic": "delivery"},
 			},
-			Contract: dsl.Contract{
+			Contract: &dsl.Contract{
 				Goal:             "Ship the loop",
 				DefinitionOfDone: "The action registry works",
 				Constraints:      []string{"Do not create a second registry"},
@@ -348,6 +356,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		output, err := executor.Harvest(context.Background(), raw, node)
 		if err != nil {
 			t.Fatalf("Harvest() error = %v", err)
+		}
+		if raw.TokensUsed != 24 || output.TokensUsed != 24 {
+			t.Fatalf("tokens_used raw/output = %d/%d, want 24", raw.TokensUsed, output.TokensUsed)
+		}
+		if !slices.Equal(reportedTokens, []int64{11, 24}) {
+			t.Fatalf("reported tokens = %#v, want [11 24]", reportedTokens)
 		}
 		got, ok := output.Value.(map[string]any)
 		if !ok || got["summary"] != "done" {
@@ -423,6 +437,41 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 		if !binder.cancelHadDeadline() {
 			t.Fatal("CancelActionSession context has no deadline")
+		}
+	})
+
+	t.Run("Should use effective worker model when run agent params omit model", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{
+			binding:       loop.ActionSessionBinding{SessionID: "sess-default-model", Handle: "main"},
+			promptResults: []loop.ActionPromptResult{{Text: "done"}},
+		}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionSessionBinder(binder))
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		node := dsl.Node{
+			ID:    "agent",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent":  "planner",
+				"prompt": "Summarize",
+			},
+		}
+
+		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			WorkerModel: "default-worker-model",
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		bind := binder.mustSingleBind(t)
+		if bind.Model != "default-worker-model" {
+			t.Fatalf("bind model = %q, want default-worker-model", bind.Model)
 		}
 	})
 
@@ -717,6 +766,9 @@ func (b *fakeActionSessionBinder) PromptActionSession(
 		}
 		result := b.promptResults[0]
 		b.promptResults = b.promptResults[1:]
+		if req.UsageReporter != nil && result.TokensUsed > 0 {
+			req.UsageReporter.ReportActionTokensUsed(result.TokensUsed)
+		}
 		b.mu.Unlock()
 		return result, nil
 	}

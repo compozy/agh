@@ -30,9 +30,14 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const runQuery = useLoopRun(workspaceId, runId, enabled);
   const run = runQuery.data?.run;
   const generations = runQuery.data?.generations;
+  const executedDefinition = runQuery.data?.executed_definition;
   const loopName = run?.loop_name ?? "";
-  const loopQuery = useLoop(workspaceId, loopName, enabled && loopName !== "");
-  const definition = loopQuery.data?.definition;
+  const loopQuery = useLoop(
+    workspaceId,
+    loopName,
+    enabled && loopName !== "" && !executedDefinition
+  );
+  const definition = executedDefinition ?? loopQuery.data?.definition;
 
   const [live, dispatch] = useReducer(applyLoopEventFrame, undefined, emptyLoopRunLiveState);
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
@@ -112,7 +117,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     run,
     definition,
     contract: definition?.contract,
-    loopVersion: loopQuery.data?.version,
+    loopVersion: run?.definition_version ?? loopQuery.data?.version,
     live,
     isLive,
     meters,

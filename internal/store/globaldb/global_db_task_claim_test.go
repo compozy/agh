@@ -2991,12 +2991,14 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 		name   string
 		status looppkg.Status
 		cause  looppkg.TransitionCause
+		gateID string
 	}{
 		{name: "terminal", status: looppkg.StatusDone, cause: looppkg.TransitionCauseContract},
 		{
 			name:   "needs approval",
 			status: looppkg.StatusNeedsApproval,
 			cause:  looppkg.TransitionCauseBudget,
+			gateID: string(looppkg.BudgetGateID),
 		},
 	}
 	for _, tc := range cases {
@@ -3046,6 +3048,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 						Terminal: &taskpkg.CoordinatorTerminal{
 							Status: string(tc.status),
 							Cause:  string(tc.cause),
+							GateID: tc.gateID,
 						},
 					},
 					Now: now.Add(time.Second),
@@ -3175,6 +3178,25 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 			if storedLoop.TokensUsed != 5 {
 				t.Fatalf("loop tokens_used = %d, want refreshed sum 5", storedLoop.TokensUsed)
 			}
+			if tc.wantStatus == looppkg.StatusNeedsApproval {
+				if storedLoop.ActiveGateID != looppkg.BudgetGateID {
+					t.Fatalf("loop active_gate_id = %q, want %q", storedLoop.ActiveGateID, looppkg.BudgetGateID)
+				}
+				if storedLoop.BudgetApprovalSeq != 1 {
+					t.Fatalf("loop budget_approval_seq = %d, want 1", storedLoop.BudgetApprovalSeq)
+				}
+				events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+					WorkspaceID: loopRun.WorkspaceID,
+					RunID:       loopRun.ID,
+				})
+				if err != nil {
+					t.Fatalf("ListLoopRunEvents() error = %v", err)
+				}
+				payload := loopEventPayloadForKind(t, events, loopRunEventNeedsApproval)
+				if got, want := payload["gate_id"], string(looppkg.BudgetGateID); got != want {
+					t.Fatalf("needs_approval.gate_id = %#v, want %q", got, want)
+				}
+			}
 		})
 	}
 }
@@ -3237,6 +3259,196 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 	}
 	if len(result.EnqueuedRuns) != 0 {
 		t.Fatalf("enqueued runs = %d, want 0 after wall-clock budget", len(result.EnqueuedRuns))
+	}
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClockBudget(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openFreshTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	startedAt := time.Date(2026, 7, 4, 16, 35, 0, 0, time.UTC)
+	seed := testLoopRun("looprun-coordinator-wall-started-at", startedAt, looppkg.StatusRunning)
+	seed.CreatedAt = startedAt.Add(-time.Hour)
+	seed.StartedAt = startedAt
+	seed.BudgetWallSec = 10
+	seed.BudgetOnExceeded = dsl.BudgetExceededHalt
+	loopRun, err := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"task-coordinator-wall-started-at",
+		"run-coordinator-wall-started-at",
+		"coordinator-wall-started-at",
+		startedAt,
+	)
+
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID:  string(loopRun.ID),
+					Generation: 1,
+				},
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID:         claim.Run.TaskID,
+					RunID:          "run-coordinator-wall-started-at-next",
+					RunKind:        taskpkg.RunKindCoordinator,
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "coordinator-wall-started-at-next",
+				},
+			},
+			Now: startedAt.Add(9 * time.Second),
+		},
+		looppkg.NewStoreFinalizer(),
+	)
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+	}
+	if result.Terminal {
+		t.Fatal("Terminal = true, want continue before started_at wall-clock budget expires")
+	}
+	if len(result.EnqueuedRuns) != 1 {
+		t.Fatalf("enqueued runs = %d, want 1 before started_at budget expires", len(result.EnqueuedRuns))
+	}
+	storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID() error = %v", err)
+	}
+	if storedLoop.Status != looppkg.StatusRunning {
+		t.Fatalf("loop status = %q, want running", storedLoop.Status)
+	}
+}
+
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnce(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openFreshTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 16, 45, 0, 0, time.UTC)
+	seed := testLoopRun("looprun-coordinator-budget-approval-once", now, looppkg.StatusRunning)
+	seed.BudgetTokens = 5
+	seed.BudgetOnExceeded = dsl.BudgetExceededHalt
+	seed.BudgetApprovalSeq = 1
+	loopRun, err := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	createCompletedLoopWorkerRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"worker-budget-approval-once",
+		5,
+		now,
+	)
+	firstClaim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"task-coordinator-budget-approval-once",
+		"run-coordinator-budget-approval-once",
+		"coordinator-budget-approval-once",
+		now,
+	)
+
+	first, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID:      firstClaim.Run.ID,
+			ClaimToken: firstClaim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID:  string(loopRun.ID),
+					Generation: 1,
+				},
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID:         firstClaim.Run.TaskID,
+					RunID:          "run-coordinator-budget-approval-next",
+					RunKind:        taskpkg.RunKindCoordinator,
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "coordinator-budget-approval-next",
+				},
+			},
+			Now: now.Add(time.Second),
+		},
+		looppkg.NewStoreFinalizer(),
+	)
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
+	}
+	if first.Terminal {
+		t.Fatal("first.Terminal = true, want one approved continuation")
+	}
+	if len(first.EnqueuedRuns) != 1 {
+		t.Fatalf("first enqueued runs = %d, want 1", len(first.EnqueuedRuns))
+	}
+	storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID(first) error = %v", err)
+	}
+	if storedLoop.BudgetApprovalSeq != 0 {
+		t.Fatalf("budget_approval_seq after first boundary = %d, want consumed 0", storedLoop.BudgetApprovalSeq)
+	}
+
+	secondClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            first.EnqueuedRuns[0].ID,
+		Scope:            taskpkg.ScopeGlobal,
+		RunKind:          taskpkg.RunKindCoordinator,
+		ClaimerSessionID: "daemon-loop-budget-approval-second",
+		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(2 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(second) error = %v", err)
+	}
+	second, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+		ctx,
+		taskpkg.CoordinatorCompletion{
+			RunID:      secondClaim.Run.ID,
+			ClaimToken: secondClaim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID:  string(loopRun.ID),
+					Generation: 1,
+				},
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID:         secondClaim.Run.TaskID,
+					RunID:          "run-coordinator-budget-approval-third",
+					RunKind:        taskpkg.RunKindCoordinator,
+					LoopRunID:      string(loopRun.ID),
+					IdempotencyKey: "coordinator-budget-approval-third",
+				},
+			},
+			Now: now.Add(3 * time.Second),
+		},
+		looppkg.NewStoreFinalizer(),
+	)
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(second) error = %v", err)
+	}
+	if got, want := coordinatorResultStatus(t, &second), string(looppkg.StatusExhausted); got != want {
+		t.Fatalf("second loop status = %q, want %q", got, want)
+	}
+	if !second.Terminal {
+		t.Fatal("second.Terminal = false, want exhausted after approval is consumed")
+	}
+	if len(second.EnqueuedRuns) != 0 {
+		t.Fatalf("second enqueued runs = %d, want 0", len(second.EnqueuedRuns))
 	}
 }
 
@@ -3537,24 +3749,43 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	cases := []struct {
 		name              string
 		complete          bool
+		result            json.RawMessage
+		tokensUsed        int64
 		wantOutputStatus  string
 		wantOutputRef     string
+		wantEvents        []string
 		initialFailures   int
 		wantFailureStreak int
 	}{
 		{
-			name:              "success resets breaker",
-			complete:          true,
-			wantOutputStatus:  "succeeded",
-			wantOutputRef:     `{"ok":true}`,
+			name:             "success resets breaker",
+			complete:         true,
+			result:           json.RawMessage(`{"message":"approved agh_claim_SECRET123"}`),
+			tokensUsed:       3,
+			wantOutputStatus: "succeeded",
+			wantOutputRef:    `{"message":"approved agh_claim_SECRET123"}`,
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeSucceeded,
+				loopRunEventChannelMsg,
+				loopRunEventTokenTick,
+			},
 			initialFailures:   1,
 			wantFailureStreak: 0,
 		},
 		{
-			name:              "failure increments breaker",
-			complete:          false,
-			wantOutputStatus:  "failed",
-			wantOutputRef:     "credential_missing",
+			name:             "failure increments breaker",
+			complete:         false,
+			tokensUsed:       5,
+			wantOutputStatus: "failed",
+			wantOutputRef:    "credential_missing",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeFailed,
+				loopRunEventTokenTick,
+			},
 			initialFailures:   1,
 			wantFailureStreak: 2,
 		},
@@ -3627,8 +3858,8 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
-					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
-					TokensUsed: 3,
+					Result:     taskpkg.RunResult{Value: tc.result},
+					TokensUsed: tc.tokensUsed,
 					Now:        terminalAt,
 				}); err != nil {
 					t.Fatalf("CompleteRunLease() error = %v", err)
@@ -3641,7 +3872,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 						Error:    "missing credential",
 						Metadata: json.RawMessage(`{"reason_code":"credential_missing"}`),
 					},
-					TokensUsed: 5,
+					TokensUsed: tc.tokensUsed,
 					Now:        terminalAt,
 				}); err != nil {
 					t.Fatalf("FailRunLease() error = %v", err)
@@ -3678,7 +3909,148 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 					tc.wantFailureStreak,
 				)
 			}
+			if storedLoop.TokensUsed != tc.tokensUsed {
+				t.Fatalf("loop tokens_used = %d, want %d", storedLoop.TokensUsed, tc.tokensUsed)
+			}
+			events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+				WorkspaceID: loopRun.WorkspaceID,
+				RunID:       loopRun.ID,
+			})
+			if err != nil {
+				t.Fatalf("ListLoopRunEvents() error = %v", err)
+			}
+			assertLoopEventKinds(t, events, tc.wantEvents)
+			tick := loopEventPayloadForKind(t, events, loopRunEventTokenTick)
+			if got := int64(tick["tokens_used"].(float64)); got != tc.tokensUsed {
+				t.Fatalf("token_tick.tokens_used = %d, want %d", got, tc.tokensUsed)
+			}
+			if tc.complete {
+				channel := loopEventPayloadForKind(t, events, loopRunEventChannelMsg)
+				text := channel["text"].(string)
+				if strings.Contains(text, "agh_claim_SECRET123") {
+					t.Fatalf("channel_msg.text leaked raw claim token: %q", text)
+				}
+				if !strings.Contains(text, "agh_claim_[REDACTED]") {
+					t.Fatalf("channel_msg.text = %q, want redacted claim token marker", text)
+				}
+			}
 		})
+	}
+}
+
+func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openFreshTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 4, 17, 30, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-heartbeat-token-ticks", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	taskRecord := taskRecordForTest("task-heartbeat-token-ticks")
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	runID := "run-heartbeat-token-ticks"
+	reservation := queuedRunReservationForTest(
+		taskRecord.ID,
+		runID,
+		"heartbeat-token-ticks",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		"",
+		json.RawMessage(`{"generation":1,"node_id":"agent","item_index":0}`),
+		now,
+	)
+	reservation.RunKind = taskpkg.RunKindWorker
+	reservation.LoopRunID = string(loopRun.ID)
+	if _, _, _, err := globalDB.ReserveQueuedRun(ctx, reservation); err != nil {
+		t.Fatalf("ReserveQueuedRun(worker) error = %v", err)
+	}
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "worker-heartbeat-token-ticks",
+		ClaimedBy: &taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKindDaemon,
+			Ref:  "worker",
+		},
+		LeaseDuration: time.Minute,
+		Now:           now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	heartbeats := []struct {
+		at     time.Time
+		tokens int64
+	}{
+		{at: now.Add(6 * time.Second), tokens: 1200},
+		{at: now.Add(7 * time.Second), tokens: 3200},
+		{at: now.Add(12 * time.Second), tokens: 4300},
+	}
+	for _, heartbeat := range heartbeats {
+		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+			RunID:         claim.Run.ID,
+			ClaimToken:    claim.ClaimToken,
+			LeaseDuration: time.Minute,
+			Now:           heartbeat.at,
+			TokensUsed:    heartbeat.tokens,
+		}); err != nil {
+			t.Fatalf("HeartbeatRunLease(tokens=%d) error = %v", heartbeat.tokens, err)
+		}
+	}
+	var storedTaskTokens int64
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT tokens_used FROM task_runs WHERE id = ?`,
+		runID,
+	).Scan(&storedTaskTokens); err != nil {
+		t.Fatalf("query task run tokens_used error = %v", err)
+	}
+	if storedTaskTokens != 4300 {
+		t.Fatalf("task run tokens_used = %d, want 4300", storedTaskTokens)
+	}
+	storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID() error = %v", err)
+	}
+	if storedLoop.TokensUsed != 4300 {
+		t.Fatalf("loop tokens_used = %d, want 4300", storedLoop.TokensUsed)
+	}
+	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		WorkspaceID: loopRun.WorkspaceID,
+		RunID:       loopRun.ID,
+	})
+	if err != nil {
+		t.Fatalf("ListLoopRunEvents() error = %v", err)
+	}
+	ticks := make([]map[string]any, 0, 2)
+	for _, event := range events {
+		if event.Kind != loopRunEventTokenTick {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(token_tick) error = %v", err)
+		}
+		ticks = append(ticks, payload)
+	}
+	if len(ticks) != 2 {
+		t.Fatalf("token_tick count = %d, want 2; events=%#v", len(ticks), events)
+	}
+	if got := int64(ticks[0]["tokens_used"].(float64)); got != 1200 {
+		t.Fatalf("first token_tick.tokens_used = %d, want 1200", got)
+	}
+	if got := int64(ticks[1]["tokens_used"].(float64)); got != 4300 {
+		t.Fatalf("second token_tick.tokens_used = %d, want 4300", got)
+	}
+	if terminal, ok := ticks[0]["terminal"].(bool); !ok || terminal {
+		t.Fatalf("first token_tick.terminal = %#v, want false", ticks[0]["terminal"])
 	}
 }
 
@@ -4050,4 +4422,37 @@ func coordinatorResultStatus(
 		t.Fatalf("json.Unmarshal(CoordinatorCompletionResult.Context) error = %v", err)
 	}
 	return payload.Status
+}
+
+func assertLoopEventKinds(t *testing.T, events []looppkg.RunEvent, want []string) {
+	t.Helper()
+
+	got := make([]string, 0, len(events))
+	for _, event := range events {
+		got = append(got, event.Kind)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("loop event kinds = %#v, want %#v", got, want)
+	}
+}
+
+func loopEventPayloadForKind(
+	t *testing.T,
+	events []looppkg.RunEvent,
+	kind string,
+) map[string]any {
+	t.Helper()
+
+	for _, event := range events {
+		if event.Kind != kind {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(%s payload) error = %v; payload=%s", kind, err, event.Payload)
+		}
+		return payload
+	}
+	t.Fatalf("loop event kind %q not found in %#v", kind, events)
+	return nil
 }

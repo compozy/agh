@@ -56,7 +56,7 @@ openclaw lowercase dotted/dashed convention.
 | `cron.no-duplicate-per-window`       | Each scheduled fire is identified by `scheduledFireID(jobID, scheduledAt UTC)` and claimed atomically through `ClaimScheduledRun`; a duplicate claim is rejected.    | `internal/automation/schedule.go:921-932`, `:619-629`; `ErrScheduledFireAlreadyClaimed` in `internal/automation/persistence.go:14-15`                                                                                   |
 | `cron.restart-resumes-pending`       | After daemon restart, the durable cursor in `SchedulerState.NextRunAt` is the source of truth; `predictNextRun` is only a fallback when no durable row exists.       | `internal/automation/schedule.go:464-476,735-800`                                                                                                                                                                       |
 | `cron.restart-no-duplicate`          | If a daemon restart crosses a fire boundary, the rebuilt scheduler reads the existing `LastFireID` and won't re-claim a fire id already persisted.                   | `TestSchedulerRestartAfterClaimDoesNotDuplicateAlreadyClaimedFire` in `internal/automation/schedule_test.go:322-388`                                                                                                    |
-| `cron.skip-missed-policy`            | Missed cron fires reconcile via `SchedulerCatchUpPolicySkipMissed` — misfires are recorded (`MisfireCount++`, `LastMisfireAt`), never replayed.                      | `internal/automation/schedule.go:782-797`, `internal/automation/model/types.go:81-85`                                                                                                                                   |
+| `cron.skip-policy`            | Missed cron fires reconcile via `SchedulerCatchUpPolicySkip` — misfires are recorded (`MisfireCount++`, `LastMisfireAt`), never replayed.                      | `internal/automation/schedule.go:782-797`, `internal/automation/model/types.go:81-85`                                                                                                                                   |
 | `cron.timezone-respected`            | Scheduler uses `WithSchedulerLocation(time.LoadLocation(config.Timezone))`; `config.Timezone` is required and validated.                                             | `internal/automation/manager.go:1380-1396`, `internal/config/automation.go:97-103`                                                                                                                                      |
 | `cron.dst-no-double-fire`            | DST fall-back is handled by the underlying cron parser (`robfig/cron/v3`) — `cronImpl.Next` returns the next absolute time, never both occurrences of an ambiguous wall time. | `internal/automation/schedule.go:506-515,854-883`; gocron-v2 wraps robfig                                                                                                                                                |
 | `at.past-rejected-as-skip`           | `ScheduleModeAt` with `time <= now` returns `schedulePlan{register: false}`; the job is skipped (logged) and not registered.                                         | `internal/automation/schedule.go:525-535`, `:417-427`                                                                                                                                                                   |
@@ -245,7 +245,7 @@ coverage:
     - cron.restart-no-duplicate
     - cron.restart-resumes-pending
   secondary:
-    - cron.skip-missed-policy
+    - cron.skip-policy
 risk: high
 live: true
 provider: real-claude-code
@@ -280,7 +280,7 @@ expected:
     a new `fire_<sha256[:24]>` value distinct from the one persisted before
     the stop (proves the cursor advanced, not replayed).
   - Daemon log carries `automation.scheduler.dispatch_failed` zero times
-    for the restart window. The `skip-missed` policy must record misfires
+    for the restart window. The `skip` policy must record misfires
     silently, not fail dispatch.
 evidence:
   - `crn-02-runs.json`, `crn-02-scheduler-state.json` (pre/post restart).
@@ -288,7 +288,7 @@ evidence:
 failure_signatures:
   - A duplicate run for the missed-during-downtime minute appears in
     `automation_runs`: `cron.no-duplicate-per-window` and
-    `cron.skip-missed-policy` both violated.
+    `cron.skip-policy` both violated.
   - `last_fire_id` after restart equals the pre-restart value:
     `cron.restart-resumes-pending` violated; cursor is rolling back.
   - Two runs for the same post-restart fire id: critical race;
@@ -404,7 +404,7 @@ theme: automation.cron
 coverage:
   primary:
     - cron.restart-no-duplicate
-    - cron.skip-missed-policy
+    - cron.skip-policy
   secondary:
     - dispatch.lifecycle-events
     - dispatch.session-stop-budget
@@ -425,7 +425,7 @@ steps:
   - Wait 30s.
   - Restart daemon. Tail the log + `automation_runs`.
 expected:
-  - One of these two outcomes (per `cron.skip-missed-policy`):
+  - One of these two outcomes (per `cron.skip-policy`):
     1. The fire that was about to happen is recorded as a misfire — no
        `automation_runs` row for it; `automation_scheduler_state.misfire_count`
        incremented; or
@@ -769,7 +769,7 @@ coverage:
     - cron.dst-no-double-fire
     - cron.next-fire-deterministic
   secondary:
-    - cron.skip-missed-policy
+    - cron.skip-policy
 risk: critical
 live: false
 provider: mock-acp
@@ -1294,7 +1294,7 @@ cleanup:
 | `cron.no-duplicate-per-window`       | CRN-01, CRN-02, CRN-03, CRN-11                          |
 | `cron.restart-resumes-pending`       | CRN-02, CRN-03, CRN-04                                  |
 | `cron.restart-no-duplicate`          | CRN-02, CRN-05                                          |
-| `cron.skip-missed-policy`            | CRN-02, CRN-05, CRN-12                                  |
+| `cron.skip-policy`            | CRN-02, CRN-05, CRN-12                                  |
 | `cron.timezone-respected`            | CRN-10, CRN-11                                          |
 | `cron.dst-no-double-fire`            | CRN-11, CRN-12                                          |
 | `at.past-rejected-as-skip`           | CRN-09                                                  |

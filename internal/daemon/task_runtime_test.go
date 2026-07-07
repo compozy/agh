@@ -1104,7 +1104,7 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Spec:    testWatchLoopSpec(t, loopName),
 		}})
-		loopRun, err := db.CreateLoopRunForStart(ctx, looppkg.Run{
+		seedRun := looppkg.Run{
 			ID:                "looprun-watch-daemon",
 			WorkspaceID:       "ws-1",
 			LoopName:          loopName,
@@ -1115,7 +1115,9 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 			IterationCap:      3,
 			BudgetOnExceeded:  loopdsl.BudgetExceededHalt,
 			Inputs:            map[string]any{},
-		}, loopdsl.ConcurrencyAllow)
+		}
+		applyLoopRunPinningForTest(&seedRun, now)
+		loopRun, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow)
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}

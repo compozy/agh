@@ -485,6 +485,11 @@ window = 3
 # Gate revision seed default. Compile-time ceiling: 64.
 max_revisions = 10
 
+[loops.defaults.delivery.model_defaults]
+# Empty strings keep the provider/runtime default model.
+worker = ""
+judge = ""
+
 [loops.defaults.delivery.budget]
 # 0 means unlimited. When set, budgets are enforced with halt or escalate.
 tokens = 0
@@ -498,6 +503,10 @@ fan_out_width = 2
 
 [loops.defaults.watch.no_progress]
 window = 2
+
+[loops.defaults.watch.model_defaults]
+worker = ""
+judge = ""
 
 [loops.defaults.watch.budget]
 tokens = 0
@@ -1292,10 +1301,14 @@ revision defaults, but it cannot loosen them past the hard runtime ceilings.
 | `budget.tokens`         | `0`              | `0`           | Zero or positive integer. | Token budget. `0` means unlimited. A set budget is enforced.                |
 | `budget.wall_clock_sec` | `0`              | `0`           | Zero or positive integer. | Wall-clock budget in seconds. `0` means unlimited.                          |
 | `budget.on_exceeded`    | `halt`           | `halt`        | `halt` or `escalate`.     | Enforcement policy once a non-zero budget is exceeded.                      |
+| `model_defaults.worker` | empty            | empty         | string.                   | Default model for `run-agent` actions that omit `params.model`.             |
+| `model_defaults.judge`  | empty            | empty         | string.                   | Default model for `agent-judge` criteria that omit `model`.                 |
 | `fan_out_width`         | `4`              | `2`           | `0` through `64`.         | Fan-out width seed default for new runs.                                    |
 
 These paths are mutable through `agh config set` and the native config tools. Writes return
 `lifecycle="restart-required"` because the daemon does not rewrite active runs after defaults change.
+New starts read the resolved defaults after the daemon reloads its config state; live runs keep the
+effective config materialized at start.
 
 ## `[autonomy]`
 

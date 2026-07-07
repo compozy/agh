@@ -14,7 +14,7 @@ const (
 	coordinatorTerminalStatusDone      = "done"
 	coordinatorTerminalStatusExhausted = "exhausted"
 	coordinatorTerminalStatusFailed    = "failed"
-	coordinatorTerminalStatusNoOp      = "no_op"
+	coordinatorTerminalStatusNoOp      = "no-op"
 	coordinatorTerminalStatusStalled   = "stalled"
 )
 

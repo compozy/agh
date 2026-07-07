@@ -84,7 +84,7 @@ const deliveryContract: LoopContract = {
   no_progress: { window: 3, hash_fields: ["delivery_artifact", "gate_verdict"] },
   boundaries: ["Do not touch unrelated packages."],
   constraints: ["No destructive git."],
-  terminal_states: ["done", "no_op", "blocked", "failed", "exhausted", "stalled"],
+  terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
   verification: [
     {
       id: "verify_build",
@@ -124,7 +124,11 @@ function buildRun(
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
     created_at: "2026-07-05T12:00:00Z",
+    started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:18:00Z",
+    definition_version: 4,
+    definition_digest: "sha256:mock-loop-definition",
+    start_metadata: {},
     ...overrides,
   };
 }
@@ -210,9 +214,9 @@ export const loopRunFixtures: LoopRun[] = [
     inputs: { pr: "475" },
   }),
   buildRun({
-    id: "looprun_no_op",
+    id: "looprun_no-op",
     loop_name: "reviews-watch",
-    status: "no_op",
+    status: "no-op",
     iteration_cap: 0,
     budget_tokens: 0,
     tokens_used: 12_000,
@@ -453,7 +457,7 @@ function watchGenerations(run: LoopRun): LoopRunDetail["generations"] {
         { node_id: "watch_pr", status: "succeeded", generation: run.generation },
         {
           node_id: "fetch_issues",
-          status: run.status === "no_op" ? "no_op" : "succeeded",
+          status: run.status === "no-op" ? "no-op" : "succeeded",
           generation: run.generation,
         },
         {
@@ -474,6 +478,7 @@ export const loopRunDetailFixtures: LoopRunDetail[] = loopRunFixtures.map(run =>
     started_by_ref: "operator",
     started_origin_kind: run.started_origin_kind ?? "cli",
   },
+  executed_definition: loopDetailByName.get(run.loop_name)!.definition,
   generations: run.loop_name === "reviews-watch" ? watchGenerations(run) : deliveryGenerations(run),
 }));
 

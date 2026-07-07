@@ -225,12 +225,13 @@ func (r *loopActionRuntime) executeQueuedRun(
 		if ctx.Err() != nil {
 			return err
 		}
-		return r.failClaimedRun(ctx, claim, actor, reason, err)
+		return r.failClaimedRun(ctx, claim, actor, reason, result.TokensUsed, err)
 	}
 	_, err = r.manager.CompleteRunLease(context.WithoutCancel(ctx), taskpkg.LeaseCompletion{
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
 		Result:     result,
+		TokensUsed: result.TokensUsed,
 		Now:        r.now().UTC(),
 	}, actor)
 	return err
@@ -243,12 +244,17 @@ func (r *loopActionRuntime) executeClaimedRun(
 	leaseDuration time.Duration,
 ) (taskpkg.RunResult, error) {
 	runCtx, cancelRun := context.WithCancel(ctx)
-	heartbeatErrC := r.startHeartbeat(runCtx, cancelRun, claim, actor, leaseDuration)
+	usage := &loopActionUsageState{}
+	runCtx = looppkg.ContextWithActionUsageReporter(runCtx, usage)
+	heartbeatErrC := r.startHeartbeat(runCtx, cancelRun, claim, actor, leaseDuration, usage)
 	result, runErr := r.runner.ExecuteActionRun(runCtx, claim.Run, actor)
 	cancelRun()
 	heartbeatErr := <-heartbeatErrC
 	if ctx.Err() != nil {
 		return taskpkg.RunResult{}, ctx.Err()
+	}
+	if tokensUsed := usage.TokensUsed(); tokensUsed > result.TokensUsed {
+		result.TokensUsed = tokensUsed
 	}
 	return result, errors.Join(runErr, heartbeatErr)
 }
@@ -259,10 +265,11 @@ func (r *loopActionRuntime) startHeartbeat(
 	claim *taskpkg.ClaimResult,
 	actor taskpkg.ActorContext,
 	leaseDuration time.Duration,
+	usage *loopActionUsageState,
 ) <-chan error {
 	errC := make(chan error, 1)
 	go func() {
-		err := r.heartbeatClaim(ctx, claim, actor, leaseDuration)
+		err := r.heartbeatClaim(ctx, claim, actor, leaseDuration, usage)
 		if err != nil {
 			cancelRun()
 		}
@@ -276,6 +283,7 @@ func (r *loopActionRuntime) heartbeatClaim(
 	claim *taskpkg.ClaimResult,
 	actor taskpkg.ActorContext,
 	leaseDuration time.Duration,
+	usage *loopActionUsageState,
 ) error {
 	interval := r.heartbeatInterval(leaseDuration)
 	ticker := time.NewTicker(interval)
@@ -290,6 +298,7 @@ func (r *loopActionRuntime) heartbeatClaim(
 				ClaimToken:    claim.ClaimToken,
 				LeaseDuration: leaseDuration,
 				Now:           r.now().UTC(),
+				TokensUsed:    usage.TokensUsed(),
 			}, actor)
 			if err != nil {
 				if ctx.Err() != nil {
@@ -338,6 +347,7 @@ func (r *loopActionRuntime) failClaimedRun(
 	claim *taskpkg.ClaimResult,
 	actor taskpkg.ActorContext,
 	reason string,
+	tokensUsed int64,
 	cause error,
 ) error {
 	if claim == nil {
@@ -357,9 +367,36 @@ func (r *loopActionRuntime) failClaimedRun(
 			Error:    cause.Error(),
 			Metadata: metadata,
 		},
-		Now: r.now().UTC(),
+		TokensUsed: tokensUsed,
+		Now:        r.now().UTC(),
 	}, actor)
 	return errors.Join(cause, failErr)
+}
+
+type loopActionUsageState struct {
+	tokensUsed atomic.Int64
+}
+
+func (s *loopActionUsageState) ReportActionTokensUsed(tokensUsed int64) {
+	if s == nil || tokensUsed <= 0 {
+		return
+	}
+	for {
+		current := s.tokensUsed.Load()
+		if tokensUsed <= current {
+			return
+		}
+		if s.tokensUsed.CompareAndSwap(current, tokensUsed) {
+			return
+		}
+	}
+}
+
+func (s *loopActionUsageState) TokensUsed() int64 {
+	if s == nil {
+		return 0
+	}
+	return s.tokensUsed.Load()
 }
 
 func (r *loopActionRuntime) shutdown(ctx context.Context) error {

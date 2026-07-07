@@ -96,6 +96,7 @@ type LeaseHeartbeat struct {
 	ClaimToken    string        `json:"claim_token"`
 	LeaseDuration time.Duration `json:"lease_duration"`
 	Now           time.Time     `json:"now"`
+	TokensUsed    int64         `json:"tokens_used,omitempty"`
 }
 
 // LeaseRelease captures a token-fenced release request.
@@ -240,6 +241,14 @@ func (h LeaseHeartbeat) Validate(path string) error {
 	}
 	if h.Now.IsZero() {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
+	}
+	if h.TokensUsed < 0 {
+		return fmt.Errorf(
+			"%w: %s must be zero or positive: %d",
+			ErrValidation,
+			nestedPath(path, "tokens_used"),
+			h.TokensUsed,
+		)
 	}
 	return nil
 }

@@ -85,14 +85,14 @@ Once a watch Loop starts, its lifecycle differs from a delivery Loop:
   poll. It is not consuming a generation while it waits.
 - **Unbounded cap** — watch Loops default `iteration_cap: 0`, rendered `∞`. A `0` cap never
   produces `exhausted`, because there is no fixed count of "done."
-- **`no_op` on clean ticks** — a tick that finds nothing to do ends the generation `no_op`, never a
+- **`no-op` on clean ticks** — a tick that finds nothing to do ends the generation `no-op`, never a
   fake `done`. A clean watch tick is honest idleness.
 - **Stall on silence** — if a watched source goes silent past its window, the run ends `stalled`
   (reason `watch_source_silence`), not `done`. Silence is measured against `last_progress_at` plus
   the source's window.
 
 The default `dev-cycle` `reviews-watch` Loop is a watch Loop: it holds `watching`, fetches and
-remediates each new batch of CodeRabbit review comments as a generation, and reports `no_op` when a
+remediates each new batch of CodeRabbit review comments as a generation, and reports `no-op` when a
 tick finds nothing unresolved. It requires `gh` to be installed and authenticated.
 
 ## What stays put

@@ -61,6 +61,10 @@ window = 2
 [loops.defaults.delivery.gates]
 max_revisions = 9
 
+[loops.defaults.delivery.model_defaults]
+worker = "global-worker"
+judge = "global-judge"
+
 [loops.defaults.delivery.budget]
 tokens = 100
 wall_clock_sec = 60
@@ -72,6 +76,9 @@ fan_out_width = 1
 
 [loops.defaults.watch.no_progress]
 window = 1
+
+[loops.defaults.watch.model_defaults]
+judge = "global-watch-judge"
 `)
 		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [loops.defaults.delivery]
@@ -82,6 +89,9 @@ fan_out_width = 2
 tokens = 0
 on_exceeded = "halt"
 
+[loops.defaults.delivery.model_defaults]
+worker = "workspace-worker"
+
 [loops.defaults.watch]
 fan_out_width = 5
 
@@ -90,6 +100,9 @@ window = 4
 
 [loops.defaults.watch.gates]
 max_revisions = 7
+
+[loops.defaults.watch.model_defaults]
+judge = "workspace-watch-judge"
 `)
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
@@ -105,6 +118,8 @@ max_revisions = 7
 			budgetWallSec:    60,
 			budgetOnExceeded: string(dsl.BudgetExceededHalt),
 			fanOutWidth:      2,
+			workerModel:      "workspace-worker",
+			judgeModel:       "global-judge",
 		})
 		assertLoopDefaultConfig(t, "watch", cfg.Loops.Defaults.Watch, loopDefaultWant{
 			iterationCap:     1,
@@ -114,6 +129,7 @@ max_revisions = 7
 			budgetWallSec:    0,
 			budgetOnExceeded: string(dsl.BudgetExceededHalt),
 			fanOutWidth:      5,
+			judgeModel:       "workspace-watch-judge",
 		})
 	})
 }
@@ -197,6 +213,11 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			path: []string{"loops", "defaults", "watch", "budget", "on_exceeded"},
 			kind: ConfigValueString,
 		},
+		{
+			name: "Should allow delivery worker model defaults",
+			path: []string{"loops", "defaults", "delivery", "model_defaults", "worker"},
+			kind: ConfigValueString,
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +246,8 @@ type loopDefaultWant struct {
 	budgetWallSec    int
 	budgetOnExceeded string
 	fanOutWidth      int
+	workerModel      string
+	judgeModel       string
 }
 
 func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, want loopDefaultWant) {
@@ -250,5 +273,11 @@ func assertLoopDefaultConfig(t *testing.T, label string, got LoopDefaultConfig, 
 	}
 	if got.FanOutWidth != want.fanOutWidth {
 		t.Fatalf("%s FanOutWidth = %d, want %d", label, got.FanOutWidth, want.fanOutWidth)
+	}
+	if got.ModelDefaults.Worker != want.workerModel {
+		t.Fatalf("%s ModelDefaults.Worker = %q, want %q", label, got.ModelDefaults.Worker, want.workerModel)
+	}
+	if got.ModelDefaults.Judge != want.judgeModel {
+		t.Fatalf("%s ModelDefaults.Judge = %q, want %q", label, got.ModelDefaults.Judge, want.judgeModel)
 	}
 }

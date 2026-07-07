@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,8 +16,10 @@ import (
 var _ looppkg.Store = (*GlobalDB)(nil)
 
 const loopRunSelectColumnsSQL = `
-	id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at,
-	last_progress_at, consecutive_failures, budget_tokens, budget_wall_sec,
+	id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
+	last_progress_at, definition_version, definition_digest, active_gate_id,
+	active_human_criteria_json, budget_approval_seq, start_metadata_json,
+	consecutive_failures, budget_tokens, budget_wall_sec,
 	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, iteration_cap,
 	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref`
 
@@ -39,6 +40,10 @@ func (g *GlobalDB) CreateLoopRunForStart(
 	if err != nil {
 		return looppkg.Run{}, fmt.Errorf("store: marshal loop run inputs: %w", err)
 	}
+	startMetadataJSON, err := json.Marshal(normalized.StartMetadata)
+	if err != nil {
+		return looppkg.Run{}, fmt.Errorf("store: marshal loop run start metadata: %w", err)
+	}
 	if policy == "" {
 		policy = dsl.ConcurrencyForbid
 	}
@@ -49,7 +54,10 @@ func (g *GlobalDB) CreateLoopRunForStart(
 		if decisionErr != nil {
 			return decisionErr
 		}
-		return insertLoopRun(ctx, exec, created, inputsJSON)
+		if err := upsertLoopDefinitionSnapshot(ctx, exec, created, g.now()); err != nil {
+			return err
+		}
+		return insertLoopRun(ctx, exec, created, inputsJSON, startMetadataJSON)
 	})
 	if err != nil {
 		return looppkg.Run{}, err
@@ -93,15 +101,18 @@ func insertLoopRun(
 	exec taskSQLExecutor,
 	run looppkg.Run,
 	inputsJSON []byte,
+	startMetadataJSON []byte,
 ) error {
 	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO loop_runs (
-			id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at,
-			last_progress_at, consecutive_failures, iteration_cap, budget_tokens, budget_wall_sec,
+			id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
+			last_progress_at, definition_version, definition_digest, active_gate_id,
+			active_human_criteria_json, budget_approval_seq, start_metadata_json,
+			consecutive_failures, iteration_cap, budget_tokens, budget_wall_sec,
 			budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json,
 			started_by_kind, started_by_ref, started_origin_kind, started_origin_ref
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(run.ID),
 		string(run.WorkspaceID),
 		run.LoopName,
@@ -109,7 +120,14 @@ func insertLoopRun(
 		run.Generation,
 		string(run.ReattemptStrategy),
 		store.FormatTimestamp(run.CreatedAt),
+		store.FormatTimestamp(run.StartedAt),
 		store.FormatTimestamp(run.LastProgressAt),
+		run.DefinitionVersion,
+		run.DefinitionDigest,
+		string(run.ActiveGateID),
+		string(run.ActiveHumanCriteria),
+		run.BudgetApprovalSeq,
+		string(startMetadataJSON),
 		run.ConsecutiveFailures,
 		run.IterationCap,
 		run.BudgetTokens,
@@ -251,6 +269,9 @@ func (g *GlobalDB) CompareAndSwapLoopRunStatus(
 	if strings.TrimSpace(string(cause)) == "" {
 		return fmt.Errorf("%w: transition cause is required", looppkg.ErrValidation)
 	}
+	if from == to {
+		return nil
+	}
 	if at.IsZero() {
 		at = g.now()
 	}
@@ -266,7 +287,9 @@ func (g *GlobalDB) CompareAndSwapLoopRunStatus(
 				ctx,
 				`UPDATE loop_runs
 			 SET status = ?,
-			     pause_requested = CASE WHEN ? IN (?, ?, ?, ?, ?, ?, ?, ?) THEN 0 ELSE pause_requested END
+			     pause_requested = CASE WHEN ? IN (?, ?, ?, ?, ?, ?, ?, ?) THEN 0 ELSE pause_requested END,
+			     active_gate_id = CASE WHEN ? != ? THEN '' ELSE active_gate_id END,
+			     active_human_criteria_json = CASE WHEN ? != ? THEN '[]' ELSE active_human_criteria_json END
 			 WHERE id = ? AND status = ?`,
 				string(to),
 				string(to),
@@ -278,6 +301,10 @@ func (g *GlobalDB) CompareAndSwapLoopRunStatus(
 				string(looppkg.StatusFailed),
 				string(looppkg.StatusExhausted),
 				string(looppkg.StatusStalled),
+				string(to),
+				string(looppkg.StatusNeedsApproval),
+				string(to),
+				string(looppkg.StatusNeedsApproval),
 				string(runID),
 				string(from),
 			)
@@ -346,8 +373,9 @@ func (g *GlobalDB) UpsertLoopConfig(
 		`INSERT INTO loop_config (
 			workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
 			iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
-			no_progress_window, fan_out_width, gate_max_revisions
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			no_progress_window, fan_out_width, gate_max_revisions,
+			model_default_worker, model_default_judge
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(workspace_id, loop_name) DO UPDATE SET
 			human_gate_enabled = excluded.human_gate_enabled,
 			reattempt_strategy = excluded.reattempt_strategy,
@@ -358,7 +386,9 @@ func (g *GlobalDB) UpsertLoopConfig(
 			budget_on_exceeded = excluded.budget_on_exceeded,
 			no_progress_window = excluded.no_progress_window,
 			fan_out_width = excluded.fan_out_width,
-			gate_max_revisions = excluded.gate_max_revisions`,
+			gate_max_revisions = excluded.gate_max_revisions,
+			model_default_worker = excluded.model_default_worker,
+			model_default_judge = excluded.model_default_judge`,
 		string(ws),
 		strings.TrimSpace(loopName),
 		boolPtrToInt(normalized.HumanGateEnabled),
@@ -371,6 +401,8 @@ func (g *GlobalDB) UpsertLoopConfig(
 		nullIntPtr(normalized.NoProgressWindow),
 		nullIntPtr(normalized.FanOutWidth),
 		nullIntPtr(normalized.GateMaxRevisions),
+		modelDefaultNullString(normalized.ModelDefaults, true),
+		modelDefaultNullString(normalized.ModelDefaults, false),
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert loop config %q/%q: %w", ws, loopName, err)
@@ -391,7 +423,8 @@ func (g *GlobalDB) GetLoopConfig(
 		ctx,
 		`SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
 		        iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
-		        no_progress_window, fan_out_width, gate_max_revisions
+		        no_progress_window, fan_out_width, gate_max_revisions,
+		        model_default_worker, model_default_judge
 		 FROM loop_config
 		 WHERE workspace_id = ? AND loop_name = ?`,
 		string(ws),
@@ -415,63 +448,4 @@ func getLoopRunByIDWithExecutor(
 		string(runID),
 	)
 	return scanLoopRun(row)
-}
-
-func appendLoopRunStatusEvent(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	runID looppkg.RunID,
-	ws looppkg.WorkspaceID,
-	from looppkg.Status,
-	to looppkg.Status,
-	cause looppkg.TransitionCause,
-	at time.Time,
-) error {
-	seq, err := nextLoopRunEventSequence(ctx, exec, runID)
-	if err != nil {
-		return err
-	}
-	payload, err := json.Marshal(map[string]string{
-		"from":  string(from),
-		"to":    string(to),
-		"cause": string(cause),
-	})
-	if err != nil {
-		return fmt.Errorf("store: marshal loop status event payload: %w", err)
-	}
-	_, err = exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID("loopevt"),
-		string(runID),
-		string(ws),
-		seq,
-		"status_changed",
-		string(payload),
-		store.FormatTimestamp(at),
-	)
-	if err != nil {
-		return fmt.Errorf("store: insert loop run status event: %w", err)
-	}
-	return nil
-}
-
-func nextLoopRunEventSequence(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	runID looppkg.RunID,
-) (int64, error) {
-	var next sql.NullInt64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(MAX(seq), 0) + 1 FROM loop_run_events WHERE loop_run_id = ?`,
-		string(runID),
-	).Scan(&next); err != nil {
-		return 0, fmt.Errorf("store: select next loop run event sequence: %w", err)
-	}
-	if !next.Valid {
-		return 1, nil
-	}
-	return next.Int64, nil
 }

@@ -141,6 +141,7 @@ func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 		Error:           run.Error,
 		DeliveryError:   run.DeliveryError,
 		DeliveryErrorAt: run.DeliveryErrorAt,
+		Metadata:        maps.Clone(run.Metadata),
 	}
 }
 

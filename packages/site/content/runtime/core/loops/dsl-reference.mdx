@@ -73,15 +73,18 @@ contract:
   stop_when: "" # optional CEL terminal condition
   verification: # gate criteria that decide "done"
     - { id: checks, type: command, check: "{{ .inputs.verify_command }}", expect: exit_zero }
-  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
   iteration_cap: 50 # 0 = unbounded (watch Loops)
   no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
+  model_defaults: { worker: "", judge: "" } # empty = provider/runtime default
 ```
 
 `verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
 model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
 [guardrails](/runtime/core/loops/guardrails) page. `terminal_states` lists the fixed six outcomes.
+`model_defaults.worker` seeds `run-agent` actions that omit `params.model`;
+`model_defaults.judge` seeds `agent-judge` criteria that omit `model`.
 
 ## The body graph
 
@@ -116,6 +119,9 @@ extension, and MCP tool is a Loop action for free.
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
+`params.model` is a per-node override. If it is empty, AGH uses the effective
+`model_defaults.worker`; if that is also empty, the provider/runtime default model remains in
+effect.
 
 ### Control nodes
 
@@ -147,12 +153,12 @@ See [extending Loops](/runtime/core/loops/extensions#watch-sources).
 A `gate` node (and the contract's `verification`) is a list of typed **criteria**. Each criterion
 is a typed object, never a bare string — push vague checks toward a `command` where you can.
 
-| Criterion `type` | Fields                                         | Verdict source? |
-| ---------------- | ---------------------------------------------- | --------------- |
-| `command`        | `check` (command), `expect` (e.g. `exit_zero`) | no              |
-| `agent-judge`    | `agent`, `rubric` (`{{ }}` template)           | yes             |
-| `human`          | `prompt`                                       | yes             |
-| `extension`      | `tool` (tool ID), `inputs`                     | no              |
+| Criterion `type` | Fields                                                 | Verdict source? |
+| ---------------- | ------------------------------------------------------ | --------------- |
+| `command`        | `check` (command), `expect` (e.g. `exit_zero`)         | no              |
+| `agent-judge`    | `agent`, `rubric` (`{{ }}` template), optional `model` | yes             |
+| `human`          | `prompt`                                               | yes             |
+| `extension`      | `tool` (tool ID), `inputs`                             | no              |
 
 `verdict_policy` selects how the gate decides:
 
@@ -167,6 +173,7 @@ compares the repeated set across the no-progress window. A malformed judge respo
 revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
 `error`, `timeout`, `invalid_output`) to a route; `max_revisions` caps the loop before the gate
 fails.
+An `agent-judge.model` value overrides `model_defaults.judge` for that criterion only.
 
 ## Start bindings
 

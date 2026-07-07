@@ -75,6 +75,7 @@ func outputFromRaw(raw ActionRawResult) (ActionOutput, error) {
 		SessionID:      raw.SessionID,
 		EventStartSeq:  raw.EventStartSeq,
 		EventEndSeq:    raw.EventEndSeq,
+		TokensUsed:     raw.TokensUsed,
 		ChildLoopRunID: raw.ChildLoopRunID,
 		Status:         raw.Status,
 	}, nil

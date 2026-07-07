@@ -42,7 +42,7 @@ contract:
     tokens: 0
     wall_clock_sec: 0
     on_exceeded: halt
-  terminal_states: [done, no_op, blocked, failed, exhausted, stalled]
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
 
 graph:
   nodes:

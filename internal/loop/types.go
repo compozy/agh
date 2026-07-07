@@ -72,6 +72,8 @@ const (
 	CodeWatchKindRequired = "watch_kind_required"
 	// CodeDuplicateNodeID reports repeated node IDs.
 	CodeDuplicateNodeID = "duplicate_node_id"
+	// CodeUnknownTerminalState reports contract terminal states outside the closed enum.
+	CodeUnknownTerminalState = "unknown_terminal_state"
 )
 
 // ToolSchemaSnapshot is the pure tool-schema view consumed by lint and compile.

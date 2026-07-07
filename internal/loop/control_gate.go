@@ -21,6 +21,7 @@ func evaluateGateNode(
 	topology controlTopology,
 	effective EffectiveConfig,
 	evaluator gate.GateEvaluator,
+	decisions GateDecisionReader,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
@@ -55,12 +56,18 @@ func evaluateGateNode(
 	if empty {
 		return approveGateOutput(output)
 	}
+	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
 	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
 		run,
 		generation,
 		resolved,
+		effective,
 		namespace,
 		gate.PlacementInBody,
+		humanDecisions,
 	))
 	if err != nil {
 		return GenerationOutput{}, nil, err
@@ -72,20 +79,39 @@ func runtimeGateInput(
 	run Run,
 	generation int,
 	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
 	namespace map[string]any,
 	placement gate.Placement,
+	humanDecisions map[string]gate.HumanDecision,
 ) gate.GateInput {
+	if humanDecisions == nil {
+		humanDecisions = map[string]gate.HumanDecision{}
+	}
 	return gate.GateInput{
 		Placement:      placement,
 		Contract:       resolved.Definition.Contract,
 		TemplateData:   namespace,
 		Revision:       max(0, generation-1),
-		HumanDecisions: map[string]gate.HumanDecision{},
+		HumanDecisions: humanDecisions,
+		JudgeModel:     effective.ModelDefaults.Judge,
 		ToolScope: tools.Scope{
 			WorkspaceID: string(run.WorkspaceID),
 			ActorKind:   startLoopMetaKey,
 		},
 	}
+}
+
+func loadGateDecisions(
+	ctx context.Context,
+	decisions GateDecisionReader,
+	run Run,
+	generation int,
+	gateID dsl.NodeID,
+) (map[string]gate.HumanDecision, error) {
+	if decisions == nil {
+		return map[string]gate.HumanDecision{}, nil
+	}
+	return decisions.ListLoopGateDecisions(ctx, run.WorkspaceID, run.ID, generation, gateID)
 }
 
 func approveGateOutput(output GenerationOutput) (GenerationOutput, *task.CoordinatorTerminal, error) {
@@ -117,7 +143,7 @@ func gateOutputFromVerdict(
 		return output, nil, nil
 	case gate.RouteEscalate, gate.RouteHalt:
 		output.Status = generationOutputSucceeded
-		return output, gateRouteTerminal(verdict.Route, ref), nil
+		return output, gateRouteTerminal(nodeID, verdict.Route, ref), nil
 	default:
 		return GenerationOutput{}, nil, fmt.Errorf(
 			"%w: gate node %q returned unsupported route action %q",
@@ -184,7 +210,7 @@ func gateVerdictOutputRef(verdict gate.Verdict) (string, error) {
 	return string(data), nil
 }
 
-func gateRouteTerminal(route gate.RouteDecision, details string) *task.CoordinatorTerminal {
+func gateRouteTerminal(gateID dsl.NodeID, route gate.RouteDecision, details string) *task.CoordinatorTerminal {
 	status := strings.TrimSpace(route.TerminalStatus)
 	if status == "" {
 		switch route.Action {
@@ -204,6 +230,7 @@ func gateRouteTerminal(route gate.RouteDecision, details string) *task.Coordinat
 		Status:     status,
 		Cause:      string(TransitionCauseGateRejected),
 		ReasonCode: reasonCode,
+		GateID:     string(gateID),
 		Details:    json.RawMessage(details),
 	}
 }

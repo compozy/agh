@@ -916,6 +916,7 @@ func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.Ag
 			Lease: &contract.TaskRunLeaseSummaryPayload{
 				TaskID:                "task-1",
 				RunID:                 "run-1",
+				Status:                taskpkg.TaskRunStatusRunning,
 				SessionID:             info.ID,
 				CoordinationChannelID: "builders",
 				CoordinationChannel:   &channel,

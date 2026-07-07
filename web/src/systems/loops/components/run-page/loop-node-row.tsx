@@ -40,7 +40,7 @@ const NODE_STATUS_LABEL: Record<string, string> = {
   succeeded: "Succeeded",
   reused: "Reused",
   skipped: "Skipped",
-  no_op: "No-op",
+  "no-op": "No-op",
   blocked: "Blocked",
   failed: "Failed",
 };

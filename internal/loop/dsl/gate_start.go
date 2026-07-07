@@ -7,6 +7,7 @@ type GateCriterion struct {
 	Check  string         `json:"check,omitempty"  yaml:"check,omitempty"`
 	Expect string         `json:"expect,omitempty" yaml:"expect,omitempty"`
 	Agent  string         `json:"agent,omitempty"  yaml:"agent,omitempty"`
+	Model  string         `json:"model,omitempty"  yaml:"model,omitempty"`
 	Rubric string         `json:"rubric,omitempty" yaml:"rubric,omitempty"`
 	Prompt string         `json:"prompt,omitempty" yaml:"prompt,omitempty"`
 	Tool   string         `json:"tool,omitempty"   yaml:"tool,omitempty"`

@@ -88,7 +88,7 @@ func (b *loopActionSessionBinder) PromptActionSession(
 		ctx,
 		b.sessions,
 		strings.TrimSpace(binding.SessionID),
-		req.Message,
+		req,
 	)
 }
 
@@ -119,6 +119,7 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 	}
 	opts := session.CreateOpts{
 		AgentName:     agent,
+		Model:         strings.TrimSpace(req.Model),
 		Name:          loopRuntimeSessionName("gate", agent, req.CriterionID),
 		Channel:       loopRuntimeSessionChannel(looppkg.WorkspaceID(req.WorkspaceID), req.GateID),
 		PromptOverlay: looppkg.RenderContractBlock(req.Contract),
@@ -142,7 +143,9 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 	if info == nil {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned nil info")
 	}
-	result, err := collectLoopPromptResult(ctx, r.sessions, strings.TrimSpace(info.ID), req.Rubric)
+	result, err := collectLoopPromptResult(ctx, r.sessions, strings.TrimSpace(info.ID), looppkg.ActionPromptRequest{
+		Message: req.Rubric,
+	})
 	if err != nil {
 		return gate.JudgeResponse{}, err
 	}
@@ -267,17 +270,18 @@ func collectLoopPromptResult(
 	ctx context.Context,
 	sessions loopPromptSessionManager,
 	sessionID string,
-	message string,
+	req looppkg.ActionPromptRequest,
 ) (looppkg.ActionPromptResult, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop prompt session id is required")
 	}
-	events, err := sessions.Prompt(ctx, sessionID, message)
+	events, err := sessions.Prompt(ctx, sessionID, req.Message)
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}
 	var text strings.Builder
 	var structured json.RawMessage
+	var tokensUsed int64
 	for event := range events {
 		if strings.TrimSpace(event.Text) != "" {
 			if text.Len() > 0 {
@@ -288,11 +292,35 @@ func collectLoopPromptResult(
 		if len(bytes.TrimSpace(event.Raw)) > 0 && structured == nil {
 			structured = cloneJSONRaw(event.Raw)
 		}
+		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
+			tokensUsed = tokens
+			if req.UsageReporter != nil {
+				req.UsageReporter.ReportActionTokensUsed(tokens)
+			}
+		}
 	}
 	return looppkg.ActionPromptResult{
 		Text:       text.String(),
 		Structured: structured,
+		TokensUsed: tokensUsed,
 	}, nil
+}
+
+func loopPromptTokensUsed(usage *acp.TokenUsage) (int64, bool) {
+	if usage == nil {
+		return 0, false
+	}
+	if usage.TotalTokens != nil {
+		return *usage.TotalTokens, *usage.TotalTokens > 0
+	}
+	var total int64
+	if usage.InputTokens != nil {
+		total += *usage.InputTokens
+	}
+	if usage.OutputTokens != nil {
+		total += *usage.OutputTokens
+	}
+	return total, total > 0
 }
 
 func loopRuntimeSessionName(kind string, agent string, suffix string) string {

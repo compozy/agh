@@ -45,7 +45,15 @@ func (e *RunAgentActionExecutor) Execute(
 	}
 	defer cancelRun()
 	cancelOnDeadline := strings.TrimSpace(node.Timeout) != ""
-	contractBlock := RenderContractBlock(in.Contract)
+	contract := dsl.Contract{}
+	if in.Contract != nil {
+		contract = *in.Contract
+	}
+	contractBlock := RenderContractBlock(contract)
+	model := strings.TrimSpace(spec.Model)
+	if model == "" {
+		model = strings.TrimSpace(in.WorkerModel)
+	}
 	binding, err := e.binder.BindActionSession(runCtx, ActionSessionBindRequest{
 		WorkspaceID:   in.WorkspaceID,
 		Agent:         strings.TrimSpace(spec.Agent),
@@ -53,7 +61,7 @@ func (e *RunAgentActionExecutor) Execute(
 		Handle:        actionSessionHandle(node.Session),
 		ItemIndex:     in.ItemIndex,
 		Isolated:      node.Session != nil && node.Session.Isolated,
-		Model:         strings.TrimSpace(spec.Model),
+		Model:         model,
 		AllowedTools:  append([]string(nil), spec.AllowedTools...),
 		MaxTurns:      spec.MaxTurns,
 		ContractBlock: contractBlock,
@@ -61,12 +69,14 @@ func (e *RunAgentActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("bind run-agent session: %w", err)
 	}
-	first, err := e.promptActionSession(runCtx, binding, spec.Prompt, cancelOnDeadline)
+	first, err := e.promptActionSession(runCtx, binding, spec.Prompt, 0, cancelOnDeadline)
 	if err != nil {
 		return ActionRawResult{}, err
 	}
+	tokensUsed := first.TokensUsed
 	structured, err := validateRunAgentStructured(spec.OutputSchema, first)
 	if err == nil {
+		first.TokensUsed = tokensUsed
 		return rawFromPromptResult(binding, first, structured), nil
 	}
 	if !errors.Is(err, ErrActionSchemaInvalid) {
@@ -77,14 +87,16 @@ func (e *RunAgentActionExecutor) Execute(
 	if retryErr != nil {
 		return ActionRawResult{}, retryErr
 	}
-	second, retryPromptErr := e.promptActionSession(runCtx, binding, retryPrompt, cancelOnDeadline)
+	second, retryPromptErr := e.promptActionSession(runCtx, binding, retryPrompt, tokensUsed, cancelOnDeadline)
 	if retryPromptErr != nil {
 		return ActionRawResult{}, retryPromptErr
 	}
+	tokensUsed += second.TokensUsed
 	structured, retryValidationErr := validateRunAgentStructured(spec.OutputSchema, second)
 	if retryValidationErr != nil {
 		return ActionRawResult{}, retryValidationErr
 	}
+	second.TokensUsed = tokensUsed
 	return rawFromPromptResult(binding, second, structured), nil
 }
 
@@ -100,11 +112,16 @@ func (e *RunAgentActionExecutor) promptActionSession(
 	ctx context.Context,
 	binding ActionSessionBinding,
 	message string,
+	tokensUsedBase int64,
 	cancelOnDeadline bool,
 ) (ActionPromptResult, error) {
+	req := ActionPromptRequest{
+		Message:       message,
+		UsageReporter: cumulativeActionUsageReporter(ctx, tokensUsedBase),
+	}
 	deadline, ok := ctx.Deadline()
 	if !cancelOnDeadline || !ok {
-		return e.binder.PromptActionSession(ctx, binding, ActionPromptRequest{Message: message})
+		return e.binder.PromptActionSession(ctx, binding, req)
 	}
 	timeout := max(time.Until(deadline), 0)
 	timeoutCancel := make(chan error, 1)
@@ -113,7 +130,7 @@ func (e *RunAgentActionExecutor) promptActionSession(
 		defer cancelCancel()
 		timeoutCancel <- e.binder.CancelActionSession(cancelCtx, binding)
 	})
-	result, err := e.binder.PromptActionSession(ctx, binding, ActionPromptRequest{Message: message})
+	result, err := e.binder.PromptActionSession(ctx, binding, req)
 	if timer.Stop() {
 		return result, err
 	}
@@ -130,6 +147,19 @@ func (e *RunAgentActionExecutor) promptActionSession(
 	)
 }
 
+func cumulativeActionUsageReporter(ctx context.Context, base int64) ActionUsageReporter {
+	reporter := actionUsageReporterFromContext(ctx)
+	if reporter == nil {
+		return nil
+	}
+	return ActionUsageReporterFunc(func(tokensUsed int64) {
+		if tokensUsed <= 0 {
+			return
+		}
+		reporter.ReportActionTokensUsed(base + tokensUsed)
+	})
+}
+
 func rawFromPromptResult(
 	binding ActionSessionBinding,
 	result ActionPromptResult,
@@ -141,5 +171,6 @@ func rawFromPromptResult(
 		SessionID:     binding.SessionID,
 		EventStartSeq: result.EventStartSeq,
 		EventEndSeq:   result.EventEndSeq,
+		TokensUsed:    result.TokensUsed,
 	}
 }

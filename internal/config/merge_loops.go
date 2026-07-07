@@ -10,11 +10,12 @@ type loopsDefaultsOverlay struct {
 }
 
 type loopDefaultOverlay struct {
-	IterationCap *int                         `toml:"iteration_cap"`
-	NoProgress   loopNoProgressDefaultOverlay `toml:"no_progress"`
-	Gates        loopGatesDefaultOverlay      `toml:"gates"`
-	Budget       loopBudgetDefaultOverlay     `toml:"budget"`
-	FanOutWidth  *int                         `toml:"fan_out_width"`
+	IterationCap  *int                         `toml:"iteration_cap"`
+	NoProgress    loopNoProgressDefaultOverlay `toml:"no_progress"`
+	Gates         loopGatesDefaultOverlay      `toml:"gates"`
+	Budget        loopBudgetDefaultOverlay     `toml:"budget"`
+	ModelDefaults loopModelDefaultsOverlay     `toml:"model_defaults"`
+	FanOutWidth   *int                         `toml:"fan_out_width"`
 }
 
 type loopNoProgressDefaultOverlay struct {
@@ -29,6 +30,11 @@ type loopBudgetDefaultOverlay struct {
 	Tokens       *int    `toml:"tokens"`
 	WallClockSec *int    `toml:"wall_clock_sec"`
 	OnExceeded   *string `toml:"on_exceeded"`
+}
+
+type loopModelDefaultsOverlay struct {
+	Worker *string `toml:"worker"`
+	Judge  *string `toml:"judge"`
 }
 
 func (o loopsOverlay) Apply(dst *LoopsConfig) {
@@ -47,6 +53,7 @@ func (o loopDefaultOverlay) Apply(dst *LoopDefaultConfig) {
 	o.NoProgress.Apply(&dst.NoProgress)
 	o.Gates.Apply(&dst.Gates)
 	o.Budget.Apply(&dst.Budget)
+	o.ModelDefaults.Apply(&dst.ModelDefaults)
 	if o.FanOutWidth != nil {
 		dst.FanOutWidth = *o.FanOutWidth
 	}
@@ -73,5 +80,14 @@ func (o loopBudgetDefaultOverlay) Apply(dst *LoopBudgetDefaultConfig) {
 	}
 	if o.OnExceeded != nil {
 		dst.OnExceeded = *o.OnExceeded
+	}
+}
+
+func (o loopModelDefaultsOverlay) Apply(dst *LoopModelDefaultsConfig) {
+	if o.Worker != nil {
+		dst.Worker = *o.Worker
+	}
+	if o.Judge != nil {
+		dst.Judge = *o.Judge
 	}
 }

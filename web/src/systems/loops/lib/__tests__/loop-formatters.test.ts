@@ -32,7 +32,7 @@ const STATUS_TABLE: Array<{
   },
   { status: "paused", tone: "neutral", pulse: false, terminal: false, label: "Paused" },
   { status: "done", tone: "success", pulse: false, terminal: true, label: "Done" },
-  { status: "no_op", tone: "neutral", pulse: false, terminal: true, label: "No-op" },
+  { status: "no-op", tone: "neutral", pulse: false, terminal: true, label: "No-op" },
   { status: "blocked", tone: "warning", pulse: false, terminal: true, label: "Blocked" },
   { status: "failed", tone: "danger", pulse: false, terminal: true, label: "Failed" },
   { status: "exhausted", tone: "warning", pulse: false, terminal: true, label: "Exhausted" },

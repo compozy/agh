@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -17,6 +19,8 @@ type automationLoopStarter struct {
 	service  looppkg.Service
 	resolver looppkg.DefinitionResolver
 }
+
+var _ automationpkg.LoopCatchUpPolicyResolver = (*automationLoopStarter)(nil)
 
 func newAutomationLoopStarter(
 	storeCandidate any,
@@ -65,6 +69,29 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 	})
 }
 
+func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
+	ctx context.Context,
+	req automationpkg.LoopCatchUpPolicyRequest,
+) (automationpkg.SchedulerCatchUpPolicy, error) {
+	if _, err := automationStartKindToLoopStartKind(req.Kind); err != nil {
+		return "", err
+	}
+	resolved, err := s.resolver.ResolveLoop(
+		ctx,
+		looppkg.WorkspaceID(strings.TrimSpace(req.WorkspaceID)),
+		strings.TrimSpace(req.LoopName),
+	)
+	if err != nil {
+		return "", err
+	}
+	for _, node := range resolved.Definition.Graph.Nodes {
+		if node.Class == loopdsl.NodeClassSource && node.Kind == string(loopdsl.SourceWatchSource) {
+			return automationpkg.SchedulerCatchUpPolicyCoalesce, nil
+		}
+	}
+	return automationpkg.SchedulerCatchUpPolicySkip, nil
+}
+
 func (s *automationLoopStarter) StartLoop(
 	ctx context.Context,
 	req automationpkg.LoopStartRequest,
@@ -88,11 +115,36 @@ func (s *automationLoopStarter) StartLoop(
 	if err != nil {
 		return automationpkg.LoopStartResult{}, err
 	}
-	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{Values: values}, req.Actor)
+	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{
+		Values:        values,
+		StartMetadata: automationLoopStartMetadata(req),
+	}, req.Actor)
 	if err != nil {
+		if errors.Is(err, looppkg.ErrConcurrencyConflict) {
+			return automationpkg.LoopStartResult{}, fmt.Errorf("%w: %w", automationpkg.ErrLoopConcurrencyConflict, err)
+		}
 		return automationpkg.LoopStartResult{}, err
 	}
 	return automationpkg.LoopStartResult{RunID: string(run.ID)}, nil
+}
+
+func automationLoopStartMetadata(req automationpkg.LoopStartRequest) map[string]any {
+	metadata := map[string]any{}
+	if runID := strings.TrimSpace(req.AutomationRunID); runID != "" {
+		metadata["automation_run_id"] = runID
+	}
+	if req.ScheduledAt != nil && !req.ScheduledAt.IsZero() {
+		scheduledAt := req.ScheduledAt.UTC().Format(time.RFC3339Nano)
+		metadata["scheduled_at"] = scheduledAt
+		metadata["original_due_at"] = scheduledAt
+	}
+	if req.CatchUp {
+		metadata["catch_up"] = true
+		if req.CatchUpPolicy != "" {
+			metadata["catch_up_policy"] = string(req.CatchUpPolicy)
+		}
+	}
+	return metadata
 }
 
 func automationStartKindToLoopStartKind(kind automationpkg.LoopStartKind) (loopdsl.StartKind, error) {

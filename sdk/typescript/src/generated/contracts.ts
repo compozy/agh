@@ -3518,6 +3518,7 @@ export interface Run {
   error?: string;
   delivery_error?: string;
   delivery_error_at?: ISODateTime;
+  metadata?: Record<string, JSONValue>;
 }
 
 export interface SandboxExecParams {

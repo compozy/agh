@@ -28,24 +28,18 @@ function startLabel(run: LoopRunRecord): string {
 
 /**
  * The "Run facts" rail (§4.4): the durable read-only descriptors of this run — loop,
- * current loop version, re-attempt mode, start source, workspace, run id, and
- * concurrency policy. All read from daemon truth; version and concurrency reflect the
- * loop's CURRENT published definition (the run projection pins no executed revision).
+ * executed loop version, re-attempt mode, start source, workspace, run id, and
+ * concurrency policy. All read from daemon truth; version and concurrency come from the
+ * executed definition pinned by the run detail when available.
  */
 export function LoopRunFacts({ run, loopVersion, concurrency }: LoopRunFactsProps) {
   const facts: Fact[] = [
     { label: "Loop", value: run.loop_name },
-    // The run projection carries no executed/pinned definition version, so this is the
-    // loop's CURRENT published version — labelled truthfully as such (never "pinned",
-    // which would claim an immutability the daemon does not model; SD-007). Follow-up:
-    // pin the executed revision on the run projection (shared with the run-page contract).
     ...(loopVersion !== undefined
       ? [{ label: "Loop version", value: `v${loopVersion}`, mono: true }]
       : []),
     { label: "Re-attempt", value: reattemptLabel(run.reattempt_strategy) },
     { label: "Start", value: startLabel(run), mono: true },
-    // Concurrency is a definition-level policy (not per-run) read from the loop's
-    // current published definition — same current-vs-executed caveat as Loop version.
     ...(concurrency ? [{ label: "Concurrency", value: concurrency, mono: true }] : []),
     { label: "Run ID", value: run.id, mono: true },
     { label: "Workspace", value: run.workspace_id, mono: true },

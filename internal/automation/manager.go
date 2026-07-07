@@ -1418,6 +1418,7 @@ func (m *Manager) buildSchedulerRuntime(_ context.Context) (*Scheduler, error) {
 		WithSchedulerLogger(m.logger),
 		WithSchedulerLocation(location),
 		WithSchedulerStore(m.store),
+		WithSchedulerCatchUpPolicyResolver(m.defaultSchedulerCatchUpPolicy),
 	}
 	schedulerOpts = append(schedulerOpts, m.schedulerOptions...)
 	scheduler, err := NewScheduler(m.dispatcher, schedulerOpts...)

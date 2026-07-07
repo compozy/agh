@@ -187,6 +187,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[automationpkg.Scope]():                       automationScopeValues(),
 	reflect.TypeFor[automationpkg.JobSource]():                   automationSourceValues(),
 	reflect.TypeFor[automationpkg.ScheduleMode]():                automationScheduleModeValues(),
+	reflect.TypeFor[automationpkg.SchedulerCatchUpPolicy]():      automationSchedulerCatchUpPolicyValues(),
 	reflect.TypeFor[automationpkg.RetryStrategy]():               automationRetryStrategyValues(),
 	reflect.TypeFor[automationpkg.RunStatus]():                   automationRunStatusValues(),
 	reflect.TypeFor[taskpkg.Scope]():                             taskScopeValues(),
@@ -6533,6 +6534,14 @@ func automationScheduleModeValues() []string {
 	}
 }
 
+func automationSchedulerCatchUpPolicyValues() []string {
+	return []string{
+		string(automationpkg.SchedulerCatchUpPolicySkip),
+		string(automationpkg.SchedulerCatchUpPolicyCoalesce),
+		string(automationpkg.SchedulerCatchUpPolicyReplay),
+	}
+}
+
 func automationRetryStrategyValues() []string {
 	return []string{
 		string(automationpkg.RetryStrategyNone),
@@ -6561,33 +6570,11 @@ func loopSourceValues() []string {
 }
 
 func loopRunStatusValues() []string {
-	return []string{
-		string(contract.LoopRunStatusQueued),
-		string(contract.LoopRunStatusRunning),
-		string(contract.LoopRunStatusWatching),
-		string(contract.LoopRunStatusNeedsApproval),
-		string(contract.LoopRunStatusPaused),
-		string(contract.LoopRunStatusDone),
-		string(contract.LoopRunStatusNoOp),
-		string(contract.LoopRunStatusBlocked),
-		string(contract.LoopRunStatusFailed),
-		string(contract.LoopRunStatusExhausted),
-		string(contract.LoopRunStatusStalled),
-	}
+	return contract.LoopRunStatusValues()
 }
 
 func loopRunEventKindValues() []string {
-	return []string{
-		string(contract.LoopRunEventNodeRunning),
-		string(contract.LoopRunEventNodeSucceeded),
-		string(contract.LoopRunEventNodeFailed),
-		string(contract.LoopRunEventGateVerdict),
-		string(contract.LoopRunEventGenerationStarted),
-		string(contract.LoopRunEventChannelMsg),
-		string(contract.LoopRunEventTokenTick),
-		string(contract.LoopRunEventNeedsApproval),
-		string(contract.LoopRunEventStatusChanged),
-	}
+	return contract.LoopRunEventKindValues()
 }
 
 func loopNodeClassValues() []string {

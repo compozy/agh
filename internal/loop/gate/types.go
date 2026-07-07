@@ -93,6 +93,7 @@ type GateInput struct {
 	ToolScope                tools.Scope
 	ToolCallCorrelationID    string
 	ToolSensitiveInputFields []string
+	JudgeModel               string
 }
 
 // HumanDecision captures one human gate decision made through a trusted actor context.
@@ -239,6 +240,7 @@ type JudgeRequest struct {
 	CriterionID string
 	WorkspaceID string
 	Agent       string
+	Model       string
 	Rubric      string
 	Contract    dsl.Contract
 }

@@ -26,9 +26,10 @@ in an inspector, and publish. It is one of three surfaces over the **same** cano
 
 The inspector fields come from the **canonical DSL types and the tool registry's own schemas** —
 never an editor-local model. A `run-agent` node shows `agent`, `prompt`, `output_schema`, and the
-optional envelope; a `gate` shows its criteria, `verdict_policy`, and `max_revisions`; any tool-ID
-action renders a params form generated from that tool's input schema. Because the editor reads the
-same schema the runtime validates against, what you can author is exactly what the runtime accepts.
+optional model/session envelope; a `gate` shows its criteria, including per-criterion judge model
+overrides, `verdict_policy`, and `max_revisions`; any tool-ID action renders a params form generated
+from that tool's input schema. Because the editor reads the same schema the runtime validates
+against, what you can author is exactly what the runtime accepts.
 
 ## The linter is the daemon's
 

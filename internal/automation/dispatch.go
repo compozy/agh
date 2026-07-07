@@ -21,6 +21,8 @@ var (
 	ErrConcurrencyLimitReached = errors.New("automation: global concurrency limit reached")
 	// ErrFireLimitReached reports that a definition exceeded its rolling fire-limit window.
 	ErrFireLimitReached = errors.New("automation: fire limit reached")
+	// ErrLoopConcurrencyConflict reports a loop target rejected by its concurrency policy.
+	ErrLoopConcurrencyConflict = errors.New("automation: loop concurrency conflict")
 )
 
 // FireLimitError carries the next eligible retry instant for fire-limit backoff.
@@ -97,13 +99,16 @@ func (k DispatchKind) Validate(path string) error {
 // job lifecycle hooks. Prompt allows later callers to inject a pre-render
 // override after pre-fire hooks patch the outbound prompt.
 type DispatchRequest struct {
-	Kind        DispatchKind        `json:"kind"`
-	Job         *Job                `json:"job,omitempty"`
-	Trigger     *Trigger            `json:"trigger,omitempty"`
-	Envelope    *ActivationEnvelope `json:"envelope,omitempty"`
-	Payload     map[string]any      `json:"payload,omitempty"`
-	Prompt      string              `json:"prompt,omitempty"`
-	ReservedRun *Run                `json:"-"`
+	Kind          DispatchKind           `json:"kind"`
+	Job           *Job                   `json:"job,omitempty"`
+	Trigger       *Trigger               `json:"trigger,omitempty"`
+	Envelope      *ActivationEnvelope    `json:"envelope,omitempty"`
+	Payload       map[string]any         `json:"payload,omitempty"`
+	Prompt        string                 `json:"prompt,omitempty"`
+	ReservedRun   *Run                   `json:"-"`
+	ScheduledAt   *time.Time             `json:"scheduled_at,omitempty"`
+	CatchUp       bool                   `json:"catch_up,omitempty"`
+	CatchUpPolicy SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
 }
 
 // Validate ensures the request can be executed by the shared dispatcher.
@@ -1355,6 +1360,7 @@ func cloneRun(run *Run) *Run {
 		deliveryErrorAt := *run.DeliveryErrorAt
 		cloned.DeliveryErrorAt = &deliveryErrorAt
 	}
+	cloned.Metadata = cloneJSONMap(run.Metadata)
 	return &cloned
 }
 

@@ -72,7 +72,7 @@ exhausted budget up to success.
 **Terminal (6):**
 
 - `done` — the goal was verified. The only success outcome.
-- `no_op` — ran, found nothing to do. A clean watch tick is `no_op`, not a fake `done`.
+- `no-op` — ran, found nothing to do. A clean watch tick is `no-op`, not a fake `done`.
 - `blocked` — an external dependency blocked progress (missing dependency/credential/resource, a
   human-gate `reject`, or a `loop.gate.pre` denial).
 - `failed` — an unrecoverable node/gate error, a `loop.generation.pre` denial, or an operator
@@ -94,6 +94,10 @@ session cannot approve its own run — the call is denied `ErrPermissionDenied` 
 and `decision` (`approve` | `request_changes` | `reject`). `approve` resumes, `request_changes`
 revises into the next generation, `reject` halts on a `blocked` outcome.
 
+Budget escalation uses the synthetic gate ID `budget`; it is not an authored node ID. It accepts
+only `approve` to grant one continuation or `reject` to halt. `request_changes` is invalid for the
+synthetic budget gate.
+
 ## Reference Grammar And Reserved Action Kinds
 
 Definitions reference data over one namespace with two surfaces, chosen by the field:
@@ -111,6 +115,13 @@ Node classes: `action` (open), `control` (closed), `source` (closed). Reserved *
 Source kinds: `input`, `file-import`, `watch-source`. A gate's `verdict_policy: revise_until_clean`
 requires an `agent-judge` or `human` criterion.
 
+Model routing belongs to the Loop runtime. `contract.model_defaults.worker` and
+`[loops.defaults.*].model_defaults.worker` seed `run-agent` actions that omit `params.model`.
+`contract.model_defaults.judge` and `[loops.defaults.*].model_defaults.judge` seed `agent-judge`
+criteria that omit `model`. A node or criterion-local `model` wins over the effective default. Empty
+values preserve the provider/runtime default. `[[tasks.run.task_runtime_rules]]` is scoped to normal
+task worker profiles and does not route Loop `run-agent` workers.
+
 ## Loop Hook Events
 
 The `loop.*` hook family has seven events; two can block. Dispatch is typed and fail-open — a broken
@@ -127,9 +138,14 @@ Every payload carries the loop context (`loop_run_id`, `workspace_id`, `loop_nam
 ## Watch-Source Behavior
 
 A Loop with a `watch-source` node is a watch Loop. It holds `watching` between ticks, defaults to
-`iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no_op`, and ends on silence past its
+`iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no-op`, and ends on silence past its
 window `stalled` (reason `watch_source_silence`). The default `dev-cycle` `reviews-watch` Loop is a
 watch Loop and requires `gh` to be installed and authenticated for CodeRabbit polling.
+
+Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
+`skip`. Explicit schedule policies are `skip`, `coalesce`, and `replay`. Catch-up starts carry
+structured metadata (`scheduled_at`, `original_due_at`, `catch_up`, `catch_up_policy`) on the
+automation run.
 
 ## Harvesting A Channel Decision
 

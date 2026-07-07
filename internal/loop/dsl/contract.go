@@ -12,6 +12,7 @@ type Contract struct {
 	IterationCap     int             `json:"iteration_cap"             yaml:"iteration_cap"`
 	NoProgress       NoProgress      `json:"no_progress"               yaml:"no_progress"`
 	Budget           Budget          `json:"budget"                    yaml:"budget"`
+	ModelDefaults    *ModelDefaults  `json:"model_defaults,omitempty"  yaml:"model_defaults,omitempty"`
 	Extra            map[string]any  `json:"-"                         yaml:",inline"`
 }
 
@@ -49,6 +50,12 @@ type Budget struct {
 	Extra        map[string]any `json:"-"                     yaml:",inline"`
 }
 
+// ModelDefaults defines default models for loop-owned worker and judge sessions.
+type ModelDefaults struct {
+	Worker string `json:"worker,omitempty" yaml:"worker,omitempty"`
+	Judge  string `json:"judge,omitempty"  yaml:"judge,omitempty"`
+}
+
 // BudgetExceeded controls the outcome for a set budget breach.
 type BudgetExceeded string
 
@@ -66,7 +73,7 @@ const (
 	// TerminalDone means the contract is verified.
 	TerminalDone TerminalState = "done"
 	// TerminalNoOp means the loop had nothing to do.
-	TerminalNoOp TerminalState = "no_op"
+	TerminalNoOp TerminalState = "no-op"
 	// TerminalBlocked means an explicit external dependency blocked progress.
 	TerminalBlocked TerminalState = "blocked"
 	// TerminalFailed means an unrecoverable failure occurred.
@@ -76,3 +83,13 @@ const (
 	// TerminalStalled means progress stopped.
 	TerminalStalled TerminalState = "stalled"
 )
+
+// IsKnownTerminalState reports whether value belongs to the closed terminal outcome vocabulary.
+func IsKnownTerminalState(value TerminalState) bool {
+	switch value {
+	case TerminalDone, TerminalNoOp, TerminalBlocked, TerminalFailed, TerminalExhausted, TerminalStalled:
+		return true
+	default:
+		return false
+	}
+}

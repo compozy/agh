@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -59,11 +60,14 @@ func (e *LintFailedError) Error() string {
 
 // ResolvedDefinition is the publish-time artifact hydrated by runtime execution.
 type ResolvedDefinition struct {
-	Definition  dsl.Definition
-	Templates   map[string]*refs.Template
-	Conditions  map[string]*refs.Condition
-	ToolSchemas map[string]ToolSchemaSnapshot
-	Defaults    ResolvedDefaults
+	Definition             dsl.Definition
+	DefinitionVersion      int
+	DefinitionDigest       string
+	DefinitionSnapshotJSON json.RawMessage
+	Templates              map[string]*refs.Template
+	Conditions             map[string]*refs.Condition
+	ToolSchemas            map[string]ToolSchemaSnapshot
+	Defaults               ResolvedDefaults
 }
 
 // ResolvedDefaults records defaults folded at compile time.
@@ -96,6 +100,13 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 			Concurrency:     def.Concurrency,
 		},
 	}
+	snapshotJSON, digest, err := DefinitionSnapshotJSON(resolved.Definition)
+	if err != nil {
+		return nil, err
+	}
+	resolved.DefinitionVersion = resolved.Definition.Meta.Version
+	resolved.DefinitionDigest = digest
+	resolved.DefinitionSnapshotJSON = snapshotJSON
 
 	if err := compileContract(resolved, def, ctx, ctx.namespace(false, false)); err != nil {
 		return nil, err

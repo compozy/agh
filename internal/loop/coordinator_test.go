@@ -2218,6 +2218,14 @@ func (s coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunI
 	return s.run, nil
 }
 
+func (s coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
+	context.Context,
+	WorkspaceID,
+	string,
+) (DefinitionSnapshot, error) {
+	panic("GetLoopDefinitionSnapshot should not be called")
+}
+
 func (s coordinatorRunnerLoopStore) FindActiveLoopRun(
 	context.Context,
 	WorkspaceID,
@@ -2235,6 +2243,23 @@ func (s coordinatorRunnerLoopStore) CompareAndSwapLoopRunStatus(
 	time.Time,
 ) error {
 	panic("CompareAndSwapLoopRunStatus should not be called")
+}
+
+func (s coordinatorRunnerLoopStore) RecordLoopGateDecisions(
+	context.Context,
+	[]GateDecisionRecord,
+) error {
+	panic("RecordLoopGateDecisions should not be called")
+}
+
+func (s coordinatorRunnerLoopStore) ListLoopGateDecisions(
+	context.Context,
+	WorkspaceID,
+	RunID,
+	int,
+	NodeID,
+) (map[string]gate.HumanDecision, error) {
+	return map[string]gate.HumanDecision{}, nil
 }
 
 func (s coordinatorRunnerLoopStore) SetLoopRunPauseRequested(

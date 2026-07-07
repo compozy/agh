@@ -33,14 +33,14 @@ resume. `paused` is operator-initiated; `needs-approval` is system-initiated by 
 | Outcome     | Meaning                                                                                                                                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `done`      | The goal was verified. The only success outcome.                                                                                                                                                       |
-| `no_op`     | The run executed but found nothing to do. A clean watch tick is `no_op`, never a fake `done`.                                                                                                          |
+| `no-op`     | The run executed but found nothing to do. A clean watch tick is `no-op`, never a fake `done`.                                                                                                          |
 | `blocked`   | An external dependency made progress impossible — a missing dependency, missing credential, or unreachable resource; a human gate `reject`; or a `loop.gate.pre` hook denial. Distinct from `stalled`. |
 | `failed`    | An unrecoverable node or gate error, a `loop.generation.pre` hook denial, or an operator `Stop`.                                                                                                       |
 | `exhausted` | A hard stop limit tripped before the goal — the iteration cap or the fan-out ceiling.                                                                                                                  |
 | `stalled`   | No progress is being made — the no-progress window elapsed, the failure circuit breaker tripped, the blocker-ID signature repeated, or a watched source went silent past its window.                   |
 
 <OperatorNote label="Never coerced">
-  `no_op` and `blocked` are never coerced to `done` or `failed`; exhaustion and stalling are always
+  `no-op` and `blocked` are never coerced to `done` or `failed`; exhaustion and stalling are always
   reported as themselves. An operator `Stop` records the truthful cause `operator_stop` and ends the
   run `failed` — stop is a cause, not a separate outcome.
 </OperatorNote>

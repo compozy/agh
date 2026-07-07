@@ -59,12 +59,29 @@ func loopDefaultConfigFromConfig(cfg aghconfig.LoopDefaultConfig, includeZeroGat
 		BudgetTokens:     new(cfg.Budget.Tokens),
 		BudgetWallSec:    new(cfg.Budget.WallClockSec),
 		BudgetOnExceeded: budgetExceededPtr(cfg.Budget.OnExceeded),
+		ModelDefaults:    loopModelDefaultsFromConfig(cfg.ModelDefaults),
 		FanOutWidth:      new(cfg.FanOutWidth),
 	}
 	if includeZeroGate || cfg.Gates.MaxRevisions > 0 {
 		result.GateMaxRevisions = new(cfg.Gates.MaxRevisions)
 	}
 	return result
+}
+
+func loopModelDefaultsFromConfig(cfg aghconfig.LoopModelDefaultsConfig) *looppkg.ModelDefaults {
+	worker := strings.TrimSpace(cfg.Worker)
+	judge := strings.TrimSpace(cfg.Judge)
+	if worker == "" && judge == "" {
+		return nil
+	}
+	defaults := looppkg.ModelDefaults{}
+	if worker != "" {
+		defaults.Worker = new(worker)
+	}
+	if judge != "" {
+		defaults.Judge = new(judge)
+	}
+	return &defaults
 }
 
 func budgetExceededPtr(value string) *loopdsl.BudgetExceeded {

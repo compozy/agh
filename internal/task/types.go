@@ -85,6 +85,15 @@ const (
 type RunStatus uint8
 
 const (
+	taskRunStatusQueuedString         = "queued"
+	taskRunStatusClaimedString        = "claimed"
+	taskRunStatusStartingString       = "starting"
+	taskRunStatusCompletedString      = "completed"
+	taskRunStatusCanceledString       = "canceled"
+	taskRunStatusNeedsAttentionString = "needs_attention"
+)
+
+const (
 	// TaskRunStatusUnknown is the zero value used before normalization.
 	TaskRunStatusUnknown RunStatus = iota
 	// TaskRunStatusQueued reports a run that has been accepted but not yet claimed.
@@ -110,21 +119,21 @@ const (
 func (s RunStatus) String() string {
 	switch s {
 	case TaskRunStatusQueued:
-		return "queued"
+		return taskRunStatusQueuedString
 	case TaskRunStatusClaimed:
-		return "claimed"
+		return taskRunStatusClaimedString
 	case TaskRunStatusStarting:
-		return "starting"
+		return taskRunStatusStartingString
 	case TaskRunStatusRunning:
 		return string(InspectNextActionRunning)
 	case TaskRunStatusCompleted:
-		return "completed"
+		return taskRunStatusCompletedString
 	case TaskRunStatusFailed:
 		return string(TaskStatusFailed)
 	case TaskRunStatusCanceled:
-		return "canceled"
+		return taskRunStatusCanceledString
 	case TaskRunStatusNeedsAttention:
-		return "needs_attention"
+		return taskRunStatusNeedsAttentionString
 	default:
 		return ""
 	}
@@ -141,7 +150,11 @@ func (s *RunStatus) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*s = ParseRunStatus(value)
+	parsed := ParseRunStatus(value)
+	if err := parsed.Validate("task_run.status"); err != nil {
+		return err
+	}
+	*s = parsed
 	return nil
 }
 
@@ -180,7 +193,11 @@ func (k *RunKind) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
 	}
-	*k = ParseRunKind(value)
+	parsed := ParseRunKind(value)
+	if err := parsed.Validate("task_run.run_kind"); err != nil {
+		return err
+	}
+	*k = parsed
 	return nil
 }
 
@@ -841,7 +858,8 @@ type CancelRun struct {
 
 // RunResult captures the durable JSON result returned by a completed run.
 type RunResult struct {
-	Value json.RawMessage `json:"value,omitempty"`
+	Value      json.RawMessage `json:"value,omitempty"`
+	TokensUsed int64           `json:"tokens_used,omitempty"`
 }
 
 // RunFailure captures the durable failure payload returned by a failed run.

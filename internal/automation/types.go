@@ -84,8 +84,12 @@ const (
 type SchedulerCatchUpPolicy = modelpkg.SchedulerCatchUpPolicy
 
 const (
-	// SchedulerCatchUpPolicySkipMissed advances missed cursors without dispatching stale fires.
-	SchedulerCatchUpPolicySkipMissed = modelpkg.SchedulerCatchUpPolicySkipMissed
+	// SchedulerCatchUpPolicySkip advances missed cursors without dispatching stale fires.
+	SchedulerCatchUpPolicySkip = modelpkg.SchedulerCatchUpPolicySkip
+	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
+	SchedulerCatchUpPolicyCoalesce = modelpkg.SchedulerCatchUpPolicyCoalesce
+	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
+	SchedulerCatchUpPolicyReplay = modelpkg.SchedulerCatchUpPolicyReplay
 )
 
 // ActivationSource identifies which ingress path produced an activation envelope.

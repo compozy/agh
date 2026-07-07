@@ -3,14 +3,17 @@ package loop_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"reflect"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -124,6 +127,10 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		def.Contract.NoProgress.Window = 2
 		def.Contract.Budget.Tokens = 100
 		def.Contract.Budget.WallClockSec = 10
+		def.Contract.ModelDefaults = &dsl.ModelDefaults{
+			Worker: "definition-worker",
+			Judge:  "definition-judge",
+		}
 		requireNode(t, &def, "fan").MaxParallel = 2
 		appendGate(&def, dsl.Node{
 			ID:           "review_gate",
@@ -138,12 +145,19 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 				NoProgressWindow: new(99),
 				FanOutWidth:      new(99),
 				GateMaxRevisions: new(99),
+				ModelDefaults: &loop.ModelDefaults{
+					Worker: new("default-worker"),
+					Judge:  new("default-judge"),
+				},
 			},
 		}
 		stored := loop.LoopConfig{
 			IterationCap:     new(7),
 			NoProgressWindow: new(8),
 			FanOutWidth:      new(12),
+			ModelDefaults: &loop.ModelDefaults{
+				Worker: new("stored-worker"),
+			},
 		}
 		escalate := dsl.BudgetExceededEscalate
 		perRun := loop.LoopConfig{
@@ -151,6 +165,9 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 			BudgetOnExceeded: &escalate,
 			FanOutWidth:      new(99),
 			GateMaxRevisions: new(99),
+			ModelDefaults: &loop.ModelDefaults{
+				Judge: new("per-run-judge"),
+			},
 		}
 
 		effective, err := loop.ResolveEffectiveConfig(resolved, defaults, &stored, perRun)
@@ -179,6 +196,12 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		}
 		if effective.BudgetOnExceeded != dsl.BudgetExceededEscalate {
 			t.Fatalf("BudgetOnExceeded = %q, want escalate", effective.BudgetOnExceeded)
+		}
+		if effective.ModelDefaults.Worker != "stored-worker" {
+			t.Fatalf("ModelDefaults.Worker = %q, want stored-worker", effective.ModelDefaults.Worker)
+		}
+		if effective.ModelDefaults.Judge != "per-run-judge" {
+			t.Fatalf("ModelDefaults.Judge = %q, want per-run-judge", effective.ModelDefaults.Judge)
 		}
 	})
 
@@ -259,6 +282,20 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		}
 		if run.IterationCap != 12 {
 			t.Fatalf("IterationCap = %d, want resolver default 12", run.IterationCap)
+		}
+		if run.DefinitionDigest == "" || len(run.DefinitionSnapshot) == 0 {
+			t.Fatalf(
+				"definition pinning = digest:%q snapshot:%d, want populated",
+				run.DefinitionDigest,
+				len(run.DefinitionSnapshot),
+			)
+		}
+		snapshot, err := store.GetLoopDefinitionSnapshot(context.Background(), "ws-config", run.DefinitionDigest)
+		if err != nil {
+			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
+		}
+		if snapshot.Digest != run.DefinitionDigest || snapshot.Version != run.DefinitionVersion {
+			t.Fatalf("snapshot = %#v, want digest/version from run %#v", snapshot, run)
 		}
 	})
 }
@@ -381,14 +418,19 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		store := newFakeLoopStore()
 		approvable := seedFakeRun(store, loop.StatusNeedsApproval)
 		approvable.ID = "run-approve"
+		approvable.ActiveGateID = "review_gate"
+		approvable.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
 		store.seed(approvable)
 		rejectable := seedFakeRun(store, loop.StatusNeedsApproval)
 		rejectable.ID = "run-reject"
+		rejectable.ActiveGateID = "review_gate"
+		rejectable.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
 		store.seed(rejectable)
 		running := seedFakeRun(store, loop.StatusRunning)
 		running.ID = "run-running-approve"
 		store.seed(running)
 		svc := newTestService(t, store, validDefinition())
+		actor := humanActor(t)
 
 		err := svc.Approve(
 			context.Background(),
@@ -396,6 +438,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 			approvable.ID,
 			"review_gate",
 			loop.GateDecisionApprove,
+			actor,
 		)
 		if err != nil {
 			t.Fatalf("Approve(approve) error = %v", err)
@@ -403,12 +446,20 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		if got := store.mustRun(t, approvable.ID); got.Status != loop.StatusRunning {
 			t.Fatalf("approved status = %q, want running", got.Status)
 		}
+		decisions, err := store.ListLoopGateDecisions(context.Background(), "ws-1", approvable.ID, 0, "review_gate")
+		if err != nil {
+			t.Fatalf("ListLoopGateDecisions(approve) error = %v", err)
+		}
+		if decisions["human"].Decision != gate.HumanDecisionApprove {
+			t.Fatalf("decision[human] = %#v, want approve", decisions["human"])
+		}
 		err = svc.Approve(
 			context.Background(),
 			"ws-1",
 			rejectable.ID,
 			"review_gate",
 			loop.GateDecisionReject,
+			actor,
 		)
 		if err != nil {
 			t.Fatalf("Approve(reject) error = %v", err)
@@ -422,9 +473,60 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 			running.ID,
 			"review_gate",
 			loop.GateDecisionApprove,
+			actor,
 		)
 		if !errors.Is(err, loop.ErrInvalidTransition) {
 			t.Fatalf("Approve(running) error = %v, want ErrInvalidTransition", err)
+		}
+	})
+
+	t.Run("Should reject approvals for a stale gate id", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusNeedsApproval)
+		run.ID = "run-stale-gate"
+		run.ActiveGateID = "current_gate"
+		run.ActiveHumanCriteria = []byte(`[{"id":"human","type":"human","outcome":"awaiting_approval"}]`)
+		store.seed(run)
+		svc := newTestService(t, store, validDefinition())
+
+		err := svc.Approve(
+			context.Background(),
+			"ws-1",
+			run.ID,
+			"old_gate",
+			loop.GateDecisionApprove,
+			humanActor(t),
+		)
+		if !errors.Is(err, loop.ErrInvalidTransition) {
+			t.Fatalf("Approve(stale gate) error = %v, want ErrInvalidTransition", err)
+		}
+	})
+
+	t.Run("Should reject request changes for synthetic budget gate", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusNeedsApproval)
+		run.ID = "run-budget-request-changes"
+		run.ActiveGateID = loop.BudgetGateID
+		store.seed(run)
+		svc := newTestService(t, store, validDefinition())
+
+		err := svc.Approve(
+			context.Background(),
+			"ws-1",
+			run.ID,
+			loop.BudgetGateID,
+			loop.GateDecisionRequestChanges,
+			humanActor(t),
+		)
+		if !errors.Is(err, loop.ErrValidation) {
+			t.Fatalf("Approve(budget request_changes) error = %v, want ErrValidation", err)
+		}
+		if got := store.mustRun(t, run.ID); got.Status != loop.StatusNeedsApproval {
+			t.Fatalf("budget run status = %q, want needs-approval", got.Status)
 		}
 	})
 }
@@ -763,14 +865,18 @@ type fakeLoopStore struct {
 	mu          sync.Mutex
 	runs        map[loop.RunID]loop.Run
 	configs     map[string]loop.LoopConfig
+	snapshots   map[string]loop.DefinitionSnapshot
+	decisions   map[string]map[string]gate.HumanDecision
 	transitions []fakeTransition
 	creates     int
 }
 
 func newFakeLoopStore() *fakeLoopStore {
 	return &fakeLoopStore{
-		runs:    map[loop.RunID]loop.Run{},
-		configs: map[string]loop.LoopConfig{},
+		runs:      map[loop.RunID]loop.Run{},
+		configs:   map[string]loop.LoopConfig{},
+		snapshots: map[string]loop.DefinitionSnapshot{},
+		decisions: map[string]map[string]gate.HumanDecision{},
 	}
 }
 
@@ -843,6 +949,15 @@ func (s *fakeLoopStore) CreateLoopRunForStart(
 	}
 	s.creates++
 	s.runs[run.ID] = run
+	s.snapshots[string(run.WorkspaceID)+"/"+run.DefinitionDigest] = loop.DefinitionSnapshot{
+		WorkspaceID: run.WorkspaceID,
+		Digest:      run.DefinitionDigest,
+		Version:     run.DefinitionVersion,
+		Definition:  run.DefinitionSnapshot,
+		ByteSize:    len(run.DefinitionSnapshot),
+		CreatedAt:   run.StartedAt,
+		LastUsedAt:  run.StartedAt,
+	}
 	return run, nil
 }
 
@@ -868,6 +983,20 @@ func (s *fakeLoopStore) GetLoopRunByID(_ context.Context, runID loop.RunID) (loo
 		return loop.Run{}, loop.ErrRunNotFound
 	}
 	return run, nil
+}
+
+func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
+	_ context.Context,
+	ws loop.WorkspaceID,
+	digest string,
+) (loop.DefinitionSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snapshot, ok := s.snapshots[string(ws)+"/"+digest]
+	if !ok {
+		return loop.DefinitionSnapshot{}, loop.ErrRunNotFound
+	}
+	return snapshot, nil
 }
 
 func (s *fakeLoopStore) FindActiveLoopRun(
@@ -914,6 +1043,8 @@ func (s *fakeLoopStore) CompareAndSwapLoopRunStatus(
 	run.Status = to
 	if to == loop.StatusRunning || to == loop.StatusPaused || to.Terminal() {
 		run.PauseRequested = false
+		run.ActiveGateID = ""
+		run.ActiveHumanCriteria = []byte(`[]`)
 	}
 	s.runs[runID] = run
 	s.transitions = append(
@@ -921,6 +1052,45 @@ func (s *fakeLoopStore) CompareAndSwapLoopRunStatus(
 		fakeTransition{runID: runID, from: from, to: to, cause: cause},
 	)
 	return nil
+}
+
+func (s *fakeLoopStore) RecordLoopGateDecisions(
+	_ context.Context,
+	records []loop.GateDecisionRecord,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, record := range records {
+		key := gateDecisionKey(record.WorkspaceID, record.RunID, record.Generation, record.GateID)
+		if s.decisions[key] == nil {
+			s.decisions[key] = map[string]gate.HumanDecision{}
+		}
+		s.decisions[key][record.CriterionID] = gate.HumanDecision{
+			Decision: gate.HumanDecisionKind(record.Decision),
+			Actor:    record.Actor,
+			Note:     record.Note,
+		}
+	}
+	return nil
+}
+
+func (s *fakeLoopStore) ListLoopGateDecisions(
+	_ context.Context,
+	ws loop.WorkspaceID,
+	runID loop.RunID,
+	generation int,
+	gateID loop.NodeID,
+) (map[string]gate.HumanDecision, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored := s.decisions[gateDecisionKey(ws, runID, generation, gateID)]
+	out := map[string]gate.HumanDecision{}
+	maps.Copy(out, stored)
+	return out, nil
+}
+
+func gateDecisionKey(ws loop.WorkspaceID, runID loop.RunID, generation int, gateID loop.NodeID) string {
+	return string(ws) + "/" + string(runID) + "/" + strconv.Itoa(generation) + "/" + string(gateID)
 }
 
 func (s *fakeLoopStore) SetLoopRunPauseRequested(

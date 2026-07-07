@@ -34,7 +34,7 @@ export const automationJobFixtures: AutomationJob[] = [
       last_run_at: "2026-04-17T18:10:01Z",
       last_scheduled_at: "2026-04-17T18:10:00Z",
       last_fire_id: "fire_launch_command_digest_001",
-      catch_up_policy: "skip_missed",
+      catch_up_policy: "skip",
       misfire_grace_seconds: 0,
       misfire_count: 0,
       updated_at: "2026-04-17T18:10:01Z",

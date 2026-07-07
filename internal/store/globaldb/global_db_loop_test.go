@@ -3,14 +3,51 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
+	t.Parallel()
+
+	localKinds := map[string]struct{}{
+		loopRunEventNodeRunning:       {},
+		loopRunEventNodeSucceeded:     {},
+		loopRunEventNodeFailed:        {},
+		loopRunEventGateVerdict:       {},
+		loopRunEventGenerationStarted: {},
+		loopRunEventChannelMsg:        {},
+		loopRunEventTokenTick:         {},
+		loopRunEventNeedsApproval:     {},
+		loopRunEventStatusChanged:     {},
+	}
+	for _, kind := range contract.LoopRunEventKindValues() {
+		t.Run("Should accept public kind "+kind, func(t *testing.T) {
+			t.Parallel()
+			if !loopRunEventKindValid(kind) {
+				t.Fatalf("loopRunEventKindValid(%q) = false, want true", kind)
+			}
+			if _, ok := localKinds[kind]; !ok {
+				t.Fatalf("contract kind %q is missing from local loop event constants", kind)
+			}
+		})
+	}
+	for kind := range localKinds {
+		t.Run("Should publish local kind "+kind, func(t *testing.T) {
+			t.Parallel()
+			if !slices.Contains(contract.LoopRunEventKindValues(), kind) {
+				t.Fatalf("local loop event kind %q is missing from public contract", kind)
+			}
+		})
+	}
+}
 
 func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Parallel()
@@ -23,6 +60,8 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
 		onExceeded := dsl.BudgetExceededEscalate
+		workerModel := "stored-worker"
+		judgeModel := "stored-judge"
 
 		err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
 			HumanGateEnabled:  &humanGate,
@@ -35,6 +74,10 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			NoProgressWindow:  new(4),
 			FanOutWidth:       new(5),
 			GateMaxRevisions:  new(6),
+			ModelDefaults: &looppkg.ModelDefaults{
+				Worker: &workerModel,
+				Judge:  &judgeModel,
+			},
 		})
 		if err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
@@ -55,6 +98,15 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		}
 		if got.FanOutWidth == nil || *got.FanOutWidth != 5 {
 			t.Fatalf("FanOutWidth = %#v, want 5", got.FanOutWidth)
+		}
+		if got.ModelDefaults == nil {
+			t.Fatal("ModelDefaults = nil, want stored defaults")
+		}
+		if got.ModelDefaults.Worker == nil || *got.ModelDefaults.Worker != "stored-worker" {
+			t.Fatalf("ModelDefaults.Worker = %#v, want stored-worker", got.ModelDefaults.Worker)
+		}
+		if got.ModelDefaults.Judge == nil || *got.ModelDefaults.Judge != "stored-judge" {
+			t.Fatalf("ModelDefaults.Judge = %#v, want stored-judge", got.ModelDefaults.Judge)
 		}
 		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "delivery")
 		if !errors.Is(err, looppkg.ErrConfigNotFound) {
@@ -79,6 +131,17 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 		}
 		if created.Status != looppkg.StatusRunning {
 			t.Fatalf("CreateLoopRunForStart() status = %s, want running", created.Status)
+		}
+		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, created.WorkspaceID, created.DefinitionDigest)
+		if err != nil {
+			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
+		}
+		if snapshot.Digest != created.DefinitionDigest || snapshot.ByteSize != len(created.DefinitionSnapshot) {
+			t.Fatalf("snapshot = %#v, want digest %q and byte size %d",
+				snapshot,
+				created.DefinitionDigest,
+				len(created.DefinitionSnapshot),
+			)
 		}
 
 		attempts := make([]error, 8)
@@ -134,6 +197,31 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 		eventCount := countLoopRunEvents(ctx, t, globalDB, run.ID)
 		if eventCount != 2 {
 			t.Fatalf("status event count = %d, want create + transition events", eventCount)
+		}
+	})
+
+	t.Run("Should ignore same-status compare-and-swap without appending an event", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 14, 5, 0, 0, time.UTC)
+		run := testLoopRun("looprun-cas-noop", now, looppkg.StatusRunning)
+		if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			run.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusRunning,
+			looppkg.TransitionCauseApproval,
+			now.Add(time.Second),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(no-op) error = %v", err)
+		}
+		if eventCount := countLoopRunEvents(ctx, t, globalDB, run.ID); eventCount != 1 {
+			t.Fatalf("status event count = %d, want only create event", eventCount)
 		}
 	})
 }
@@ -248,10 +336,18 @@ func testLoopRun(id string, at time.Time, status looppkg.Status) looppkg.Run {
 		Status:            status,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly,
 		CreatedAt:         at,
+		StartedAt:         at,
 		LastProgressAt:    at,
-		IterationCap:      7,
-		BudgetOnExceeded:  dsl.BudgetExceededHalt,
-		Inputs:            map[string]any{"tasks": "task-ref"},
+		DefinitionVersion: 1,
+		DefinitionDigest:  "sha256:test-definition",
+		DefinitionSnapshot: []byte(
+			`{"apiVersion":"agh.loop/v1","kind":"Loop","meta":{"name":"delivery","version":1},"contract":{"goal":"test","definition_of_done":"done","iteration_cap":1,"no_progress":{"window":1},"budget":{"tokens":1,"wall_clock_sec":1}},"graph":{"nodes":[],"edges":[]}}`,
+		),
+		ActiveHumanCriteria: []byte(`[]`),
+		StartMetadata:       map[string]any{},
+		IterationCap:        7,
+		BudgetOnExceeded:    dsl.BudgetExceededHalt,
+		Inputs:              map[string]any{"tasks": "task-ref"},
 	}
 }
 

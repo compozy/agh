@@ -200,9 +200,11 @@ func (g *GlobalDB) ClaimScheduledRun(
 		CatchUpPolicy:             schedulerCatchUpPolicyOrDefault(existing.CatchUpPolicy),
 		MisfireGraceSeconds:       existing.MisfireGraceSeconds,
 		ConsecutiveResumeFailures: 0,
-		LastMisfireAt:             cloneTimePointer(existing.LastMisfireAt),
-		MisfireCount:              existing.MisfireCount,
 		UpdatedAt:                 normalized.ClaimedAt,
+	}
+	if normalized.CatchUp {
+		nextState.LastMisfireAt = cloneTimePointer(existing.LastMisfireAt)
+		nextState.MisfireCount = existing.MisfireCount
 	}
 	if nextState.MisfireGraceSeconds < 0 {
 		nextState.MisfireGraceSeconds = 0
@@ -418,13 +420,17 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	if err := validateAutomationRunRecord(run); err != nil {
 		return err
 	}
+	metadataJSON, err := encodeAutomationRunMetadata(run.Metadata)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO automation_runs (
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at, loop_run_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			delivery_error, delivery_error_at, loop_run_id, metadata_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		store.NullableString(run.JobID),
 		store.NullableString(run.TriggerID),
@@ -441,6 +447,7 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		store.NullableString(run.DeliveryError),
 		nullableAutomationTimestamp(run.DeliveryErrorAt),
 		store.NullableString(run.LoopRunID),
+		metadataJSON,
 	); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(
@@ -461,7 +468,7 @@ func isSQLiteUniqueConstraint(err error) bool {
 
 func schedulerCatchUpPolicyOrDefault(policy automation.SchedulerCatchUpPolicy) automation.SchedulerCatchUpPolicy {
 	if policy == "" {
-		return automation.SchedulerCatchUpPolicySkipMissed
+		return automation.SchedulerCatchUpPolicySkip
 	}
 	return policy
 }

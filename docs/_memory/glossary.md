@@ -30,7 +30,7 @@ Loops ride AGH's existing durable foundations (work queue, sessions, automation,
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
 
-**Terminal outcomes:** `done`, `no_op`, `blocked`, `failed`, `exhausted`, `stalled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
+**Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
 
 **Not to be conflated with:** the historical "workflow" positioning. AGH is a runtime with a Loop domain; the AGH Network protocol remains not a workflow engine.
 

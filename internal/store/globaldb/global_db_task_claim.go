@@ -3,8 +3,10 @@ package globaldb
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	loop "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -77,6 +79,9 @@ func (g *GlobalDB) ClaimNextRun(
 		if err != nil {
 			return err
 		}
+		if err := appendLoopNodeRunningEventWithExecutor(ctx, exec, run, normalized.Now); err != nil {
+			return err
+		}
 		taskRecord, err := g.getTaskWithExecutor(ctx, exec, run.TaskID)
 		if err != nil {
 			return err
@@ -132,11 +137,17 @@ func (g *GlobalDB) HeartbeatRunLease(
 		result, err := exec.ExecContext(
 			ctx,
 			`UPDATE task_runs
-				 SET lease_until = ?, heartbeat_at = ?, claim_token = ?
+				 SET lease_until = ?, heartbeat_at = ?, claim_token = ?,
+				     tokens_used = CASE
+				       WHEN ? > tokens_used THEN ?
+				       ELSE tokens_used
+				     END
 				 WHERE id = ? AND claim_token_hash = ? AND status IN (?, ?, ?)`,
 			store.FormatTimestamp(leaseUntil),
 			store.FormatTimestamp(normalized.Now),
 			normalized.ClaimToken,
+			normalized.TokensUsed,
+			normalized.TokensUsed,
 			normalized.RunID,
 			current.ClaimTokenHash,
 			taskpkg.TaskRunStatusClaimed.String(),
@@ -155,11 +166,51 @@ func (g *GlobalDB) HeartbeatRunLease(
 			return err
 		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-		return err
+		if err != nil {
+			return err
+		}
+		return g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, normalized.TokensUsed)
 	}); err != nil {
 		return taskpkg.Run{}, err
 	}
 	return updated, nil
+}
+
+func (g *GlobalDB) appendLoopTokenTickForHeartbeat(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run taskpkg.Run,
+	tokensUsed int64,
+) error {
+	loopRunID := strings.TrimSpace(run.LoopRunID)
+	if loopRunID == "" || tokensUsed <= 0 {
+		return nil
+	}
+	tokensTotal, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
+	if err != nil {
+		return err
+	}
+	if tokensTotal <= 0 {
+		return nil
+	}
+	var workspaceID string
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT workspace_id FROM loop_runs WHERE id = ?`,
+		loopRunID,
+	).Scan(&workspaceID); err != nil {
+		return fmt.Errorf("store: load loop run %q workspace for token tick: %w", loopRunID, err)
+	}
+	return appendLoopTokenTickEventWithExecutor(
+		ctx,
+		exec,
+		loop.RunID(loopRunID),
+		loop.WorkspaceID(workspaceID),
+		run.ID,
+		tokensTotal,
+		false,
+		run.HeartbeatAt,
+	)
 }
 
 // ReleaseRunLease clears an active task-run lease after token verification and requeues the run.

@@ -43,11 +43,16 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
+	model := strings.TrimSpace(criterion.Model)
+	if model == "" {
+		model = strings.TrimSpace(in.JudgeModel)
+	}
 	response, err := e.judges.Judge(ctx, JudgeRequest{
 		GateID:      gate.ID,
 		CriterionID: criterion.ID,
 		WorkspaceID: in.ToolScope.WorkspaceID,
 		Agent:       criterion.Agent,
+		Model:       model,
 		Rubric:      rubric,
 		Contract:    in.Contract,
 	})

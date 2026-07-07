@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/loop/dsl"
@@ -99,9 +101,15 @@ func (s *service) Start(
 		Generation:          0,
 		ReattemptStrategy:   effective.ReattemptStrategy,
 		CreatedAt:           now,
+		StartedAt:           now,
 		LastProgressAt:      now,
 		StartedBy:           actor.Actor,
 		StartedOrigin:       actor.Origin,
+		DefinitionVersion:   resolved.DefinitionVersion,
+		DefinitionDigest:    resolved.DefinitionDigest,
+		DefinitionSnapshot:  cloneRawMessage(resolved.DefinitionSnapshotJSON),
+		ActiveHumanCriteria: json.RawMessage(`[]`),
+		StartMetadata:       cloneStartMetadata(inputs.StartMetadata),
 		ConsecutiveFailures: 0,
 		IterationCap:        effective.IterationCap,
 		BudgetTokens:        effective.BudgetTokens,
@@ -146,6 +154,15 @@ func (s *service) DryRun(
 		Contract:        resolved.Definition.Contract,
 		EffectiveConfig: effective,
 	}, nil
+}
+
+func cloneStartMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 {
+		return map[string]any{}
+	}
+	cloned := make(map[string]any, len(metadata))
+	maps.Copy(cloned, metadata)
+	return cloned
 }
 
 func (s *service) Stop(ctx context.Context, ws WorkspaceID, runID RunID, reason StopReason) error {
@@ -218,9 +235,13 @@ func (s *service) Approve(
 	runID RunID,
 	gateID NodeID,
 	decision GateDecision,
+	actor task.ActorContext,
 ) error {
 	if gateID == "" {
 		return fmt.Errorf("%w: gate id is required", ErrValidation)
+	}
+	if err := actor.Validate(); err != nil {
+		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil {
@@ -233,14 +254,48 @@ func (s *service) Approve(
 			map[string]string{reasonMetaFrom: string(run.Status), reasonMetaTo: string(StatusRunning)},
 		)
 	}
+	if strings.TrimSpace(string(run.ActiveGateID)) != strings.TrimSpace(string(gateID)) {
+		return reasonError(
+			ReasonCodeInvalidStatusTransition,
+			ErrInvalidTransition,
+			map[string]string{
+				reasonMetaRunID:  string(runID),
+				"active_gate_id": strings.TrimSpace(string(run.ActiveGateID)),
+				"gate_id":        strings.TrimSpace(string(gateID)),
+			},
+		)
+	}
 	switch decision {
 	case GateDecisionApprove, GateDecisionRequestChanges:
+		if gateID == BudgetGateID && decision == GateDecisionRequestChanges {
+			return fmt.Errorf("%w: budget gate only accepts approve or reject", ErrValidation)
+		}
+		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
+			return err
+		}
 		return s.Transition(ctx, runID, StatusRunning, TransitionCauseApproval)
 	case GateDecisionReject:
+		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
+			return err
+		}
 		return s.Transition(ctx, runID, StatusBlocked, TransitionCauseGateRejected)
 	default:
 		return fmt.Errorf("%w: gate decision is invalid: %q", ErrValidation, decision)
 	}
+}
+
+func (s *service) recordGateDecision(
+	ctx context.Context,
+	run Run,
+	gateID NodeID,
+	decision GateDecision,
+	actor task.ActorContext,
+) error {
+	records, err := gateDecisionRecords(run, gateID, decision, actor, s.now().UTC())
+	if err != nil {
+		return err
+	}
+	return s.store.RecordLoopGateDecisions(ctx, records)
 }
 
 func (s *service) Configure(

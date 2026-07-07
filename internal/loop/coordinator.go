@@ -37,6 +37,17 @@ type GenerationOutputReader interface {
 	) ([]GenerationOutput, error)
 }
 
+// GateDecisionReader reads persisted human decisions for coordinator gate re-evaluation.
+type GateDecisionReader interface {
+	ListLoopGateDecisions(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		generation int,
+		gateID NodeID,
+	) (map[string]gate.HumanDecision, error)
+}
+
 // CoordinatorRunner computes loop generation plans without mutating task storage.
 type CoordinatorRunner struct {
 	taskRuns           CoordinatorTaskRunReader
@@ -214,6 +225,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		resolved,
 		effective,
 		r.gateEvaluator,
+		r.store,
 		fanOutWidth,
 		r.watchRuntime(),
 	)

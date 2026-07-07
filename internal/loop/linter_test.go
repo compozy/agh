@@ -127,6 +127,13 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeNodeIDInvalid},
 		},
 		{
+			name: "Should reject unknown terminal states",
+			mutate: func(def *dsl.Definition) {
+				def.Contract.TerminalStates = append(def.Contract.TerminalStates, "canceled")
+			},
+			wantCodes: []string{loop.CodeUnknownTerminalState},
+		},
+		{
 			name: "Should reject source input refs not declared as inputs",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "load")
@@ -512,6 +519,15 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 				Kind:  "parallel",
 			}),
 			wantCodes: []string{loop.CodeUnknownControlKind},
+		},
+		{
+			name: "Should reject synthetic budget gate node id",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    loop.BudgetGateID,
+				Class: dsl.NodeClassControl,
+				Kind:  string(dsl.ControlGate),
+			}),
+			wantCodes: []string{loop.CodeNodeIDInvalid},
 		},
 		{
 			name: "Should reject unknown source kinds",

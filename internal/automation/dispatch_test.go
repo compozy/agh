@@ -385,6 +385,66 @@ func TestDispatchLoopTargetFailsRunWhenLoopStarterRejects(t *testing.T) {
 	}
 }
 
+func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	starter := &recordingLoopStarter{
+		startErr: fmt.Errorf("%w: active_loop_run_exists", ErrLoopConcurrencyConflict),
+	}
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+	scheduledAt := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
+	job := testJob(AutomationScopeWorkspace, "job-loop-conflict", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID: "ws_alpha",
+		LoopName:    "triage",
+	}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind:          DispatchKindSchedule,
+		Job:           &job,
+		ScheduledAt:   &scheduledAt,
+		CatchUp:       true,
+		CatchUpPolicy: SchedulerCatchUpPolicyCoalesce,
+	})
+	if err == nil {
+		t.Fatal("Dispatch() error = nil, want loop concurrency conflict")
+	}
+	if run == nil {
+		t.Fatal("Dispatch() run = nil, want failed automation run")
+	}
+	if got, want := run.Status, RunFailed; got != want {
+		t.Fatalf("run.Status = %q, want %q", got, want)
+	}
+	if got, want := run.Metadata["reason"], "loop_concurrency_conflict"; got != want {
+		t.Fatalf("run.Metadata[reason] = %#v, want %q", got, want)
+	}
+	if got, want := run.Metadata["catch_up_policy"], "coalesce"; got != want {
+		t.Fatalf("run.Metadata[catch_up_policy] = %#v, want %q", got, want)
+	}
+	if got, want := run.Metadata["scheduled_at"], scheduledAt.Format(time.RFC3339Nano); got != want {
+		t.Fatalf("run.Metadata[scheduled_at] = %#v, want %q", got, want)
+	}
+	startCalls := starter.startCallSnapshot()
+	if got, want := len(startCalls), 1; got != want {
+		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+	}
+	if startCalls[0].ScheduledAt == nil || !startCalls[0].ScheduledAt.Equal(scheduledAt) {
+		t.Fatalf("StartLoop().ScheduledAt = %v, want %s", startCalls[0].ScheduledAt, scheduledAt.Format(time.RFC3339))
+	}
+	if !startCalls[0].CatchUp || startCalls[0].CatchUpPolicy != SchedulerCatchUpPolicyCoalesce {
+		t.Fatalf(
+			"StartLoop() catch-up = %v/%q, want true/coalesce",
+			startCalls[0].CatchUp,
+			startCalls[0].CatchUpPolicy,
+		)
+	}
+}
+
 func TestDispatchNonTaskJobStillUsesSessionRuntimeAndRecordsAutomationSessionActor(t *testing.T) {
 	t.Parallel()
 
@@ -1668,6 +1728,9 @@ func cloneLoopStartRequest(req LoopStartRequest) LoopStartRequest {
 		TriggerPayload:  cloneJSONMap(req.TriggerPayload),
 		Actor:           req.Actor,
 		AutomationRunID: strings.TrimSpace(req.AutomationRunID),
+		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
+		CatchUp:         req.CatchUp,
+		CatchUpPolicy:   req.CatchUpPolicy,
 	}
 }
 

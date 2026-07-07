@@ -68,6 +68,7 @@ func (g *GlobalDB) completeRunLeaseWithExecutor(
 		current,
 		"success",
 		loopNodeTerminalOutputRef(outputRef, resultPayload),
+		resultPayload,
 		normalized.Now,
 	); err != nil {
 		return taskpkg.Run{}, err
@@ -213,20 +214,21 @@ type loopNodeRunMetadata struct {
 	ItemIndex  int    `json:"item_index"`
 }
 
+const (
+	loopNodeOutcomeFailure  = "failure"
+	loopNodeOutputFailed    = "failed"
+	loopNodeOutputSucceeded = "succeeded"
+)
+
 func recordLoopNodeTerminalWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 	outcome string,
 	outputRef string,
+	resultPayload json.RawMessage,
 	terminalAt time.Time,
 ) error {
-	const (
-		loopNodeOutcomeFailure  = "failure"
-		loopNodeOutputFailed    = "failed"
-		loopNodeOutputSucceeded = "succeeded"
-	)
-
 	loopRunID := strings.TrimSpace(run.LoopRunID)
 	if loopRunID == "" || run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
 		return nil
@@ -254,7 +256,23 @@ func recordLoopNodeTerminalWithExecutor(
 	if err != nil {
 		return fmt.Errorf("store: record loop run %q node terminal progress: %w", loopRunID, err)
 	}
-	return requireRowsAffected(result, looppkg.ErrRunNotFound, loopRunID, "loop run")
+	if err := requireRowsAffected(result, looppkg.ErrRunNotFound, loopRunID, "loop run"); err != nil {
+		return err
+	}
+	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
+	if err != nil {
+		return err
+	}
+	return appendLoopNodeTerminalEventsWithExecutor(
+		ctx,
+		exec,
+		run,
+		outcome,
+		outputRef,
+		normalizeTaskJSON(resultPayload),
+		tokensUsed,
+		terminalAt,
+	)
 }
 
 func updateLoopNodeOutputTerminalWithExecutor(

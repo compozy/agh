@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/task"
 )
@@ -18,6 +19,7 @@ func definitionOfDoneTerminal(
 	effective EffectiveConfig,
 	topology controlTopology,
 	evaluator gate.GateEvaluator,
+	decisions GateDecisionReader,
 	outputs []GenerationOutput,
 ) (*task.CoordinatorTerminal, error) {
 	terminal := &task.CoordinatorTerminal{
@@ -38,12 +40,18 @@ func definitionOfDoneTerminal(
 	if empty {
 		return approvedDefinitionOfDoneTerminal(terminal)
 	}
+	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
+	if err != nil {
+		return nil, err
+	}
 	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
 		run,
 		generation,
 		resolved,
+		effective,
 		namespace,
 		gate.PlacementDefinitionOfDone,
+		humanDecisions,
 	))
 	if err != nil {
 		return nil, err
@@ -105,7 +113,7 @@ func terminalFromDefinitionOfDoneVerdict(
 		terminal.Details = []byte(ref)
 		return terminal, nil
 	case gate.RouteEscalate, gate.RouteHalt:
-		return gateRouteTerminal(verdict.Route, ref), nil
+		return gateRouteTerminal(definitionOfDoneGateID, verdict.Route, ref), nil
 	case gate.RouteNextGeneration:
 		return &task.CoordinatorTerminal{
 			Status:     string(StatusFailed),

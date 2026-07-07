@@ -104,6 +104,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"scheduled_at",
 		"delivery_error",
 		"delivery_error_at",
+		"metadata_json",
 	})
 	assertTableColumns(t, globalDB.db, "automation_scheduler_state", []string{
 		"job_id",
@@ -145,6 +146,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"idx_automation_scheduler_next_run",
 		"idx_automation_scheduler_misfire",
 	)
+	assertTableSQLContains(t, globalDB.db, "automation_scheduler_state", "'skip', 'coalesce', 'replay'")
 }
 
 func TestGlobalDBCreateJobScopeAwareUniqueness(t *testing.T) {
@@ -610,6 +612,11 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 	run.Status = automation.RunFailed
 	run.Attempt = 2
 	run.SessionID = "sess-updated"
+	run.Metadata = map[string]any{
+		"catch_up":        true,
+		"catch_up_policy": "coalesce",
+		"reason":          "loop_concurrency_conflict",
+	}
 	updatedRun, err := globalDB.UpdateRun(testutil.Context(t), run)
 	if err != nil {
 		t.Fatalf("UpdateRun() error = %v", err)
@@ -620,12 +627,18 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 	if got, want := updatedRun.SessionID, "sess-updated"; got != want {
 		t.Fatalf("UpdateRun().SessionID = %q, want %q", got, want)
 	}
+	if got, want := updatedRun.Metadata["reason"], "loop_concurrency_conflict"; got != want {
+		t.Fatalf("UpdateRun().Metadata[reason] = %#v, want %q", got, want)
+	}
 	loadedRun, err := globalDB.GetRun(testutil.Context(t), run.ID)
 	if err != nil {
 		t.Fatalf("GetRun() error = %v", err)
 	}
 	if got, want := loadedRun.Attempt, 2; got != want {
 		t.Fatalf("GetRun().Attempt = %d, want %d", got, want)
+	}
+	if got, want := loadedRun.Metadata["catch_up_policy"], "coalesce"; got != want {
+		t.Fatalf("GetRun().Metadata[catch_up_policy] = %#v, want %q", got, want)
 	}
 
 	jobs, err := globalDB.ListJobs(
@@ -1241,7 +1254,7 @@ func TestGlobalDBSchedulerStateSaveClaimAndDeliveryError(t *testing.T) {
 		JobID:               job.ID,
 		NextRunAt:           &nextRun,
 		ScheduleHash:        "hash-v1",
-		CatchUpPolicy:       automation.SchedulerCatchUpPolicySkipMissed,
+		CatchUpPolicy:       automation.SchedulerCatchUpPolicySkip,
 		MisfireGraceSeconds: 30,
 		UpdatedAt:           updatedAt,
 	})
@@ -1336,7 +1349,7 @@ func TestGlobalDBSchedulerClaimPreventsDuplicateAfterReopen(t *testing.T) {
 		JobID:         job.ID,
 		NextRunAt:     &scheduledAt,
 		ScheduleHash:  "hash-reopen",
-		CatchUpPolicy: automation.SchedulerCatchUpPolicySkipMissed,
+		CatchUpPolicy: automation.SchedulerCatchUpPolicySkip,
 		UpdatedAt:     scheduledAt.Add(-time.Hour),
 	})
 	if err != nil {

@@ -38,6 +38,24 @@ func (m *Manager) validateLoopTarget(ctx context.Context, target *LoopTarget, ki
 	return validateLoopTargetWithStarter(ctx, m.loopStarter, target, kind)
 }
 
+func (m *Manager) defaultSchedulerCatchUpPolicy(
+	ctx context.Context,
+	job Job,
+) (SchedulerCatchUpPolicy, error) {
+	if !job.IsLoopTarget() {
+		return SchedulerCatchUpPolicySkip, nil
+	}
+	resolver, ok := m.loopStarter.(LoopCatchUpPolicyResolver)
+	if !ok || resolver == nil || job.LoopTarget == nil {
+		return SchedulerCatchUpPolicySkip, nil
+	}
+	return resolver.DefaultLoopCatchUpPolicy(ctx, LoopCatchUpPolicyRequest{
+		WorkspaceID: strings.TrimSpace(job.LoopTarget.WorkspaceID),
+		LoopName:    strings.TrimSpace(job.LoopTarget.LoopName),
+		Kind:        loopStartKindForAutomation(&job, nil),
+	})
+}
+
 func targetKindOrDefault(kind TargetKind, target *LoopTarget) TargetKind {
 	normalized := TargetKind(strings.TrimSpace(string(kind)))
 	if normalized != "" {

@@ -89,9 +89,13 @@ const (
 type SchedulerCatchUpPolicy string
 
 const (
-	// SchedulerCatchUpPolicySkipMissed records missed fires as misfires and
-	// advances to the next future cursor without dispatching stale work.
-	SchedulerCatchUpPolicySkipMissed SchedulerCatchUpPolicy = "skip_missed"
+	// SchedulerCatchUpPolicySkip records missed fires as misfires and advances
+	// to the next future cursor without dispatching stale work.
+	SchedulerCatchUpPolicySkip SchedulerCatchUpPolicy = "skip"
+	// SchedulerCatchUpPolicyCoalesce dispatches one fire for the most recent missed instant.
+	SchedulerCatchUpPolicyCoalesce SchedulerCatchUpPolicy = "coalesce"
+	// SchedulerCatchUpPolicyReplay dispatches missed instants chronologically.
+	SchedulerCatchUpPolicyReplay SchedulerCatchUpPolicy = "replay"
 )
 
 // ActivationSource identifies which ingress path produced an activation envelope.
@@ -193,22 +197,23 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
-	ID              string     `json:"id"`
-	JobID           string     `json:"job_id,omitempty"`
-	TriggerID       string     `json:"trigger_id,omitempty"`
-	SessionID       string     `json:"session_id,omitempty"`
-	TaskID          string     `json:"task_id,omitempty"`
-	TaskRunID       string     `json:"task_run_id,omitempty"`
-	LoopRunID       string     `json:"loop_run_id,omitempty"`
-	FireID          string     `json:"fire_id,omitempty"`
-	Status          RunStatus  `json:"status"`
-	Attempt         int        `json:"attempt"`
-	ScheduledAt     *time.Time `json:"scheduled_at,omitempty"`
-	StartedAt       *time.Time `json:"started_at,omitempty"`
-	EndedAt         *time.Time `json:"ended_at,omitempty"`
-	Error           string     `json:"error,omitempty"`
-	DeliveryError   string     `json:"delivery_error,omitempty"`
-	DeliveryErrorAt *time.Time `json:"delivery_error_at,omitempty"`
+	ID              string         `json:"id"`
+	JobID           string         `json:"job_id,omitempty"`
+	TriggerID       string         `json:"trigger_id,omitempty"`
+	SessionID       string         `json:"session_id,omitempty"`
+	TaskID          string         `json:"task_id,omitempty"`
+	TaskRunID       string         `json:"task_run_id,omitempty"`
+	LoopRunID       string         `json:"loop_run_id,omitempty"`
+	FireID          string         `json:"fire_id,omitempty"`
+	Status          RunStatus      `json:"status"`
+	Attempt         int            `json:"attempt"`
+	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt       *time.Time     `json:"started_at,omitempty"`
+	EndedAt         *time.Time     `json:"ended_at,omitempty"`
+	Error           string         `json:"error,omitempty"`
+	DeliveryError   string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // ActivationEnvelope is the normalized trigger input regardless of source.
@@ -246,6 +251,7 @@ type SchedulerClaim struct {
 	NextRunAt    *time.Time
 	ClaimedAt    time.Time
 	ScheduleHash string
+	CatchUp      bool
 }
 
 // SchedulerClaimResult reports the state and pre-created run for one claimed

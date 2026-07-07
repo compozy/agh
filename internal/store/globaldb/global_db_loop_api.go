@@ -251,6 +251,13 @@ func scanLoopRunEvent(row loopRunEventScanner) (looppkg.RunEvent, error) {
 	}
 	event.LoopRunID = looppkg.RunID(runID)
 	event.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+	if !loopRunEventKindValid(event.Kind) {
+		return looppkg.RunEvent{}, fmt.Errorf(
+			"%w: loop run event kind is invalid: %q",
+			looppkg.ErrValidation,
+			event.Kind,
+		)
+	}
 	event.Payload = json.RawMessage(payload)
 	at, err := parseLoopRunTimestamp(atRaw)
 	if err != nil {

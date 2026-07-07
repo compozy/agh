@@ -85,6 +85,7 @@ type CoordinatorTerminal struct {
 	Status     string          `json:"status"`
 	Cause      string          `json:"cause,omitempty"`
 	ReasonCode string          `json:"reason_code,omitempty"`
+	GateID     string          `json:"gate_id,omitempty"`
 	Details    json.RawMessage `json:"details,omitempty"`
 }
 
@@ -380,17 +381,46 @@ func (t CoordinatorTerminal) Normalize() CoordinatorTerminal {
 	normalized.Status = strings.TrimSpace(normalized.Status)
 	normalized.Cause = strings.TrimSpace(normalized.Cause)
 	normalized.ReasonCode = strings.TrimSpace(normalized.ReasonCode)
+	normalized.GateID = strings.TrimSpace(normalized.GateID)
 	normalized.Details = normalizeRawJSON(normalized.Details)
 	return normalized
 }
 
 // Validate reports whether coordinator terminal data has the minimum persisted shape.
 func (t CoordinatorTerminal) Validate(path string) error {
-	if strings.TrimSpace(t.Status) == "" {
+	status := strings.TrimSpace(t.Status)
+	if status == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "status"))
+	}
+	if !validCoordinatorTerminalStatus(status) {
+		return fmt.Errorf(
+			"%w: %s must be a supported loop run status: %q",
+			ErrValidation,
+			nestedPath(path, "status"),
+			t.Status,
+		)
 	}
 	if err := ValidatePayloadSize(t.Details, nestedPath(path, "details")); err != nil {
 		return err
 	}
 	return nil
+}
+
+func validCoordinatorTerminalStatus(status string) bool {
+	switch status {
+	case taskRunStatusQueuedString,
+		string(InspectNextActionRunning),
+		"watching",
+		"needs-approval",
+		"paused",
+		"done",
+		coordinatorTerminalStatusNoOp,
+		string(RunReviewOutcomeBlocked),
+		"failed",
+		"exhausted",
+		"stalled":
+		return true
+	default:
+		return false
+	}
 }

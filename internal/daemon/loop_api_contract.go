@@ -17,6 +17,14 @@ func loopDefinitionDocument(def dsl.Definition) (contract.LoopDefinitionDocument
 	return doc, nil
 }
 
+func loopDefinitionDocumentFromJSON(raw json.RawMessage) (contract.LoopDefinitionDocument, error) {
+	var doc contract.LoopDefinitionDocument
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return contract.LoopDefinitionDocument{}, fmt.Errorf("daemon: decode loop definition snapshot DTO: %w", err)
+	}
+	return doc, nil
+}
+
 func loopDefinitionDomain(doc contract.LoopDefinitionDocument) (dsl.Definition, error) {
 	var def dsl.Definition
 	if err := doc.Decode(&def); err != nil {

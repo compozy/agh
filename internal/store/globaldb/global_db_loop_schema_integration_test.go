@@ -49,6 +49,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_generation_outputs",
 		"loop_output_blobs",
 		"loop_run_events",
+		"loop_definition_snapshots",
+		"loop_gate_decisions",
 		"loop_ui_annotations",
 		"loop_config",
 	)
@@ -60,6 +62,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
+		"started_at",
+		"definition_version",
+		"definition_digest",
+		"active_gate_id",
+		"active_human_criteria_json",
+		"budget_approval_seq",
+		"start_metadata_json",
 		"consecutive_failures",
 		"budget_tokens",
 		"budget_wall_sec",
@@ -101,6 +110,29 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"payload_json",
 		"at",
 	})
+	assertTableColumns(t, globalDB.db, "loop_definition_snapshots", []string{
+		"workspace_id",
+		"definition_digest",
+		"definition_version",
+		"definition_json",
+		"byte_size",
+		"created_at",
+		"last_used_at",
+	})
+	assertTableColumns(t, globalDB.db, "loop_gate_decisions", []string{
+		"workspace_id",
+		"loop_run_id",
+		"generation",
+		"gate_id",
+		"criterion_id",
+		"decision",
+		"actor_kind",
+		"actor_ref",
+		"origin_kind",
+		"origin_ref",
+		"note",
+		"decided_at",
+	})
 	assertTableColumns(t, globalDB.db, "loop_ui_annotations", []string{
 		"workspace_id",
 		"loop_name",
@@ -121,12 +153,21 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"no_progress_window",
 		"fan_out_width",
 		"gate_max_revisions",
+		"model_default_worker",
+		"model_default_judge",
 	})
 	assertTableHasColumn(t, globalDB.db, "task_runs", "run_kind")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "loop_run_id")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "tokens_used")
 	assertIndexesPresent(t, globalDB.db, "loop_run_events", "idx_loop_run_events_run_seq")
 	assertIndexSQLContains(t, globalDB.db, "idx_loop_run_events_run_seq", "ON loop_run_events(loop_run_id, seq)")
+	assertIndexesPresent(t, globalDB.db, "loop_gate_decisions", "idx_loop_gate_decisions_workspace_run")
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"idx_loop_gate_decisions_workspace_run",
+		"ON loop_gate_decisions(workspace_id, loop_run_id, generation, gate_id)",
+	)
 	assertIndexesPresent(t, globalDB.db, "loop_runs", "idx_loop_runs_queue_order")
 	assertIndexSQLContains(
 		t,
@@ -158,6 +199,18 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"PRIMARY KEY (loop_run_id, generation, node_id, item_index)",
 	)
 	assertTableSQLContains(t, globalDB.db, "loop_output_blobs", "PRIMARY KEY")
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"loop_definition_snapshots",
+		"PRIMARY KEY (workspace_id, definition_digest)",
+	)
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"loop_gate_decisions",
+		"REFERENCES loop_runs(id) ON DELETE CASCADE",
+	)
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
 }

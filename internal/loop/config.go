@@ -83,7 +83,22 @@ func (cfg LoopConfig) Clone() LoopConfig {
 	if cfg.GateMaxRevisions != nil {
 		cloned.GateMaxRevisions = new(*cfg.GateMaxRevisions)
 	}
+	if cfg.ModelDefaults != nil {
+		cloned.ModelDefaults = cfg.ModelDefaults.Clone()
+	}
 	return cloned
+}
+
+// Clone returns a deep copy of one raw model-default override layer.
+func (cfg ModelDefaults) Clone() *ModelDefaults {
+	cloned := ModelDefaults{}
+	if cfg.Worker != nil {
+		cloned.Worker = new(*cfg.Worker)
+	}
+	if cfg.Judge != nil {
+		cloned.Judge = new(*cfg.Judge)
+	}
+	return &cloned
 }
 
 // ResolveEffectiveConfig merges definition, defaults, loop_config, and per-run layers.
@@ -134,6 +149,12 @@ func definitionConfigLayer(def dsl.Definition) LoopConfig {
 	if onExceeded == "" {
 		onExceeded = dsl.BudgetExceededHalt
 	}
+	modelWorker := ""
+	modelJudge := ""
+	if def.Contract.ModelDefaults != nil {
+		modelWorker = def.Contract.ModelDefaults.Worker
+		modelJudge = def.Contract.ModelDefaults.Judge
+	}
 	return LoopConfig{
 		IterationCap:     new(def.Contract.IterationCap),
 		BudgetTokens:     new(def.Contract.Budget.Tokens),
@@ -142,7 +163,24 @@ func definitionConfigLayer(def dsl.Definition) LoopConfig {
 		NoProgressWindow: new(def.Contract.NoProgress.Window),
 		FanOutWidth:      new(definitionFanOutWidth(def)),
 		GateMaxRevisions: new(definitionGateMaxRevisions(def)),
+		ModelDefaults:    modelDefaultsLayer(modelWorker, modelJudge),
 	}
+}
+
+func modelDefaultsLayer(worker string, judge string) *ModelDefaults {
+	worker = strings.TrimSpace(worker)
+	judge = strings.TrimSpace(judge)
+	if worker == "" && judge == "" {
+		return nil
+	}
+	defaults := ModelDefaults{}
+	if worker != "" {
+		defaults.Worker = new(worker)
+	}
+	if judge != "" {
+		defaults.Judge = new(judge)
+	}
+	return &defaults
 }
 
 func definitionFanOutWidth(def dsl.Definition) int {
@@ -198,6 +236,14 @@ func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
 	}
 	if layer.GateMaxRevisions != nil {
 		effective.GateMaxRevisions = *layer.GateMaxRevisions
+	}
+	if layer.ModelDefaults != nil {
+		if layer.ModelDefaults.Worker != nil {
+			effective.ModelDefaults.Worker = strings.TrimSpace(*layer.ModelDefaults.Worker)
+		}
+		if layer.ModelDefaults.Judge != nil {
+			effective.ModelDefaults.Judge = strings.TrimSpace(*layer.ModelDefaults.Judge)
+		}
 	}
 }
 

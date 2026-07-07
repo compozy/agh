@@ -17,7 +17,7 @@ const NODE_STATUS_TONE: Record<string, PillTone> = {
   succeeded: "success",
   reused: "success",
   skipped: "neutral",
-  no_op: "neutral",
+  "no-op": "neutral",
   blocked: "warning",
   failed: "danger",
 };

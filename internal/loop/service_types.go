@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -23,10 +24,16 @@ type Inputs struct {
 	Values          map[string]any `json:"values,omitempty"`
 	ParentLoopRunID RunID          `json:"parent_loop_run_id,omitempty"`
 	ConfigOverrides LoopConfig     `json:"config_overrides"`
+	StartMetadata   map[string]any `json:"start_metadata,omitempty"`
 }
 
 // Status is the closed loop_runs.status vocabulary.
 type Status string
+
+const (
+	// BudgetGateID is the synthetic approval gate used by budget escalation.
+	BudgetGateID NodeID = "budget"
+)
 
 const (
 	// StatusQueued is a live deferred same-loop start.
@@ -42,7 +49,7 @@ const (
 	// StatusDone is a verified terminal outcome.
 	StatusDone Status = "done"
 	// StatusNoOp is a truthful terminal no-work outcome.
-	StatusNoOp Status = "no_op"
+	StatusNoOp Status = "no-op"
 	// StatusBlocked is a terminal external-dependency outcome.
 	StatusBlocked Status = "blocked"
 	// StatusFailed is a terminal unrecoverable failure outcome.
@@ -127,20 +134,34 @@ type LoopConfig struct {
 	NoProgressWindow  *int                `json:"no_progress_window,omitempty"`
 	FanOutWidth       *int                `json:"fan_out_width,omitempty"`
 	GateMaxRevisions  *int                `json:"gate_max_revisions,omitempty"`
+	ModelDefaults     *ModelDefaults      `json:"model_defaults,omitempty"`
+}
+
+// ModelDefaults is one raw loop model-default override layer.
+type ModelDefaults struct {
+	Worker *string `json:"worker,omitempty"`
+	Judge  *string `json:"judge,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
 type EffectiveConfig struct {
-	HumanGateEnabled  bool               `json:"human_gate_enabled"`
-	ReattemptStrategy ReattemptStrategy  `json:"reattempt_strategy"`
-	EnabledChecks     json.RawMessage    `json:"enabled_checks_json"`
-	IterationCap      int                `json:"iteration_cap"`
-	BudgetTokens      int                `json:"budget_tokens"`
-	BudgetWallSec     int                `json:"budget_wall_sec"`
-	BudgetOnExceeded  dsl.BudgetExceeded `json:"budget_on_exceeded"`
-	NoProgressWindow  int                `json:"no_progress_window"`
-	FanOutWidth       int                `json:"fan_out_width"`
-	GateMaxRevisions  int                `json:"gate_max_revisions"`
+	HumanGateEnabled  bool                   `json:"human_gate_enabled"`
+	ReattemptStrategy ReattemptStrategy      `json:"reattempt_strategy"`
+	EnabledChecks     json.RawMessage        `json:"enabled_checks_json"`
+	IterationCap      int                    `json:"iteration_cap"`
+	BudgetTokens      int                    `json:"budget_tokens"`
+	BudgetWallSec     int                    `json:"budget_wall_sec"`
+	BudgetOnExceeded  dsl.BudgetExceeded     `json:"budget_on_exceeded"`
+	NoProgressWindow  int                    `json:"no_progress_window"`
+	FanOutWidth       int                    `json:"fan_out_width"`
+	GateMaxRevisions  int                    `json:"gate_max_revisions"`
+	ModelDefaults     EffectiveModelDefaults `json:"model_defaults"`
+}
+
+// EffectiveModelDefaults is the fully resolved loop-owned session model routing.
+type EffectiveModelDefaults struct {
+	Worker string `json:"worker"`
+	Judge  string `json:"judge"`
 }
 
 // LoopDefaults carries the `[loops.defaults.*]` layer consumed by the resolver.
@@ -160,9 +181,17 @@ type Run struct {
 	Generation          int
 	ReattemptStrategy   ReattemptStrategy
 	CreatedAt           time.Time
+	StartedAt           time.Time
 	LastProgressAt      time.Time
 	StartedBy           task.ActorIdentity
 	StartedOrigin       task.Origin
+	DefinitionVersion   int
+	DefinitionDigest    string
+	DefinitionSnapshot  json.RawMessage
+	ActiveGateID        NodeID
+	ActiveHumanCriteria json.RawMessage
+	BudgetApprovalSeq   int
+	StartMetadata       map[string]any
 	ConsecutiveFailures int
 	IterationCap        int
 	BudgetTokens        int
@@ -172,6 +201,30 @@ type Run struct {
 	ParentLoopRunID     RunID
 	PauseRequested      bool
 	Inputs              map[string]any
+}
+
+// DefinitionSnapshot is the content-addressed executed definition pinned by one or more runs.
+type DefinitionSnapshot struct {
+	WorkspaceID WorkspaceID
+	Digest      string
+	Version     int
+	Definition  json.RawMessage
+	ByteSize    int
+	CreatedAt   time.Time
+	LastUsedAt  time.Time
+}
+
+// GateDecisionRecord persists one human approval decision for a gate criterion.
+type GateDecisionRecord struct {
+	WorkspaceID WorkspaceID
+	RunID       RunID
+	Generation  int
+	GateID      NodeID
+	CriterionID string
+	Decision    GateDecision
+	Actor       task.ActorContext
+	Note        string
+	DecidedAt   time.Time
 }
 
 // PlanNodePreview is one gen-1 node materialized by DryRun.
@@ -221,6 +274,7 @@ type Store interface {
 	CreateLoopRunForStart(ctx context.Context, run Run, policy dsl.ConcurrencyPolicy) (Run, error)
 	GetLoopRun(ctx context.Context, ws WorkspaceID, runID RunID) (Run, error)
 	GetLoopRunByID(ctx context.Context, runID RunID) (Run, error)
+	GetLoopDefinitionSnapshot(ctx context.Context, ws WorkspaceID, digest string) (DefinitionSnapshot, error)
 	FindActiveLoopRun(ctx context.Context, ws WorkspaceID, loopName string) (*Run, error)
 	CompareAndSwapLoopRunStatus(
 		ctx context.Context,
@@ -230,6 +284,14 @@ type Store interface {
 		cause TransitionCause,
 		at time.Time,
 	) error
+	RecordLoopGateDecisions(ctx context.Context, records []GateDecisionRecord) error
+	ListLoopGateDecisions(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		generation int,
+		gateID NodeID,
+	) (map[string]gate.HumanDecision, error)
 	SetLoopRunPauseRequested(ctx context.Context, ws WorkspaceID, runID RunID, requested bool) error
 	UpsertLoopConfig(ctx context.Context, ws WorkspaceID, loopName string, cfg LoopConfig) error
 	GetLoopConfig(ctx context.Context, ws WorkspaceID, loopName string) (*LoopConfig, error)
@@ -243,7 +305,14 @@ type Service interface {
 	Pause(ctx context.Context, ws WorkspaceID, runID RunID) error
 	// Resume clears pause_requested on running runs or transitions paused runs back to running.
 	Resume(ctx context.Context, ws WorkspaceID, runID RunID) error
-	Approve(ctx context.Context, ws WorkspaceID, runID RunID, gateID NodeID, decision GateDecision) error
+	Approve(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		gateID NodeID,
+		decision GateDecision,
+		actor task.ActorContext,
+	) error
 	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
 	Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error)

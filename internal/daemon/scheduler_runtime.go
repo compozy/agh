@@ -304,18 +304,14 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	now time.Time,
 	actor taskpkg.ActorContext,
 ) (int, error) {
-	if reconciler, ok := s.store.(loopCoordinatorBootReconciler); ok {
-		if _, err := reconciler.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now); err != nil {
-			return 0, err
-		}
-	}
 	scopes, err := s.loopCoordinatorClaimScopes(ctx)
 	if err != nil {
 		return 0, err
 	}
 	started := 0
 	for _, scope := range scopes {
-		for started < defaultLoopCoordinatorBackstopLimit {
+		startedForScope := 0
+		for startedForScope < defaultLoopCoordinatorBackstopLimit {
 			claim, err := s.manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 				Scope:            scope.scope,
 				WorkspaceID:      scope.workspaceID,
@@ -342,6 +338,7 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 				return started, err
 			}
 			started++
+			startedForScope++
 		}
 	}
 	return started, nil

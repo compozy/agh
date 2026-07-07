@@ -389,15 +389,19 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 	if err != nil {
 		return automation.Run{}, err
 	}
+	metadataJSON, err := encodeAutomationRunMetadata(normalized.Metadata)
+	if err != nil {
+		return automation.Run{}, err
+	}
 
 	if _, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO automation_runs (
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at, loop_run_id
+			delivery_error, delivery_error_at, loop_run_id, metadata_json
 		)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
@@ -414,6 +418,7 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 		store.NullableString(normalized.DeliveryError),
 		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
 		store.NullableString(normalized.LoopRunID),
+		metadataJSON,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: create automation run %q: %w",
@@ -435,6 +440,10 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 	if err != nil {
 		return automation.Run{}, err
 	}
+	metadataJSON, err := encodeAutomationRunMetadata(normalized.Metadata)
+	if err != nil {
+		return automation.Run{}, err
+	}
 
 	result, err := g.db.ExecContext(
 		ctx,
@@ -442,7 +451,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		 SET job_id = ?, trigger_id = ?, session_id = ?, task_id = ?,
 		     task_run_id = ?, fire_id = ?, status = ?, attempt = ?,
 		     scheduled_at = ?, started_at = ?, ended_at = ?, error = ?,
-		     delivery_error = ?, delivery_error_at = ?, loop_run_id = ?
+		     delivery_error = ?, delivery_error_at = ?, loop_run_id = ?, metadata_json = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.JobID),
 		store.NullableString(normalized.TriggerID),
@@ -459,6 +468,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		store.NullableString(normalized.DeliveryError),
 		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
 		store.NullableString(normalized.LoopRunID),
+		metadataJSON,
 		normalized.ID,
 	)
 	if err != nil {
@@ -511,7 +521,7 @@ func (g *GlobalDB) GetRun(ctx context.Context, id string) (automation.Run, error
 		`SELECT
 			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at, loop_run_id
+			delivery_error, delivery_error_at, loop_run_id, metadata_json
 		 FROM automation_runs
 		 WHERE id = ?`,
 		trimmedID,
@@ -539,7 +549,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]a
 	sqlQuery := `SELECT
 		id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at, loop_run_id
+		delivery_error, delivery_error_at, loop_run_id, metadata_json
 		FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
@@ -1211,6 +1221,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		deliveryErr   sql.NullString
 		deliveryErrAt sql.NullString
 		loopRunID     sql.NullString
+		metadataRaw   string
 	)
 	if err := scanner.Scan(
 		&run.ID,
@@ -1229,6 +1240,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&deliveryErr,
 		&deliveryErrAt,
 		&loopRunID,
+		&metadataRaw,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: scan automation run: %w", err)
 	}
@@ -1245,6 +1257,9 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		return automation.Run{}, err
 	}
 	assignAutomationRunErrors(&run, runErr, deliveryErr)
+	if err := decodeAutomationRunMetadata(metadataRaw, &run.Metadata); err != nil {
+		return automation.Run{}, err
+	}
 
 	return run, nil
 }
@@ -1549,6 +1564,27 @@ func encodeAutomationJSON(value any, label string) (string, error) {
 		return "", fmt.Errorf("store: encode %s: %w", label, err)
 	}
 	return string(data), nil
+}
+
+func encodeAutomationRunMetadata(metadata map[string]any) (string, error) {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	return encodeAutomationJSON(metadata, "run.metadata")
+}
+
+func decodeAutomationRunMetadata(raw string, target *map[string]any) error {
+	if strings.TrimSpace(raw) == "" {
+		*target = map[string]any{}
+		return nil
+	}
+	if err := json.Unmarshal([]byte(raw), target); err != nil {
+		return fmt.Errorf("store: decode run.metadata: %w", err)
+	}
+	if *target == nil {
+		*target = map[string]any{}
+	}
+	return nil
 }
 
 func encodeOptionalAutomationJSON(value any, empty bool, label string) (any, error) {

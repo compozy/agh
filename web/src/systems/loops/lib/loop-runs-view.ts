@@ -1,3 +1,5 @@
+import { LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
+
 import type { LoopRun, LoopRunStatus } from "../types";
 import { isLoopRunStatus, isTerminalLoopStatus, loopStatusLabel } from "./loop-formatters";
 
@@ -8,12 +10,7 @@ const STATUS_ORDER: readonly LoopRunStatus[] = [
   "needs-approval",
   "paused",
   "queued",
-  "done",
-  "no_op",
-  "blocked",
-  "failed",
-  "exhausted",
-  "stalled",
+  ...LOOP_RUN_TERMINAL_STATUSES,
 ];
 
 /** Terminal problem states that surface in the "Needs a look" KPI. */

@@ -26,7 +26,10 @@ type loopRunScanValues struct {
 	reattempt         string
 	budgetOnExceeded  string
 	createdAtRaw      string
+	startedAtRaw      string
 	lastProgressAtRaw string
+	activeHumanRaw    string
+	startMetadataRaw  string
 	parentID          sql.NullString
 	pauseRequested    int
 	inputsRaw         string
@@ -56,7 +59,14 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.run.Generation,
 		&v.reattempt,
 		&v.createdAtRaw,
+		&v.startedAtRaw,
 		&v.lastProgressAtRaw,
+		&v.run.DefinitionVersion,
+		&v.run.DefinitionDigest,
+		&v.run.ActiveGateID,
+		&v.activeHumanRaw,
+		&v.run.BudgetApprovalSeq,
+		&v.startMetadataRaw,
 		&v.run.ConsecutiveFailures,
 		&v.run.BudgetTokens,
 		&v.run.BudgetWallSec,
@@ -88,7 +98,7 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	}
 	run.ReattemptStrategy = looppkg.ReattemptStrategy(v.reattempt)
 	run.BudgetOnExceeded = dsl.BudgetExceeded(v.budgetOnExceeded)
-	if err := applyLoopRunScanTimestamps(&run, v.createdAtRaw, v.lastProgressAtRaw); err != nil {
+	if err := applyLoopRunScanTimestamps(&run, v.createdAtRaw, v.startedAtRaw, v.lastProgressAtRaw); err != nil {
 		return looppkg.Run{}, err
 	}
 	if v.parentID.Valid {
@@ -109,15 +119,38 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	if run.Inputs == nil {
 		run.Inputs = map[string]any{}
 	}
+	run.ActiveHumanCriteria = json.RawMessage(v.activeHumanRaw)
+	if len(run.ActiveHumanCriteria) == 0 {
+		run.ActiveHumanCriteria = json.RawMessage(`[]`)
+	}
+	if !json.Valid(run.ActiveHumanCriteria) {
+		return looppkg.Run{}, fmt.Errorf("store: decode loop run active human criteria: %w", looppkg.ErrValidation)
+	}
+	if err := json.Unmarshal([]byte(v.startMetadataRaw), &run.StartMetadata); err != nil {
+		return looppkg.Run{}, fmt.Errorf("store: decode loop run start metadata: %w", err)
+	}
+	if run.StartMetadata == nil {
+		run.StartMetadata = map[string]any{}
+	}
 	return run, nil
 }
 
-func applyLoopRunScanTimestamps(run *looppkg.Run, createdAtRaw string, lastProgressAtRaw string) error {
+func applyLoopRunScanTimestamps(
+	run *looppkg.Run,
+	createdAtRaw string,
+	startedAtRaw string,
+	lastProgressAtRaw string,
+) error {
 	createdAt, err := parseLoopRunTimestamp(createdAtRaw)
 	if err != nil {
 		return fmt.Errorf("store: parse loop run created_at: %w", err)
 	}
 	run.CreatedAt = createdAt
+	startedAt, err := parseLoopRunTimestamp(startedAtRaw)
+	if err != nil {
+		return fmt.Errorf("store: parse loop run started_at: %w", err)
+	}
+	run.StartedAt = startedAt
 	lastProgressAt, err := parseLoopRunTimestamp(lastProgressAtRaw)
 	if err != nil {
 		return fmt.Errorf("store: parse loop run last_progress_at: %w", err)
@@ -139,16 +172,18 @@ func scanLoopConfig(row loopConfigScanner) (looppkg.LoopConfig, error) {
 }
 
 type loopConfigScanValues struct {
-	humanGateEnabled int
-	reattempt        sql.NullString
-	enabledChecks    string
-	iterationCap     sql.NullInt64
-	budgetTokens     sql.NullInt64
-	budgetWallSec    sql.NullInt64
-	budgetOnExceeded sql.NullString
-	noProgressWindow sql.NullInt64
-	fanOutWidth      sql.NullInt64
-	gateMaxRevisions sql.NullInt64
+	humanGateEnabled   int
+	reattempt          sql.NullString
+	enabledChecks      string
+	iterationCap       sql.NullInt64
+	budgetTokens       sql.NullInt64
+	budgetWallSec      sql.NullInt64
+	budgetOnExceeded   sql.NullString
+	noProgressWindow   sql.NullInt64
+	fanOutWidth        sql.NullInt64
+	gateMaxRevisions   sql.NullInt64
+	modelDefaultWorker sql.NullString
+	modelDefaultJudge  sql.NullString
 }
 
 func scanLoopConfigValues(row loopConfigScanner) (loopConfigScanValues, error) {
@@ -164,6 +199,8 @@ func scanLoopConfigValues(row loopConfigScanner) (loopConfigScanValues, error) {
 		&values.noProgressWindow,
 		&values.fanOutWidth,
 		&values.gateMaxRevisions,
+		&values.modelDefaultWorker,
+		&values.modelDefaultJudge,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return loopConfigScanValues{}, looppkg.ErrConfigNotFound
@@ -203,6 +240,15 @@ func (v loopConfigScanValues) toConfig() looppkg.LoopConfig {
 	}
 	if v.gateMaxRevisions.Valid {
 		cfg.GateMaxRevisions = new(int(v.gateMaxRevisions.Int64))
+	}
+	if v.modelDefaultWorker.Valid || v.modelDefaultJudge.Valid {
+		cfg.ModelDefaults = &looppkg.ModelDefaults{}
+		if v.modelDefaultWorker.Valid {
+			cfg.ModelDefaults.Worker = new(v.modelDefaultWorker.String)
+		}
+		if v.modelDefaultJudge.Valid {
+			cfg.ModelDefaults.Judge = new(v.modelDefaultJudge.String)
+		}
 	}
 	return cfg
 }

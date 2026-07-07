@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
+
 import { buildLoopStreamUrl } from "../adapters/loops-api";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
@@ -30,32 +32,16 @@ interface UseLoopStreamOptions {
 // LoopRunEventKind contract (techspec §observability, L-017 named-listener rule):
 // an unenumerated kind silently never renders. Only `status_changed` is produced
 // today; the rest are the forward run-page contract.
-const LOOP_STREAM_EVENT_TYPES: readonly LoopRunEventKind[] = [
-  "node_running",
-  "node_succeeded",
-  "node_failed",
-  "gate_verdict",
-  "generation_started",
-  "channel_msg",
-  "token_tick",
-  "needs_approval",
-  "status_changed",
-] as const;
+const LOOP_STREAM_EVENT_TYPES = LOOP_RUN_EVENT_KINDS satisfies readonly LoopRunEventKind[];
 
 // Lifecycle kinds mutate durable run state, so each one invalidates the run detail +
 // runs list (daemon truth wins). The high-frequency display frames `token_tick` and
 // `channel_msg` are applied locally via `onEvent` (the run-page meter/timeline store,
 // task 20) and never invalidate — otherwise every tick would refetch the workspace
 // runs list. The catalog's 30d aggregates refresh on their own interval, not per frame.
-const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>([
-  "status_changed",
-  "node_running",
-  "node_succeeded",
-  "node_failed",
-  "gate_verdict",
-  "generation_started",
-  "needs_approval",
-]);
+const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>(
+  LOOP_RUN_LIFECYCLE_EVENT_KINDS satisfies readonly LoopRunEventKind[]
+);
 
 function isLifecycleKind(kind: string): boolean {
   return LOOP_LIFECYCLE_EVENT_KINDS.has(kind as LoopRunEventKind);

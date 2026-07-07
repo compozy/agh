@@ -113,6 +113,15 @@ func (g *GlobalDB) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
+	if err := appendLoopGenerationStartedEventWithExecutor(
+		ctx,
+		exec,
+		loopRun,
+		snapshot.Generation,
+		completion.Now,
+	); err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
 
 	result, err := g.applyCoordinatorBoundaryWithExecutor(
 		ctx,
@@ -201,13 +210,12 @@ func (g *GlobalDB) applyCoordinatorBoundaryWithExecutor(
 	loopRun loop.Run,
 	tokensUsed int64,
 ) (taskpkg.CoordinatorCompletionResult, error) {
-	loopRunID := strings.TrimSpace(snapshot.LoopRunID)
 	contextPayload, err := coordinatorResultContext(loopRun, loopRun.Generation, loopRun.Status)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result := taskpkg.CoordinatorCompletionResult{
-		LoopRunID:  loopRunID,
+		LoopRunID:  strings.TrimSpace(snapshot.LoopRunID),
 		Context:    contextPayload,
 		TokensUsed: tokensUsed,
 	}
@@ -235,10 +243,18 @@ func (g *GlobalDB) applyCoordinatorBoundaryWithExecutor(
 	case shouldDeferCoordinatorBoundary(completion.Plan, loopRun, budgetExceeded):
 		err := applyCoordinatorYieldBoundary(ctx, exec, snapshot, &result)
 		return result, err
-	case !completion.Plan.Yield &&
-		completion.Plan.Terminal == nil &&
-		budgetExceeded:
-		err := applyCoordinatorBudgetBoundary(ctx, exec, completion, snapshot, loopRun, &result)
+	case shouldApplyCoordinatorBudgetExceededBoundary(completion.Plan, budgetExceeded):
+		err := g.applyCoordinatorBudgetExceededBoundaryWithExecutor(
+			ctx,
+			exec,
+			completion,
+			current,
+			snapshot,
+			postReserveSnapshot,
+			finalizer,
+			loopRun,
+			&result,
+		)
 		return result, err
 	case completion.Plan.Terminal != nil:
 		err := applyCoordinatorTerminalBoundary(ctx, exec, completion, snapshot, loopRun, &result)
@@ -262,6 +278,13 @@ func (g *GlobalDB) applyCoordinatorBoundaryWithExecutor(
 		)
 		return result, err
 	}
+}
+
+func shouldApplyCoordinatorBudgetExceededBoundary(
+	plan taskpkg.CoordinatorCompletionPlan,
+	budgetExceeded bool,
+) bool {
+	return !plan.Yield && plan.Terminal == nil && budgetExceeded
 }
 
 func coordinatorPlanHasContinuation(plan taskpkg.CoordinatorCompletionPlan) bool {
@@ -328,84 +351,6 @@ func updateCoordinatorResultContext(
 		return fmt.Errorf("store: marshal coordinator context: %w", err)
 	}
 	result.Context = data
-	return nil
-}
-
-func applyCoordinatorBudgetBoundary(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	completion *taskpkg.CoordinatorCompletion,
-	snapshot taskpkg.GenerationSnapshot,
-	loopRun loop.Run,
-	result *taskpkg.CoordinatorCompletionResult,
-) error {
-	budgetStatus := loop.StatusExhausted
-	if string(loopRun.BudgetOnExceeded) == "escalate" {
-		budgetStatus = loop.StatusNeedsApproval
-	}
-	if err := updateLoopBoundaryStatusWithExecutor(
-		ctx,
-		exec,
-		loopRun,
-		budgetStatus,
-		loop.TransitionCauseBudget,
-		completion.Now,
-		snapshot.Generation,
-	); err != nil {
-		return err
-	}
-	if budgetStatus.Terminal() {
-		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-			return err
-		}
-	}
-	if err := updateCoordinatorResultContext(result, snapshot.Generation, budgetStatus); err != nil {
-		return err
-	}
-	result.Terminal = loopStatusIsTerminalOrApproval(budgetStatus)
-	return nil
-}
-
-func applyCoordinatorTerminalBoundary(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	completion *taskpkg.CoordinatorCompletion,
-	snapshot taskpkg.GenerationSnapshot,
-	loopRun loop.Run,
-	result *taskpkg.CoordinatorCompletionResult,
-) error {
-	terminalStatus := loop.Status(completion.Plan.Terminal.Status)
-	if !terminalStatus.Valid() {
-		return fmt.Errorf(
-			"%w: coordinator terminal status is invalid: %q",
-			taskpkg.ErrValidation,
-			completion.Plan.Terminal.Status,
-		)
-	}
-	cause := loop.TransitionCause(strings.TrimSpace(completion.Plan.Terminal.Cause))
-	if strings.TrimSpace(string(cause)) == "" {
-		cause = loop.TransitionCauseContract
-	}
-	if err := updateLoopBoundaryStatusWithExecutor(
-		ctx,
-		exec,
-		loopRun,
-		terminalStatus,
-		cause,
-		completion.Now,
-		snapshot.Generation,
-	); err != nil {
-		return err
-	}
-	if terminalStatus.Terminal() {
-		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-			return err
-		}
-	}
-	if err := updateCoordinatorResultContext(result, snapshot.Generation, terminalStatus); err != nil {
-		return err
-	}
-	result.Terminal = loopStatusIsTerminalOrApproval(terminalStatus)
 	return nil
 }
 
@@ -518,19 +463,6 @@ func (g *GlobalDB) applyCoordinatorWatchReadyBoundaryWithExecutor(
 		finalizer,
 		result,
 	)
-}
-
-func loopBudgetExceeded(run loop.Run, tokensUsed int64, now time.Time) bool {
-	if run.BudgetTokens > 0 && tokensUsed >= int64(run.BudgetTokens) {
-		return true
-	}
-	if run.BudgetWallSec <= 0 || run.CreatedAt.IsZero() {
-		return false
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
-	return !now.UTC().Before(run.CreatedAt.UTC().Add(time.Duration(run.BudgetWallSec) * time.Second))
 }
 
 func applyCoordinatorRunStopsWithExecutor(
@@ -888,11 +820,17 @@ func updateLoopBoundaryStatusWithExecutor(
 		`UPDATE loop_runs
 		 SET status = ?,
 		     pause_requested = 0,
-		     generation = CASE WHEN ? > generation THEN ? ELSE generation END
+		     generation = CASE WHEN ? > generation THEN ? ELSE generation END,
+		     active_gate_id = CASE WHEN ? != ? THEN '' ELSE active_gate_id END,
+		     active_human_criteria_json = CASE WHEN ? != ? THEN '[]' ELSE active_human_criteria_json END
 		 WHERE id = ? AND status = ?`,
 		string(to),
 		generation,
 		generation,
+		string(to),
+		string(loop.StatusNeedsApproval),
+		string(to),
+		string(loop.StatusNeedsApproval),
 		string(current.ID),
 		string(current.Status),
 	)

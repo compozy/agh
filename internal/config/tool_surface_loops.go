@@ -10,6 +10,8 @@ func loopDefaultToolPathKinds() map[string]ValueKind {
 		"loops.defaults.delivery.budget.tokens":         ConfigValueInt,
 		"loops.defaults.delivery.budget.wall_clock_sec": ConfigValueInt,
 		"loops.defaults.delivery.budget.on_exceeded":    ConfigValueString,
+		"loops.defaults.delivery.model_defaults.worker": ConfigValueString,
+		"loops.defaults.delivery.model_defaults.judge":  ConfigValueString,
 		"loops.defaults.delivery.fan_out_width":         ConfigValueInt,
 		"loops.defaults.watch.iteration_cap":            ConfigValueInt,
 		"loops.defaults.watch.no_progress.window":       ConfigValueInt,
@@ -17,6 +19,8 @@ func loopDefaultToolPathKinds() map[string]ValueKind {
 		"loops.defaults.watch.budget.tokens":            ConfigValueInt,
 		"loops.defaults.watch.budget.wall_clock_sec":    ConfigValueInt,
 		"loops.defaults.watch.budget.on_exceeded":       ConfigValueString,
+		"loops.defaults.watch.model_defaults.worker":    ConfigValueString,
+		"loops.defaults.watch.model_defaults.judge":     ConfigValueString,
 		"loops.defaults.watch.fan_out_width":            ConfigValueInt,
 	}
 }

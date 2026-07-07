@@ -165,6 +165,7 @@ type RunPayload struct {
 	Error           string                  `json:"error,omitempty"`
 	DeliveryError   string                  `json:"delivery_error,omitempty"`
 	DeliveryErrorAt *time.Time              `json:"delivery_error_at,omitempty"`
+	Metadata        map[string]any          `json:"metadata,omitempty"`
 }
 
 // WebhookDeliveryPayload is the shared webhook dispatch response payload.

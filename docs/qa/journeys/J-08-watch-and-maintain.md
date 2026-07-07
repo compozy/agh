@@ -1,6 +1,6 @@
 # J-08 — Watch and maintain: a self-correcting watch-source Loop
 
-The identity case (PRD F8, use-cases §1, `reviews-watch`). A Loop is driven by an external signal — new review comments on an open change — cycling fetch → fix → verify each time the source wakes it, and concluding on its own (`done`, a clean `no_op` tick, or `stalled` if the source goes silent past its window). Between events it rests in the live, zero-cost `watching` state. This is also the extensibility surface: the `coderabbit_pr_review` watch source, the fetch/resolve/push tools, and the `review_fixer` agent all arrive from the default-enrolled `dev-cycle` extension (ADR-024/ADR-016), and CodeRabbit behavior **requires `gh` installed and authenticated** — a missing/unauthenticated `gh` must surface as an actionable availability error, never a silent hang or a fake `watching` state (LP-039).
+The identity case (PRD F8, use-cases §1, `reviews-watch`). A Loop is driven by an external signal — new review comments on an open change — cycling fetch → fix → verify each time the source wakes it, and concluding on its own (`done`, a clean `no-op` tick, or `stalled` if the source goes silent past its window). Between events it rests in the live, zero-cost `watching` state. This is also the extensibility surface: the `coderabbit_pr_review` watch source, the fetch/resolve/push tools, and the `review_fixer` agent all arrive from the default-enrolled `dev-cycle` extension (ADR-024/ADR-016), and CodeRabbit behavior **requires `gh` installed and authenticated** — a missing/unauthenticated `gh` must surface as an actionable availability error, never a silent hang or a fake `watching` state (LP-039).
 
 ```mermaid
 flowchart TD
@@ -12,7 +12,7 @@ flowchart TD
     F --> G{Resolve-check gate: anything unresolved?}
     G -->|unresolved remain| C
     G -->|zero unresolved, work done| H[True end: terminal done]
-    D -->|clean tick, nothing new| N[Terminal no_op — a clean watch tick is NEVER fake done]
+    D -->|clean tick, nothing new| N[Terminal no-op — a clean watch tick is NEVER fake done]
     D -->|source silent past the window| S[True end: terminal stalled + escalate ping]
     B --> W{Watch-source provider}
     W -->|dev-cycle extension: coderabbit_pr_review, gh authenticated| C
@@ -27,7 +27,7 @@ flowchart TD
 journey:
   id: J-08
   name: "Run a watch-source Loop that self-corrects and concludes on its own"
-  value_statement: "A recurring, externally-triggered Loop keeps a change clean without a babysitter and concludes truthfully — done, a clean no_op, or stalled when the source goes quiet."
+  value_statement: "A recurring, externally-triggered Loop keeps a change clean without a babysitter and concludes truthfully — done, a clean no-op, or stalled when the source goes quiet."
   personas: [Bruno, Marina]
   entry_points:
     - url: "web /loops (loops-catalog) reviews-watch › Run  /  web run-detail (rounds)"
@@ -43,11 +43,11 @@ journey:
       expected_observable: "The Loop wakes, waits a quiet-period beat, confirms, then runs a round: fetch → fan out fixes → resolve-check"
     - step: 3
       verb: "Repeat until clean / silent"
-      expected_observable: "Zero-unresolved → done; a clean tick with nothing new → no_op; silence past the window → stalled + escalate"
+      expected_observable: "Zero-unresolved → done; a clean tick with nothing new → no-op; silence past the window → stalled + escalate"
   goal:
-    observable: "The Loop concludes with a truthful terminal outcome (done / no_op / stalled) appropriate to what actually happened"
+    observable: "The Loop concludes with a truthful terminal outcome (done / no-op / stalled) appropriate to what actually happened"
     side_effects: [watch-source-wakes, fan-out-fix-runs, escalate-ping-on-stalled]
-  true_end_state: "A clean watch tick is reported as no_op (never done-with-fake-work); a silent source ends stalled with an escalation, not an infinite wait; a resolved change ends done — each verifiable on reload."
+  true_end_state: "A clean watch tick is reported as no-op (never done-with-fake-work); a silent source ends stalled with an escalation, not an infinite wait; a resolved change ends done — each verifiable on reload."
   exit:
     natural: "Operator/evaluator lands on the truthful terminal run; the change is clean or the escalation is visible."
   abandonment:
@@ -65,7 +65,7 @@ design_reference:
     - "docs/design/opendesign/loops-catalog.html (§4.1 — watch tag, cap ∞; the watch-source tag is a body-node concept, never a start-binding badge)"
   truthful_ui_checks:
     - "watching is a LIVE zero-cost dormant state — not terminal, not running (ADR-013)."
-    - "no_op renders as its own neutral terminal — a clean tick is NEVER shown as done-with-fake-work (ADR-022 inv5)."
+    - "no-op renders as its own neutral terminal — a clean tick is NEVER shown as done-with-fake-work (ADR-022 inv5)."
     - "stalled (silent source) renders as itself, never as done."
     - "The reviews-watch watch-source is a body-node concept and never gets the catalog start-binding badge (§4.1)."
 
@@ -75,12 +75,12 @@ e2e_backbone:
     - "E2E-runtime-9: drive a loop end-to-end from an extension-provided watch-source over watch/poll (ADR-016)."
     - "E2E-runtime-7: no-progress → stalled, fan-out ceiling → exhausted/escalate (guardrail side)."
   web:
-    - "E2E-web-9: all 11 states render truthfully (covers watching / no_op / stalled pills)."
+    - "E2E-web-9: all 11 states render truthfully (covers watching / no-op / stalled pills)."
   integration:
     - "Integration-2: watch-source poll→ready→settle→confirm with a fake source; end stalled on silence past the window."
     - "Integration-18: gate watch/poll — an extension WITHOUT loop.watch_source cannot serve it; one WITH it serves; watch_source_kinds surfaced in InitializeResponse."
   unit:
-    - "Unit-6 (zero lease/token for a watching loop); Unit-15 (no false done, exhausted/stalled/needs-approval) + §7-15 (the precise no_op/blocked terminal-not-coerced owner); Unit-2 (stalled on no-progress window)."
+    - "Unit-6 (zero lease/token for a watching loop); Unit-15 (no false done, exhausted/stalled/needs-approval) + §7-15 (the precise no-op/blocked terminal-not-coerced owner); Unit-2 (stalled on no-progress window)."
   followups:
     - "LP-039 — gh missing/unauthenticated availability path is owned by the dev-cycle provider-failure suite (`_changes_spec.md` v2 R9); walk it with a lab shell whose PATH hides gh (or logged-out gh) — distinct from LP-038's mid-run blocked classification."
     - "AB-001 — the loop e2e-web seed harness must include a watch-source seed (fake review events) to exercise watching/round/stalled in Playwright; today only status_changed is emitted."

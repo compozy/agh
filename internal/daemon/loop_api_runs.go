@@ -137,9 +137,18 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
+	executedDefinition, err := loopDefinitionDocumentFromJSON(snapshot.Definition)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
-		Run:         loopRunPayload(*run),
-		Generations: generations,
+		Run:                loopRunPayload(*run),
+		ExecutedDefinition: &executedDefinition,
+		Generations:        generations,
 	}, nil
 }
 
@@ -196,6 +205,7 @@ func (s *daemonLoopAPIService) ApproveLoopRun(
 		normalizedRunID,
 		looppkg.NodeID(strings.TrimSpace(req.GateID)),
 		looppkg.GateDecision(req.Decision),
+		actor,
 	)
 }
 

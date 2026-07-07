@@ -213,7 +213,7 @@ const taskDesignationRollupsTableStatement = `CREATE TABLE IF NOT EXISTS task_de
 		);`
 
 // loop_runs.status uses the TechSpec's 11-state vocabulary:
-// live queued|running|watching|needs-approval|paused; terminal done|no_op|blocked|failed|exhausted|stalled.
+// live queued|running|watching|needs-approval|paused; terminal done|no-op|blocked|failed|exhausted|stalled.
 const loopRunsTableStatement = `CREATE TABLE IF NOT EXISTS loop_runs (
 			id                   TEXT PRIMARY KEY,
 			workspace_id         TEXT NOT NULL,
@@ -292,6 +292,8 @@ const loopConfigTableStatement = `CREATE TABLE IF NOT EXISTS loop_config (
 			no_progress_window  INTEGER,
 			fan_out_width       INTEGER,
 			gate_max_revisions  INTEGER,
+			model_default_worker TEXT,
+			model_default_judge  TEXT,
 			PRIMARY KEY (workspace_id, loop_name)
 		);`
 
@@ -1368,6 +1370,24 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateLoopRunStartActor,
 		Checksum: "2026-07-05-add-loop-run-start-actor",
 	},
+	{
+		Version:  57,
+		Name:     "add_loop_run_pinning",
+		Up:       migrateLoopRunPinning,
+		Checksum: "2026-07-07-add-loop-run-pinning",
+	},
+	{
+		Version:  58,
+		Name:     "add_loop_config_model_defaults",
+		Up:       migrateLoopConfigModelDefaults,
+		Checksum: "2026-07-07-add-loop-config-model-defaults",
+	},
+	{
+		Version:  59,
+		Name:     "update_automation_catch_up_contract",
+		UpConn:   migrateAutomationCatchUpContract,
+		Checksum: "2026-07-07-update-automation-catch-up-contract",
+	},
 }
 
 func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) {
@@ -1392,7 +1412,7 @@ func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) 
 			sql:  `ALTER TABLE task_runs ADD COLUMN loop_run_id TEXT`,
 		},
 		{
-			name: "tokens_used",
+			name: columnTokensUsed,
 			sql:  `ALTER TABLE task_runs ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0`,
 		},
 	}); err != nil {

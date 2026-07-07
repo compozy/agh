@@ -97,10 +97,17 @@ func (s RunStatus) Validate(path string) error {
 // Validate ensures the scheduler catch-up policy is supported.
 func (p SchedulerCatchUpPolicy) Validate(path string) error {
 	switch p {
-	case SchedulerCatchUpPolicySkipMissed:
+	case SchedulerCatchUpPolicySkip, SchedulerCatchUpPolicyCoalesce, SchedulerCatchUpPolicyReplay:
 		return nil
 	default:
-		return fmt.Errorf("%s must be %q: %q", path, SchedulerCatchUpPolicySkipMissed, p)
+		return fmt.Errorf(
+			"%s must be one of %q, %q, or %q: %q",
+			path,
+			SchedulerCatchUpPolicySkip,
+			SchedulerCatchUpPolicyCoalesce,
+			SchedulerCatchUpPolicyReplay,
+			p,
+		)
 	}
 }
 

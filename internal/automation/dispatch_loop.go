@@ -30,6 +30,13 @@ type LoopTargetValidationRequest struct {
 	InputMapping map[string]string
 }
 
+// LoopCatchUpPolicyRequest asks the composition root for a target-aware schedule default.
+type LoopCatchUpPolicyRequest struct {
+	WorkspaceID string
+	LoopName    string
+	Kind        LoopStartKind
+}
+
 // LoopStartRequest starts one loop target from an automation fire.
 type LoopStartRequest struct {
 	WorkspaceID     string
@@ -40,6 +47,9 @@ type LoopStartRequest struct {
 	TriggerPayload  map[string]any
 	Actor           taskpkg.ActorContext
 	AutomationRunID string
+	ScheduledAt     *time.Time
+	CatchUp         bool
+	CatchUpPolicy   SchedulerCatchUpPolicy
 }
 
 // LoopStartResult returns the observable loop_run correlation for an automation fire.
@@ -51,6 +61,11 @@ type LoopStartResult struct {
 type LoopStarter interface {
 	ValidateLoopTarget(ctx context.Context, req LoopTargetValidationRequest) error
 	StartLoop(ctx context.Context, req LoopStartRequest) (LoopStartResult, error)
+}
+
+// LoopCatchUpPolicyResolver is optionally implemented by LoopStarter.
+type LoopCatchUpPolicyResolver interface {
+	DefaultLoopCatchUpPolicy(ctx context.Context, req LoopCatchUpPolicyRequest) (SchedulerCatchUpPolicy, error)
 }
 
 // WithDispatcherLoopStarter injects the loop start boundary used by loop-target automations.
@@ -95,8 +110,14 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		TriggerPayload:  cloneJSONMap(req.envelopeData()),
 		Actor:           actor,
 		AutomationRunID: strings.TrimSpace(scheduledRun.ID),
+		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
+		CatchUp:         req.CatchUp,
+		CatchUpPolicy:   req.CatchUpPolicy,
 	})
 	if err != nil {
+		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
+			scheduledRun.Metadata = loopCatchUpFailureMetadata(req, "loop_concurrency_conflict")
+		}
 		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
 	}
 	if strings.TrimSpace(result.RunID) == "" {
@@ -109,6 +130,22 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func loopCatchUpFailureMetadata(req DispatchRequest, reason string) map[string]any {
+	metadata := map[string]any{
+		"catch_up": true,
+		"reason":   strings.TrimSpace(reason),
+	}
+	if req.CatchUpPolicy != "" {
+		metadata["catch_up_policy"] = string(req.CatchUpPolicy)
+	}
+	if req.ScheduledAt != nil && !req.ScheduledAt.IsZero() {
+		scheduledAt := req.ScheduledAt.UTC().Format(time.RFC3339Nano)
+		metadata["scheduled_at"] = scheduledAt
+		metadata["original_due_at"] = scheduledAt
+	}
+	return metadata
 }
 
 func (d *Dispatcher) delegateRunToLoop(ctx context.Context, current *Run, loopRunID string) (*Run, error) {

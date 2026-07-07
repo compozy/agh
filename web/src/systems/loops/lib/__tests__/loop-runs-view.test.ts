@@ -29,7 +29,9 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
     created_at: "2026-07-05T12:00:00Z",
+    started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:00:00Z",
+    definition_version: 1,
     ...overrides,
   };
 }
