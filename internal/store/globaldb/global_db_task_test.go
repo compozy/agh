@@ -389,11 +389,7 @@ func TestOpenGlobalDBTaskBlockSchemaSurvivesRestart(t *testing.T) {
 }
 
 func TestOpenGlobalDBTaskBlockSchemaFreshVsUpgradeEquality(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should match tasks schema and indexes between fresh and v47 upgrade paths", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t)
 		freshPath := filepath.Join(t.TempDir(), "fresh-"+GlobalDatabaseName)
 		freshDB, err := OpenGlobalDB(ctx, freshPath)

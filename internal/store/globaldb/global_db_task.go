@@ -77,45 +77,7 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		return err
 	}
 
-	_, err = g.db.ExecContext(
-		ctx,
-		`INSERT INTO tasks (
-			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
-			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		normalized.ID,
-		store.NullableString(normalized.Identifier),
-		string(normalized.Scope),
-		store.NullableString(normalized.WorkspaceID),
-		store.NullableString(normalized.ParentTaskID),
-		store.NullableString(normalized.NetworkChannel),
-		normalized.Title,
-		store.NullableString(normalized.Description),
-		string(normalized.Priority),
-		normalized.MaxAttempts,
-		taskBoolToInt(normalized.AutoEnqueueOnReady),
-		string(normalized.Status),
-		string(normalized.ApprovalPolicy),
-		string(normalized.ApprovalState),
-		taskOwnerKindValue(normalized.Owner),
-		taskOwnerRefValue(normalized.Owner),
-		string(normalized.CreatedBy.Kind),
-		normalized.CreatedBy.Ref,
-		string(normalized.Origin.Kind),
-		normalized.Origin.Ref,
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
-		nullableTaskTimestamp(normalized.ClosedAt),
-		taskBoolToInt(normalized.Paused),
-		normalized.PausedBy,
-		nullableTaskTimestamp(normalized.PausedAt),
-		normalized.PausedReason,
-		taskBoolToInt(normalized.WakeCreator),
-		nullableTaskJSON(normalized.Metadata),
-	)
-	if err != nil {
+	if err := insertTaskWithExecutor(ctx, g.db, normalized); err != nil {
 		return fmt.Errorf("store: create task %q: %w", normalized.ID, err)
 	}
 

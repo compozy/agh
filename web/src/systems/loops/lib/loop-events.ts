@@ -1,12 +1,10 @@
 import type { LoopRunEventFrame } from "../types";
 
 /**
- * The forward SSE contract the run page consumes (techspec §observability). The
- * daemon emits only `status_changed` today (`global_db_loop.go`); the other kinds
- * are the enumerated contract the run page is built to render (L-017 named-listener
- * rule). Each payload type below is the shape a producing daemon writes into
- * `frame.payload`; the reducer reads it through runtime guards so an unknown or
- * malformed frame degrades to a bare event line instead of throwing.
+ * The SSE contract the run page consumes (techspec §observability). Each payload
+ * type below is the shape the daemon writes into `frame.payload`; the reducer reads
+ * it through runtime guards so an unknown or malformed frame degrades to a bare
+ * event line instead of throwing.
  */
 
 /** One collapsed line for the "Live events" rail (every frame yields one). */

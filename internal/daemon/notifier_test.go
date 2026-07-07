@@ -1038,7 +1038,8 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 			},
 		}, nil)
 		loopStore := &recordingLoopHookStore{}
-		observer, err := newLoopNativeHookObserver(loopStore, notifier, func() time.Time { return fixedNow })
+		backstop := &recordingLoopBackstopRunner{}
+		observer, err := newLoopNativeHookObserver(loopStore, notifier, backstop, func() time.Time { return fixedNow })
 		if err != nil {
 			t.Fatalf("newLoopNativeHookObserver() error = %v", err)
 		}
@@ -1104,6 +1105,9 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 		if got, want := wake.idempotencyKey, "loop.coordinator.node_terminal.loop-run-1.run-node"; got != want {
 			t.Fatalf("IdempotencyKey = %q, want %q", got, want)
 		}
+		if got, want := len(backstop.calls), 1; got != want {
+			t.Fatalf("backstop calls = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -1117,7 +1121,8 @@ func TestHooksNotifierCoordinatorTerminalObserverWakesParentAndPromotesQueued(t 
 		notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
 		notifier.setRuntime(&fakeHookRuntime{}, nil)
 		loopStore := &recordingLoopHookStore{}
-		observer, err := newLoopNativeHookObserver(loopStore, notifier, func() time.Time { return fixedNow })
+		backstop := &recordingLoopBackstopRunner{}
+		observer, err := newLoopNativeHookObserver(loopStore, notifier, backstop, func() time.Time { return fixedNow })
 		if err != nil {
 			t.Fatalf("newLoopNativeHookObserver() error = %v", err)
 		}
@@ -1156,6 +1161,9 @@ func TestHooksNotifierCoordinatorTerminalObserverWakesParentAndPromotesQueued(t 
 		if got, want := promotion.loopName, "daily-review"; got != want {
 			t.Fatalf("promotion loop_name = %q, want %q", got, want)
 		}
+		if got, want := len(backstop.calls), 2; got != want {
+			t.Fatalf("backstop calls = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -1192,6 +1200,24 @@ type recordingLoopHookStore struct {
 	progress   []recordingLoopProgressCall
 	wakes      []recordingLoopWakeCall
 	promotions []recordingLoopPromotionCall
+}
+
+type recordingLoopBackstopRunner struct {
+	calls []recordingLoopBackstopCall
+}
+
+type recordingLoopBackstopCall struct {
+	now   time.Time
+	actor taskpkg.ActorContext
+}
+
+func (r *recordingLoopBackstopRunner) RunLoopCoordinatorBackstop(
+	_ context.Context,
+	now time.Time,
+	actor taskpkg.ActorContext,
+) (int, error) {
+	r.calls = append(r.calls, recordingLoopBackstopCall{now: now, actor: actor})
+	return 1, nil
 }
 
 type recordingLoopProgressCall struct {

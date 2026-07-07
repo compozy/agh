@@ -1096,6 +1096,15 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		ctx := testutil.Context(t)
 		db := openDaemonTestGlobalDB(t)
 		now := time.Now().UTC()
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        "ws-1",
+			Name:      "ws-1",
+			RootDir:   t.TempDir(),
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace(ws-1) error = %v", err)
+		}
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		loopName := "watch-source-daemon"
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{{
@@ -1117,28 +1126,12 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 			Inputs:            map[string]any{},
 		}
 		applyLoopRunPinningForTest(&seedRun, now)
-		loopRun, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow)
-		if err != nil {
+		if _, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		taskRecord := daemonTaskRecordForTest("task-watch-daemon", now)
-		if err := db.CreateTask(ctx, taskRecord); err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		if _, _, _, err := db.ReserveQueuedRun(ctx, taskpkg.QueueRunReservation{
-			TaskID:           taskRecord.ID,
-			RunID:            "run-watch-daemon",
-			RunKind:          taskpkg.RunKindCoordinator,
-			LoopRunID:        string(loopRun.ID),
-			IdempotencyKey:   "watch-daemon",
-			Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			RequestedChannel: "default",
-			QueuedAt:         now,
-		}); err != nil {
-			t.Fatalf("ReserveQueuedRun() error = %v", err)
-		}
 		claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:            taskpkg.ScopeGlobal,
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      "ws-1",
 			RunKind:          taskpkg.RunKindCoordinator,
 			ClaimerSessionID: "daemon-loop-watch-test",
 			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},

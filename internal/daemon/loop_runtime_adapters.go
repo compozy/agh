@@ -3,7 +3,8 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -280,7 +281,6 @@ func collectLoopPromptResult(
 		return looppkg.ActionPromptResult{}, err
 	}
 	var text strings.Builder
-	var structured json.RawMessage
 	var tokensUsed int64
 	for event := range events {
 		if strings.TrimSpace(event.Text) != "" {
@@ -288,9 +288,6 @@ func collectLoopPromptResult(
 				text.WriteByte('\n')
 			}
 			text.WriteString(event.Text)
-		}
-		if len(bytes.TrimSpace(event.Raw)) > 0 && structured == nil {
-			structured = cloneJSONRaw(event.Raw)
 		}
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
 			tokensUsed = tokens
@@ -301,7 +298,6 @@ func collectLoopPromptResult(
 	}
 	return looppkg.ActionPromptResult{
 		Text:       text.String(),
-		Structured: structured,
 		TokensUsed: tokensUsed,
 	}, nil
 }
@@ -336,10 +332,56 @@ func loopRuntimeSessionName(kind string, agent string, suffix string) string {
 func loopRuntimeSessionChannel(workspaceID looppkg.WorkspaceID, suffix string) string {
 	parts := []string{
 		loopRuntimeSessionPrefix,
-		strings.TrimSpace(string(workspaceID)),
-		strings.TrimSpace(suffix),
+		loopRuntimeChannelFragment(string(workspaceID), "workspace"),
+		loopRuntimeChannelFragment(suffix, "main"),
 	}
-	return strings.Join(nonEmptyStrings(parts), ":")
+	return loopRuntimeBoundedChannel(parts)
+}
+
+func loopRuntimeChannelFragment(value string, fallback string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	var out strings.Builder
+	previousSeparator := false
+	for _, r := range trimmed {
+		switch {
+		case r >= 'a' && r <= 'z':
+			out.WriteRune(r)
+			previousSeparator = false
+		case r >= '0' && r <= '9':
+			out.WriteRune(r)
+			previousSeparator = false
+		case r == '_' || r == '-':
+			if out.Len() > 0 && !previousSeparator {
+				out.WriteByte('_')
+				previousSeparator = true
+			}
+		default:
+			if out.Len() > 0 && !previousSeparator {
+				out.WriteByte('_')
+				previousSeparator = true
+			}
+		}
+	}
+	fragment := strings.Trim(out.String(), "_-")
+	if fragment == "" {
+		return fallback
+	}
+	return fragment
+}
+
+func loopRuntimeBoundedChannel(parts []string) string {
+	channel := strings.Join(nonEmptyStrings(parts), "_")
+	if len(channel) <= 64 {
+		return channel
+	}
+	digest := sha256.Sum256([]byte(channel))
+	hashSuffix := hex.EncodeToString(digest[:])[:12]
+	maxPrefix := 64 - len(hashSuffix) - 1
+	prefix := strings.Trim(channel[:maxPrefix], "_-")
+	if prefix == "" {
+		prefix = loopRuntimeSessionPrefix
+	}
+	return prefix + "_" + hashSuffix
 }
 
 func nonEmptyStrings(values []string) []string {
@@ -350,13 +392,4 @@ func nonEmptyStrings(values []string) []string {
 		}
 	}
 	return out
-}
-
-func cloneJSONRaw(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	cloned := make([]byte, len(raw))
-	copy(cloned, raw)
-	return cloned
 }

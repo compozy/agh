@@ -266,7 +266,7 @@ func TestGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 0, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -293,28 +293,9 @@ func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 	)); err != nil {
 		t.Fatalf("ReserveQueuedRun(worker) error = %v", err)
 	}
-	coordinatorTask := taskRecordForTest("task-claim-kind-coordinator")
-	coordinatorTask.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, coordinatorTask); err != nil {
-		t.Fatalf("CreateTask(coordinator) error = %v", err)
-	}
-	coordinatorReservation := queuedRunReservationForTest(
-		coordinatorTask.ID,
-		"run-claim-kind-coordinator",
-		"claim-kind-coordinator",
-		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-		"",
-		nil,
-		now,
-	)
-	coordinatorReservation.RunKind = taskpkg.RunKindCoordinator
-	coordinatorReservation.LoopRunID = string(loopRun.ID)
-	if _, _, _, err := globalDB.ReserveQueuedRun(ctx, coordinatorReservation); err != nil {
-		t.Fatalf("ReserveQueuedRun(coordinator) error = %v", err)
-	}
-
 	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      string(loopRun.WorkspaceID),
 		RunKind:          taskpkg.RunKindCoordinator,
 		ClaimerSessionID: "daemon-loop-coordinator",
 		ClaimedBy: &taskpkg.ActorIdentity{
@@ -327,8 +308,8 @@ func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ClaimNextRun(coordinator) error = %v", err)
 	}
-	if claim.Run.ID != "run-claim-kind-coordinator" {
-		t.Fatalf("claim.Run.ID = %q, want coordinator run", claim.Run.ID)
+	if got, want := claim.Run.ID, loopCoordinatorRunID(loopRun.ID, loopRun.Generation+1); got != want {
+		t.Fatalf("claim.Run.ID = %q, want %q", got, want)
 	}
 	workerRun, err := globalDB.GetTaskRun(ctx, "run-claim-kind-worker")
 	if err != nil {
@@ -2322,7 +2303,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2333,35 +2314,16 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	taskRecord := taskRecordForTest("task-coordinator-rollback")
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	reservation := queuedRunReservationForTest(
-		taskRecord.ID,
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"task-coordinator-rollback",
 		"run-coordinator-rollback",
 		"coordinator-rollback",
-		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-		"",
-		nil,
 		now,
 	)
-	reservation.RunKind = taskpkg.RunKindCoordinator
-	reservation.LoopRunID = string(loopRun.ID)
-	if _, _, _, err := globalDB.ReserveQueuedRun(ctx, reservation); err != nil {
-		t.Fatalf("ReserveQueuedRun(coordinator) error = %v", err)
-	}
-	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
-		ClaimerSessionID: "daemon-loop",
-		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
-		LeaseDuration:    time.Minute,
-		Now:              now,
-	})
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
 
 	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID:      claim.Run.ID,
@@ -2421,7 +2383,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEnqueue(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2537,7 +2499,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldKeepNodeOutputsPendingWh
 		t.Run("Should keep pending outputs on "+tc.name+" boundary", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshTestGlobalDB(t)
+			globalDB := openFreshLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 35, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-skip-"+tc.name, now, looppkg.StatusRunning)
@@ -2664,7 +2626,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 		t.Run("Should defer "+tc.name+" boundary while generation is in flight", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshTestGlobalDB(t)
+			globalDB := openFreshLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 37, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-inflight-"+tc.name, now, looppkg.StatusRunning)
@@ -2780,7 +2742,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSus
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSuspended(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 39, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2879,7 +2841,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForReadyPoll(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 5, 15, 39, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2982,7 +2944,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 45, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3059,7 +3021,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 		t.Run("Should apply "+tc.name+" instead of pending pause", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshTestGlobalDB(t)
+			globalDB := openFreshLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 50, 0, 0, time.UTC)
 			loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3151,7 +3113,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 		t.Run("Should apply "+tc.name+" after refreshing task-run token sum", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshTestGlobalDB(t)
+			globalDB := openFreshLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 16, 0, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-budget-"+tc.name, now, looppkg.StatusRunning)
@@ -3267,7 +3229,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 20, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-wall-budget", now, looppkg.StatusRunning)
@@ -3328,7 +3290,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClockBudget(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	startedAt := time.Date(2026, 7, 4, 16, 35, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-wall-started-at", startedAt, looppkg.StatusRunning)
@@ -3395,7 +3357,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClock
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnce(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 45, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-budget-approval-once", now, looppkg.StatusRunning)
@@ -3468,7 +3430,8 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 
 	secondClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            first.EnqueuedRuns[0].ID,
-		Scope:            taskpkg.ScopeGlobal,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      string(loopRun.WorkspaceID),
 		RunKind:          taskpkg.RunKindCoordinator,
 		ClaimerSessionID: "daemon-loop-budget-approval-second",
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
@@ -3527,7 +3490,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 25, 0, 0, time.UTC)
 	parentRun, err := globalDB.CreateLoopRunForStart(
@@ -3609,7 +3572,7 @@ func TestGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *
 func testGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 28, 0, 0, time.UTC)
 	activeRun, err := globalDB.CreateLoopRunForStart(
@@ -3707,7 +3670,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3884,7 +3847,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		t.Run("Should record loop node terminal progress on "+tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshTestGlobalDB(t)
+			globalDB := openFreshLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 17, 0, 0, 0, time.UTC)
 			terminalAt := now.Add(2 * time.Second)
@@ -4031,7 +3994,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4148,7 +4111,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 	t.Run("Should externalize large loop node result and carry ref on generation output", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 17, 10, 0, 0, time.UTC)
 		loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4277,7 +4240,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputBlobsAtTerminalBoundary(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
+	globalDB := openFreshLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 20, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4392,27 +4355,22 @@ func claimCoordinatorRunForTest(
 ) taskpkg.ClaimResult {
 	t.Helper()
 
-	taskRecord := taskRecordForTest(taskID)
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask(%s) error = %v", taskID, err)
+	if strings.TrimSpace(taskID) == "" {
+		t.Fatalf("claimCoordinatorRunForTest(%s) taskID is required", runID)
 	}
-	reservation := queuedRunReservationForTest(
-		taskRecord.ID,
-		runID,
-		idempotencyKey,
-		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-		"",
-		nil,
-		now,
-	)
-	reservation.RunKind = taskpkg.RunKindCoordinator
-	reservation.LoopRunID = string(loopRunID)
-	if _, _, _, err := globalDB.ReserveQueuedRun(ctx, reservation); err != nil {
-		t.Fatalf("ReserveQueuedRun(%s) error = %v", runID, err)
+	if strings.TrimSpace(idempotencyKey) == "" {
+		t.Fatalf("claimCoordinatorRunForTest(%s) idempotencyKey is required", runID)
 	}
+	loopRun, err := globalDB.GetLoopRunByID(ctx, loopRunID)
+	if err != nil {
+		t.Fatalf("GetLoopRunByID(%s) error = %v", loopRunID, err)
+	}
+	seededRunID := loopCoordinatorRunID(loopRun.ID, loopRun.Generation+1)
 	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeGlobal,
+		RunID:            seededRunID,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      string(loopRun.WorkspaceID),
+		RunKind:          taskpkg.RunKindCoordinator,
 		ClaimerSessionID: "daemon-loop-" + runID,
 		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
 		LeaseDuration:    time.Minute,

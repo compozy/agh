@@ -13,7 +13,7 @@ Seed material: `_seeds/qa-e2e-playbook.md` §10 (first-automation backlog) and `
 
 ## AB-001: Loop web E2E seed harness (real-daemon Playwright)
 - Source: J-01, J-03, J-04, J-06, J-08, J-09 / LP-001..LP-005, LP-008..LP-016, LP-021..LP-024, LP-029..LP-035 / `_tests.md` E2E-web-2..9, 12..17
-- Why automate: high-value stable journeys blocked from real-daemon browser E2E — `web/e2e/fixtures/*` has NO loop seed flow and the real daemon emits only `status_changed` (not the enumerated rich frames the run page binds). Covered today only at the vitest/component layer + `agh-ui-screenshot` visual parity (see the loops shared workflow memory open risk).
+- Why automate: high-value stable journeys blocked from real-daemon browser E2E — `web/e2e/fixtures/*` has NO loop seed flow that drives the rich Loop SSE states the run page binds. Covered today at daemon/runtime tests, vitest/component layer, and `agh-ui-screenshot` visual parity (see the loops shared workflow memory open risk).
 - Suggested layer: E2E browser (`make test-e2e-web`) + a daemon-side loop seed fixture emitting the enumerated SSE kinds.
 - Spec sketch: seed a running/needs-approval/paused/watching loop_run with generation + gate + meter frames; drive catalog→run-form→run-detail; assert contract header, meters (cost display-only), timeline, approval routing, pause→paused-at-boundary, and the truthful terminal banner. True end state: the browser view matches the seeded run and reloads without an optimistic-UI lie.
 - Status: proposed

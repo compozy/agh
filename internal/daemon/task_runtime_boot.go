@@ -142,10 +142,16 @@ func installLoopNativeHookObserver(
 		}
 		return nil
 	}
-	observer, err := newLoopNativeHookObserver(loopStore, state.notifier, now)
+	observer, err := newLoopNativeHookObserver(
+		loopStore,
+		state.notifier,
+		schedulerTaskSource{manager: manager, store: store},
+		now,
+	)
 	if err != nil {
 		return err
 	}
+	state.notifier.AddLoopStartedObserver(observer)
 	state.notifier.AddTaskRunTerminalObserver(observer)
 	state.notifier.AddLoopTerminalObserver(observer)
 	return nil

@@ -112,7 +112,13 @@ func fanOutItem(
 		if itemIndex < 0 || itemIndex >= len(materialization.Chunks) {
 			return nil, false, nil
 		}
-		return materialization.Chunks[itemIndex], true, nil
+		chunk := materialization.Chunks[itemIndex]
+		// batch_size: 1 scopes `.item` to the fanned element itself; larger batch
+		// sizes scope `.item` to the chunk slice, even for a short final chunk.
+		if materialization.BatchSize == 1 && len(chunk) == 1 {
+			return chunk[0], true, nil
+		}
+		return chunk, true, nil
 	}
 	return nil, false, nil
 }

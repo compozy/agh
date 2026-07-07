@@ -83,16 +83,20 @@ func (g *GlobalDB) reconcileMissingRunningLoopCoordinators(
 	}
 	enqueued := make([]taskpkg.Run, 0, len(missing))
 	for _, candidate := range missing {
-		taskID, err := lastCoordinatorTaskIDForLoopRun(ctx, exec, candidate.loopRunID)
-		switch {
-		case err == nil:
-		case errorsIsNoRows(err):
-			continue
-		default:
+		current, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(strings.TrimSpace(candidate.loopRunID)))
+		if err != nil {
 			return nil, err
 		}
-		key := fmt.Sprintf("loop.coordinator.boot.%s.%d", candidate.loopRunID, candidate.generation+1)
-		run, added, err := g.reserveCoordinatorRun(ctx, exec, taskID, candidate.loopRunID, key, origin, now)
+		generation := candidate.generation + 1
+		run, added, err := g.reserveLoopCoordinatorRunWithExecutor(
+			ctx,
+			exec,
+			current,
+			origin,
+			now,
+			loopCoordinatorRunID(current.ID, generation),
+			loopCoordinatorIdempotencyKey(current.ID, generation),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -133,19 +137,6 @@ func (g *GlobalDB) promoteQueuedLoopCoordinator(
 	origin taskpkg.Origin,
 	now time.Time,
 ) (taskpkg.Run, bool, error) {
-	taskID, err := lastCoordinatorTaskIDForLoopName(
-		ctx,
-		exec,
-		candidate.workspaceID,
-		candidate.loopName,
-	)
-	switch {
-	case err == nil:
-	case errorsIsNoRows(err):
-		return taskpkg.Run{}, false, nil
-	default:
-		return taskpkg.Run{}, false, err
-	}
 	current, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(strings.TrimSpace(candidate.loopRunID)))
 	if err != nil {
 		return taskpkg.Run{}, false, err
@@ -161,8 +152,16 @@ func (g *GlobalDB) promoteQueuedLoopCoordinator(
 	); err != nil {
 		return taskpkg.Run{}, false, err
 	}
-	key := fmt.Sprintf("loop.coordinator.promote.%s.%d", candidate.loopRunID, candidate.generation+1)
-	return g.reserveCoordinatorRun(ctx, exec, taskID, candidate.loopRunID, key, origin, now)
+	generation := candidate.generation + 1
+	return g.reserveLoopCoordinatorRunWithExecutor(
+		ctx,
+		exec,
+		current,
+		origin,
+		now,
+		loopCoordinatorRunID(current.ID, generation),
+		loopCoordinatorIdempotencyKey(current.ID, generation),
+	)
 }
 
 func (g *GlobalDB) reserveCoordinatorRun(
@@ -170,13 +169,18 @@ func (g *GlobalDB) reserveCoordinatorRun(
 	exec taskSQLExecutor,
 	taskID string,
 	loopRunID string,
+	runID string,
 	idempotencyKey string,
 	origin taskpkg.Origin,
 	now time.Time,
 ) (taskpkg.Run, bool, error) {
+	reservedRunID := strings.TrimSpace(runID)
+	if reservedRunID == "" {
+		reservedRunID = store.NewID("run")
+	}
 	reservation := queuedRunReservationInput{
 		taskID:         taskID,
-		runID:          store.NewID("run"),
+		runID:          reservedRunID,
 		runKind:        taskpkg.RunKindCoordinator,
 		loopRunID:      loopRunID,
 		idempotencyKey: idempotencyKey,
@@ -307,39 +311,6 @@ func lastCoordinatorTaskIDForLoopRun(
 			return "", err
 		}
 		return "", fmt.Errorf("store: find coordinator task for loop run %q: %w", loopRunID, err)
-	}
-	return strings.TrimSpace(taskID), nil
-}
-
-func lastCoordinatorTaskIDForLoopName(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	workspaceID string,
-	loopName string,
-) (string, error) {
-	var taskID string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT tr.task_id
-		 FROM task_runs tr
-		 JOIN loop_runs lr ON lr.id = tr.loop_run_id
-		 WHERE lr.workspace_id = ?
-		   AND lr.loop_name = ?
-		   AND tr.run_kind = 'coordinator'
-		 ORDER BY tr.queued_at DESC, tr.id DESC
-		 LIMIT 1`,
-		strings.TrimSpace(workspaceID),
-		strings.TrimSpace(loopName),
-	).Scan(&taskID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", err
-		}
-		return "", fmt.Errorf(
-			"store: find coordinator task for loop %q/%q: %w",
-			workspaceID,
-			loopName,
-			err,
-		)
 	}
 	return strings.TrimSpace(taskID), nil
 }

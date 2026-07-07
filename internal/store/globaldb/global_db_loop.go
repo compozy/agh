@@ -57,7 +57,23 @@ func (g *GlobalDB) CreateLoopRunForStart(
 		if err := upsertLoopDefinitionSnapshot(ctx, exec, created, g.now()); err != nil {
 			return err
 		}
-		return insertLoopRun(ctx, exec, created, inputsJSON, startMetadataJSON)
+		if err := insertLoopRun(ctx, exec, created, inputsJSON, startMetadataJSON); err != nil {
+			return err
+		}
+		if created.Status == looppkg.StatusRunning {
+			if _, _, err := g.reserveLoopCoordinatorRunWithExecutor(
+				ctx,
+				exec,
+				created,
+				loopCoordinatorStartOrigin(),
+				created.CreatedAt,
+				loopCoordinatorRunID(created.ID, created.Generation+1),
+				loopCoordinatorIdempotencyKey(created.ID, created.Generation+1),
+			); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return looppkg.Run{}, err
