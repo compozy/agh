@@ -4,7 +4,7 @@ import {
   DataRenderers,
   Tools,
   useAui,
-  type ThreadMessageLike,
+  useAuiState,
 } from "@assistant-ui/react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -14,18 +14,13 @@ import {
   useSessionLiveTail,
   type SessionStreamEventSourceFactory,
 } from "../hooks/use-session-live-tail";
-import { useRuntimeTranscriptHydration } from "../hooks/use-runtime-transcript-hydration";
 import {
   createAghEventDataUI,
   createAghPermissionDataUI,
   sessionToolkit,
 } from "../lib/session-toolkit";
+import { mergeSessionThreadReadModel } from "../lib/session-thread-read-model";
 import { SessionTranscriptThreadProvider } from "../lib/session-transcript-thread-context";
-
-function RuntimeTranscriptHydrator({ messages }: { messages: readonly ThreadMessageLike[] }) {
-  useRuntimeTranscriptHydration(messages);
-  return null;
-}
 
 function SessionRuntimeExtensions({
   sessionId,
@@ -43,11 +38,26 @@ function SessionRuntimeExtensions({
     [sessionId, workspaceId]
   );
   const EventDataUI = useMemo(() => createAghEventDataUI(), []);
-  const { messages } = useSessionLiveTail({ sessionId, workspaceId, eventSourceFactory });
+  const runtimeMessages = useAuiState(state => state.thread.messages);
+  const transcript = useSessionLiveTail({ sessionId, workspaceId, eventSourceFactory });
+  const messages = useMemo(
+    () =>
+      mergeSessionThreadReadModel({
+        transcriptMessages: transcript.messages,
+        runtimeMessages,
+      }),
+    [runtimeMessages, transcript.messages]
+  );
 
   return (
-    <SessionTranscriptThreadProvider messages={messages}>
-      <RuntimeTranscriptHydrator messages={messages} />
+    <SessionTranscriptThreadProvider
+      messages={messages}
+      status={transcript.status}
+      isPending={transcript.isPending}
+      isError={transcript.isError}
+      error={transcript.error}
+      retry={transcript.retry}
+    >
       <PermissionDataUI />
       <EventDataUI />
       {children}

@@ -121,16 +121,25 @@ function toThreadRole(role: SessionMessage["role"]): ThreadMessageLike["role"] {
   return "assistant";
 }
 
+function toThreadMetadata(message: SessionMessage): ThreadMessageLike["metadata"] | undefined {
+  if (!isRecord(message.metadata)) {
+    return undefined;
+  }
+  return { custom: message.metadata };
+}
+
 export function toThreadMessageLikes(messages: SessionMessage[]): ThreadMessageLike[] {
   return messages.map(message => {
     const parts = message.parts?.map(toThreadPart).filter(part => part !== null) ?? [];
     const role = toThreadRole(message.role);
     const status = role === "assistant" ? (message as SessionMessageWithStatus).status : undefined;
+    const metadata = toThreadMetadata(message);
     return {
       id: message.id,
       role,
       content: parts,
       status,
+      metadata,
     } satisfies ThreadMessageLike;
   });
 }
@@ -149,6 +158,7 @@ export function transcriptSignature(messages: SessionMessage[]): string {
       role: message.role,
       parts: message.parts ?? [],
       status: (message as SessionMessageWithStatus).status ?? null,
+      metadata: isRecord(message.metadata) ? message.metadata : null,
     }))
   );
 }

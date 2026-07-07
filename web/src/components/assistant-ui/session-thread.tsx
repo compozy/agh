@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import { BackendToolPart } from "@/systems/session/lib/session-toolkit";
-import { useSessionTranscriptThreadMessages } from "@/systems/session";
+import { useSessionTranscriptThreadState } from "@/systems/session";
 import {
   Button,
   Dialog,
@@ -42,11 +42,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Eyebrow,
   Spinner,
 } from "@agh/ui";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { useVirtualizedThreadMessages } from "./hooks/use-virtualized-thread-messages";
+import { formatMessageError } from "./session-thread-error";
+import { ThreadStatePane } from "./session-thread-states";
+
+export { formatMessageError };
 
 type SessionBusyInputHandler = (message: string) => void | Promise<void>;
 
@@ -162,76 +165,6 @@ function SessionMessageEmpty({ status }: { status: { type: string } }) {
       <span>Thinking…</span>
     </div>
   );
-}
-
-function textField(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
-  if (typeof value !== "string") {
-    return null;
-  }
-  const message = value.trim();
-  return message.length > 0 ? message : null;
-}
-
-function recordField(record: Record<string, unknown>, key: string): Record<string, unknown> | null {
-  const value = record[key];
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-  return value as Record<string, unknown>;
-}
-
-function messageFromErrorRecord(record: Record<string, unknown>): string | null {
-  const data = recordField(record, "data");
-  if (data) {
-    const dataMessage = textField(data, "error") ?? textField(data, "message");
-    if (dataMessage) {
-      return dataMessage;
-    }
-  }
-
-  const failure = recordField(record, "failure");
-  if (failure) {
-    const failureMessage = textField(failure, "summary") ?? textField(failure, "message");
-    if (failureMessage) {
-      return failureMessage;
-    }
-  }
-
-  return (
-    textField(record, "error") ??
-    textField(record, "summary") ??
-    textField(record, "detail") ??
-    textField(record, "message")
-  );
-}
-
-export function formatMessageError(error: unknown): string | null {
-  if (error instanceof Error) {
-    return formatMessageError(error.message);
-  }
-
-  if (typeof error === "object" && error !== null && !Array.isArray(error)) {
-    return messageFromErrorRecord(error as Record<string, unknown>);
-  }
-
-  if (typeof error === "string") {
-    const message = error.trim();
-    if (message.length === 0) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(message) as unknown;
-      return formatMessageError(parsed);
-    } catch {
-      // Non-JSON provider errors are already human-readable enough to display.
-    }
-
-    return message;
-  }
-
-  return null;
 }
 
 function SessionMessageErrorNotice() {
@@ -544,20 +477,6 @@ function SessionComposer({
   );
 }
 
-function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
-  return (
-    <div className="flex size-full w-full min-w-0 items-center justify-center py-12">
-      <div className="max-w-md text-center">
-        <Eyebrow className="text-subtle">{agentName}</Eyebrow>
-        <p className="mt-2 text-sm text-muted">
-          Start a conversation. The assistant thread replays persisted history and continues live
-          over the daemon stream.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
 
 function ThreadViewport({
@@ -570,14 +489,17 @@ function ThreadViewport({
   contentInset: SessionThreadContentInset;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const transcriptMessages = useSessionTranscriptThreadMessages();
-  const runtimeMessageCount = useAuiState(state => state.thread.messages.length);
+  const {
+    messages: transcriptMessages,
+    status: transcriptStatus,
+    error: transcriptError,
+    retry: retryTranscript,
+  } = useSessionTranscriptThreadState();
   const readonlyThreadKey = useMemo(
     () => transcriptMessages.map(message => message.id).join("\n"),
     [transcriptMessages]
   );
-  const source = runtimeMessageCount > 0 ? "runtime" : "transcript";
-  const messageCount = runtimeMessageCount > 0 ? runtimeMessageCount : transcriptMessages.length;
+  const messageCount = transcriptMessages.length;
 
   return (
     <ThreadPrimitive.Viewport
@@ -590,8 +512,10 @@ function ThreadViewport({
         <VirtualizedThreadMessages
           agentName={agentName}
           viewportRef={viewportRef}
-          source={source}
           messageCount={messageCount}
+          transcriptStatus={transcriptStatus}
+          transcriptError={transcriptError}
+          retryTranscript={retryTranscript}
           transcriptMessages={transcriptMessages}
           readonlyThreadKey={readonlyThreadKey}
         />
@@ -605,27 +529,37 @@ const SESSION_MESSAGE_COMPONENTS = {
   AssistantMessage,
 };
 const VIRTUAL_MESSAGE_ESTIMATE = 144;
-type ThreadMessageSource = "runtime" | "transcript";
 
-function VirtualizedThreadMessages({
+export function VirtualizedThreadMessages({
   agentName,
   viewportRef,
-  source,
   messageCount,
+  transcriptStatus,
+  transcriptError,
+  retryTranscript,
   transcriptMessages,
   readonlyThreadKey,
 }: {
   agentName: string;
   viewportRef: RefObject<HTMLDivElement | null>;
-  source: ThreadMessageSource;
   messageCount: number;
-  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadMessages>;
+  transcriptStatus: ReturnType<typeof useSessionTranscriptThreadState>["status"];
+  transcriptError: ReturnType<typeof useSessionTranscriptThreadState>["error"];
+  retryTranscript: () => void;
+  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadState>["messages"];
   readonlyThreadKey: string;
 }) {
   const { virtualizer } = useVirtualizedThreadMessages(viewportRef, messageCount);
 
   if (messageCount === 0) {
-    return <ThreadEmpty agentName={agentName} />;
+    return (
+      <ThreadStatePane
+        status={transcriptStatus}
+        agentName={agentName}
+        error={transcriptError}
+        onRetry={retryTranscript}
+      />
+    );
   }
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -647,7 +581,7 @@ function VirtualizedThreadMessages({
     >
       {visibleItems.map(item => (
         <div
-          key={source + "-" + item.key}
+          key={item.key}
           ref={virtualizer.measureElement}
           data-index={item.index}
           data-testid="virtualized-thread-row"
@@ -663,15 +597,11 @@ function VirtualizedThreadMessages({
     </div>
   );
 
-  if (source === "transcript") {
-    return (
-      <ReadonlyThreadProvider key={readonlyThreadKey} messages={transcriptMessages}>
-        {rows}
-      </ReadonlyThreadProvider>
-    );
-  }
-
-  return rows;
+  return (
+    <ReadonlyThreadProvider key={readonlyThreadKey} messages={transcriptMessages}>
+      {rows}
+    </ReadonlyThreadProvider>
+  );
 }
 
 export function SessionThread({

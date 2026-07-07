@@ -1,9 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { formatMessageError, SessionThread } from "@/components/assistant-ui/session-thread";
+import { sessionKeys, useSessionTranscriptThreadState } from "@/systems/session";
+import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
+import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import type { TranscriptMessage } from "@/systems/session/types";
 
@@ -79,6 +82,16 @@ function createQueryClient() {
   });
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, reject, resolve };
+}
+
 class FakeSessionEventSource {
   readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
   closed = false;
@@ -117,20 +130,39 @@ class FakeSessionEventSource {
   }
 }
 
+function TranscriptStateProbe() {
+  const state = useSessionTranscriptThreadState();
+
+  return (
+    <div
+      data-testid="transcript-state-probe"
+      data-status={state.status}
+      data-is-error={String(state.isError)}
+      data-is-pending={String(state.isPending)}
+      data-error-message={state.error?.message ?? ""}
+    >
+      {state.messages.length}
+    </div>
+  );
+}
+
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
+    queryClient?: QueryClient;
+    includeTranscriptStateProbe?: boolean;
   } = {}
 ) {
-  const queryClient = createQueryClient();
+  const queryClient = options.queryClient ?? createQueryClient();
 
-  return render(
+  const utils = render(
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
         workspaceId={primarySessionFixture.workspace_id}
         eventSourceFactory={options.eventSourceFactory}
       >
+        {options.includeTranscriptStateProbe ? <TranscriptStateProbe /> : null}
         <SessionThread
           sessionId={primarySessionFixture.id}
           agentName={primarySessionFixture.agent_name}
@@ -140,6 +172,24 @@ function renderSessionThread(
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
+  return { ...utils, queryClient };
+}
+
+function countTranscriptFetches(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => {
+    return (
+      getPathname(input as RequestInfo | URL) ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
+    );
+  }).length;
+}
+
+function fixtureWorkspaceId(): string {
+  const workspaceId = primarySessionFixture.workspace_id;
+  if (!workspaceId) {
+    throw new Error("primary session fixture must include workspace_id");
+  }
+  return workspaceId;
 }
 
 describe("SessionChatRuntimeProvider", () => {
@@ -160,10 +210,14 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+  let transcriptFetchShouldFail = false;
+  let transcriptResponsePromise: Promise<Response> | null = null;
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+    transcriptFetchShouldFail = false;
+    transcriptResponsePromise = null;
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const pathname = getPathname(input);
 
@@ -182,6 +236,12 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
       ) {
+        if (transcriptResponsePromise) {
+          return transcriptResponsePromise;
+        }
+        if (transcriptFetchShouldFail) {
+          return jsonResponse({ error: "recorder temporarily unavailable" }, { status: 500 });
+        }
         return jsonResponse({ messages: transcriptMessages });
       }
 
@@ -206,21 +266,56 @@ describe("SessionChatRuntimeProvider", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it("rehydrates persisted transcript on initial mount and after remounting the same session", async () => {
-    const firstRender = renderSessionThread();
+  it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const workspaceId = fixtureWorkspaceId();
+    const sessionId = primarySessionFixture.id;
+    queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), primarySessionFixture);
+    queryClient.setQueryData(sessionKeys.transcript(workspaceId, sessionId), transcriptMessages);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
-      ).toBeInTheDocument();
-      expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+    const firstRender = renderSessionThread({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(
+          screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+        ).toBeInTheDocument();
+        expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+      });
     });
 
     firstRender.unmount();
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1_000 + 1);
+    });
+
+    expect(queryClient.getQueryData(sessionKeys.transcript(workspaceId, sessionId))).toEqual(
+      transcriptMessages
+    );
+
+    renderSessionThread({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
+        expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+        expect(
+          screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+        ).toBeInTheDocument();
+        expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+      });
+    });
+  }, 10_000);
+
+  it("renders transcript rows when the runtime thread is transiently empty", async () => {
+    transcriptMessages = sessionTranscriptFixture.slice(0, 3);
+
     renderSessionThread();
 
     await waitFor(() => {
@@ -228,21 +323,37 @@ describe("SessionChatRuntimeProvider", () => {
         screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
       ).toBeInTheDocument();
       expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+      expect(screen.getByTestId("tool-call-card")).toBeInTheDocument();
     });
 
-    expect(
-      fetchMock.mock.calls.filter(([input]) => {
-        return (
-          getPathname(input as RequestInfo | URL) ===
-          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
-        );
-      })
-    ).toHaveLength(2);
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
   }, 10_000);
 
-  it("keeps live prompt stream output visible before transcript reconciliation", async () => {
-    const user = userEvent.setup();
+  it("Should show the skeleton on cold provider mount until the transcript resolves", async () => {
+    const transcriptResponse = createDeferred<Response>();
+    transcriptResponsePromise = transcriptResponse.promise;
+
     renderSessionThread();
+
+    await waitFor(() => {
+      expect(countTranscriptFetches(fetchMock)).toBe(1);
+    });
+    expect(screen.getByTestId("thread-transcript-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+
+    transcriptResponse.resolve(jsonResponse({ messages: transcriptMessages }));
+
+    expect(
+      await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+    expect(screen.queryByTestId("thread-transcript-skeleton")).not.toBeInTheDocument();
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+  }, 10_000);
+
+  it("keeps locally sent prompts visible through transcript reconciliation", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderSessionThread();
 
     await waitFor(() => {
       expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
@@ -254,8 +365,45 @@ describe("SessionChatRuntimeProvider", () => {
     await user.click(screen.getByTestId("composer-send-button"));
 
     await waitFor(() => {
+      expect(screen.getByText("Continue from the reattached thread")).toBeInTheDocument();
       expect(
         screen.getByText("Live runtime answer before transcript reconciliation.")
+      ).toBeInTheDocument();
+    });
+
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 2),
+      {
+        id: "transcript_user_after_send_001",
+        role: "user",
+        parts: [
+          {
+            type: "text",
+            text: "Continue from the reattached thread",
+            state: "done",
+          },
+        ],
+      },
+      {
+        id: "transcript_assistant_after_send_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Durable transcript answer after reconciliation.",
+            state: "done",
+          },
+        ],
+      },
+    ];
+    await queryClient.invalidateQueries({
+      queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Continue from the reattached thread").length).toBeGreaterThan(0);
+      expect(
+        screen.getByText("Durable transcript answer after reconciliation.")
       ).toBeInTheDocument();
     });
 
@@ -271,6 +419,44 @@ describe("SessionChatRuntimeProvider", () => {
       })
     ).toBe(true);
   }, 10_000);
+
+  it("promotes an optimistic runtime message to the server identity without a duplicate row", () => {
+    const runtimeMessages = toReadonlyThreadMessages([
+      {
+        id: "client_temp_assistant_001",
+        role: "assistant",
+        metadata: { turn_id: "turn_promote_001" },
+        parts: [
+          {
+            type: "text",
+            text: "Promoted assistant response.",
+            state: "done",
+          },
+        ],
+      } as TranscriptMessage,
+    ]);
+    const transcriptMessages = toReadonlyThreadMessages([
+      {
+        id: "server_assistant_001",
+        role: "assistant",
+        metadata: {
+          turn_id: "turn_promote_001",
+          client_temp_id: "client_temp_assistant_001",
+        },
+        parts: [
+          {
+            type: "text",
+            text: "Promoted assistant response.",
+            state: "done",
+          },
+        ],
+      } as TranscriptMessage,
+    ]);
+
+    const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
+
+    expect(merged.map(message => message.id)).toEqual(["server_assistant_001"]);
+  });
 
   it("renders runtime progress events as activity notices instead of assistant text", async () => {
     transcriptMessages = [
@@ -628,6 +814,35 @@ describe("SessionChatRuntimeProvider", () => {
       getPathname(input as RequestInfo | URL).endsWith(`/${primarySessionFixture.id}/transcript`)
     );
     expect(transcriptFetches.length).toBeGreaterThanOrEqual(2);
+  }, 10_000);
+
+  it("Should expose transcript fetch failure through provider context while attempting the stream", async () => {
+    transcriptFetchShouldFail = true;
+    const sources: FakeSessionEventSource[] = [];
+
+    renderSessionThread({
+      includeTranscriptStateProbe: true,
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+
+    await waitFor(() => {
+      expect(sources).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("transcript-state-probe")).toHaveAttribute("data-status", "error");
+    });
+
+    const state = screen.getByTestId("transcript-state-probe");
+    expect(sources[0]?.url).toBe(
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/stream`
+    );
+    expect(state).toHaveAttribute("data-is-error", "true");
+    expect(state).toHaveTextContent("0");
+    expect(state.getAttribute("data-error-message")).toContain("recorder temporarily unavailable");
   }, 10_000);
 
   it("virtualizes large transcript histories while preserving visible message order", async () => {

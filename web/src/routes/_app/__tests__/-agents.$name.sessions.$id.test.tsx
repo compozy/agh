@@ -1,14 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
-import type {
-  InspectorMemoryState,
-  SessionLedgerResponse,
-  SessionPayload,
+import {
+  sessionKeys,
+  type InspectorMemoryState,
+  type SessionLedgerResponse,
+  type SessionPayload,
 } from "@/systems/session";
+import { sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { useActiveWorkspaceStore, type WorkspacePayload } from "@/systems/workspace";
 import type { VaultSecret } from "@/systems/vault";
 
@@ -47,6 +49,8 @@ const {
   mockQueuePrompt,
   mockInterruptPrompt,
   mockSteerPrompt,
+  mockRouteTranscriptMessages,
+  mockRouteLoaderData,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockUseSession: vi.fn(),
@@ -94,13 +98,24 @@ const {
     mutateAsync: vi.fn(),
     isPending: false,
   },
+  mockRouteTranscriptMessages: [] as Array<{
+    parts?: Array<{ type?: string; text?: string }>;
+  }>,
+  mockRouteLoaderData: { workspaceId: "ws_alpha" as string | null },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: (_path: string) => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-    useParams: () => ({ name: "claude-agent", id: "sess_123" }),
-  }),
+  createFileRoute:
+    (_path: string) =>
+    (opts: {
+      beforeLoad?: (args: unknown) => unknown;
+      loader?: (args: unknown) => unknown;
+      component: () => ReactNode;
+    }) => ({
+      ...opts,
+      useParams: () => ({ name: "claude-agent", id: "sess_123" }),
+      useLoaderData: () => mockRouteLoaderData,
+    }),
   useNavigate: () => mockNavigate,
 }));
 
@@ -129,7 +144,12 @@ vi.mock("@/components/assistant-ui/session-thread", () => ({
       data-allow-busy-input={String(allowBusyInput)}
       data-session-running={String(isSessionRunning)}
     >
-      thread
+      {mockRouteTranscriptMessages.length > 0
+        ? mockRouteTranscriptMessages
+            .flatMap(message => message.parts ?? [])
+            .filter(part => part.type === "text" && typeof part.text === "string")
+            .map(part => <p key={part.text}>{part.text}</p>)
+        : "Start a conversation."}
     </div>
   ),
 }));
@@ -144,7 +164,7 @@ vi.mock("@/systems/session/components/session-inspector", () => ({
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSession: (id: string) => mockUseSession(id),
-  useSessionById: (id: string) => mockUseSession(id),
+  useSessionById: (id: string, workspaceId?: string | null) => mockUseSession(id, workspaceId),
   useSessionLedger: (id: string, workspaceId?: string | null, options?: SessionLedgerHookOptions) =>
     mockUseSessionLedger(id, workspaceId, options),
 }));
@@ -170,7 +190,41 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
 }));
 
 vi.mock("@/systems/session/adapters/session-api", () => ({
+  approveSession: vi.fn(),
+  cancelQueuedSessionPrompt: vi.fn(),
   cancelSessionPrompt: vi.fn(),
+  createSession: vi.fn(),
+  deleteSession: vi.fn(),
+  fetchSession: vi.fn(),
+  fetchSessionEvents: vi.fn(),
+  fetchSessionHistory: vi.fn(),
+  fetchSessionLedger: vi.fn(),
+  fetchSessionRecap: vi.fn(),
+  fetchSessions: vi.fn(),
+  fetchSessionTranscript: vi.fn(),
+  interruptSessionPrompt: vi.fn(),
+  repairSession: vi.fn(),
+  resumeSession: vi.fn(),
+  sendSessionPrompt: vi.fn(),
+  steerSessionPrompt: vi.fn(),
+  stopSession: vi.fn(),
+  SessionApiError: class SessionApiError extends Error {
+    constructor(
+      message: string,
+      public readonly status: number,
+      public readonly sessionId?: string
+    ) {
+      super(message);
+      this.name = "SessionApiError";
+    }
+  },
+  SessionLedgerUnavailableError: class SessionLedgerUnavailableError extends Error {},
+  SessionNotFoundError: class SessionNotFoundError extends Error {
+    constructor(public readonly sessionId: string) {
+      super(`Session not found: ${sessionId}`);
+      this.name = "SessionNotFoundError";
+    }
+  },
 }));
 
 vi.mock("@assistant-ui/react", () => ({
@@ -180,7 +234,12 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { SessionPage } from "../agents.$name.sessions.$id";
+import { prefetchAgentSessionRoute, SessionPage } from "../agents.$name.sessions.$id";
+import {
+  fetchSession,
+  fetchSessions,
+  fetchSessionTranscript,
+} from "@/systems/session/adapters/session-api";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 
 function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | null } }) {
@@ -256,12 +315,17 @@ describe("Nested agent session route — Topbar slot migration", () => {
     mockInterruptPrompt.isPending = false;
     mockSteerPrompt.mutateAsync.mockReset();
     mockSteerPrompt.isPending = false;
+    mockRouteTranscriptMessages.length = 0;
+    mockRouteLoaderData.workspaceId = "ws_alpha";
     mockUseSession.mockReset();
     mockUseSessionVaultSecrets.mockReset();
     mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseSessionLedger.mockReset();
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
+    vi.mocked(fetchSession).mockReset();
+    vi.mocked(fetchSessionTranscript).mockReset();
+    vi.mocked(fetchSessions).mockReset();
     vi.mocked(fetchWorkspaces).mockReset();
     vi.mocked(fetchWorkspaces).mockResolvedValue([makeWorkspace()]);
     useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
@@ -270,6 +334,10 @@ describe("Nested agent session route — Topbar slot migration", () => {
       isLoading: false,
       error: null,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("Should never render the legacy <ChatHeader>", () => {
@@ -329,6 +397,115 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(screen.queryByTestId("resume-button")).not.toBeInTheDocument();
   });
 
+  it("Should render warm transcript rows on session detail route remount without empty-state flash", () => {
+    mockRouteTranscriptMessages.push(...sessionTranscriptFixture.slice(0, 2));
+
+    const firstRender = renderSessionPage();
+    expect(
+      screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Launch readiness snapshot/)).toBeInTheDocument();
+
+    firstRender.unmount();
+    renderSessionPage();
+
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Launch readiness snapshot/)).toBeInTheDocument();
+  });
+
+  it("Should keep warm loader data past the old 5-minute gcTime window and render transcript rows immediately", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const session = makeSession({ state: "active", badge: "running", attachable: true });
+    const messages = sessionTranscriptFixture.slice(0, 2);
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_alpha" });
+    vi.mocked(fetchSession).mockResolvedValue(session);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(messages);
+    vi.mocked(fetchSessions).mockResolvedValue([]);
+
+    const loaderData = await prefetchAgentSessionRoute({
+      queryClient,
+      sessionId: session.id,
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1_000 + 1);
+    });
+
+    const cachedSession = queryClient.getQueryData<SessionPayload>(
+      sessionKeys.detail("ws_alpha", session.id)
+    );
+    const cachedTranscript = queryClient.getQueryData<typeof messages>(
+      sessionKeys.transcript("ws_alpha", session.id)
+    );
+    expect(cachedSession).toEqual(session);
+    expect(cachedTranscript).toEqual(messages);
+
+    mockRouteLoaderData.workspaceId = loaderData.workspaceId;
+    mockUseSession.mockReturnValue({
+      data: cachedSession,
+      isLoading: false,
+      error: null,
+    });
+    mockRouteTranscriptMessages.push(...(cachedTranscript ?? []));
+
+    renderSessionPage();
+
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Launch readiness snapshot/)).toBeInTheDocument();
+  });
+
+  it("Should run the loader prefetch and render the first message without a second spinner phase", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const session = makeSession({ state: "active", badge: "running", attachable: true });
+    const messages = sessionTranscriptFixture.slice(0, 2);
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_alpha" });
+    vi.mocked(fetchSession).mockResolvedValue(session);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(messages);
+    vi.mocked(fetchSessions).mockResolvedValue([]);
+
+    const loaderData = await prefetchAgentSessionRoute({
+      queryClient,
+      sessionId: session.id,
+    });
+    mockRouteLoaderData.workspaceId = loaderData.workspaceId;
+    mockUseSession.mockReturnValue({
+      data: session,
+      isLoading: false,
+      error: null,
+    });
+    mockRouteTranscriptMessages.push(...messages);
+
+    renderSessionPage();
+
+    expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    expect(mockUseSession).toHaveBeenCalledWith(session.id, "ws_alpha");
+    expect(fetchSessions).not.toHaveBeenCalled();
+    expect(fetchSession).toHaveBeenCalledWith("ws_alpha", session.id, expect.any(AbortSignal));
+    expect(fetchSessionTranscript).toHaveBeenCalledWith(
+      "ws_alpha",
+      session.id,
+      expect.any(AbortSignal)
+    );
+    expect(
+      vi.mocked(fetchSession).mock.calls.length +
+        vi.mocked(fetchSessionTranscript).mock.calls.length
+    ).toBeLessThanOrEqual(2);
+  });
+
   it("Should flip the agent-status-dot to success+pulse for running badges", () => {
     mockUseSession.mockReturnValue({
       data: makeSession({ state: "starting", badge: "running" }),
@@ -356,12 +533,17 @@ describe("Nested agent session route — attach failure UX", () => {
     mockInterruptPrompt.isPending = false;
     mockSteerPrompt.mutateAsync.mockReset();
     mockSteerPrompt.isPending = false;
+    mockRouteTranscriptMessages.length = 0;
+    mockRouteLoaderData.workspaceId = "ws_alpha";
     mockUseSession.mockReset();
     mockUseSessionVaultSecrets.mockReset();
     mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
     mockUseSessionLedger.mockReset();
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
+    vi.mocked(fetchSession).mockReset();
+    vi.mocked(fetchSessionTranscript).mockReset();
+    vi.mocked(fetchSessions).mockReset();
     vi.mocked(fetchWorkspaces).mockReset();
     vi.mocked(fetchWorkspaces).mockResolvedValue([makeWorkspace()]);
     useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });

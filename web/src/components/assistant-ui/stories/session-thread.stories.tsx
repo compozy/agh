@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
 import { http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import type { TranscriptMessage } from "@/systems/session/types";
 import { SessionThread } from "../session-thread";
@@ -135,16 +137,59 @@ const meta: Meta<typeof SessionThread> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const baseArgs = {
+  sessionId: primarySessionFixture.id,
+  agentName: primarySessionFixture.agent_name,
+  canPrompt: true,
+  onCancelPrompt: () => undefined,
+};
+
+function renderWithTranscriptState(
+  args: ComponentProps<typeof SessionThread>,
+  state: {
+    status: "pending" | "error" | "success";
+    error?: Error | null;
+  }
+) {
+  return (
+    <SessionTranscriptThreadProvider
+      messages={[]}
+      status={state.status}
+      isPending={state.status === "pending"}
+      isError={state.status === "error"}
+      error={state.error ?? null}
+      retry={() => undefined}
+    >
+      <SessionThread {...args} />
+    </SessionTranscriptThreadProvider>
+  );
+}
+
+/**
+ * Transcript loading state — shimmer message skeleton, never the empty-state copy.
+ */
+export const LoadingSkeleton: Story = {
+  args: baseArgs,
+  render: args => renderWithTranscriptState(args, { status: "pending" }),
+};
+
+/**
+ * Transcript fetch failure — retryable pane with provider detail surfaced.
+ */
+export const TranscriptError: Story = {
+  args: baseArgs,
+  render: args =>
+    renderWithTranscriptState(args, {
+      status: "error",
+      error: new Error("Storybook transcript fetch failed."),
+    }),
+};
+
 /**
  * Empty thread state — assistant-ui empty slot renders the agent eyebrow + intro copy.
  */
 export const Empty: Story = {
-  args: {
-    sessionId: primarySessionFixture.id,
-    agentName: primarySessionFixture.agent_name,
-    canPrompt: true,
-    onCancelPrompt: () => undefined,
-  },
+  args: baseArgs,
 };
 
 /**

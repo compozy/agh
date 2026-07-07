@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { buildSessionStreamUrl } from "../adapters/session-api";
 import { sessionKeys } from "../lib/query-keys";
-import { sessionTranscriptOptions } from "../lib/query-options";
+import { sessionDetailOptions, sessionTranscriptOptions } from "../lib/query-options";
 import { toReadonlyThreadMessages } from "../lib/session-thread-repository";
+import type { SessionTranscriptThreadStatus } from "../lib/session-transcript-thread-context-value";
 import type { SessionEventPayload } from "../types";
 
 interface SessionStreamEventSource {
@@ -47,7 +48,10 @@ function defaultEventSourceFactory(url: string): SessionStreamEventSource {
   return new EventSource(url);
 }
 
-function numberFromEventID(value: string): number | null {
+function numberFromEventID(value: unknown): number | null {
+  if (typeof value !== "string") {
+    return null;
+  }
   const trimmed = value.trim();
   if (trimmed.length === 0) {
     return null;
@@ -77,14 +81,17 @@ export function useSessionLiveTail({
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sourceFactory = eventSourceFactory ?? defaultEventSourceFactory;
   const hasCustomFactory = Boolean(eventSourceFactory);
-  const transcriptQuery = useQuery({
-    ...sessionTranscriptOptions(workspaceId, sessionId),
-    staleTime: 0,
-    refetchOnMount: "always",
-  });
+  // Observe the live session state (shared cache with the route detail query) so the
+  // transcript self-heal refetch only polls while the session is active|starting|stopping.
+  const sessionState = useQuery(sessionDetailOptions(workspaceId, sessionId)).data?.state;
+  const transcriptQuery = useQuery(sessionTranscriptOptions(workspaceId, sessionId, sessionState));
   const transcriptMessages = transcriptQuery.data;
-  const transcriptReady = transcriptQuery.isSuccess;
   const refetchTranscript = transcriptQuery.refetch;
+  const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
+    ? "pending"
+    : transcriptQuery.isError
+      ? "error"
+      : "success";
   const readonlyMessages = useMemo(() => {
     return transcriptMessages ? toReadonlyThreadMessages(transcriptMessages) : [];
   }, [transcriptMessages]);
@@ -99,8 +106,10 @@ export function useSessionLiveTail({
   }, []);
 
   useEffect(() => {
+    // Decoupled from the transcript fetch outcome: the stream opens as soon as the
+    // ids are known so live recovery + the SSE-driven self-heal refetch proceed even
+    // when the initial REST transcript fetch fails or is slow.
     if (
-      !transcriptReady ||
       workspaceId.trim() === "" ||
       sessionId.trim() === "" ||
       typeof window === "undefined" ||
@@ -167,17 +176,18 @@ export function useSessionLiveTail({
       source.onerror = null;
       source.close();
     };
-  }, [
-    hasCustomFactory,
-    queryClient,
-    refetchTranscript,
-    sessionId,
-    sourceFactory,
-    transcriptReady,
-    workspaceId,
-  ]);
+  }, [hasCustomFactory, queryClient, refetchTranscript, sessionId, sourceFactory, workspaceId]);
 
-  return { messages: readonlyMessages };
+  return {
+    messages: readonlyMessages,
+    status: transcriptStatus,
+    isPending: transcriptQuery.isPending,
+    isError: transcriptQuery.isError,
+    error: transcriptQuery.error,
+    retry: () => {
+      void refetchTranscript();
+    },
+  };
 }
 
 export type { SessionStreamEventSource, SessionStreamEventSourceFactory };

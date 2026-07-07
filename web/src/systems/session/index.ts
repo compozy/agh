@@ -74,7 +74,6 @@ export {
   sessionHistoryOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
-  sessionWorkspaceResolutionOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
@@ -103,7 +102,14 @@ export {
   useSessionRecap,
   useSessions,
 } from "./hooks/use-sessions";
-export { useSessionTranscriptThreadMessages } from "./hooks/use-session-transcript-thread-messages";
+export {
+  useSessionTranscriptThreadMessages,
+  useSessionTranscriptThreadState,
+} from "./hooks/use-session-transcript-thread-messages";
+export type {
+  SessionTranscriptThreadState,
+  SessionTranscriptThreadStatus,
+} from "./lib/session-transcript-thread-context-value";
 export {
   useClearSessionConversation,
   useCancelQueuedSessionPrompt,

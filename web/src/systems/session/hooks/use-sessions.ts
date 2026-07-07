@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, useActiveWorkspaceStore } from "@/systems/workspace";
 
 import {
   sessionDetailOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
-  sessionWorkspaceResolutionOptions,
   sessionsListOptions,
 } from "../lib/query-options";
 
@@ -27,19 +26,10 @@ export function useSession(id: string, workspace?: string | null) {
   return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
-export function useSessionById(id: string) {
-  const workspaceQuery = useQuery(sessionWorkspaceResolutionOptions(id));
-  const workspaceId = workspaceQuery.data ?? "";
-  const detailQuery = useQuery(sessionDetailOptions(workspaceId, id));
-  const error = workspaceQuery.error ?? detailQuery.error ?? null;
-
-  return {
-    ...detailQuery,
-    error,
-    isError: workspaceQuery.isError || detailQuery.isError,
-    isLoading: workspaceQuery.isLoading || (workspaceId !== "" && detailQuery.isLoading),
-    isPending: workspaceQuery.isPending || (workspaceId !== "" && detailQuery.isPending),
-  };
+export function useSessionById(id: string, workspace?: string | null) {
+  const selectedWorkspaceId = useActiveWorkspaceStore(state => state.selectedWorkspaceId);
+  const workspaceId = workspace ?? selectedWorkspaceId ?? "";
+  return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
 export interface UseSessionLedgerOptions {

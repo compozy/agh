@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, MessageCircle, Trash2 } from "lucide-react";
 import { useEffect } from "react";
@@ -21,17 +22,111 @@ import {
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
+  sessionDetailOptions,
+  sessionKeys,
+  sessionTranscriptOptions,
   useSessionById,
   type SessionPayload,
 } from "@/systems/session";
+import {
+  useActiveWorkspaceStore,
+  workspaceKeys,
+  workspacesListOptions,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
+
+interface AgentSessionRouteLoaderData {
+  workspaceId: string | null;
+}
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `${params.name} · Session`, icon: MessageCircle },
   }),
+  loader: ({ context, params }) => {
+    const { queryClient } = context as unknown as { queryClient: QueryClient };
+    return prefetchAgentSessionRoute({
+      queryClient,
+      sessionId: params.id,
+    });
+  },
   component: SessionPage,
 });
+
+export async function prefetchAgentSessionRoute({
+  queryClient,
+  sessionId,
+}: {
+  queryClient: QueryClient;
+  sessionId: string;
+}): Promise<AgentSessionRouteLoaderData> {
+  const workspaceId = await resolveSessionRouteWorkspace(queryClient, sessionId);
+  if (!workspaceId) {
+    return { workspaceId: null };
+  }
+
+  await Promise.allSettled([
+    queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),
+    queryClient.ensureQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
+  ]);
+
+  return { workspaceId };
+}
+
+async function resolveSessionRouteWorkspace(
+  queryClient: QueryClient,
+  sessionId: string
+): Promise<string | null> {
+  return (
+    findCachedSessionWorkspace(queryClient, sessionId) ??
+    normalizeWorkspaceId(useActiveWorkspaceStore.getState().selectedWorkspaceId) ??
+    firstWorkspaceId(queryClient.getQueryData<WorkspacePayload[]>(workspaceKeys.list())) ??
+    firstWorkspaceId(await ensureWorkspaceList(queryClient))
+  );
+}
+
+async function ensureWorkspaceList(queryClient: QueryClient): Promise<WorkspacePayload[]> {
+  try {
+    return await queryClient.ensureQueryData(workspacesListOptions());
+  } catch {
+    return [];
+  }
+}
+
+function findCachedSessionWorkspace(queryClient: QueryClient, sessionId: string): string | null {
+  for (const [, sessions] of queryClient.getQueriesData<SessionPayload[]>({
+    queryKey: sessionKeys.lists(),
+  })) {
+    const workspaceId = sessions?.find(session => session.id === sessionId)?.workspace_id;
+    const normalized = normalizeWorkspaceId(workspaceId);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  for (const [, session] of queryClient.getQueriesData<SessionPayload>({
+    queryKey: sessionKeys.all,
+  })) {
+    if (session?.id === sessionId) {
+      const normalized = normalizeWorkspaceId(session.workspace_id);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+
+  return null;
+}
+
+function firstWorkspaceId(workspaces: WorkspacePayload[] | undefined): string | null {
+  return normalizeWorkspaceId(workspaces?.[0]?.id);
+}
+
+function normalizeWorkspaceId(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
 
 function SessionPageContent({
   agentName,
@@ -160,8 +255,20 @@ interface SessionPageContentProps {
 
 export function SessionPage() {
   const { name, id } = Route.useParams();
+  const { workspaceId } = Route.useLoaderData();
+
+  return <SessionPageResolved name={name} id={id} workspaceId={workspaceId} />;
+}
+
+interface SessionPageResolvedProps {
+  name: string;
+  id: string;
+  workspaceId: string | null;
+}
+
+function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps) {
   const navigate = useNavigate();
-  const { data: session, isLoading, error } = useSessionById(id);
+  const { data: session, isLoading, error } = useSessionById(id, workspaceId);
 
   useSessionWorkspaceGuard({ sessionWorkspaceId: session?.workspace_id, agentName: name });
 

@@ -8,12 +8,34 @@ import {
   fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
-  SessionApiError,
   SessionLedgerUnavailableError,
-  SessionNotFoundError,
 } from "../adapters/session-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
+import type { SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
+
+const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
+const SESSION_DETAIL_STALE_TIME_MS = 2_000;
+const SESSION_TRANSCRIPT_STALE_TIME_MS = 10_000;
+const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
+
+/**
+ * Session detail + transcript are the hot return path for `/agents/:name/sessions/:id`.
+ * Keep them inactive for 30 minutes so tab restores and cross-route returns render from
+ * cache immediately, while their short staleTime/background polling keeps live sessions fresh.
+ */
+const SESSION_WARM_CACHE_POLICY = {
+  gcTime: SESSION_WARM_CACHE_GC_TIME_MS,
+} as const;
+
+/**
+ * Live session states worth polling: while a session is `active|starting|stopping`
+ * its transcript can still grow, so the read paths run a bounded self-heal refetch
+ * (mirrors `sessionDetailOptions`). A `stopped` session is terminal; no polling.
+ */
+export function isLiveSessionState(state: SessionState | null | undefined): boolean {
+  return state === "active" || state === "starting" || state === "stopping";
+}
 
 export function sessionsListOptions(workspace: string | null = null) {
   return queryOptions({
@@ -28,31 +50,11 @@ export function sessionDetailOptions(workspace: string, id: string) {
   return queryOptions({
     queryKey: sessionKeys.detail(workspace, id),
     queryFn: ({ signal }) => fetchSession(workspace, id, signal),
-    refetchInterval: query => {
-      const state = query.state.data?.state;
-      return state === "active" || state === "starting" || state === "stopping" ? 5_000 : false;
-    },
-    staleTime: 2_000,
+    refetchInterval: query =>
+      isLiveSessionState(query.state.data?.state) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    staleTime: SESSION_DETAIL_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
-  });
-}
-
-export function sessionWorkspaceResolutionOptions(id: string) {
-  return queryOptions({
-    queryKey: sessionKeys.resolveWorkspace(id),
-    queryFn: async ({ signal }) => {
-      const sessions = await fetchSessions(undefined, signal);
-      const session = sessions.find(candidate => candidate.id === id);
-      if (!session) {
-        throw new SessionNotFoundError(id);
-      }
-      if (!session.workspace_id) {
-        throw new SessionApiError(`Session missing workspace: ${id}`, 500, id);
-      }
-      return session.workspace_id;
-    },
-    staleTime: 2_000,
-    enabled: !!id,
   });
 }
 
@@ -78,11 +80,19 @@ export function sessionHistoryOptions(workspace: string, id: string) {
   });
 }
 
-export function sessionTranscriptOptions(workspace: string, id: string) {
+export function sessionTranscriptOptions(
+  workspace: string,
+  id: string,
+  sessionState?: SessionState | null
+) {
   return queryOptions({
     queryKey: sessionKeys.transcript(workspace, id),
     queryFn: ({ signal }) => fetchSessionTranscript(workspace, id, signal),
-    staleTime: 10_000,
+    // Bounded self-heal: a transient transcript fetch failure (5xx, recorder churn,
+    // daemon restart) recovers without navigation while the session is still live.
+    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
   });
 }

@@ -6,7 +6,6 @@ import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-s
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
-import { createSessionHistoryAdapter } from "../lib/session-history-adapter";
 import { createSessionThreadListAdapter } from "../lib/session-thread-list-adapter";
 
 export function useSessionChatRuntime({
@@ -19,10 +18,6 @@ export function useSessionChatRuntime({
   const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? "";
-  const history = useMemo(
-    () => createSessionHistoryAdapter(resolvedWorkspaceId, sessionId, queryClient),
-    [queryClient, resolvedWorkspaceId, sessionId]
-  );
   const threadListAdapter = useMemo(
     () => createSessionThreadListAdapter({ queryClient, workspaceId: resolvedWorkspaceId }),
     [queryClient, resolvedWorkspaceId]
@@ -41,7 +36,6 @@ export function useSessionChatRuntime({
     runtimeHook: function SessionRuntimeHook() {
       return useChatRuntime({
         transport,
-        adapters: { history },
         onFinish: () => {
           startTransition(() => {
             void queryClient.invalidateQueries({
