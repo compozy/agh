@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "loops",
+  "source_branch": "main",
   "namespaces": [
     {
       "name": "agh",
-      "sidecar_branch": "agh/__branches__/loops",
-      "commit": "b18edb3a90a4d0bc070bee46b8b638afb8616b7c",
-      "digest": "sha256:eaeb7a326a887f03e65e8e1a199ff91d7924b8c34438fc5e1c76b84acaaecc6b",
-      "files": 6724,
-      "bytes": 180542251
+      "sidecar_branch": "agh/__branches__/main",
+      "commit": "af13ae288c062a8dd461d28e179717f18c83dd02",
+      "digest": "sha256:19f41af74cdd6a060fff5fb90fbf230e93b506aa9930a602d8328cbd27c27862",
+      "files": 6903,
+      "bytes": 185271773
     }
   ]
 }
