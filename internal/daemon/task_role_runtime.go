@@ -223,7 +223,7 @@ func (r *taskRoleRuntime) activationForRun(
 	if run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
 		return taskRoleActivation{}, false, nil
 	}
-	if run.RunKind.Normalize() == taskpkg.RunKindWorker && strings.TrimSpace(run.LoopRunID) != "" {
+	if run.RunKind.Normalize() != taskpkg.RunKindWorker {
 		return taskRoleActivation{}, false, nil
 	}
 	switch taskRecord.Status.Normalize() {

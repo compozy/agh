@@ -107,14 +107,15 @@ Definitions reference data over one namespace with two surfaces, chosen by the f
 - **Conditions** — CEL returning `bool` (`branch.condition`, `fan-out.filter`, `contract.stop_when`).
 
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
-(fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `generation`. Node IDs match
-`^[a-z][a-z0-9_]*$` (lowercase snake_case) so the same ID is valid in both surfaces.
+(fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
+`events[].filter` scope only), `generation`. Node IDs match `^[a-z][a-z0-9_]*$` (lowercase
+snake_case) so the same ID is valid in both surfaces.
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
 (`agh__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
-Source kinds: `input`, `file-import`, `watch-source`. A gate's `verdict_policy: revise_until_clean`
-requires an `agent-judge` or `human` criterion.
+Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
+`verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion.
 
 Model routing belongs to the Loop runtime. `contract.model_defaults.worker` and
 `[loops.defaults.*].model_defaults.worker` seed `run-agent` actions that omit `params.model`.
@@ -166,6 +167,32 @@ Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Lo
 `skip`. Explicit schedule policies are `skip`, `coalesce`, and `replay`. Catch-up starts carry
 structured metadata (`scheduled_at`, `original_due_at`, `catch_up`, `catch_up_policy`) on the
 automation run.
+
+## Watch-Events Behavior
+
+A `watch-events` source node makes a Loop react to an **internal AGH event** (unlike `watch-source`,
+which polls an external signal through an extension). The node carries a typed `events` list; each
+subscription is `{ kind, filter }` where `kind` is a supported hook-event name and `filter` is an
+optional CEL condition over `event`, `inputs`, and `nodes`. Multiple subscriptions OR together; an
+empty filter matches every event of that kind in the workspace. Hook dispatch is only the doorbell —
+the matched batch is re-derived from the durable ledger at wake, so subscriptions survive daemon
+downtime and dropped hooks. The batch lands at `nodes.<id>.output`.
+
+Supported kinds are validated at publish against the family registry; an unsupported kind fails lint
+(`watch_events_kind_unsupported`, which names the supported set). Only post-state observation hooks
+are subscribable — sync-eligible `pre_*` hooks are rejected. Supported families are:
+`task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`
+(`task_events`); `task.run.completed`, `task.run.failed` (`task_events`); `loop.terminal`,
+`loop.node.terminal` (`loop_run_events`); `automation.run.completed`, `automation.run.failed`
+(`automation_runs`); `network.message.persisted`, `network.thread.opened`,
+`network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`,
+`network.work.closed` (`network_timeline_log`). Phase C (`coordinator`, `event`) extends the matrix
+as it lands.
+
+A Loop with a `watch-events` node is a watch Loop: it holds `watching` between wakes, defaults to
+`iteration_cap: 0`, and **never stalls on silence** — a quiet subscription is healthy dormancy. The
+parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
+detail (`agh loop runs show -o json`, HTTP/UDS parity) only while the Loop is dormant on events.
 
 ## Harvesting A Channel Decision
 

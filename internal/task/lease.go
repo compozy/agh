@@ -115,6 +115,7 @@ type LeaseCompletion struct {
 	CreatedTaskIDs []string  `json:"created_task_ids,omitempty"`
 	TokensUsed     int64     `json:"tokens_used,omitempty"`
 	Now            time.Time `json:"now"`
+	Actor          ActorContext
 }
 
 // LeaseFailure captures a token-fenced failed terminal transition.
@@ -124,6 +125,7 @@ type LeaseFailure struct {
 	Failure    RunFailure `json:"failure"`
 	TokensUsed int64      `json:"tokens_used,omitempty"`
 	Now        time.Time  `json:"now"`
+	Actor      ActorContext
 }
 
 // ExpiredLeaseRecovery captures deterministic recovery of stale task-run leases.

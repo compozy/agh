@@ -130,6 +130,78 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 	})
 }
 
+func TestCompilerShouldCompileWatchEventsFiltersWithEventEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compile watch-events filters with event inputs and node references", func(t *testing.T) {
+		t.Parallel()
+
+		def := watchEventsCompilerDefinition()
+		resolved, err := loop.NewCompiler().Compile(def)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if resolved.Conditions["nodes.task_activity.events.0.filter"] == nil {
+			t.Fatal("resolved first watch-events filter condition is nil")
+		}
+		if resolved.Conditions["nodes.task_activity.events.1.filter"] == nil {
+			t.Fatal("resolved second watch-events filter condition is nil")
+		}
+		if resolved.Templates["nodes.summarize.params.prompt"] == nil {
+			t.Fatal("resolved summarize prompt template is nil")
+		}
+		if got := requireNode(t, &def, "task_activity").Events[0].Filter; got == "" {
+			t.Fatal("Compile() mutated input watch-events filter")
+		}
+	})
+}
+
+func TestCompilerShouldRejectInvalidWatchEventsFilterAtPublish(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return lint failed error for unknown watch-events filter variables", func(t *testing.T) {
+		t.Parallel()
+
+		def := watchEventsCompilerDefinition()
+		requireNode(t, &def, "task_activity").Events[0].Filter = `missing.task_id == inputs.parent_task_id`
+		_, err := loop.NewCompiler().Compile(def)
+		if err == nil {
+			t.Fatal("Compile() error = nil, want lint failure")
+		}
+		var lintErr *loop.LintFailedError
+		if !errors.As(err, &lintErr) {
+			t.Fatalf("Compile() error = %T %v, want *loop.LintFailedError", err, err)
+		}
+		requireLintCodes(t, lintErr.Errors, loop.CodeWatchEventsFilterInvalid)
+	})
+}
+
+func TestCompilerShouldCompileEpicWatchdogFixture(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compile the phase-A epic-watchdog fixture", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := dsl.Parse([]byte(epicWatchdogFixture))
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		resolved, err := loop.NewCompiler().Compile(def)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		if resolved.Conditions["nodes.task_activity.events.0.filter"] == nil {
+			t.Fatal("resolved first epic-watchdog filter condition is nil")
+		}
+		if resolved.Conditions["nodes.task_activity.events.1.filter"] == nil {
+			t.Fatal("resolved second epic-watchdog filter condition is nil")
+		}
+		if resolved.Templates["nodes.summarize.params.prompt"] == nil {
+			t.Fatal("resolved epic-watchdog summarize prompt template is nil")
+		}
+	})
+}
+
 func TestCompilerShouldCompileSubLoopBodyWithQualifiedKeys(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +256,84 @@ func TestCompilerShouldCompileSubLoopBodyWithQualifiedKeys(t *testing.T) {
 		}
 	})
 }
+
+func watchEventsCompilerDefinition() dsl.Definition {
+	def := validDefinition()
+	def.Inputs = map[string]dsl.Input{
+		"parent_task_id": {Type: dsl.InputTypeString, Required: true},
+		"runner":         {Type: dsl.InputTypeAgent, Default: "code_implementer"},
+	}
+	def.Contract.Goal = "React to task events"
+	def.Contract.DefinitionOfDone = "The watched task activity was summarized"
+	def.Contract.IterationCap = 0
+	def.Graph.Nodes = []dsl.Node{
+		{
+			ID:    "task_activity",
+			Class: dsl.NodeClassSource,
+			Kind:  string(dsl.SourceWatchEvents),
+			Events: []dsl.EventSubscription{
+				{
+					Kind:   "task.status_changed",
+					Filter: `event.task_id == inputs.parent_task_id && event.payload.to_status in ["blocked", "completed", "failed"]`,
+				},
+				{
+					Kind:   "task.run.completed",
+					Filter: `event.task_id == inputs.parent_task_id`,
+				},
+			},
+		},
+		{
+			ID:    "summarize",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent":  "{{ .inputs.runner }}",
+				"prompt": "Summarize {{ .nodes.task_activity.output.events }}",
+			},
+		},
+	}
+	def.Graph.Edges = []dsl.Edge{{From: "task_activity", To: "summarize"}}
+	return def
+}
+
+const epicWatchdogFixture = `apiVersion: agh.loop/v1
+kind: Loop
+meta:
+  name: epic-watchdog
+  description: Watch a tracked parent task and react when its child work changes status.
+
+inputs:
+  parent_task_id:
+    type: string
+    required: true
+  runner:
+    type: agent
+    default: code_implementer
+
+contract:
+  goal: "React to task lifecycle changes under {{ .inputs.parent_task_id }}."
+  definition_of_done: "The watched task activity was summarized."
+  iteration_cap: 0
+  terminal_states: [done, blocked, failed, stalled]
+
+graph:
+  nodes:
+    - id: task_activity
+      class: source
+      kind: watch-events
+      events:
+        - kind: task.status_changed
+          filter: "event.task_id == inputs.parent_task_id && event.payload.to_status in ['blocked', 'completed', 'failed']"
+        - kind: task.run.completed
+          filter: "event.task_id == inputs.parent_task_id"
+
+    - id: summarize
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.runner }}"
+        prompt: "Summarize the watched task activity: {{ toJson .nodes.task_activity.output.events }}"
+`
 
 func compilerDefinition(t *testing.T) dsl.Definition {
 	t.Helper()

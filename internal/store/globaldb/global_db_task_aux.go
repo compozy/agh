@@ -440,49 +440,16 @@ func (g *GlobalDB) CreateTaskEvent(ctx context.Context, event taskpkg.Event) err
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "create task event", func(exec taskSQLExecutor) error {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
-		}
-		if strings.TrimSpace(normalized.RunID) != "" {
-			run, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
-			if err != nil {
-				return err
-			}
-			if strings.TrimSpace(run.TaskID) != normalized.TaskID {
-				return fmt.Errorf(
-					"%w: task_event.run_id %q does not belong to task %q",
-					taskpkg.ErrValidation,
-					normalized.RunID,
-					normalized.TaskID,
-				)
-			}
-		}
-
-		nextSequence, err := nextTaskEventSequenceWithExecutor(ctx, exec)
-		if err != nil {
-			return err
-		}
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO task_events (
-				event_seq, id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			nextSequence,
-			normalized.ID,
-			normalized.TaskID,
-			store.NullableString(normalized.RunID),
-			normalized.EventType,
-			string(normalized.Actor.Kind),
-			normalized.Actor.Ref,
-			string(normalized.Origin.Kind),
-			normalized.Origin.Ref,
-			nullableTaskJSON(normalized.Payload),
-			store.FormatTimestamp(normalized.Timestamp),
-		); err != nil {
-			return fmt.Errorf("store: create task event %q: %w", normalized.ID, err)
-		}
-
-		return nil
+		return appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
+			ID:        normalized.ID,
+			TaskID:    normalized.TaskID,
+			RunID:     normalized.RunID,
+			EventType: normalized.EventType,
+			Actor:     normalized.Actor,
+			Origin:    normalized.Origin,
+			Payload:   normalized.Payload,
+			Timestamp: normalized.Timestamp,
+		})
 	})
 }
 
@@ -777,7 +744,7 @@ func (g *GlobalDB) createQueuedRunWithExecutor(
 	taskRecord taskpkg.Task,
 	input queuedRunReservationInput,
 ) (taskpkg.Run, error) {
-	nextAttempt, err := nextTaskRunAttemptWithExecutor(ctx, exec, taskRecord)
+	nextAttempt, err := nextQueuedRunReservationAttemptWithExecutor(ctx, exec, taskRecord, input.runKind)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -1319,6 +1286,40 @@ func nextTaskRunAttemptWithExecutor(
 	exec taskSQLExecutor,
 	taskRecord taskpkg.Task,
 ) (int, error) {
+	nextAttempt, err := nextTaskRunAttemptNumberWithExecutor(ctx, exec, taskRecord)
+	if err != nil {
+		return 0, err
+	}
+	if err := validateNextTaskRunAttempt(taskRecord, nextAttempt); err != nil {
+		return 0, err
+	}
+	return nextAttempt, nil
+}
+
+func nextQueuedRunReservationAttemptWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskRecord taskpkg.Task,
+	runKind taskpkg.RunKind,
+) (int, error) {
+	nextAttempt, err := nextTaskRunAttemptNumberWithExecutor(ctx, exec, taskRecord)
+	if err != nil {
+		return 0, err
+	}
+	if runKind.Normalize() == taskpkg.RunKindCoordinator {
+		return nextAttempt, nil
+	}
+	if err := validateNextTaskRunAttempt(taskRecord, nextAttempt); err != nil {
+		return 0, err
+	}
+	return nextAttempt, nil
+}
+
+func nextTaskRunAttemptNumberWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskRecord taskpkg.Task,
+) (int, error) {
 	var current int
 	if err := exec.QueryRowContext(
 		ctx,
@@ -1327,17 +1328,20 @@ func nextTaskRunAttemptWithExecutor(
 	).Scan(&current); err != nil {
 		return 0, fmt.Errorf("store: query next task run attempt for %q: %w", taskRecord.ID, err)
 	}
-	nextAttempt := current + 1
+	return current + 1, nil
+}
+
+func validateNextTaskRunAttempt(taskRecord taskpkg.Task, nextAttempt int) error {
 	maxAttempts := normalizeStoredTaskMaxAttempts(taskRecord.MaxAttempts)
 	if nextAttempt > maxAttempts {
-		return 0, fmt.Errorf(
+		return fmt.Errorf(
 			"%w: task %q exhausted max_attempts=%d",
 			taskpkg.ErrInvalidStatusTransition,
 			taskRecord.ID,
 			maxAttempts,
 		)
 	}
-	return nextAttempt, nil
+	return nil
 }
 
 func (g *GlobalDB) countDependenciesWithExecutor(

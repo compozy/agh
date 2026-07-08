@@ -38,6 +38,7 @@ type CoordinatorCompletionPlan struct {
 	NextCoordinator *EnqueueSpec
 	Terminal        *CoordinatorTerminal
 	Yield           bool
+	PostCommitWakes []CoordinatorWakeSpec
 }
 
 // CoordinatorTaskSpec describes a node task that must exist before node runs are queued.
@@ -71,6 +72,13 @@ type EnqueueSpec struct {
 type CoordinatorStopSpec struct {
 	LoopRunID  string `json:"loop_run_id"`
 	ReasonCode string `json:"reason_code,omitempty"`
+}
+
+// CoordinatorWakeSpec describes a coordinator wake to enqueue after the
+// boundary transaction commits.
+type CoordinatorWakeSpec struct {
+	LoopRunID      string `json:"loop_run_id"`
+	IdempotencyKey string `json:"idempotency_key"`
 }
 
 // GenerationSnapshot is opaque to internal/task; internal/loop owns its payload schema.
@@ -153,6 +161,9 @@ func (p CoordinatorCompletionPlan) Validate(path string) error {
 		return err
 	}
 	if err := validateCoordinatorStopSpecs(p.RunStops, path); err != nil {
+		return err
+	}
+	if err := validateCoordinatorWakeSpecs(p.PostCommitWakes, path); err != nil {
 		return err
 	}
 	if p.NextCoordinator != nil {
@@ -246,6 +257,9 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 	for idx := range normalized.RunStops {
 		normalized.RunStops[idx] = normalized.RunStops[idx].Normalize()
 	}
+	for idx := range normalized.PostCommitWakes {
+		normalized.PostCommitWakes[idx] = normalized.PostCommitWakes[idx].Normalize()
+	}
 	if normalized.NextCoordinator != nil {
 		next := normalized.NextCoordinator.Normalize()
 		normalized.NextCoordinator = &next
@@ -255,6 +269,15 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 		normalized.Terminal = &terminal
 	}
 	return normalized
+}
+
+func validateCoordinatorWakeSpecs(specs []CoordinatorWakeSpec, path string) error {
+	for idx, spec := range specs {
+		if err := spec.Validate(nestedPath(path, fmt.Sprintf("post_commit_wakes[%d]", idx))); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Normalize returns a normalized coordinator task spec.
@@ -375,6 +398,25 @@ func (s CoordinatorStopSpec) Validate(path string) error {
 	return nil
 }
 
+// Normalize returns a normalized post-commit wake request.
+func (s CoordinatorWakeSpec) Normalize() CoordinatorWakeSpec {
+	return CoordinatorWakeSpec{
+		LoopRunID:      strings.TrimSpace(s.LoopRunID),
+		IdempotencyKey: strings.TrimSpace(s.IdempotencyKey),
+	}
+}
+
+// Validate reports whether a post-commit wake has a stable target.
+func (s CoordinatorWakeSpec) Validate(path string) error {
+	if strings.TrimSpace(s.LoopRunID) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "loop_run_id"))
+	}
+	if strings.TrimSpace(s.IdempotencyKey) == "" {
+		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "idempotency_key"))
+	}
+	return nil
+}
+
 // Normalize returns normalized coordinator terminal data.
 func (t CoordinatorTerminal) Normalize() CoordinatorTerminal {
 	normalized := t
@@ -392,35 +434,8 @@ func (t CoordinatorTerminal) Validate(path string) error {
 	if status == "" {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "status"))
 	}
-	if !validCoordinatorTerminalStatus(status) {
-		return fmt.Errorf(
-			"%w: %s must be a supported loop run status: %q",
-			ErrValidation,
-			nestedPath(path, "status"),
-			t.Status,
-		)
-	}
 	if err := ValidatePayloadSize(t.Details, nestedPath(path, "details")); err != nil {
 		return err
 	}
 	return nil
-}
-
-func validCoordinatorTerminalStatus(status string) bool {
-	switch status {
-	case taskRunStatusQueuedString,
-		string(InspectNextActionRunning),
-		"watching",
-		"needs-approval",
-		"paused",
-		"done",
-		coordinatorTerminalStatusNoOp,
-		string(RunReviewOutcomeBlocked),
-		"failed",
-		"exhausted",
-		"stalled":
-		return true
-	default:
-		return false
-	}
 }

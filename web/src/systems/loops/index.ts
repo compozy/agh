@@ -36,6 +36,8 @@ export type {
   LoopStartBinding,
   LoopStreamFilter,
   LoopValidationIssue,
+  LoopWatchEventSubscription,
+  LoopWatchEventsState,
   PatchLoopRequest,
   RunLoopRequest,
   RunLoopResult,
@@ -337,6 +339,7 @@ export type { LoopGateDecision } from "./components/run-page/loop-approval-gate"
 export { LoopRunEventsRail } from "./components/run-page/loop-run-events-rail";
 export { LoopRunFacts } from "./components/run-page/loop-run-facts";
 export { LoopStatusLegend } from "./components/run-page/loop-status-legend";
+export { LoopWatchEventsPanel } from "./components/run-page/loop-watch-events-panel";
 
 // Loop-target editing (automation Target step)
 export type { LoopTargetDraft } from "./lib/loop-target";

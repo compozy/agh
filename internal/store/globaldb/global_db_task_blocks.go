@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -32,8 +33,20 @@ func (g *GlobalDB) CreateTaskBlock(
 	var result taskpkg.BlockMutationResult
 	if err := g.withTaskImmediateTransaction(ctx, "create task block", func(exec taskSQLExecutor) error {
 		var createErr error
-		result, createErr = g.insertTaskBlockWithBreaker(ctx, exec, normalized.Block, normalized.RecurrenceLimit)
-		return createErr
+		result, createErr = g.insertTaskBlockWithBreaker(
+			ctx,
+			exec,
+			normalized.Block,
+			normalized.RecurrenceLimit,
+			normalized.Actor,
+		)
+		if createErr != nil {
+			return createErr
+		}
+		if err := appendTaskBlockedWatchEvent(ctx, exec, result.Block, normalized.Actor, "", ""); err != nil {
+			return err
+		}
+		return appendNeedsAttentionWatchEventIfEscalated(ctx, exec, result, normalized.Actor)
 	}); err != nil {
 		return taskpkg.BlockMutationResult{}, err
 	}
@@ -103,7 +116,10 @@ func (g *GlobalDB) ClearTaskBlock(
 			return fmt.Errorf("store: task block %q: %w", normalized.BlockID, taskpkg.ErrTaskBlockNotFound)
 		}
 		cleared, err = g.getTaskBlockWithExecutor(ctx, exec, normalized.TaskID, normalized.BlockID)
-		return err
+		if err != nil {
+			return err
+		}
+		return appendTaskUnblockedWatchEvent(ctx, exec, cleared, normalized.Actor)
 	}); err != nil {
 		return taskpkg.TaskBlock{}, err
 	}
@@ -376,6 +392,12 @@ func (g *GlobalDB) ClearTaskNeedsAttention(
 	if err := clearedBy.Validate("task.needs_attention_cleared_by"); err != nil {
 		return taskpkg.Task{}, err
 	}
+	origin := mutation.Origin
+	origin.Kind = origin.Kind.Normalize()
+	origin.Ref = strings.TrimSpace(origin.Ref)
+	if err := origin.Validate("task.needs_attention_clear_origin"); err != nil {
+		return taskpkg.Task{}, err
+	}
 	var updated taskpkg.Task
 	if err := g.withTaskImmediateTransaction(ctx, "clear task needs attention", func(exec taskSQLExecutor) error {
 		result, err := exec.ExecContext(
@@ -408,7 +430,19 @@ func (g *GlobalDB) ClearTaskNeedsAttention(
 			)
 		}
 		updated, err = g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
-		return err
+		if err != nil {
+			return err
+		}
+		return appendTaskEventPayloadWithExecutor(
+			ctx,
+			exec,
+			updated.ID,
+			"",
+			string(hookspkg.HookTaskRecovered),
+			taskpkg.ActorContext{Actor: clearedBy, Origin: origin, Authority: taskpkg.Authority{Write: true}},
+			clearedAt,
+			taskRecoveredWatchEventPayload{At: clearedAt},
+		)
 	}); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -492,6 +526,7 @@ func (g *GlobalDB) BlockTaskAndReleaseRun(
 			exec,
 			normalized.Block,
 			normalized.RecurrenceLimit,
+			normalized.Actor,
 		)
 		if err != nil {
 			return err
@@ -515,7 +550,17 @@ func (g *GlobalDB) BlockTaskAndReleaseRun(
 			PreviousRun:    current,
 			ClaimTokenHash: current.ClaimTokenHash,
 		}
-		return nil
+		if err := appendTaskBlockedWatchEvent(
+			ctx,
+			exec,
+			result.Block,
+			normalized.Actor,
+			updatedRun.ID,
+			current.ClaimTokenHash,
+		); err != nil {
+			return err
+		}
+		return appendNeedsAttentionWatchEventIfEscalated(ctx, exec, blockResult, normalized.Actor)
 	}); err != nil {
 		return taskpkg.BlockTaskAndReleaseRunResult{}, err
 	}
@@ -567,6 +612,7 @@ func (g *GlobalDB) insertTaskBlockWithBreaker(
 	exec taskSQLExecutor,
 	block taskpkg.TaskBlock,
 	recurrenceLimit int,
+	actor taskpkg.ActorContext,
 ) (taskpkg.BlockMutationResult, error) {
 	hadClearedPrior, err := g.hasClearedTaskBlockKindWithExecutor(ctx, exec, block.TaskID, block.Kind)
 	if err != nil {
@@ -600,8 +646,9 @@ func (g *GlobalDB) insertTaskBlockWithBreaker(
 	escalated, changed, err := g.markTaskNeedsAttentionIfClearWithExecutor(ctx, exec, taskpkg.NeedsAttentionMutation{
 		TaskID:   created.TaskID,
 		Reason:   blockRecurrenceNeedsAttentionReason(recurrence),
-		Actor:    created.CreatedBy,
+		Actor:    actor.Actor,
 		MarkedAt: created.CreatedAt,
+		Origin:   actor.Origin,
 	})
 	if err != nil {
 		return taskpkg.BlockMutationResult{}, err
@@ -849,6 +896,9 @@ func normalizeCreateTaskBlockMutation(
 	}
 	block, err := normalizeTaskBlockForCreate(normalized.Block, defaultNow)
 	if err != nil {
+		return taskpkg.CreateTaskBlockMutation{}, err
+	}
+	if err := normalized.Actor.Validate(); err != nil {
 		return taskpkg.CreateTaskBlockMutation{}, err
 	}
 	normalized.Block = block
@@ -1166,6 +1216,9 @@ func normalizeClearTaskBlockMutation(
 	if err := normalized.ClearedBy.Validate("task_block.cleared_by"); err != nil {
 		return taskpkg.ClearTaskBlockMutation{}, err
 	}
+	if err := normalized.Actor.Validate(); err != nil {
+		return taskpkg.ClearTaskBlockMutation{}, err
+	}
 	return normalized, nil
 }
 
@@ -1227,6 +1280,8 @@ func normalizeNeedsAttentionMutation(
 	normalized.Reason = strings.TrimSpace(normalized.Reason)
 	normalized.Actor.Kind = normalized.Actor.Kind.Normalize()
 	normalized.Actor.Ref = strings.TrimSpace(normalized.Actor.Ref)
+	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
+	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	if normalized.MarkedAt.IsZero() {
 		normalized.MarkedAt = defaultNow.UTC()
 	} else {
@@ -1242,6 +1297,9 @@ func normalizeNeedsAttentionMutation(
 		)
 	}
 	if err := normalized.Actor.Validate("task.needs_attention_by"); err != nil {
+		return taskpkg.NeedsAttentionMutation{}, err
+	}
+	if err := normalized.Origin.Validate("task.needs_attention_origin"); err != nil {
 		return taskpkg.NeedsAttentionMutation{}, err
 	}
 	return normalized, nil
@@ -1268,6 +1326,9 @@ func normalizeBlockTaskAndReleaseRunMutation(
 	}
 	block, err := normalizeTaskBlockForCreate(normalized.Block, normalized.Now)
 	if err != nil {
+		return taskpkg.BlockTaskAndReleaseRunMutation{}, err
+	}
+	if err := normalized.Actor.Validate(); err != nil {
 		return taskpkg.BlockTaskAndReleaseRunMutation{}, err
 	}
 	normalized.Block = block

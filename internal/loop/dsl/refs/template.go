@@ -62,6 +62,7 @@ func CompileTemplate(name string, raw string, namespace Namespace) (*Template, e
 func funcMap() template.FuncMap {
 	return template.FuncMap{
 		"json":    templateJSON,
+		"toJson":  templateJSON,
 		"join":    templateJoin,
 		"default": templateDefault,
 	}

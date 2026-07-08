@@ -14,6 +14,7 @@ import {
   subLoopFields,
   toolActionFields,
   transformFields,
+  watchEventsFields,
   watchSourceFields,
 } from "./loop-node-fields";
 
@@ -49,6 +50,7 @@ export function buildNodeFields(
     if (kind === "input") return inputFields(raw, Object.keys(definition?.inputs ?? {}));
     if (kind === "file-import") return fileImportFields(raw);
     if (kind === "watch-source") return watchSourceFields(raw);
+    if (kind === "watch-events") return watchEventsFields(raw);
   }
   if (nodeClass === "control") {
     if (kind === "fan-out") return fanOutFields(raw);

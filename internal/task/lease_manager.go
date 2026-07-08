@@ -35,7 +35,7 @@ func (m *Service) ClaimNextRun(
 	}
 	claimResultWithoutRawTokenInMetadata(&result)
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (m *Service) ReleaseRunLease(
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (m *Service) ReleaseSessionRunLeases(
 		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 			return nil, err
 		}
-		reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+		reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 		if err != nil {
 			return nil, err
 		}
@@ -190,6 +190,7 @@ func (m *Service) CompleteRunLease(
 	if err != nil {
 		return nil, err
 	}
+	normalized.Actor = actor
 	run, err := m.store.CompleteRunLease(ctx, normalized)
 	if err != nil {
 		if hallucinated, ok := errors.AsType[*HallucinatedTaskRefsError](err); ok {
@@ -199,16 +200,8 @@ func (m *Service) CompleteRunLease(
 		}
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunCompleted, actor, completedRunPayload{
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		Result:         cloneRawJSON(run.Result),
-		ClaimTokenHash: run.ClaimTokenHash,
-	}); err != nil {
 		return nil, err
 	}
 	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
@@ -216,7 +209,7 @@ func (m *Service) CompleteRunLease(
 	defer advisoryCancel()
 	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
-	if !isLoopNodeRun(run) {
+	if !run.IsLoopWorker() {
 		autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
 		defer cancel()
 		m.autoEnqueueReadyDependents(autoCtx, run.TaskID, autoEnqueueTrigger{
@@ -364,10 +357,6 @@ func (m *Service) autoEnqueueReadyDependents(
 	m.autoEnqueueReadyTasks(ctx, taskIDs, trigger, actor)
 }
 
-func isLoopNodeRun(run Run) bool {
-	return strings.TrimSpace(run.LoopRunID) != "" && run.RunKind.Normalize() != RunKindCoordinator
-}
-
 func (m *Service) autoEnqueueReadyTaskDetached(
 	ctx context.Context,
 	taskID string,
@@ -508,21 +497,13 @@ func (m *Service) FailRunLease(
 	if err != nil {
 		return nil, err
 	}
+	normalized.Actor = actor
 	run, err := m.store.FailRunLease(ctx, normalized)
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 	if err != nil {
-		return nil, err
-	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunFailed, actor, failedRunPayload{
-		Status:         run.Status,
-		TaskStatus:     reconciledTask.Status,
-		Error:          run.Error,
-		Metadata:       cloneRawJSON(normalized.Failure.Metadata),
-		ClaimTokenHash: run.ClaimTokenHash,
-	}); err != nil {
 		return nil, err
 	}
 	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
@@ -549,7 +530,7 @@ func (m *Service) RecoverExpiredRunLeases(
 	}
 	for idx := range results {
 		result := &results[idx]
-		reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID)
+		reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 		if err != nil {
 			return nil, err
 		}

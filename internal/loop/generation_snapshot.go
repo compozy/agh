@@ -3,15 +3,19 @@ package loop
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/task"
 )
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
-	Outputs []GenerationOutput `json:"outputs,omitempty"`
+	Outputs     []GenerationOutput     `json:"outputs,omitempty"`
+	OutputBlobs []GenerationOutputBlob `json:"output_blobs,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
@@ -23,6 +27,14 @@ type GenerationOutput struct {
 	OutputRef      string `json:"output_ref,omitempty"`
 	TaskRunID      string `json:"task_run_id,omitempty"`
 	ChildLoopRunID string `json:"child_loop_run_id,omitempty"`
+}
+
+// GenerationOutputBlob is one content-addressed loop output payload required by
+// a generation snapshot.
+type GenerationOutputBlob struct {
+	OutputRef string          `json:"output_ref"`
+	Payload   json.RawMessage `json:"payload_json"`
+	At        time.Time       `json:"at"`
 }
 
 // StoreFinalizer writes loop-owned generation snapshots inside task transactions.
@@ -54,6 +66,15 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	payload, err := normalizeGenerationSnapshotPayload(snap.Payload)
 	if err != nil {
 		return err
+	}
+	for _, blob := range payload.OutputBlobs {
+		blob = blob.normalized()
+		if err := blob.validate(); err != nil {
+			return err
+		}
+		if err := writeGenerationOutputBlob(ctx, tx, blob); err != nil {
+			return err
+		}
 	}
 	for _, output := range payload.Outputs {
 		output = output.normalized()
@@ -87,6 +108,50 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 				err,
 			)
 		}
+	}
+	return nil
+}
+
+func (b GenerationOutputBlob) normalized() GenerationOutputBlob {
+	b.OutputRef = strings.TrimSpace(b.OutputRef)
+	if !b.At.IsZero() {
+		b.At = b.At.UTC()
+	}
+	return b
+}
+
+func (b GenerationOutputBlob) validate() error {
+	if !OutputRefLooksContentAddressed(b.OutputRef) {
+		return fmt.Errorf("%w: output_ref is invalid: %q", ErrValidation, b.OutputRef)
+	}
+	if len(b.Payload) == 0 {
+		return fmt.Errorf("%w: generation output blob payload is required", ErrValidation)
+	}
+	if !json.Valid(b.Payload) {
+		return fmt.Errorf("%w: generation output blob payload must be valid JSON", ErrValidation)
+	}
+	return nil
+}
+
+func writeGenerationOutputBlob(ctx context.Context, tx task.Tx, blob GenerationOutputBlob) error {
+	at := blob.At
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	_, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO loop_output_blobs (output_ref, payload_json, byte_size, created_at, last_used_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(output_ref) DO UPDATE SET
+		   last_used_at = excluded.last_used_at`,
+		blob.OutputRef,
+		string(blob.Payload),
+		len(blob.Payload),
+		store.FormatTimestamp(at),
+		store.FormatTimestamp(at),
+	)
+	if err != nil {
+		return fmt.Errorf("loop: write generation output blob %q: %w", blob.OutputRef, err)
 	}
 	return nil
 }

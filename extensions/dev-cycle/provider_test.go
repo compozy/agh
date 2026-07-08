@@ -1,16 +1,600 @@
 package devcycle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/agh/internal/subprocess"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
+
+func TestRPCServerShouldCallImportTasksTool(t *testing.T) {
+	t.Run("Should return structured import tasks payload over tools call", func(t *testing.T) {
+		t.Parallel()
+
+		tasksDir := t.TempDir()
+		writeImportTasksManifest(t, tasksDir, compozyTaskManifestVersion, []string{
+			"    - from: task_01",
+			"      to: task_03",
+		})
+		writeImportTaskFile(t, tasksDir, "task_01.md", "pending", "First task", "# First\n")
+		writeImportTaskFile(t, tasksDir, "task_02.md", "done", "Second task", "# Second\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "pending", "Third task", "# Third\n")
+
+		response := runImportTasksRPC(t, json.RawMessage(fmt.Sprintf(
+			`{"pattern":%q}`,
+			filepath.Join(tasksDir, "task_*.md"),
+		)))
+		if response.Error != nil {
+			t.Fatalf("tools/call error = %#v, want result", response.Error)
+		}
+		var output importTasksOutput
+		if err := json.Unmarshal(response.Result.Result.Structured, &output); err != nil {
+			t.Fatalf("Unmarshal(structured) error = %v", err)
+		}
+		if output.Count != 2 || len(output.Tasks) != 2 {
+			t.Fatalf("structured output = %#v, want two pending tasks", output)
+		}
+		if got, want := output.Tasks[0].ID, "task_01"; got != want {
+			t.Fatalf("tasks[0].id = %q, want %q", got, want)
+		}
+		if got, want := output.Tasks[1].ID, "task_03"; got != want {
+			t.Fatalf("tasks[1].id = %q, want %q", got, want)
+		}
+		if response.Result.Result.Bytes <= 0 || response.Result.Result.Preview == "" {
+			t.Fatalf("tool result metadata = %#v, want byte count and preview", response.Result.Result)
+		}
+	})
+
+	t.Run("Should surface missing pattern validation over tools call", func(t *testing.T) {
+		t.Parallel()
+
+		response := runImportTasksRPC(t, json.RawMessage(`{}`))
+		if response.Error == nil {
+			t.Fatalf("tools/call error = nil, want missing pattern error")
+		}
+		if response.Error.Code != -32010 ||
+			!strings.Contains(response.Error.Message, "import_tasks pattern is required") {
+			t.Fatalf("tools/call error = %#v, want missing pattern validation", response.Error)
+		}
+	})
+
+	t.Run("Should reject malformed import task input over tools call", func(t *testing.T) {
+		t.Parallel()
+
+		response := runImportTasksRPC(t, json.RawMessage(`"not-an-object"`))
+		if response.Error == nil {
+			t.Fatalf("tools/call error = nil, want decode error")
+		}
+		if response.Error.Code != -32010 || !strings.Contains(response.Error.Message, "decode tool input") {
+			t.Fatalf("tools/call error = %#v, want decode tool input validation", response.Error)
+		}
+	})
+}
+
+func TestRPCServerShouldServeLifecycleMethods(t *testing.T) {
+	t.Run("Should initialize with advertised tool methods", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, rpcMethodInitialize, subprocess.InitializeRequest{
+			ProtocolVersion: "2026-01-01",
+			Extension: subprocess.InitializeExtension{
+				Name:    Name,
+				Version: "0.1.0",
+			},
+			Capabilities: subprocess.InitializeCapabilities{
+				Provides: []string{"tool.provider"},
+			},
+			Methods: subprocess.InitializeMethods{
+				ExtensionServices: []string{rpcMethodToolsCall, rpcMethodProvideTools, rpcMethodWatchPoll},
+			},
+		})
+		if response.Error != nil {
+			t.Fatalf("initialize error = %#v, want result", response.Error)
+		}
+		var result subprocess.InitializeResponse
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("Unmarshal(initialize result) error = %v", err)
+		}
+		for _, method := range []string{
+			rpcMethodHealthCheck,
+			rpcMethodProvideTools,
+			rpcMethodShutdown,
+			rpcMethodToolsCall,
+			rpcMethodWatchPoll,
+		} {
+			if !slices.Contains(result.ImplementedMethods, method) {
+				t.Fatalf("implemented methods = %#v, want %q", result.ImplementedMethods, method)
+			}
+		}
+		if !slices.Contains(result.WatchSourceKinds, watchKindCodeRabbitPR) {
+			t.Fatalf("watch source kinds = %#v, want %q", result.WatchSourceKinds, watchKindCodeRabbitPR)
+		}
+	})
+
+	t.Run("Should reject malformed initialize params", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, rpcMethodInitialize, "not-an-object")
+		if response.Error == nil {
+			t.Fatalf("initialize error = nil, want decode error")
+		}
+		if response.Error.Code != -32602 || !strings.Contains(response.Error.Message, "decode initialize params") {
+			t.Fatalf("initialize error = %#v, want decode params error", response.Error)
+		}
+	})
+
+	t.Run("Should provide import tasks runtime descriptor", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, rpcMethodProvideTools, struct{}{})
+		if response.Error != nil {
+			t.Fatalf("provide_tools error = %#v, want result", response.Error)
+		}
+		var result toolspkg.ExtensionProvideToolsResponse
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("Unmarshal(provide_tools result) error = %v", err)
+		}
+		var found bool
+		for _, descriptor := range result.Tools {
+			if descriptor.Handler != toolImportTasks {
+				continue
+			}
+			found = true
+			if !descriptor.ReadOnly || descriptor.Risk != toolspkg.RiskRead {
+				t.Fatalf("import_tasks descriptor = %#v, want read risk", descriptor)
+			}
+			if strings.TrimSpace(descriptor.InputSchemaDigest) == "" ||
+				strings.TrimSpace(descriptor.OutputSchemaDigest) == "" {
+				t.Fatalf("import_tasks descriptor missing schema digests: %#v", descriptor)
+			}
+		}
+		if !found {
+			t.Fatalf("provide_tools descriptors = %#v, want import_tasks", result.Tools)
+		}
+	})
+
+	t.Run("Should report healthy", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, rpcMethodHealthCheck, struct{}{})
+		if response.Error != nil {
+			t.Fatalf("health_check error = %#v, want result", response.Error)
+		}
+		var result subprocess.HealthCheckResponse
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("Unmarshal(health_check result) error = %v", err)
+		}
+		if !result.Healthy {
+			t.Fatalf("health_check healthy = false, want true")
+		}
+	})
+
+	t.Run("Should acknowledge shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, rpcMethodShutdown, subprocess.ShutdownRequest{Reason: "test"})
+		if response.Error != nil {
+			t.Fatalf("shutdown error = %#v, want result", response.Error)
+		}
+		var result subprocess.ShutdownResponse
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			t.Fatalf("Unmarshal(shutdown result) error = %v", err)
+		}
+		if !result.Acknowledged {
+			t.Fatalf("shutdown acknowledged = false, want true")
+		}
+	})
+
+	t.Run("Should reject unsupported tool handlers", func(t *testing.T) {
+		t.Parallel()
+
+		toolID, err := runtimeToolID("missing_handler")
+		if err != nil {
+			t.Fatalf("runtimeToolID(missing_handler) error = %v", err)
+		}
+		response := runProviderRPC(t, rpcMethodToolsCall, toolspkg.ExtensionToolCallRequest{
+			ToolID:  toolID,
+			Handler: "missing_handler",
+		})
+		if response.Error == nil {
+			t.Fatalf("tools/call error = nil, want unsupported handler error")
+		}
+		if response.Error.Code != -32010 || !strings.Contains(response.Error.Message, "unsupported tool handler") {
+			t.Fatalf("tools/call error = %#v, want unsupported handler error", response.Error)
+		}
+	})
+
+	t.Run("Should reject malformed watch specs", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(
+			t,
+			rpcMethodWatchPoll,
+			watchpkg.PollRequest{Spec: json.RawMessage(`"not-an-object"`)},
+		)
+		if response.Error == nil {
+			t.Fatalf("watch/poll error = nil, want decode error")
+		}
+		if response.Error.Code != -32020 || !strings.Contains(response.Error.Message, "decode watch spec") {
+			t.Fatalf("watch/poll error = %#v, want decode watch spec error", response.Error)
+		}
+	})
+
+	t.Run("Should reject unsupported watch kinds", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(
+			t,
+			rpcMethodWatchPoll,
+			watchpkg.PollRequest{Spec: json.RawMessage(`{"kind":"other"}`)},
+		)
+		if response.Error == nil {
+			t.Fatalf("watch/poll error = nil, want unsupported kind error")
+		}
+		if response.Error.Code != -32020 ||
+			!strings.Contains(response.Error.Message, `unsupported watch kind "other"`) {
+			t.Fatalf("watch/poll error = %#v, want unsupported kind error", response.Error)
+		}
+	})
+
+	t.Run("Should reject unknown methods", func(t *testing.T) {
+		t.Parallel()
+
+		response := runProviderRPC(t, "unknown/method", struct{}{})
+		if response.Error == nil {
+			t.Fatalf("unknown method error = nil, want method not found")
+		}
+		if response.Error.Code != -32601 || response.Error.Message != "method not found" {
+			t.Fatalf("unknown method error = %#v, want method not found", response.Error)
+		}
+	})
+}
+
+func TestRPCServerShouldValidateProviderIOAndToolResultMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require provider stdout", func(t *testing.T) {
+		t.Parallel()
+
+		err := RunProvider(context.Background(), strings.NewReader(""), nil)
+		if err == nil || !strings.Contains(err.Error(), "stdout is required") {
+			t.Fatalf("RunProvider(nil stdout) error = %v, want stdout validation", err)
+		}
+	})
+
+	t.Run("Should require provider stdin", func(t *testing.T) {
+		t.Parallel()
+
+		var stdout bytes.Buffer
+		err := RunProvider(context.Background(), nil, &stdout)
+		if err == nil || !strings.Contains(err.Error(), "stdin is required") {
+			t.Fatalf("RunProvider(nil stdin) error = %v, want stdin validation", err)
+		}
+	})
+
+	t.Run("Should truncate long tool result previews", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := toolResult(map[string]string{"body": strings.Repeat("x", 400)}, time.Now())
+		if err != nil {
+			t.Fatalf("toolResult() error = %v", err)
+		}
+		if result.Bytes <= int64(len(result.Preview)) || !strings.HasSuffix(result.Preview, "...") {
+			t.Fatalf("toolResult() = %#v, want truncated preview metadata", result)
+		}
+	})
+}
+
+func TestDefaultCommandRunnerShouldRunCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require a command name", func(t *testing.T) {
+		t.Parallel()
+
+		runner := defaultCommandRunner{}
+		_, err := runner.Run(context.Background(), " ", nil, "")
+		if err == nil || !strings.Contains(err.Error(), "command name is required") {
+			t.Fatalf("Run(blank) error = %v, want command name validation", err)
+		}
+	})
+
+	t.Run("Should execute commands in the requested directory", func(t *testing.T) {
+		t.Parallel()
+
+		runner := defaultCommandRunner{}
+		shell, err := runner.LookPath("sh")
+		if err != nil {
+			t.Fatalf("LookPath(sh) error = %v", err)
+		}
+		dir := t.TempDir()
+		output, err := runner.Run(context.Background(), shell, []string{"-c", "printf '%s' \"$PWD\""}, dir)
+		if err != nil {
+			t.Fatalf("Run(pwd) error = %v", err)
+		}
+		if got := strings.TrimSpace(string(output)); got != dir {
+			t.Fatalf("Run(pwd) output = %q, want %q", got, dir)
+		}
+	})
+
+	t.Run("Should include stderr in failed command diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		runner := defaultCommandRunner{}
+		shell, err := runner.LookPath("sh")
+		if err != nil {
+			t.Fatalf("LookPath(sh) error = %v", err)
+		}
+		_, err = runner.Run(context.Background(), shell, []string{"-c", "printf 'boom' >&2; exit 7"}, "")
+		if err == nil || !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("Run(failing command) error = %v, want stderr diagnostic", err)
+		}
+	})
+}
+
+func TestCodeRabbitFetchInputShouldDecodeBoolLikeNitpickOption(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "omitted", raw: `{"pr":17}`, want: false},
+		{name: "boolean", raw: `{"pr":17,"include_nitpicks":true}`, want: true},
+		{name: "string", raw: `{"pr":17,"include_nitpicks":" true "}`, want: true},
+		{name: "blank string", raw: `{"pr":17,"include_nitpicks":" "}`, want: false},
+	}
+	for _, tc := range cases {
+		t.Run("Should decode "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var input codeRabbitFetchInput
+			if err := json.Unmarshal([]byte(tc.raw), &input); err != nil {
+				t.Fatalf("Unmarshal(fetch input) error = %v", err)
+			}
+			if input.IncludeNitpicks != tc.want {
+				t.Fatalf("IncludeNitpicks = %t, want %t", input.IncludeNitpicks, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should reject unsupported boolean values", func(t *testing.T) {
+		t.Parallel()
+
+		var input codeRabbitFetchInput
+		err := json.Unmarshal([]byte(`{"pr":17,"include_nitpicks":1}`), &input)
+		if err == nil || !strings.Contains(err.Error(), "unsupported boolean value") {
+			t.Fatalf("Unmarshal(fetch input) error = %v, want unsupported boolean validation", err)
+		}
+	})
+
+	t.Run("Should reject invalid boolean strings", func(t *testing.T) {
+		t.Parallel()
+
+		var input codeRabbitFetchInput
+		err := json.Unmarshal([]byte(`{"pr":17,"include_nitpicks":"maybe"}`), &input)
+		if err == nil || !strings.Contains(err.Error(), "include_nitpicks") {
+			t.Fatalf("Unmarshal(fetch input) error = %v, want include_nitpicks validation", err)
+		}
+	})
+}
+
+func TestCodeRabbitInputHelpersShouldNormalizePRAndRemotes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize supported pull request values", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			value any
+			want  string
+		}{
+			{value: float64(17), want: "17"},
+			{value: 18, want: "18"},
+			{value: "#19", want: "19"},
+		}
+		for _, tc := range cases {
+			got, err := normalizePR(tc.value)
+			if err != nil {
+				t.Fatalf("normalizePR(%#v) error = %v", tc.value, err)
+			}
+			if got != tc.want {
+				t.Fatalf("normalizePR(%#v) = %q, want %q", tc.value, got, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should reject unsupported pull request values", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []any{float64(1.5), 0, "abc", []string{"17"}} {
+			if got, err := normalizePR(value); err == nil {
+				t.Fatalf("normalizePR(%#v) = %q, nil; want validation error", value, got)
+			}
+		}
+	})
+
+	t.Run("Should parse GitHub remote URLs", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			remote string
+			want   string
+		}{
+			{remote: "git@github.com:acme/repo.git", want: "acme/repo"},
+			{remote: "https://github.com/acme/repo.git", want: "acme/repo"},
+		}
+		for _, tc := range cases {
+			got, err := parseGitHubRemote(tc.remote)
+			if err != nil {
+				t.Fatalf("parseGitHubRemote(%q) error = %v", tc.remote, err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseGitHubRemote(%q) = %q, want %q", tc.remote, got, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should reject non-GitHub remotes", func(t *testing.T) {
+		t.Parallel()
+
+		if got, err := parseGitHubRemote("https://example.com/acme/repo.git"); err == nil {
+			t.Fatalf("parseGitHubRemote(non-github) = %q, nil; want validation error", got)
+		}
+	})
+}
+
+func TestCodeRabbitOrderingHelpersShouldPreferNewestProviderEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should choose the newest CodeRabbit commit status", func(t *testing.T) {
+		t.Parallel()
+
+		status, ok := latestCodeRabbitCommitStatus([]commitStatus{
+			{Context: "other", UpdatedAt: "2026-07-08T13:00:00Z", State: "success"},
+			{Context: codeRabbitCommitStatusContext, UpdatedAt: "2026-07-08T12:00:00Z", State: "pending"},
+			{Context: codeRabbitCommitStatusContext, CreatedAt: "2026-07-08T14:00:00Z", State: "success"},
+		})
+		if !ok || status.State != "success" {
+			t.Fatalf("latestCodeRabbitCommitStatus() = %#v, %t; want newest success", status, ok)
+		}
+	})
+
+	t.Run("Should compare commit statuses by timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		current := commitStatus{UpdatedAt: "2026-07-08T12:00:00Z"}
+		if !commitStatusIsNewer(commitStatus{UpdatedAt: "2026-07-08T12:01:00Z"}, current) {
+			t.Fatalf("commitStatusIsNewer(newer, current) = false, want true")
+		}
+		if commitStatusIsNewer(commitStatus{UpdatedAt: "not-a-time"}, current) {
+			t.Fatalf("commitStatusIsNewer(invalid, current) = true, want false")
+		}
+	})
+
+	t.Run("Should choose the newest CodeRabbit review with id tiebreaks", func(t *testing.T) {
+		t.Parallel()
+
+		newer := pullRequestReview{
+			ID:          12,
+			SubmittedAt: "2026-07-08T12:00:00Z",
+		}
+		newer.User.Login = codeRabbitBotLogin
+		olderSameTime := pullRequestReview{
+			ID:          11,
+			SubmittedAt: "2026-07-08T12:00:00Z",
+		}
+		olderSameTime.User.Login = codeRabbitBotLogin
+		otherBot := pullRequestReview{ID: 99, SubmittedAt: "2026-07-08T13:00:00Z"}
+		otherBot.User.Login = "someone"
+
+		review, ok := latestCodeRabbitReview([]pullRequestReview{olderSameTime, otherBot, newer})
+		if !ok || review.ID != 12 {
+			t.Fatalf("latestCodeRabbitReview() = %#v, %t; want review 12", review, ok)
+		}
+		if !reviewIsNewer(newer, olderSameTime) {
+			t.Fatalf("reviewIsNewer(newer, olderSameTime) = false, want true")
+		}
+		if compareReviewIDs("abc", "99") <= 0 {
+			t.Fatalf("compareReviewIDs(string fallback) <= 0, want lexical fallback ordering")
+		}
+	})
+
+	t.Run("Should choose newer review body issues by submitted time and review id", func(t *testing.T) {
+		t.Parallel()
+
+		current := codeRabbitIssue{
+			SourceReviewID:          "9",
+			SourceReviewSubmittedAt: "2026-07-08T12:00:00Z",
+		}
+		if !reviewBodyCommentIssueIsNewer(codeRabbitIssue{
+			SourceReviewID:          "8",
+			SourceReviewSubmittedAt: "2026-07-08T12:01:00Z",
+		}, current) {
+			t.Fatalf("reviewBodyCommentIssueIsNewer(newer timestamp) = false, want true")
+		}
+		if !reviewBodyCommentIssueIsNewer(codeRabbitIssue{
+			SourceReviewID:          "10",
+			SourceReviewSubmittedAt: "2026-07-08T12:00:00Z",
+		}, current) {
+			t.Fatalf("reviewBodyCommentIssueIsNewer(review id tiebreak) = false, want true")
+		}
+	})
+}
+
+func TestCodeRabbitReviewBodyHelpersShouldNormalizeCommentMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse severity summaries", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			summary string
+			want    string
+		}{
+			{summary: "Nitpick comments", want: reviewBodyCommentSeverityNitpick},
+			{summary: "Minor comment", want: reviewBodyCommentSeverityMinor},
+			{summary: "Major comments", want: reviewBodyCommentSeverityMajor},
+			{summary: "Critical comments", want: reviewBodyCommentSeverityCritical},
+		}
+		for _, tc := range cases {
+			got, ok := reviewBodyCommentSeverity(tc.summary)
+			if !ok || got != tc.want {
+				t.Fatalf("reviewBodyCommentSeverity(%q) = %q, %t; want %q", tc.summary, got, ok, tc.want)
+			}
+		}
+		if got, ok := reviewBodyCommentSeverity("general summary"); ok || got != "" {
+			t.Fatalf("reviewBodyCommentSeverity(unknown) = %q, %t; want no match", got, ok)
+		}
+	})
+
+	t.Run("Should parse standalone titles and body text", func(t *testing.T) {
+		t.Parallel()
+
+		title, body := parseReviewBodyCommentSection(strings.Join([]string{
+			"`12-13`:",
+			"severity: critical",
+			"**Use the bounded context helper**",
+			"",
+			"Please avoid open-ended context usage.",
+		}, "\n"))
+		if title != "Use the bounded context helper" {
+			t.Fatalf("title = %q, want standalone title", title)
+		}
+		if !strings.Contains(body, "open-ended context") {
+			t.Fatalf("body = %q, want normalized body", body)
+		}
+		if severity, ok := reviewBodyCommentSectionSeverity("`12-13`:\nseverity: critical\n**Title**"); !ok ||
+			severity != reviewBodyCommentSeverityCritical {
+			t.Fatalf("reviewBodyCommentSectionSeverity() = %q, %t; want critical", severity, ok)
+		}
+	})
+
+	t.Run("Should strip wrapper detail blocks without losing surrounding text", func(t *testing.T) {
+		t.Parallel()
+
+		input := "before\n<details><summary>hidden</summary>remove me</details>\nafter"
+		output := stripTopLevelDetailsBlocks(input)
+		if strings.Contains(output, "remove me") ||
+			!strings.Contains(output, "before") ||
+			!strings.Contains(output, "after") {
+			t.Fatalf("stripTopLevelDetailsBlocks() = %q, want only surrounding text", output)
+		}
+		if !reviewBodyCommentOutsideDiffRange("Outside diff range comments") {
+			t.Fatalf("reviewBodyCommentOutsideDiffRange() = false, want true")
+		}
+	})
+}
 
 func TestCodeRabbitProviderShouldSurfaceProviderFailures(t *testing.T) {
 	t.Run("Should fail when gh is unavailable", func(t *testing.T) {
@@ -522,6 +1106,94 @@ func TestGitProviderShouldGuardPushes(t *testing.T) {
 			t.Fatalf("git push args = %q, want %q", got, want)
 		}
 	})
+}
+
+type rpcRawResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result"`
+	Error   *rpcError       `json:"error,omitempty"`
+}
+
+type rpcToolCallResponse struct {
+	JSONRPC string                             `json:"jsonrpc"`
+	ID      json.RawMessage                    `json:"id"`
+	Result  toolspkg.ExtensionToolCallResponse `json:"result"`
+	Error   *rpcError                          `json:"error,omitempty"`
+}
+
+func runImportTasksRPC(t *testing.T, input json.RawMessage) rpcToolCallResponse {
+	t.Helper()
+	toolID, err := runtimeToolID(toolImportTasks)
+	if err != nil {
+		t.Fatalf("runtimeToolID(%q) error = %v", toolImportTasks, err)
+	}
+	params := toolspkg.ExtensionToolCallRequest{
+		ToolID:  toolID,
+		Handler: toolImportTasks,
+		Input:   input,
+	}
+	request := struct {
+		JSONRPC string                            `json:"jsonrpc"`
+		ID      int                               `json:"id"`
+		Method  string                            `json:"method"`
+		Params  toolspkg.ExtensionToolCallRequest `json:"params"`
+	}{
+		JSONRPC: jsonRPCVersion,
+		ID:      1,
+		Method:  rpcMethodToolsCall,
+		Params:  params,
+	}
+	line, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("Marshal(rpc request) error = %v", err)
+	}
+	rawResponse := runProviderRPCLine(t, string(line))
+	var response rpcToolCallResponse
+	if err := json.Unmarshal(rawResponse, &response); err != nil {
+		t.Fatalf("Unmarshal(rpc response %q) error = %v", string(rawResponse), err)
+	}
+	if response.JSONRPC != jsonRPCVersion {
+		t.Fatalf("rpc jsonrpc = %q, want %q", response.JSONRPC, jsonRPCVersion)
+	}
+	return response
+}
+
+func runProviderRPC(t *testing.T, method string, params any) rpcRawResponse {
+	t.Helper()
+	request := struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+		Params  any    `json:"params"`
+	}{
+		JSONRPC: jsonRPCVersion,
+		ID:      1,
+		Method:  method,
+		Params:  params,
+	}
+	line, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("Marshal(rpc request) error = %v", err)
+	}
+	rawResponse := runProviderRPCLine(t, string(line))
+	var response rpcRawResponse
+	if err := json.Unmarshal(rawResponse, &response); err != nil {
+		t.Fatalf("Unmarshal(rpc response %q) error = %v", string(rawResponse), err)
+	}
+	if response.JSONRPC != jsonRPCVersion {
+		t.Fatalf("rpc jsonrpc = %q, want %q", response.JSONRPC, jsonRPCVersion)
+	}
+	return response
+}
+
+func runProviderRPCLine(t *testing.T, line string) []byte {
+	t.Helper()
+	var stdout bytes.Buffer
+	if err := RunProvider(context.Background(), strings.NewReader(line+"\n"), &stdout); err != nil {
+		t.Fatalf("RunProvider() error = %v", err)
+	}
+	return bytes.TrimSpace(stdout.Bytes())
 }
 
 type recordedCommand struct {

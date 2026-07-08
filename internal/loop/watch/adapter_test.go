@@ -192,6 +192,83 @@ func TestOutputRef(t *testing.T) {
 			t.Fatalf("ExpectedStateDigestFromOutputRef(corrupt) error = %v, want output ref parse error", err)
 		}
 	})
+
+	t.Run("Should recover watch-events pending subscriptions and cursors", func(t *testing.T) {
+		t.Parallel()
+
+		ref, err := EventsPendingOutputRef(EventsPendingState{
+			Subscriptions: []EventSubscriptionRef{{
+				Kind:   "task.status_changed",
+				Filter: `event.payload.to_status == "blocked"`,
+			}},
+			Cursors: map[string]int64{"task_events": 42},
+		})
+		if err != nil {
+			t.Fatalf("EventsPendingOutputRef() error = %v", err)
+		}
+		state, ok, err := EventsPendingFromOutputRef(ref)
+		if err != nil {
+			t.Fatalf("EventsPendingFromOutputRef() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("EventsPendingFromOutputRef() ok = false, want true")
+		}
+		if got, want := len(state.Subscriptions), 1; got != want {
+			t.Fatalf("subscriptions len = %d, want %d", got, want)
+		}
+		if got, want := state.Subscriptions[0].Kind, "task.status_changed"; got != want {
+			t.Fatalf("subscription kind = %q, want %q", got, want)
+		}
+		if got, want := state.Cursors["task_events"], int64(42); got != want {
+			t.Fatalf("cursor = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should encode watch-events confirmed events and cursors", func(t *testing.T) {
+		t.Parallel()
+
+		ref, err := EventsConfirmedOutputRef(
+			[]map[string]any{{"kind": "task.status_changed", "seq": 43}},
+			map[string]int64{"task_events": 43},
+		)
+		if err != nil {
+			t.Fatalf("EventsConfirmedOutputRef() error = %v", err)
+		}
+		var decoded OutputRef
+		if err := json.Unmarshal([]byte(ref), &decoded); err != nil {
+			t.Fatalf("Unmarshal confirmed ref error = %v", err)
+		}
+		if got, want := decoded.Kind, "watch_events_confirmed"; got != want {
+			t.Fatalf("decoded.Kind = %q, want %q", got, want)
+		}
+		if got, want := decoded.Cursors["task_events"], int64(43); got != want {
+			t.Fatalf("cursor = %d, want %d", got, want)
+		}
+		if !strings.Contains(string(decoded.Events), `"seq":43`) {
+			t.Fatalf("events = %s, want encoded event", string(decoded.Events))
+		}
+	})
+
+	t.Run("Should handle watch-events output ref edge cases", func(t *testing.T) {
+		t.Parallel()
+
+		if state, ok, err := EventsPendingFromOutputRef(""); err != nil || ok || len(state.Cursors) != 0 {
+			t.Fatalf("EventsPendingFromOutputRef(empty) = (%#v, %v, %v), want zero/false/nil", state, ok, err)
+		}
+		if state, ok, err := EventsPendingFromOutputRef(`{"kind":"watch_source_pending"}`); err != nil ||
+			ok || len(state.Subscriptions) != 0 {
+			t.Fatalf("EventsPendingFromOutputRef(other) = (%#v, %v, %v), want zero/false/nil", state, ok, err)
+		}
+		if _, _, err := EventsPendingFromOutputRef("{"); err == nil {
+			t.Fatal("EventsPendingFromOutputRef(corrupt) error = nil, want error")
+		}
+		if _, err := EventsConfirmedOutputRef(make(chan int), map[string]int64{"task_events": 1}); err == nil {
+			t.Fatal("EventsConfirmedOutputRef(unmarshalable) error = nil, want error")
+		}
+		if _, err := marshalOutputRef(OutputRef{}); err == nil {
+			t.Fatal("marshalOutputRef(empty kind) error = nil, want error")
+		}
+	})
 }
 
 func assertTransitions(t *testing.T, got []Transition, want []Transition) {

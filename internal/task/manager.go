@@ -21,6 +21,7 @@ import (
 const (
 	managerActiveKey         = "active"
 	managerOrphanedOnBootKey = "orphaned_on_boot"
+	runBootRecoveryReasonKey = "reason"
 )
 
 const (
@@ -78,6 +79,16 @@ const (
 	taskEventWakeSuppressed                   = eventspkg.TaskWakeSuppressed
 )
 
+const (
+	taskWatchEventBlocked        = string(hookspkg.HookTaskBlocked)
+	taskWatchEventUnblocked      = string(hookspkg.HookTaskUnblocked)
+	taskWatchEventNeedsAttention = string(hookspkg.HookTaskNeedsAttention)
+	taskWatchEventRecovered      = string(hookspkg.HookTaskRecovered)
+	taskWatchEventStatusChanged  = string(hookspkg.HookTaskStatusChanged)
+	taskWatchEventRunCompleted   = string(hookspkg.HookTaskRunCompleted)
+	taskWatchEventRunFailed      = string(hookspkg.HookTaskRunFailed)
+)
+
 // Option customizes Service construction.
 type Option func(*managerOptions)
 
@@ -93,6 +104,8 @@ type managerOptions struct {
 	generationFinalizer  GenerationStateFinalizer
 	wakeNotifier         WakeNotifier
 	channelValidator     func(string) error
+	coordinatorStatusOK  func(string) bool
+	coordinatorHookOK    func(string) bool
 	profileValidation    ExecutionProfileValidationOptions
 	forceRecovery        ForceRecoveryOptions
 	now                  func() time.Time
@@ -116,6 +129,8 @@ type Service struct {
 	generationFinalizer  GenerationStateFinalizer
 	wakeNotifier         WakeNotifier
 	channelValidator     func(string) error
+	coordinatorStatusOK  func(string) bool
+	coordinatorHookOK    func(string) bool
 	profileValidation    ExecutionProfileValidationOptions
 	forceRecovery        ForceRecoveryOptions
 	now                  func() time.Time
@@ -215,6 +230,20 @@ func WithNetworkChannelValidator(validator func(string) error) Option {
 	}
 }
 
+// WithCoordinatorTerminalStatusValidator injects the owner-defined loop-run status vocabulary.
+func WithCoordinatorTerminalStatusValidator(validator func(string) bool) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorStatusOK = validator
+	}
+}
+
+// WithCoordinatorTerminalHookStatusValidator injects the subset that should emit loop terminal hooks.
+func WithCoordinatorTerminalHookStatusValidator(validator func(string) bool) Option {
+	return func(opts *managerOptions) {
+		opts.coordinatorHookOK = validator
+	}
+}
+
 // WithExecutionProfileValidationOptions injects config-backed profile gates.
 func WithExecutionProfileValidationOptions(options ExecutionProfileValidationOptions) Option {
 	return func(opts *managerOptions) {
@@ -309,6 +338,8 @@ func NewManager(opts ...Option) (*Service, error) {
 		generationFinalizer:  options.generationFinalizer,
 		wakeNotifier:         defaultWakeNotifier(options.wakeNotifier),
 		channelValidator:     options.channelValidator,
+		coordinatorStatusOK:  options.coordinatorStatusOK,
+		coordinatorHookOK:    options.coordinatorHookOK,
 		profileValidation:    options.profileValidation,
 		forceRecovery:        normalizeForceRecoveryOptions(options.forceRecovery),
 		now:                  options.now,
@@ -442,17 +473,18 @@ func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext)
 
 	if txStore, ok := m.store.(DeleteTaskTransactionStore); ok {
 		return txStore.WithDeleteTaskTransaction(ctx, func(store DeleteTaskMutationStore) error {
-			return m.deleteTaskWithStore(ctx, store, trimmedID)
+			return m.deleteTaskWithStore(ctx, store, trimmedID, actor)
 		})
 	}
 
-	return m.deleteTaskWithStore(ctx, m.store, trimmedID)
+	return m.deleteTaskWithStore(ctx, m.store, trimmedID, actor)
 }
 
 func (m *Service) deleteTaskWithStore(
 	ctx context.Context,
 	store DeleteTaskMutationStore,
 	trimmedID string,
+	actor ActorContext,
 ) error {
 	record, err := store.GetTask(ctx, trimmedID)
 	if err != nil {
@@ -473,7 +505,7 @@ func (m *Service) deleteTaskWithStore(
 	}
 
 	for _, dependentID := range dependentIDs {
-		if _, err := m.reconcileTaskCascadeWithStore(ctx, store, dependentID); err != nil {
+		if _, err := m.reconcileTaskCascadeWithStore(ctx, store, dependentID, actor); err != nil {
 			return fmt.Errorf(
 				"task: reconcile dependent task %q after deleting %q: %w",
 				dependentID,
@@ -537,8 +569,11 @@ func (m *Service) UpdateTask(
 	}
 	updated.Status = canonicalStatus
 	updated.UpdatedAt = m.now().UTC()
-	if err := m.store.UpdateTask(ctx, updated); err != nil {
+	if err := m.store.UpdateTask(ctx, updated, actor); err != nil {
 		return nil, err
+	}
+	if current.Status.Normalize() != updated.Status.Normalize() {
+		m.dispatchTaskStatusChanged(ctx, updated, current.Status, updated.Status, actor)
 	}
 	if err := m.recordTaskEvent(ctx, updated.ID, "", taskEventUpdated, actor, updatedTaskPayload{
 		ChangedFields: append([]string(nil), changedFields...),
@@ -925,14 +960,16 @@ func (m *Service) publishTaskIntent(
 		return nil, err
 	}
 
+	previousStatus := record.Status
 	record.Status = TaskStatusPending
 	record.UpdatedAt = m.now().UTC()
 	record.ClosedAt = time.Time{}
-	if err := m.store.UpdateTask(ctx, record); err != nil {
+	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
 		return nil, err
 	}
+	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
 
-	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -983,13 +1020,17 @@ func (m *Service) transitionTaskApproval(
 	}
 
 	record.ApprovalState = target.Normalize()
+	previousStatus := record.Status
 	record.UpdatedAt = m.now().UTC()
 	record.ClosedAt = time.Time{}
-	if err := m.store.UpdateTask(ctx, record); err != nil {
+	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
 		return nil, err
 	}
+	if previousStatus.Normalize() != record.Status.Normalize() {
+		m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
+	}
 
-	reconciled, err := m.reconcileTaskCascade(ctx, record.ID)
+	reconciled, err := m.reconcileTaskCascade(ctx, record.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -1251,12 +1292,14 @@ func (m *Service) persistCancelledTask(
 	propagatedFromTaskID string,
 	cancelledRunIDs []string,
 ) (Task, error) {
+	previousStatus := record.Status
 	record.Status = TaskStatusCanceled
 	record.UpdatedAt = m.now().UTC()
 	record.ClosedAt = record.UpdatedAt
-	if err := m.store.UpdateTask(ctx, record); err != nil {
+	if err := m.store.UpdateTask(ctx, record, actor); err != nil {
 		return Task{}, err
 	}
+	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
 	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCanceled, actor, cancelledTaskPayload{
 		Reason:               req.Reason,
 		Metadata:             cloneRawJSON(req.Metadata),
@@ -1266,7 +1309,7 @@ func (m *Service) persistCancelledTask(
 	}); err != nil {
 		return Task{}, err
 	}
-	if err := m.reconcileDependentTasks(ctx, record.ID, map[string]struct{}{record.ID: {}}); err != nil {
+	if err := m.reconcileDependentTasks(ctx, record.ID, map[string]struct{}{record.ID: {}}, actor); err != nil {
 		return Task{}, err
 	}
 	return record, nil
@@ -1288,7 +1331,7 @@ func (m *Service) transitionClaimedRunToStarting(
 	}
 
 	lifecycleCtx := taskRunLifecycleContext(ctx)
-	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
 	if err != nil {
 		return Run{}, nil, err
 	}
@@ -1316,7 +1359,7 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, errorsJoin(err, stopErr)
 	}
 
-	boundTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	boundTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
 	if err != nil {
 		return Run{}, nil, err
 	}
@@ -1349,7 +1392,7 @@ func (m *Service) startCoordinatorRun(
 	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
 		return nil, err
 	}
-	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	startingTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -1365,7 +1408,7 @@ func (m *Service) startCoordinatorRun(
 	if err := m.store.UpdateTaskRun(lifecycleCtx, run); err != nil {
 		return nil, err
 	}
-	runningTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	runningTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -1391,6 +1434,10 @@ func (m *Service) startCoordinatorRun(
 		}
 		return failedRun, fmt.Errorf("task: coordinator run %q failed: %w", run.ID, err)
 	}
+	plan = plan.Normalize()
+	if err := m.validateCoordinatorPlan(plan, "coordinator_completion.plan"); err != nil {
+		return nil, err
+	}
 
 	result, err := m.store.CompleteCoordinatorAndEnqueueNext(lifecycleCtx, CoordinatorCompletion{
 		RunID:      run.ID,
@@ -1407,6 +1454,25 @@ func (m *Service) startCoordinatorRun(
 	}
 	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
 	return &result.Run, nil
+}
+
+func (m *Service) validateCoordinatorPlan(plan CoordinatorCompletionPlan, path string) error {
+	if err := plan.Validate(path); err != nil {
+		return err
+	}
+	if plan.Terminal == nil {
+		return nil
+	}
+	status := strings.TrimSpace(plan.Terminal.Status)
+	if m.coordinatorStatusOK == nil || !m.coordinatorStatusOK(status) {
+		return fmt.Errorf(
+			"%w: %s must be accepted by the coordinator owner: %q",
+			ErrValidation,
+			nestedPath(nestedPath(path, "terminal"), "status"),
+			plan.Terminal.Status,
+		)
+	}
+	return nil
 }
 
 func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {
@@ -1434,7 +1500,7 @@ func (m *Service) recordCoordinatorCompletionEvents(
 	if result == nil {
 		return fmt.Errorf("%w: coordinator completion result is required", ErrValidation)
 	}
-	completedTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID)
+	completedTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 	if err != nil {
 		return err
 	}
@@ -1456,7 +1522,7 @@ func (m *Service) recordCoordinatorCompletionEvents(
 	m.dispatchTaskRunCompleted(ctx, result.Run, completedTask, actor)
 
 	for _, enqueued := range result.EnqueuedRuns {
-		enqueuedTask, err := m.reconcileTaskCascade(ctx, enqueued.TaskID)
+		enqueuedTask, err := m.reconcileTaskCascade(ctx, enqueued.TaskID, actor)
 		if err != nil {
 			return err
 		}
@@ -1765,7 +1831,7 @@ func (m *Service) recordRecoveredRun(
 	previousStatus RunStatus,
 	previousSessionID string,
 ) (Task, error) {
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskID, actor)
 	if err != nil {
 		return Task{}, err
 	}
@@ -2007,7 +2073,7 @@ func (m *Service) AddDependency(ctx context.Context, spec AddDependency, actor A
 		return err
 	}
 
-	record, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID)
+	record, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID, actor)
 	if err != nil {
 		return err
 	}
@@ -2050,7 +2116,7 @@ func (m *Service) RemoveDependency(
 		return err
 	}
 
-	record, err := m.reconcileTaskCascade(ctx, trimmedTaskID)
+	record, err := m.reconcileTaskCascade(ctx, trimmedTaskID, actor)
 	if err != nil {
 		return err
 	}
@@ -2111,7 +2177,7 @@ func (m *Service) EnqueueRun(
 		return &run, nil
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -2219,7 +2285,7 @@ func (m *Service) ClaimRun(
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -2293,7 +2359,7 @@ func (m *Service) StartRun(
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(lifecycleCtx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -2377,7 +2443,7 @@ func (m *Service) AttachRunSession(
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -2436,7 +2502,7 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -3152,6 +3218,7 @@ func (m *Service) reconcileTaskWithStore(
 	ctx context.Context,
 	store DeleteTaskMutationStore,
 	taskID string,
+	actor ActorContext,
 ) (Task, error) {
 	record, err := store.GetTask(ctx, taskID)
 	if err != nil {
@@ -3174,6 +3241,7 @@ func (m *Service) reconcileTaskWithStore(
 		return record, nil
 	}
 
+	previousStatus := record.Status
 	record.Status = canonicalStatus
 	record.UpdatedAt = m.now().UTC()
 	if isTerminalTaskStatus(record.Status) {
@@ -3181,32 +3249,40 @@ func (m *Service) reconcileTaskWithStore(
 	} else {
 		record.ClosedAt = time.Time{}
 	}
-	if err := store.UpdateTask(ctx, record); err != nil {
+	if err := store.UpdateTask(ctx, record, actor); err != nil {
 		return Task{}, err
 	}
+	m.dispatchTaskStatusChanged(ctx, record, previousStatus, record.Status, actor)
 	return record, nil
 }
 
-func (m *Service) reconcileTaskCascade(ctx context.Context, taskID string) (Task, error) {
-	return m.reconcileTaskCascadeWithStore(ctx, m.store, taskID)
+func (m *Service) reconcileTaskCascade(ctx context.Context, taskID string, actor ActorContext) (Task, error) {
+	return m.reconcileTaskCascadeWithStore(ctx, m.store, taskID, actor)
 }
 
 func (m *Service) reconcileTaskCascadeWithStore(
 	ctx context.Context,
 	store DeleteTaskMutationStore,
 	taskID string,
+	actor ActorContext,
 ) (Task, error) {
 	previous, err := store.GetTask(ctx, taskID)
 	if err != nil {
 		return Task{}, err
 	}
 
-	reconciled, err := m.reconcileTaskWithStore(ctx, store, taskID)
+	reconciled, err := m.reconcileTaskWithStore(ctx, store, taskID, actor)
 	if err != nil {
 		return Task{}, err
 	}
 	if previous.Status.Normalize() != reconciled.Status.Normalize() {
-		if err := m.reconcileDependentTasksWithStore(ctx, store, taskID, map[string]struct{}{taskID: {}}); err != nil {
+		if err := m.reconcileDependentTasksWithStore(
+			ctx,
+			store,
+			taskID,
+			map[string]struct{}{taskID: {}},
+			actor,
+		); err != nil {
 			return Task{}, err
 		}
 	}
@@ -3608,8 +3684,9 @@ func (m *Service) reconcileDependentTasks(
 	ctx context.Context,
 	taskID string,
 	visited map[string]struct{},
+	actor ActorContext,
 ) error {
-	return m.reconcileDependentTasksWithStore(ctx, m.store, taskID, visited)
+	return m.reconcileDependentTasksWithStore(ctx, m.store, taskID, visited, actor)
 }
 
 func (m *Service) reconcileDependentTasksWithStore(
@@ -3617,6 +3694,7 @@ func (m *Service) reconcileDependentTasksWithStore(
 	store DeleteTaskMutationStore,
 	taskID string,
 	visited map[string]struct{},
+	actor ActorContext,
 ) error {
 	dependents, err := store.ListDependents(ctx, taskID)
 	if err != nil {
@@ -3634,12 +3712,12 @@ func (m *Service) reconcileDependentTasksWithStore(
 		if err != nil {
 			return err
 		}
-		reconciled, err := m.reconcileTaskWithStore(ctx, store, dependentTaskID)
+		reconciled, err := m.reconcileTaskWithStore(ctx, store, dependentTaskID, actor)
 		if err != nil {
 			return err
 		}
 		if previous.Status.Normalize() != reconciled.Status.Normalize() {
-			if err := m.reconcileDependentTasksWithStore(ctx, store, dependentTaskID, visited); err != nil {
+			if err := m.reconcileDependentTasksWithStore(ctx, store, dependentTaskID, visited, actor); err != nil {
 				return err
 			}
 		}
@@ -3778,7 +3856,7 @@ func (m *Service) failRunRecordWithOptions(
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -3842,7 +3920,7 @@ func (m *Service) cancelRunRecord(
 	reconciledTask := taskRecord
 	if opts.reconcileTask {
 		var err error
-		reconciledTask, err = m.reconcileTaskCascade(ctx, taskRecord.ID)
+		reconciledTask, err = m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 		if err != nil {
 			return nil, err
 		}
@@ -4078,12 +4156,12 @@ func runBootRecoveryError(run Run, recovery RunBootRecovery) string {
 
 func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) json.RawMessage {
 	payload, err := marshalTaskEventPayload(map[string]string{
-		"reason":          normalizedBootRecoveryReason(recovery.Reason),
-		"previous_status": run.Status.Normalize().String(),
-		"session_id":      strings.TrimSpace(run.SessionID),
-		"session_state":   strings.TrimSpace(recovery.SessionState),
-		"classification":  strings.TrimSpace(recovery.Classification),
-		"detail":          strings.TrimSpace(recovery.Detail),
+		runBootRecoveryReasonKey: normalizedBootRecoveryReason(recovery.Reason),
+		"previous_status":        run.Status.Normalize().String(),
+		"session_id":             strings.TrimSpace(run.SessionID),
+		"session_state":          strings.TrimSpace(recovery.SessionState),
+		"classification":         strings.TrimSpace(recovery.Classification),
+		"detail":                 strings.TrimSpace(recovery.Detail),
 	})
 	if err != nil {
 		return nil
@@ -4107,6 +4185,13 @@ func (m *Service) recordTaskEvent(
 	actor ActorContext,
 	payload any,
 ) error {
+	if isTransactionalWatchTaskEvent(eventType) {
+		return fmt.Errorf(
+			"%w: task event %q must be appended inside its owning transaction",
+			ErrValidation,
+			strings.TrimSpace(eventType),
+		)
+	}
 	rawPayload, err := marshalTaskEventPayload(payload)
 	if err != nil {
 		return err
@@ -4138,6 +4223,21 @@ func (m *Service) recordTaskEvent(
 	m.notifyTaskObserverBestEffort(postCommitCtx, record)
 	m.emitTaskLiveRecordBestEffort(postCommitCtx, record)
 	return nil
+}
+
+func isTransactionalWatchTaskEvent(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case taskWatchEventBlocked,
+		taskWatchEventUnblocked,
+		taskWatchEventNeedsAttention,
+		taskWatchEventRecovered,
+		taskWatchEventStatusChanged,
+		taskWatchEventRunCompleted,
+		taskWatchEventRunFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Service) notifyTaskObserverBestEffort(ctx context.Context, record EventRecord) {

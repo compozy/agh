@@ -147,22 +147,17 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.CoordinatorFailedPayload,
 	) (hookspkg.CoordinatorFailedPayload, error)
-	DispatchTaskBlocked(
-		context.Context,
-		hookspkg.TaskBlockedPayload,
-	) (hookspkg.TaskBlockedPayload, error)
-	DispatchTaskUnblocked(
-		context.Context,
-		hookspkg.TaskUnblockedPayload,
-	) (hookspkg.TaskUnblockedPayload, error)
+	DispatchTaskBlocked(context.Context, hookspkg.TaskBlockedPayload) (hookspkg.TaskBlockedPayload, error)
+	DispatchTaskUnblocked(context.Context, hookspkg.TaskUnblockedPayload) (hookspkg.TaskUnblockedPayload, error)
 	DispatchTaskNeedsAttention(
 		context.Context,
 		hookspkg.TaskNeedsAttentionPayload,
 	) (hookspkg.TaskNeedsAttentionPayload, error)
-	DispatchTaskRecovered(
+	DispatchTaskRecovered(context.Context, hookspkg.TaskRecoveredPayload) (hookspkg.TaskRecoveredPayload, error)
+	DispatchTaskStatusChanged(
 		context.Context,
-		hookspkg.TaskRecoveredPayload,
-	) (hookspkg.TaskRecoveredPayload, error)
+		hookspkg.TaskStatusChangedPayload,
+	) (hookspkg.TaskStatusChangedPayload, error)
 	DispatchTaskRunEnqueued(
 		context.Context,
 		hookspkg.TaskRunEnqueuedPayload,
@@ -1035,52 +1030,28 @@ func (n *hooksNotifier) DispatchTaskBlocked(
 	ctx context.Context,
 	payload hookspkg.TaskBlockedPayload,
 ) (hookspkg.TaskBlockedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookTaskBlocked,
-		payload,
-		hookRuntime.DispatchTaskBlocked,
-	)
+	return dispatchTaskBlockedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchTaskUnblocked(
 	ctx context.Context,
 	payload hookspkg.TaskUnblockedPayload,
 ) (hookspkg.TaskUnblockedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookTaskUnblocked,
-		payload,
-		hookRuntime.DispatchTaskUnblocked,
-	)
+	return dispatchTaskUnblockedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchTaskNeedsAttention(
 	ctx context.Context,
 	payload hookspkg.TaskNeedsAttentionPayload,
 ) (hookspkg.TaskNeedsAttentionPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookTaskNeedsAttention,
-		payload,
-		hookRuntime.DispatchTaskNeedsAttention,
-	)
+	return dispatchTaskNeedsAttentionWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchTaskRecovered(
 	ctx context.Context,
 	payload hookspkg.TaskRecoveredPayload,
 ) (hookspkg.TaskRecoveredPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookTaskRecovered,
-		payload,
-		hookRuntime.DispatchTaskRecovered,
-	)
+	return dispatchTaskRecoveredWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchTaskRunEnqueued(
@@ -1285,13 +1256,7 @@ func (n *hooksNotifier) DispatchLoopNodeTerminal(
 	ctx context.Context,
 	payload hookspkg.LoopNodeTerminalPayload,
 ) (hookspkg.LoopNodeTerminalPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookLoopNodeTerminal,
-		payload,
-		hookRuntime.DispatchLoopNodeTerminal,
-	)
+	return dispatchLoopNodeTerminalWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchLoopTerminal(
@@ -1470,60 +1435,42 @@ func (n *hooksNotifier) DispatchNetworkThreadOpened(
 	ctx context.Context,
 	payload hookspkg.NetworkThreadOpenedPayload,
 ) (hookspkg.NetworkThreadOpenedPayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookNetworkThreadOpened, payload, hookRuntime.DispatchNetworkThreadOpened)
+	return dispatchNetworkThreadOpenedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchNetworkDirectRoomOpened(
 	ctx context.Context,
 	payload hookspkg.NetworkDirectRoomOpenedPayload,
 ) (hookspkg.NetworkDirectRoomOpenedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookNetworkDirectRoomOpened,
-		payload,
-		hookRuntime.DispatchNetworkDirectRoomOpened,
-	)
+	return dispatchNetworkDirectRoomOpenedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchNetworkMessagePersisted(
 	ctx context.Context,
 	payload hookspkg.NetworkMessagePersistedPayload,
 ) (hookspkg.NetworkMessagePersistedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookNetworkMessagePersisted,
-		payload,
-		hookRuntime.DispatchNetworkMessagePersisted,
-	)
+	return dispatchNetworkMessagePersistedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchNetworkWorkOpened(
 	ctx context.Context,
 	payload hookspkg.NetworkWorkOpenedPayload,
 ) (hookspkg.NetworkWorkOpenedPayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookNetworkWorkOpened, payload, hookRuntime.DispatchNetworkWorkOpened)
+	return dispatchNetworkWorkOpenedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchNetworkWorkTransitioned(
 	ctx context.Context,
 	payload hookspkg.NetworkWorkTransitionedPayload,
 ) (hookspkg.NetworkWorkTransitionedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookNetworkWorkTransitioned,
-		payload,
-		hookRuntime.DispatchNetworkWorkTransitioned,
-	)
+	return dispatchNetworkWorkTransitionedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchNetworkWorkClosed(
 	ctx context.Context,
 	payload hookspkg.NetworkWorkClosedPayload,
 ) (hookspkg.NetworkWorkClosedPayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookNetworkWorkClosed, payload, hookRuntime.DispatchNetworkWorkClosed)
+	return dispatchNetworkWorkClosedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) OnAgentEvent(ctx context.Context, sessionID string, event any) {

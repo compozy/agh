@@ -22,6 +22,7 @@ const (
 	loopActionHeartbeatMaxInterval  = 5 * time.Minute
 	loopActionRuntimeReasonEnqueued = "task_run_enqueued"
 	loopActionRuntimeReasonRecover  = "recovery"
+	loopActionRuntimeReasonKey      = "reason"
 )
 
 type loopActionRuntime struct {
@@ -354,8 +355,8 @@ func (r *loopActionRuntime) failClaimedRun(
 		return cause
 	}
 	metadata, err := json.Marshal(map[string]string{
-		"reason_code": "loop_action_failed",
-		"reason":      strings.TrimSpace(reason),
+		"reason_code":              "loop_action_failed",
+		loopActionRuntimeReasonKey: strings.TrimSpace(reason),
 	})
 	if err != nil {
 		return errors.Join(cause, err)
@@ -456,7 +457,7 @@ func (r *loopActionRuntime) logError(
 		return
 	}
 	args := []any{
-		"task_id", strings.TrimSpace(payload.TaskID),
+		coordinatorRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 	}
 	if err != nil {

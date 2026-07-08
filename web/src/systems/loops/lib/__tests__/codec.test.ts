@@ -33,7 +33,7 @@ function richDefinition(): LoopDefinition {
           class: "source",
           kind: "file-import",
           pattern: "x/*.md",
-          parse: "md_tasks",
+          parse: "json",
           provenance: "file",
         },
         {
@@ -107,6 +107,49 @@ describe("loop codec", () => {
       | Record<string, unknown>
       | undefined;
     expect(executeParams?.agent).toBe("impl");
+  });
+
+  it("Should round-trip a watch-events node's events (kind + CEL filter) verbatim", () => {
+    const def: LoopDefinition = {
+      apiVersion: "agh.loop/v1",
+      kind: "Loop",
+      meta: { name: "watch", version: 1, catalog: {} },
+      contract: {
+        goal: "react",
+        definition_of_done: "handled",
+        iteration_cap: 0,
+        budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+        no_progress: { window: 2 },
+      },
+      graph: {
+        nodes: [
+          {
+            id: "on_events",
+            class: "source",
+            kind: "watch-events",
+            events: [
+              { kind: "task.status_changed", filter: "event.payload.to_status == 'completed'" },
+              { kind: "loop.terminal" },
+            ],
+          },
+          {
+            id: "handle",
+            class: "action",
+            kind: "run-agent",
+            params: { agent: "a", prompt: "go" },
+          },
+        ],
+        edges: [{ from: "on_events", to: "handle" }],
+      } as unknown as LoopDefinition["graph"],
+    };
+    const { nodes, edges } = definitionToGraph(def);
+    const watch = nodes.find(node => node.id === "on_events")!;
+    expect(watch.data.kind).toBe("watch-events");
+    expect((watch.data.raw.events as unknown[])[0]).toEqual({
+      kind: "task.status_changed",
+      filter: "event.payload.to_status == 'completed'",
+    });
+    expect(graphToDefinition(def, nodes, edges)).toEqual(def);
   });
 
   it("Should synthesize a raw edge for a connection drawn with no original JSON", () => {

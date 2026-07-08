@@ -69,6 +69,24 @@ describe("loop node schema", () => {
     expect(schema).toMatchObject({ json: true });
   });
 
+  it("Should render a file-import parse select over exactly json and text", () => {
+    const raw: RawLoopNode = { id: "load", class: "source", kind: "file-import", pattern: "" };
+    const parse = buildNodeFields(raw).find(f => "key" in f && f.key === "parse");
+    // The Markdown-task parse value left the core: file-import parses only the two
+    // structured formats now (ADR-002 — the extension owns Compozy task import).
+    expect(parse).toMatchObject({ type: "select", path: ["parse"], options: ["json", "text"] });
+  });
+
+  it("Should render a watch-events source with a subscription list editor", () => {
+    const raw: RawLoopNode = { id: "on_events", class: "source", kind: "watch-events", events: [] };
+    const fields = buildNodeFields(raw);
+    const events = fields.find(f => "key" in f && f.key === "events");
+    // The subscription list is a bespoke editor (kind select fed by the supported matrix
+    // + CEL filter per entry), not a raw JSON textarea.
+    expect(events).toMatchObject({ type: "events", path: ["events"] });
+    expect(keys(fields)).toContain("produces");
+  });
+
   it("Should render an input node's input_ref as an editable select over the declared inputs", () => {
     const raw: RawLoopNode = { id: "slug", class: "source", kind: "input", input_ref: "" };
     const fields = buildNodeFields(raw, {

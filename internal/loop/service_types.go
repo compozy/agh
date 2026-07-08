@@ -88,6 +88,8 @@ const (
 	TransitionCauseNoProgress TransitionCause = "no_progress"
 	// TransitionCauseWatchPoll records a watch-source poll yielding dormancy.
 	TransitionCauseWatchPoll TransitionCause = "watch_poll"
+	// TransitionCauseWatchEvents records a watch-events source yielding dormancy.
+	TransitionCauseWatchEvents TransitionCause = "watch_events"
 )
 
 // StopReason captures the operator-visible stop reason.

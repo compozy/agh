@@ -19,7 +19,7 @@ func appendLoopNodeRunningEventWithExecutor(
 	run taskpkg.Run,
 	at time.Time,
 ) error {
-	if !taskRunIsLoopWorker(run) {
+	if !run.IsLoopWorker() {
 		return nil
 	}
 	loopRun, metadata, ok, err := loopRunAndNodeMetadataForTaskRun(ctx, exec, run)
@@ -55,7 +55,7 @@ func appendLoopNodeTerminalEventsWithExecutor(
 	tokensUsed int64,
 	at time.Time,
 ) error {
-	if !taskRunIsLoopWorker(run) {
+	if !run.IsLoopWorker() {
 		return nil
 	}
 	loopRun, metadata, ok, err := loopRunAndNodeMetadataForTaskRun(ctx, exec, run)
@@ -102,10 +102,6 @@ func appendLoopNodeTerminalEventsWithExecutor(
 		true,
 		at,
 	)
-}
-
-func taskRunIsLoopWorker(run taskpkg.Run) bool {
-	return strings.TrimSpace(run.LoopRunID) != "" && run.RunKind.Normalize() != taskpkg.RunKindCoordinator
 }
 
 func loopRunAndNodeMetadataForTaskRun(

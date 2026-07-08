@@ -28,6 +28,10 @@ export type LoopRunRecord = LoopRunDetail["run"];
 export type LoopRunGeneration = NonNullable<LoopRunDetail["generations"]>[number];
 export type LoopRunGenerationOutput = LoopRunGeneration["outputs"][number];
 
+// Parked watch-events node read-model (present only while a loop is dormant on events).
+export type LoopWatchEventsState = NonNullable<LoopRunDetail["watch_events"]>;
+export type LoopWatchEventSubscription = LoopWatchEventsState["subscriptions"][number];
+
 // SSE -----------------------------------------------------------------------
 
 export type LoopRunEventFrame = OperationResponse<"streamLoopRunEvents", 200>;

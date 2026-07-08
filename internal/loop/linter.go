@@ -55,6 +55,7 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 type conditionCompilerKey struct {
 	allowFanout  bool
 	allowTrigger bool
+	allowEvent   bool
 }
 
 type lintContext struct {
@@ -145,6 +146,7 @@ func (c *lintContext) lintNodeIDs() {
 
 func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
+		c.lintWatchEventsEnvelopeShape(node)
 		switch node.Class {
 		case dsl.NodeClassAction:
 			c.lintActionNode(node)
@@ -324,12 +326,11 @@ func (c *lintContext) lintSourceNode(node dsl.Node) {
 		if strings.TrimSpace(node.Pattern) == "" {
 			c.add(node.ID, refs.CodeUnresolvablePath, "file-import pattern is required")
 		}
-		if node.Parse != dsl.FileParseMDTasks && node.Parse != dsl.FileParseJSON &&
-			node.Parse != dsl.FileParseText {
+		if node.Parse != dsl.FileParseJSON && node.Parse != dsl.FileParseText {
 			c.add(
 				node.ID,
-				refs.CodeUnresolvablePath,
-				"file-import parse must be md_tasks, json, or text",
+				CodeFileImportParseRequired,
+				fileImportParseRequiredMessage,
 			)
 		}
 	case dsl.SourceWatchSource:
@@ -337,6 +338,9 @@ func (c *lintContext) lintSourceNode(node dsl.Node) {
 		if !ok || strings.TrimSpace(kind) == "" {
 			c.add(node.ID, CodeWatchKindRequired, "watch-source must declare watch.kind")
 		}
+		return
+	case dsl.SourceWatchEvents:
+		c.lintWatchEventsNode(node)
 		return
 	}
 }
@@ -397,6 +401,12 @@ func (c *lintContext) detectUnreachable() {
 
 func (c *lintContext) sourceRoots() []dsl.NodeID {
 	roots := []dsl.NodeID{}
+	if len(c.def.Graph.Edges) == 0 {
+		for _, node := range c.def.Graph.Nodes {
+			roots = append(roots, node.ID)
+		}
+		return roots
+	}
 	for _, node := range c.def.Graph.Nodes {
 		if node.Class == dsl.NodeClassSource {
 			roots = append(roots, node.ID)

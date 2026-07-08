@@ -93,6 +93,7 @@ func TestEnumsShouldClassifyLoopKinds(t *testing.T) {
 			dsl.SourceInput,
 			dsl.SourceFileImport,
 			dsl.SourceWatchSource,
+			dsl.SourceWatchEvents,
 		} {
 			if !dsl.IsKnownSourceKind(string(kind)) {
 				t.Fatalf("IsKnownSourceKind(%q) = false, want true", kind)

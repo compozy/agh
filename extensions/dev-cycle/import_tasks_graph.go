@@ -1,4 +1,4 @@
-package loop
+package devcycle
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/frontmatter"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,7 +24,7 @@ func orderCompozyTasks(
 	for _, id := range orderedIDs {
 		taskFile, ok := files[id]
 		if !ok {
-			return nil, fmt.Errorf("%w: md_tasks node %q has no loaded file", ErrValidation, id)
+			return nil, fmt.Errorf("%w: md_tasks node %q has no loaded file", looppkg.ErrValidation, id)
 		}
 		ordered = append(ordered, taskFile)
 	}
@@ -84,7 +85,7 @@ func compozyTaskTopologicalIDs(
 		sortCompozyTaskIDs(remaining, numbers)
 		return nil, fmt.Errorf(
 			"%w: md_tasks graph contains a cycle involving: %s",
-			ErrValidation,
+			looppkg.ErrValidation,
 			strings.Join(remaining, ", "),
 		)
 	}
@@ -147,7 +148,7 @@ func pathBaseSlash(path string) string {
 
 func compozyTaskStatusCompleted(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "completed", string(StatusDone), "finished":
+	case "completed", "done", "finished":
 		return true
 	default:
 		return false

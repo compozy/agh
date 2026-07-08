@@ -14,6 +14,7 @@ import type {
 } from "../../lib/loop-node-schema";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { LoopEditorCriteria } from "./loop-editor-criteria";
+import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
 import { LoopReferenceInput } from "./loop-reference-input";
 
 interface LoopEditorFieldProps {
@@ -293,6 +294,22 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
           disabled={disabled}
           onChange={criteria => onChange(field.path, criteria)}
         />
+      </div>
+    );
+  }
+  if (field.type === "events") {
+    return (
+      <div>
+        <span className="mb-1.5 block text-[11.5px] font-medium text-fg-strong">{field.label}</span>
+        <LoopEditorWatchEvents
+          value={getAtPath(raw, field.path)}
+          suggestions={props.suggestions}
+          disabled={disabled}
+          onChange={events => onChange(field.path, events)}
+        />
+        {field.hint ? (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-subtle">{field.hint}</p>
+        ) : null}
       </div>
     );
   }

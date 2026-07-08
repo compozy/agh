@@ -129,14 +129,14 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 		RunStatus:  strings.TrimSpace(payload.RunStatus),
 		Error:      strings.TrimSpace(payload.Error),
 	}
-	if _, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, loopPayload); err != nil {
-		errs = append(errs, fmt.Errorf("dispatch loop.node.terminal: %w", err))
-	}
 	if err := o.store.AdvanceLoopRunProgress(ctx, loopRunID, payload.Timestamp); err != nil {
 		errs = append(errs, err)
 	}
 	if err := o.enqueueNodeTerminalWake(ctx, payload); err != nil {
 		errs = append(errs, err)
+	}
+	if _, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, loopPayload); err != nil {
+		errs = append(errs, fmt.Errorf("dispatch loop.node.terminal: %w", err))
 	}
 	return errors.Join(errs...)
 }

@@ -124,6 +124,7 @@ const (
 	HookTaskUnblocked      HookEvent = "task.unblocked"
 	HookTaskNeedsAttention HookEvent = "task.needs_attention"
 	HookTaskRecovered      HookEvent = "task.recovered"
+	HookTaskStatusChanged  HookEvent = "task.status_changed"
 
 	HookTaskRunEnqueued       HookEvent = "task.run.enqueued"
 	HookTaskRunPreClaim       HookEvent = "task.run.pre_claim"
@@ -296,22 +297,11 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyCoordinator,
 		syncEligible: true,
 	},
-	HookTaskBlocked: {
-		family:       HookEventFamilyTask,
-		syncEligible: true,
-	},
-	HookTaskUnblocked: {
-		family:       HookEventFamilyTask,
-		syncEligible: true,
-	},
-	HookTaskNeedsAttention: {
-		family:       HookEventFamilyTask,
-		syncEligible: true,
-	},
-	HookTaskRecovered: {
-		family:       HookEventFamilyTask,
-		syncEligible: true,
-	},
+	HookTaskBlocked:        {family: HookEventFamilyTask, syncEligible: true},
+	HookTaskUnblocked:      {family: HookEventFamilyTask, syncEligible: true},
+	HookTaskNeedsAttention: {family: HookEventFamilyTask, syncEligible: true},
+	HookTaskRecovered:      {family: HookEventFamilyTask, syncEligible: true},
+	HookTaskStatusChanged:  {family: HookEventFamilyTask, syncEligible: false},
 	HookTaskRunEnqueued: {
 		family:       HookEventFamilyTaskRun,
 		syncEligible: true,
@@ -485,6 +475,7 @@ var allHookEvents = []HookEvent{
 	HookTaskUnblocked,
 	HookTaskNeedsAttention,
 	HookTaskRecovered,
+	HookTaskStatusChanged,
 	HookTaskRunEnqueued,
 	HookTaskRunPreClaim,
 	HookTaskRunPostClaim,

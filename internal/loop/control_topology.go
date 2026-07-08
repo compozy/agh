@@ -110,7 +110,11 @@ func isCoordinatorOwnedControl(node dsl.Node) bool {
 }
 
 func isCoordinatorOwnedNode(node dsl.Node) bool {
-	return isCoordinatorOwnedControl(node) || isWatchSourceNode(node) || isFileImportSourceNode(node)
+	return isCoordinatorOwnedControl(node) ||
+		isInputSourceNode(node) ||
+		isWatchSourceNode(node) ||
+		isWatchEventsNode(node) ||
+		isFileImportSourceNode(node)
 }
 
 func isCoordinatorOwnedNodeWithGates(node dsl.Node, gatesEnabled bool) bool {

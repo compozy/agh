@@ -44,6 +44,20 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 	if !containsEventType(events, taskEventRunEnqueued) || !containsEventType(events, taskEventRunClaimed) {
 		t.Fatalf("event types = %#v, want enqueue and claim audit events", sortedEventTypes(events))
 	}
+
+	statusPayload := hookspkg.TaskStatusChangedPayload{
+		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskStatusChanged},
+		TaskContext: hookspkg.TaskContext{TaskID: taskRecord.ID},
+		FromStatus:  string(TaskStatusReady),
+		ToStatus:    string(TaskStatusInProgress),
+	}
+	gotStatus, err := noopTaskRunHooks{}.DispatchTaskStatusChanged(context.Background(), statusPayload)
+	if err != nil {
+		t.Fatalf("DispatchTaskStatusChanged() error = %v", err)
+	}
+	if gotStatus != statusPayload {
+		t.Fatalf("DispatchTaskStatusChanged() = %#v, want %#v", gotStatus, statusPayload)
+	}
 }
 
 func TestTaskRunPreClaimHookDenialPreservesQueuedRun(t *testing.T) {
@@ -572,16 +586,89 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEvents() error = %v", err)
 	}
+	watchRows := make(map[string]bool)
 	for _, event := range events {
 		switch event.EventType {
-		case string(hookspkg.HookTaskBlocked), string(hookspkg.HookTaskUnblocked),
-			string(hookspkg.HookTaskNeedsAttention), string(hookspkg.HookTaskRecovered):
+		case string(hookspkg.HookTaskBlocked), string(hookspkg.HookTaskUnblocked):
+			watchRows[event.EventType] = true
+		case string(hookspkg.HookTaskNeedsAttention), string(hookspkg.HookTaskRecovered):
 			t.Fatalf(
-				"event table contains hook event %q; task hooks must dispatch at service call sites",
+				"event table contains hook event %q without the owning state mutation",
 				event.EventType,
 			)
 		}
 	}
+	for _, eventType := range []string{string(hookspkg.HookTaskBlocked), string(hookspkg.HookTaskUnblocked)} {
+		if !watchRows[eventType] {
+			t.Fatalf("event table missing %q durable row", eventType)
+		}
+	}
+}
+
+func TestTaskHookContextCarriesParentTaskID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should populate parent task ID through blocked payloads", func(t *testing.T) {
+		t.Parallel()
+
+		blockedByTaskID := make(map[string]hookspkg.TaskBlockedPayload)
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			blocked: func(
+				_ context.Context,
+				payload hookspkg.TaskBlockedPayload,
+			) (hookspkg.TaskBlockedPayload, error) {
+				blockedByTaskID[payload.TaskID] = payload
+				return payload, nil
+			},
+		}))
+		actor := validActorContext()
+		parent, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Root task",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		child, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-child",
+			Title:       "Child task",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateChildTask() error = %v", err)
+		}
+
+		if _, err := manager.BlockTask(context.Background(), BlockRequest{
+			TaskID: parent.ID,
+			Kind:   BlockKindNeedsInput,
+			Reason: "root needs input",
+		}, actor); err != nil {
+			t.Fatalf("BlockTask(parent) error = %v", err)
+		}
+		if _, err := manager.BlockTask(context.Background(), BlockRequest{
+			TaskID: child.ID,
+			Kind:   BlockKindNeedsInput,
+			Reason: "child needs input",
+		}, actor); err != nil {
+			t.Fatalf("BlockTask(child) error = %v", err)
+		}
+
+		rootPayload := blockedByTaskID[parent.ID]
+		if rootPayload.TaskID == "" {
+			t.Fatal("root blocked payload missing")
+		}
+		if rootPayload.ParentTaskID != "" {
+			t.Fatalf("root ParentTaskID = %q, want empty", rootPayload.ParentTaskID)
+		}
+		childPayload := blockedByTaskID[child.ID]
+		if childPayload.TaskID == "" {
+			t.Fatal("child blocked payload missing")
+		}
+		if got, want := childPayload.ParentTaskID, parent.ID; got != want {
+			t.Fatalf("child ParentTaskID = %q, want %q", got, want)
+		}
+	})
 }
 
 func assertContextStillActive(ctx context.Context, t *testing.T, label string) {
@@ -655,6 +742,7 @@ type recordingTaskRunHooks struct {
 		hookspkg.TaskNeedsAttentionPayload,
 	) (hookspkg.TaskNeedsAttentionPayload, error)
 	taskRecovered func(context.Context, hookspkg.TaskRecoveredPayload) (hookspkg.TaskRecoveredPayload, error)
+	statusChanged func(context.Context, hookspkg.TaskStatusChangedPayload) (hookspkg.TaskStatusChangedPayload, error)
 	enqueued      func(context.Context, hookspkg.TaskRunEnqueuedPayload) (hookspkg.TaskRunEnqueuedPayload, error)
 	preClaim      func(context.Context, hookspkg.TaskRunPreClaimPayload) (hookspkg.TaskRunPreClaimPayload, error)
 	postClaim     func(context.Context, hookspkg.TaskRunPostClaimPayload) (hookspkg.TaskRunPostClaimPayload, error)
@@ -711,6 +799,16 @@ func (h recordingTaskRunHooks) DispatchTaskRecovered(
 ) (hookspkg.TaskRecoveredPayload, error) {
 	if h.taskRecovered != nil {
 		return h.taskRecovered(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (h recordingTaskRunHooks) DispatchTaskStatusChanged(
+	ctx context.Context,
+	payload hookspkg.TaskStatusChangedPayload,
+) (hookspkg.TaskStatusChangedPayload, error) {
+	if h.statusChanged != nil {
+		return h.statusChanged(ctx, payload)
 	}
 	return payload, nil
 }

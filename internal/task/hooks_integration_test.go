@@ -95,6 +95,13 @@ func (h integrationTaskRunHooks) DispatchTaskRecovered(
 	return payload, nil
 }
 
+func (h integrationTaskRunHooks) DispatchTaskStatusChanged(
+	_ context.Context,
+	payload hookspkg.TaskStatusChangedPayload,
+) (hookspkg.TaskStatusChangedPayload, error) {
+	return payload, nil
+}
+
 func (h integrationTaskRunHooks) DispatchTaskRunEnqueued(
 	ctx context.Context,
 	payload hookspkg.TaskRunEnqueuedPayload,

@@ -304,6 +304,11 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	now time.Time,
 	actor taskpkg.ActorContext,
 ) (int, error) {
+	if gapWakes, ok := s.store.(loopWatchEventsGapWakeStore); ok {
+		if _, err := gapWakes.EnqueueWatchEventsGapWakes(ctx, actor.Origin, now); err != nil {
+			return 0, err
+		}
+	}
 	scopes, err := s.loopCoordinatorClaimScopes(ctx)
 	if err != nil {
 		return 0, err

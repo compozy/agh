@@ -1,0 +1,425 @@
+package globaldb
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+)
+
+func TestGlobalDBUpdateTaskStatusShouldAppendStatusChangedEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-status-changed")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	updated := taskRecord
+	updated.Status = taskpkg.TaskStatusReady
+	updated.UpdatedAt = taskRecord.UpdatedAt.Add(time.Minute)
+	if err := globalDB.UpdateTask(ctx, updated, operatorActorContextForTest("user:alice")); err != nil {
+		t.Fatalf("UpdateTask(status) error = %v", err)
+	}
+
+	event := requireTaskEventRecordForTest(t, globalDB, taskRecord.ID, string(hookspkg.HookTaskStatusChanged))
+	var payload struct {
+		FromStatus string `json:"from_status"`
+		ToStatus   string `json:"to_status"`
+	}
+	if err := json.Unmarshal(event.Event.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal(status_changed payload) error = %v", err)
+	}
+	if got, want := payload.FromStatus, string(taskpkg.TaskStatusPending); got != want {
+		t.Fatalf("from_status = %q, want %q", got, want)
+	}
+	if got, want := payload.ToStatus, string(taskpkg.TaskStatusReady); got != want {
+		t.Fatalf("to_status = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBCompleteRunLeaseShouldAppendRunCompletedWatchEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-run-watch-completed")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	rawToken := "claim-token-watch-completed"
+	leased := storeLeasedTaskRunForBlockTest(
+		ctx,
+		t,
+		globalDB,
+		taskRecord.ID,
+		"run-watch-completed",
+		"sess-watch-completed",
+		rawToken,
+		time.Date(2026, 4, 14, 14, 0, 0, 0, time.UTC),
+	)
+
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor:      coordinatorActorContextForTest(),
+		RunID:      leased.ID,
+		ClaimToken: rawToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+		Now:        leased.LeaseUntil.Add(-time.Minute),
+	}); err != nil {
+		t.Fatalf("CompleteRunLease() error = %v", err)
+	}
+
+	event := requireTaskEventRecordForTest(t, globalDB, taskRecord.ID, string(hookspkg.HookTaskRunCompleted))
+	if got, want := event.Event.RunID, leased.ID; got != want {
+		t.Fatalf("run_id = %q, want %q", got, want)
+	}
+}
+
+func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should roll back status update when status_changed append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-status-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskStatusChanged))
+
+		updated := taskRecord
+		updated.Status = taskpkg.TaskStatusReady
+		updated.UpdatedAt = taskRecord.UpdatedAt.Add(time.Minute)
+		err := globalDB.UpdateTask(ctx, updated, operatorActorContextForTest("user:alice"))
+		assertForcedTaskEventInsertError(t, err, "UpdateTask(status)")
+		stored, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskStatusPending; got != want {
+			t.Fatalf("stored.Status = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should roll back block creation when task.blocked append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-block-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskBlocked))
+
+		_, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor: coordinatorActorContextForTest(),
+			Block: taskBlockRecordForTest(
+				"block-rollback",
+				taskRecord.ID,
+				taskpkg.BlockKindNeedsInput,
+				taskRecord.UpdatedAt,
+			),
+			RecurrenceLimit: 2,
+		})
+		assertForcedTaskEventInsertError(t, err, "CreateTaskBlock()")
+		blocks, err := globalDB.ListTaskBlocks(ctx, taskRecord.ID, true)
+		if err != nil {
+			t.Fatalf("ListTaskBlocks() error = %v", err)
+		}
+		if len(blocks) != 0 {
+			t.Fatalf("blocks = %#v, want rollback to remove block row", blocks)
+		}
+	})
+
+	t.Run("Should roll back block clear when task.unblocked append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-unblocked-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		created, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor: coordinatorActorContextForTest(),
+			Block: taskBlockRecordForTest(
+				"block-unblocked-rollback",
+				taskRecord.ID,
+				taskpkg.BlockKindTransient,
+				taskRecord.UpdatedAt,
+			),
+			RecurrenceLimit: 2,
+		})
+		if err != nil {
+			t.Fatalf("CreateTaskBlock(setup) error = %v", err)
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskUnblocked))
+
+		err = clearTaskBlockForRollbackTest(
+			ctx,
+			globalDB,
+			taskRecord.ID,
+			created.Block.ID,
+			taskRecord.UpdatedAt.Add(time.Minute),
+		)
+		assertForcedTaskEventInsertError(t, err, "ClearTaskBlock()")
+		blocks, err := globalDB.ListTaskBlocks(ctx, taskRecord.ID, false)
+		if err != nil {
+			t.Fatalf("ListTaskBlocks(open) error = %v", err)
+		}
+		assertTaskBlockIDs(t, blocks, []string{created.Block.ID})
+	})
+
+	t.Run("Should roll back breaker escalation when task.needs_attention append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-attention-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		first, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor: coordinatorActorContextForTest(),
+			Block: taskBlockRecordForTest(
+				"block-attention-first",
+				taskRecord.ID,
+				taskpkg.BlockKindNeedsInput,
+				taskRecord.UpdatedAt,
+			),
+			RecurrenceLimit: 1,
+		})
+		if err != nil {
+			t.Fatalf("CreateTaskBlock(first) error = %v", err)
+		}
+		if err := clearTaskBlockForRollbackTest(
+			ctx,
+			globalDB,
+			taskRecord.ID,
+			first.Block.ID,
+			taskRecord.UpdatedAt.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("ClearTaskBlock(first) error = %v", err)
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskNeedsAttention))
+
+		_, err = globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor: coordinatorActorContextForTest(),
+			Block: taskBlockRecordForTest(
+				"block-attention-second",
+				taskRecord.ID,
+				taskpkg.BlockKindNeedsInput,
+				taskRecord.UpdatedAt.Add(2*time.Minute),
+			),
+			RecurrenceLimit: 1,
+		})
+		assertForcedTaskEventInsertError(t, err, "CreateTaskBlock(escalating)")
+		stored, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if stored.NeedsAttention != nil {
+			t.Fatalf("NeedsAttention = %#v, want rollback to keep task clear", stored.NeedsAttention)
+		}
+		blocks, err := globalDB.ListTaskBlocks(ctx, taskRecord.ID, true)
+		if err != nil {
+			t.Fatalf("ListTaskBlocks(all) error = %v", err)
+		}
+		assertTaskBlockIDs(t, blocks, []string{first.Block.ID})
+	})
+
+	t.Run("Should roll back attention clear when task.recovered append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-recovered-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		markedAt := taskRecord.UpdatedAt.Add(time.Minute)
+		if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			Origin:   coordinatorActorContextForTest().Origin,
+			TaskID:   taskRecord.ID,
+			Reason:   "operator input required",
+			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			MarkedAt: markedAt,
+		}); err != nil {
+			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
+		}
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskRecovered))
+
+		_, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			Origin:    operatorActorContextForTest("operator").Origin,
+			TaskID:    taskRecord.ID,
+			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+			ClearedAt: markedAt.Add(time.Minute),
+		})
+		assertForcedTaskEventInsertError(t, err, "ClearTaskNeedsAttention()")
+		stored, err := globalDB.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask() error = %v", err)
+		}
+		if stored.NeedsAttention == nil {
+			t.Fatal("NeedsAttention = nil, want rollback to keep escalation metadata")
+		}
+	})
+
+	t.Run("Should roll back lease completion when task.run.completed append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-completed-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		rawToken := "claim-token-completed-rollback"
+		leased := storeLeasedTaskRunForBlockTest(
+			ctx,
+			t,
+			globalDB,
+			taskRecord.ID,
+			"run-completed-rollback",
+			"sess-completed-rollback",
+			rawToken,
+			time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC),
+		)
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskRunCompleted))
+
+		_, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:      coordinatorActorContextForTest(),
+			RunID:      leased.ID,
+			ClaimToken: rawToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        leased.LeaseUntil.Add(-time.Minute),
+		})
+		assertForcedTaskEventInsertError(t, err, "CompleteRunLease()")
+		stored, err := globalDB.GetTaskRun(ctx, leased.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored.Status = %q, want rollback to %q", got, want)
+		}
+		if stored.Result != nil || !stored.EndedAt.IsZero() {
+			t.Fatalf("stored terminal fields = result %s ended_at %v, want rollback", stored.Result, stored.EndedAt)
+		}
+	})
+
+	t.Run("Should roll back lease failure when task.run.failed append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-run-failed-rollback")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		rawToken := "claim-token-failed-rollback"
+		leased := storeLeasedTaskRunForBlockTest(
+			ctx,
+			t,
+			globalDB,
+			taskRecord.ID,
+			"run-failed-rollback",
+			"sess-failed-rollback",
+			rawToken,
+			time.Date(2026, 4, 14, 16, 0, 0, 0, time.UTC),
+		)
+		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskRunFailed))
+
+		_, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+			Actor:      coordinatorActorContextForTest(),
+			RunID:      leased.ID,
+			ClaimToken: rawToken,
+			Failure:    taskpkg.RunFailure{Error: "worker failed"},
+			Now:        leased.LeaseUntil.Add(-time.Minute),
+		})
+		assertForcedTaskEventInsertError(t, err, "FailRunLease()")
+		stored, err := globalDB.GetTaskRun(ctx, leased.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("stored.Status = %q, want rollback to %q", got, want)
+		}
+		if stored.Error != "" || !stored.EndedAt.IsZero() {
+			t.Fatalf("stored terminal fields = error %q ended_at %v, want rollback", stored.Error, stored.EndedAt)
+		}
+	})
+}
+
+func assertForcedTaskEventInsertError(t *testing.T, err error, operation string) {
+	t.Helper()
+
+	if err == nil || !strings.Contains(err.Error(), "forced task event insert failure") {
+		t.Fatalf("%s error = %v, want forced task event insert failure", operation, err)
+	}
+}
+
+func clearTaskBlockForRollbackTest(
+	ctx context.Context,
+	globalDB *GlobalDB,
+	taskID string,
+	blockID string,
+	clearedAt time.Time,
+) error {
+	_, err := globalDB.ClearTaskBlock(ctx, taskpkg.ClearTaskBlockMutation{
+		TaskID:    taskID,
+		BlockID:   blockID,
+		ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:resolver"},
+		ClearedAt: clearedAt,
+		ClearNote: "resolved by operator",
+		Actor:     operatorActorContextForTest("user:resolver"),
+	})
+	return err
+}
+
+func installTaskEventInsertFailureTriggerForType(t *testing.T, globalDB *GlobalDB, eventType string) {
+	t.Helper()
+
+	_, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`CREATE TRIGGER fail_task_event_insert
+		 BEFORE INSERT ON task_events
+		 WHEN NEW.event_type = '`+strings.ReplaceAll(eventType, "'", "''")+`'
+		 BEGIN
+		 	SELECT RAISE(ABORT, 'forced task event insert failure');
+		 END;`,
+	)
+	if err != nil {
+		t.Fatalf("install task_event insert failure trigger error = %v", err)
+	}
+}
+
+func requireTaskEventRecordForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	taskID string,
+	eventType string,
+) taskpkg.EventRecord {
+	t.Helper()
+
+	records, err := globalDB.ListTaskEventRecords(testutil.Context(t), taskpkg.EventRecordQuery{TaskID: taskID})
+	if err != nil {
+		t.Fatalf("ListTaskEventRecords() error = %v", err)
+	}
+	for _, record := range records {
+		if record.Event.EventType == eventType {
+			return record
+		}
+	}
+	t.Fatalf("task event %q not found in %#v", eventType, records)
+	return taskpkg.EventRecord{}
+}

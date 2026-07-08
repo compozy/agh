@@ -144,18 +144,21 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 }
 
 // UpdateTask replaces the persisted canonical task record.
-func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
+func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task, actor taskpkg.ActorContext) error {
 	if err := g.checkReady(ctx, "update task"); err != nil {
 		return err
 	}
 
-	return g.updateTaskWithExecutor(ctx, g.db, record)
+	return g.withTaskImmediateTransaction(ctx, "update task", func(exec taskSQLExecutor) error {
+		return g.updateTaskWithExecutor(ctx, exec, record, actor)
+	})
 }
 
 func (g *GlobalDB) updateTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	record taskpkg.Task,
+	actor taskpkg.ActorContext,
 ) error {
 	normalized, err := g.normalizeTaskForUpdate(record)
 	if err != nil {
@@ -171,12 +174,17 @@ func (g *GlobalDB) updateTaskWithExecutor(
 	}
 
 	normalized.CreatedAt = current.CreatedAt
+	statusChanged, err := taskStatusChangedForUpdate(current.Status, normalized.Status, actor)
+	if err != nil {
+		return err
+	}
+
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE tasks
 		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
 		     network_channel = ?, title = ?, description = ?, priority = ?,
-		     max_attempts = ?, auto_enqueue_on_ready = ?, status = ?, approval_policy = ?, approval_state = ?,
+		     max_attempts = ?, auto_enqueue_on_ready = ?, approval_policy = ?, approval_state = ?,
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
 		     created_at = ?, updated_at = ?, closed_at = ?,
@@ -195,7 +203,6 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		string(normalized.Priority),
 		normalized.MaxAttempts,
 		taskBoolToInt(normalized.AutoEnqueueOnReady),
-		string(normalized.Status),
 		string(normalized.ApprovalPolicy),
 		string(normalized.ApprovalState),
 		taskOwnerKindValue(normalized.Owner),
@@ -223,7 +230,39 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		return fmt.Errorf("store: update task %q: %w", normalized.ID, err)
 	}
 
-	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, normalized.ID, "task")
+	if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, normalized.ID, "task"); err != nil {
+		return err
+	}
+	return setTaskStatusIfChangedWithExecutor(ctx, exec, current, normalized, actor, statusChanged)
+}
+
+func setTaskStatusIfChangedWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current taskpkg.Task,
+	updated taskpkg.Task,
+	actor taskpkg.ActorContext,
+	changed bool,
+) error {
+	if !changed {
+		return nil
+	}
+	return setTaskStatusWithExecutor(ctx, exec, updated.ID, current.Status, updated.Status, actor)
+}
+
+func taskStatusChangedForUpdate(
+	current taskpkg.Status,
+	updated taskpkg.Status,
+	actor taskpkg.ActorContext,
+) (bool, error) {
+	changed := current.Normalize() != updated.Normalize()
+	if !changed {
+		return false, nil
+	}
+	if err := actor.Validate(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // GetTask returns one persisted task by primary key.
@@ -614,8 +653,8 @@ func (s *deleteTaskTxStore) GetTask(ctx context.Context, id string) (taskpkg.Tas
 	return s.global.getTaskWithExecutor(ctx, s.exec, id)
 }
 
-func (s *deleteTaskTxStore) UpdateTask(ctx context.Context, record taskpkg.Task) error {
-	return s.global.updateTaskWithExecutor(ctx, s.exec, record)
+func (s *deleteTaskTxStore) UpdateTask(ctx context.Context, record taskpkg.Task, actor taskpkg.ActorContext) error {
+	return s.global.updateTaskWithExecutor(ctx, s.exec, record, actor)
 }
 
 func (s *deleteTaskTxStore) DeleteTask(ctx context.Context, id string) error {

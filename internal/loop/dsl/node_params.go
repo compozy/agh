@@ -70,8 +70,6 @@ type HarvestSpec struct {
 type FileParseKind string
 
 const (
-	// FileParseMDTasks imports Compozy task files.
-	FileParseMDTasks FileParseKind = "md_tasks"
 	// FileParseJSON imports JSON files.
 	FileParseJSON FileParseKind = "json"
 	// FileParseText imports text files.

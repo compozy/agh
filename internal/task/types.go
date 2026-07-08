@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -386,12 +387,14 @@ type ClearTaskBlockMutation struct {
 	ClearedBy ActorIdentity `json:"cleared_by"`
 	ClearedAt time.Time     `json:"cleared_at"`
 	ClearNote string        `json:"clear_note,omitempty"`
+	Actor     ActorContext
 }
 
 // CreateTaskBlockMutation inserts one task block and evaluates breaker accounting atomically.
 type CreateTaskBlockMutation struct {
 	Block           TaskBlock `json:"block"`
 	RecurrenceLimit int       `json:"recurrence_limit"`
+	Actor           ActorContext
 }
 
 // BlockMutationResult is the durable result of a task-block creation mutation.
@@ -422,6 +425,7 @@ type NeedsAttentionMutation struct {
 	Reason   string        `json:"reason"`
 	Actor    ActorIdentity `json:"actor"`
 	MarkedAt time.Time     `json:"marked_at"`
+	Origin   Origin        `json:"origin"`
 }
 
 // NeedsAttentionClearMutation clears task-level escalation metadata.
@@ -429,6 +433,7 @@ type NeedsAttentionClearMutation struct {
 	TaskID    string        `json:"task_id"`
 	ClearedBy ActorIdentity `json:"cleared_by"`
 	ClearedAt time.Time     `json:"cleared_at"`
+	Origin    Origin        `json:"origin"`
 }
 
 // WakeCreatorMutation captures the per-task creator-wake opt-in flag.
@@ -445,6 +450,7 @@ type BlockTaskAndReleaseRunMutation struct {
 	ClaimToken      string    `json:"claim_token"`
 	Now             time.Time `json:"now"`
 	RecurrenceLimit int       `json:"recurrence_limit"`
+	Actor           ActorContext
 }
 
 // BlockTaskAndReleaseRunResult is the durable result of the atomic block-and-release mutation.
@@ -586,6 +592,11 @@ type Run struct {
 	TokensUsed            int64             `json:"tokens_used,omitempty"`
 	Error                 string            `json:"error,omitempty"`
 	Result                json.RawMessage   `json:"result,omitempty"`
+}
+
+// IsLoopWorker reports whether this run is a loop-correlated worker node.
+func (r Run) IsLoopWorker() bool {
+	return strings.TrimSpace(r.LoopRunID) != "" && r.RunKind.Normalize() != RunKindCoordinator
 }
 
 // Event is the immutable audit record emitted for task-domain actions.

@@ -30,6 +30,13 @@ func WithCoordinatorWatchPoller(poller WatchPoller) CoordinatorRunnerOption {
 	}
 }
 
+// WithCoordinatorWatchEventsLedger injects the watch-events replay reader.
+func WithCoordinatorWatchEventsLedger(ledger WatchEventsLedger) CoordinatorRunnerOption {
+	return func(r *CoordinatorRunner) {
+		r.watchEventsLedger = ledger
+	}
+}
+
 // WithCoordinatorGateEvaluator injects runtime evaluation for gate control nodes.
 func WithCoordinatorGateEvaluator(evaluator gate.GateEvaluator) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {

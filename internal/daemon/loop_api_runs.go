@@ -153,10 +153,15 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	watchEvents, err := loopWatchEventsReadModel(*run, &executedDefinition, generations)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
 		Run:                payload,
 		ExecutedDefinition: &executedDefinition,
 		Generations:        generations,
+		WatchEvents:        watchEvents,
 	}, nil
 }
 

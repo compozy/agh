@@ -9,15 +9,6 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
-const (
-	coordinatorTerminalStatusBlocked   = "blocked"
-	coordinatorTerminalStatusDone      = "done"
-	coordinatorTerminalStatusExhausted = "exhausted"
-	coordinatorTerminalStatusFailed    = "failed"
-	coordinatorTerminalStatusNoOp      = "no-op"
-	coordinatorTerminalStatusStalled   = "stalled"
-)
-
 type coordinatorResultContext struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Name        string `json:"loop_name,omitempty"`
@@ -32,7 +23,7 @@ func (m *Service) dispatchCoordinatorTerminal(
 	actor ActorContext,
 ) {
 	loopContext, loopStatus, ok := m.coordinatorTerminalContext(result)
-	if !ok || !isTerminalCoordinatorStatus(loopStatus) {
+	if !ok || m.coordinatorHookOK == nil || !m.coordinatorHookOK(loopStatus) {
 		return
 	}
 	dispatcher, ok := m.taskHooks.(terminalHookDispatcher)
@@ -104,18 +95,4 @@ func (m *Service) reportTerminalHookFailure(
 		"loop_name", payload.LoopName,
 		"loop_status", payload.Status,
 	)
-}
-
-func isTerminalCoordinatorStatus(status string) bool {
-	switch strings.TrimSpace(status) {
-	case coordinatorTerminalStatusDone,
-		coordinatorTerminalStatusNoOp,
-		coordinatorTerminalStatusBlocked,
-		coordinatorTerminalStatusFailed,
-		coordinatorTerminalStatusExhausted,
-		coordinatorTerminalStatusStalled:
-		return true
-	default:
-		return false
-	}
 }

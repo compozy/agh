@@ -445,32 +445,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		return automation.Run{}, err
 	}
 
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE automation_runs
-		 SET job_id = ?, trigger_id = ?, session_id = ?, task_id = ?,
-		     task_run_id = ?, fire_id = ?, status = ?, attempt = ?,
-		     scheduled_at = ?, started_at = ?, ended_at = ?, error = ?,
-		     delivery_error = ?, delivery_error_at = ?, loop_run_id = ?, metadata_json = ?
-		 WHERE id = ?`,
-		store.NullableString(normalized.JobID),
-		store.NullableString(normalized.TriggerID),
-		store.NullableString(normalized.SessionID),
-		store.NullableString(normalized.TaskID),
-		store.NullableString(normalized.TaskRunID),
-		store.NullableString(normalized.FireID),
-		normalized.Status,
-		normalized.Attempt,
-		nullableAutomationTimestamp(normalized.ScheduledAt),
-		nullableAutomationTimestamp(normalized.StartedAt),
-		nullableAutomationTimestamp(normalized.EndedAt),
-		store.NullableString(normalized.Error),
-		store.NullableString(normalized.DeliveryError),
-		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
-		store.NullableString(normalized.LoopRunID),
-		metadataJSON,
-		normalized.ID,
-	)
+	result, err := g.db.ExecContext(ctx, automationRunUpdateSQL, automationRunUpdateArgs(normalized, metadataJSON)...)
 	if err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: update automation run %q: %w",

@@ -36,6 +36,7 @@ type sessionStartSpec struct {
 	promptOverlay          string
 	sessionType            Type
 	lineage                *store.SessionLineage
+	allowedToolsOverride   []string
 	postEvent              hookspkg.HookEvent
 	startAction            string
 	cleanupSessionDir      bool
@@ -100,20 +101,24 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	}
 
 	return sessionStartSpec{
-		sessionID:         sessionID,
-		sandboxID:         sandboxID,
-		sessionName:       strings.TrimSpace(opts.Name),
-		agentName:         strings.TrimSpace(agentName),
-		provider:          strings.TrimSpace(opts.Provider),
-		model:             strings.TrimSpace(opts.Model),
-		reasoningEffort:   strings.TrimSpace(opts.ReasoningEffort),
-		permissions:       opts.Permissions,
-		sandboxDisabled:   sandboxDisabled,
-		workspace:         resolvedWorkspace,
-		channel:           strings.TrimSpace(opts.Channel),
-		promptOverlay:     strings.TrimSpace(opts.PromptOverlay),
-		sessionType:       normalizeSessionType(opts.Type),
-		lineage:           lineage,
+		sessionID:       sessionID,
+		sandboxID:       sandboxID,
+		sessionName:     strings.TrimSpace(opts.Name),
+		agentName:       strings.TrimSpace(agentName),
+		provider:        strings.TrimSpace(opts.Provider),
+		model:           strings.TrimSpace(opts.Model),
+		reasoningEffort: strings.TrimSpace(opts.ReasoningEffort),
+		permissions:     opts.Permissions,
+		sandboxDisabled: sandboxDisabled,
+		workspace:       resolvedWorkspace,
+		channel:         strings.TrimSpace(opts.Channel),
+		promptOverlay:   strings.TrimSpace(opts.PromptOverlay),
+		sessionType:     normalizeSessionType(opts.Type),
+		lineage:         lineage,
+		allowedToolsOverride: append(
+			[]string(nil),
+			opts.AllowedToolsOverride...,
+		),
 		parentSoulDigest:  strings.TrimSpace(opts.ParentSoulDigest),
 		postEvent:         hookspkg.HookSessionPostCreate,
 		startAction:       "create",
@@ -379,6 +384,9 @@ func (m *Manager) prepareSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 	if err := spec.validateRuntimeOverrides(); err != nil {
+		return sessionStartRuntime{}, err
+	}
+	if err := spec.applyAllowedToolsOverride(&resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
 

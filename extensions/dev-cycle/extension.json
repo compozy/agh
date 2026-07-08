@@ -12,6 +12,63 @@
         "loops": ["loops"],
         "agents": ["agents"],
         "tools": {
+            "import_tasks": {
+                "display_title": "Import Compozy task files",
+                "description": "Parse a Compozy task manifest and task markdown files into ordered pending task payloads.",
+                "handler": "import_tasks",
+                "risk": "read",
+                "read_only": true,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pattern"],
+                    "properties": {
+                        "pattern": { "type": "string", "minLength": 1 }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["tasks", "count"],
+                    "properties": {
+                        "tasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "id",
+                                    "number",
+                                    "title",
+                                    "path",
+                                    "body",
+                                    "body_ref",
+                                    "blocks"
+                                ],
+                                "properties": {
+                                    "id": { "type": "string" },
+                                    "number": { "type": "integer" },
+                                    "title": { "type": "string" },
+                                    "path": { "type": "string" },
+                                    "body": { "type": "string" },
+                                    "body_ref": { "type": "string" },
+                                    "blocks": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        },
+                        "count": { "type": "integer", "minimum": 0 }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "import_tasks"
+                }
+            },
             "coderabbit_fetch_unresolved": {
                 "display_title": "Fetch CodeRabbit unresolved review threads",
                 "description": "Fetch unresolved CodeRabbit PR review threads for a GitHub pull request.",

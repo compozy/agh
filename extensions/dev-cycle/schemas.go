@@ -8,12 +8,46 @@ import (
 )
 
 const (
+	toolImportTasks     = "import_tasks"
 	toolFetchUnresolved = "coderabbit_fetch_unresolved"
 	toolResolveThreads  = "coderabbit_resolve_threads"
 	toolGitPush         = "git_push"
 )
 
 var (
+	importTasksInputSchema = json.RawMessage(`{
+		"type":"object",
+		"additionalProperties":false,
+		"required":["pattern"],
+		"properties":{
+			"pattern":{"type":"string","minLength":1}
+		}
+	}`)
+	importTasksOutputSchema = json.RawMessage(`{
+		"type":"object",
+		"additionalProperties":false,
+		"required":["tasks","count"],
+		"properties":{
+			"tasks":{
+				"type":"array",
+				"items":{
+					"type":"object",
+					"additionalProperties":false,
+					"required":["id","number","title","path","body","body_ref","blocks"],
+					"properties":{
+						"id":{"type":"string"},
+						"number":{"type":"integer"},
+						"title":{"type":"string"},
+						"path":{"type":"string"},
+						"body":{"type":"string"},
+						"body_ref":{"type":"string"},
+						"blocks":{"type":"array","items":{"type":"string"}}
+					}
+				}
+			},
+			"count":{"type":"integer","minimum":0}
+		}
+	}`)
 	fetchInputSchema = json.RawMessage(`{
 		"type":"object",
 		"additionalProperties":false,
@@ -86,6 +120,7 @@ func runtimeToolDescriptors() ([]toolspkg.ExtensionToolRuntimeDescriptor, error)
 		readOnly     bool
 		risk         toolspkg.RiskClass
 	}{
+		{toolImportTasks, importTasksInputSchema, importTasksOutputSchema, true, toolspkg.RiskRead},
 		{toolFetchUnresolved, fetchInputSchema, fetchOutputSchema, true, toolspkg.RiskRead},
 		{toolResolveThreads, resolveInputSchema, resolveOutputSchema, false, toolspkg.RiskMutating},
 		{toolGitPush, pushInputSchema, pushOutputSchema, false, toolspkg.RiskOpenWorld},

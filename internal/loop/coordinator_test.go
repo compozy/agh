@@ -24,6 +24,9 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 			LoopName:    "delivery",
 			Status:      StatusRunning,
 			Generation:  0,
+			Inputs: map[string]any{
+				"load": "tasks",
+			},
 		}
 		taskRun := task.Run{
 			ID:        "run-coordinator-ready-layer",
@@ -36,7 +39,12 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 			Definition: dsl.Definition{
 				Graph: dsl.Graph{
 					Nodes: []dsl.Node{
-						{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
+						{
+							ID:       "load",
+							Class:    dsl.NodeClassSource,
+							Kind:     string(dsl.SourceInput),
+							InputRef: "load",
+						},
 						{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
 					},
 					Edges: []dsl.Edge{{From: "load", To: "agent"}},
@@ -62,24 +70,17 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		if got, want := len(plan.NodeTasks), 2; got != want {
+		if got, want := len(plan.NodeTasks), 1; got != want {
 			t.Fatalf("node tasks = %d, want %d", got, want)
 		}
-		if got, want := len(plan.Dependencies), 1; got != want {
+		if got, want := len(plan.Dependencies), 0; got != want {
 			t.Fatalf("dependencies = %d, want %d", got, want)
 		}
 		if got, want := len(plan.NodeRuns), 1; got != want {
 			t.Fatalf("node runs = %d, want %d", got, want)
 		}
-		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "load", 0); got != want {
-			t.Fatalf("root node run task_id = %q, want %q", got, want)
-		}
-		dependency := plan.Dependencies[0]
-		if got, want := dependency.TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "agent", 0); got != want {
-			t.Fatalf("dependency task_id = %q, want %q", got, want)
-		}
-		if got, want := dependency.DependsOnTaskID, coordinatorNodeTaskID(loopRun.ID, 1, "load", 0); got != want {
-			t.Fatalf("dependency depends_on_task_id = %q, want %q", got, want)
+		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "agent", 0); got != want {
+			t.Fatalf("agent node run task_id = %q, want %q", got, want)
 		}
 		if plan.Terminal != nil {
 			t.Fatalf("plan.Terminal = %#v, want nil while root node is ready", plan.Terminal)
@@ -94,12 +95,12 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 		if got, want := len(payload.Outputs), 2; got != want {
 			t.Fatalf("snapshot outputs = %d, want %d", got, want)
 		}
-		if payload.Outputs[0].Status != "pending" || payload.Outputs[1].Status != "pending" {
-			t.Fatalf("snapshot output statuses = %#v, want pending then pending", payload.Outputs)
+		if payload.Outputs[0].Status != "succeeded" || payload.Outputs[1].Status != "pending" {
+			t.Fatalf("snapshot output statuses = %#v, want succeeded then pending", payload.Outputs)
 		}
 		postReserve := coordinatorPostReservePayloadForTest(t, plan)
-		if postReserve.Outputs[0].Status != "enqueued" || postReserve.Outputs[1].Status != "pending" {
-			t.Fatalf("post-reserve output statuses = %#v, want enqueued then pending", postReserve.Outputs)
+		if postReserve.Outputs[0].Status != "succeeded" || postReserve.Outputs[1].Status != "enqueued" {
+			t.Fatalf("post-reserve output statuses = %#v, want succeeded then enqueued", postReserve.Outputs)
 		}
 	})
 }
@@ -1214,7 +1215,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 				"archive": "sha256:archive",
 			},
 			wantClearedRefs:  []string{"test", "deploy", "notify", "doc"},
-			wantNodeTaskSize: 6,
+			wantNodeTaskSize: 5,
 		},
 		{
 			name:     "full-body reruns every node",
@@ -1241,7 +1242,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 				"agent": generationOutputPending,
 			},
 			wantClearedRefs:  []string{"load", "agent"},
-			wantNodeTaskSize: 2,
+			wantNodeTaskSize: 1,
 		},
 	}
 
@@ -1859,6 +1860,76 @@ func TestCoordinatorRunnerShouldApplyLoopControlHooks(t *testing.T) {
 	})
 }
 
+func TestCoordinatorRunnerShouldResolveInputSourceNodes(t *testing.T) {
+	t.Run("Should complete input sources without queuing action task runs", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID:          "looprun-input-source",
+			WorkspaceID: "ws-1",
+			LoopName:    "software-delivery",
+			Status:      StatusRunning,
+			Generation:  0,
+			Inputs: map[string]any{
+				"slug": "loops-refac",
+			},
+		}
+		coordinatorRun := task.Run{
+			ID:        "run-coordinator-input-source",
+			TaskID:    "task-coordinator-input-source",
+			RunKind:   task.RunKindCoordinator,
+			LoopRunID: string(loopRun.ID),
+			Status:    task.TaskRunStatusClaimed,
+		}
+		def := dsl.Definition{
+			Inputs: map[string]dsl.Input{
+				"slug": {Type: dsl.InputTypeString, Required: true},
+			},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{{
+					ID:       "slug_input",
+					Class:    dsl.NodeClassSource,
+					Kind:     string(dsl.SourceInput),
+					InputRef: "slug",
+				}},
+			},
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+			def,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if len(plan.NodeRuns) != 0 {
+			t.Fatalf("node runs = %#v, want none for input source", plan.NodeRuns)
+		}
+		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		slugInput, ok := outputs["slug_input"]
+		if !ok {
+			t.Fatal("slug_input output missing")
+		}
+		if got, want := slugInput.Status, generationOutputSucceeded; got != want {
+			t.Fatalf("slug_input status = %q, want %q", got, want)
+		}
+		if got, want := outputValue(slugInput.OutputRef), "loops-refac"; got != want {
+			t.Fatalf("slug_input output = %#v, want %#v", got, want)
+		}
+		if plan.Terminal == nil {
+			t.Fatal("Terminal = nil, want done after input source succeeds")
+		}
+		if got, want := plan.Terminal.Status, string(StatusDone); got != want {
+			t.Fatalf("terminal status = %q, want %q", got, want)
+		}
+	})
+}
+
 func newCoordinatorRunnerForTest(
 	t *testing.T,
 	loopRun Run,
@@ -1886,6 +1957,7 @@ func newCoordinatorRunnerForTestWithGraph(
 	graph dsl.Graph,
 ) *CoordinatorRunner {
 	t.Helper()
+	loopRun = loopRunWithInputSourceDefaults(loopRun, graph)
 	return newCoordinatorRunnerForTestWithDefinition(
 		t,
 		loopRun,
@@ -2018,11 +2090,33 @@ func newCoordinatorRunnerForStopWhenTest(
 func coordinatorTestGraph() dsl.Graph {
 	return dsl.Graph{
 		Nodes: []dsl.Node{
-			{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
+			{
+				ID:       "load",
+				Class:    dsl.NodeClassSource,
+				Kind:     string(dsl.SourceInput),
+				InputRef: "load",
+			},
 			{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
 		},
 		Edges: []dsl.Edge{{From: "load", To: "agent"}},
 	}
+}
+
+func loopRunWithInputSourceDefaults(loopRun Run, graph dsl.Graph) Run {
+	inputs := cloneAnyMap(loopRun.Inputs)
+	for _, node := range graph.Nodes {
+		if !isInputSourceNode(node) {
+			continue
+		}
+		if node.InputRef == "" {
+			continue
+		}
+		if _, ok := inputs[node.InputRef]; !ok {
+			inputs[node.InputRef] = string(node.ID)
+		}
+	}
+	loopRun.Inputs = inputs
+	return loopRun
 }
 
 func coordinatorSnapshotPayloadForTest(

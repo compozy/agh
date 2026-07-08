@@ -24,6 +24,7 @@ const (
 	namespaceIndex      = "index"
 	namespaceTrigger    = "trigger"
 	namespaceGeneration = "generation"
+	namespaceEvent      = "event"
 )
 
 // Schema is a permissive JSON-schema-compatible shape used for path validation.
@@ -35,6 +36,7 @@ type Namespace struct {
 	Nodes        map[string]NodeSchema
 	AllowFanout  bool
 	AllowTrigger bool
+	AllowEvent   bool
 }
 
 // NodeSchema exposes the referenceable output/status shape for one node.
@@ -95,6 +97,11 @@ func (n Namespace) ValidatePath(path []string) *Error {
 	case namespaceGeneration:
 		if len(path) > 1 {
 			return newPathError(CodeUnresolvablePath, path, "generation is a scalar")
+		}
+		return nil
+	case namespaceEvent:
+		if !n.AllowEvent {
+			return newPathError(CodeUnknownReference, path, "event payload is not available here")
 		}
 		return nil
 	default:

@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestCreateManualSessionProducesRootLineage(t *testing.T) {
@@ -41,6 +43,135 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		}
 		if got, want := meta.Lineage.RootSessionID, sess.ID; got != want {
 			t.Fatalf("meta.Lineage.RootSessionID = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist narrowed tool policy for a subset override", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		addHarnessAgent(t, h, aghconfig.AgentDef{
+			Name:     "tool-coder",
+			Provider: "claude",
+			Prompt:   "Use the available tools.",
+			Tools: []string{
+				toolspkg.ToolIDTaskRead.String(),
+				toolspkg.ToolIDTaskUpdate.String(),
+			},
+		})
+
+		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "tool-coder",
+			Workspace: h.workspaceID,
+			AllowedToolsOverride: []string{
+				toolspkg.ToolIDTaskRead.String(),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(narrowed tools) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatalf("Stop(session) error = %v", err)
+			}
+		})
+
+		info := sess.Info()
+		if info.Lineage == nil {
+			t.Fatal("session lineage = nil, want narrowed policy")
+		}
+		wantTools := []string{toolspkg.ToolIDTaskRead.String()}
+		if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
+			t.Fatalf("lineage tools = %#v, want %#v", got, wantTools)
+		}
+		meta := readMeta(t, sess.MetaPath())
+		if meta.Lineage == nil {
+			t.Fatal("meta lineage = nil, want persisted narrowed policy")
+		}
+		if got := meta.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
+			t.Fatalf("persisted lineage tools = %#v, want %#v", got, wantTools)
+		}
+	})
+
+	t.Run("Should reject requested tools outside the agent profile", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		addHarnessAgent(t, h, aghconfig.AgentDef{
+			Name:     "read-only-coder",
+			Provider: "claude",
+			Prompt:   "Use read-only tools.",
+			Tools:    []string{toolspkg.ToolIDTaskRead.String()},
+		})
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "read-only-coder",
+			Workspace: h.workspaceID,
+			AllowedToolsOverride: []string{
+				toolspkg.ToolIDTaskRead.String(),
+				toolspkg.ToolIDTaskUpdate.String(),
+			},
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Create(widening tools) error = %v, want %v", err, ErrValidation)
+		}
+		if !strings.Contains(err.Error(), toolspkg.ToolIDTaskUpdate.String()) ||
+			!strings.Contains(err.Error(), "widens agent profile") {
+			t.Fatalf("Create(widening tools) error = %v, want deterministic widening message", err)
+		}
+	})
+
+	t.Run("Should leave profile unchanged for nil and empty overrides", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			override []string
+		}{
+			{name: "Should leave nil override unchanged"},
+			{name: "Should leave empty override unchanged", override: []string{}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				addHarnessAgent(t, h, aghconfig.AgentDef{
+					Name:     "unchanged-coder",
+					Provider: "claude",
+					Prompt:   "Use the default tool profile.",
+					Tools: []string{
+						toolspkg.ToolIDTaskRead.String(),
+						toolspkg.ToolIDTaskUpdate.String(),
+					},
+				})
+
+				sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+					AgentName:            "unchanged-coder",
+					Workspace:            h.workspaceID,
+					AllowedToolsOverride: tt.override,
+				})
+				if err != nil {
+					t.Fatalf("Create(%s) error = %v", tt.name, err)
+				}
+				t.Cleanup(func() {
+					if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+						t.Fatalf("Stop(session) error = %v", err)
+					}
+				})
+
+				info := sess.Info()
+				if info.Lineage == nil {
+					t.Fatal("session lineage = nil, want root lineage")
+				}
+				if got := info.Lineage.PermissionPolicy.Tools; len(got) != 0 {
+					t.Fatalf("lineage tools = %#v, want unchanged empty session policy", got)
+				}
+			})
 		}
 	})
 }

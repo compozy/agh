@@ -48,6 +48,9 @@ func generateLoopEnumsTS() []byte {
 	writeTSConstArray(&out, "LOOP_RUN_EVENT_KINDS", contract.LoopRunEventKindValues())
 	out.WriteString("export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];\n\n")
 	writeTSConstArray(&out, "LOOP_RUN_LIFECYCLE_EVENT_KINDS", contract.LoopRunLifecycleEventKindValues())
+	out.WriteString("\n")
+	writeTSConstArray(&out, "LOOP_WATCH_EVENT_KINDS", contract.LoopWatchEventKindValues())
+	out.WriteString("export type LoopWatchEventKindValue = (typeof LOOP_WATCH_EVENT_KINDS)[number];\n")
 	return []byte(out.String())
 }
 

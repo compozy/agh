@@ -103,7 +103,7 @@ type Manager interface {
 type RecordStore interface {
 	CreateTask(ctx context.Context, task Task) error
 	DeleteTask(ctx context.Context, id string) error
-	UpdateTask(ctx context.Context, task Task) error
+	UpdateTask(ctx context.Context, task Task, actor ActorContext) error
 	GetTask(ctx context.Context, id string) (Task, error)
 	ListTasks(ctx context.Context, query Query) ([]Summary, error)
 	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
@@ -114,7 +114,7 @@ type RecordStore interface {
 type DeleteTaskMutationStore interface {
 	BlockReader
 	GetTask(ctx context.Context, id string) (Task, error)
-	UpdateTask(ctx context.Context, task Task) error
+	UpdateTask(ctx context.Context, task Task, actor ActorContext) error
 	DeleteTask(ctx context.Context, id string) error
 	CountDirectChildren(ctx context.Context, parentTaskID string) (int, error)
 	ListDependencies(ctx context.Context, taskID string) ([]Dependency, error)

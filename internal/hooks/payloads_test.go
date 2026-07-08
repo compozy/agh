@@ -657,6 +657,7 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 
 	sampleTaskContext := TaskContext{
 		TaskID:                "task-1",
+		ParentTaskID:          "task-parent",
 		WorkspaceID:           "ws-1",
 		WorkflowID:            "wf-1",
 		CoordinationChannelID: "coord-1",
@@ -699,6 +700,12 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		TaskContext: sampleTaskContext,
 		Note:        "operator recovered",
 		At:          samplePayloadBase(HookTaskRecovered).Timestamp,
+	})
+	assertJSONRoundTrip(t, "TaskStatusChangedPayload", TaskStatusChangedPayload{
+		PayloadBase: samplePayloadBase(HookTaskStatusChanged),
+		TaskContext: sampleTaskContext,
+		FromStatus:  "pending",
+		ToStatus:    "blocked",
 	})
 	assertJSONRoundTrip(t, "TaskObservationPatch", TaskObservationPatch{
 		Labels: map[string]string{"source": "test"},

@@ -3,6 +3,7 @@ package loop_test
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/loop"
@@ -639,12 +640,23 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 		{
 			name: "Should reject invalid file import source schema",
 			def: singleNodeDefinition(dsl.Node{
-				ID:    "files",
-				Class: dsl.NodeClassSource,
-				Kind:  string(dsl.SourceFileImport),
-				Parse: "yaml",
+				ID:      "files",
+				Class:   dsl.NodeClassSource,
+				Kind:    string(dsl.SourceFileImport),
+				Pattern: "docs/*.md",
+				Parse:   "yaml",
 			}),
-			wantCodes: []string{refs.CodeUnresolvablePath},
+			wantCodes: []string{loop.CodeFileImportParseRequired},
+		},
+		{
+			name: "Should reject empty file import parse",
+			def: singleNodeDefinition(dsl.Node{
+				ID:      "files",
+				Class:   dsl.NodeClassSource,
+				Kind:    string(dsl.SourceFileImport),
+				Pattern: "docs/*.md",
+			}),
+			wantCodes: []string{loop.CodeFileImportParseRequired},
 		},
 		{
 			name: "Should accept watch source closed enum",
@@ -656,6 +668,12 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			}),
 		},
 		{
+			name: "Should accept watch-events closed enum",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "task.status_changed",
+			}})),
+		},
+		{
 			name: "Should reject watch source without kind",
 			def: singleNodeDefinition(dsl.Node{
 				ID:    "watch",
@@ -665,13 +683,23 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{loop.CodeWatchKindRequired},
 		},
 		{
-			name: "Should accept file import source closed enum",
+			name: "Should accept JSON file import source parse",
 			def: singleNodeDefinition(dsl.Node{
 				ID:      "files",
 				Class:   dsl.NodeClassSource,
 				Kind:    string(dsl.SourceFileImport),
 				Pattern: "docs/*.md",
-				Parse:   dsl.FileParseMDTasks,
+				Parse:   dsl.FileParseJSON,
+			}),
+		},
+		{
+			name: "Should accept text file import source parse",
+			def: singleNodeDefinition(dsl.Node{
+				ID:      "files",
+				Class:   dsl.NodeClassSource,
+				Kind:    string(dsl.SourceFileImport),
+				Pattern: "docs/*.md",
+				Parse:   dsl.FileParseText,
 			}),
 		},
 	}
@@ -682,6 +710,172 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 
 			linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{}))
 			requireLintCodes(t, linter.Lint(tt.def), tt.wantCodes...)
+		})
+	}
+}
+
+func TestLinterShouldValidateWatchEventsSourceNodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		def           dsl.Definition
+		wantCodes     []string
+		messageCode   string
+		messageSubstr string
+	}{
+		{
+			name: "Should accept supported watch-events subscriptions",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{
+				{
+					Kind:   "task.status_changed",
+					Filter: `event.task_id == inputs.items && event.payload.to_status in ["blocked", "completed"]`,
+				},
+				{
+					Kind:   "task.run.completed",
+					Filter: `event.task_id == inputs.items`,
+				},
+			})),
+		},
+		{
+			name:      "Should require at least one watch-events subscription",
+			def:       singleNodeDefinition(watchEventsNodeForTest(nil)),
+			wantCodes: []string{loop.CodeWatchEventsSubscriptionRequired},
+		},
+		{
+			name: "Should reject subscription kinds outside the hook catalog",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "not.a.hook",
+			}})),
+			wantCodes: []string{loop.CodeWatchEventsKindUnknown},
+		},
+		{
+			name: "Should reject pre-fire catalog kinds outside the supported registry",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "automation.job.pre_fire",
+			}})),
+			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
+			messageCode:   loop.CodeWatchEventsKindUnsupported,
+			messageSubstr: "task.status_changed",
+		},
+		{
+			name: "Should reject automation post-fire kinds without durable anchors",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "automation.job.post_fire",
+			}})),
+			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
+			messageCode:   loop.CodeWatchEventsKindUnsupported,
+			messageSubstr: "automation.run.completed",
+		},
+		{
+			name: "Should reject network peer lifecycle kinds without durable anchors",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "network.peer.joined",
+			}})),
+			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
+			messageCode:   loop.CodeWatchEventsKindUnsupported,
+			messageSubstr: "network.message.persisted",
+		},
+		{
+			name: "Should reject invalid watch-events CEL filters",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind:   "task.status_changed",
+				Filter: "(((",
+			}})),
+			wantCodes: []string{loop.CodeWatchEventsFilterInvalid},
+		},
+		{
+			name: "Should reject watch blocks on watch-events nodes",
+			def: func() dsl.Definition {
+				node := watchEventsNodeForTest([]dsl.EventSubscription{{Kind: "task.status_changed"}})
+				node.WatchSpec = map[string]any{"kind": "legacy"}
+				return singleNodeDefinition(node)
+			}(),
+			wantCodes: []string{loop.CodeWatchEventsShapeInvalid},
+		},
+		{
+			name: "Should reject events blocks on other source kinds",
+			def: singleNodeDefinition(dsl.Node{
+				ID:       "items",
+				Class:    dsl.NodeClassSource,
+				Kind:     string(dsl.SourceInput),
+				InputRef: "items",
+				Events:   []dsl.EventSubscription{{Kind: "task.status_changed"}},
+			}),
+			wantCodes: []string{loop.CodeWatchEventsShapeInvalid},
+		},
+		{
+			name: "Should reject produces shapes that contradict the fixed envelope",
+			def: func() dsl.Definition {
+				node := watchEventsNodeForTest([]dsl.EventSubscription{{Kind: "task.status_changed"}})
+				node.Produces = dsl.Schema{
+					"events": map[string]any{"type": "string"},
+				}
+				return singleNodeDefinition(node)
+			}(),
+			wantCodes: []string{loop.CodeWatchEventsShapeInvalid},
+		},
+		{
+			name: "Should reject cursor produces shapes that contradict the fixed envelope",
+			def: func() dsl.Definition {
+				node := watchEventsNodeForTest([]dsl.EventSubscription{{Kind: "task.status_changed"}})
+				node.Produces = dsl.Schema{
+					"events":  map[string]any{"type": "array"},
+					"cursors": "string",
+				}
+				return singleNodeDefinition(node)
+			}(),
+			wantCodes: []string{loop.CodeWatchEventsShapeInvalid},
+		},
+		{
+			name: "Should accept compatible watch-events produces shapes",
+			def: func() dsl.Definition {
+				node := watchEventsNodeForTest([]dsl.EventSubscription{{Kind: "task.status_changed"}})
+				node.Produces = dsl.Schema{
+					"events":  []any{map[string]any{"kind": "string"}},
+					"cursors": "map",
+				}
+				return singleNodeDefinition(node)
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			errs := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{})).Lint(tt.def)
+			requireLintCodes(t, errs, tt.wantCodes...)
+			if tt.messageCode != "" {
+				requireLintMessageContains(t, errs, tt.messageCode, tt.messageSubstr)
+			}
+		})
+	}
+}
+
+func TestLinterShouldRejectFileImportParseOutsideJSONAndText(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		parse dsl.FileParseKind
+	}{
+		{name: "Should reject empty parse", parse: ""},
+		{name: "Should reject legacy task parse", parse: "md" + "_tasks"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			def := singleNodeDefinition(dsl.Node{
+				ID:      "files",
+				Class:   dsl.NodeClassSource,
+				Kind:    string(dsl.SourceFileImport),
+				Pattern: "docs/*.md",
+				Parse:   tc.parse,
+			})
+			errs := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{})).Lint(def)
+			requireLintCodes(t, errs, loop.CodeFileImportParseRequired)
+			requireLintMessageContains(t, errs, loop.CodeFileImportParseRequired, "json|text")
 		})
 	}
 }
@@ -783,6 +977,15 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 	}
 }
 
+func watchEventsNodeForTest(events []dsl.EventSubscription) dsl.Node {
+	return dsl.Node{
+		ID:     "task_activity",
+		Class:  dsl.NodeClassSource,
+		Kind:   string(dsl.SourceWatchEvents),
+		Events: events,
+	}
+}
+
 func appendGate(def *dsl.Definition, node dsl.Node) {
 	def.Graph.Nodes = append(def.Graph.Nodes, node)
 	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "agent", To: node.ID})
@@ -828,6 +1031,16 @@ func requireLintCodes(t *testing.T, errs []loop.LintError, wantCodes ...string) 
 			t.Fatalf("Lint() codes = %#v, want code %q; errors=%#v", got, want, errs)
 		}
 	}
+}
+
+func requireLintMessageContains(t *testing.T, errs []loop.LintError, code string, want string) {
+	t.Helper()
+	for _, err := range errs {
+		if err.Code == code && strings.Contains(err.Message, want) {
+			return
+		}
+	}
+	t.Fatalf("Lint() errors = %#v, want code %q message containing %q", errs, code, want)
 }
 
 func requireLintWarning(t *testing.T, errs []loop.LintError, code string) {

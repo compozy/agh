@@ -133,6 +133,7 @@ func TestGlobalDBTaskRunLeaseAdversarialFencing(t *testing.T) {
 				name: "complete",
 				run: func() (taskpkg.Run, error) {
 					return globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+						Actor:      coordinatorActorContextForTest(),
 						RunID:      claim.Run.ID,
 						ClaimToken: claim.ClaimToken,
 						Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -144,6 +145,7 @@ func TestGlobalDBTaskRunLeaseAdversarialFencing(t *testing.T) {
 				name: "fail",
 				run: func() (taskpkg.Run, error) {
 					return globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+						Actor:      coordinatorActorContextForTest(),
 						RunID:      claim.Run.ID,
 						ClaimToken: claim.ClaimToken,
 						Failure:    taskpkg.RunFailure{Error: "worker failed during race"},
@@ -288,6 +290,7 @@ func assertLeaseRejectsWrongTokens(
 			name: "complete",
 			run: func() error {
 				_, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: "agh_claim_wrong",
 					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":false}`)},
@@ -300,6 +303,7 @@ func assertLeaseRejectsWrongTokens(
 			name: "fail",
 			run: func() error {
 				_, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: "agh_claim_wrong",
 					Failure:    taskpkg.RunFailure{Error: "wrong token should not fail run"},

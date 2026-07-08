@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const loopRuntimeSessionPrefix = "loop"
@@ -29,6 +30,8 @@ type loopPromptSessionManager interface {
 type loopActionSessionBinder struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
+	workspaceResolver   workspacepkg.RuntimeResolver
+	agentResolver       loopActionAgentResolver
 }
 
 var _ looppkg.ActionSessionBinder = (*loopActionSessionBinder)(nil)
@@ -58,6 +61,9 @@ func (b *loopActionSessionBinder) BindActionSession(
 		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
 	} else {
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action workspace is required")
+	}
+	if err := b.applyPolicyGate(ctx, &opts, agent, req.AllowedTools); err != nil {
+		return looppkg.ActionSessionBinding{}, err
 	}
 	created, err := b.sessions.Create(ctx, opts)
 	if err != nil {

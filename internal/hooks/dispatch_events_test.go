@@ -336,6 +336,17 @@ func TestSessionContextFromPayloadCoversHookFamilies(t *testing.T) {
 			},
 		},
 		{
+			name: "Should return session context for task status-changed payload",
+			payload: TaskStatusChangedPayload{TaskContext: TaskContext{
+				AgentName:   "status-agent",
+				WorkspaceID: "status-workspace",
+			}},
+			expected: SessionContext{
+				AgentName:   "status-agent",
+				WorkspaceID: "status-workspace",
+			},
+		},
+		{
 			name:     "Should return session context for task pre-claim payload",
 			payload:  TaskRunPreClaimPayload{TaskRunContext: TaskRunContext{SessionID: "task-pre"}},
 			expected: SessionContext{SessionID: "task-pre"},
@@ -445,6 +456,11 @@ func TestCorrelationFromPayloadCoversDispatchFamilies(t *testing.T) {
 		{
 			name:     "Should derive correlation from task attention payload",
 			payload:  TaskNeedsAttentionPayload{TaskContext: taskCorrelationContext()},
+			expected: taskDispatchCorrelation(),
+		},
+		{
+			name:     "Should derive correlation from task status-changed payload",
+			payload:  TaskStatusChangedPayload{TaskContext: taskCorrelationContext()},
 			expected: taskDispatchCorrelation(),
 		},
 		{

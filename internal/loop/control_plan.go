@@ -24,6 +24,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	gateDecisions GateDecisionReader,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
 	topology := newControlTopology(graph)
@@ -39,6 +40,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
+	outputBlobs := []GenerationOutputBlob{}
 	terminal, err := advanceControlNodes(
 		ctx,
 		&plan,
@@ -51,22 +53,46 @@ func buildInitialControlAwareCoordinatorPlan(
 		gateDecisions,
 		fanOutWidth,
 		watchRuntime,
+		watchEventsRuntime,
 		&outputs,
+		&outputBlobs,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	plan.Snapshot.Payload = GenerationSnapshotPayload{Outputs: outputs}
+	plan.Snapshot.Payload = generationSnapshotPayload(outputs, outputBlobs)
 	if terminal != nil {
 		plan.Terminal = terminal
+	}
+	if terminal != nil || plan.Yield {
 		return plan, nil
 	}
-	if plan.Yield {
-		return plan, nil
-	}
+	return finishInitialControlPlan(
+		&plan,
+		run,
+		generation,
+		resolved,
+		topology,
+		gateEvaluator,
+		outputs,
+		outputBlobs,
+	)
+}
+
+func finishInitialControlPlan(
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	gateEvaluator gate.GateEvaluator,
+	outputs []GenerationOutput,
+	outputBlobs []GenerationOutputBlob,
+) (task.CoordinatorCompletionPlan, error) {
+	graph := resolved.Definition.Graph
 	postReserveOutputs := cloneGenerationOutputs(outputs)
 	if err := appendReadyNodeRunsControlAware(
-		&plan,
+		plan,
 		run,
 		generation,
 		resolved,
@@ -77,22 +103,23 @@ func buildInitialControlAwareCoordinatorPlan(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	if len(plan.NodeRuns) > 0 {
-		plan.PostReserveSnapshot = &task.GenerationSnapshot{
-			LoopRunID:  string(run.ID),
-			Generation: generation,
-			Payload:    GenerationSnapshotPayload{Outputs: postReserveOutputs},
-		}
-		return plan, nil
+		plan.PostReserveSnapshot = generationSnapshotWithOutputs(
+			run.ID,
+			generation,
+			postReserveOutputs,
+			outputBlobs,
+		)
+		return *plan, nil
 	}
 	if allGenerationOutputsSucceededControlAware(graph, topology, outputs) {
 		plan.Terminal = &task.CoordinatorTerminal{
 			Status: string(StatusDone),
 			Cause:  string(TransitionCauseContract),
 		}
-		return plan, nil
+		return *plan, nil
 	}
 	plan.Terminal = noReadyNodesTerminal()
-	return plan, nil
+	return *plan, nil
 }
 
 func initialGenerationOutputs(
@@ -115,6 +142,26 @@ func initialGenerationOutputs(
 	return outputs
 }
 
+func generationSnapshotPayload(
+	outputs []GenerationOutput,
+	outputBlobs []GenerationOutputBlob,
+) GenerationSnapshotPayload {
+	return GenerationSnapshotPayload{Outputs: outputs, OutputBlobs: outputBlobs}
+}
+
+func generationSnapshotWithOutputs(
+	runID RunID,
+	generation int,
+	outputs []GenerationOutput,
+	outputBlobs []GenerationOutputBlob,
+) *task.GenerationSnapshot {
+	return &task.GenerationSnapshot{
+		LoopRunID:  string(runID),
+		Generation: generation,
+		Payload:    generationSnapshotPayload(outputs, outputBlobs),
+	}
+}
+
 func advanceControlNodes(
 	ctx context.Context,
 	plan *task.CoordinatorCompletionPlan,
@@ -127,7 +174,9 @@ func advanceControlNodes(
 	gateDecisions GateDecisionReader,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
 	outputs *[]GenerationOutput,
+	outputBlobs *[]GenerationOutputBlob,
 ) (*task.CoordinatorTerminal, error) {
 	for {
 		changed := false
@@ -155,9 +204,11 @@ func advanceControlNodes(
 				gateDecisions,
 				fanOutWidth,
 				watchRuntime,
+				watchEventsRuntime,
 				output,
 				node,
 				outputs,
+				outputBlobs,
 			)
 			if err != nil {
 				return nil, err
@@ -192,15 +243,27 @@ func evaluateControlNode(
 	gateDecisions GateDecisionReader,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
+	outputBlobs *[]GenerationOutputBlob,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
-	if isFileImportSourceNode(node) {
-		return evaluateFileImportNode(run, generation, resolved, topology, output, node, *outputs)
-	}
-	if isWatchSourceNode(node) {
-		return evaluateWatchSourceNode(ctx, plan, run, output, node, watchRuntime)
+	if evaluated, terminal, handled, err := evaluateSourceControlNode(
+		ctx,
+		plan,
+		run,
+		generation,
+		resolved,
+		topology,
+		watchRuntime,
+		watchEventsRuntime,
+		output,
+		node,
+		*outputs,
+		outputBlobs,
+	); handled {
+		return evaluated, terminal, err
 	}
 	switch dsl.ControlKind(node.Kind) {
 	case dsl.ControlFanOut:
@@ -242,6 +305,59 @@ func evaluateControlNode(
 	default:
 		return output, nil, nil
 	}
+}
+
+func evaluateSourceControlNode(
+	ctx context.Context,
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs []GenerationOutput,
+	outputBlobs *[]GenerationOutputBlob,
+) (GenerationOutput, *task.CoordinatorTerminal, bool, error) {
+	if isInputSourceNode(node) {
+		evaluated, err := evaluateInputSourceNode(run, output, node)
+		return evaluated, nil, true, err
+	}
+	if isFileImportSourceNode(node) {
+		evaluated, err := evaluateFileImportNode(
+			run,
+			generation,
+			resolved,
+			topology,
+			output,
+			node,
+			outputs,
+		)
+		return evaluated, nil, true, err
+	}
+	if isWatchSourceNode(node) {
+		evaluated, terminal, err := evaluateWatchSourceNode(ctx, plan, run, output, node, watchRuntime)
+		return evaluated, terminal, true, err
+	}
+	if isWatchEventsNode(node) {
+		evaluated, terminal, err := evaluateWatchEventsNode(
+			ctx,
+			plan,
+			run,
+			generation,
+			resolved,
+			topology,
+			output,
+			node,
+			outputs,
+			outputBlobs,
+			watchEventsRuntime,
+		)
+		return evaluated, terminal, true, err
+	}
+	return output, nil, false, nil
 }
 
 func evaluateFanOutNode(

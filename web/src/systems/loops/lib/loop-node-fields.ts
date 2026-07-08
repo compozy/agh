@@ -80,7 +80,7 @@ export function fileImportFields(raw: RawLoopNode): FieldSpec[] {
       key: "parse",
       label: "Parse",
       path: ["parse"],
-      options: ["md_tasks", "json", "text"],
+      options: ["json", "text"],
     },
     {
       type: "static",
@@ -115,6 +115,31 @@ export function watchSourceFields(raw: RawLoopNode): FieldSpec[] {
       label: "Produces",
       value: `nodes.${str(raw.id)}.output`,
       badge: "derived",
+    },
+  ];
+}
+
+export function watchEventsFields(raw: RawLoopNode): FieldSpec[] {
+  return [
+    idField(),
+    {
+      type: "events",
+      key: "events",
+      label: "Subscriptions",
+      path: ["events"],
+      hint: "One or more internal-event subscriptions. Each names a supported hook kind and an optional CEL filter over `event`, `inputs`, and `nodes`.",
+    },
+    {
+      type: "static",
+      key: "produces",
+      label: "Produces",
+      value: `nodes.${str(raw.id)}.output`,
+      badge: "derived",
+    },
+    {
+      type: "hint",
+      key: "hint",
+      hint: "Parks the loop at zero cost until a subscribed internal event commits, then wakes and re-derives the matched batch from the durable ledger. A silent subscription is healthy dormancy — a watch-events loop never stalls on silence.",
     },
   ];
 }

@@ -22444,6 +22444,7 @@ export interface operations {
           | "task.unblocked"
           | "task.needs_attention"
           | "task.recovered"
+          | "task.status_changed"
           | "task.run.enqueued"
           | "task.run.pre_claim"
           | "task.run.post_claim"
@@ -35375,6 +35376,7 @@ export interface operations {
                   | "task.unblocked"
                   | "task.needs_attention"
                   | "task.recovered"
+                  | "task.status_changed"
                   | "task.run.enqueued"
                   | "task.run.pre_claim"
                   | "task.run.post_claim"
@@ -35636,6 +35638,7 @@ export interface operations {
                   | "task.unblocked"
                   | "task.needs_attention"
                   | "task.recovered"
+                  | "task.status_changed"
                   | "task.run.enqueued"
                   | "task.run.pre_claim"
                   | "task.run.post_claim"
@@ -36096,6 +36099,7 @@ export interface operations {
               | "task.unblocked"
               | "task.needs_attention"
               | "task.recovered"
+              | "task.status_changed"
               | "task.run.enqueued"
               | "task.run.pre_claim"
               | "task.run.post_claim"
@@ -61399,6 +61403,7 @@ export interface operations {
           | "task.unblocked"
           | "task.needs_attention"
           | "task.recovered"
+          | "task.status_changed"
           | "task.run.enqueued"
           | "task.run.pre_claim"
           | "task.run.post_claim"
@@ -61936,6 +61941,35 @@ export interface operations {
               tokens_used: number;
               workspace_id: string;
             };
+            watch_events?: {
+              cursors?: {
+                [key: string]: number;
+              };
+              /** Format: date-time */
+              last_wake_at?: string | null;
+              subscriptions: {
+                filter?: string;
+                /** @enum {string} */
+                kind:
+                  | "task.status_changed"
+                  | "task.blocked"
+                  | "task.unblocked"
+                  | "task.needs_attention"
+                  | "task.recovered"
+                  | "task.run.completed"
+                  | "task.run.failed"
+                  | "loop.terminal"
+                  | "loop.node.terminal"
+                  | "automation.run.completed"
+                  | "automation.run.failed"
+                  | "network.message.persisted"
+                  | "network.thread.opened"
+                  | "network.direct_room.opened"
+                  | "network.work.opened"
+                  | "network.work.transitioned"
+                  | "network.work.closed";
+              }[];
+            } | null;
           };
         };
       };

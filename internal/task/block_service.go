@@ -41,11 +41,12 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 			ClaimToken:      claimToken,
 			Now:             block.CreatedAt,
 			RecurrenceLimit: m.blockRecurrenceLimit,
+			Actor:           actor,
 		})
 		if blockErr != nil {
 			return TaskBlock{}, blockErr
 		}
-		reconciled, reconcileErr := m.reconcileTaskCascade(ctx, result.Block.TaskID)
+		reconciled, reconcileErr := m.reconcileTaskCascade(ctx, result.Block.TaskID, actor)
 		if reconcileErr != nil {
 			return TaskBlock{}, reconcileErr
 		}
@@ -56,7 +57,6 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 		m.recordTaskNeedsAttention(
 			ctx,
 			result.Block,
-			result.Recurrence,
 			result.EscalatedTask,
 			reconciled,
 			actor,
@@ -73,18 +73,19 @@ func (m *Service) BlockTask(ctx context.Context, req BlockRequest, actor ActorCo
 	created, err := m.store.CreateTaskBlock(ctx, CreateTaskBlockMutation{
 		Block:           block,
 		RecurrenceLimit: m.blockRecurrenceLimit,
+		Actor:           actor,
 	})
 	if err != nil {
 		return TaskBlock{}, err
 	}
-	reconciled, err := m.reconcileTaskCascade(ctx, created.Block.TaskID)
+	reconciled, err := m.reconcileTaskCascade(ctx, created.Block.TaskID, actor)
 	if err != nil {
 		return TaskBlock{}, err
 	}
 	m.recordTaskBlockCreated(ctx, created.Block, reconciled, actor, nil)
 	m.dispatchTaskBlocked(ctx, created.Block, reconciled, actor, nil)
 	m.dispatchBlockedWake(ctx, reconciled, created.Block, actor, nil)
-	m.recordTaskNeedsAttention(ctx, created.Block, created.Recurrence, created.EscalatedTask, reconciled, actor, nil)
+	m.recordTaskNeedsAttention(ctx, created.Block, created.EscalatedTask, reconciled, actor, nil)
 	return created.Block, nil
 }
 
@@ -295,11 +296,12 @@ func (m *Service) ClearTaskBlock(
 		ClearedBy: actor.Actor,
 		ClearedAt: m.now().UTC(),
 		ClearNote: normalizedNote,
+		Actor:     actor,
 	})
 	if err != nil {
 		return TaskBlock{}, err
 	}
-	reconciled, err := m.reconcileTaskCascade(ctx, cleared.TaskID)
+	reconciled, err := m.reconcileTaskCascade(ctx, cleared.TaskID, actor)
 	if err != nil {
 		return TaskBlock{}, err
 	}
@@ -339,25 +341,14 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 		TaskID:    trimmedID,
 		ClearedBy: actor.Actor,
 		ClearedAt: recoveredAt,
+		Origin:    actor.Origin,
 	})
 	if err != nil {
 		return nil, err
 	}
-	reconciled, err := m.reconcileTaskCascade(ctx, cleared.ID)
+	reconciled, err := m.reconcileTaskCascade(ctx, cleared.ID, actor)
 	if err != nil {
 		return nil, err
-	}
-	if eventErr := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventRecovered, actor, recoveredTaskPayload{
-		Status: reconciled.Status,
-		Note:   redactTaskSecretText(normalizedNote),
-		At:     recoveredAt,
-	}); eventErr != nil {
-		slog.Error(
-			"task: recovered event failed after committed recover",
-			"error", eventErr,
-			"event_type", taskEventRecovered,
-			"task_id", reconciled.ID,
-		)
 	}
 	m.dispatchTaskRecovered(ctx, reconciled, actor, normalizedNote, recoveredAt)
 	m.autoEnqueueReadyTaskDetached(ctx, reconciled.ID, autoEnqueueTrigger{
@@ -397,7 +388,7 @@ func (m *Service) ExpireTaskBlocks(
 	}
 	for _, taskID := range taskIDs {
 		blocks := blocksByTask[taskID]
-		reconciled, reconcileErr := m.reconcileTaskCascade(ctx, taskID)
+		reconciled, reconcileErr := m.reconcileTaskCascade(ctx, taskID, actor)
 		if reconcileErr != nil {
 			return ExpireTaskBlocksResult{}, reconcileErr
 		}
@@ -519,9 +510,7 @@ func rejectTaskSecretJSON(path string, value []byte) error {
 	return nil
 }
 
-func redactTaskSecretText(value string) string {
-	return diagnostics.Redact(RedactClaimTokens(value))
-}
+func redactTaskSecretText(value string) string { return diagnostics.Redact(RedactClaimTokens(value)) }
 
 func redactTaskSecretJSON(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
@@ -604,7 +593,6 @@ func taskSecretKeyCarriesSecret(key string) bool {
 func (m *Service) recordTaskNeedsAttention(
 	ctx context.Context,
 	block TaskBlock,
-	recurrence BlockRecurrence,
 	escalatedTask *Task,
 	reconciled Task,
 	actor ActorContext,
@@ -624,22 +612,6 @@ func (m *Service) recordTaskNeedsAttention(
 			"block_id", block.ID,
 		)
 		return
-	}
-	if eventErr := m.recordTaskEvent(ctx, reconciled.ID, "", taskEventNeedsAttention, actor, needsAttentionTaskPayload{
-		Status:          reconciled.Status,
-		Reason:          redactTaskSecretText(needsAttention.Reason),
-		At:              needsAttention.At,
-		BlockID:         strings.TrimSpace(block.ID),
-		BlockKind:       block.Kind.Normalize(),
-		RecurrenceCount: recurrence.Count,
-	}); eventErr != nil {
-		slog.Error(
-			"task: needs_attention event failed after committed block escalation",
-			"error", eventErr,
-			"event_type", taskEventNeedsAttention,
-			"task_id", reconciled.ID,
-			"block_id", block.ID,
-		)
 	}
 	m.dispatchNeedsAttentionWake(ctx, reconciled, block, needsAttention.Reason, actor, release)
 	m.dispatchTaskNeedsAttention(ctx, reconciled, actor, needsAttention.Reason, needsAttention.At, release)
@@ -738,6 +710,7 @@ func (m *Service) taskHookContext(
 ) hookspkg.TaskContext {
 	contextPayload := hookspkg.TaskContext{
 		TaskID:                strings.TrimSpace(taskRecord.ID),
+		ParentTaskID:          strings.TrimSpace(taskRecord.ParentTaskID),
 		WorkspaceID:           strings.TrimSpace(taskRecord.WorkspaceID),
 		WorkflowID:            taskRunMetadataString(taskRecord.Metadata, "workflow_id"),
 		CoordinationChannelID: taskRunMetadataString(taskRecord.Metadata, "coordination_channel_id"),
@@ -780,15 +753,6 @@ func (m *Service) reportTaskHookFailure(event hookspkg.HookEvent, err error, tas
 	)
 }
 
-type needsAttentionTaskPayload struct {
-	Status          Status    `json:"status"`
-	Reason          string    `json:"reason"`
-	At              time.Time `json:"at"`
-	BlockID         string    `json:"block_id"`
-	BlockKind       BlockKind `json:"block_kind"`
-	RecurrenceCount int       `json:"recurrence_count"`
-}
-
 type taskBlockCreatedPayload struct {
 	Status         Status    `json:"status"`
 	BlockID        string    `json:"block_id"`
@@ -814,10 +778,4 @@ type taskBlockExpiredPayload struct {
 	Reason    string    `json:"reason"`
 	ExpiresAt time.Time `json:"expires_at"`
 	ClearedAt time.Time `json:"cleared_at"`
-}
-
-type recoveredTaskPayload struct {
-	Status Status    `json:"status"`
-	Note   string    `json:"note,omitempty"`
-	At     time.Time `json:"at"`
 }

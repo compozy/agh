@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/testutil/acpmock"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/kballard/go-shellquote"
 )
@@ -127,6 +128,80 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	}
 	if *meta.StopReason != store.StopUserCanceled {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
+	}
+}
+
+func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.T) {
+	t.Parallel()
+
+	driverPath := acpmock.RequireDriver(t)
+	fixturePath, err := filepath.Abs(filepath.Join(
+		"..",
+		"testutil",
+		"acpmock",
+		"testdata",
+		"hosted_native_tools_fixture.json",
+	))
+	if err != nil {
+		t.Fatalf("Abs(fixture) error = %v", err)
+	}
+	diagnosticsPath := filepath.Join(t.TempDir(), "acpmock-diagnostics.jsonl")
+	command := acpmock.BuildCommand(driverPath, fixturePath, "hosted-native", diagnosticsPath)
+
+	h := newHarness(t)
+	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
+	resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+	}
+	resolved.Config = h.cfg
+	resolved.Agents = []aghconfig.AgentDef{{
+		Name:     "acpmock-tools",
+		Provider: acpmock.ProviderName,
+		Command:  command,
+		Prompt:   "You are an acpmock tool policy agent.",
+		Tools: []string{
+			toolspkg.ToolIDTaskRead.String(),
+			toolspkg.ToolIDTaskUpdate.String(),
+		},
+	}}
+	h.resolver.upsert(&resolved)
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithDriver(NewACPDriverAdapter(acp.New(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil)))))),
+	)
+
+	sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "acpmock-tools",
+		Workspace: h.workspaceID,
+		AllowedToolsOverride: []string{
+			toolspkg.ToolIDTaskRead.String(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(acpmock narrowed tools) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil &&
+			!errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("Stop(acpmock session) error = %v", err)
+		}
+	})
+
+	info := sess.Info()
+	if info.Lineage == nil {
+		t.Fatal("session lineage = nil, want narrowed tool policy")
+	}
+	if got, want := info.Lineage.PermissionPolicy.Tools, []string{toolspkg.ToolIDTaskRead.String()}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("lineage policy tools = %#v, want %#v", got, want)
+	}
+	meta := readMeta(t, sess.MetaPath())
+	if meta.Lineage == nil {
+		t.Fatal("persisted lineage = nil, want narrowed tool policy")
+	}
+	if got, want := meta.Lineage.PermissionPolicy.Tools, []string{toolspkg.ToolIDTaskRead.String()}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("persisted policy tools = %#v, want %#v", got, want)
 	}
 }
 

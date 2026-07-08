@@ -589,8 +589,8 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		if strings.Contains(string(events[0].Payload), claim.ClaimToken) {
 			t.Fatalf("hallucination_blocked payload leaked raw claim token: %s", events[0].Payload)
 		}
-		if countTaskEventsByType(store.events, taskEventRunCompleted) != 0 {
-			t.Fatal("task.run_completed event recorded for rejected completion")
+		if countTaskEventsByType(store.events, taskWatchEventRunCompleted) != 0 {
+			t.Fatal("task.run.completed event recorded for rejected completion")
 		}
 	})
 
@@ -754,8 +754,8 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 			got[0] != want[0] {
 			t.Fatalf("suspected payload task IDs = %#v, want %#v", got, want)
 		}
-		if got := countTaskEventsByType(store.events, taskEventRunCompleted); got != 1 {
-			t.Fatalf("task.run_completed event count = %d, want 1", got)
+		if got := countTaskEventsByType(store.events, taskWatchEventRunCompleted); got != 1 {
+			t.Fatalf("task.run.completed event count = %d, want 1", got)
 		}
 	})
 }
@@ -1638,10 +1638,10 @@ func (s *lockedLeaseTestStore) GetTask(ctx context.Context, id string) (Task, er
 	return s.inMemoryManagerStore.GetTask(ctx, id)
 }
 
-func (s *lockedLeaseTestStore) UpdateTask(ctx context.Context, taskRecord Task) error {
+func (s *lockedLeaseTestStore) UpdateTask(ctx context.Context, taskRecord Task, actor ActorContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.inMemoryManagerStore.UpdateTask(ctx, taskRecord)
+	return s.inMemoryManagerStore.UpdateTask(ctx, taskRecord, actor)
 }
 
 func (s *lockedLeaseTestStore) ListDependencies(ctx context.Context, taskID string) ([]Dependency, error) {

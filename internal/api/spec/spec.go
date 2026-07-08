@@ -220,6 +220,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[contract.LoopSource]():                       loopSourceValues(),
 	reflect.TypeFor[contract.LoopRunStatus]():                    loopRunStatusValues(),
 	reflect.TypeFor[contract.LoopRunEventKind]():                 loopRunEventKindValues(),
+	reflect.TypeFor[contract.LoopWatchEventKind]():               contract.LoopWatchEventKindValues(),
 	reflect.TypeFor[contract.LoopNodeClass]():                    loopNodeClassValues(),
 	reflect.TypeFor[contract.LoopReattemptStrategy]():            loopReattemptStrategyValues(),
 	reflect.TypeFor[contract.LoopBudgetExceeded]():               loopBudgetExceededValues(),

@@ -62,6 +62,11 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 				patch:   "CoordinatorSpawnPatch",
 			},
 			{
+				event:   hooks.HookTaskStatusChanged,
+				payload: "TaskStatusChangedPayload",
+				patch:   "TaskObservationPatch",
+			},
+			{
 				event:   hooks.HookTaskRunPreClaim,
 				payload: "TaskRunPreClaimPayload",
 				patch:   "TaskRunPreClaimPatch",

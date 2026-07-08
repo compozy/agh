@@ -70,6 +70,20 @@ const (
 	CodeUnknownSourceKind = "unknown_source_kind"
 	// CodeWatchKindRequired reports a watch-source missing its extension source kind.
 	CodeWatchKindRequired = "watch_kind_required"
+	// CodeWatchEventsSubscriptionRequired reports a watch-events node with no subscriptions.
+	CodeWatchEventsSubscriptionRequired = "watch_events_subscription_required"
+	// CodeWatchEventsKindUnknown reports a watch-events subscription kind outside the hook catalog.
+	CodeWatchEventsKindUnknown = "watch_events_kind_unknown"
+	// CodeWatchEventsKindUnsupported reports a hook catalog kind outside the watch-events registry.
+	CodeWatchEventsKindUnsupported = "watch_events_kind_unsupported"
+	// CodeWatchEventsFilterInvalid reports a CEL filter that cannot compile in the event env.
+	CodeWatchEventsFilterInvalid = "watch_events_filter_invalid"
+	// CodeWatchEventsFilterTooBroad is reserved for registry RequiredVars gates.
+	CodeWatchEventsFilterTooBroad = "watch_events_filter_too_broad"
+	// CodeWatchEventsShapeInvalid reports events/watch/produces shape contradictions.
+	CodeWatchEventsShapeInvalid = "watch_events_shape_invalid"
+	// CodeFileImportParseRequired reports a missing or unsupported file-import parse mode.
+	CodeFileImportParseRequired = "file_import_parse_required"
 	// CodeDuplicateNodeID reports repeated node IDs.
 	CodeDuplicateNodeID = "duplicate_node_id"
 	// CodeUnknownTerminalState reports contract terminal states outside the closed enum.

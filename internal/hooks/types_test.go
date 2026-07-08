@@ -130,6 +130,15 @@ func TestRegisteredHookValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "sync task status changed hook fails",
+			hook: func() RegisteredHook {
+				hook := base
+				hook.Event = HookTaskStatusChanged
+				return hook
+			}(),
+			wantErr: true,
+		},
+		{
 			name: "negative timeout fails",
 			hook: func() RegisteredHook {
 				hook := base

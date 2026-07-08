@@ -38,6 +38,8 @@ var (
 	ErrInvalidPermissionDecision = errors.New("session: invalid permission decision")
 	// ErrInvalidRuntimeOverride reports that a session runtime override is invalid.
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
+	// ErrValidation reports structurally invalid session creation input.
+	ErrValidation = errors.New("session: validation failed")
 )
 
 // CreateOpts defines the inputs required to create a new session.
@@ -57,6 +59,8 @@ type CreateOpts struct {
 	Type             Type
 	Lineage          *store.SessionLineage
 	ParentSoulDigest string
+	// AllowedToolsOverride is a concrete subset narrowing of the resolved agent tool policy.
+	AllowedToolsOverride []string
 }
 
 // StoreOpener opens the per-session events store for a session directory.

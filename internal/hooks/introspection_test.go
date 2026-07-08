@@ -118,66 +118,89 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		t.Fatalf("sandbox.sync.after descriptor = %#v, want async sync-after descriptor", descriptor)
 	}
 	autonomyDescriptors := map[HookEvent]struct {
-		family  HookEventFamily
-		payload string
-		patch   string
+		family       HookEventFamily
+		payload      string
+		patch        string
+		syncEligible bool
 	}{
-		HookCoordinatorPreSpawn: {HookEventFamilyCoordinator, "CoordinatorPreSpawnPayload", "CoordinatorSpawnPatch"},
+		HookCoordinatorPreSpawn: {
+			HookEventFamilyCoordinator,
+			"CoordinatorPreSpawnPayload",
+			"CoordinatorSpawnPatch",
+			true,
+		},
 		HookCoordinatorSpawned: {
 			HookEventFamilyCoordinator,
 			"CoordinatorSpawnedPayload",
 			"CoordinatorObservationPatch",
+			true,
 		},
 		HookCoordinatorDecision: {
 			HookEventFamilyCoordinator,
 			"CoordinatorDecisionPayload",
 			"CoordinatorObservationPatch",
+			true,
 		},
 		HookCoordinatorStopped: {
 			HookEventFamilyCoordinator,
 			"CoordinatorStoppedPayload",
 			"CoordinatorObservationPatch",
+			true,
 		},
 		HookCoordinatorFailed: {
 			HookEventFamilyCoordinator,
 			"CoordinatorFailedPayload",
 			"CoordinatorObservationPatch",
+			true,
 		},
-		HookTaskBlocked:        {HookEventFamilyTask, "TaskBlockedPayload", "TaskObservationPatch"},
-		HookTaskUnblocked:      {HookEventFamilyTask, "TaskUnblockedPayload", "TaskObservationPatch"},
-		HookTaskNeedsAttention: {HookEventFamilyTask, "TaskNeedsAttentionPayload", "TaskObservationPatch"},
-		HookTaskRecovered:      {HookEventFamilyTask, "TaskRecoveredPayload", "TaskObservationPatch"},
-		HookTaskRunEnqueued:    {HookEventFamilyTaskRun, "TaskRunEnqueuedPayload", "TaskRunObservationPatch"},
-		HookTaskRunPreClaim:    {HookEventFamilyTaskRun, "TaskRunPreClaimPayload", "TaskRunPreClaimPatch"},
-		HookTaskRunPostClaim:   {HookEventFamilyTaskRun, "TaskRunPostClaimPayload", "TaskRunObservationPatch"},
+		HookTaskBlocked:        {HookEventFamilyTask, "TaskBlockedPayload", "TaskObservationPatch", true},
+		HookTaskUnblocked:      {HookEventFamilyTask, "TaskUnblockedPayload", "TaskObservationPatch", true},
+		HookTaskNeedsAttention: {HookEventFamilyTask, "TaskNeedsAttentionPayload", "TaskObservationPatch", true},
+		HookTaskRecovered:      {HookEventFamilyTask, "TaskRecoveredPayload", "TaskObservationPatch", true},
+		HookTaskStatusChanged:  {HookEventFamilyTask, "TaskStatusChangedPayload", "TaskObservationPatch", false},
+		HookTaskRunEnqueued:    {HookEventFamilyTaskRun, "TaskRunEnqueuedPayload", "TaskRunObservationPatch", true},
+		HookTaskRunPreClaim:    {HookEventFamilyTaskRun, "TaskRunPreClaimPayload", "TaskRunPreClaimPatch", true},
+		HookTaskRunPostClaim:   {HookEventFamilyTaskRun, "TaskRunPostClaimPayload", "TaskRunObservationPatch", true},
 		HookTaskRunLeaseExtended: {
 			HookEventFamilyTaskRun,
 			"TaskRunLeaseExtendedPayload",
 			"TaskRunObservationPatch",
+			true,
 		},
-		HookTaskRunLeaseExpired:   {HookEventFamilyTaskRun, "TaskRunLeaseExpiredPayload", "TaskRunObservationPatch"},
-		HookTaskRunLeaseRecovered: {HookEventFamilyTaskRun, "TaskRunLeaseRecoveredPayload", "TaskRunObservationPatch"},
-		HookTaskRunReleased:       {HookEventFamilyTaskRun, "TaskRunReleasedPayload", "TaskRunObservationPatch"},
-		HookTaskRunCompleted:      {HookEventFamilyTaskRun, "TaskRunCompletedPayload", "TaskRunObservationPatch"},
-		HookTaskRunFailed:         {HookEventFamilyTaskRun, "TaskRunFailedPayload", "TaskRunObservationPatch"},
-		HookSpawnPreCreate:        {HookEventFamilySpawn, "SpawnPreCreatePayload", "SpawnCreatePatch"},
-		HookSpawnCreated:          {HookEventFamilySpawn, "SpawnCreatedPayload", "SpawnObservationPatch"},
-		HookSpawnParentStopped:    {HookEventFamilySpawn, "SpawnParentStoppedPayload", "SpawnObservationPatch"},
-		HookSpawnTTLExpired:       {HookEventFamilySpawn, "SpawnTTLExpiredPayload", "SpawnObservationPatch"},
-		HookSpawnReaped:           {HookEventFamilySpawn, "SpawnReapedPayload", "SpawnObservationPatch"},
+		HookTaskRunLeaseExpired: {
+			HookEventFamilyTaskRun,
+			"TaskRunLeaseExpiredPayload",
+			"TaskRunObservationPatch",
+			true,
+		},
+		HookTaskRunLeaseRecovered: {
+			HookEventFamilyTaskRun,
+			"TaskRunLeaseRecoveredPayload",
+			"TaskRunObservationPatch",
+			true,
+		},
+		HookTaskRunReleased:    {HookEventFamilyTaskRun, "TaskRunReleasedPayload", "TaskRunObservationPatch", true},
+		HookTaskRunCompleted:   {HookEventFamilyTaskRun, "TaskRunCompletedPayload", "TaskRunObservationPatch", true},
+		HookTaskRunFailed:      {HookEventFamilyTaskRun, "TaskRunFailedPayload", "TaskRunObservationPatch", true},
+		HookSpawnPreCreate:     {HookEventFamilySpawn, "SpawnPreCreatePayload", "SpawnCreatePatch", true},
+		HookSpawnCreated:       {HookEventFamilySpawn, "SpawnCreatedPayload", "SpawnObservationPatch", true},
+		HookSpawnParentStopped: {HookEventFamilySpawn, "SpawnParentStoppedPayload", "SpawnObservationPatch", true},
+		HookSpawnTTLExpired:    {HookEventFamilySpawn, "SpawnTTLExpiredPayload", "SpawnObservationPatch", true},
+		HookSpawnReaped:        {HookEventFamilySpawn, "SpawnReapedPayload", "SpawnObservationPatch", true},
 	}
 	for event, want := range autonomyDescriptors {
 		descriptor := byEvent[event]
 		if descriptor.Family != want.family ||
-			!descriptor.SyncEligible ||
+			descriptor.SyncEligible != want.syncEligible ||
 			descriptor.PayloadSchema != want.payload ||
 			descriptor.PatchSchema != want.patch {
-			t.Fatalf("%s descriptor = %#v, want family=%q payload=%q patch=%q sync=true",
+			t.Fatalf("%s descriptor = %#v, want family=%q payload=%q patch=%q sync=%v",
 				event,
 				descriptor,
 				want.family,
 				want.payload,
 				want.patch,
+				want.syncEligible,
 			)
 		}
 	}

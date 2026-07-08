@@ -1,4 +1,4 @@
-package loop
+package devcycle
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/frontmatter"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"gopkg.in/yaml.v3"
 )
 
@@ -71,7 +72,12 @@ type compozyTaskFrontmatter struct {
 func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		return markdownTasksImportResult{}, fmt.Errorf("%w: invalid md_tasks glob %q: %w", ErrValidation, pattern, err)
+		return markdownTasksImportResult{}, fmt.Errorf(
+			"%w: invalid md_tasks glob %q: %w",
+			looppkg.ErrValidation,
+			pattern,
+			err,
+		)
 	}
 	slices.Sort(matches)
 	tasksDir, err := tasksDirFromPattern(pattern, matches)
@@ -105,7 +111,7 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 			Title:   taskFile.Meta.Title,
 			Path:    taskFile.Path,
 			Body:    taskFile.Body,
-			BodyRef: OutputRefForPayload([]byte(taskFile.Body)),
+			BodyRef: looppkg.OutputRefForPayload([]byte(taskFile.Body)),
 			Blocks:  compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
 		})
 	}
@@ -135,15 +141,20 @@ func readCompozyTaskManifest(tasksDir string) (compozyTaskManifest, error) {
 	path := filepath.Join(tasksDir, compozyTaskManifestFileName)
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return compozyTaskManifest{}, fmt.Errorf("%w: read md_tasks manifest %q: %w", ErrValidation, path, err)
+		return compozyTaskManifest{}, fmt.Errorf("%w: read md_tasks manifest %q: %w", looppkg.ErrValidation, path, err)
 	}
 	parts, err := frontmatter.Split(content)
 	if err != nil {
-		return compozyTaskManifest{}, fmt.Errorf("%w: parse md_tasks manifest %q: %w", ErrValidation, path, err)
+		return compozyTaskManifest{}, fmt.Errorf("%w: parse md_tasks manifest %q: %w", looppkg.ErrValidation, path, err)
 	}
 	var manifest compozyTaskManifest
 	if err := yaml.Unmarshal(parts.Metadata, &manifest); err != nil {
-		return compozyTaskManifest{}, fmt.Errorf("%w: decode md_tasks manifest %q: %w", ErrValidation, path, err)
+		return compozyTaskManifest{}, fmt.Errorf(
+			"%w: decode md_tasks manifest %q: %w",
+			looppkg.ErrValidation,
+			path,
+			err,
+		)
 	}
 	manifest.SchemaVersion = strings.TrimSpace(manifest.SchemaVersion)
 	manifest.Workflow = strings.TrimSpace(manifest.Workflow)
@@ -166,12 +177,12 @@ func validateCompozyTaskManifest(
 	if manifest.SchemaVersion != compozyTaskManifestVersion {
 		return fmt.Errorf(
 			"%w: md_tasks manifest schema_version must be %q",
-			ErrValidation,
+			looppkg.ErrValidation,
 			compozyTaskManifestVersion,
 		)
 	}
 	if len(manifest.Graph.Nodes) == 0 {
-		return fmt.Errorf("%w: md_tasks manifest graph.nodes must not be empty", ErrValidation)
+		return fmt.Errorf("%w: md_tasks manifest graph.nodes must not be empty", looppkg.ErrValidation)
 	}
 	if err := validateCompozyTaskNodes(tasksDir, manifest.Graph.Nodes, matches); err != nil {
 		return err
@@ -197,19 +208,19 @@ func validateCompozyTaskNodes(tasksDir string, nodes []compozyTaskGraphNode, mat
 	}
 	for _, node := range nodes {
 		if node.ID == "" || node.File == "" {
-			return fmt.Errorf("%w: md_tasks manifest nodes require id and file", ErrValidation)
+			return fmt.Errorf("%w: md_tasks manifest nodes require id and file", looppkg.ErrValidation)
 		}
 		if idFromTaskFile(node.File) != node.ID {
-			return fmt.Errorf("%w: md_tasks node file %q must match id %q", ErrValidation, node.File, node.ID)
+			return fmt.Errorf("%w: md_tasks node file %q must match id %q", looppkg.ErrValidation, node.File, node.ID)
 		}
 		if _, exists := seenIDs[node.ID]; exists {
-			return fmt.Errorf("%w: duplicate md_tasks node id %q", ErrValidation, node.ID)
+			return fmt.Errorf("%w: duplicate md_tasks node id %q", looppkg.ErrValidation, node.ID)
 		}
 		seenIDs[node.ID] = struct{}{}
 		if previous, exists := seenFiles[node.File]; exists {
 			return fmt.Errorf(
 				"%w: duplicate md_tasks node file %q already assigned to %q",
-				ErrValidation,
+				looppkg.ErrValidation,
 				node.File,
 				previous,
 			)
@@ -217,7 +228,7 @@ func validateCompozyTaskNodes(tasksDir string, nodes []compozyTaskGraphNode, mat
 		seenFiles[node.File] = node.ID
 		if len(matchedFiles) > 0 {
 			if _, ok := matchedFiles[node.File]; !ok {
-				return fmt.Errorf("%w: md_tasks manifest file %q is outside glob", ErrValidation, node.File)
+				return fmt.Errorf("%w: md_tasks manifest file %q is outside glob", looppkg.ErrValidation, node.File)
 			}
 		}
 	}
@@ -232,20 +243,25 @@ func validateCompozyTaskEdges(nodes []compozyTaskGraphNode, edges []compozyTaskG
 	seenEdges := make(map[string]struct{}, len(edges))
 	for _, edge := range edges {
 		if edge.From == "" || edge.To == "" {
-			return fmt.Errorf("%w: md_tasks graph edges require from and to", ErrValidation)
+			return fmt.Errorf("%w: md_tasks graph edges require from and to", looppkg.ErrValidation)
 		}
 		if edge.From == edge.To {
-			return fmt.Errorf("%w: md_tasks self-edge %q -> %q is not allowed", ErrValidation, edge.From, edge.To)
+			return fmt.Errorf(
+				"%w: md_tasks self-edge %q -> %q is not allowed",
+				looppkg.ErrValidation,
+				edge.From,
+				edge.To,
+			)
 		}
 		if _, ok := nodeSet[edge.From]; !ok {
-			return fmt.Errorf("%w: md_tasks edge source %q is not a graph node", ErrValidation, edge.From)
+			return fmt.Errorf("%w: md_tasks edge source %q is not a graph node", looppkg.ErrValidation, edge.From)
 		}
 		if _, ok := nodeSet[edge.To]; !ok {
-			return fmt.Errorf("%w: md_tasks edge target %q is not a graph node", ErrValidation, edge.To)
+			return fmt.Errorf("%w: md_tasks edge target %q is not a graph node", looppkg.ErrValidation, edge.To)
 		}
 		key := edge.From + "\x00" + edge.To
 		if _, exists := seenEdges[key]; exists {
-			return fmt.Errorf("%w: duplicate md_tasks edge %q -> %q", ErrValidation, edge.From, edge.To)
+			return fmt.Errorf("%w: duplicate md_tasks edge %q -> %q", looppkg.ErrValidation, edge.From, edge.To)
 		}
 		seenEdges[key] = struct{}{}
 	}
@@ -258,21 +274,21 @@ func readCompozyTaskFiles(tasksDir string, nodes []compozyTaskGraphNode) (map[st
 		path := filepath.Join(tasksDir, filepath.FromSlash(node.File))
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("%w: read md_tasks task file %q: %w", ErrValidation, path, err)
+			return nil, fmt.Errorf("%w: read md_tasks task file %q: %w", looppkg.ErrValidation, path, err)
 		}
 		meta, body, err := parseCompozyTaskFile(content)
 		if err != nil {
-			return nil, fmt.Errorf("%w: parse md_tasks task file %q: %w", ErrValidation, path, err)
+			return nil, fmt.Errorf("%w: parse md_tasks task file %q: %w", looppkg.ErrValidation, path, err)
 		}
 		if len(meta.Dependencies) > 0 || frontmatterHasKey(content, "dependencies") {
 			return nil, fmt.Errorf(
 				"%w: md_tasks dependencies must live in _tasks.md graph.edges for schema %s",
-				ErrValidation,
+				looppkg.ErrValidation,
 				compozyTaskManifestVersion,
 			)
 		}
 		if strings.TrimSpace(meta.Status) == "" {
-			return nil, fmt.Errorf("%w: md_tasks task file %q missing status", ErrValidation, path)
+			return nil, fmt.Errorf("%w: md_tasks task file %q missing status", looppkg.ErrValidation, path)
 		}
 		files[node.ID] = compozyTaskFile{
 			ID:     node.ID,

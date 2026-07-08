@@ -150,6 +150,14 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         buildRaw: id => ({ id, class: "source", kind: "watch-source", watch: {} }),
       },
       {
+        label: "Watch events",
+        kindLabel: "watch-events",
+        nodeClass: "source",
+        idBase: "watch_events",
+        hint: "Parks the loop until a subscribed internal AGH event (task status, loop terminal, …) commits, matched by a CEL filter.",
+        buildRaw: id => ({ id, class: "source", kind: "watch-events", events: [] }),
+      },
+      {
         label: "File import",
         kindLabel: "file-import",
         nodeClass: "source",
@@ -159,7 +167,7 @@ export const LOOP_PALETTE: PaletteGroup[] = [
           class: "source",
           kind: "file-import",
           pattern: "",
-          parse: "md_tasks",
+          parse: "json",
         }),
       },
       {

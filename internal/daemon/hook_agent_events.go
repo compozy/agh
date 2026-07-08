@@ -17,8 +17,10 @@ const (
 
 const (
 	hookAgentEventsCompletedKey = "completed"
+	hookAgentEventsBlockedKey   = "blocked"
 	hookAgentEventsDenyKey      = "deny"
 	hookAgentEventsFailedKey    = "failed"
+	hookAgentEventsPendingKey   = "pending"
 	hookAgentEventsResolvedKey  = "resolved"
 	hookAgentEventsToolCallKey  = "tool_call"
 )
@@ -103,7 +105,7 @@ func dispatchToolHookEvent(
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
-	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked && status != "pending":
+	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked && status != hookAgentEventsPendingKey:
 		_, err := hooks.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPreCall),
 			SessionContext: sessionCtx,
@@ -281,7 +283,7 @@ func hookPermissionDenied(decision string) bool {
 	switch {
 	case clean == "":
 		return false
-	case clean == daemonBlockKey, clean == "blocked":
+	case clean == daemonBlockKey, clean == hookAgentEventsBlockedKey:
 		return true
 	case clean == hookAgentEventsDenyKey,
 		clean == hookPermissionDecisionDenied,

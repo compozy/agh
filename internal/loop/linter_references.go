@@ -90,6 +90,7 @@ func (c *lintContext) lintNodeReferences(node dsl.Node, namespace refs.Namespace
 			c.warnUnknownOutputReferences(node.ID, condition.References, namespace)
 		}
 	}
+	c.lintWatchEventsFilterReferences(node, namespace)
 }
 
 func (c *lintContext) lintTransformReferences(node dsl.Node, namespace refs.Namespace) {
@@ -265,6 +266,7 @@ func (c *lintContext) conditionCompiler(namespace refs.Namespace) (*refs.Conditi
 	key := conditionCompilerKey{
 		allowFanout:  namespace.AllowFanout,
 		allowTrigger: namespace.AllowTrigger,
+		allowEvent:   namespace.AllowEvent,
 	}
 	if compiler, ok := c.conditionCompilers[key]; ok {
 		return compiler, nil
@@ -295,6 +297,11 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	}
 }
 
+func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
+	namespace.AllowEvent = true
+	return namespace
+}
+
 func inputSchema(input dsl.Input) refs.Schema {
 	return refs.Schema{jsonSchemaTypeKey: string(input.Type)}
 }
@@ -314,14 +321,18 @@ func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 }
 
 func (c *lintContext) sourceOutputSchema(node dsl.Node) (refs.Schema, bool) {
-	if dsl.SourceKind(node.Kind) != dsl.SourceInput {
+	switch dsl.SourceKind(node.Kind) {
+	case dsl.SourceInput:
+		input, ok := c.def.Inputs[node.InputRef]
+		if !ok {
+			return nil, false
+		}
+		return inputSchema(input), true
+	case dsl.SourceWatchEvents:
+		return watchEventsOutputSchema(), true
+	default:
 		return nil, false
 	}
-	input, ok := c.def.Inputs[node.InputRef]
-	if !ok {
-		return nil, false
-	}
-	return inputSchema(input), true
 }
 
 func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {

@@ -139,6 +139,19 @@ func openPreviousReviewGateSchemaDB(t *testing.T, dbPath string) *sql.DB {
 			terminalized_by_actor_kind TEXT NOT NULL DEFAULT '',
 			terminalized_by_actor_ref TEXT NOT NULL DEFAULT ''
 		);`,
+		`CREATE TABLE task_events (
+			id          TEXT PRIMARY KEY,
+			event_seq   INTEGER NOT NULL,
+			task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			run_id      TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+			event_type  TEXT NOT NULL,
+			actor_kind  TEXT NOT NULL,
+			actor_id    TEXT NOT NULL,
+			origin_kind TEXT NOT NULL,
+			origin_ref  TEXT NOT NULL,
+			payload_json TEXT,
+			timestamp   TEXT NOT NULL
+		);`,
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("ExecContext(previous review schema) error = %v", err)

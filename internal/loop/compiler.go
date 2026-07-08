@@ -294,5 +294,32 @@ func compileNode(
 		}
 		resolved.Conditions[key] = condition
 	}
+	if err := compileWatchEventsFilters(resolved, node, namespace, ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func compileWatchEventsFilters(
+	resolved *ResolvedDefinition,
+	node dsl.Node,
+	namespace refs.Namespace,
+	ctx *lintContext,
+) error {
+	if node.Class != dsl.NodeClassSource || dsl.SourceKind(node.Kind) != dsl.SourceWatchEvents {
+		return nil
+	}
+	eventNamespace := namespaceWithEvent(namespace)
+	for idx, subscription := range node.Events {
+		if strings.TrimSpace(subscription.Filter) == "" {
+			continue
+		}
+		key := fmt.Sprintf("nodes.%s.events.%d.filter", node.ID, idx)
+		condition, err := ctx.compileCondition(subscription.Filter, eventNamespace)
+		if err != nil {
+			return fmt.Errorf("compile %s: %w", key, err)
+		}
+		resolved.Conditions[key] = condition
+	}
 	return nil
 }
