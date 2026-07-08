@@ -14,7 +14,6 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -28,7 +27,6 @@ import (
 // Registry is the narrowed global persistence surface consumed by observe/.
 type Registry interface {
 	RegisterSession(ctx context.Context, session store.SessionInfo) error
-	UpdateSessionState(ctx context.Context, update store.SessionStateUpdate) error
 	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
 	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)
 	WriteEventSummary(ctx context.Context, summary store.EventSummary) error
@@ -438,60 +436,17 @@ func (o *Observer) Close(ctx context.Context) error {
 	return o.registry.Close(ctx)
 }
 
-// OnSessionCreated registers the session in the global observability database.
+// OnSessionCreated tracks the live session snapshot used by observability reads.
 func (o *Observer) OnSessionCreated(ctx context.Context, sess *session.Session) {
 	info := sess.Info()
 	snapshot := o.observedSessionSnapshot(ctx, info.ID, info.AgentName, info.WorkspaceID, info.Lineage)
 
 	o.trackSession(info.ID, snapshot)
-
-	if err := o.registry.RegisterSession(ctx, sessionInfoFromSession(info)); err != nil {
-		o.logger.Warn(
-			"observe: register session failed",
-			"session_id",
-			info.ID,
-			"agent_name",
-			info.AgentName,
-			"workspace_id",
-			info.WorkspaceID,
-			"error",
-			err,
-		)
-	}
 }
 
-// OnSessionStopped updates the session state in the global observability database.
-func (o *Observer) OnSessionStopped(ctx context.Context, sess *session.Session) {
+// OnSessionStopped removes the live snapshot after the manager persists lifecycle state.
+func (o *Observer) OnSessionStopped(_ context.Context, sess *session.Session) {
 	info := sess.Info()
-
-	if err := o.registry.UpdateSessionState(ctx, store.SessionStateUpdate{
-		ID:            info.ID,
-		State:         string(info.State),
-		ACPSessionID:  stringPointer(info.ACPSessionID),
-		StopReasonSet: true,
-		StopReason:    stringPointer(string(info.StopReason)),
-		StopDetail:    info.StopDetail,
-		FailureSet:    true,
-		Failure:       store.CloneSessionFailure(info.Failure),
-		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:       cloneSessionSandboxMeta(info.Sandbox),
-		UpdatedAt:     info.UpdatedAt,
-	}); err != nil {
-		o.logger.Warn(
-			"observe: update session state failed",
-			"session_id",
-			info.ID,
-			"agent_name",
-			info.AgentName,
-			"workspace_id",
-			info.WorkspaceID,
-			"state",
-			info.State,
-			"error",
-			err,
-		)
-	}
-
 	o.untrackSession(info.ID)
 }
 
@@ -500,8 +455,7 @@ func (o *Observer) OnAgentEvent(ctx context.Context, sessionID string, payload a
 	o.observeAgentEvent(ctx, strings.TrimSpace(sessionID), payload)
 }
 
-// OnAgentEventForSession records event summaries and refreshes the indexed
-// liveness state for the active session.
+// OnAgentEventForSession records event summaries for the active session.
 func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Session, payload any) {
 	if sess == nil {
 		return
@@ -509,21 +463,6 @@ func (o *Observer) OnAgentEventForSession(ctx context.Context, sess *session.Ses
 	info := sess.Info()
 	if info == nil {
 		return
-	}
-	if err := o.registry.UpdateSessionState(ctx, store.SessionStateUpdate{
-		ID:           info.ID,
-		State:        string(info.State),
-		ACPSessionID: stringPointer(info.ACPSessionID),
-		Liveness:     store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:      cloneSessionSandboxMeta(info.Sandbox),
-		UpdatedAt:    info.UpdatedAt,
-	}); err != nil {
-		o.logger.Warn(
-			"observe: update session liveness failed",
-			"session_id", info.ID,
-			"state", info.State,
-			"error", err,
-		)
 	}
 	o.observeAgentEvent(ctx, info.ID, payload)
 }
@@ -729,15 +668,6 @@ func (o *Observer) writeObservedEventSummary(
 		Summary:          summarizeEvent(event),
 		Timestamp:        timestamp,
 	})
-}
-
-func observedEventContent(event acp.AgentEvent) []byte {
-	switch strings.TrimSpace(event.Type) {
-	case events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted:
-		return acp.CloneRawMessage(event.Raw)
-	default:
-		return nil
-	}
 }
 
 func (o *Observer) aggregateObservedUsage(
@@ -950,6 +880,7 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
 		SoulDigest:       strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
+		TranscriptEpoch:  info.TranscriptEpoch,
 		CreatedAt:        info.CreatedAt,
 		UpdatedAt:        info.UpdatedAt,
 	}

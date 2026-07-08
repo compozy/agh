@@ -892,6 +892,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionBusyInput:    state.cfg.Session.BusyInput,
 		SessionInputQueue:   sessionInputQueueStoreDependency(state.registry),
 		SessionHealthConfig: state.cfg.Agents.Heartbeat,
+		SessionCatalog:      state.registry,
 		ProcessRegistry:     state.processRegistry,
 		HostedMCP:           hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:     sessionProviderVaultDependency(state.providerVault),

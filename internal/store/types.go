@@ -179,12 +179,13 @@ func (e SessionEvent) Validate() error {
 
 // EventQuery filters per-session events while preserving follow-friendly ordering.
 type EventQuery struct {
-	Type          string
-	AgentName     string
-	TurnID        string
-	Since         time.Time
-	Limit         int
-	AfterSequence int64
+	Type           string
+	AgentName      string
+	TurnID         string
+	Since          time.Time
+	Limit          int
+	AfterSequence  int64
+	BeforeSequence int64
 }
 
 // Validate ensures the query is internally consistent.
@@ -194,6 +195,16 @@ func (q EventQuery) Validate() error {
 	}
 	if q.AfterSequence < 0 {
 		return fmt.Errorf("store: invalid event after sequence %d", q.AfterSequence)
+	}
+	if q.BeforeSequence < 0 {
+		return fmt.Errorf("store: invalid event before sequence %d", q.BeforeSequence)
+	}
+	if q.AfterSequence > 0 && q.BeforeSequence > 0 {
+		return fmt.Errorf(
+			"store: event after sequence %d cannot be combined with before sequence %d",
+			q.AfterSequence,
+			q.BeforeSequence,
+		)
 	}
 	return nil
 }
@@ -301,6 +312,7 @@ type SessionInfo struct {
 	ParentSoulDigest string
 	AttachedTo       string
 	AttachExpiresAt  *time.Time
+	TranscriptEpoch  int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -352,6 +364,23 @@ type SessionListQuery struct {
 	Resumable       bool
 	Sort            string
 	Limit           int
+}
+
+// SessionTranscriptEpochUpdate advances a session transcript epoch after destructive transcript resets.
+type SessionTranscriptEpochUpdate struct {
+	SessionID string
+	Minimum   int64
+}
+
+// Validate ensures the epoch update targets a known session and positive epoch.
+func (u SessionTranscriptEpochUpdate) Validate() error {
+	if err := requireField(u.SessionID, "session id"); err != nil {
+		return err
+	}
+	if u.Minimum <= 0 {
+		return fmt.Errorf("store: transcript epoch minimum must be positive")
+	}
+	return nil
 }
 
 // Validate ensures the query uses sane bounds.

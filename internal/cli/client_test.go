@@ -1062,7 +1062,8 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 					}
 					if req.URL.Query().Get("type") != "tool_call" ||
 						req.URL.Query().Get("agent_name") != "coder" ||
-						req.URL.Query().Get("limit") != "2" {
+						req.URL.Query().Get("limit") != "2" ||
+						req.URL.Query().Get("frames") != contract.SessionStreamFrameRaw {
 						t.Fatalf("stream query = %s, want filters", req.URL.RawQuery)
 					}
 					return newHTTPResponse(

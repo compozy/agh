@@ -353,6 +353,7 @@ type SessionManagerDeps struct {
 	SessionBusyInput     aghconfig.SessionBusyInputConfig
 	SessionInputQueue    store.SessionInputQueueStore
 	SessionHealthConfig  aghconfig.HeartbeatConfig
+	SessionCatalog       store.SessionCatalog
 	ProcessRegistry      *toolruntime.Registry
 	HostedMCP            session.HostedMCPLauncher
 	ProviderSecrets      session.ProviderSecretResolver
@@ -636,6 +637,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
+			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithSoulSnapshotStore(deps.SoulStore),

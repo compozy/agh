@@ -5,6 +5,7 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
 export type SessionPayload = SessionsResponse["sessions"][number];
 export type SessionResponse = OperationResponse<"getSession", 200>;
+export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;
 export type ACPCaps = NonNullable<SessionPayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
 export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;
@@ -25,10 +26,16 @@ export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>
 export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
+export type SessionTranscriptEntry = SessionTranscriptResponse["entries"][number];
+export type SessionStreamResponse = OperationResponse<"streamSession", 200>;
+export type TranscriptSnapshotPayload = NonNullable<SessionStreamResponse["transcript_snapshot"]>;
+export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcript_delta"]>;
 export type SessionBadge = SessionPayload["badge"];
 export type SessionAttachResponse = OperationResponse<"attachSession", 200>;
 export type SessionRecapResponse = OperationResponse<"getSessionRecap", 200>;
 export type SessionRecapPayload = SessionRecapResponse["recap"];
+export type SessionUsageResponse = OperationResponse<"getSessionUsage", 200>;
+export type SessionUsagePayload = SessionUsageResponse["usage"];
 export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][number];
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];

@@ -211,8 +211,12 @@ func (m *Manager) prepareStopWithCause(
 		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop state sync for %q: %w", id, err)
 	}
 	if writeMeta {
-		if err := m.writeMeta(session); err != nil {
-			return nil, nil, false, false, false, fmt.Errorf("session: prepare stop metadata write for %q: %w", id, err)
+		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+			return nil, nil, false, false, false, fmt.Errorf(
+				"session: prepare stop lifecycle write for %q: %w",
+				id,
+				err,
+			)
 		}
 	}
 	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {

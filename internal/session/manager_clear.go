@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -58,14 +59,14 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	backups, err := m.backupSessionDBForClear(dbPath, target)
+	backups, err := m.backupSessionDBForClear(ctx, dbPath, target)
 	if err != nil {
 		return nil, err
 	}
 
 	defer func() {
 		if err == nil {
-			if cleanupErr := discardSessionDBBackup(backups); cleanupErr != nil {
+			if cleanupErr := m.finalizeCommittedSessionDBClear(dbPath, backups); cleanupErr != nil {
 				err = cleanupErr
 			}
 			return
@@ -82,13 +83,38 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 		return nil, fmt.Errorf("session: persist cleared metadata for %q: %w", target, writeErr)
 	}
 
-	session, err := m.startSession(ctx, &spec)
+	return m.restartClearedConversation(ctx, &spec, target, dbPath)
+}
+
+func (m *Manager) restartClearedConversation(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	target string,
+	dbPath string,
+) (_ *Session, err error) {
+	session, err := m.startSession(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	if commitErr := commitSessionDBClear(dbPath); commitErr != nil {
+	defer func() {
+		if err == nil {
+			return
+		}
+		if rollbackErr := m.rollbackClearedRestart(session, target); rollbackErr != nil {
+			err = errors.Join(err, fmt.Errorf("session: rollback failed clear restart for %q: %w", target, rollbackErr))
+		}
+	}()
+	targetEpoch, err := m.nextTranscriptEpoch(ctx, session, target)
+	if err != nil {
+		return nil, err
+	}
+	if commitErr := commitSessionDBClear(dbPath, targetEpoch); commitErr != nil {
 		return nil, fmt.Errorf("session: commit cleared event store for %q: %w", target, commitErr)
 	}
+	if _, err := m.ensureTranscriptEpoch(ctx, session, target, targetEpoch); err != nil {
+		return nil, err
+	}
+	m.invalidateTranscriptCache(target)
 	m.clearLogger().Info(
 		"session.clear.restart_complete",
 		"session_id",
@@ -98,6 +124,40 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	)
 
 	return session, nil
+}
+
+func (m *Manager) finalizeCommittedSessionDBClear(dbPath string, backups []sessionDBBackup) error {
+	if err := discardSessionDBBackup(backups); err != nil {
+		return err
+	}
+	if err := discardSessionDBClearCommit(dbPath); err != nil {
+		m.clearLogger().Warn(
+			"session.clear.commit_marker_cleanup_failed",
+			"db_path",
+			dbPath,
+			"error",
+			err,
+		)
+	}
+	return nil
+}
+
+func (m *Manager) rollbackClearedRestart(session *Session, target string) error {
+	if session == nil {
+		return nil
+	}
+	proc := session.processHandle()
+	recorder := session.recorderHandle()
+	err := m.rollbackActivation(session, proc, m.now())
+	if recorder == nil {
+		return err
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+	defer cancel()
+	if closeErr := recorder.Close(closeCtx); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("session: close failed clear recorder for %q: %w", target, closeErr))
+	}
+	return err
 }
 
 func (m *Manager) stopActiveSessionForClear(ctx context.Context, target string) error {
@@ -111,8 +171,15 @@ func (m *Manager) stopActiveSessionForClear(ctx context.Context, target string) 
 	return m.StopWithCause(ctx, target, CauseClearConversation, "conversation cleared")
 }
 
-func (m *Manager) backupSessionDBForClear(dbPath string, target string) ([]sessionDBBackup, error) {
-	backups, err := backupSessionDB(dbPath)
+func (m *Manager) backupSessionDBForClear(
+	ctx context.Context,
+	dbPath string,
+	target string,
+) ([]sessionDBBackup, error) {
+	if err := m.recoverSessionDBClear(ctx, target, dbPath); err != nil {
+		return nil, fmt.Errorf("session: recover previous clear state before backup: %w", err)
+	}
+	backups, err := backupSessionDBAfterRecovery(dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +220,14 @@ func backupSessionDB(path string) ([]sessionDBBackup, error) {
 	if err := recoverSessionDBClear(cleanPath); err != nil {
 		return nil, fmt.Errorf("session: recover previous clear state before backup: %w", err)
 	}
+	return backupSessionDBAfterRecovery(cleanPath)
+}
 
+func backupSessionDBAfterRecovery(path string) ([]sessionDBBackup, error) {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return nil, errors.New("session: session database path is required")
+	}
 	paths := []string{cleanPath, cleanPath + "-wal", cleanPath + "-shm"}
 	backups := make([]sessionDBBackup, 0, len(paths))
 
@@ -288,6 +362,26 @@ func recoverSessionDBClear(path string) error {
 	return discardSessionDBClearCommit(cleanPath)
 }
 
+func (m *Manager) recoverSessionDBClear(ctx context.Context, sessionID string, path string) error {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return errors.New("session: session database path is required")
+	}
+	marker, committed, err := readSessionDBClearCommit(cleanPath)
+	if err != nil {
+		return err
+	}
+	if committed && marker.TranscriptEpoch > 0 && m != nil && m.transcriptEpochStore != nil {
+		if _, ensureErr := m.transcriptEpochStore.EnsureSessionTranscriptEpoch(ctx, store.SessionTranscriptEpochUpdate{
+			SessionID: sessionID,
+			Minimum:   marker.TranscriptEpoch,
+		}); ensureErr != nil {
+			return fmt.Errorf("session: reconcile transcript epoch for %q: %w", sessionID, ensureErr)
+		}
+	}
+	return recoverSessionDBClear(cleanPath)
+}
+
 func existingSessionDBClearBackups(path string) ([]sessionDBBackup, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
@@ -313,26 +407,45 @@ func existingSessionDBClearBackups(path string) ([]sessionDBBackup, error) {
 	return backups, nil
 }
 
-func commitSessionDBClear(path string) error {
+type sessionDBClearCommit struct {
+	TranscriptEpoch int64 `json:"transcript_epoch"`
+}
+
+func commitSessionDBClear(path string, transcriptEpoch int64) error {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return errors.New("session: session database path is required")
 	}
-	if err := fileutil.AtomicWriteFile(sessionDBClearCommitPath(cleanPath), []byte("committed\n"), 0o600); err != nil {
+	payload, err := json.Marshal(sessionDBClearCommit{TranscriptEpoch: transcriptEpoch})
+	if err != nil {
+		return fmt.Errorf("session: marshal clear commit marker: %w", err)
+	}
+	payload = append(payload, '\n')
+	if err := fileutil.AtomicWriteFile(sessionDBClearCommitPath(cleanPath), payload, 0o600); err != nil {
 		return fmt.Errorf("session: write clear commit marker: %w", err)
 	}
 	return nil
 }
 
 func hasSessionDBClearCommit(path string) (bool, error) {
+	_, committed, err := readSessionDBClearCommit(path)
+	return committed, err
+}
+
+func readSessionDBClearCommit(path string) (sessionDBClearCommit, bool, error) {
 	marker := sessionDBClearCommitPath(path)
-	if _, err := os.Stat(marker); err != nil {
+	payload, err := os.ReadFile(marker)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
+			return sessionDBClearCommit{}, false, nil
 		}
-		return false, fmt.Errorf("session: stat clear commit marker %q: %w", marker, err)
+		return sessionDBClearCommit{}, false, fmt.Errorf("session: read clear commit marker %q: %w", marker, err)
 	}
-	return true, nil
+	var commit sessionDBClearCommit
+	if err := json.Unmarshal(payload, &commit); err != nil {
+		return sessionDBClearCommit{}, false, fmt.Errorf("session: decode clear commit marker %q: %w", marker, err)
+	}
+	return commit, true, nil
 }
 
 func discardSessionDBClearCommit(path string) error {

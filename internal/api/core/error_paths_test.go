@@ -202,7 +202,7 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 		HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
+		TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
 			return nil, session.ErrSessionNotFound
 		},
 	}

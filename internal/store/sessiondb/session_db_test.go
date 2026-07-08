@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 type SessionEvent = store.SessionEvent
@@ -40,12 +42,212 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 func TestOpenSessionDBDisablesAutomaticWALCheckpoints(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should defer WAL checkpoints until explicit close", func(t *testing.T) {
+	t.Run("Should disable sqlite autocheckpoint for writer-owned WAL policy", func(t *testing.T) {
 		t.Parallel()
 
 		sessionDB := openTestSessionDB(t, "sess-wal-checkpoint")
 
 		assertWALAutoCheckpoint(t, sessionDB.db, 0)
+	})
+}
+
+func TestSessionDBPassiveCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep live read-only openers complete after passive checkpoints", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		sessionDB, err := OpenSessionDB(ctx, "sess-passive-checkpoint", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sessionDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		for idx := range sessionPassiveCheckpointEvery + 5 {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    "turn-checkpoint",
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"text":"chunk-%d"}`, idx),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", idx, err)
+			}
+		}
+
+		readOnly, err := OpenSessionDBReadOnly(ctx, "sess-passive-checkpoint", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := readOnly.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(readOnly) error = %v", err)
+			}
+		})
+		events, err := readOnly.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query(readOnly) error = %v", err)
+		}
+		if got, want := len(events), sessionPassiveCheckpointEvery+5; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist contiguous same-turn text chunks as one event row", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-coalesce-contiguous")
+		now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+
+		persisted, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-coalesce",
+				TurnID:    "turn-coalesce",
+				Timestamp: now,
+				Text:      "hello ",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-coalesce",
+				TurnID:    "turn-coalesce",
+				Timestamp: now.Add(time.Millisecond),
+				Text:      "world",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeDone,
+				SessionID: "acp-coalesce",
+				TurnID:    "turn-coalesce",
+				Timestamp: now.Add(2 * time.Millisecond),
+			}, "coder"),
+		})
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		if got, want := len(persisted), 2; got != want {
+			t.Fatalf("len(persisted) = %d, want %d", got, want)
+		}
+		assertEventSequences(t, persisted, []int64{1, 2})
+		if got, want := storedAgentText(t, persisted[0]), "hello world"; got != want {
+			t.Fatalf("coalesced text = %q, want %q", got, want)
+		}
+
+		stored, err := sessionDB.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if got, want := len(stored), 2; got != want {
+			t.Fatalf("len(stored) = %d, want %d", got, want)
+		}
+		assertEventSequences(t, stored, []int64{1, 2})
+	})
+
+	t.Run("Should flush coalesced text when a non chunk boundary appears", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-coalesce-boundary")
+		now := time.Date(2026, 7, 7, 12, 1, 0, 0, time.UTC)
+		persisted, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-boundary",
+				TurnID:    "turn-boundary",
+				Timestamp: now,
+				Text:      "a",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-boundary",
+				TurnID:    "turn-boundary",
+				Timestamp: now.Add(time.Millisecond),
+				Text:      "b",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				SessionID:  "acp-boundary",
+				TurnID:     "turn-boundary",
+				Timestamp:  now.Add(2 * time.Millisecond),
+				ToolCallID: "call-1",
+				Title:      "Read",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-boundary",
+				TurnID:    "turn-boundary",
+				Timestamp: now.Add(3 * time.Millisecond),
+				Text:      "c",
+			}, "coder"),
+		})
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		if got, want := len(persisted), 3; got != want {
+			t.Fatalf("len(persisted) = %d, want %d", got, want)
+		}
+		assertEventSequences(t, persisted, []int64{1, 2, 3})
+		if got, want := storedAgentText(t, persisted[0]), "ab"; got != want {
+			t.Fatalf("first coalesced text = %q, want %q", got, want)
+		}
+		if got, want := persisted[1].Type, acp.EventTypeToolCall; got != want {
+			t.Fatalf("boundary type = %q, want %q", got, want)
+		}
+		if got, want := storedAgentText(t, persisted[2]), "c"; got != want {
+			t.Fatalf("second text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep transcript output equal to uncoalesced chunks", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-coalesce-transcript")
+		now := time.Date(2026, 7, 7, 12, 2, 0, 0, time.UTC)
+		uncoalesced := []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-transcript",
+				TurnID:    "turn-transcript",
+				Timestamp: now,
+				Text:      "same ",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "acp-transcript",
+				TurnID:    "turn-transcript",
+				Timestamp: now.Add(time.Millisecond),
+				Text:      "answer",
+			}, "coder"),
+		}
+		for idx := range uncoalesced {
+			uncoalesced[idx].Sequence = int64(idx + 1)
+		}
+
+		persisted, err := sessionDB.RecordPersistedBatch(ctx, uncoalesced)
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		uncoalescedEntries, err := transcript.ToUIEntries(uncoalesced)
+		if err != nil {
+			t.Fatalf("ToUIEntries(uncoalesced) error = %v", err)
+		}
+		coalescedEntries, err := transcript.ToUIEntries(persisted)
+		if err != nil {
+			t.Fatalf("ToUIEntries(coalesced) error = %v", err)
+		}
+		if got, want := lastEntryText(t, coalescedEntries), lastEntryText(t, uncoalescedEntries); got != want {
+			t.Fatalf("coalesced transcript text = %q, want %q", got, want)
+		}
 	})
 }
 
@@ -673,6 +875,88 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 			t.Fatalf("turn-b sequences = %#v, want %#v", gotSeqs, []int64{3})
 		}
 	})
+
+	t.Run("Should not split a turn when after_sequence falls inside it", func(t *testing.T) {
+		t.Parallel()
+
+		sessionDB := openTestSessionDB(t, "sess-history-after")
+		input := []SessionEvent{
+			{TurnID: "turn-a", Type: "agent_message", AgentName: "coder", Content: `{"text":"one"}`},
+			{TurnID: "turn-a", Type: "tool_result", AgentName: "coder", Content: `{"tool":"ls"}`},
+			{TurnID: "turn-b", Type: "agent_message", AgentName: "coder", Content: `{"text":"two"}`},
+			{TurnID: "turn-b", Type: "tool_result", AgentName: "coder", Content: `{"tool":"pwd"}`},
+			{TurnID: "turn-c", Type: "agent_message", AgentName: "coder", Content: `{"text":"three"}`},
+		}
+		for _, event := range input {
+			if err := sessionDB.Record(testutil.Context(t), event); err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+		}
+
+		history, err := sessionDB.History(testutil.Context(t), EventQuery{AfterSequence: 3})
+		if err != nil {
+			t.Fatalf("History() error = %v", err)
+		}
+		if got, want := len(history), 1; got != want {
+			t.Fatalf("len(history) = %d, want %d", got, want)
+		}
+		if history[0].TurnID != "turn-c" {
+			t.Fatalf("history[0].TurnID = %q, want turn-c", history[0].TurnID)
+		}
+		if gotSeqs := eventSequences(history[0].Events); !equalInt64Slices(gotSeqs, []int64{5}) {
+			t.Fatalf("turn-c sequences = %#v, want %#v", gotSeqs, []int64{5})
+		}
+	})
+
+	t.Run("Should not split a read-only turn when after_sequence falls inside it", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, "sess-history-read-only-after", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		input := []SessionEvent{
+			{TurnID: "turn-a", Type: "agent_message", AgentName: "coder", Content: `{"text":"one"}`},
+			{TurnID: "turn-a", Type: "tool_result", AgentName: "coder", Content: `{"tool":"ls"}`},
+			{TurnID: "turn-b", Type: "agent_message", AgentName: "coder", Content: `{"text":"two"}`},
+			{TurnID: "turn-b", Type: "tool_result", AgentName: "coder", Content: `{"tool":"pwd"}`},
+			{TurnID: "turn-c", Type: "agent_message", AgentName: "coder", Content: `{"text":"three"}`},
+		}
+		for _, event := range input {
+			if err := writer.Record(ctx, event); err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(writer) error = %v", err)
+		}
+
+		reader, err := OpenSessionDBReadOnly(ctx, "sess-history-read-only-after", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
+		}
+		defer func() {
+			if closeErr := reader.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("Close(reader) error = %v", closeErr)
+			}
+		}()
+
+		history, err := reader.History(ctx, EventQuery{AfterSequence: 3})
+		if err != nil {
+			t.Fatalf("History(read-only) error = %v", err)
+		}
+		if got, want := len(history), 1; got != want {
+			t.Fatalf("len(history) = %d, want %d", got, want)
+		}
+		if history[0].TurnID != "turn-c" {
+			t.Fatalf("history[0].TurnID = %q, want turn-c", history[0].TurnID)
+		}
+		if gotSeqs := eventSequences(history[0].Events); !equalInt64Slices(gotSeqs, []int64{5}) {
+			t.Fatalf("turn-c sequences = %#v, want %#v", gotSeqs, []int64{5})
+		}
+	})
 }
 
 func TestSessionDBRecoversFromCorruption(t *testing.T) {
@@ -762,6 +1046,54 @@ func openTestSessionDB(t *testing.T, sessionID string) *SessionDB {
 	})
 
 	return sessionDB
+}
+
+func canonicalStoreEvent(t *testing.T, event acp.AgentEvent, agentName string) SessionEvent {
+	t.Helper()
+
+	payload, err := transcript.MarshalAgentEvent(event)
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent(%s) error = %v", event.Type, err)
+	}
+	return SessionEvent{
+		TurnID:    event.TurnID,
+		Type:      event.Type,
+		AgentName: agentName,
+		Content:   payload,
+		Timestamp: event.Timestamp,
+	}
+}
+
+func assertEventSequences(t *testing.T, events []SessionEvent, want []int64) {
+	t.Helper()
+
+	if len(events) != len(want) {
+		t.Fatalf("len(events) = %d, want %d", len(events), len(want))
+	}
+	for idx, event := range events {
+		if event.Sequence != want[idx] {
+			t.Fatalf("events[%d].Sequence = %d, want %d", idx, event.Sequence, want[idx])
+		}
+	}
+}
+
+func storedAgentText(t *testing.T, event SessionEvent) string {
+	t.Helper()
+
+	agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+	if err != nil {
+		t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+	}
+	return agentEvent.Text
+}
+
+func lastEntryText(t *testing.T, entries []transcript.Entry) string {
+	t.Helper()
+
+	if len(entries) == 0 {
+		t.Fatal("entries is empty, want transcript content")
+	}
+	return transcript.UIMessageText(entries[len(entries)-1].Message)
 }
 
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {

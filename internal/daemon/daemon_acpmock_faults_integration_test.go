@@ -243,7 +243,7 @@ func assertFaultPromptProjection(
 	}
 
 	transcript := mustSessionTranscript(t, ctx, harness, sessionID)
-	content := joinTranscriptContent(transcript.Messages)
+	content := joinTranscriptContent(sessionTranscriptMessages(transcript))
 	if wantTranscriptFragment != "" && !strings.Contains(content, wantTranscriptFragment) {
 		t.Fatalf("transcript = %q, want fragment %q", content, wantTranscriptFragment)
 	}

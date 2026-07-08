@@ -67,6 +67,23 @@ function toJSONObject(value: unknown): JSONObject {
   return isJSONValue(value) ? value : {};
 }
 
+function threadPartMetadata(record: Record<string, unknown>): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  const turnId = stringField(record, "turn_id") ?? stringField(record, "turnId");
+  if (turnId) {
+    metadata.turnId = turnId;
+  }
+  const timestamp = stringField(record, "timestamp");
+  if (timestamp) {
+    metadata.timestamp = timestamp;
+  }
+  const state = stringField(record, "state");
+  if (state) {
+    metadata.state = state;
+  }
+  return metadata;
+}
+
 function toToolPart(record: Record<string, unknown>, type: string): ThreadContentPart {
   const toolName = type.slice("tool-".length).trim() || stringField(record, "toolName") || "tool";
   const toolCallId =
@@ -82,7 +99,8 @@ function toToolPart(record: Record<string, unknown>, type: string): ThreadConten
     argsText: jsonText(input),
     result: record.output,
     isError: state === "output-error" || Boolean(record.isError),
-  };
+    ...threadPartMetadata(record),
+  } as ThreadContentPart;
 }
 
 function toThreadPart(part: SessionMessagePart): ThreadContentPart | null {
@@ -96,15 +114,27 @@ function toThreadPart(part: SessionMessagePart): ThreadContentPart | null {
   }
 
   if (type === "text") {
-    return { type: "text" as const, text: stringField(part, "text") ?? "" };
+    return {
+      type: "text" as const,
+      text: stringField(part, "text") ?? "",
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type === "reasoning") {
-    return { type: "reasoning" as const, text: stringField(part, "text") ?? "" };
+    return {
+      type: "reasoning" as const,
+      text: stringField(part, "text") ?? "",
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type.startsWith("data-")) {
-    return { type: type as `data-${string}`, data: (part as { data?: unknown }).data };
+    return {
+      type: type as `data-${string}`,
+      data: (part as { data?: unknown }).data,
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type.startsWith("tool-")) {

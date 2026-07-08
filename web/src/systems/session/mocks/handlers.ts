@@ -160,6 +160,11 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
     }
 
-    return HttpResponse.json({ messages: sessionTranscriptFixture });
+    return HttpResponse.json({
+      entries: sessionTranscriptFixture.map((message, index) => ({
+        message,
+        sequence: index + 1,
+      })),
+    });
   }),
 ];

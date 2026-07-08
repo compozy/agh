@@ -60,6 +60,32 @@ func WriteTaskStreamEvent(writer FlushWriter, event taskpkg.StreamEvent) error {
 	})
 }
 
+// WriteSSEComment writes one SSE comment frame. EventSource clients ignore
+// comment frames, so stream keep-alives must use this helper instead of data events.
+func WriteSSEComment(writer FlushWriter, comment string) error {
+	if writer == nil {
+		return errors.New("sse writer is required")
+	}
+	trimmed := strings.TrimSpace(comment)
+	if trimmed == "" {
+		return errors.New("sse comment is required")
+	}
+	if strings.ContainsAny(trimmed, "\r\n") {
+		return errors.New("sse comment must be a single line")
+	}
+	if err := writeSSEString(writer, "write sse comment prefix", ": "); err != nil {
+		return err
+	}
+	if err := writeSSEString(writer, "write sse comment", trimmed); err != nil {
+		return err
+	}
+	if err := writeSSEString(writer, "write sse comment terminator", "\n\n"); err != nil {
+		return err
+	}
+	writer.Flush()
+	return nil
+}
+
 func (h *BaseHandlers) writeSSEBestEffort(writer FlushWriter, msg SSEMessage) {
 	if err := WriteSSE(writer, msg); err != nil && h != nil && h.Logger != nil {
 		h.Logger.Warn("api: failed to emit sse message", "event", msg.Name, "error", err)

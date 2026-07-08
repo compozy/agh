@@ -21,6 +21,14 @@ export function useSessionComposerState(sessionId: string) {
     clearDraft(sessionId);
   }, [aui, clearDraft, sessionId]);
 
+  const setComposerText = useCallback(
+    (text: string) => {
+      aui.composer().setText(text);
+      setDraft(sessionId, { text });
+    },
+    [aui, sessionId, setDraft]
+  );
+
   useEffect(() => {
     if (hasHydratedDraftRef.current) {
       return;
@@ -41,5 +49,5 @@ export function useSessionComposerState(sessionId: string) {
 
   useAuiEvent("composer.send", clearDraftForSession);
 
-  return { clearComposer, composerText, isRunning };
+  return { clearComposer, setComposerText, composerText, isRunning };
 }

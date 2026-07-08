@@ -66,6 +66,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		Attachable:      session.AttachableForInfo(info, time.Now().UTC()),
 		AttachedTo:      strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt: cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch: info.TranscriptEpoch,
 		StopReason:      info.StopReason,
 		StopDetail:      info.StopDetail,
 		Failure:         SessionFailurePayloadFromStore(info.Failure),
@@ -110,6 +111,7 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
 		AttachedTo:       strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:  cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:  info.TranscriptEpoch,
 		CreatedAt:        info.CreatedAt,
 		UpdatedAt:        info.UpdatedAt,
 	}

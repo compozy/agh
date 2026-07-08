@@ -31,6 +31,7 @@ export function WriteContent({ message }: { message: UIMessage }) {
         <CodeBlock
           code={`${displayContent}${isTruncated ? "\u2026" : ""}`}
           copyable={false}
+          density="compact"
           showPrompt={false}
           truncateLines={16}
         />

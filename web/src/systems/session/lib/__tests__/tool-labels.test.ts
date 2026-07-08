@@ -5,43 +5,55 @@ import {
   getToolCompactSummary,
   resolveRegisteredToolName,
 } from "../tool-labels";
-import { Terminal, FileText, FileEdit, Search, FolderSearch, Globe, Wrench } from "lucide-react";
+import {
+  Brain,
+  FileEdit,
+  FileText,
+  FolderSearch,
+  Globe,
+  Plug,
+  Search,
+  Terminal,
+  Wrench,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 describe("getToolIcon", () => {
-  it("returns Terminal for Bash", () => {
-    expect(getToolIcon("Bash")).toBe(Terminal);
+  it("Should map builtin tool ids to their per-tool glyph — never the terminal fallback", () => {
+    const cases: Array<[toolId: string, icon: LucideIcon]> = [
+      ["Bash", Terminal],
+      ["Read", FileText],
+      ["Write", FileEdit],
+      ["Edit", FileEdit],
+      ["Grep", Search],
+      ["Glob", FolderSearch],
+      ["WebSearch", Globe],
+    ];
+    for (const [toolId, icon] of cases) {
+      expect(getToolIcon(toolId)).toBe(icon);
+      if (toolId !== "Bash") expect(getToolIcon(toolId)).not.toBe(Terminal);
+    }
   });
 
-  it("returns FileText for Read", () => {
-    expect(getToolIcon("Read")).toBe(FileText);
+  it("Should map AGH native tool families from the agh__ taxonomy, not competitor enums", () => {
+    expect(getToolIcon("agh__edit")).toBe(FileEdit);
+    expect(getToolIcon("agh__memory_note")).toBe(Brain);
+    expect(getToolIcon("agh__memory_search")).toBe(Brain);
+    // Unmapped native family falls through to the generic tool glyph.
+    expect(getToolIcon("agh__deny_native")).toBe(Wrench);
   });
 
-  it("returns FileEdit for Write", () => {
-    expect(getToolIcon("Write")).toBe(FileEdit);
+  it("Should map MCP bridge tools to the connector glyph", () => {
+    expect(getToolIcon("mcp__context7__resolve-library-id")).toBe(Plug);
+    expect(getToolIcon("mcp__github__search_issues", { url: "https://example.com" })).toBe(Plug);
   });
 
-  it("returns FileEdit for Edit", () => {
-    expect(getToolIcon("Edit")).toBe(FileEdit);
-  });
-
-  it("returns Search for Grep", () => {
-    expect(getToolIcon("Grep")).toBe(Search);
-  });
-
-  it("returns FolderSearch for Glob", () => {
-    expect(getToolIcon("Glob")).toBe(FolderSearch);
-  });
-
-  it("returns Globe for WebSearch", () => {
-    expect(getToolIcon("WebSearch")).toBe(Globe);
-  });
-
-  it("returns fallback Wrench icon for unknown tool name", () => {
+  it("Should return the generic tool fallback for unknown ids", () => {
     expect(getToolIcon("SomeUnknownTool")).toBe(Wrench);
     expect(getToolIcon("")).toBe(Wrench);
   });
 
-  it("uses semantic fallbacks for unknown tools based on tool input", () => {
+  it("Should use semantic input fallbacks for uncatalogued dynamic tools", () => {
     expect(getToolIcon("SomeUnknownTool", { command: "ls -la" })).toBe(Terminal);
     expect(getToolIcon("SomeUnknownTool", { file_path: "/tmp/file.txt" })).toBe(FileText);
     expect(getToolIcon("SomeUnknownTool", { filePath: "/tmp/file.txt" })).toBe(FileText);

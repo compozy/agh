@@ -220,7 +220,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		return nil, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
 	}
 	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionMetadataOnly(session); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}

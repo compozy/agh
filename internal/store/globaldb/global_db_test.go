@@ -770,6 +770,16 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "update_automation_catch_up_contract",
 			checksum: "2026-07-07-update-automation-catch-up-contract",
 		},
+		{
+			version:  60,
+			name:     "add_session_transcript_epoch",
+			checksum: "2026-07-07-add-session-transcript-epoch",
+		},
+		{
+			version:  61,
+			name:     "add_sessions_workspace_state_index",
+			checksum: "2026-07-07-add-sessions-workspace-state-index",
+		},
 	}
 }
 
@@ -2235,6 +2245,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"activity_json",
 			"attached_to",
 			"attach_expires_at",
+			"transcript_epoch",
 			"sandbox_id",
 			"sandbox_backend",
 			"sandbox_profile",
@@ -2509,6 +2520,7 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"attached_to",
 			"attach_expires_at",
 			sessionInputGenerationColumn,
+			"transcript_epoch",
 		},
 	)
 	assertTableColumns(
@@ -3680,6 +3692,7 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"attached_to",
 			"attach_expires_at",
 			sessionInputGenerationColumn,
+			"transcript_epoch",
 		},
 	)
 	assertTableColumns(

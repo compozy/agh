@@ -1,0 +1,106 @@
+package session
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/compozy/agh/internal/store"
+)
+
+// persistSessionLifecycleState is the lifecycle transition choke point. Callers
+// mutate the in-memory Session first, then this function durably writes
+// meta.json before projecting the same snapshot into the global catalog. If the
+// catalog write fails, meta.json remains the recovery source and boot repair
+// reconciles the catalog from it.
+func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Session, register bool) error {
+	if session == nil {
+		return fmt.Errorf("session: session is required")
+	}
+	if err := m.writeMeta(session); err != nil {
+		return err
+	}
+	if m.sessionCatalog == nil {
+		return nil
+	}
+	info := session.Info()
+	if register {
+		if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+			return fmt.Errorf("session: register catalog state for %q: %w", session.ID, err)
+		}
+		return nil
+	}
+	if err := m.sessionCatalog.UpdateSessionState(ctx, sessionCatalogStateUpdate(info)); err != nil {
+		return fmt.Errorf("session: update catalog state for %q: %w", session.ID, err)
+	}
+	return nil
+}
+
+func (m *Manager) persistSessionMetadataOnly(session *Session) error {
+	if session == nil {
+		return fmt.Errorf("session: session is required")
+	}
+	return m.writeMeta(session)
+}
+
+func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta store.SessionMeta) error {
+	if m == nil || m.sessionCatalog == nil {
+		return nil
+	}
+	info := sessionInfoFromMeta(meta)
+	if info == nil {
+		return nil
+	}
+	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+		return fmt.Errorf("session: register catalog state from metadata for %q: %w", meta.ID, err)
+	}
+	return nil
+}
+
+func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
+	if info == nil {
+		return store.SessionInfo{}
+	}
+	return store.SessionInfo{
+		ID:               info.ID,
+		Name:             info.Name,
+		AgentName:        info.AgentName,
+		Provider:         info.Provider,
+		WorkspaceID:      info.WorkspaceID,
+		Channel:          info.Channel,
+		SessionType:      string(info.Type),
+		Lineage:          store.CloneSessionLineage(info.Lineage),
+		State:            string(info.State),
+		ACPSessionID:     stringPointer(info.ACPSessionID),
+		StopReason:       info.StopReason,
+		StopDetail:       info.StopDetail,
+		Failure:          store.CloneSessionFailure(info.Failure),
+		Liveness:         store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:          cloneSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
+		TranscriptEpoch:  info.TranscriptEpoch,
+		CreatedAt:        info.CreatedAt,
+		UpdatedAt:        info.UpdatedAt,
+	}
+}
+
+func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
+	if info == nil {
+		return store.SessionStateUpdate{}
+	}
+	return store.SessionStateUpdate{
+		ID:            info.ID,
+		State:         string(info.State),
+		ACPSessionID:  stringPointer(info.ACPSessionID),
+		StopReasonSet: true,
+		StopReason:    stringPointer(string(info.StopReason)),
+		StopDetail:    info.StopDetail,
+		FailureSet:    true,
+		Failure:       store.CloneSessionFailure(info.Failure),
+		Liveness:      store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:       cloneSessionSandboxMeta(info.Sandbox),
+		UpdatedAt:     info.UpdatedAt,
+	}
+}

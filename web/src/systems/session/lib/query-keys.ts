@@ -1,5 +1,6 @@
 export const sessionKeys = {
   all: ["sessions"] as const,
+  byId: (id: string) => [...sessionKeys.all, "by-id", id] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
   list: (workspace: string | null = null) => [...sessionKeys.lists(), workspace ?? "all"] as const,
   workspace: (workspace: string) => [...sessionKeys.all, "workspace", workspace] as const,
@@ -15,4 +16,6 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "recap", limit ?? "default"] as const,
   ledger: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "ledger"] as const,
+  usage: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "usage"] as const,
 };

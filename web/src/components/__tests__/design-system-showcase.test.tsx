@@ -99,12 +99,12 @@ describe("DesignSystemShowcase", () => {
       expect(screen.getByRole("tab", { name: /overview/i })).toBeInTheDocument();
     });
 
-    it("renders CodeBlock + ChatMessageBubble + ToolCallCard in the session shells block", () => {
+    it("renders CodeBlock + ChatMessageBubble + ToolCallRow in the session shells block", () => {
       renderShowcase();
       const block = screen.getByTestId("section-code-chat");
       expect(block.querySelector('[data-slot="code-block"]')).toBeInTheDocument();
       expect(block.querySelectorAll('[data-slot="chat-message"]').length).toBeGreaterThanOrEqual(4);
-      expect(block.querySelector('[data-slot="tool-call-card"]')).toBeInTheDocument();
+      expect(block.querySelector('[data-slot="tool-call-row"]')).toBeInTheDocument();
     });
 
     it("renders Sidebar + SplitPane layout primitives", () => {

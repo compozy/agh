@@ -259,6 +259,7 @@ func (s *ReadOnlySessionDB) Query(
 		store.StringClause("turn_id", query.TurnID),
 		store.TimeClause("timestamp", ">=", query.Since),
 		store.Int64Clause("sequence", ">", query.AfterSequence),
+		store.Int64Clause("sequence", "<", query.BeforeSequence),
 	)
 	baseQuery = store.AppendWhere(baseQuery, where)
 
@@ -299,26 +300,14 @@ func (s *ReadOnlySessionDB) Query(
 
 // History returns ordered session events grouped by turn id.
 func (s *ReadOnlySessionDB) History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
-	events, err := s.Query(ctx, query)
+	queryForEvents := query
+	queryForEvents.Limit = 0
+	queryForEvents.AfterSequence = 0
+	events, err := s.Query(ctx, queryForEvents)
 	if err != nil {
 		return nil, err
 	}
-
-	turns := make([]store.TurnHistory, 0)
-	indexByTurnID := make(map[string]int, len(events))
-	for _, event := range events {
-		if idx, ok := indexByTurnID[event.TurnID]; ok {
-			turns[idx].Events = append(turns[idx].Events, event)
-			continue
-		}
-		indexByTurnID[event.TurnID] = len(turns)
-		turns = append(turns, store.TurnHistory{
-			TurnID: event.TurnID,
-			Events: []store.SessionEvent{event},
-		})
-	}
-
-	return turns, nil
+	return groupedTurnHistory(events, query), nil
 }
 
 // Close closes the read-only database handle without checkpointing.

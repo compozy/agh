@@ -16,6 +16,7 @@ import {
   createSession,
   deleteSession,
   fetchSession,
+  fetchSessionById,
   fetchSessionEvents,
   fetchSessionLedger,
   fetchSessionRecap,
@@ -270,6 +271,23 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
+  });
+});
+
+describe("fetchSessionById", () => {
+  it("returns a single SessionPayload from the direct session endpoint", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    const result = await fetchSessionById("sess-001");
+
+    expect(result).toEqual(mockSession);
+    await expectFetchRequest({ path: "/api/sessions/sess-001" });
+  });
+
+  it("throws 404 error for an unknown direct session id", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(fetchSessionById("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });
 
@@ -637,28 +655,34 @@ describe("fetchSessionLedger", () => {
 
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
-    messages: [
+    entries: [
       {
-        id: "evt-1",
-        role: "assistant",
-        parts: [{ type: "text", text: "Hello", state: "done" }],
+        sequence: 1,
+        message: {
+          id: "evt-1",
+          role: "assistant",
+          parts: [{ type: "text", text: "Hello", state: "done" }],
+        },
       },
       {
-        id: "tool-1",
-        role: "assistant",
-        parts: [
-          {
-            type: "tool-Read",
-            toolCallId: "tool-1",
-            state: "output-available",
-            input: { file_path: "/tmp/file.ts" },
-            output: {
-              type: "tool_result",
-              title: "Read",
-              raw: { stdout: "done", file_path: "/tmp/file.ts" },
+        sequence: 2,
+        message: {
+          id: "tool-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-Read",
+              toolCallId: "tool-1",
+              state: "output-available",
+              input: { file_path: "/tmp/file.ts" },
+              output: {
+                type: "tool_result",
+                title: "Read",
+                raw: { stdout: "done", file_path: "/tmp/file.ts" },
+              },
             },
-          },
-        ],
+          ],
+        },
       },
     ],
   };
@@ -668,14 +692,14 @@ describe("fetchSessionTranscript", () => {
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
-    expect(result).toEqual(mockTranscript.messages);
+    expect(result).toEqual(mockTranscript.entries.map(entry => entry.message));
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
     });
   });
 
   it("returns an empty transcript without treating it as an invalid AI SDK message list", async () => {
-    mockJsonResponse({ messages: [] });
+    mockJsonResponse({ entries: [] });
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 

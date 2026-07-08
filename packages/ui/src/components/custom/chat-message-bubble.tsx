@@ -21,7 +21,7 @@ export interface ChatMessageBubbleProps extends Omit<React.ComponentProps<"div">
  * drives alignment + wrapper style: `user` is right-aligned with a surface-
  * elevated bubble, `agent` is left-aligned with no bubble, `system` is a full
  * width hairline row, and `tool`/`diff` are pass-through blocks so callers can
- * drop a `ToolCallCard` or diff card inside.
+ * drop a `ToolCallRow` or diff card inside.
  */
 function ChatMessageBubble({
   messageRole,

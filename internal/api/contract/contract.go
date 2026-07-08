@@ -17,6 +17,21 @@ const (
 	contractDirectKey = "direct"
 )
 
+const (
+	SessionStreamFrameRaw        = "raw"
+	SessionStreamFrameTranscript = "transcript"
+	SessionStreamReplaySnapshot  = "snapshot"
+
+	SessionStreamEventTranscriptSnapshot = "transcript_snapshot"
+	SessionStreamEventTranscriptDelta    = "transcript_delta"
+
+	TranscriptSnapshotReasonSubscribe           = "subscribe"
+	TranscriptSnapshotReasonReconnect           = "reconnect"
+	TranscriptSnapshotReasonEpochReset          = "epoch_reset"
+	TranscriptSnapshotReasonBelowWindowMutation = "below_window_mutation"
+	TranscriptSnapshotReasonCacheRebuild        = "cache_rebuild"
+)
+
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName       string `json:"agent_name,omitempty"`
@@ -104,6 +119,7 @@ type SessionPayload struct {
 	Attachable      bool          `json:"attachable"`
 	AttachedTo      string        `json:"attached_to,omitempty"`
 	AttachExpiresAt *time.Time    `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch int64         `json:"transcript_epoch,omitempty"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
@@ -117,6 +133,38 @@ type SessionPayload struct {
 	Health       *SessionHealthPayload   `json:"health,omitempty"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
+}
+
+// TranscriptSnapshotPayload seeds one stream subscriber with a bounded assembled transcript window.
+type TranscriptSnapshotPayload struct {
+	SessionID     string             `json:"session_id"`
+	WorkspaceID   string             `json:"workspace_id,omitempty"`
+	WorkspacePath string             `json:"workspace_path,omitempty"`
+	Epoch         int64              `json:"epoch"`
+	Entries       []transcript.Entry `json:"entries"`
+	MinSequence   int64              `json:"min_sequence"`
+	MaxSequence   int64              `json:"max_sequence"`
+	ResetBelow    bool               `json:"reset_below"`
+	Reason        string             `json:"reason,omitempty"`
+}
+
+// TranscriptDeltaPayload carries one fully folded UI message update for stream upsert.
+type TranscriptDeltaPayload struct {
+	SessionID     string           `json:"session_id"`
+	WorkspaceID   string           `json:"workspace_id,omitempty"`
+	WorkspacePath string           `json:"workspace_path,omitempty"`
+	Epoch         int64            `json:"epoch"`
+	Entry         transcript.Entry `json:"entry"`
+	Sequence      int64            `json:"sequence"`
+}
+
+// SessionStreamPayload documents the possible SSE data payloads for the session stream.
+// The event name selects which payload shape is present on a concrete frame.
+type SessionStreamPayload struct {
+	Raw                *SessionEventPayload       `json:"raw,omitempty"`
+	TranscriptSnapshot *TranscriptSnapshotPayload `json:"transcript_snapshot,omitempty"`
+	TranscriptDelta    *TranscriptDeltaPayload    `json:"transcript_delta,omitempty"`
+	SessionStopped     *SessionEventPayload       `json:"session_stopped,omitempty"`
 }
 
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by
@@ -494,6 +542,19 @@ type AgentEventPayload struct {
 	Usage      *TokenUsagePayload      `json:"usage,omitempty"`
 	Runtime    *RuntimeActivityPayload `json:"runtime,omitempty"`
 	Raw        json.RawMessage         `json:"raw,omitempty"`
+}
+
+// SessionUsagePayload is the aggregated per-session token-usage summary sourced
+// from the daemon's authoritative token-stats aggregate. Fields are pointers so
+// a session that never reported a given metric renders as absent rather than a
+// fabricated zero.
+type SessionUsagePayload struct {
+	InputTokens  *int64   `json:"input_tokens,omitempty"`
+	OutputTokens *int64   `json:"output_tokens,omitempty"`
+	TotalTokens  *int64   `json:"total_tokens,omitempty"`
+	TotalCost    *float64 `json:"total_cost,omitempty"`
+	CostCurrency string   `json:"cost_currency,omitempty"`
+	TurnCount    int64    `json:"turn_count"`
 }
 
 // TokenUsagePayload is the shared token-usage response payload.

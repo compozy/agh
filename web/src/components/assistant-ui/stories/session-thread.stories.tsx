@@ -7,7 +7,54 @@ import { SessionChatRuntimeProvider } from "@/systems/session/components/session
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import type { TranscriptMessage } from "@/systems/session/types";
-import { SessionThread } from "../session-thread";
+import { ScrollToBottomPill, SessionThread } from "../session-thread";
+
+const storyWorkspaceId = primarySessionFixture.workspace_id ?? "ws_alpha";
+
+type TranscriptPart = NonNullable<TranscriptMessage["parts"]>[number];
+
+function readToolPart(
+  index: number,
+  options: { turnId?: string; timestamp?: string } = {}
+): TranscriptPart {
+  return {
+    type: "tool-Read",
+    toolCallId: `story_tool_read_${index}`,
+    state: "output-available",
+    ...(options.turnId ? { turnId: options.turnId } : {}),
+    ...(options.timestamp ? { timestamp: options.timestamp } : {}),
+    input: {
+      file_path: `/workspace/app/src/file-${index}.ts`,
+    },
+    output: {
+      type: "tool_result",
+      title: "Read",
+      raw: {
+        stdout: `export const fixture${index} = true;\n`,
+      },
+    },
+  } as unknown as TranscriptPart;
+}
+
+function textTurnPart(text: string, turnId: string, timestamp: string): TranscriptPart {
+  return {
+    type: "text",
+    text,
+    state: "done",
+    turnId,
+    timestamp,
+  } as unknown as TranscriptPart;
+}
+
+function reasoningTurnPart(text: string, turnId: string, timestamp: string): TranscriptPart {
+  return {
+    type: "reasoning",
+    text,
+    state: "done",
+    turnId,
+    timestamp,
+  } as unknown as TranscriptPart;
+}
 
 const mixedStreamingTranscript: TranscriptMessage[] = [
   {
@@ -42,36 +89,7 @@ const mixedStreamingTranscript: TranscriptMessage[] = [
           detail: "Unregistered data event kept inline.",
         },
       },
-      {
-        type: "tool-WebSearch",
-        toolCallId: "story_tool_web",
-        state: "output-available",
-        input: {
-          query: "launch note risk",
-        },
-        output: {
-          type: "tool_result",
-          title: "WebSearch",
-          raw: {
-            content: "Found launch note reference.",
-          },
-        },
-      },
-      {
-        type: "tool-Bash",
-        toolCallId: "story_tool_bash",
-        state: "output-available",
-        input: {
-          command: "bunx turbo run test --filter=./web",
-        },
-        output: {
-          type: "tool_result",
-          title: "Bash",
-          raw: {
-            stdout: "web tests passed\n",
-          },
-        },
-      },
+      ...Array.from({ length: 8 }, (_, index) => readToolPart(index + 1)),
       {
         type: "text",
         text: [
@@ -92,6 +110,209 @@ const mixedStreamingTranscript: TranscriptMessage[] = [
   },
 ];
 
+const foldedTurnsTranscript: TranscriptMessage[] = [
+  {
+    id: "story_user_folded",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Review three work turns and leave the final answer readable.",
+        state: "done",
+      },
+    ],
+  },
+  {
+    id: "story_assistant_folded_1",
+    role: "assistant",
+    parts: [
+      reasoningTurnPart(
+        "First turn: inspect the launch checklist before touching copy.",
+        "story-turn-1",
+        "2026-07-07T12:00:00Z"
+      ),
+      readToolPart(1, {
+        turnId: "story-turn-1",
+        timestamp: "2026-07-07T12:00:03Z",
+      }),
+      textTurnPart(
+        "Launch checklist is present and current.",
+        "story-turn-1",
+        "2026-07-07T12:00:05Z"
+      ),
+    ],
+  },
+  {
+    id: "story_assistant_folded_2",
+    role: "assistant",
+    parts: [
+      ...Array.from({ length: 8 }, (_, index) =>
+        readToolPart(index + 2, {
+          turnId: "story-turn-2",
+          timestamp: `2026-07-07T12:00:${10 + index}Z`,
+        })
+      ),
+      textTurnPart(
+        "The eight referenced files agree on the launch-state language.",
+        "story-turn-2",
+        "2026-07-07T12:00:20Z"
+      ),
+    ],
+  },
+  {
+    id: "story_assistant_folded_3",
+    role: "assistant",
+    parts: [
+      reasoningTurnPart(
+        "Final turn: verify the command output and patch summary.",
+        "story-turn-3",
+        "2026-07-07T12:01:00Z"
+      ),
+      {
+        type: "tool-Bash",
+        toolCallId: "story_tool_bash_folded",
+        state: "output-available",
+        turnId: "story-turn-3",
+        timestamp: "2026-07-07T12:01:05Z",
+        input: {
+          command: "bunx turbo run test --filter=./web",
+        },
+        output: {
+          type: "tool_result",
+          title: "Bash",
+          raw: {
+            stdout: "web tests passed\n",
+          },
+        },
+      } as unknown as TranscriptPart,
+      {
+        type: "tool-Edit",
+        toolCallId: "story_tool_edit_folded",
+        state: "output-available",
+        turnId: "story-turn-3",
+        timestamp: "2026-07-07T12:01:08Z",
+        input: {
+          file_path: "/workspace/app/src/launch-note.ts",
+          old_string: "const status = 'pending';",
+          new_string: "const status = 'ready';",
+        },
+        output: {
+          type: "tool_result",
+          title: "Edit",
+          raw: {
+            content: "Applied patch successfully.",
+          },
+        },
+      } as unknown as TranscriptPart,
+      textTurnPart(
+        "All three work turns are complete; the final launch note is ready.",
+        "story-turn-3",
+        "2026-07-07T12:01:12Z"
+      ),
+    ],
+  },
+];
+
+function editToolPart(
+  index: number,
+  filePath: string,
+  oldString: string,
+  newString: string,
+  timestamp: string
+): TranscriptPart {
+  return {
+    type: "tool-Edit",
+    toolCallId: `story_tool_edit_${index}`,
+    state: "output-available",
+    turnId: "story-turn-edits",
+    timestamp,
+    input: { file_path: filePath, old_string: oldString, new_string: newString },
+    output: { type: "tool_result", title: "Edit", raw: { content: "Applied patch." } },
+  } as unknown as TranscriptPart;
+}
+
+const changedFilesTranscript: TranscriptMessage[] = [
+  {
+    id: "story_user_changed_files",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Flip the launch flag to ready and refresh the release notes.",
+        state: "done",
+      },
+    ],
+  },
+  {
+    id: "story_assistant_changed_files",
+    role: "assistant",
+    parts: [
+      editToolPart(
+        1,
+        "/workspace/app/src/launch-note.ts",
+        "const status = 'pending';",
+        "const status = 'ready';",
+        "2026-07-07T12:00:00Z"
+      ),
+      editToolPart(
+        2,
+        "/workspace/app/src/config/flags.ts",
+        "launchReady: false,",
+        "launchReady: true,\n  launchReadyAt: Date.now(),",
+        "2026-07-07T12:00:03Z"
+      ),
+      {
+        type: "tool-Write",
+        toolCallId: "story_tool_write_release",
+        state: "output-available",
+        turnId: "story-turn-edits",
+        timestamp: "2026-07-07T12:00:06Z",
+        input: {
+          file_path: "/workspace/RELEASE.md",
+          content: ["# Release", "", "- Launch flag set to ready.", "- Notes refreshed."].join(
+            "\n"
+          ),
+        },
+        output: { type: "tool_result", title: "Write", raw: { content: "Wrote RELEASE.md." } },
+      } as unknown as TranscriptPart,
+      textTurnPart(
+        "Launch flag is ready and the release notes are refreshed.",
+        "story-turn-edits",
+        "2026-07-07T12:00:09Z"
+      ),
+    ],
+  },
+];
+
+const hoverToolbarTranscript: TranscriptMessage[] = [
+  {
+    id: "story_user_hover",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: "Summarize the launch readiness in one line.",
+        state: "done",
+      },
+    ],
+  },
+  {
+    id: "story_assistant_hover",
+    role: "assistant",
+    parts: [
+      textTurnPart(
+        "Launch readiness is green: the launch note is present, web checks pass, and no blocking risks remain.",
+        "story-turn-hover",
+        "2026-07-07T12:00:05Z"
+      ),
+    ],
+  },
+];
+
+function transcriptEntries(messages: TranscriptMessage[]) {
+  return messages.map((message, index) => ({ message, sequence: index + 1 }));
+}
+
 /**
  * Storybook stories for the assistant-ui session thread shell.
  *
@@ -109,14 +330,14 @@ const meta: Meta<typeof SessionThread> = {
     ...storybookMswParameters({
       session: [
         http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
-          HttpResponse.json({ messages: [] })
+          HttpResponse.json({ entries: [] })
         ),
       ],
     }),
     docs: {
       description: {
         component:
-          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. Composer surface stays flat on `--canvas-soft` with a `--line` ring; focus-within shifts the ring to `--accent`; the send button uses `--accent` fill with `--accent-ink` glyph (warm brand orange + readable ink, never raw white). The clear-conversation flow opens a confirm dialog using the kit's Dialog primitive.",
+          "Shell wrapping `@assistant-ui/react` ThreadPrimitive + ComposerPrimitive. The composer input box is raised onto `--elevated` with a `--line-strong` ring so it reads distinctly against the `--canvas-soft` shell; focus-within shifts the ring to `--accent`. Idle shows an `--accent` send disc (`--accent-ink` glyph, never raw white); while a turn runs the primary disc becomes a `--danger` Stop, Enter queues the draft (with a visible hint), and queued prompts fuse onto the composer top as steer/edit/remove rows. Clear-conversation lives in the topbar, not the composer.",
       },
     },
   },
@@ -124,7 +345,7 @@ const meta: Meta<typeof SessionThread> = {
     Story => (
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
-        workspaceId={primarySessionFixture.workspace_id}
+        workspaceId={storyWorkspaceId}
       >
         <div className="flex h-[640px] w-full flex-col bg-background border border-line">
           <Story />
@@ -193,17 +414,36 @@ export const Empty: Story = {
 };
 
 /**
- * With clear-conversation control enabled — opens the kit's Dialog confirm flow.
+ * Running composer with queued follow-ups — the strip fuses onto the composer top,
+ * each row exposing steer / edit / remove; the primary disc is the `--danger` Stop
+ * and Enter queues (hint visible).
  */
-export const WithClear: Story = {
+export const QueuedComposer: Story = {
   args: {
     sessionId: primarySessionFixture.id,
     agentName: primarySessionFixture.agent_name,
     canPrompt: true,
+    isSessionRunning: true,
+    allowBusyInput: true,
     onCancelPrompt: () => undefined,
-    onClearConversation: () => undefined,
-    canClearConversation: true,
-    isClearingConversation: false,
+    onQueuePrompt: () => undefined,
+    onInterruptPrompt: () => undefined,
+    onSteerPrompt: () => undefined,
+    onRemoveQueuedPrompt: () => undefined,
+    onSteerQueuedPrompt: () => undefined,
+    queuedPrompts: [
+      { id: "inq-1", text: "Add a regression test for the reconnect path." },
+      { id: "inq-2", text: "Then update the CLI docs for `--frames`." },
+    ],
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
+        ),
+      ],
+    }),
   },
 };
 
@@ -233,11 +473,89 @@ export const MixedStreaming: Story = {
     ...storybookMswParameters({
       session: [
         http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
-          HttpResponse.json({ messages: mixedStreamingTranscript })
+          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
         ),
       ],
     }),
   },
+};
+
+/**
+ * Folded work turns — three settled assistant turns collapse to duration buttons while final text remains visible.
+ */
+export const FoldedTurns: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ entries: transcriptEntries(foldedTurnsTranscript) })
+        ),
+      ],
+    }),
+  },
+};
+
+/**
+ * Changed-files roll-up — a settled editing turn closes with a collapsed
+ * "Edited N files +a/-d" audit summary at its tail (below the folded work and the
+ * terminal answer). Display-only: no Undo/Review, since AGH exposes no checkpoint
+ * semantics. Expanding it lists each modified file with its diff stats.
+ */
+export const ChangedFilesRollup: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ entries: transcriptEntries(changedFilesTranscript) })
+        ),
+      ],
+    }),
+  },
+};
+
+/**
+ * Hover toolbar — copy (markdown source) + timestamp reveal on a settled assistant
+ * message. The decorator forces the reveal so a static capture shows the hovered
+ * state; production keeps the row `opacity-0` until hover / keyboard focus-within.
+ */
+export const HoverToolbar: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ entries: transcriptEntries(hoverToolbarTranscript) })
+        ),
+      ],
+    }),
+  },
+  decorators: [
+    Story => (
+      <>
+        <style>
+          {`[data-testid$="-message-actions"]{opacity:1 !important;pointer-events:auto !important;}`}
+        </style>
+        <Story />
+      </>
+    ),
+  ],
 };
 
 /**
@@ -260,7 +578,7 @@ export const BusyInputControls: Story = {
     ...storybookMswParameters({
       session: [
         http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
-          HttpResponse.json({ messages: mixedStreamingTranscript })
+          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
         ),
       ],
     }),
@@ -276,7 +594,7 @@ export const WidePanel: Story = {
     Story => (
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
-        workspaceId={primarySessionFixture.workspace_id}
+        workspaceId={storyWorkspaceId}
       >
         <div className="flex h-[640px] w-[1200px] max-w-full flex-col border border-line bg-background">
           <Story />
@@ -302,7 +620,7 @@ export const OnboardingInset: Story = {
     Story => (
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
-        workspaceId={primarySessionFixture.workspace_id}
+        workspaceId={storyWorkspaceId}
       >
         <div className="flex h-[640px] w-[1200px] max-w-full flex-col border border-line bg-background">
           <Story />
@@ -310,4 +628,29 @@ export const OnboardingInset: Story = {
       </SessionChatRuntimeProvider>
     ),
   ],
+};
+
+/**
+ * Scroll-to-bottom pill — the live-follow affordance revealed when the reader
+ * scrolls away from the live edge. Synara's `size-8 rounded-full` disc remapped to
+ * AGH neutral tokens (`bg-canvas-soft` + `border-line`, no glass/backdrop-blur),
+ * floating over the transcript above the composer. Interaction-gated in production;
+ * rendered here in its visible state over a transcript-like backdrop.
+ */
+export const ScrollToBottomAffordance: Story = {
+  args: baseArgs,
+  render: () => (
+    <div className="relative flex min-h-0 flex-1 flex-col bg-background">
+      <div className="flex-1 space-y-4 overflow-hidden px-4 py-6 text-sm leading-7 text-muted">
+        {Array.from({ length: 8 }, (_, index) => (
+          <p key={index}>
+            Streamed transcript line {index + 1} — the reader has scrolled up while the assistant
+            keeps answering below the fold, so the live-follow pill offers a one-click return to the
+            newest output.
+          </p>
+        ))}
+      </div>
+      <ScrollToBottomPill visible onClick={() => undefined} />
+    </div>
+  ),
 };

@@ -1,50 +1,33 @@
 import {
-  Terminal,
-  FileText,
+  Activity,
+  Blocks,
+  Bot,
+  Boxes,
+  Brain,
   FileEdit,
-  Search,
+  FileText,
   FolderSearch,
   Globe,
-  Wrench,
-  ListChecks,
+  Hammer,
+  LibraryBig,
   Lightbulb,
+  ListChecks,
   Map,
   MessageCircleQuestion,
-  PackageSearch,
-  Sparkles,
   NotebookPen,
-  Hammer,
+  PackageSearch,
+  Plug,
+  Radio,
+  Repeat,
+  ScrollText,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Terminal,
+  Workflow,
+  Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { UIMessage } from "../types";
-
-// --- Tool Tone System ---
-
-export type ToolTone = "tool" | "error" | "thinking" | "info";
-
-const THINKING_TOOLS = new Set(["Think", "Agent", "Task"]);
-const INFO_TOOLS = new Set(["EnterPlanMode", "ExitPlanMode", "TodoWrite", "ToolSearch", "Skill"]);
-
-export function getToolTone(message: UIMessage): ToolTone {
-  if (message.toolError) return "error";
-  const name = message.toolName ?? "";
-  if (THINKING_TOOLS.has(name)) return "thinking";
-  if (INFO_TOOLS.has(name)) return "info";
-  return "tool";
-}
-
-export function toolToneClass(tone: ToolTone): string {
-  switch (tone) {
-    case "error":
-      return "text-danger/50";
-    case "tool":
-      return "text-subtle/70";
-    case "thinking":
-      return "text-subtle/50";
-    case "info":
-      return "text-subtle/40";
-  }
-}
 
 // --- Tool Icons ---
 
@@ -70,13 +53,56 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * Resolve tool icon by name, with semantic fallbacks for unknown/MCP tools.
+ * Icon per AGH native tool family (`agh__<family>_<verb>` → icon). Derived from
+ * AGH's own `agh__*` tool taxonomy — NOT from competitor request-kind/item-type
+ * enums. Unmapped families fall through to the generic tool fallback.
+ */
+const AGH_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
+  edit: FileEdit,
+  memory: Brain,
+  network: Radio,
+  config: SlidersHorizontal,
+  automation: Workflow,
+  loop: Repeat,
+  loops: Repeat,
+  agent: Bot,
+  observe: Activity,
+  logs: ScrollText,
+  bundles: Boxes,
+  extensions: Blocks,
+  catalog: LibraryBig,
+};
+
+const AGH_NATIVE_PREFIX = "agh__";
+const MCP_PREFIX = "mcp__";
+
+/**
+ * Extract the family segment of an AGH native tool id (`agh__memory_note` →
+ * `memory`). Returns null for non-native ids or an empty family segment.
+ */
+function aghNativeFamily(toolName: string): string | null {
+  if (!toolName.startsWith(AGH_NATIVE_PREFIX)) return null;
+  const family = toolName.slice(AGH_NATIVE_PREFIX.length).split("_", 1)[0] ?? "";
+  return family.length > 0 ? family : null;
+}
+
+/**
+ * Resolve a tool icon by name. Order: exact builtin map → MCP bridge tools →
+ * AGH native tool family → semantic input fallbacks → generic tool glyph.
  */
 export function getToolIcon(toolName: string, toolInput?: Record<string, unknown>): LucideIcon {
   const direct = TOOL_ICONS[toolName];
   if (direct) return direct;
 
-  // Semantic fallbacks for unknown tools (MCP, dynamic, etc.)
+  if (toolName.startsWith(MCP_PREFIX)) return Plug;
+
+  const family = aghNativeFamily(toolName);
+  if (family) {
+    const familyIcon = AGH_NATIVE_FAMILY_ICONS[family];
+    if (familyIcon) return familyIcon;
+  }
+
+  // Semantic fallbacks for uncatalogued dynamic tools.
   if (toolInput) {
     if ("command" in toolInput) return Terminal;
     if ("file_path" in toolInput || "filePath" in toolInput) return FileText;
@@ -132,10 +158,6 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
 
-export function isRegisteredToolName(toolName: string): boolean {
-  return REGISTERED_TOOL_NAMES.has(toolName.trim());
-}
-
 /**
  * Resolve a canonical registry tool id from a streamed or persisted tool name.
  * Accepts exact ids ("Read") and ACP-style titles ("Read routes.go").
@@ -174,7 +196,7 @@ export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
 // --- Compact Summary Extractors ---
 
 /**
- * Extract a short summary string from tool input for display in collapsed tool cards.
+ * Extract a short summary string from tool input for the collapsed tool-call row preview.
  * Returns undefined if no meaningful summary can be extracted.
  */
 export function getToolCompactSummary(
@@ -193,7 +215,7 @@ function truncate(str: string, maxLen: number): string {
   return str.slice(0, maxLen - 1) + "\u2026";
 }
 
-export function getToolFullSummary(
+function getToolFullSummary(
   toolName: string,
   toolInput?: Record<string, unknown>
 ): string | undefined {

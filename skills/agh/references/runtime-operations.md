@@ -30,7 +30,9 @@ Attachability is explicit runtime state. Use `agh session list --resumable -o js
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `agh session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
-The event store and transcript are the durable source of truth for reattach. When reconnecting to an existing session, read `agh session history <session-id>` or the transcript API first, then follow session events from the latest cursor. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+The event store and transcript are the durable source of truth for reattach. When reconnecting to an existing session, read `agh session history <session-id>` or the transcript API first, then follow session events from the latest cursor. The transcript API returns `entries` with `{ message, sequence }`, so agents can page or merge UI messages without guessing the event cursor. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+
+The HTTP/UDS session stream defaults to transcript frames: `transcript_snapshot`, `transcript_delta`, and terminal `session_stopped`. Use `replay=snapshot` when a subscriber needs a bounded current transcript window before live deltas. Use `frames=raw` when the caller needs persisted `SessionEventPayload` rows; `agh session events --follow` already requests raw frames.
 
 ## Session CLI
 
@@ -45,7 +47,9 @@ Use structured output when agents need to inspect or route results.
     agh session inspect <session-id> --include-wake-events -o json
     agh session recap <session-id> --limit 20 -o json
     agh session events <session-id> --follow
+    agh session events <session-id> --after 42
     agh session history <session-id>
+    agh session history <session-id> --last 20 --after 42
     agh session prompt <session-id> "Summarize the last three tool results."
     agh session stop <session-id>
     agh session resume <session-id>

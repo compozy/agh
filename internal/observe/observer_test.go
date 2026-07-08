@@ -22,46 +22,36 @@ import (
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-func TestOnSessionCreatedRegistersSessionInGlobalDB(t *testing.T) {
+func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	sess := newSession("sess-created", session.StateActive, h.workspace, h.now)
 
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
+	snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+	if !ok {
+		t.Fatal("sessionSnapshot() cached = false, want true")
 	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].ID != "sess-created" || sessions[0].State != string(session.StateActive) {
-		t.Fatalf("sessions[0] = %#v", sessions[0])
+	if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
+		t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
 	}
 }
 
-func TestOnSessionStoppedUpdatesSessionStateToStopped(t *testing.T) {
+func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	sess := newSession("sess-stopped", session.StateActive, h.workspace, h.now)
 
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 	sess.State = session.StateStopped
 	sess.UpdatedAt = h.now.Add(2 * time.Minute)
 	h.observer.OnSessionStopped(testutil.Context(t), sess)
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].State != string(session.StateStopped) {
-		t.Fatalf("sessions[0].State = %q, want %q", sessions[0].State, session.StateStopped)
+	if _, ok := h.observer.sessionSnapshot(sess.ID); ok {
+		t.Fatal("sessionSnapshot() cached = true, want false after stop")
 	}
 }
 
@@ -75,7 +65,7 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		RootSessionID:   "sess-root",
 		SpawnDepth:      1,
 	}
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "agent_message",
@@ -107,7 +97,7 @@ func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
 
 		h := newHarness(t)
 		sess := newSession("sess-memory-observe", session.StateActive, h.workspace, h.now)
-		h.observer.OnSessionCreated(testutil.Context(t), sess)
+		h.observeSessionCreated(t, sess)
 		h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 			Type:      "agent_message",
 			TurnID:    "turn-1",
@@ -194,7 +184,7 @@ func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 
 		h := newHarness(t)
 		sess := newSession("sess-memory-filter", session.StateActive, h.workspace, h.now)
-		h.observer.OnSessionCreated(testutil.Context(t), sess)
+		h.observeSessionCreated(t, sess)
 		source := &stubMemoryEventSource{
 			events: []store.EventSummary{{
 				ID:        "memevt-workspace-02",
@@ -450,7 +440,7 @@ func TestSweepRetentionModes(t *testing.T) {
 			h.observer.retention = tc.retention
 			h.observer.setRetentionHealth(h.observer.initialRetentionHealth())
 			sess := newSession(tc.sessionID, session.StateActive, h.workspace, h.now)
-			h.observer.OnSessionCreated(testutil.Context(t), sess)
+			h.observeSessionCreated(t, sess)
 			tc.record(t, h, sess)
 
 			health, err := h.observer.SweepRetention(testutil.Context(t))
@@ -467,7 +457,7 @@ func TestOnAgentEventUpdatesTokenStatsWithNullableValues(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-usage", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	outputTokens := int64(4)
 	totalTokens := int64(4)
@@ -506,7 +496,7 @@ func TestOnAgentEventWritesPermissionLog(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-permission", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "permission",
@@ -555,7 +545,7 @@ func TestNotifierLifecycleWritesThroughObserver(t *testing.T) {
 	h := newHarness(t)
 	sess := newSession("sess-nil-ctx", session.StateActive, h.workspace, h.now)
 
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "tool_result",
 		TurnID:    "turn-nil-ctx",
@@ -585,7 +575,7 @@ func TestOnAgentEventGuardBranches(t *testing.T) {
 	})
 
 	sess := newSession("sess-empty-type", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		TurnID:    "turn-empty-type",
 		Timestamp: h.now,
@@ -609,7 +599,7 @@ func TestOnAgentEventPermissionWithoutResolvedPolicySkipsAudit(t *testing.T) {
 	}
 
 	sess := newSession("sess-no-policy", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "permission",
 		TurnID:    "turn-no-policy",
@@ -634,8 +624,8 @@ func TestQueryEventsFilterBySessionID(t *testing.T) {
 	h := newHarness(t)
 	sessA := newSession("sess-a", session.StateActive, h.workspace, h.now)
 	sessB := newSession("sess-b", session.StateActive, h.workspace, h.now.Add(time.Minute))
-	h.observer.OnSessionCreated(testutil.Context(t), sessA)
-	h.observer.OnSessionCreated(testutil.Context(t), sessB)
+	h.observeSessionCreated(t, sessA)
+	h.observeSessionCreated(t, sessB)
 
 	h.recordEvent(t, sessA.ID, "agent_message", h.now.Add(time.Minute), "a-1")
 	h.recordEvent(t, sessB.ID, "agent_message", h.now.Add(2*time.Minute), "b-1")
@@ -657,7 +647,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-harness-observe", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	base := h.now.Add(3 * time.Minute)
 	summaries := []store.EventSummary{
@@ -715,7 +705,7 @@ func TestQueryEventsFilterByEventType(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-type", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(time.Minute), "msg")
 	h.recordEvent(t, sess.ID, "tool_call", h.now.Add(2*time.Minute), "tool")
@@ -737,7 +727,7 @@ func TestQueryEventsFilterByTimeRange(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-since", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	oldTs := h.now.Add(time.Minute)
 	newTs := h.now.Add(3 * time.Minute)
@@ -764,7 +754,7 @@ func TestQueryEventsLimitReturnsMostRecentRowsInAscendingOrder(t *testing.T) {
 
 	h := newHarness(t)
 	sess := newSession("sess-limit", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(time.Minute), "one")
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(2*time.Minute), "two")
@@ -1028,6 +1018,14 @@ type harness struct {
 	workspace   string
 }
 
+func (h *harness) observeSessionCreated(t *testing.T, sess *session.Session) {
+	t.Helper()
+	if err := h.registry.RegisterSession(testutil.Context(t), sessionInfoFromSession(sess.Info())); err != nil {
+		t.Fatalf("RegisterSession(%q) error = %v", sess.ID, err)
+	}
+	h.observer.OnSessionCreated(testutil.Context(t), sess)
+}
+
 const observerWorkspaceID = "ws-observe-workspace"
 
 type stubSessionSource struct {
@@ -1079,6 +1077,7 @@ func (s *observeBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliv
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	ctx := observeTestContext(t)
 
 	home, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {
@@ -1088,12 +1087,12 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
-	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), home.DatabaseFile)
+	registry, err := globaldb.OpenGlobalDB(ctx, home.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if err := registry.Close(testutil.Context(t)); err != nil {
+		if err := registry.Close(observeTestContext(t)); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
@@ -1126,7 +1125,7 @@ func newHarness(t *testing.T) *harness {
 			}},
 		},
 	}
-	if err := registry.InsertWorkspace(testutil.Context(t), aghworkspace.Workspace{
+	if err := registry.InsertWorkspace(ctx, aghworkspace.Workspace{
 		ID:        observerWorkspaceID,
 		RootDir:   workspace,
 		Name:      "observe-workspace",
@@ -1136,7 +1135,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 
-	observer, err := New(testutil.Context(t),
+	observer, err := New(ctx,
 		WithRegistry(registry),
 		WithHomePaths(home),
 		WithSessionSource(source),
@@ -1169,6 +1168,14 @@ func newHarness(t *testing.T) *harness {
 		workspaceID: observerWorkspaceID,
 		workspace:   workspace,
 	}
+}
+
+func observeTestContext(t testing.TB) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	t.Cleanup(cancel)
+	return ctx
 }
 
 func (h *harness) recordEvent(t *testing.T, sessionID string, eventType string, timestamp time.Time, text string) {

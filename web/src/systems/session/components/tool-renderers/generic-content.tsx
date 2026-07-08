@@ -31,6 +31,7 @@ export function GenericContent({ message }: { message: UIMessage }) {
         <CodeBlock
           code={formatInput(message.toolInput)}
           copyable={false}
+          density="compact"
           showPrompt={false}
           truncateLines={8}
         />
@@ -39,6 +40,7 @@ export function GenericContent({ message }: { message: UIMessage }) {
         <CodeBlock
           code={formatResult(result)}
           copyable={false}
+          density="compact"
           showPrompt={false}
           truncateLines={12}
         />

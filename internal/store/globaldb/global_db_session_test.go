@@ -54,6 +54,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'',
 			'',
 			NULL,
+			0,
 			'snap-scan',
 			'sha256:scan',
 			'sha256:parent',
@@ -184,6 +185,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 				'',
 				'',
 				NULL,
+				0,
 				NULL,
 				'',
 				'',
@@ -270,6 +272,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 				'',
 				'',
 				NULL,
+				0,
 				NULL,
 				'',
 				'',
@@ -336,6 +339,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			'',
 			NULL,
+			0,
 			NULL,
 			'',
 			'',
@@ -417,6 +421,65 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 		})
 		if !errors.Is(err, store.ErrSessionNotAttachable) {
 			t.Fatalf("AttachSession(stalled) error = %v, want ErrSessionNotAttachable", err)
+		}
+	})
+}
+
+func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not reset a persisted transcript epoch from a reconstructed session row", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"transcript-epoch-workspace",
+			filepath.Join(t.TempDir(), "transcript-epoch-workspace"),
+		)
+		now := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+		session := store.SessionInfo{
+			ID:              "sess-transcript-epoch",
+			Name:            "Transcript Epoch",
+			AgentName:       "coder",
+			Provider:        "claude",
+			WorkspaceID:     workspaceID,
+			SessionType:     defaultSessionType,
+			State:           globalDBSessionStateActive,
+			TranscriptEpoch: 3,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		if err := globalDB.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession(initial) error = %v", err)
+		}
+
+		session.TranscriptEpoch = 0
+		session.State = globalDBSessionStateStopped
+		session.UpdatedAt = now.Add(time.Minute)
+		if err := globalDB.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession(reconstructed) error = %v", err)
+		}
+
+		epoch, err := globalDB.SessionTranscriptEpoch(ctx, session.ID)
+		if err != nil {
+			t.Fatalf("SessionTranscriptEpoch() error = %v", err)
+		}
+		if epoch != 3 {
+			t.Fatalf("SessionTranscriptEpoch() = %d, want 3", epoch)
+		}
+
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: session.ID})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(sessions) != 1 {
+			t.Fatalf("len(sessions) = %d, want 1", len(sessions))
+		}
+		if sessions[0].TranscriptEpoch != 3 {
+			t.Fatalf("sessions[0].TranscriptEpoch = %d, want 3", sessions[0].TranscriptEpoch)
 		}
 	})
 }

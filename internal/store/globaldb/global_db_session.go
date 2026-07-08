@@ -93,7 +93,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		state, acp_session_id, stop_reason, stop_detail,
 		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
-		activity_json, attached_to, attach_expires_at,
+		activity_json, attached_to, attach_expires_at, transcript_epoch,
 		soul_snapshot_id, soul_digest, parent_soul_digest,
 		sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 		sandbox_state, sandbox_provider_state_json,
@@ -382,6 +382,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			auto_stop_on_parent, spawn_budget_json, permission_policy_json,
 			acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
 			subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
+			transcript_epoch,
 				soul_snapshot_id, soul_digest, parent_soul_digest,
 				sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 				sandbox_state, sandbox_provider_state_json,
@@ -389,7 +390,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			) VALUES (
 				?, ?, ?, ?, ?, ?, ?, ?,
 				?, ?, ?, ?, ?, ?, ?, ?,
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 			)
 			ON CONFLICT(id) DO UPDATE SET
@@ -420,6 +421,7 @@ func (g *GlobalDB) registerSession(ctx context.Context, exec sqlExecutor, sessio
 			stall_state = excluded.stall_state,
 			stall_reason = excluded.stall_reason,
 			activity_json = excluded.activity_json,
+			transcript_epoch = MAX(sessions.transcript_epoch, excluded.transcript_epoch),
 			soul_snapshot_id = excluded.soul_snapshot_id,
 			soul_digest = excluded.soul_digest,
 			parent_soul_digest = excluded.parent_soul_digest,
@@ -503,6 +505,7 @@ func (record sessionCatalogRecord) args() []any {
 		sessionLivenessStallState(session.Liveness),
 		sessionLivenessStallReason(session.Liveness),
 		record.activityJSON,
+		session.TranscriptEpoch,
 		store.NullableString(session.SoulSnapshotID),
 		strings.TrimSpace(session.SoulDigest),
 		strings.TrimSpace(session.ParentSoulDigest),
@@ -681,6 +684,7 @@ type sessionInfoRow struct {
 	activityJSON         string
 	attachedTo           string
 	attachExpiresAt      sql.NullString
+	transcriptEpoch      int64
 	soulSnapshotID       sql.NullString
 	soulDigest           string
 	parentSoulDigest     string
@@ -790,6 +794,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		}
 		session.AttachExpiresAt = &attachExpiresAt
 	}
+	session.TranscriptEpoch = row.transcriptEpoch
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -833,6 +838,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.activityJSON,
 		&row.attachedTo,
 		&row.attachExpiresAt,
+		&row.transcriptEpoch,
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,

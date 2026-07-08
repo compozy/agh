@@ -56,6 +56,25 @@ func TestWriteSSEScrubsMemoryContext(t *testing.T) {
 	})
 }
 
+func TestWriteSSEComment(t *testing.T) {
+	t.Run("Should write comment-only keepalive frames", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		if err := core.WriteSSEComment(writer, "keepalive"); err != nil {
+			t.Fatalf("WriteSSEComment() error = %v", err)
+		}
+		if got, want := writer.String(), ": keepalive\n\n"; got != want {
+			t.Fatalf("WriteSSEComment() = %q, want %q", got, want)
+		}
+		for _, forbidden := range []string{"id:", "event:", "data:"} {
+			if strings.Contains(writer.String(), forbidden) {
+				t.Fatalf("WriteSSEComment() body contains %q: %q", forbidden, writer.String())
+			}
+		}
+	})
+}
+
 func TestLogEventPayloadScrubsMemoryContext(t *testing.T) {
 	t.Run("Should scrub observe summaries and content before response shaping", func(t *testing.T) {
 		t.Parallel()

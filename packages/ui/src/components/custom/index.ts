@@ -95,6 +95,7 @@ export { MetricGrid, type MetricGridColumns, type MetricGridProps } from "./metr
 export {
   CodeBlock,
   CopyIconButton,
+  type CodeBlockDensity,
   type CodeBlockHighlightState,
   type CodeBlockProps,
   type CodeBlockTone,
@@ -107,12 +108,11 @@ export {
   type ChatMessageRole,
 } from "./chat-message-bubble";
 export {
-  TOOL_CALL_STATUS_LABEL,
-  ToolCallCard,
-  type ToolCallCardProps,
-  type ToolCallCardSectionProps,
+  ToolCallRow,
+  type ToolCallRowProps,
+  type ToolCallRowSectionProps,
   type ToolCallStatus,
-} from "./tool-call-card";
+} from "./tool-call-row";
 export { ToolCallStatusIcon, type ToolCallStatusIconProps } from "./tool-call-status-icon";
 export {
   WireCard,

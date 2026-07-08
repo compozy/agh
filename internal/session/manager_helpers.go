@@ -91,7 +91,7 @@ func (m *Manager) activateAndWatch(
 		return err
 	}
 	session.updateFromProcess(proc, now)
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)
 	}

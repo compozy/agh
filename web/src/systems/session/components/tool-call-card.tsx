@@ -1,19 +1,31 @@
 import { memo, useMemo } from "react";
 
-import { CodeBlock, ToolCallCard as PrimitiveToolCallCard, type ToolCallStatus } from "@agh/ui";
+import {
+  CodeBlock,
+  CopyIconButton,
+  ToolCallRow as PrimitiveToolCallRow,
+  type ToolCallStatus,
+} from "@agh/ui";
 
-import { getToolCompactSummary, getToolLabel, resolveRegisteredToolName } from "../lib/tool-labels";
+import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
+import {
+  getToolCompactSummary,
+  getToolIcon,
+  getToolLabel,
+  resolveRegisteredToolName,
+} from "../lib/tool-labels";
 import type { UIMessage } from "../types";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 
-export interface ToolCallCardProps {
+export interface ToolCallRowProps {
   message: UIMessage;
-}
-
-function statusFromMessage(message: UIMessage): ToolCallStatus {
-  if (message.toolError) return "failed";
-  if (message.toolResult !== undefined) return "completed";
-  return "in_progress";
+  defaultExpanded?: boolean;
+  /**
+   * True once the owning turn has settled. Neutral (empty-output) tools show
+   * `empty` (Minus) while the turn streams and promote to `success` (Check) only
+   * after it settles. Defaults to `false` (assume mid-stream unless told).
+   */
+  turnSettled?: boolean;
 }
 
 function formatJsonSource(input: Record<string, unknown> | undefined): string {
@@ -25,69 +37,106 @@ function formatJsonSource(input: Record<string, unknown> | undefined): string {
   }
 }
 
-function labelTestIdFor(status: ToolCallStatus): string {
-  switch (status) {
-    case "in_progress":
-      return "tool-card-executing";
-    case "failed":
-      return "tool-card-error";
-    case "completed":
-      return "tool-card-success";
-    case "pending":
-      return "tool-card-pending";
+function formatToolPayload(message: UIMessage): string {
+  try {
+    return JSON.stringify(
+      {
+        tool: message.toolName,
+        input: message.toolInput ?? {},
+        output: message.toolResult ?? null,
+        error: message.toolError === true,
+      },
+      null,
+      2
+    );
+  } catch {
+    return String(message.toolName ?? "tool");
   }
 }
 
-function progressLabelFor(message: UIMessage, status: ToolCallStatus): string {
+function progressLabelFor(
+  message: UIMessage,
+  status: ToolCallStatus,
+  runtimeError: boolean
+): string {
   const toolName = resolveRegisteredToolName(message.toolName ?? "tool");
-  if (status === "in_progress") {
+  if (status === "pending" || status === "running") {
     return getToolLabel(toolName, "active");
   }
-  if (status === "failed") {
+  // Only a true runtime error takes the "Failed to …" verb (danger heading);
+  // error-shaped output keeps the neutral past-tense verb + the X glyph.
+  if (status === "failed" && runtimeError) {
     return `Failed to ${getToolLabel(toolName, "failure")}`;
   }
   return getToolLabel(toolName, "past");
 }
 
 /**
- * Chat-thread tool surface composing `<ToolCallCard>` from `@agh/ui`. Maps the
- * legacy `UIMessage.toolResult / toolError / toolName` shape onto the
- * compound `<ToolCallCard.Input>` + `<ToolCallCard.Output>` slots and
- * delegates per-tool output rendering to the existing `ExpandedToolContent`
- * dispatcher.
+ * Chat-thread tool surface composing `<ToolCallRow>` from `@agh/ui`. Maps the
+ * legacy `UIMessage.toolResult / toolError / toolName` shape onto the compound
+ * `<ToolCallRow.Input>` + `<ToolCallRow.Output>` slots and drives one row-state
+ * language via `deriveToolRowStatus`: pending / running / failed / success /
+ * empty, with neutral→success promotion gated on `turnSettled`.
  */
-export const ToolCallCard = memo(
-  function ToolCallCard({ message }: ToolCallCardProps) {
-    const status = statusFromMessage(message);
+export const ToolCallRow = memo(
+  function ToolCallRow({
+    message,
+    defaultExpanded = false,
+    turnSettled = false,
+  }: ToolCallRowProps) {
+    const { status, runtimeError } = deriveToolRowStatus({
+      toolError: message.toolError,
+      toolResult: message.toolResult,
+      hasInput: hasToolInput(message.toolInput),
+      turnSettled,
+    });
     const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
     const compactSummary = getToolCompactSummary(registryTool, message.toolInput);
-    const progressLabel = progressLabelFor(message, status);
-    const labelTestId = labelTestIdFor(status);
+    const progressLabel = progressLabelFor(message, status, runtimeError);
+    const toolIcon = getToolIcon(registryTool, message.toolInput);
     const inputJson = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
-    const hasOutput = message.toolResult !== undefined;
-    const errorMessage = status === "failed" ? progressLabel : undefined;
+    const copyPayload = useMemo(() => formatToolPayload(message), [message]);
+    const hasOutput = !toolResultIsEmpty(message.toolResult);
+    const errorText =
+      typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
+    const errorMessage = status === "failed" ? errorText : undefined;
     return (
-      <div data-testid="tool-call-card">
-        <PrimitiveToolCallCard
-          toolName={registryTool}
-          filePath={compactSummary}
+      <div data-testid="tool-call-row">
+        <PrimitiveToolCallRow
+          toolName={progressLabel}
+          icon={toolIcon}
+          preview={compactSummary}
           status={status}
+          runtimeError={runtimeError}
           errorMessage={errorMessage}
+          defaultExpanded={defaultExpanded || status === "failed"}
         >
+          <div className="flex min-w-0 items-center justify-end">
+            <CopyIconButton
+              value={copyPayload}
+              copyLabel="Copy tool payload"
+              copiedLabel="Tool payload copied"
+              copyFailedLabel="Tool payload copy failed"
+              className="text-subtle hover:text-fg"
+            />
+          </div>
           {inputJson ? (
-            <PrimitiveToolCallCard.Input>
-              <CodeBlock language="json" code={inputJson} />
-            </PrimitiveToolCallCard.Input>
+            <PrimitiveToolCallRow.Input>
+              <CodeBlock
+                code={inputJson}
+                language="json"
+                density="compact"
+                showPrompt={false}
+                copyable={false}
+              />
+            </PrimitiveToolCallRow.Input>
           ) : null}
           {hasOutput ? (
-            <PrimitiveToolCallCard.Output>
+            <PrimitiveToolCallRow.Output>
               <ExpandedToolContent message={message} />
-            </PrimitiveToolCallCard.Output>
+            </PrimitiveToolCallRow.Output>
           ) : null}
-        </PrimitiveToolCallCard>
-        <span data-testid={labelTestId} className="sr-only">
-          {progressLabel}
-        </span>
+        </PrimitiveToolCallRow>
       </div>
     );
   },
@@ -95,5 +144,7 @@ export const ToolCallCard = memo(
     previous.message.toolInput === next.message.toolInput &&
     previous.message.toolResult === next.message.toolResult &&
     previous.message.toolError === next.message.toolError &&
-    previous.message.toolName === next.message.toolName
+    previous.message.toolName === next.message.toolName &&
+    previous.defaultExpanded === next.defaultExpanded &&
+    previous.turnSettled === next.turnSettled
 );

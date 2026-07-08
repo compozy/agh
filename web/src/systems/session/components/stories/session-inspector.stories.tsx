@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { Button } from "@agh/ui";
 
@@ -26,11 +26,10 @@ const baseArgs: SessionInspectorProps = {
   usage: {
     tokensIn: 128_400,
     tokensOut: 24_900,
+    totalTokens: 153_300,
     costUsd: 18.42,
-    ratePerSecond: 42.1,
-    tokensInDelta: 4.8,
-    tokensOutDelta: -2.1,
-    costDelta: 1.2,
+    costCurrency: "USD",
+    turnCount: 12,
   },
   vaultSecrets,
   files: [
@@ -91,6 +90,22 @@ export const Drawer: Story = {
         <SessionInspector {...args} drawerOpen={open} onDrawerOpenChange={setOpen} />
       </div>
     );
+  },
+};
+
+/**
+ * Usage tab wired to a real daemon token-usage summary: tokens in/out, total
+ * tokens, and cost render as a truthful metric grid with a turn-count caption.
+ */
+export const UsageTab: Story = {
+  args: baseArgs,
+  parameters: {
+    viewport: { defaultViewport: "responsive" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("session-inspector-tab-usage"));
+    await canvas.findByTestId("session-inspector-usage-grid");
   },
 };
 

@@ -5025,8 +5025,12 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.UIMessage, error) {
+func (f *fakeSessionManager) Transcript(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
 	return nil, nil
+}
+
+func (f *fakeSessionManager) TranscriptWatermark(context.Context, string) session.TranscriptWatermark {
+	return session.TranscriptWatermark{}
 }
 
 func (f *fakeSessionManager) InputQueueSummary(
@@ -5767,6 +5771,10 @@ func (f *fakeObserver) QueryHookRuns(context.Context, store.HookRunQuery) ([]hoo
 }
 
 func (f *fakeObserver) QueryHookEvents(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error) {
+	return nil, nil
+}
+
+func (f *fakeObserver) QueryTokenStats(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
 	return nil, nil
 }
 

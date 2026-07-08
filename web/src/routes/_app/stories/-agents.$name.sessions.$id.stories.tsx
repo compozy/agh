@@ -24,6 +24,10 @@ const fraudSessionRoute = `/agents/${storyAgentNames.fraud}/sessions/${storySess
 const marketingStoppedSessionRoute = `/agents/${storyAgentNames.marketing}/sessions/${storySessionIds.marketing}`;
 const missingSessionRoute = `/agents/${storyAgentNames.fraud}/sessions/sess-missing`;
 
+function transcriptEntries<T>(messages: T[]) {
+  return messages.map((message, index) => ({ message, sequence: index + 1 }));
+}
+
 /**
  * Active session transcript route for the primary payout-operations session.
  */
@@ -68,7 +72,7 @@ export const PendingPermission: Story = {
     ...storybookMswParameters({
       session: [
         http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
-          HttpResponse.json({ messages: sessionTranscriptPermissionFixture })
+          HttpResponse.json({ entries: transcriptEntries(sessionTranscriptPermissionFixture) })
         ),
       ],
     }),

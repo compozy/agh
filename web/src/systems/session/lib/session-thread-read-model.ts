@@ -71,11 +71,13 @@ function promotionKeys(message: ThreadMessage, source: MessageSource): string[] 
 export function mergeSessionThreadReadModel({
   transcriptMessages,
   runtimeMessages,
+  includeRuntimeTail = true,
 }: {
   transcriptMessages: readonly ThreadMessage[];
   runtimeMessages: readonly ThreadMessage[];
+  includeRuntimeTail?: boolean;
 }): readonly ThreadMessage[] {
-  if (runtimeMessages.length === 0) {
+  if (runtimeMessages.length === 0 || !includeRuntimeTail) {
     return transcriptMessages;
   }
 

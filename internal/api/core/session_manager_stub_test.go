@@ -16,7 +16,8 @@ type sessionManagerStub struct {
 	status            func(context.Context, string) (*session.Info, error)
 	events            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	history           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	transcript        func(context.Context, string) ([]transcript.UIMessage, error)
+	transcript        func(context.Context, string, store.EventQuery) ([]transcript.Entry, error)
+	watermark         func(context.Context, string) session.TranscriptWatermark
 	inputQueueSummary func(context.Context, string) (session.InputQueueSummary, error)
 	repairSession     func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	delete            func(context.Context, string) error
@@ -84,11 +85,25 @@ func (s sessionManagerStub) History(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
+func (s sessionManagerStub) Transcript(
+	ctx context.Context,
+	id string,
+	query store.EventQuery,
+) ([]transcript.Entry, error) {
 	if s.transcript != nil {
-		return s.transcript(ctx, id)
+		return s.transcript(ctx, id, query)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) TranscriptWatermark(
+	ctx context.Context,
+	id string,
+) session.TranscriptWatermark {
+	if s.watermark != nil {
+		return s.watermark(ctx, id)
+	}
+	return session.TranscriptWatermark{}
 }
 
 func (s sessionManagerStub) InputQueueSummary(

@@ -59,6 +59,16 @@ func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *Wri
 	return executeWrite(ctx, db, defaultExecuteWriteConfig(), fn)
 }
 
+// ExecuteWriteNoCheckpoint runs fn inside a write transaction without the
+// package-level checkpoint hook. Callers that own their own WAL policy use this
+// to avoid cross-database checkpoint side effects.
+func ExecuteWriteNoCheckpoint(ctx context.Context, db *sql.DB, fn func(context.Context, *WriteTx) error) error {
+	cfg := defaultExecuteWriteConfig()
+	cfg.checkpointEvery = 0
+	cfg.checkpoint = nil
+	return executeWrite(ctx, db, cfg, fn)
+}
+
 type executeWriteConfig struct {
 	maxAttempts     int
 	minRetryDelay   time.Duration

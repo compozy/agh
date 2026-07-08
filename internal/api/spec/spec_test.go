@@ -160,6 +160,76 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeSessionTranscriptStreamAndDirectReadContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				directSession := operationFor(t, doc, "/api/sessions/{session_id}", "GET")
+				assertParameter(t, directSession, "session_id", openapi3.ParameterInPath, true)
+				assertParameter(t, directSession, "include_health", openapi3.ParameterInQuery, false)
+				directResponse := jsonResponseSchema(t, directSession, 200)
+				assertRequired(t, directResponse, "session")
+
+				transcriptOperation := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+					"GET",
+				)
+				assertParameter(t, transcriptOperation, "limit", openapi3.ParameterInQuery, false)
+				assertParameter(t, transcriptOperation, "after_sequence", openapi3.ParameterInQuery, false)
+				assertParameter(t, transcriptOperation, "before_sequence", openapi3.ParameterInQuery, false)
+				transcriptResponse := jsonResponseSchema(t, transcriptOperation, 200)
+				assertRequired(t, transcriptResponse, "entries")
+				assertPropertyAbsent(t, transcriptResponse, "messages")
+				entriesSchema := propertySchema(t, transcriptResponse, "entries")
+				if entriesSchema.Items == nil || entriesSchema.Items.Value == nil {
+					t.Fatal("expected transcript entries to define an items schema")
+				}
+				assertRequired(t, entriesSchema.Items.Value, "message", "sequence")
+
+				streamOperation := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+					"GET",
+				)
+				assertParameter(t, streamOperation, "Last-Event-ID", openapi3.ParameterInHeader, false)
+				assertParameter(t, streamOperation, "after_sequence", openapi3.ParameterInQuery, false)
+				assertEnumValues(
+					t,
+					parameterSchema(t, streamOperation, "frames", openapi3.ParameterInQuery),
+					contract.SessionStreamFrameRaw,
+					contract.SessionStreamFrameTranscript,
+				)
+				assertEnumValues(
+					t,
+					parameterSchema(t, streamOperation, "replay", openapi3.ParameterInQuery),
+					contract.SessionStreamReplaySnapshot,
+				)
+				streamSchema := responseSchema(t, streamOperation, 200, specContentTypeEventStream)
+				propertySchema(t, streamSchema, "raw")
+				propertySchema(t, streamSchema, "transcript_snapshot")
+				propertySchema(t, streamSchema, "transcript_delta")
+				propertySchema(t, streamSchema, "session_stopped")
+
+				eventsOperation := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+					"GET",
+				)
+				assertParameter(t, eventsOperation, "limit", openapi3.ParameterInQuery, false)
+				historyOperation := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+					"GET",
+				)
+				assertParameter(t, historyOperation, "limit", openapi3.ParameterInQuery, false)
+			},
+		},
+		{
 			name: "ShouldDescribeNetworkSubscriptionFilters",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -1937,6 +2007,7 @@ func assertPropertyAbsent(t *testing.T, schema *openapi3.Schema, name string) {
 func assertParameter(t *testing.T, operation *openapi3.Operation, name string, in string, required bool) {
 	t.Helper()
 
+	parameterSchema(t, operation, name, in)
 	for _, ref := range operation.Parameters {
 		if ref == nil || ref.Value == nil {
 			continue
@@ -1949,6 +2020,24 @@ func assertParameter(t *testing.T, operation *openapi3.Operation, name string, i
 		}
 	}
 	t.Fatalf("missing parameter %q in %s", name, in)
+}
+
+func parameterSchema(t *testing.T, operation *openapi3.Operation, name string, in string) *openapi3.Schema {
+	t.Helper()
+
+	for _, ref := range operation.Parameters {
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		if ref.Value.Name == name && ref.Value.In == in {
+			if ref.Value.Schema == nil || ref.Value.Schema.Value == nil {
+				t.Fatalf("missing schema for parameter %q in %s", name, in)
+			}
+			return ref.Value.Schema.Value
+		}
+	}
+	t.Fatalf("missing parameter %q in %s", name, in)
+	return nil
 }
 
 func assertResponseStatus(t *testing.T, operation *openapi3.Operation, status int) {

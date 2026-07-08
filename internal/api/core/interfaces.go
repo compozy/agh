@@ -57,7 +57,8 @@ type SessionManager interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error)
+	Transcript(ctx context.Context, id string, query store.EventQuery) ([]transcript.Entry, error)
+	TranscriptWatermark(ctx context.Context, id string) session.TranscriptWatermark
 	RepairSession(ctx context.Context, opts session.RepairOpts) (*session.RepairResult, error)
 	Delete(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error
@@ -88,6 +89,7 @@ type Observer interface {
 	QueryHookCatalog(ctx context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRuns(ctx context.Context, query store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
 	QueryHookEvents(ctx context.Context, filter hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryTokenStats(ctx context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error)
 	QueryBridgeHealth(ctx context.Context) ([]observe.BridgeInstanceHealth, error)
 	Health(ctx context.Context) (observe.Health, error)
 	QueryTaskDashboard(ctx context.Context, query observe.TaskDashboardQuery) (observe.TaskDashboardView, error)

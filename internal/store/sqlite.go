@@ -195,6 +195,17 @@ func Checkpoint(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// CheckpointPassive runs a non-truncating SQLite WAL checkpoint.
+func CheckpointPassive(ctx context.Context, db *sql.DB) error {
+	if db == nil {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+		return fmt.Errorf("store: passive checkpoint sqlite wal: %w", err)
+	}
+	return nil
+}
+
 func recoverSQLiteDatabase(path string) (string, error) {
 	corruptPath := fmt.Sprintf("%s.corrupt.%s", path, time.Now().UTC().Format("20060102T150405.000000000Z0700"))
 	if err := os.Rename(path, corruptPath); err != nil {

@@ -467,6 +467,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		activity_json  TEXT NOT NULL DEFAULT '',
 		attached_to    TEXT NOT NULL DEFAULT '',
 		attach_expires_at TEXT,
+		transcript_epoch INTEGER NOT NULL DEFAULT 0,
 		sandbox_id TEXT NOT NULL DEFAULT '',
 		sandbox_backend TEXT NOT NULL DEFAULT 'local',
 		sandbox_profile TEXT NOT NULL DEFAULT '',
@@ -1387,6 +1388,18 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "update_automation_catch_up_contract",
 		UpConn:   migrateAutomationCatchUpContract,
 		Checksum: "2026-07-07-update-automation-catch-up-contract",
+	},
+	{
+		Version:  60,
+		Name:     "add_session_transcript_epoch",
+		Up:       migrateSessionTranscriptEpoch,
+		Checksum: "2026-07-07-add-session-transcript-epoch",
+	},
+	{
+		Version:  61,
+		Name:     "add_sessions_workspace_state_index",
+		Up:       migrateSessionsWorkspaceStateIndex,
+		Checksum: "2026-07-07-add-sessions-workspace-state-index",
 	},
 }
 

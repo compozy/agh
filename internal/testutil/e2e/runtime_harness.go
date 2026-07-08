@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/testutil/acpmock"
+	"github.com/compozy/agh/internal/transcript"
 	"golang.org/x/sys/execabs"
 )
 
@@ -1248,7 +1249,7 @@ func (h *RuntimeHarness) CaptureSessionTranscript(ctx context.Context, sessionID
 	if err != nil {
 		return err
 	}
-	return h.Artifacts.CaptureJSON(ArtifactKindTranscript, response.Messages)
+	return h.Artifacts.CaptureJSON(ArtifactKindTranscript, transcript.MessagesFromEntries(response.Entries))
 }
 
 // CaptureSessionEvents stores the session-events artifact.

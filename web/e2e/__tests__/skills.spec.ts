@@ -611,10 +611,12 @@ async function assertStoredUserMessageClean(
   let userMessage: TranscriptMessage | undefined;
   await expect
     .poll(async () => {
-      const transcript = await runtime.requestJSON<{ messages: TranscriptMessage[] }>(
-        sessionAPIPath(workspaceID, sessionID, "/transcript")
-      );
-      userMessage = transcript.messages.find(message => message.role === "user");
+      const transcript = await runtime.requestJSON<{
+        entries: Array<{ message: TranscriptMessage }>;
+      }>(sessionAPIPath(workspaceID, sessionID, "/transcript"));
+      userMessage = transcript.entries
+        .map(entry => entry.message)
+        .find(message => message.role === "user");
       return transcriptMessageText(userMessage);
     })
     .toBe(expectedText);

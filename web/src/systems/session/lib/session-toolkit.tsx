@@ -1,29 +1,22 @@
 import type { DataMessagePartProps, ToolCallMessagePartProps, Toolkit } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
-import { AlertCircle } from "lucide-react";
 
-import { Eyebrow, Spinner } from "@agh/ui";
-
-import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
-import { ToolCallCard } from "../components/tool-call-card";
+import { ToolCallRow } from "../components/tool-call-card";
 import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
-import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
-import { resolveRegisteredToolName } from "./tool-labels";
+import { resolveToolResult } from "./message-parts";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
 export function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
-  const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
-
   return {
     id: part.toolCallId,
-    role: part.result || part.isError ? "tool_result" : "tool_call",
+    role: part.result !== undefined || part.isError ? "tool_result" : "tool_call",
     content: "",
     toolName: part.toolName,
     toolInput: part.args,
-    toolResult: result ?? undefined,
+    toolResult: resolveToolResult(part.result),
     toolError: part.isError,
     isStreaming: part.status.type === "running",
     timestamp: Date.now(),
@@ -31,42 +24,11 @@ export function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
 }
 
 export function BackendToolPart(part: SessionToolPartProps) {
-  if (part.status.type === "running" && Object.keys(part.args ?? {}).length === 0) {
-    return (
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
-          "border-line bg-canvas",
-          "text-xs text-subtle"
-        )}
-      >
-        <Spinner className="size-3 shrink-0" />
-        <Eyebrow className="min-w-0 truncate text-subtle" title={part.toolName}>
-          {resolveRegisteredToolName(part.toolName)}
-        </Eyebrow>
-        <span className="shrink-0">preparing input</span>
-      </div>
-    );
-  }
-
-  if (part.isError && !part.result) {
-    return (
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
-          "border-danger/30 bg-danger/8",
-          "text-xs text-danger"
-        )}
-      >
-        <AlertCircle className="size-3 shrink-0" />
-        <span className="min-w-0 truncate font-medium" title={part.toolName}>
-          {resolveRegisteredToolName(part.toolName)}
-        </span>
-      </div>
-    );
-  }
-
-  return <ToolCallCard message={toLegacyToolMessage(part)} />;
+  // A live single-tool render has no broader turn context, so the tool's own
+  // completion is the settle signal for neutral→success promotion.
+  return (
+    <ToolCallRow message={toLegacyToolMessage(part)} turnSettled={part.status.type !== "running"} />
+  );
 }
 
 function createBackendTool() {

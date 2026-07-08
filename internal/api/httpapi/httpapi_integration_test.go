@@ -470,24 +470,23 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
-	var payload struct {
-		Messages []transcript.UIMessage `json:"messages"`
-	}
+	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
-	if len(payload.Messages) != 2 {
-		t.Fatalf("len(messages) = %d, want 2", len(payload.Messages))
+	messages := transcript.MessagesFromEntries(payload.Entries)
+	if len(messages) != 2 {
+		t.Fatalf("len(messages) = %d, want 2", len(messages))
 	}
-	if got := payload.Messages[0].Role; got != transcript.UIRoleUser {
+	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := transcript.UIMessageText(payload.Messages[0]); got != "hello" {
+	if got := transcript.UIMessageText(messages[0]); got != "hello" {
 		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := payload.Messages[1].Role; got != transcript.UIRoleAssistant {
+	if got := messages[1].Role; got != transcript.UIRoleAssistant {
 		t.Fatalf("messages[1].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if !httpTranscriptHasToolPart(payload.Messages[1]) {
-		t.Fatalf("messages[1] = %#v, want assistant tool part", payload.Messages[1])
+	if !httpTranscriptHasToolPart(messages[1]) {
+		t.Fatalf("messages[1] = %#v, want assistant tool part", messages[1])
 	}
 }
 
@@ -537,36 +536,35 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
-	var payload struct {
-		Messages []transcript.UIMessage `json:"messages"`
-	}
+	var payload contract.SessionTranscriptResponse
 	decodeHTTPJSON(t, resp, &payload)
-	if len(payload.Messages) != 6 {
-		t.Fatalf("len(messages) = %d, want 6", len(payload.Messages))
+	messages := transcript.MessagesFromEntries(payload.Entries)
+	if len(messages) != 6 {
+		t.Fatalf("len(messages) = %d, want 6", len(messages))
 	}
-	if got := payload.Messages[0].Role; got != transcript.UIRoleUser {
+	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := transcript.UIMessageText(payload.Messages[0]); got != "hello" {
+	if got := transcript.UIMessageText(messages[0]); got != "hello" {
 		t.Fatalf("messages[0] text = %q, want %q", got, "hello")
 	}
-	if got := payload.Messages[2].Role; got != transcript.UIRoleUser {
+	if got := messages[2].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[2].Role = %q, want %q", got, transcript.UIRoleUser)
 	}
-	if got := transcript.UIMessageText(payload.Messages[2]); got != "network hello" {
+	if got := transcript.UIMessageText(messages[2]); got != "network hello" {
 		t.Fatalf("messages[2] text = %q, want %q", got, "network hello")
 	}
-	if got := payload.Messages[4].Role; got != transcript.UIRoleSystem {
+	if got := messages[4].Role; got != transcript.UIRoleSystem {
 		t.Fatalf("messages[4].Role = %q, want %q", got, transcript.UIRoleSystem)
 	}
-	if got := transcript.UIMessageText(payload.Messages[4]); got != "daemon wake-up" {
+	if got := transcript.UIMessageText(messages[4]); got != "daemon wake-up" {
 		t.Fatalf("messages[4] text = %q, want %q", got, "daemon wake-up")
 	}
-	if got := payload.Messages[5].Role; got != transcript.UIRoleAssistant {
+	if got := messages[5].Role; got != transcript.UIRoleAssistant {
 		t.Fatalf("messages[5].Role = %q, want %q", got, transcript.UIRoleAssistant)
 	}
-	if !httpTranscriptHasToolPart(payload.Messages[5]) {
-		t.Fatalf("messages[5] = %#v, want assistant tool part", payload.Messages[5])
+	if !httpTranscriptHasToolPart(messages[5]) {
+		t.Fatalf("messages[5] = %#v, want assistant tool part", messages[5])
 	}
 }
 
@@ -621,7 +619,7 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
 		nil,
 		nil,
 	)
@@ -644,7 +642,7 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
 		nil,
 		headers,
 	)
@@ -731,7 +729,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
 		nil,
 		nil,
 	)
@@ -754,7 +752,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream?frames=raw"),
 		nil,
 		map[string]string{"Last-Event-ID": lastEventID},
 	)

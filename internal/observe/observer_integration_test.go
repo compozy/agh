@@ -16,7 +16,7 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 	h := newHarness(t)
 	sess := newSession("sess-integration", session.StateActive, h.workspace, h.now)
 
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 	h.observer.OnAgentEvent(testutil.Context(t), sess.ID, acp.AgentEvent{
 		Type:      "agent_message",
 		TurnID:    "turn-int-1",

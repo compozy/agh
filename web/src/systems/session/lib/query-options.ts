@@ -2,11 +2,13 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   fetchSession,
+  fetchSessionById,
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
+  fetchSessionUsage,
   fetchSessions,
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
@@ -58,6 +60,16 @@ export function sessionDetailOptions(workspace: string, id: string) {
   });
 }
 
+export function sessionByIdOptions(id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.byId(id),
+    queryFn: ({ signal }) => fetchSessionById(id, signal),
+    staleTime: SESSION_DETAIL_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
+    enabled: !!id,
+  });
+}
+
 export function sessionEventsOptions(
   workspace: string,
   id: string,
@@ -102,6 +114,26 @@ export function sessionRecapOptions(workspace: string, id: string, limit?: numbe
     queryKey: sessionKeys.recap(workspace, id, limit),
     queryFn: ({ signal }) => fetchSessionRecap(workspace, id, limit, signal),
     staleTime: 10_000,
+    enabled: !!workspace && !!id,
+  });
+}
+
+/**
+ * Session token-usage aggregate. Usage accrues live as the agent reports it, so
+ * poll on the same bounded cadence as the transcript while the session is live;
+ * a stopped session is terminal and never refetches.
+ */
+export function sessionUsageOptions(
+  workspace: string,
+  id: string,
+  sessionState?: SessionState | null
+) {
+  return queryOptions({
+    queryKey: sessionKeys.usage(workspace, id),
+    queryFn: ({ signal }) => fetchSessionUsage(workspace, id, signal),
+    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
   });
 }

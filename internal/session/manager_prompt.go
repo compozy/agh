@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/store"
@@ -549,64 +548,69 @@ func (m *Manager) pumpPrompt(
 	activity *promptActivitySupervisor,
 	releaseExecution context.CancelFunc,
 ) {
-	var fatalPromptFailure *store.SessionFailure
-	var fatalPromptError string
+	fatal := &promptPumpFatal{}
 
 	defer func() {
-		if releaseExecution != nil {
-			releaseExecution()
-		}
-		if activity != nil {
-			activity.stop()
-			activity.finish(m.now())
-		}
-		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
-		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
-		if session != nil {
-			session.clearCurrentTurnID()
-			session.clearCurrentTurnSource()
-			session.clearCurrentPromptMeta()
-			session.clearCurrentPromptCancel()
-		}
-		notifier := m.currentTurnEndNotifier()
-		if notifier != nil && session != nil {
-			notifier(session.ID)
-		}
-		close(out)
-		if session != nil {
-			if fatalPromptFailure != nil {
-				m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatalPromptFailure, fatalPromptError)
-			} else {
-				m.startNextQueuedInputPrompt(session.ID)
-				m.startNextQueuedSyntheticPrompt(session.ID)
-			}
-		}
-	}()
-
-	loop := promptPumpLoopState{source: source, runtime: runtime, activity: activity}
-	for loop.active() {
-		event, runtimeEvent, ok := nextPromptPumpEvent(lifecycleCtx, &loop)
-		if !ok {
-			return
-		}
-		failure, errorText, stop := m.handlePromptPumpEvent(
+		m.finishPromptPump(
 			lifecycleCtx,
-			deliveryCtx,
 			session,
 			turnState,
+			activity,
+			releaseExecution,
 			out,
-			&loop,
-			event,
-			runtimeEvent,
+			fatal.failure,
+			fatal.errorText,
 		)
-		if failure != nil {
-			fatalPromptFailure = failure
-			fatalPromptError = errorText
-		}
-		if stop {
-			return
-		}
+	}()
+
+	m.runPromptPumpLoop(&promptPumpRun{
+		lifecycleCtx: lifecycleCtx,
+		deliveryCtx:  deliveryCtx,
+		session:      session,
+		turnState:    turnState,
+		source:       source,
+		runtime:      runtime,
+		out:          out,
+		activity:     activity,
+		fatal:        fatal,
+	})
+}
+
+func (m *Manager) nextPromptPumpEventWithPendingChunk(
+	ctx context.Context,
+	loop *promptPumpLoopState,
+	coalescer *promptChunkCoalescer,
+) (acp.AgentEvent, bool, bool, bool) {
+	if !coalescer.hasPending() {
+		event, runtimeEvent, ok := nextPromptPumpEvent(ctx, loop)
+		return event, runtimeEvent, ok, false
 	}
+	waitCtx, cancel := context.WithTimeout(ctx, promptChunkCoalesceInterval)
+	defer cancel()
+	event, runtimeEvent, ok := nextPromptPumpEvent(waitCtx, loop)
+	if ok {
+		return event, runtimeEvent, true, false
+	}
+	if ctx.Err() != nil {
+		return acp.AgentEvent{}, false, false, false
+	}
+	return acp.AgentEvent{}, false, false, true
+}
+
+func (m *Manager) flushPromptChunkCoalescer(
+	ctx context.Context,
+	deliveryCtx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	out chan<- acp.AgentEvent,
+	loop *promptPumpLoopState,
+	coalescer *promptChunkCoalescer,
+) (*store.SessionFailure, string, bool) {
+	events, ok := coalescer.take()
+	if !ok {
+		return nil, "", false
+	}
+	return m.handlePromptPumpChunkBatch(ctx, deliveryCtx, session, turnState, out, loop, events)
 }
 
 func (m *Manager) promptExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -1110,6 +1114,7 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
+	m.publishSessionEvent(ctx, session, persisted)
 
 	return nil
 }

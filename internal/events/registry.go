@@ -173,8 +173,12 @@ const (
 	SchedulerDrainStarted   = "scheduler.drain_started"
 	SchedulerDrainCompleted = "scheduler.drain_completed"
 
-	TranscriptMarkerCreated  = "transcript_marker.created"
-	TranscriptMarkerRedacted = "transcript_marker.redacted"
+	TranscriptMarkerCreated       = "transcript_marker.created"
+	TranscriptMarkerRedacted      = "transcript_marker.redacted"
+	SessionTranscriptCacheRebuilt = "session_transcript_cache_rebuilt"
+	SessionStreamSnapshotServed   = "session_stream_snapshot_served"
+	SessionStreamSubscribed       = "session_stream_subscribed"
+	SessionStreamOverflowFallback = "session_stream_overflow_fallback"
 
 	ToolCallStarted     = "tool.call_started"
 	ToolCallCompleted   = "tool.call_completed"
@@ -331,6 +335,10 @@ var registryEntries = []Metadata{
 
 	info(TranscriptMarkerCreated, "transcript_marker", ComponentTranscript),
 	warning(TranscriptMarkerRedacted, "transcript_marker", ComponentTranscript),
+	info(SessionTranscriptCacheRebuilt, "transcript_cache", ComponentTranscript),
+	info(SessionStreamSnapshotServed, "transcript_stream", ComponentTranscript),
+	info(SessionStreamSubscribed, "transcript_stream", ComponentTranscript),
+	warning(SessionStreamOverflowFallback, "transcript_stream", ComponentTranscript),
 
 	global(info(ToolCallStarted, "tool", ComponentTools)),
 	global(success(ToolCallCompleted, "tool", ComponentTools)),

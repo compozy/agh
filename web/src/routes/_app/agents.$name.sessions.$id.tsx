@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, MessageCircle, Trash2 } from "lucide-react";
+import { AlertCircle, Eraser, MessageCircle, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -22,18 +22,13 @@ import {
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
+  sessionByIdOptions,
   sessionDetailOptions,
   sessionKeys,
   sessionTranscriptOptions,
   useSessionById,
   type SessionPayload,
 } from "@/systems/session";
-import {
-  useActiveWorkspaceStore,
-  workspaceKeys,
-  workspacesListOptions,
-  type WorkspacePayload,
-} from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
 
 interface AgentSessionRouteLoaderData {
@@ -78,49 +73,18 @@ async function resolveSessionRouteWorkspace(
   queryClient: QueryClient,
   sessionId: string
 ): Promise<string | null> {
-  return (
-    findCachedSessionWorkspace(queryClient, sessionId) ??
-    normalizeWorkspaceId(useActiveWorkspaceStore.getState().selectedWorkspaceId) ??
-    firstWorkspaceId(queryClient.getQueryData<WorkspacePayload[]>(workspaceKeys.list())) ??
-    firstWorkspaceId(await ensureWorkspaceList(queryClient))
+  const cachedWorkspaceId = normalizeWorkspaceId(
+    queryClient.getQueryData<SessionPayload>(sessionKeys.byId(sessionId))?.workspace_id
   );
-}
-
-async function ensureWorkspaceList(queryClient: QueryClient): Promise<WorkspacePayload[]> {
+  if (cachedWorkspaceId) {
+    return cachedWorkspaceId;
+  }
   try {
-    return await queryClient.ensureQueryData(workspacesListOptions());
+    const session = await queryClient.ensureQueryData(sessionByIdOptions(sessionId));
+    return normalizeWorkspaceId(session.workspace_id);
   } catch {
-    return [];
+    return null;
   }
-}
-
-function findCachedSessionWorkspace(queryClient: QueryClient, sessionId: string): string | null {
-  for (const [, sessions] of queryClient.getQueriesData<SessionPayload[]>({
-    queryKey: sessionKeys.lists(),
-  })) {
-    const workspaceId = sessions?.find(session => session.id === sessionId)?.workspace_id;
-    const normalized = normalizeWorkspaceId(workspaceId);
-    if (normalized) {
-      return normalized;
-    }
-  }
-
-  for (const [, session] of queryClient.getQueriesData<SessionPayload>({
-    queryKey: sessionKeys.all,
-  })) {
-    if (session?.id === sessionId) {
-      const normalized = normalizeWorkspaceId(session.workspace_id);
-      if (normalized) {
-        return normalized;
-      }
-    }
-  }
-
-  return null;
-}
-
-function firstWorkspaceId(workspaces: WorkspacePayload[] | undefined): string | null {
-  return normalizeWorkspaceId(workspaces?.[0]?.id);
 }
 
 function normalizeWorkspaceId(value: string | null | undefined): string | null {
@@ -135,7 +99,8 @@ function SessionPageContent({
   onDeleteSuccess,
 }: SessionPageContentProps) {
   const page = useSessionDetailPage({ sessionId, session, onDeleteSuccess });
-  const { controls, inspectorMemory, sessionVault, deleteDialog } = page;
+  const { controls, inspectorMemory, inspectorUsage, sessionVault, deleteDialog, clearDialog } =
+    page;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -162,14 +127,15 @@ function SessionPageContent({
           isBusyInputPending={controls.isBusyInputPending}
           isSessionRunning={controls.isSessionRunning}
           allowBusyInput={controls.allowBusyInput}
-          onClearConversation={controls.handleClear}
-          canClearConversation={controls.canClear}
-          isClearingConversation={controls.isClearing}
+          queuedPrompts={controls.queuedPrompts}
+          onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
+          onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
         />
       </div>
       <SessionInspector
         messages={controls.messages}
         sessionId={sessionId}
+        usage={inspectorUsage}
         memory={inspectorMemory}
         vaultSecrets={sessionVault.data ?? []}
         vaultIsLoading={sessionVault.isLoading}
@@ -181,6 +147,12 @@ function SessionPageContent({
         session={session}
         isDeleting={controls.isDeleting}
         onConfirm={deleteDialog.confirmDelete}
+      />
+      <SessionClearDialog
+        open={clearDialog.open}
+        onOpenChange={clearDialog.setOpen}
+        isClearing={controls.isClearing}
+        onConfirm={clearDialog.confirmClear}
       />
     </div>
   );
@@ -246,6 +218,64 @@ function SessionDeleteDialog({
   );
 }
 
+interface SessionClearDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isClearing: boolean;
+  onConfirm: () => void;
+}
+
+function SessionClearDialog({
+  open,
+  onOpenChange,
+  isClearing,
+  onConfirm,
+}: SessionClearDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={!isClearing} className="max-w-md" data-testid="clear-dialog">
+        <DialogHeader>
+          <DialogTitle>Clear conversation</DialogTitle>
+          <DialogDescription>
+            This removes the visible transcript for this session and starts a fresh runtime
+            conversation on the same session id.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isClearing}
+            data-testid="clear-dialog-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={isClearing}
+            data-testid="clear-dialog-confirm"
+          >
+            {isClearing ? (
+              <>
+                <Spinner className="size-3" />
+                Clearing
+              </>
+            ) : (
+              <>
+                <Eraser className="size-3" />
+                Clear conversation
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface SessionPageContentProps {
   agentName: string;
   sessionId: string;
@@ -268,9 +298,45 @@ interface SessionPageResolvedProps {
 
 function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps) {
   const navigate = useNavigate();
-  const { data: session, isLoading, error } = useSessionById(id, workspaceId);
 
-  useSessionWorkspaceGuard({ sessionWorkspaceId: session?.workspace_id, agentName: name });
+  if (!workspaceId) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">Session not found</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <SessionPageWithWorkspace name={name} id={id} workspaceId={workspaceId} navigate={navigate} />
+  );
+}
+
+interface SessionPageWithWorkspaceProps {
+  name: string;
+  id: string;
+  workspaceId: string;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+function SessionPageWithWorkspace({
+  name,
+  id,
+  workspaceId,
+  navigate,
+}: SessionPageWithWorkspaceProps) {
+  const { data: session, isLoading, error } = useSessionById(id, workspaceId);
+  const sessionWorkspaceId = session?.workspace_id?.trim();
+
+  useSessionWorkspaceGuard({
+    sessionWorkspaceId,
+    agentName: name,
+    sessionId: id,
+    sessionName: session?.name,
+  });
 
   useEffect(() => {
     if (error?.message?.includes("not found")) {
@@ -281,7 +347,7 @@ function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center" data-testid="session-route-loading">
         <Spinner className="size-5 text-subtle" />
       </div>
     );
@@ -298,10 +364,21 @@ function SessionPageResolved({ name, id, workspaceId }: SessionPageResolvedProps
     );
   }
 
+  if (!sessionWorkspaceId) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <AlertCircle className="size-6 text-danger" />
+          <p className="text-sm text-subtle">Session workspace unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
   const resolvedAgentName = session.agent_name ?? name;
 
   return (
-    <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={session.workspace_id}>
+    <SessionChatRuntimeProvider key={id} sessionId={id} workspaceId={sessionWorkspaceId}>
       <SessionPageContent
         agentName={resolvedAgentName}
         sessionId={id}

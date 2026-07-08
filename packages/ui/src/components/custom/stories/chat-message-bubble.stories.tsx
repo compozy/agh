@@ -3,7 +3,7 @@ import { expect, within } from "storybook/test";
 
 import { ChatMessageBubble, type ChatMessageRole } from "../chat-message-bubble";
 import { Pill } from "../pill";
-import { ToolCallCard, type ToolCallStatus } from "../tool-call-card";
+import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
 const meta: Meta<typeof ChatMessageBubble> = {
   title: "components/custom/ChatMessageBubble",
@@ -70,13 +70,7 @@ export const SystemRole: Story = {
 export const ToolRole: Story = {
   args: {
     messageRole: "tool",
-    children: (
-      <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed">
-        <pre className="font-mono text-[12px] leading-[1.6] text-muted">
-          $ rg &quot;onToolCall&quot; packages/runtime -l
-        </pre>
-      </ToolCallCard>
-    ),
+    children: <ToolCallRow toolName="shell.safe-run" preview="packages/runtime" status="success" />,
   },
 };
 
@@ -109,7 +103,7 @@ export const AllRoles: Story = {
         Two candidates, I&apos;ll extract the grouping into `groupToolCallsByTurn`.
       </ChatMessageBubble>
       <ChatMessageBubble messageRole="tool" data-role-key="tool">
-        <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed" />
+        <ToolCallRow toolName="shell.safe-run" preview="packages/runtime" status="success" />
       </ChatMessageBubble>
       <ChatMessageBubble messageRole="diff" data-role-key="diff">
         <div className="rounded-md border border-line bg-rail p-3 font-mono text-[12px]">
@@ -135,7 +129,7 @@ export const RoleAlignmentInteraction: Story = {
           data-role-key={role}
         >
           {role === "tool" ? (
-            <ToolCallCard toolName="shell.run" status="in_progress" />
+            <ToolCallRow toolName="shell.run" status="running" />
           ) : (
             `message for role ${role}`
           )}
@@ -176,11 +170,11 @@ export const StatusBadgeCycleInteraction: Story = {
       data-testid="tool-statuses"
       style={{ maxWidth: 820, margin: "0 auto" }}
     >
-      {(["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]).map(status => (
+      {(["pending", "running", "failed", "success", "empty"] as ToolCallStatus[]).map(status => (
         <ChatMessageBubble key={status} messageRole="tool">
-          <ToolCallCard
+          <ToolCallRow
             toolName="file.read"
-            filePath="packages/runtime/src/session/stream.ts"
+            preview="packages/runtime/src/session/stream.ts"
             status={status}
             data-status-key={status}
           />
@@ -191,18 +185,26 @@ export const StatusBadgeCycleInteraction: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const wrapper = await canvas.findByTestId("tool-statuses");
-    const expected: Record<ToolCallStatus, { tone: string; label: string }> = {
-      pending: { tone: "neutral", label: "Pending" },
-      in_progress: { tone: "info", label: "Running" },
-      completed: { tone: "success", label: "Done" },
-      failed: { tone: "danger", label: "Error" },
+    // `pending` is intentionally glyph-less (the row is muted while it prepares
+    // input); every resolved/running state carries one signal-toned glyph.
+    const glyphLabels: Record<Exclude<ToolCallStatus, "pending">, string> = {
+      running: "Running",
+      failed: "Error",
+      success: "Done",
+      empty: "Empty",
     };
-    for (const status of ["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]) {
+    for (const status of ["pending", "running", "failed", "success", "empty"] as ToolCallStatus[]) {
       const card = wrapper.querySelector<HTMLElement>(`[data-status-key="${status}"]`);
       await expect(card).not.toBeNull();
-      const badge = card?.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');
-      await expect(badge?.textContent).toBe(expected[status].label);
-      await expect(badge?.getAttribute("data-tone")).toBe(expected[status].tone);
+      const badge = card?.querySelector<HTMLElement>('[data-slot="tool-call-row-status"]');
+      if (status === "pending") {
+        await expect(badge).toBeNull();
+        continue;
+      }
+      await expect(badge?.getAttribute("aria-label")).toBe(
+        glyphLabels[status as Exclude<ToolCallStatus, "pending">]
+      );
+      await expect(badge?.getAttribute("data-status")).toBe(status);
     }
   },
 };

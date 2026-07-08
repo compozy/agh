@@ -51,3 +51,7 @@ func createFixtureBackedSession(
 func joinTranscriptContent(messages []transcript.UIMessage) string {
 	return transcript.JoinUIMessageText(messages)
 }
+
+func sessionTranscriptMessages(response aghcontract.SessionTranscriptResponse) []transcript.UIMessage {
+	return transcript.MessagesFromEntries(response.Entries)
+}

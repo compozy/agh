@@ -25,6 +25,11 @@ type SessionRecapResponse struct {
 	Recap RecapPayload `json:"recap"`
 }
 
+// SessionUsageResponse wraps the aggregated token-usage summary for one session.
+type SessionUsageResponse struct {
+	Usage SessionUsagePayload `json:"usage"`
+}
+
 // SessionEventsResponse wraps the shared session events payload.
 type SessionEventsResponse struct {
 	Events []SessionEventPayload `json:"events"`
@@ -37,7 +42,7 @@ type SessionHistoryResponse struct {
 
 // SessionTranscriptResponse wraps the canonical transcript payload.
 type SessionTranscriptResponse struct {
-	Messages []transcript.UIMessage `json:"messages"`
+	Entries []transcript.Entry `json:"entries"`
 }
 
 // SessionRepairResponse wraps the repair report for one session.
