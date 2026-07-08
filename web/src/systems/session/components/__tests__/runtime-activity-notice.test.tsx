@@ -7,7 +7,6 @@ import {
   isRuntimeActivityEvent,
   isTranscriptMarkerEvent,
   RuntimeActivityNotice,
-  SessionActivityInline,
 } from "../runtime-activity-notice";
 
 const runtime: RuntimeActivityPayload = {
@@ -139,20 +138,5 @@ describe("RuntimeActivityNotice", () => {
     render(<RuntimeActivityNotice event={{ type: "agent_message", text: "hello" }} />);
 
     expect(screen.queryByTestId("runtime-activity-notice")).not.toBeInTheDocument();
-  });
-});
-
-describe("SessionActivityInline", () => {
-  it("renders compact session activity for headers", () => {
-    render(<SessionActivityInline activity={runtime} />);
-
-    expect(screen.getByTestId("session-activity-inline")).toHaveTextContent("Using Bash");
-    expect(screen.getByTestId("session-activity-inline")).toHaveTextContent("42s");
-  });
-
-  it("does not render without activity", () => {
-    render(<SessionActivityInline activity={null} />);
-
-    expect(screen.queryByTestId("session-activity-inline")).not.toBeInTheDocument();
   });
 });

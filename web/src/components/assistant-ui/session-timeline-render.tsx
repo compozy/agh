@@ -1,5 +1,5 @@
 import { ChevronRight, CircleStop } from "lucide-react";
-import { useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -14,14 +14,22 @@ import type { AghPermissionData } from "@/systems/session/types";
 import type { UIMessage } from "@/systems/session/types";
 import { Button, Eyebrow } from "@agh/ui";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
+import {
+  TimelineRowContext,
+  type TimelineRowSharedState,
+  useTimelineRowContext,
+} from "./hooks/use-timeline-row-context";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionWorkingRowView } from "./session-working-row";
 import {
+  type SessionChangedFilesRow,
   type SessionDataRow,
   type SessionReasoningRow,
   type SessionRow,
   type SessionTextRow,
   type SessionTimelineToolPart,
+  type SessionTurnFoldRow,
+  type SessionWorkRow,
   type SessionWorkToggleRow,
   visibleWorkEntries,
 } from "./session-timeline.logic";
@@ -183,95 +191,113 @@ function TurnFoldButton({
   );
 }
 
+function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
+  const tools = visibleWorkEntries(row);
+  return (
+    <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
+      {row.grouped ? (
+        <Eyebrow className="mb-0.5 px-1 text-subtle">{row.entries.length} tool calls</Eyebrow>
+      ) : null}
+      {tools.map(tool => (
+        <ToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled={!row.active} />
+      ))}
+    </div>
+  );
+}
+
+function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
+  const { toggleWorkGroup } = useTimelineRowContext();
+  return <WorkToggleButton row={row} onToggle={button => toggleWorkGroup(row.groupId, button)} />;
+}
+
+function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
+  const { toggleChangedFiles } = useTimelineRowContext();
+  return (
+    <SessionChangedFilesRowView row={row} onToggle={button => toggleChangedFiles(row.id, button)} />
+  );
+}
+
+function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
+  const { expandedTurns, toggleTurn } = useTimelineRowContext();
+  // An interrupted turn keeps its work expanded so the operator keeps their
+  // place; the fold row becomes a danger-toned interruption label above the
+  // always-visible work (never a collapsing disclosure).
+  if (row.interrupted) {
+    return (
+      <div data-testid="turn-fold-interrupted" className="flex min-w-0 flex-col gap-1">
+        <div
+          data-testid="turn-fold-interrupt-label"
+          className="flex w-fit items-center gap-1.5 px-1 text-small-body text-danger"
+        >
+          <CircleStop className="size-3" aria-hidden="true" />
+          <span>{row.label}</span>
+        </div>
+        <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
+      </div>
+    );
+  }
+  const expanded = expandedTurns.has(row.turnId ?? row.id);
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <TurnFoldButton
+        row={row}
+        expanded={expanded}
+        onToggle={button => toggleTurn(row.turnId ?? row.id, button)}
+      />
+      {expanded ? (
+        <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// One memoized dispatcher per row. With T3-style structural sharing
+// (`computeStableSessionRows`) an unchanged row keeps its reference across derive
+// passes, so this memo bails and only the row whose visible content changed
+// re-renders during steady-state streaming. Interactive variants read their
+// callbacks/expansion from `TimelineRowContext`, so a toggle (context change)
+// re-renders only its own consumers while streaming leaves the context untouched.
+export const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: SessionRow }) {
+  switch (row.kind) {
+    case "text":
+      return <SessionTextRowView row={row} />;
+    case "reasoning":
+      return <SessionReasoningRowView row={row} />;
+    case "data":
+      return <SessionDataRowView row={row} />;
+    case "working":
+      return <SessionWorkingRowView row={row} />;
+    case "work":
+      return <SessionWorkRowView row={row} />;
+    case "work-toggle":
+      return <SessionWorkToggleRowView row={row} />;
+    case "changed-files":
+      return <SessionChangedFilesRowContent row={row} />;
+    case "turn-fold":
+      return <SessionTurnFoldRowView row={row} />;
+  }
+});
+
+// Referentially stable renderer: no closure deps, so re-deriving the row list
+// never re-creates the mapping function. Row identity carries the change signal.
+function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
+  return rows.map(row => <TimelineRowContent key={row.id} row={row} />);
+}
+
 export function AssistantMessageTimeline() {
   const { expandedTurns, rows, toggleChangedFiles, toggleTurn, toggleWorkGroup } =
     useAssistantMessageTimeline();
+  // The toggle callbacks are already stable (`useCallback`), so this value's
+  // identity changes only when `expandedTurns` does (a turn toggle) — never while
+  // a turn streams — keeping memoized rows stable during steady-state streaming.
+  const sharedState = useMemo<TimelineRowSharedState>(
+    () => ({ expandedTurns, toggleWorkGroup, toggleTurn, toggleChangedFiles }),
+    [expandedTurns, toggleWorkGroup, toggleTurn, toggleChangedFiles]
+  );
 
-  function renderRows(targetRows: readonly SessionRow[]): ReactNode {
-    return targetRows.map(row => {
-      switch (row.kind) {
-        case "text":
-          return <SessionTextRowView key={row.id} row={row} />;
-        case "reasoning":
-          return <SessionReasoningRowView key={row.id} row={row} />;
-        case "data":
-          return <SessionDataRowView key={row.id} row={row} />;
-        case "working":
-          return <SessionWorkingRowView key={row.id} row={row} />;
-        case "work": {
-          const tools = visibleWorkEntries(row);
-          return (
-            <div key={row.id} data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
-              {row.grouped ? (
-                <Eyebrow className="mb-0.5 px-1 text-subtle">
-                  {row.entries.length} tool calls
-                </Eyebrow>
-              ) : null}
-              {tools.map(tool => (
-                <ToolCallRow
-                  key={tool.id}
-                  message={toolMessageFromPart(tool)}
-                  turnSettled={!row.active}
-                />
-              ))}
-            </div>
-          );
-        }
-        case "work-toggle":
-          return (
-            <WorkToggleButton
-              key={row.id}
-              row={row}
-              onToggle={button => toggleWorkGroup(row.groupId, button)}
-            />
-          );
-        case "changed-files":
-          return (
-            <SessionChangedFilesRowView
-              key={row.id}
-              row={row}
-              onToggle={button => toggleChangedFiles(row.id, button)}
-            />
-          );
-        case "turn-fold": {
-          // An interrupted turn keeps its work expanded so the operator keeps
-          // their place; the fold row becomes a danger-toned interruption label
-          // above the always-visible work (never a collapsing disclosure).
-          if (row.interrupted) {
-            return (
-              <div
-                key={row.id}
-                data-testid="turn-fold-interrupted"
-                className="flex min-w-0 flex-col gap-1"
-              >
-                <div
-                  data-testid="turn-fold-interrupt-label"
-                  className="flex w-fit items-center gap-1.5 px-1 text-small-body text-danger"
-                >
-                  <CircleStop className="size-3" aria-hidden="true" />
-                  <span>{row.label}</span>
-                </div>
-                <div className="ml-4 flex min-w-0 flex-col gap-1">{renderRows(row.rows)}</div>
-              </div>
-            );
-          }
-          const expanded = expandedTurns.has(row.turnId ?? row.id);
-          return (
-            <div key={row.id} className="flex min-w-0 flex-col gap-1">
-              <TurnFoldButton
-                row={row}
-                expanded={expanded}
-                onToggle={button => toggleTurn(row.turnId ?? row.id, button)}
-              />
-              {expanded ? (
-                <div className="ml-4 flex min-w-0 flex-col gap-1">{renderRows(row.rows)}</div>
-              ) : null}
-            </div>
-          );
-        }
-      }
-    });
-  }
-
-  return <>{renderRows(rows)}</>;
+  return (
+    <TimelineRowContext.Provider value={sharedState}>
+      {renderTimelineRows(rows)}
+    </TimelineRowContext.Provider>
+  );
 }

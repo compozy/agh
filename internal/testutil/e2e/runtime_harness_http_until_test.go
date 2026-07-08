@@ -74,4 +74,41 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 			t.Fatalf("StreamSessionHTTPUntil(nil predicate) issued %d requests, want 0", got)
 		}
 	})
+
+	t.Run("Should request raw frames for raw session stream helper", func(t *testing.T) {
+		t.Parallel()
+
+		requests := make(chan string, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests <- r.URL.RawQuery
+			w.Header().Set("Content-Type", "text/event-stream")
+			if _, err := fmt.Fprint(w, "event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"); err != nil {
+				t.Errorf("write SSE response error = %v", err)
+			}
+		}))
+		defer server.Close()
+
+		harness := &RuntimeHarness{
+			WorkspaceID: "ws-1",
+			HTTPBaseURL: server.URL,
+			HTTPClient:  server.Client(),
+		}
+
+		records, err := harness.StreamSessionRawHTTPUntil(
+			context.Background(),
+			"sess-1",
+			func(event SSEEvent) bool {
+				return event.Event == "runtime_progress"
+			},
+		)
+		if err != nil {
+			t.Fatalf("StreamSessionRawHTTPUntil(runtime_progress) error = %v", err)
+		}
+		if got, want := <-requests, "frames=raw"; got != want {
+			t.Fatalf("StreamSessionRawHTTPUntil() raw query = %q, want %q", got, want)
+		}
+		if len(records) != 1 || records[0].Event != "runtime_progress" {
+			t.Fatalf("StreamSessionRawHTTPUntil() records = %#v, want runtime_progress", records)
+		}
+	})
 }

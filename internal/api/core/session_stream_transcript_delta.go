@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/session"
@@ -23,7 +24,19 @@ func (h *BaseHandlers) writeTranscriptDeltasForEvents(
 	if nextSequence <= afterSequence {
 		return afterSequence, nil
 	}
+	startedAt := time.Now()
 	entries, err := h.Sessions.Transcript(ctx, sessionID, store.EventQuery{AfterSequence: afterSequence})
+	h.logTranscriptAssembly(
+		ctx,
+		sessionID,
+		info,
+		"delta",
+		afterSequence,
+		len(events),
+		len(entries),
+		time.Since(startedAt),
+		err,
+	)
 	if err != nil {
 		return afterSequence, fmt.Errorf("query transcript deltas: %w", err)
 	}

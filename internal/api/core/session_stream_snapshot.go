@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
@@ -41,7 +42,19 @@ func (h *BaseHandlers) writeTranscriptSnapshot(
 	info *session.Info,
 	cursor int64,
 ) (transcriptSnapshotResult, error) {
+	startedAt := time.Now()
 	entries, err := h.Sessions.Transcript(ctx, sessionID, store.EventQuery{Limit: defaultSessionReadLimit})
+	h.logTranscriptAssembly(
+		ctx,
+		sessionID,
+		info,
+		"snapshot",
+		cursor,
+		0,
+		len(entries),
+		time.Since(startedAt),
+		err,
+	)
 	if err != nil {
 		return transcriptSnapshotResult{}, fmt.Errorf("query transcript snapshot: %w", err)
 	}

@@ -9,7 +9,17 @@ import {
   sessionDetailOptions,
   sessionTranscriptOptions,
 } from "../lib/query-options";
-import { toReadonlyThreadMessages, transcriptSignature } from "../lib/session-thread-repository";
+import {
+  computeStableThreadMessages,
+  EMPTY_STABLE_THREAD_MESSAGES,
+  transcriptSignature,
+  type StableThreadMessagesState,
+} from "../lib/session-thread-repository";
+import {
+  formatSessionDebugError,
+  recordSessionDebugEvent,
+  SESSION_DEBUG_EVENTS,
+} from "../lib/session-observability";
 import type { SessionTranscriptThreadStatus } from "../lib/session-transcript-thread-context-value";
 import type {
   SessionEventPayload,
@@ -18,6 +28,13 @@ import type {
   TranscriptDeltaPayload,
   TranscriptSnapshotPayload,
 } from "../types";
+import {
+  numberFromEventID,
+  parseSessionStreamPayload,
+  sortMessagesByKnownSequence,
+  terminalFailureMessage,
+  upsertTranscriptMessage,
+} from "./session-live-tail-helpers";
 
 interface SessionStreamEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -47,100 +64,6 @@ function defaultEventSourceFactory(url: string): SessionStreamEventSource {
   return new EventSource(url);
 }
 
-function numberFromEventID(value: unknown): number | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseSessionStreamPayload<T>(event: MessageEvent): T | null {
-  if (typeof event.data !== "string" || event.data.trim().length === 0) {
-    return null;
-  }
-  try {
-    return JSON.parse(event.data) as T;
-  } catch {
-    return null;
-  }
-}
-
-function terminalFailureText(payload: SessionEventPayload): string | null {
-  const failureSummary = payload.failure?.summary?.trim();
-  if (failureSummary) {
-    return failureSummary;
-  }
-  const stopDetail = payload.stop_detail?.trim();
-  return stopDetail && stopDetail.length > 0 ? stopDetail : null;
-}
-
-function terminalFailureMessage(
-  payload: SessionEventPayload,
-  fallbackSessionId: string
-): SessionMessage | null {
-  const detail = terminalFailureText(payload);
-  if (!detail) {
-    return null;
-  }
-  const sessionID = payload.session_id || fallbackSessionId;
-  return {
-    id: `session-stopped-${sessionID}`,
-    role: "assistant",
-    parts: [
-      {
-        type: "data-agh-event",
-        data: {
-          type: "error",
-          session_id: sessionID,
-          timestamp: payload.timestamp,
-          stop_reason: payload.stop_reason,
-          error: detail,
-          failure: payload.failure ?? undefined,
-        },
-      },
-    ],
-  } as SessionMessage;
-}
-
-function upsertTranscriptMessage(
-  existing: SessionMessage[] | undefined,
-  message: SessionMessage
-): SessionMessage[] {
-  const messages = existing ? [...existing] : [];
-  const index = messages.findIndex(item => item.id === message.id);
-  if (index === -1) {
-    messages.push(message);
-    return messages;
-  }
-  messages[index] = message;
-  return messages;
-}
-
-function sortMessagesByKnownSequence(
-  messages: SessionMessage[],
-  sequences: ReadonlyMap<string, number>
-): SessionMessage[] {
-  return [...messages].sort((left, right) => {
-    const leftSequence = sequences.get(left.id);
-    const rightSequence = sequences.get(right.id);
-    if (leftSequence !== undefined && rightSequence !== undefined) {
-      return leftSequence - rightSequence;
-    }
-    if (leftSequence !== undefined) {
-      return 1;
-    }
-    if (rightSequence !== undefined) {
-      return -1;
-    }
-    return 0;
-  });
-}
-
 export function useSessionLiveTail({
   workspaceId,
   sessionId,
@@ -150,7 +73,9 @@ export function useSessionLiveTail({
   const cursorRef = useRef(0);
   const epochRef = useRef<number | null>(null);
   const messageSequenceRef = useRef(new Map<string, number>());
+  const stableMessagesRef = useRef<StableThreadMessagesState>(EMPTY_STABLE_THREAD_MESSAGES);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTranscriptErrorRef = useRef<unknown>(null);
   const sourceFactory = eventSourceFactory ?? defaultEventSourceFactory;
   const hasCustomFactory = Boolean(eventSourceFactory);
   // Observe the live session state (shared cache with the route detail query) so the
@@ -160,13 +85,23 @@ export function useSessionLiveTail({
   const transcriptQuery = useQuery(sessionTranscriptOptions(workspaceId, sessionId, sessionState));
   const transcriptMessages = transcriptQuery.data;
   const refetchTranscript = transcriptQuery.refetch;
+  const refetchTranscriptRef = useRef(refetchTranscript);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"
     : transcriptQuery.isError
       ? "error"
       : "success";
+  // Preserve read-model identity across updates: reuse each unchanged message's
+  // `ThreadMessage` so a single-message delta re-allocates only that row's object,
+  // never the whole settled thread (task 39.3 — read-model structural sharing).
   const readonlyMessages = useMemo(() => {
-    return transcriptMessages ? toReadonlyThreadMessages(transcriptMessages) : [];
+    if (!transcriptMessages) {
+      stableMessagesRef.current = EMPTY_STABLE_THREAD_MESSAGES;
+      return EMPTY_STABLE_THREAD_MESSAGES.result;
+    }
+    const stable = computeStableThreadMessages(transcriptMessages, stableMessagesRef.current);
+    stableMessagesRef.current = stable;
+    return stable.result;
   }, [transcriptMessages]);
   const signature = useMemo(() => {
     return transcriptMessages ? transcriptSignature(transcriptMessages) : "";
@@ -180,6 +115,28 @@ export function useSessionLiveTail({
       }
     };
   }, []);
+
+  useEffect(() => {
+    refetchTranscriptRef.current = refetchTranscript;
+  }, [refetchTranscript]);
+
+  useEffect(() => {
+    if (!transcriptQuery.isError) {
+      lastTranscriptErrorRef.current = null;
+      return;
+    }
+    if (lastTranscriptErrorRef.current === transcriptQuery.error) {
+      return;
+    }
+    lastTranscriptErrorRef.current = transcriptQuery.error;
+    recordSessionDebugEvent(SESSION_DEBUG_EVENTS.transcriptFetchFailed, {
+      cursor: cursorRef.current,
+      error: formatSessionDebugError(transcriptQuery.error),
+      session_id: sessionId,
+      session_state: sessionState ?? "unknown",
+      workspace_id: workspaceId,
+    });
+  }, [sessionId, sessionState, transcriptQuery.error, transcriptQuery.isError, workspaceId]);
 
   useEffect(() => {
     // Decoupled from the transcript fetch outcome: the stream opens as soon as the
@@ -231,16 +188,23 @@ export function useSessionLiveTail({
       }
     };
 
-    const closeCurrentSource = () => {
+    const closeCurrentSource = (reason: string) => {
       detachSourceListeners?.();
       detachSourceListeners = null;
       if (!source) {
         return;
       }
+      const cursor = cursorRef.current;
       source.onmessage = null;
       source.onerror = null;
       source.close();
       source = null;
+      recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseClose, {
+        cursor,
+        reason,
+        session_id: sessionId,
+        workspace_id: workspaceId,
+      });
     };
 
     const resetReconnectBackoff = () => {
@@ -252,12 +216,20 @@ export function useSessionLiveTail({
         return;
       }
       clearReconnectTimer();
-      closeCurrentSource();
+      const cursor = cursorRef.current;
       const delay = Math.min(
         RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt,
         RECONNECT_MAX_DELAY_MS
       );
       reconnectAttempt += 1;
+      closeCurrentSource("reconnect");
+      recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseReconnect, {
+        attempt: reconnectAttempt,
+        cursor,
+        delay_ms: delay,
+        session_id: sessionId,
+        workspace_id: workspaceId,
+      });
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         openSource();
@@ -337,7 +309,18 @@ export function useSessionLiveTail({
       }
       resetReconnectBackoff();
       const eventID = numberFromEventID(event.lastEventId);
+      const previousCursor = cursorRef.current;
       const sequence = Math.max(payload.sequence, payload.entry.sequence, eventID ?? 0);
+      if (previousCursor > 0 && sequence > previousCursor + 1) {
+        recordSessionDebugEvent(SESSION_DEBUG_EVENTS.gapRecoveryTriggered, {
+          cursor: previousCursor,
+          missing_count: sequence - previousCursor - 1,
+          next_sequence: sequence,
+          session_id: sessionId,
+          workspace_id: workspaceId,
+        });
+        void refetchTranscriptRef.current();
+      }
       if (sequence > cursorRef.current) {
         cursorRef.current = sequence;
       }
@@ -392,7 +375,7 @@ export function useSessionLiveTail({
         }
       }
       clearReconnectTimer();
-      closeCurrentSource();
+      closeCurrentSource("terminal");
       invalidateSessionSurfaces();
     };
 
@@ -410,10 +393,14 @@ export function useSessionLiveTail({
       if (disposed) {
         return;
       }
-      const nextSource = sourceFactory(
-        buildSessionStreamUrl(workspaceId, sessionId, cursorRef.current)
-      );
+      const cursor = cursorRef.current;
+      const nextSource = sourceFactory(buildSessionStreamUrl(workspaceId, sessionId, cursor));
       source = nextSource;
+      recordSessionDebugEvent(SESSION_DEBUG_EVENTS.sseOpen, {
+        cursor,
+        session_id: sessionId,
+        workspace_id: workspaceId,
+      });
       nextSource.onmessage = null;
       nextSource.onerror = handleError;
       nextSource.addEventListener(TRANSCRIPT_SNAPSHOT_EVENT, snapshotListener);
@@ -437,7 +424,7 @@ export function useSessionLiveTail({
     return () => {
       disposed = true;
       clearReconnectTimer();
-      closeCurrentSource();
+      closeCurrentSource("cleanup");
     };
   }, [hasCustomFactory, queryClient, sessionId, sourceFactory, streamShouldOpen, workspaceId]);
 

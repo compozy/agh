@@ -164,12 +164,39 @@ func (h *RuntimeHarness) StreamSessionHTTPUntil(
 	sessionID string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
+	return h.streamSessionHTTPUntil(ctx, sessionID, "", predicate)
+}
+
+// StreamSessionRawHTTPUntil opens the public HTTP session event stream in raw
+// frame mode and returns as soon as streamed SSE records satisfy predicate.
+func (h *RuntimeHarness) StreamSessionRawHTTPUntil(
+	ctx context.Context,
+	sessionID string,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
+	return h.streamSessionHTTPUntil(
+		ctx,
+		sessionID,
+		fmt.Sprintf("frames=%s", aghcontract.SessionStreamFrameRaw),
+		predicate,
+	)
+}
+
+func (h *RuntimeHarness) streamSessionHTTPUntil(
+	ctx context.Context,
+	sessionID string,
+	rawQuery string,
+	predicate func(SSEEvent) bool,
+) ([]SSEEvent, error) {
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/stream")
 	if err != nil {
 		return nil, err
+	}
+	if rawQuery != "" {
+		path += "?" + rawQuery
 	}
 	response, err := doRequest(
 		ctx,

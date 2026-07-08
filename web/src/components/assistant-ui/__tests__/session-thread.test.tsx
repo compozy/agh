@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { memo, useEffect, useState, type ComponentProps } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -9,11 +9,26 @@ import { SessionChatRuntimeProvider } from "@/systems/session/components/session
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
+import {
+  getSessionDebugCounters,
+  getSessionDebugEvents,
+  resetSessionDebugTelemetry,
+  SESSION_DEBUG_EVENTS,
+} from "@/systems/session/lib/session-observability";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionMessage } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 
 import { SessionThread } from "../session-thread";
+import { TimelineRowContent } from "../session-timeline-render";
+import {
+  computeStableSessionRows,
+  deriveSessionRows,
+  EMPTY_STABLE_SESSION_ROWS,
+  type SessionRow,
+  type SessionTimelinePart,
+  type StableSessionRowsState,
+} from "../session-timeline.logic";
 import { WorkingIndicator } from "../session-working-row";
 
 // Suite: thread state panes
@@ -91,11 +106,13 @@ function renderThreadState({
   status,
   error = null,
   retry = vi.fn(),
+  isSessionRunning = false,
 }: {
   messages?: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
   error?: Error | null;
   retry?: () => void;
+  isSessionRunning?: boolean;
 }) {
   const queryClient = createQueryClient();
 
@@ -118,6 +135,7 @@ function renderThreadState({
             agentName={primarySessionFixture.agent_name}
             canPrompt
             onCancelPrompt={() => {}}
+            isSessionRunning={isSessionRunning}
           />
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
@@ -127,11 +145,13 @@ function renderThreadState({
 
 describe("SessionThread transcript states", () => {
   beforeEach(() => {
+    resetSessionDebugTelemetry();
     vi.stubGlobal("fetch", createFetchMock());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetSessionDebugTelemetry();
   });
 
   it("Should render the transcript skeleton on pending without empty-state copy", async () => {
@@ -177,6 +197,24 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("thread-transcript-error")).not.toBeInTheDocument();
   });
 
+  it("Should record a debug event when ThreadEmpty renders while the session is active", async () => {
+    renderThreadState({ status: "success", isSessionRunning: true });
+
+    expect(await screen.findByText(/Start a conversation/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.threadEmptyWhileActive]).toBe(1);
+    });
+    expect(getSessionDebugEvents()).toContainEqual(
+      expect.objectContaining({
+        agent_name: primarySessionFixture.agent_name,
+        event: SESSION_DEBUG_EVENTS.threadEmptyWhileActive,
+        message_count: 0,
+        session_id: primarySessionFixture.id,
+        transcript_status: "success",
+      })
+    );
+  });
+
   it("Should render rows for success with transcript messages", async () => {
     const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
 
@@ -185,6 +223,100 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
     expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+  });
+
+  it("Should not render beyond the readonly provider's committed message count when transcript grows after reconnect", async () => {
+    const initialTranscript = [
+      {
+        id: "turn-hook-started",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "session_started",
+              turn_id: "turn-hook-started",
+              timestamp: "2026-07-08T21:37:00Z",
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "turn-hook-prompt",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "prompt_started",
+              turn_id: "turn-hook-prompt",
+              timestamp: "2026-07-08T21:37:01Z",
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "user-after-hooks",
+        role: "user",
+        parts: [{ type: "text", text: "Continue delegated task run", state: "done" }],
+      } as unknown as SessionMessage,
+    ];
+    const grownTranscript = [
+      ...initialTranscript,
+      {
+        id: "assistant-after-reconnect",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Continuing after reconnect.",
+            state: "streaming",
+            turn_id: "turn-after-reconnect",
+            timestamp: "2026-07-08T21:37:02Z",
+          },
+        ] as unknown as SessionMessage["parts"],
+        status: { type: "running" },
+      } as SessionMessage,
+    ];
+
+    function GrowingTranscriptThread() {
+      const [messages, setMessages] = useState(() => toReadonlyThreadMessages(initialTranscript));
+      useEffect(() => {
+        setMessages(toReadonlyThreadMessages(grownTranscript));
+      }, []);
+
+      return (
+        <QueryClientProvider client={createQueryClient()}>
+          <SessionChatRuntimeProvider
+            sessionId={primarySessionFixture.id}
+            workspaceId={fixtureWorkspaceId()}
+          >
+            <SessionTranscriptThreadProvider
+              messages={messages}
+              status="success"
+              isPending={false}
+              isError={false}
+              error={null}
+              retry={vi.fn()}
+            >
+              <SessionThread
+                sessionId={primarySessionFixture.id}
+                agentName={primarySessionFixture.agent_name}
+                canPrompt
+                onCancelPrompt={() => {}}
+                isSessionRunning
+              />
+            </SessionTranscriptThreadProvider>
+          </SessionChatRuntimeProvider>
+        </QueryClientProvider>
+      );
+    }
+
+    render(<GrowingTranscriptThread />);
+
+    expect(await screen.findByText("Continue delegated task run")).toBeInTheDocument();
+    expect(await screen.findByText("Continuing after reconnect.")).toBeInTheDocument();
+    expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
   });
 
   it("Should render grouped tool clusters behind a previous-calls toggle", async () => {
@@ -762,6 +894,87 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("/tmp/anchor-1.ts")).toBeInTheDocument();
     expect(viewport.scrollTop).toBe(300);
+  });
+});
+
+// Suite: streaming render-count probe (task 39).
+// Invariant: derive-layer structural sharing + memoized `TimelineRowContent` mean
+// streaming N chunk updates into the live row re-renders only that row — settled
+// rows keep their reference AND never re-commit.
+// Boundary IN: `computeStableSessionRows` row identity + the memoized row renderer.
+// Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
+describe("SessionThread streaming render-count", () => {
+  function textPart(id: string, value: string, state: string, turnId: string): SessionTimelinePart {
+    return { kind: "text", id, text: value, turnId, timestamp: "2026-07-07T12:00:00Z", state };
+  }
+
+  // Wraps the production memoized row renderer and counts renders per row id. Its
+  // memo comparison mirrors `TimelineRowContent` (shallow on `row`, with a stable
+  // `onRender`), so a bail here means the whole `TimelineRowContent` subtree was
+  // skipped — the exact render-avoidance a settled row must get while a sibling
+  // streams. Same probe shape as the task-30 timer render-count test.
+  const CountingRow = memo(function CountingRow({
+    row,
+    onRender,
+  }: {
+    row: SessionRow;
+    onRender: (id: string) => void;
+  }) {
+    onRender(row.id);
+    return <TimelineRowContent row={row} />;
+  });
+
+  function StableTimeline({
+    liveText,
+    stateRef,
+    onRowRender,
+  }: {
+    liveText: string;
+    stateRef: { current: StableSessionRowsState };
+    onRowRender: (id: string) => void;
+  }) {
+    // Mirror the production hook: re-derive fresh rows, then structurally share
+    // against the prior pass so unchanged rows keep their reference.
+    const derived = deriveSessionRows([
+      textPart("settled", "Settled answer", "done", "turn-settled"),
+      textPart("live", liveText, "streaming", "turn-live"),
+    ]);
+    const stable = computeStableSessionRows(derived, stateRef.current);
+    stateRef.current = stable;
+    return (
+      <>
+        {stable.result.map(row => (
+          <CountingRow key={row.id} row={row} onRender={onRowRender} />
+        ))}
+      </>
+    );
+  }
+
+  it("Should re-render only the live row across streaming chunk updates and keep settled rows referentially stable", () => {
+    const renders = new Map<string, number>();
+    const bump = (id: string) => renders.set(id, (renders.get(id) ?? 0) + 1);
+    const stateRef: { current: StableSessionRowsState } = { current: EMPTY_STABLE_SESSION_ROWS };
+
+    const { rerender } = render(
+      <StableTimeline liveText="chunk 1" stateRef={stateRef} onRowRender={bump} />
+    );
+    const settledRowAtMount = stateRef.current.result[0];
+
+    for (const chunk of [
+      "chunk 1 chunk 2",
+      "chunk 1 chunk 2 chunk 3",
+      "chunk 1 chunk 2 chunk 3 chunk 4",
+    ]) {
+      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} onRowRender={bump} />);
+    }
+
+    // The settled row's reference survives every streaming update...
+    expect(stateRef.current.result[0]).toBe(settledRowAtMount);
+    // ...so its memoized renderer commits exactly once (mount) and is skipped on
+    // all three streaming chunk updates.
+    expect(renders.get("text:settled")).toBe(1);
+    // The live row re-renders on each chunk: mount + three updates.
+    expect(renders.get("text:live")).toBe(4);
   });
 });
 

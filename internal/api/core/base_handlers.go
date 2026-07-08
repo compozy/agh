@@ -137,9 +137,10 @@ type BaseHandlers struct {
 	AgentLoader                  AgentLoader
 	PID                          func() int
 
-	settingsMu sync.RWMutex
-	streamDone <-chan struct{}
-	httpPort   atomic.Int64
+	settingsMu           sync.RWMutex
+	streamDone           <-chan struct{}
+	httpPort             atomic.Int64
+	activeSessionStreams atomic.Int64
 }
 
 // NewBaseHandlers builds a shared handler set with transport-specific defaults applied.

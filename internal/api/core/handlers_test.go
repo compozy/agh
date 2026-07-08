@@ -1,9 +1,11 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -900,6 +902,72 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should log stream lifecycle and catch-up metrics", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-a" {
+					t.Fatalf("Events() id = %q, want sess-a", id)
+				}
+				if query.AfterSequence != 3 {
+					t.Fatalf("Events() AfterSequence = %d, want 3", query.AfterSequence)
+				}
+				return []store.SessionEvent{{
+					ID:        "event-4",
+					SessionID: "sess-a",
+					Sequence:  4,
+					TurnID:    "turn-4",
+					Type:      events.ACPAgentMessage,
+					AgentName: "coder",
+					Content:   `{"type":"agent_message","content":"hello"}`,
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		var logs bytes.Buffer
+		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&after_sequence=3",
+			nil,
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		records := testutil.ParseSSE(t, streamResp.Body.String())
+		if got := len(records); got == 0 {
+			t.Fatal("stream records = 0, want raw catch-up event")
+		}
+		logOutput := logs.String()
+		for _, want := range []string{
+			`"msg":"api: session stream opened"`,
+			`"msg":"api: session stream closed"`,
+			`"session_id":"sess-a"`,
+			`"workspace_id":"ws-workspace"`,
+			`"frame_mode":"raw"`,
+			`"cursor":3`,
+			`"catch_up_batch_size":1`,
+			`"active_streams":1`,
+		} {
+			if !strings.Contains(logOutput, want) {
+				t.Fatalf("stream logs missing %s in %s", want, logOutput)
+			}
+		}
+	})
+
 	t.Run("Should skip unused raw event read for transcript snapshot streams", func(t *testing.T) {
 		t.Parallel()
 
@@ -992,6 +1060,99 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			eventPayload.MaxSequence != 7 ||
 			!eventPayload.ResetBelow {
 			t.Fatalf("snapshot served event payload = %#v", eventPayload)
+		}
+	})
+
+	t.Run("Should serve a snapshot on a stale Last-Event-ID reconnect", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		var eventsCalls atomic.Int32
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				// Idle background session: still active, no in-flight turn.
+				info := testutil.NewSessionInfo(id)
+				info.TranscriptEpoch = 2
+				return info, nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				// The stale cursor's incremental catch-up is empty for an idle session; snapshot
+				// mode must not depend on it, so Events must never be read for the initial frame.
+				eventsCalls.Add(1)
+				return nil, nil
+			},
+			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
+				if id != "sess-a" || query.Limit <= 0 {
+					t.Fatalf("Transcript() call = %q %#v, want bounded snapshot read", id, query)
+				}
+				return []transcript.Entry{
+					{
+						Sequence: 5,
+						Message: transcript.UIMessage{
+							ID:   "msg-user",
+							Role: transcript.UIRoleUser,
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "summarize the launch blockers",
+								State: "done",
+							}},
+						},
+					},
+					{
+						Sequence: 6,
+						Message: transcript.UIMessage{
+							ID:   "msg-assistant",
+							Role: transcript.UIRoleAssistant,
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "snapshot tail",
+								State: "done",
+							}},
+						},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := testutil.PerformRequestWithHeaders(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&replay=snapshot",
+			nil,
+			map[string]string{"Last-Event-ID": "3"},
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		records := testutil.ParseSSE(t, streamResp.Body.String())
+		if len(records) == 0 {
+			t.Fatal("stream records = 0, want a transcript snapshot on a stale reconnect")
+		}
+		if got := records[0].Event; got != contract.SessionStreamEventTranscriptSnapshot {
+			t.Fatalf("first stream event = %q, want %q", got, contract.SessionStreamEventTranscriptSnapshot)
+		}
+		var snapshot contract.TranscriptSnapshotPayload
+		testutil.DecodeSSEData(t, records[0], &snapshot)
+		if len(snapshot.Entries) == 0 {
+			t.Fatal("snapshot entries = 0, want non-empty render inputs for an idle active reconnect")
+		}
+		if snapshot.MinSequence != 5 || snapshot.MaxSequence != 6 {
+			t.Fatalf("snapshot bounds = [%d,%d], want [5,6]", snapshot.MinSequence, snapshot.MaxSequence)
+		}
+		if snapshot.Reason != contract.TranscriptSnapshotReasonReconnect {
+			t.Fatalf("snapshot reason = %q, want %q", snapshot.Reason, contract.TranscriptSnapshotReasonReconnect)
+		}
+		// The frame id carries the max sequence so a native Last-Event-ID resume advances past the
+		// stale cursor instead of re-requesting the same empty catch-up window.
+		if records[0].ID != "6" {
+			t.Fatalf("snapshot frame id = %q, want \"6\"", records[0].ID)
+		}
+		if got := eventsCalls.Load(); got != 0 {
+			t.Fatalf("Events() calls = %d, want 0 — snapshot must not depend on incremental catch-up", got)
 		}
 	})
 

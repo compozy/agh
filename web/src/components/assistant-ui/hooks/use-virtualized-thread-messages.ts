@@ -65,10 +65,17 @@ export function useVirtualizedThreadMessages(
     [messages]
   );
 
+  // Key the virtualizer's measurement cache by message identity (T3's
+  // `keyExtractor`): a settled message's measured height and React key follow the
+  // message across appends/reconnects instead of being pinned to a shifting index,
+  // so recycled rows recycle by the row they actually are.
+  const getItemKey = useCallback((index: number) => messages[index]?.id ?? index, [messages]);
+
   const virtualizer = useVirtualizer({
     count: messageCount,
     getScrollElement: () => viewportRef.current,
     estimateSize,
+    getItemKey,
     overscan: 8,
   });
 

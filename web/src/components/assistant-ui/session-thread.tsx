@@ -4,14 +4,19 @@ import {
   type TextMessagePartProps,
   ThreadPrimitive,
   ReadonlyThreadProvider,
+  type ThreadMessage,
   useAuiState,
 } from "@assistant-ui/react";
 import { Activity, ArrowDown } from "lucide-react";
-import { type ComponentPropsWithoutRef, useEffect, useRef, useState } from "react";
+import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { useSessionTranscriptThreadState } from "@/systems/session";
+import {
+  recordSessionDebugEvent,
+  SESSION_DEBUG_EVENTS,
+} from "@/systems/session/lib/session-observability";
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
@@ -188,11 +193,15 @@ export function ScrollToBottomPill({
 
 function ThreadViewport({
   agentName,
+  sessionId,
+  isSessionRunning,
   contentInset,
   className,
   ...props
 }: ThreadViewportProps & {
   agentName: string;
+  sessionId: string;
+  isSessionRunning: boolean;
   contentInset: SessionThreadContentInset;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -219,6 +228,8 @@ function ThreadViewport({
         <ThreadContentRail inset={contentInset} className="min-h-full">
           <VirtualizedThreadMessages
             agentName={agentName}
+            sessionId={sessionId}
+            isSessionRunning={isSessionRunning}
             virtualizer={virtualizer}
             messageCount={messageCount}
             transcriptStatus={transcriptStatus}
@@ -238,57 +249,31 @@ const SESSION_MESSAGE_COMPONENTS = {
   AssistantMessage,
 };
 
-export function VirtualizedThreadMessages({
-  agentName,
+function ThreadMessageRows({
   virtualizer,
   messageCount,
-  transcriptStatus,
-  transcriptError,
-  retryTranscript,
   transcriptMessages,
 }: {
-  agentName: string;
   virtualizer: ReturnType<typeof useVirtualizedThreadMessages>["virtualizer"];
   messageCount: number;
-  transcriptStatus: ReturnType<typeof useSessionTranscriptThreadState>["status"];
-  transcriptError: ReturnType<typeof useSessionTranscriptThreadState>["error"];
-  retryTranscript: () => void;
-  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadState>["messages"];
+  transcriptMessages: readonly ThreadMessage[];
 }) {
-  // `ReadonlyThreadProvider` applies `messages` in a passive effect, so a freshly
-  // grown transcript is not yet readable by index during the growth render. Gate
-  // the rendered rows on the committed count so a streaming append never asks the
-  // core for an index it does not have yet — this replaces the old id-join `key`
-  // remount that used to force synchronous re-init at the cost of resetting scroll.
-  const [committedCount, setCommittedCount] = useState(messageCount);
-  useEffect(() => {
-    setCommittedCount(messageCount);
-  }, [messageCount]);
-  const renderableCount = Math.min(messageCount, committedCount);
-
-  if (messageCount === 0) {
-    return (
-      <ThreadStatePane
-        status={transcriptStatus}
-        agentName={agentName}
-        error={transcriptError}
-        onRetry={retryTranscript}
-      />
-    );
-  }
-
+  const committedMessageCount = useAuiState(state => state.thread.messages.length);
+  const renderableCount = Math.min(messageCount, committedMessageCount);
   const virtualItems = virtualizer.getVirtualItems().filter(item => item.index < renderableCount);
   const visibleItems =
     virtualItems.length > 0
       ? virtualItems
       : Array.from({ length: Math.min(renderableCount, 12) }, (_, index) => ({
           index,
-          key: index,
+          // Match the virtualizer's message-identity keys so the pre-measure paint
+          // and the measured render share row keys (no remount on handoff).
+          key: transcriptMessages[index]?.id ?? index,
           start: index * VIRTUAL_MESSAGE_ESTIMATE,
         }));
   const totalSize = Math.max(virtualizer.getTotalSize(), messageCount * VIRTUAL_MESSAGE_ESTIMATE);
 
-  const rows = (
+  return (
     <div
       className="relative w-full"
       data-testid="virtualized-thread-messages"
@@ -311,12 +296,71 @@ export function VirtualizedThreadMessages({
       ))}
     </div>
   );
+}
 
-  // No `key` remount here: `ReadonlyThreadProvider` reactively re-applies
-  // `messages` via `setMessages`, so re-keying on the joined id set only reset the
-  // virtualizer's scroll position when the first live message arrived. Reusing the
-  // provider keeps the viewport stable across streaming appends and reconnects.
-  return <ReadonlyThreadProvider messages={transcriptMessages}>{rows}</ReadonlyThreadProvider>;
+export function VirtualizedThreadMessages({
+  agentName,
+  sessionId,
+  isSessionRunning,
+  virtualizer,
+  messageCount,
+  transcriptStatus,
+  transcriptError,
+  retryTranscript,
+  transcriptMessages,
+}: {
+  agentName: string;
+  sessionId: string;
+  isSessionRunning: boolean;
+  virtualizer: ReturnType<typeof useVirtualizedThreadMessages>["virtualizer"];
+  messageCount: number;
+  transcriptStatus: ReturnType<typeof useSessionTranscriptThreadState>["status"];
+  transcriptError: ReturnType<typeof useSessionTranscriptThreadState>["error"];
+  retryTranscript: () => void;
+  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadState>["messages"];
+}) {
+  const emptyWhileActive = messageCount === 0 && transcriptStatus === "success" && isSessionRunning;
+  useEffect(() => {
+    if (!emptyWhileActive) {
+      return;
+    }
+    recordSessionDebugEvent(SESSION_DEBUG_EVENTS.threadEmptyWhileActive, {
+      agent_name: agentName,
+      message_count: messageCount,
+      session_id: sessionId,
+      transcript_status: transcriptStatus,
+    });
+  }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
+
+  if (messageCount === 0) {
+    return (
+      <ThreadStatePane
+        status={transcriptStatus}
+        agentName={agentName}
+        error={transcriptError}
+        onRetry={retryTranscript}
+      />
+    );
+  }
+
+  const transcriptIdentity = transcriptMessages
+    .map(message => `${message.id.length}:${message.id}`)
+    .join("|");
+
+  // `ReadonlyThreadProvider` applies changed `messages` in a passive effect, but
+  // appended/removed message ids change which indexes are valid immediately.
+  // Keying only on the id sequence rebuilds that provider with the correct core
+  // size synchronously while leaving the outer virtualizer and its scroll machine
+  // alive across the remount.
+  return (
+    <ReadonlyThreadProvider key={transcriptIdentity} messages={transcriptMessages}>
+      <ThreadMessageRows
+        virtualizer={virtualizer}
+        messageCount={messageCount}
+        transcriptMessages={transcriptMessages}
+      />
+    </ReadonlyThreadProvider>
+  );
 }
 
 export function SessionThread({
@@ -337,7 +381,12 @@ export function SessionThread({
 }: SessionThreadProps) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ThreadViewport agentName={agentName} contentInset={contentInset} />
+      <ThreadViewport
+        agentName={agentName}
+        sessionId={sessionId}
+        isSessionRunning={isSessionRunning}
+        contentInset={contentInset}
+      />
       <SessionComposer
         sessionId={sessionId}
         contentInset={contentInset}

@@ -709,6 +709,49 @@ describe("fetchSessionTranscript", () => {
     });
   });
 
+  it("returns AGH errored tool parts with raw output payloads", async () => {
+    const blockedTranscript = {
+      entries: [
+        {
+          sequence: 1,
+          message: {
+            id: "blocked-turn",
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-Attempt blocked terminal write",
+                toolCallId: "tool-blocked-1",
+                state: "output-error",
+                input: { command: "touch browser-blocked.txt" },
+                output: {
+                  type: "tool_result",
+                  title: "Attempt blocked terminal write",
+                  error: "terminal/create denied before writing workspace marker",
+                },
+                errorText: "terminal/create denied before writing workspace marker",
+              },
+              {
+                type: "text",
+                text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+                state: "done",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    mockJsonResponse(blockedTranscript);
+
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+
+    expect(result).toEqual(blockedTranscript.entries.map(entry => entry.message));
+    expect(result[0]?.parts).toHaveLength(2);
+    expect(result[0]?.parts?.[1]).toMatchObject({
+      text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+      type: "text",
+    });
+  });
+
   it("throws 404 for unknown session", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 

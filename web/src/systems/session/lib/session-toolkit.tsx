@@ -1,65 +1,25 @@
-import type { DataMessagePartProps, ToolCallMessagePartProps, Toolkit } from "@assistant-ui/react";
+import type { DataMessagePartProps, ToolDefinition, Toolkit } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
 
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
-import { ToolCallRow } from "../components/tool-call-card";
-import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
-import { resolveToolResult } from "./message-parts";
+import type { AgentEventPayload, AghPermissionData } from "../types";
 
-type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
-
-export function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
-  return {
-    id: part.toolCallId,
-    role: part.result !== undefined || part.isError ? "tool_result" : "tool_call",
-    content: "",
-    toolName: part.toolName,
-    toolInput: part.args,
-    toolResult: resolveToolResult(part.result),
-    toolError: part.isError,
-    isStreaming: part.status.type === "running",
-    timestamp: Date.now(),
-  };
-}
-
-export function BackendToolPart(part: SessionToolPartProps) {
-  // A live single-tool render has no broader turn context, so the tool's own
-  // completion is the settle signal for neutral→success promotion.
-  return (
-    <ToolCallRow message={toLegacyToolMessage(part)} turnSettled={part.status.type !== "running"} />
-  );
-}
-
-function createBackendTool() {
-  return { type: "backend" as const };
-}
+// Every session tool executes server-side: the daemon streams each call and its
+// result as already-resolved transcript parts, so the client registers these
+// tools only to mark them backend-owned. Tool rendering is centralized in the
+// session timeline's `ToolCallRow` (the single fallback renderer), so no toolkit
+// entry carries a per-tool `render` — one shared backend definition is reused for
+// every registered tool.
+const backendTool: ToolDefinition = { type: "backend" };
 
 export const sessionToolkit: Toolkit = {
-  Bash: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Read: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Write: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Edit: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Grep: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Glob: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
+  Bash: backendTool,
+  Read: backendTool,
+  Write: backendTool,
+  Edit: backendTool,
+  Grep: backendTool,
+  Glob: backendTool,
 };
 
 export function createAghPermissionDataUI(workspaceId: string, sessionId: string) {

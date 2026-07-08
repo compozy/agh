@@ -266,6 +266,9 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 			}
 		case event, ok := <-subscription.events:
 			if !ok {
+				h.logSessionStreamSubscriptionClosed(
+					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameRaw, afterSequence,
+				)
 				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -273,6 +276,14 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 				continue
 			}
 			if event.Sequence > afterSequence+1 {
+				h.logSessionStreamSequenceGap(
+					c.Request.Context(),
+					sessionID,
+					currentInfo,
+					contract.SessionStreamFrameRaw,
+					afterSequence,
+					event.Sequence,
+				)
 				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -288,55 +299,6 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 			}
 		}
 	}
-}
-
-func (h *BaseHandlers) pollSessionStreamTick(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	pollQuery store.EventQuery,
-	afterSequence int64,
-) (int64, *session.Info, bool) {
-	pollQuery.AfterSequence = afterSequence
-
-	events, pollErr := h.Sessions.Events(c.Request.Context(), sessionID, pollQuery)
-	if pollErr != nil {
-		// Best-effort notification; the SSE client may already be disconnected.
-		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: sessionStreamErrorKey,
-			Data: ErrorPayloadForError(pollErr),
-		})
-		return afterSequence, info, true
-	}
-
-	nextSequence, err := h.writeSessionEventBatch(writer, events, info)
-	if err != nil {
-		return nextSequence, info, true
-	}
-	if nextSequence > afterSequence {
-		return nextSequence, info, false
-	}
-
-	latest, statusErr := h.Sessions.Status(c.Request.Context(), sessionID)
-	if statusErr != nil {
-		// Best-effort notification; the SSE client may already be disconnected.
-		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: sessionStreamErrorKey,
-			Data: ErrorPayloadForError(statusErr),
-		})
-		return afterSequence, info, true
-	}
-	if latest != nil && latest.State == session.StateStopped {
-		// Best-effort terminal event; there is nothing else to do if the stream is closed.
-		h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, latest))
-		return afterSequence, latest, true
-	}
-	if h.IncludeSessionWorkspaceInSSE {
-		info = latest
-	}
-
-	return afterSequence, info, false
 }
 
 func (h *BaseHandlers) pollAndStreamSessionTranscript(
@@ -405,6 +367,9 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			}
 		case event, ok := <-subscription.events:
 			if !ok {
+				h.logSessionStreamSubscriptionClosed(
+					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameTranscript, afterSequence,
+				)
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -412,6 +377,14 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 				continue
 			}
 			if event.Sequence > afterSequence+1 {
+				h.logSessionStreamSequenceGap(
+					c.Request.Context(),
+					sessionID,
+					currentInfo,
+					contract.SessionStreamFrameTranscript,
+					afterSequence,
+					event.Sequence,
+				)
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -447,62 +420,6 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			}
 		}
 	}
-}
-
-func (h *BaseHandlers) pollSessionTranscriptTick(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	pollQuery store.EventQuery,
-	afterSequence int64,
-) (int64, *session.Info, bool) {
-	pollQuery.AfterSequence = afterSequence
-	events, pollErr := h.Sessions.Events(c.Request.Context(), sessionID, pollQuery)
-	if pollErr != nil {
-		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: sessionStreamErrorKey,
-			Data: ErrorPayloadForError(pollErr),
-		})
-		return afterSequence, info, true
-	}
-
-	nextSequence, err := h.writeTranscriptDeltasForEvents(
-		c.Request.Context(),
-		writer,
-		sessionID,
-		info,
-		events,
-		afterSequence,
-	)
-	if err != nil {
-		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: sessionStreamErrorKey,
-			Data: ErrorPayloadForError(err),
-		})
-		return afterSequence, info, true
-	}
-	if nextSequence > afterSequence {
-		return nextSequence, info, false
-	}
-
-	latest, statusErr := h.Sessions.Status(c.Request.Context(), sessionID)
-	if statusErr != nil {
-		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: sessionStreamErrorKey,
-			Data: ErrorPayloadForError(statusErr),
-		})
-		return afterSequence, info, true
-	}
-	if latest != nil && latest.State == session.StateStopped {
-		h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, latest))
-		return afterSequence, latest, true
-	}
-	if h.IncludeSessionWorkspaceInSSE {
-		info = latest
-	}
-
-	return afterSequence, info, false
 }
 
 func streamWorkspaceFields(info *session.Info) (string, string) {

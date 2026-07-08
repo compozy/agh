@@ -1,6 +1,6 @@
-import { Activity, AlertCircle, AlertTriangle, Clock, Info, Wrench } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 
-import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill, cn } from "@agh/ui";
+import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill } from "@agh/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 
@@ -245,39 +245,5 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         {detail}
       </AlertDescription>
     </Alert>
-  );
-}
-
-export function SessionActivityInline({ activity }: { activity?: RuntimeActivityPayload | null }) {
-  if (!activity) {
-    return null;
-  }
-
-  const detail = describeActivity(activity);
-  const idle = formatDuration(activity.idle_seconds);
-
-  return (
-    <span
-      data-testid="session-activity-inline"
-      className={cn(
-        "hidden min-w-0 max-w-80 items-center gap-1.5 rounded-sm border px-2 py-1 md:flex",
-        "border-line bg-canvas",
-        "text-eyebrow text-muted"
-      )}
-    >
-      {activity.current_tool ? (
-        <Wrench aria-hidden="true" className="size-3 shrink-0 text-accent" />
-      ) : (
-        <Clock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
-      )}
-      <span className="truncate" title={detail}>
-        {detail}
-      </span>
-      {idle ? (
-        <Pill mono tone="neutral" className="shrink-0">
-          {idle}
-        </Pill>
-      ) : null}
-    </span>
   );
 }

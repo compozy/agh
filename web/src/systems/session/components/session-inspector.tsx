@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  Activity,
-  AlertCircle,
-  ChevronRight,
-  FileCode,
-  Gauge,
-  KeyRound,
-  Library,
-} from "lucide-react";
+import { Activity, AlertCircle, ChevronRight, FileCode, Gauge, Library } from "lucide-react";
 import type { AssistantState } from "@assistant-ui/react";
 
 import {
@@ -925,9 +917,3 @@ function FilesSection({ files }: FilesSectionProps) {
     </div>
   );
 }
-
-/**
- * Vault icon export preserved for downstream consumers (kept to avoid breaking
- * imports relying on the legacy KeyRound icon symbol).
- */
-export const SessionInspectorVaultIcon = KeyRound;

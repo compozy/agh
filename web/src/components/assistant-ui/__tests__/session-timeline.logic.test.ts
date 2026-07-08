@@ -131,6 +131,25 @@ describe("session timeline derivation", () => {
     expect(thirdStable.result[2]?.kind).toBe("text");
   });
 
+  it("Should give only the mutated row a new reference while sibling rows keep identity", () => {
+    const first = deriveSessionRows([text("stable-a", "Alpha"), text("mutating-b", "Bravo")]);
+    const firstStable = computeStableSessionRows(first, EMPTY_STABLE_SESSION_ROWS);
+
+    // Re-derive with fresh part objects where only the second row's visible text
+    // changed (simulates a streaming chunk landing on the live row).
+    const second = deriveSessionRows([
+      text("stable-a", "Alpha"),
+      text("mutating-b", "Bravo, revised"),
+    ]);
+    const secondStable = computeStableSessionRows(second, firstStable);
+
+    expect(secondStable).not.toBe(firstStable);
+    // The unchanged sibling keeps its reference; only the mutated row is fresh.
+    expect(secondStable.result[0]).toBe(firstStable.result[0]);
+    expect(secondStable.result[1]).not.toBe(firstStable.result[1]);
+    expect(secondStable.result[1]).toBe(second[1]);
+  });
+
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
     const parts = Object.freeze([tool(1), tool(2), tool(3)]) as readonly SessionTimelinePart[];
     const snapshot = parts.map(part => ({ ...part }));

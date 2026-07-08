@@ -503,52 +503,6 @@ func parseOptionalPositiveIntQuery(c *gin.Context, name string, fallback int, ma
 	return value, nil
 }
 
-// StreamSession streams session events over SSE.
-func (h *BaseHandlers) StreamSession(c *gin.Context) {
-	if err := rejectTranscriptBackwardCursor(c); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	streamOptions, err := parseSessionStreamOptions(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	if !h.IncludeSessionWorkspaceInSSE {
-		info = nil
-	}
-
-	query, err := h.parseSessionStreamEventQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	subscription, err := h.subscribeSessionEventStream(c.Request.Context(), sessionID, query.AfterSequence)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	initial, err := h.sessionStreamInitialEvents(c.Request.Context(), sessionID, query, streamOptions)
-	if err != nil {
-		subscription.cancel()
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		subscription.cancelIfActive()
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	h.streamSessionWithMode(c, writer, sessionID, info, query, initial, streamOptions, subscription)
-}
-
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {

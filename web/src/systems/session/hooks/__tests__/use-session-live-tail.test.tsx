@@ -10,6 +10,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { primarySessionFixture, sessionTranscriptFixture } from "../../mocks/fixtures";
 import type { SessionMessage, SessionPayload, SessionState } from "../../types";
 import { sessionKeys } from "../../lib/query-keys";
+import {
+  getSessionDebugCounters,
+  getSessionDebugEvents,
+  resetSessionDebugTelemetry,
+  SESSION_DEBUG_EVENTS,
+} from "../../lib/session-observability";
 import { useSessionLiveTail } from "../use-session-live-tail";
 import type { SessionStreamEventSource } from "../use-session-live-tail";
 
@@ -148,12 +154,14 @@ function renderLiveTail(options: {
 describe("useSessionLiveTail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetSessionDebugTelemetry();
     vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    resetSessionDebugTelemetry();
   });
 
   it("Should open the EventSource when transcript fetch returns 500 and expose the error state", async () => {
@@ -173,6 +181,62 @@ describe("useSessionLiveTail", () => {
     expect(result.current.status).toBe("error");
     expect(result.current.error).toBe(transcriptError);
     expect(result.current.messages).toEqual([]);
+  });
+
+  it("Should record transcript fetch failure and SSE lifecycle events with cursors", async () => {
+    vi.useFakeTimers();
+    const transcriptError = new Error("transcript endpoint returned 500");
+    vi.mocked(fetchSessionTranscript).mockRejectedValue(transcriptError);
+
+    const { result, sources } = renderLiveTail({});
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.isError).toBe(true);
+      });
+    });
+
+    act(() => {
+      sources[0]?.onerror?.(new Event("error"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    const counters = getSessionDebugCounters();
+    expect(counters[SESSION_DEBUG_EVENTS.transcriptFetchFailed]).toBe(1);
+    expect(counters[SESSION_DEBUG_EVENTS.sseOpen]).toBe(2);
+    expect(counters[SESSION_DEBUG_EVENTS.sseClose]).toBe(1);
+    expect(counters[SESSION_DEBUG_EVENTS.sseReconnect]).toBe(1);
+    expect(getSessionDebugEvents()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cursor: 0,
+          event: SESSION_DEBUG_EVENTS.transcriptFetchFailed,
+          error: "transcript endpoint returned 500",
+          session_id: SESSION_ID,
+          workspace_id: WORKSPACE_ID,
+        }),
+        expect.objectContaining({
+          cursor: 0,
+          event: SESSION_DEBUG_EVENTS.sseOpen,
+          session_id: SESSION_ID,
+          workspace_id: WORKSPACE_ID,
+        }),
+        expect.objectContaining({
+          cursor: 0,
+          event: SESSION_DEBUG_EVENTS.sseClose,
+          reason: "reconnect",
+        }),
+        expect.objectContaining({
+          attempt: 1,
+          cursor: 0,
+          delay_ms: 250,
+          event: SESSION_DEBUG_EVENTS.sseReconnect,
+        }),
+      ])
+    );
   });
 
   it("Should recover a failed transcript fetch through the active-session self-heal refetch", async () => {
@@ -266,6 +330,164 @@ describe("useSessionLiveTail", () => {
       });
     });
     expect(fetchSessionTranscript).not.toHaveBeenCalled();
+  });
+
+  it("Should record gap recovery and refetch the transcript when delta sequence skips the cursor", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(
+      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+      sessionWithState("active")
+    );
+
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.status).toBe("success");
+      });
+    });
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entries: [{ message: sessionTranscriptFixture[0]!, sequence: 2 }],
+          min_sequence: 2,
+          max_sequence: 2,
+          reset_below: false,
+        },
+        "2"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages[0]?.id).toBe(sessionTranscriptFixture[0]?.id);
+      });
+    });
+    vi.mocked(fetchSessionTranscript).mockClear();
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entry: { message: sessionTranscriptFixture[1]!, sequence: 5 },
+          sequence: 5,
+        },
+        "5"
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(fetchSessionTranscript).toHaveBeenCalledTimes(1);
+      });
+    });
+    expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.gapRecoveryTriggered]).toBe(1);
+    expect(getSessionDebugEvents()).toContainEqual(
+      expect.objectContaining({
+        cursor: 2,
+        event: SESSION_DEBUG_EVENTS.gapRecoveryTriggered,
+        missing_count: 2,
+        next_sequence: 5,
+        session_id: SESSION_ID,
+        workspace_id: WORKSPACE_ID,
+      })
+    );
+  });
+
+  it("Should preserve the ThreadMessage identity of unchanged messages across delta updates", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(
+      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+      sessionWithState("active")
+    );
+
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.status).toBe("success");
+      });
+    });
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entries: [
+            { message: sessionTranscriptFixture[0]!, sequence: 4 },
+            { message: sessionTranscriptFixture[1]!, sequence: 5 },
+          ],
+          min_sequence: 4,
+          max_sequence: 5,
+          reset_below: false,
+        },
+        "5"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages).toHaveLength(2);
+      });
+    });
+    const settledA = result.current.messages[0];
+    const settledB = result.current.messages[1];
+
+    // Appending a message must not re-allocate the two settled rows' ThreadMessages.
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entry: { message: sessionTranscriptFixture[2]!, sequence: 6 },
+          sequence: 6,
+        },
+        "6"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages).toHaveLength(3);
+      });
+    });
+    expect(result.current.messages[0]).toBe(settledA);
+    expect(result.current.messages[1]).toBe(settledB);
+
+    // A delta that mutates the second message re-allocates only that row; the first
+    // settled message keeps its ThreadMessage reference.
+    const revisedB = {
+      ...sessionTranscriptFixture[1]!,
+      parts: [{ type: "text", text: "Revised launch summary.", state: "done" }],
+    };
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_delta",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entry: { message: revisedB, sequence: 7 },
+          sequence: 7,
+        },
+        "7"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages[1]).not.toBe(settledB);
+      });
+    });
+    expect(result.current.messages[0]).toBe(settledA);
   });
 
   it("Should reconnect with after_sequence set to the latest applied sequence", async () => {

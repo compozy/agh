@@ -181,6 +181,51 @@ export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMess
   return repository.messages.map(item => item.message);
 }
 
+export interface StableThreadMessagesState {
+  bySource: WeakMap<SessionMessage, ThreadMessage>;
+  result: readonly ThreadMessage[];
+}
+
+export const EMPTY_STABLE_THREAD_MESSAGES: StableThreadMessagesState = {
+  bySource: new WeakMap(),
+  result: [],
+};
+
+/**
+ * Structural sharing for the read-model, mirroring `computeStableSessionRows` at
+ * the message layer. `toReadonlyThreadMessages` reallocates every `ThreadMessage`
+ * on each pass, so a single-message streaming delta would churn the identity of
+ * every settled message and force the whole thread to reconcile. This reuses the
+ * prior `ThreadMessage` whenever its source `SessionMessage` reference is unchanged
+ * (TanStack Query's structural sharing keeps that reference stable for messages a
+ * delta or no-op refetch did not touch), so only the mutated message gets a fresh
+ * object. Reuse is position-independent: an exported `ThreadMessage` carries no
+ * parent linkage, so a reordered-but-unchanged message keeps its identity safely.
+ */
+export function computeStableThreadMessages(
+  messages: SessionMessage[],
+  previous: StableThreadMessagesState
+): StableThreadMessagesState {
+  const converted = toReadonlyThreadMessages(messages);
+  const bySource = new WeakMap<SessionMessage, ThreadMessage>();
+  let anyChanged = converted.length !== previous.result.length;
+
+  const result = converted.map((thread, index) => {
+    const source = messages[index];
+    const reused = source ? previous.bySource.get(source) : undefined;
+    const stable = reused ?? thread;
+    if (source) {
+      bySource.set(source, stable);
+    }
+    if (!anyChanged && previous.result[index] !== stable) {
+      anyChanged = true;
+    }
+    return stable;
+  });
+
+  return anyChanged ? { bySource, result } : previous;
+}
+
 export function transcriptSignature(messages: SessionMessage[]): string {
   return JSON.stringify(
     messages.map(message => ({

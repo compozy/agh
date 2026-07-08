@@ -125,7 +125,7 @@ export function useSessionTopbarSlot({
           size="icon-sm"
           onClick={onClear}
           disabled={!canClear}
-          data-testid="clear-button"
+          data-testid="composer-clear-button"
           aria-label="Clear conversation"
         >
           {isClearing ? <Spinner className="size-3" /> : <Eraser className="size-3" />}
