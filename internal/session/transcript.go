@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
@@ -13,7 +14,9 @@ import (
 )
 
 type transcriptCacheEntry struct {
+	mu              sync.Mutex
 	fold            *transcript.Fold
+	entries         []transcript.Entry
 	cursor          int64
 	watermark       int64
 	watermarkReason string
@@ -41,11 +44,7 @@ func (m *Manager) Transcript(ctx context.Context, id string, query store.EventQu
 	if !canUseTranscriptCache(query) {
 		return m.assembleTranscriptQuery(ctx, target, query)
 	}
-	entries, err := m.cachedTranscriptEntries(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-	return filterTranscriptEntries(entries, query), nil
+	return m.cachedTranscriptEntries(ctx, target, query)
 }
 
 func canUseTranscriptCache(query store.EventQuery) bool {
@@ -70,6 +69,7 @@ func (m *Manager) assembleTranscriptQuery(
 func (m *Manager) cachedTranscriptEntries(
 	ctx context.Context,
 	id string,
+	query store.EventQuery,
 ) ([]transcript.Entry, error) {
 	target := strings.TrimSpace(id)
 	m.transcriptCacheMu.Lock()
@@ -77,23 +77,33 @@ func (m *Manager) cachedTranscriptEntries(
 		m.transcriptCache = make(map[string]*transcriptCacheEntry)
 	}
 	cache := m.transcriptCache[target]
-	query := store.EventQuery{}
 	rebuilt := false
 	if cache == nil {
 		cache = &transcriptCacheEntry{fold: transcript.NewFold()}
 		m.transcriptCache[target] = cache
 		rebuilt = true
-	} else {
-		query.AfterSequence = cache.cursor
 	}
+	m.transcriptCacheMu.Unlock()
 
-	events, err := m.queryTranscriptEvents(ctx, target, query)
+	cache.mu.Lock()
+	eventQuery := store.EventQuery{}
+	if !rebuilt {
+		eventQuery.AfterSequence = cache.cursor
+	}
+	events, err := m.queryTranscriptEvents(ctx, target, eventQuery)
 	if err != nil {
-		m.transcriptCacheMu.Unlock()
+		cache.mu.Unlock()
+		if rebuilt {
+			m.dropTranscriptCacheEntry(target, cache)
+		}
 		return nil, err
 	}
-	if _, err := cache.fold.Apply(events); err != nil {
-		m.transcriptCacheMu.Unlock()
+	changed, err := cache.fold.Apply(events)
+	if err != nil {
+		cache.mu.Unlock()
+		if rebuilt {
+			m.dropTranscriptCacheEntry(target, cache)
+		}
 		return nil, err
 	}
 	if maxSequence := maxTranscriptEventSequence(events); maxSequence > cache.cursor {
@@ -103,10 +113,13 @@ func (m *Manager) cachedTranscriptEntries(
 		cache.watermark = cache.cursor
 		cache.watermarkReason = TranscriptWatermarkReasonCacheRebuild
 	}
-	entries := cache.fold.Entries()
+	if rebuilt || len(changed) > 0 {
+		cache.entries = cache.fold.Entries()
+	}
+	entries := filterTranscriptEntries(cache.entries, query)
 	cursor := cache.cursor
 	eventCount := len(events)
-	m.transcriptCacheMu.Unlock()
+	cache.mu.Unlock()
 
 	if rebuilt {
 		m.logSessionTranscriptCacheRebuilt(ctx, target, entries, cursor, eventCount)
@@ -120,14 +133,17 @@ func (m *Manager) TranscriptWatermark(_ context.Context, id string) TranscriptWa
 		return TranscriptWatermark{}
 	}
 	m.transcriptCacheMu.Lock()
-	defer m.transcriptCacheMu.Unlock()
 	if m.transcriptCache == nil {
+		m.transcriptCacheMu.Unlock()
 		return TranscriptWatermark{}
 	}
 	cache := m.transcriptCache[target]
+	m.transcriptCacheMu.Unlock()
 	if cache == nil {
 		return TranscriptWatermark{}
 	}
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 	return TranscriptWatermark{
 		Sequence: cache.watermark,
 		Reason:   cache.watermarkReason,
@@ -140,14 +156,17 @@ func (m *Manager) markTranscriptBelowWindowMutation(sessionID string, sequence i
 		return
 	}
 	m.transcriptCacheMu.Lock()
-	defer m.transcriptCacheMu.Unlock()
 	if m.transcriptCache == nil {
+		m.transcriptCacheMu.Unlock()
 		return
 	}
 	cache := m.transcriptCache[target]
+	m.transcriptCacheMu.Unlock()
 	if cache == nil {
 		return
 	}
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 	next := sequence
 	if next <= 0 || next < cache.cursor {
 		next = cache.cursor
@@ -231,6 +250,14 @@ func (m *Manager) invalidateTranscriptCache(sessionID string) {
 		return
 	}
 	delete(m.transcriptCache, target)
+}
+
+func (m *Manager) dropTranscriptCacheEntry(sessionID string, cache *transcriptCacheEntry) {
+	m.transcriptCacheMu.Lock()
+	defer m.transcriptCacheMu.Unlock()
+	if m.transcriptCache[sessionID] == cache {
+		delete(m.transcriptCache, sessionID)
+	}
 }
 
 func (m *Manager) logSessionTranscriptCacheRebuilt(

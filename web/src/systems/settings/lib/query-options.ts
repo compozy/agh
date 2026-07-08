@@ -182,12 +182,16 @@ export function settingsHooksListOptions() {
   });
 }
 
-export function settingsMCPServersListOptions(filter: SettingsMCPServerListFilter = {}) {
+export function settingsMCPServersListOptions(
+  filter: SettingsMCPServerListFilter = {},
+  enabled = true
+) {
   return queryOptions({
     queryKey: settingsKeys.mcpList(filter),
     queryFn: ({ signal }) => listSettingsMCPServers(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    enabled,
     retry: shouldRetrySettingsQuery,
   });
 }

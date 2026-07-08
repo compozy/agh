@@ -269,6 +269,7 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 				h.logSessionStreamSubscriptionClosed(
 					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameRaw, afterSequence,
 				)
+				subscription.cancelIfActive()
 				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -284,6 +285,7 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 					afterSequence,
 					event.Sequence,
 				)
+				subscription.cancelIfActive()
 				h.pollAndStreamSessionEvents(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -370,6 +372,7 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 				h.logSessionStreamSubscriptionClosed(
 					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameTranscript, afterSequence,
 				)
+				subscription.cancelIfActive()
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}
@@ -385,6 +388,7 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 					afterSequence,
 					event.Sequence,
 				)
+				subscription.cancelIfActive()
 				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
 				return
 			}

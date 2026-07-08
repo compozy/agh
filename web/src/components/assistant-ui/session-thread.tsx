@@ -23,6 +23,7 @@ import {
   ThreadContentRail,
   type SessionThreadContentInset,
 } from "./session-thread-content-rail";
+import { useThreadProviderIdentity } from "./hooks/use-thread-provider-identity";
 import { useVirtualizedThreadMessages } from "./hooks/use-virtualized-thread-messages";
 import { MessageActions } from "./message-actions";
 import { formatMessageError } from "./session-thread-error";
@@ -332,6 +333,8 @@ export function VirtualizedThreadMessages({
     });
   }, [agentName, emptyWhileActive, messageCount, sessionId, transcriptStatus]);
 
+  const transcriptIdentity = useThreadProviderIdentity(transcriptMessages);
+
   if (messageCount === 0) {
     return (
       <ThreadStatePane
@@ -342,10 +345,6 @@ export function VirtualizedThreadMessages({
       />
     );
   }
-
-  const transcriptIdentity = transcriptMessages
-    .map(message => `${message.id.length}:${message.id}`)
-    .join("|");
 
   // `ReadonlyThreadProvider` applies changed `messages` in a passive effect, but
   // appended/removed message ids change which indexes are valid immediately.

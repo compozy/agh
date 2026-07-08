@@ -354,12 +354,19 @@ function formatNumber(value?: number): string {
 
 function formatCost(value?: number, currency?: string): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  const code = currency?.trim().toUpperCase();
+  const code = normalizedCurrencyCode(currency);
   const digits = Math.abs(value) < 1 ? 3 : 2;
-  if (!code || code === "USD") {
-    return `$${value.toFixed(digits)}`;
-  }
-  return `${value.toFixed(digits)} ${code}`;
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: code,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+function normalizedCurrencyCode(currency?: string): string {
+  const code = currency?.trim().toUpperCase();
+  return code && /^[A-Z]{3}$/.test(code) ? code : "USD";
 }
 
 interface InspectorTabRendererProps {

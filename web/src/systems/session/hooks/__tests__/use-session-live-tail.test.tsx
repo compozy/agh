@@ -401,6 +401,146 @@ describe("useSessionLiveTail", () => {
     );
   });
 
+  it("Should record apply failure and refetch when a transcript frame fails validation", async () => {
+    vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(
+      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+      sessionWithState("active")
+    );
+
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.status).toBe("success");
+      });
+    });
+    vi.mocked(fetchSessionTranscript).mockClear();
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entries: [
+            {
+              message: {
+                id: "invalid-runtime-event",
+                role: "assistant",
+                parts: [
+                  {
+                    type: "data-agh-event",
+                    data: {
+                      type: "runtime_activity",
+                      runtime: { turn_id: "turn-invalid" },
+                    },
+                  },
+                ],
+              },
+              sequence: 8,
+            },
+          ],
+          min_sequence: 8,
+          max_sequence: 8,
+          reset_below: false,
+        },
+        "8"
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(fetchSessionTranscript).toHaveBeenCalledTimes(1);
+      });
+    });
+    expect(result.current.messages).toEqual([]);
+    expect(getSessionDebugCounters()[SESSION_DEBUG_EVENTS.transcriptApplyFailed]).toBe(1);
+    expect(getSessionDebugEvents()).toContainEqual(
+      expect.objectContaining({
+        cursor: 8,
+        event: SESSION_DEBUG_EVENTS.transcriptApplyFailed,
+        frame: "snapshot",
+        sequence: 8,
+        session_id: SESSION_ID,
+        workspace_id: WORKSPACE_ID,
+      })
+    );
+  });
+
+  it("Should reset the reconnect cursor when a snapshot moves to a lower epoch sequence", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(
+      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+      sessionWithState("active")
+    );
+
+    const { result, sources } = renderLiveTail({ queryClient });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.status).toBe("success");
+      });
+    });
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          session_id: SESSION_ID,
+          epoch: 1,
+          entries: [{ message: sessionTranscriptFixture[0]!, sequence: 50 }],
+          min_sequence: 50,
+          max_sequence: 50,
+          reset_below: false,
+        },
+        "50"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages[0]?.id).toBe(sessionTranscriptFixture[0]?.id);
+      });
+    });
+
+    await act(async () => {
+      sources[0]?.emit(
+        "transcript_snapshot",
+        {
+          session_id: SESSION_ID,
+          epoch: 2,
+          entries: [{ message: sessionTranscriptFixture[1]!, sequence: 5 }],
+          min_sequence: 5,
+          max_sequence: 5,
+          reset_below: true,
+        },
+        "5"
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.messages.map(message => message.id)).toEqual([
+          sessionTranscriptFixture[1]?.id,
+        ]);
+      });
+    });
+
+    act(() => {
+      sources[0]?.onerror?.(new Event("error"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(sources).toHaveLength(2);
+    expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=5`);
+  });
+
   it("Should preserve the ThreadMessage identity of unchanged messages across delta updates", async () => {
     vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
     const queryClient = createQueryClient();

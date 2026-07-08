@@ -28,6 +28,40 @@ vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
   resolveWorkspace: vi.fn(),
 }));
 
+let mockActiveWorkspaceId: string | null = "ws-polybot";
+let mockActiveWorkspace: {
+  id: string;
+  name: string;
+  root_dir: string;
+  add_dirs: string[];
+  created_at: string;
+  updated_at: string;
+} | null = {
+  id: "ws-polybot",
+  name: "polybot",
+  root_dir: "/home/user/polybot",
+  add_dirs: [],
+  created_at: "2026-04-01T00:00:00Z",
+  updated_at: "2026-04-01T00:00:00Z",
+};
+
+vi.mock("@/systems/workspace", async () => {
+  const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
+  return {
+    ...actual,
+    useActiveWorkspace: () => ({
+      activeWorkspace: mockActiveWorkspace,
+      activeWorkspaceId: mockActiveWorkspaceId,
+      workspaces: mockActiveWorkspace ? [mockActiveWorkspace] : [],
+      hasWorkspaces: Boolean(mockActiveWorkspace),
+      hasHydrated: true,
+      selectedWorkspaceId: mockActiveWorkspaceId,
+      setActiveWorkspaceId: vi.fn(),
+      clearActiveWorkspaceSelection: vi.fn(),
+    }),
+  };
+});
+
 import {
   deleteSettingsMCPServer,
   listSettingsMCPServers,
@@ -37,15 +71,13 @@ import {
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
 import { useSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsMCPServerCollection } from "@/systems/settings";
-import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
-import type { WorkspacePayload } from "@/systems/workspace";
-import { useSettingsMCPServersPage } from "../use-settings-mcp-servers-page";
+import { useMcpPage } from "../use-mcp-page";
 
-const polybotWorkspace: WorkspacePayload = {
+const polybotWorkspace = {
   id: "ws-polybot",
   name: "polybot",
   root_dir: "/home/user/polybot",
-  add_dirs: [],
+  add_dirs: [] as string[],
   created_at: "2026-04-01T00:00:00Z",
   updated_at: "2026-04-01T00:00:00Z",
 };
@@ -119,6 +151,8 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockActiveWorkspaceId = polybotWorkspace.id;
+  mockActiveWorkspace = polybotWorkspace;
   useSettingsRestartStore.setState({
     ...initialSettingsRestartState,
     startRestart: useSettingsRestartStore.getState().startRestart,
@@ -132,56 +166,53 @@ beforeEach(() => {
     }
     return globalCollection;
   });
-  vi.mocked(fetchWorkspaces).mockResolvedValue([polybotWorkspace]);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("useSettingsMCPServersPage", () => {
-  it("loads the global collection with precedence metadata", async () => {
+describe("useMcpPage", () => {
+  it("defaults to workspace scope for the active sidebar workspace", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
-
-    await waitFor(() => {
-      expect(result.current.servers).toHaveLength(2);
-    });
-
-    expect(result.current.selection).toEqual({ scope: "global" });
-    expect(result.current.counts).toEqual({ total: 2, shadowed: 1 });
-    expect(result.current.availableScopes).toEqual(["global", "workspace"]);
-  });
-
-  it("switches to workspace scope and reloads the scoped collection", async () => {
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
-
-    act(() => {
-      result.current.selectWorkspace(polybotWorkspace.id);
-    });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.servers).toEqual([workspaceEntry]);
     });
 
-    expect(result.current.selection).toEqual({
-      scope: "workspace",
-      workspaceId: polybotWorkspace.id,
-    });
-    expect(listSettingsMCPServers).toHaveBeenLastCalledWith(
+    expect(result.current.activeScope).toBe("workspace");
+    expect(result.current.activeWorkspaceId).toBe(polybotWorkspace.id);
+    expect(result.current.counts).toEqual({ total: 1, shadowed: 0 });
+    expect(listSettingsMCPServers).toHaveBeenCalledWith(
       { scope: "workspace", workspace_id: polybotWorkspace.id },
       expect.anything()
     );
   });
 
+  it("switches to global scope and reloads the global collection", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
+
+    await waitFor(() => {
+      expect(result.current.servers).toHaveLength(2);
+    });
+
+    expect(result.current.activeScope).toBe("global");
+    expect(listSettingsMCPServers).toHaveBeenLastCalledWith({ scope: "global" }, expect.anything());
+  });
+
   it("opens a create editor with auto target and empty draft", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
 
     act(() => {
       result.current.openCreate();
@@ -196,15 +227,15 @@ describe("useSettingsMCPServersPage", () => {
 
   it("blocks create save when the name collides with an existing server", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
 
     act(() => {
       result.current.openCreate();
       result.current.updateDraft(draft => ({
         ...draft,
-        name: "FileSystem",
+        name: "Paper",
         command: "npx cmd",
       }));
     });
@@ -214,24 +245,66 @@ describe("useSettingsMCPServersPage", () => {
 
   it("seeds the edit draft from the entry and exposes available targets", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
 
     act(() => {
-      result.current.openEdit(filesystemEntry);
+      result.current.openEdit(workspaceEntry);
     });
 
     expect(result.current.editor).toMatchObject({
       mode: "edit",
-      name: "filesystem",
+      name: "paper",
       draft: expect.objectContaining({
-        command: "npx -y @modelcontextprotocol/server-filesystem",
-        args: ["~/Dev"],
+        command: "npx -y @paper-design/mcp-paper",
       }),
       target: "auto",
     });
     expect(result.current.editorAvailableTargets).toEqual(["auto", "config", "sidecar"]);
+  });
+
+  it("submits workspace-scoped mutations when workspace scope is active", async () => {
+    vi.mocked(putSettingsMCPServer).mockResolvedValue({
+      section: "mcp-servers",
+      scope: "workspace",
+      workspace_id: polybotWorkspace.id,
+      applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
+      restart_required: true,
+      write_target: "workspace-config",
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.openEdit(workspaceEntry);
+    });
+    act(() => {
+      result.current.updateDraft(draft => ({ ...draft, command: "npx paper-v2" }));
+    });
+    act(() => {
+      result.current.saveEditor();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("saved");
+    });
+
+    expect(putSettingsMCPServer).toHaveBeenCalledWith(
+      "paper",
+      {
+        server: { name: "paper", transport: "stdio", command: "npx paper-v2" },
+      },
+      { scope: "workspace", workspace_id: polybotWorkspace.id, target: "auto" }
+    );
   });
 
   it("submits auto-target PUT with global scope and records last action", async () => {
@@ -249,8 +322,13 @@ describe("useSettingsMCPServersPage", () => {
     });
 
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
 
     act(() => {
@@ -297,8 +375,13 @@ describe("useSettingsMCPServersPage", () => {
     });
 
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
 
     act(() => {
@@ -327,62 +410,19 @@ describe("useSettingsMCPServersPage", () => {
     );
   });
 
-  it("submits workspace-scoped mutations when workspace scope is active", async () => {
-    vi.mocked(putSettingsMCPServer).mockResolvedValue({
-      section: "mcp-servers",
-      scope: "workspace",
-      workspace_id: polybotWorkspace.id,
-      applied: true,
-      active_config_hash: "sha256:test-active",
-      active_generation: 1,
-      apply_record_id: "cfg_apply_test",
-      lifecycle: "live",
-      next_action: "none",
-      restart_required: true,
-      write_target: "workspace-config",
-    });
-
-    const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
-
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
-
-    act(() => {
-      result.current.selectWorkspace(polybotWorkspace.id);
-    });
-    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
-
-    act(() => {
-      result.current.openEdit(workspaceEntry);
-    });
-    act(() => {
-      result.current.updateDraft(draft => ({ ...draft, command: "npx paper-v2" }));
-    });
-    act(() => {
-      result.current.saveEditor();
-    });
-
-    await waitFor(() => {
-      expect(result.current.lastAction?.kind).toBe("saved");
-    });
-
-    expect(putSettingsMCPServer).toHaveBeenCalledWith(
-      "paper",
-      {
-        server: { name: "paper", transport: "stdio", command: "npx paper-v2" },
-      },
-      { scope: "workspace", workspace_id: polybotWorkspace.id, target: "auto" }
-    );
-  });
-
   it("surfaces validation errors from the adapter without closing the editor", async () => {
     vi.mocked(putSettingsMCPServer).mockRejectedValue(
       new SettingsApiError("invalid server command", 400)
     );
 
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
 
     act(() => {
@@ -414,8 +454,13 @@ describe("useSettingsMCPServersPage", () => {
     });
 
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
 
     act(() => {
@@ -454,8 +499,13 @@ describe("useSettingsMCPServersPage", () => {
     });
 
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
+
+    act(() => {
+      result.current.selectScope("global");
+    });
     await waitFor(() => expect(result.current.servers).toHaveLength(2));
 
     act(() => {
@@ -478,20 +528,37 @@ describe("useSettingsMCPServersPage", () => {
 
   it("resets editor/delete state when switching scopes mid-flow", async () => {
     const { wrapper } = createWrapper();
-    const { result } = renderHook(() => useSettingsMCPServersPage(), { wrapper });
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
 
-    await waitFor(() => expect(result.current.servers).toHaveLength(2));
+    await waitFor(() => expect(result.current.servers).toEqual([workspaceEntry]));
 
     act(() => {
-      result.current.openEdit(filesystemEntry);
+      result.current.openEdit(workspaceEntry);
     });
     expect(result.current.editor.mode).toBe("edit");
 
     act(() => {
-      result.current.selectWorkspace(polybotWorkspace.id);
+      result.current.selectScope("global");
     });
 
     expect(result.current.editor.mode).toBe("closed");
     expect(result.current.deleteTarget.mode).toBe("closed");
+  });
+
+  it("guards workspace scope when no active workspace is selected", async () => {
+    mockActiveWorkspaceId = null;
+    mockActiveWorkspace = null;
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useMcpPage(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.activeWorkspaceId).toBeNull();
+      expect(result.current.activeScope).toBe("workspace");
+    });
+
+    expect(result.current.servers).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+    expect(listSettingsMCPServers).not.toHaveBeenCalled();
   });
 });

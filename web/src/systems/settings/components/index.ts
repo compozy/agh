@@ -1,5 +1,9 @@
 export { SettingsEditorDialog } from "./settings-editor-dialog";
 export type { EditorMode } from "./settings-editor-dialog";
+export { MCPActionResultBanner } from "./mcp-action-result-banner";
+export { MCPServerDeleteDialog } from "./mcp-server-delete-dialog";
+export { MCPServerEditor } from "./mcp-server-editor";
+export { MCPServersTable } from "./mcp-servers-table";
 export { ProviderCard } from "./provider-card";
 export { ProviderEditForm } from "./provider-edit-form";
 export { ProviderInspectorSheet } from "./provider-inspector-sheet";

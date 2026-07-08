@@ -54,6 +54,7 @@ describe("settings collection options", () => {
       scope: "workspace",
       workspace_id: "ws_alpha",
     });
+    const disabled = settingsMCPServersListOptions({ scope: "workspace" }, false);
 
     expect(global.queryKey).toEqual([
       "settings",
@@ -71,6 +72,7 @@ describe("settings collection options", () => {
       "workspace",
       "ws_alpha",
     ]);
+    expect(disabled.enabled).toBe(false);
   });
 });
 

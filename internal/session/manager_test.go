@@ -3964,6 +3964,9 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
 		}),
+		func(manager *Manager) {
+			manager.queryStoreExplicit = false
+		},
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),
@@ -3977,6 +3980,40 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager
+}
+
+func TestManagerOptionsPreserveExplicitQueryStore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep explicit query store regardless of WithStore order", func(t *testing.T) {
+		t.Parallel()
+
+		called := ""
+		queryOpener := func(context.Context, string, string) (EventRecorder, error) {
+			called = "query"
+			return &stubRecorder{}, nil
+		}
+		storeOpener := func(context.Context, string, string) (EventRecorder, error) {
+			called = "store"
+			return &stubRecorder{}, nil
+		}
+		h := newHarness(t, WithQueryStore(queryOpener), WithStore(storeOpener))
+
+		recorder, err := h.manager.openQueryStore(
+			testutil.Context(t),
+			"sess-query-order",
+			filepath.Join(t.TempDir(), "events.db"),
+		)
+		if err != nil {
+			t.Fatalf("openQueryStore() error = %v", err)
+		}
+		if err := recorder.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("recorder.Close() error = %v", err)
+		}
+		if called != "query" {
+			t.Fatalf("openQueryStore() called %q opener, want query", called)
+		}
+	})
 }
 
 func createSession(t *testing.T, h *harness) *Session {

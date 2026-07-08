@@ -148,7 +148,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not publish chunk output when batch persistence fails", func(t *testing.T) {
+	t.Run("Should publish chunk output when batch persistence fails", func(t *testing.T) {
 		t.Parallel()
 
 		recordErr := errors.New("batch persist failed")
@@ -190,12 +190,17 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		runtimeEvents := collectEvents(t, eventsCh)
-		if got := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage); got != 0 {
-			t.Fatalf("agent_message runtime events = %d, want 0 after batch persist failure", got)
+		if got, want := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage), 2; got != want {
+			t.Fatalf("agent_message runtime events = %d, want %d after batch persist failure", got, want)
+		}
+		gotTexts := agentEventTexts(runtimeEvents, acp.EventTypeAgentMessage)
+		wantTexts := []string{"hidden ", "chunk"}
+		if !slices.Equal(gotTexts, wantTexts) {
+			t.Fatalf("agent_message runtime texts = %q, want %q", gotTexts, wantTexts)
 		}
 		notified := h.notifier.eventsForSession(session.ID)
-		if got := countAgentEvents(notified, acp.EventTypeAgentMessage); got != 0 {
-			t.Fatalf("agent_message notifier events = %d, want 0 after batch persist failure", got)
+		if got, want := countAgentEvents(notified, acp.EventTypeAgentMessage), 2; got != want {
+			t.Fatalf("agent_message notifier events = %d, want %d after batch persist failure", got, want)
 		}
 	})
 }

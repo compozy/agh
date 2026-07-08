@@ -2573,6 +2573,47 @@ func TestStopSessionsWaitsForInFlightFinalizations(t *testing.T) {
 	}
 }
 
+func TestStopSessionsShutsDownManagerAfterFinalizations(t *testing.T) {
+	d, err := New(WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	release := make(chan struct{})
+	manager := &fakeSessionManager{
+		infos:                    []*session.Info{{ID: "sess-a"}},
+		waitFinalizationsRelease: release,
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- d.stopSessions(testutil.Context(t), manager)
+	}()
+
+	select {
+	case err := <-stopDone:
+		t.Fatalf("stopSessions() returned before finalizations completed: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	if got := manager.shutdownCalls; got != 0 {
+		t.Fatalf("Shutdown() calls before finalization release = %d, want 0", got)
+	}
+
+	close(release)
+
+	if err := <-stopDone; err != nil {
+		t.Fatalf("stopSessions() error = %v", err)
+	}
+
+	if got := manager.waitFinalizationsCalls; got != 1 {
+		t.Fatalf("WaitForFinalizations() calls = %d, want 1", got)
+	}
+	if got := manager.shutdownCalls; got != 1 {
+		t.Fatalf("Shutdown() calls = %d, want 1", got)
+	}
+}
+
 func TestCleanupOrphansHandlesListAndSignalErrors(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {
@@ -4847,6 +4888,8 @@ type fakeSessionManager struct {
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
 	waitFinalizationsCalls   int
+	shutdownCalls            int
+	shutdownErr              error
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
@@ -5142,6 +5185,13 @@ func (f *fakeSessionManager) WaitForFinalizations(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (f *fakeSessionManager) Shutdown(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.shutdownCalls++
+	return f.shutdownErr
 }
 
 func (f *fakeSessionManager) Resume(context.Context, string) (*session.Session, error) {

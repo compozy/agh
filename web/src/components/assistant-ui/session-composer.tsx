@@ -1,6 +1,7 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
 import { CornerDownRight, ListPlus, Scissors, SendHorizontal, Square } from "lucide-react";
 import { type KeyboardEvent, useCallback } from "react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@agh/ui";
@@ -28,6 +29,13 @@ export interface SessionComposerProps {
   onRemoveQueuedPrompt?: (id: string) => void;
   onSteerQueuedPrompt?: (prompt: QueuedPrompt) => void;
   contentInset?: SessionThreadContentInset;
+}
+
+function describeComposerActionError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return fallback;
 }
 
 /**
@@ -68,14 +76,16 @@ export function SessionComposer({
   const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
 
   const handleBusyInputAction = useCallback(
-    (handler?: SessionBusyInputHandler) => {
+    (handler: SessionBusyInputHandler | undefined, failureMessage: string) => {
       if (!handler || !canSubmitBusyInput) {
         return;
       }
 
       void Promise.resolve(handler(trimmedComposerText))
         .then(clearComposer)
-        .catch(() => undefined);
+        .catch(error => {
+          toast.error(describeComposerActionError(error, failureMessage));
+        });
     },
     [canSubmitBusyInput, clearComposer, trimmedComposerText]
   );
@@ -98,7 +108,7 @@ export function SessionComposer({
         !event.nativeEvent.isComposing
       ) {
         event.preventDefault();
-        handleBusyInputAction(onQueuePrompt);
+        handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
       }
     },
     [runtimeRunning, canQueueFromInput, handleBusyInputAction, onQueuePrompt]
@@ -106,10 +116,14 @@ export function SessionComposer({
 
   const handleEditQueuedPrompt = useCallback(
     (prompt: QueuedPrompt) => {
+      if (trimmedComposerText.length > 0 && trimmedComposerText !== prompt.text.trim()) {
+        toast.warning("Send or clear the current draft before editing a queued prompt.");
+        return;
+      }
       setComposerText(prompt.text);
       onRemoveQueuedPrompt?.(prompt.id);
     },
-    [onRemoveQueuedPrompt, setComposerText]
+    [onRemoveQueuedPrompt, setComposerText, trimmedComposerText]
   );
 
   return (
@@ -167,7 +181,7 @@ export function SessionComposer({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleBusyInputAction(onQueuePrompt)}
+                      onClick={() => handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.")}
                       disabled={!canSubmitBusyInput}
                       data-testid="composer-queue-button"
                     >
@@ -180,7 +194,7 @@ export function SessionComposer({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleBusyInputAction(onSteerPrompt)}
+                      onClick={() => handleBusyInputAction(onSteerPrompt, "Couldn't stage steer.")}
                       disabled={!canSubmitBusyInput}
                       data-testid="composer-steer-button"
                     >
@@ -193,7 +207,9 @@ export function SessionComposer({
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleBusyInputAction(onInterruptPrompt)}
+                      onClick={() =>
+                        handleBusyInputAction(onInterruptPrompt, "Couldn't interrupt prompt.")
+                      }
                       disabled={!canSubmitBusyInput}
                       data-testid="composer-interrupt-button"
                     >

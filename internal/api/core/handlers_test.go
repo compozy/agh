@@ -686,6 +686,72 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should omit aggregate cost when token stats use mixed currencies", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(_ context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
+				if query.SessionID != "sess-a" {
+					t.Fatalf("QueryTokenStats() session id = %q, want sess-a", query.SessionID)
+				}
+				return []store.TokenStats{
+					{
+						SessionID:    "sess-a",
+						AgentName:    "coder",
+						InputTokens:  int64Ptr(100),
+						TotalTokens:  int64Ptr(100),
+						TotalCost:    float64Ptr(0.02),
+						CostCurrency: stringPtr("USD"),
+						TurnCount:    2,
+					},
+					{
+						SessionID:    "sess-a",
+						AgentName:    "helper",
+						OutputTokens: int64Ptr(25),
+						TotalTokens:  int64Ptr(25),
+						TotalCost:    float64Ptr(0.03),
+						CostCurrency: stringPtr("EUR"),
+						TurnCount:    1,
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(usage response) error = %v", err)
+		}
+		if got := payload.Usage.TotalTokens; got == nil || *got != 125 {
+			t.Fatalf("usage.total_tokens = %v, want 125", got)
+		}
+		if got := payload.Usage.TotalCost; got != nil {
+			t.Fatalf("usage.total_cost = %v, want nil for mixed currencies", got)
+		}
+		if got := payload.Usage.CostCurrency; got != "" {
+			t.Fatalf("usage.cost_currency = %q, want empty for mixed currencies", got)
+		}
+		if got, want := payload.Usage.TurnCount, int64(3); got != want {
+			t.Fatalf("usage.turn_count = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should return an empty usage summary when no token stats exist", func(t *testing.T) {
 		t.Parallel()
 

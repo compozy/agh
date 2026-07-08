@@ -236,16 +236,8 @@ type networkBindableSessionManager interface {
 	SetTurnEndNotifier(session.TurnEndNotifier)
 }
 
-type shutdownStopper interface {
-	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
-}
-
 type memoryProviderShutdowner interface {
 	Shutdown(context.Context) error
-}
-
-type finalizationWaiter interface {
-	WaitForFinalizations(ctx context.Context) error
 }
 
 type observerRetentionStarter interface {
@@ -1392,34 +1384,4 @@ func (d *Daemon) signalSource() (<-chan os.Signal, func()) {
 	return ch, func() {
 		signal.Stop(ch)
 	}
-}
-
-func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) error {
-	if sessions == nil {
-		return nil
-	}
-
-	infos := sessions.List()
-	var errs []error
-	for _, info := range infos {
-		if info == nil {
-			continue
-		}
-		var err error
-		if stopper, ok := sessions.(shutdownStopper); ok {
-			err = stopper.StopWithCause(ctx, info.ID, session.CauseShutdown, "daemon shutdown")
-		} else {
-			err = sessions.Stop(ctx, info.ID)
-		}
-		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
-			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
-		}
-	}
-	if waiter, ok := sessions.(finalizationWaiter); ok {
-		if err := waiter.WaitForFinalizations(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))
-		}
-	}
-
-	return errors.Join(errs...)
 }

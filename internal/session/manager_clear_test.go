@@ -391,23 +391,6 @@ func (s *fakeTranscriptEpochStore) SessionTranscriptEpoch(
 	return s.epochs[strings.TrimSpace(sessionID)], nil
 }
 
-func (s *fakeTranscriptEpochStore) BumpSessionTranscriptEpoch(
-	_ context.Context,
-	update store.SessionTranscriptEpochUpdate,
-) (int64, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	target := strings.TrimSpace(update.SessionID)
-	current := s.epochs[target]
-	if current < update.Minimum {
-		current = update.Minimum
-	} else {
-		current++
-	}
-	s.epochs[target] = current
-	return current, nil
-}
-
 func (s *fakeTranscriptEpochStore) EnsureSessionTranscriptEpoch(
 	_ context.Context,
 	update store.SessionTranscriptEpochUpdate,

@@ -42,14 +42,30 @@ func (h *BaseHandlers) SessionUsage(c *gin.Context) {
 // defensively. Token/cost fields stay absent unless at least one row reported them.
 func aggregateSessionUsage(stats []store.TokenStats) contract.SessionUsagePayload {
 	payload := contract.SessionUsagePayload{}
+	costCurrency := ""
+	costCurrencyMismatch := false
 	for i := range stats {
 		stat := stats[i]
 		payload.InputTokens = addOptionalInt64(payload.InputTokens, stat.InputTokens)
 		payload.OutputTokens = addOptionalInt64(payload.OutputTokens, stat.OutputTokens)
 		payload.TotalTokens = addOptionalInt64(payload.TotalTokens, stat.TotalTokens)
-		payload.TotalCost = addOptionalFloat64(payload.TotalCost, stat.TotalCost)
-		if payload.CostCurrency == "" && stat.CostCurrency != nil {
-			payload.CostCurrency = *stat.CostCurrency
+		if stat.TotalCost != nil && !costCurrencyMismatch {
+			switch {
+			case stat.CostCurrency == nil || *stat.CostCurrency == "":
+				costCurrencyMismatch = true
+				payload.TotalCost = nil
+				payload.CostCurrency = ""
+			case costCurrency == "":
+				costCurrency = *stat.CostCurrency
+				payload.CostCurrency = costCurrency
+				payload.TotalCost = addOptionalFloat64(payload.TotalCost, stat.TotalCost)
+			case costCurrency != *stat.CostCurrency:
+				costCurrencyMismatch = true
+				payload.TotalCost = nil
+				payload.CostCurrency = ""
+			default:
+				payload.TotalCost = addOptionalFloat64(payload.TotalCost, stat.TotalCost)
+			}
 		}
 		payload.TurnCount += stat.TurnCount
 	}

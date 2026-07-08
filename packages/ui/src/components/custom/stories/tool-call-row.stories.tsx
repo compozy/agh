@@ -202,7 +202,7 @@ export const LiveStack: Story = {
         />
       </ToolCallRow>
       <ToolCallRow toolName="Read" preview="agh.config.toml" status="success">
-        <ToolCallRow.Output source="[runtime]\nmode = local" format="code" language="toml" />
+        <ToolCallRow.Output source={"[runtime]\nmode = local"} format="code" language="toml" />
       </ToolCallRow>
       <ToolCallRow toolName="Grep" preview='pattern: "INPUT|OUTPUT"' status="success">
         <ToolCallRow.Output

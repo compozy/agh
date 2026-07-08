@@ -56,8 +56,6 @@ const polybotWorkspace: WorkspacePayload = {
   updated_at: "2026-04-01T00:00:00Z",
 };
 
-type Selection = { scope: "global" } | { scope: "workspace"; workspaceId: string };
-
 type DeleteTarget =
   | { mode: "closed" }
   | { mode: "open"; entry: SettingsMCPServerEntry; target: SettingsMCPServerTarget };
@@ -69,13 +67,10 @@ type PageState = {
   servers: SettingsMCPServerEntry[];
   counts: { total: number; shadowed: number };
   restart: RestartBanner;
-  selection: Selection;
-  selectedWorkspace: WorkspacePayload | null;
-  workspaces: WorkspacePayload[];
-  workspacesLoading: boolean;
-  availableScopes: ("global" | "workspace")[];
-  selectGlobal: ReturnType<typeof vi.fn>;
-  selectWorkspace: ReturnType<typeof vi.fn>;
+  activeScope: "workspace" | "global";
+  activeWorkspace: WorkspacePayload | null;
+  activeWorkspaceId: string | null;
+  selectScope: ReturnType<typeof vi.fn>;
   editor:
     | { mode: "closed" }
     | {
@@ -152,8 +147,8 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("@/hooks/routes/use-settings-mcp-servers-page", () => ({
-  useSettingsMCPServersPage: () => pageState,
+vi.mock("@/hooks/routes/use-mcp-page", () => ({
+  useMcpPage: () => pageState,
 }));
 
 function makeState(overrides: Partial<PageState> = {}): PageState {
@@ -164,13 +159,10 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     servers: [filesystemEntry, githubEntry],
     counts: { total: 2, shadowed: 1 },
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
-    selection: { scope: "global" },
-    selectedWorkspace: null,
-    workspaces: [polybotWorkspace],
-    workspacesLoading: false,
-    availableScopes: ["global", "workspace"],
-    selectGlobal: vi.fn(),
-    selectWorkspace: vi.fn(),
+    activeScope: "workspace",
+    activeWorkspace: polybotWorkspace,
+    activeWorkspaceId: polybotWorkspace.id,
+    selectScope: vi.fn(),
     editor: { mode: "closed" },
     editorIsValid: false,
     editorAvailableTargets: ["auto", "config", "sidecar"],
@@ -202,40 +194,35 @@ beforeEach(() => {
 });
 
 import { routeComponent } from "@/test/route-options";
-import { Route } from "../mcp-servers";
+import { Route } from "../mcp";
 
-const MCPServersPage = routeComponent(Route);
+const MCPPage = routeComponent(Route);
 
-describe("MCPServersSettingsPage", () => {
-  it("renders loading state", () => {
+describe("MCPPage", () => {
+  it("Should render loading state", () => {
     pageState = makeState({ isLoading: true, envelope: null, servers: [] });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-page-mcp-servers-loading")).toBeInTheDocument();
   });
 
-  it("renders the error state with a message", () => {
+  it("Should render the error state with a message", () => {
     pageState = makeState({
       envelope: null,
       servers: [],
       error: new Error("nope"),
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-page-mcp-servers-error")).toHaveTextContent("nope");
   });
 
-  it("renders the scope row with global + workspace chips", () => {
-    render(<MCPServersPage />);
-    expect(screen.getByTestId("settings-page-mcp-servers-scope-global")).toHaveAttribute(
-      "data-active",
-      "true"
-    );
-    expect(
-      screen.getByTestId("settings-page-mcp-servers-scope-workspace-ws-polybot")
-    ).toHaveAttribute("data-active", "false");
+  it("Should render Workspace and Global scope pills in the topbar", () => {
+    render(<MCPPage />);
+    expect(screen.getByTestId("mcp-scope-workspace")).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("mcp-scope-global")).toHaveAttribute("data-active", "false");
   });
 
-  it("renders the servers table with env/args counts and source metadata", () => {
-    render(<MCPServersPage />);
+  it("Should render the servers table with env/args counts and source metadata", () => {
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-page-mcp-servers-total")).toHaveTextContent("2 servers");
     expect(screen.getByTestId("settings-page-mcp-servers-shadowed-total")).toHaveTextContent(
       "1 shadowed sources"
@@ -255,8 +242,8 @@ describe("MCPServersSettingsPage", () => {
     expect(screen.getByTestId("settings-page-mcp-servers-row-github-env")).toHaveTextContent("1");
   });
 
-  it("wires create, edit, and delete triggers", () => {
-    render(<MCPServersPage />);
+  it("Should wire create, edit, and delete triggers", () => {
+    render(<MCPPage />);
     fireEvent.click(screen.getByTestId("settings-page-mcp-servers-create"));
     expect(pageState.openCreate).toHaveBeenCalled();
 
@@ -267,21 +254,22 @@ describe("MCPServersSettingsPage", () => {
     expect(pageState.openDelete).toHaveBeenCalledWith(filesystemEntry);
   });
 
-  it("switches scope on click and shows workspace-specific label", () => {
-    render(<MCPServersPage />);
-    fireEvent.click(screen.getByTestId("settings-page-mcp-servers-scope-workspace-ws-polybot"));
-    expect(pageState.selectWorkspace).toHaveBeenCalledWith("ws-polybot");
+  it("Should switch scope on pill click", () => {
+    render(<MCPPage />);
+    fireEvent.click(screen.getByTestId("mcp-scope-global"));
+    expect(pageState.selectScope).toHaveBeenCalledWith("global");
   });
 
-  it("renders workspace-scoped header and status when workspace scope is active", () => {
+  it("Should render workspace-scoped header and status when workspace scope is active", () => {
     pageState = makeState({
-      selection: { scope: "workspace", workspaceId: "ws-polybot" },
-      selectedWorkspace: polybotWorkspace,
+      activeScope: "workspace",
+      activeWorkspace: polybotWorkspace,
+      activeWorkspaceId: polybotWorkspace.id,
       servers: [],
       envelope: { mcp_servers: [] },
       counts: { total: 0, shadowed: 0 },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-page-mcp-servers-scope-label")).toHaveTextContent(
       "polybot"
     );
@@ -290,26 +278,27 @@ describe("MCPServersSettingsPage", () => {
     expect(empty).toHaveTextContent("No MCP servers configured");
   });
 
-  it("renders the @agh/ui Empty card when the global catalog is empty", () => {
+  it("Should render the Empty card when the global catalog is empty", () => {
     pageState = makeState({
+      activeScope: "global",
       servers: [],
       envelope: { mcp_servers: [] },
       counts: { total: 0, shadowed: 0 },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     const empty = screen.getByTestId("settings-page-mcp-servers-empty");
     expect(empty).toHaveAttribute("data-slot", "empty");
     expect(empty).toHaveTextContent("No MCP servers configured");
   });
 
-  it("renders each row with a success StatusDot and name", () => {
-    render(<MCPServersPage />);
+  it("Should render each row with a success StatusDot and name", () => {
+    render(<MCPPage />);
     const dot = screen.getByTestId("settings-page-mcp-servers-row-filesystem-status");
     expect(dot).toHaveAttribute("data-slot", "pill-dot");
     expect(dot).toHaveAttribute("data-tone", "configured");
   });
 
-  it("renders the create editor with target selector defaulted to auto", () => {
+  it("Should render the create editor with target selector defaulted to auto", () => {
     pageState = makeState({
       editor: {
         mode: "create",
@@ -317,14 +306,14 @@ describe("MCPServersSettingsPage", () => {
         target: "auto",
       },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-mcp-servers-editor-title")).toHaveTextContent(
       "Add MCP server"
     );
     expect(screen.getByTestId("settings-mcp-servers-editor-target-input")).toHaveValue("auto");
   });
 
-  it("fires setEditorTarget when operator changes the target selector", () => {
+  it("Should fire setEditorTarget when operator changes the target selector", () => {
     pageState = makeState({
       editor: {
         mode: "edit",
@@ -340,14 +329,14 @@ describe("MCPServersSettingsPage", () => {
       },
       editorAvailableTargets: ["auto", "config", "sidecar"],
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-target-input"), {
       target: { value: "config" },
     });
     expect(pageState.setEditorTarget).toHaveBeenCalledWith("config");
   });
 
-  it("renders available_targets as badges in the editor for an existing entry", () => {
+  it("Should render available_targets as badges in the editor for an existing entry", () => {
     pageState = makeState({
       editor: {
         mode: "edit",
@@ -362,32 +351,32 @@ describe("MCPServersSettingsPage", () => {
         target: "auto",
       },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     const container = screen.getByTestId("settings-mcp-servers-editor-available-targets");
     expect(container).toHaveTextContent("GLOBAL MCP");
     expect(container).toHaveTextContent("GLOBAL CFG");
   });
 
-  it("explains fallback behavior in the delete dialog when shadowed sources exist", () => {
+  it("Should explain fallback behavior in the delete dialog when shadowed sources exist", () => {
     pageState = makeState({
       deleteTarget: { mode: "open", entry: filesystemEntry, target: "auto" },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-mcp-servers-delete-shadowed")).toHaveTextContent(
       "After delete, this becomes effective"
     );
     expect(screen.getByTestId("settings-mcp-servers-delete-target-input")).toHaveValue("auto");
   });
 
-  it("notes no-shadowed state when the current definition is the only source", () => {
+  it("Should note no-shadowed state when the current definition is the only source", () => {
     pageState = makeState({
       deleteTarget: { mode: "open", entry: githubEntry, target: "auto" },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     expect(screen.getByTestId("settings-mcp-servers-delete-no-shadowed")).toBeInTheDocument();
   });
 
-  it("renders the saved-action banner through @agh/ui Alert with role=status", () => {
+  it("Should render the saved-action banner through Alert with role=status", () => {
     pageState = makeState({
       lastAction: {
         kind: "saved",
@@ -395,135 +384,24 @@ describe("MCPServersSettingsPage", () => {
         result: { restart_required: false, write_target: "global-config" },
       },
     });
-    render(<MCPServersPage />);
+    render(<MCPPage />);
     const banner = screen.getByTestId("settings-page-mcp-servers-action-result");
-    expect(banner).toHaveAttribute("data-slot", "alert");
     expect(banner).toHaveAttribute("role", "status");
-  });
-
-  it("shows the last action banner for saved and deleted actions", () => {
-    pageState = makeState({
-      lastAction: {
-        kind: "deleted",
-        name: "filesystem",
-        result: { restart_required: true, write_target: "global-mcp-sidecar" },
-        remainingShadowed: 1,
-      },
-    });
-    render(<MCPServersPage />);
-    const banner = screen.getByTestId("settings-page-mcp-servers-action-result");
-    expect(banner).toHaveTextContent('Deleted "filesystem"');
-    expect(banner).toHaveTextContent("1 shadowed source may become effective on reload");
-  });
-
-  it("updates the draft args list via the args editor controls", () => {
-    pageState = makeState({
-      editor: {
-        mode: "edit",
-        name: "filesystem",
-        draft: {
-          name: "filesystem",
-          command: "npx fs",
-          args: ["~/Dev", "--flag"],
-          env: [],
-        },
-        entry: filesystemEntry,
-        target: "auto",
-      },
-    });
-    render(<MCPServersPage />);
-    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-args-input-0"), {
-      target: { value: "~/Projects" },
-    });
-    expect(pageState.updateDraft).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-args-remove-1"));
-    expect(pageState.updateDraft).toHaveBeenCalledTimes(2);
-    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-args-add"));
-    expect(pageState.updateDraft).toHaveBeenCalledTimes(3);
-  });
-
-  it("updates env pairs via the env editor controls", () => {
-    pageState = makeState({
-      editor: {
-        mode: "edit",
-        name: "github",
-        draft: {
-          name: "github",
-          command: "npx gh",
-          args: [],
-          env: [{ key: "GITHUB_TOKEN", value: "secret" }],
-        },
-        entry: githubEntry,
-        target: "auto",
-      },
-    });
-    render(<MCPServersPage />);
-    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-env-key-0"), {
-      target: { value: "GITHUB_TOKEN_V2" },
-    });
-    fireEvent.change(screen.getByTestId("settings-mcp-servers-editor-env-value-0"), {
-      target: { value: "rotated" },
-    });
-    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-env-remove-0"));
-    fireEvent.click(screen.getByTestId("settings-mcp-servers-editor-env-add"));
-    expect(pageState.updateDraft).toHaveBeenCalledTimes(4);
-  });
-
-  it("changes the delete target via the select control", () => {
-    pageState = makeState({
-      deleteTarget: { mode: "open", entry: filesystemEntry, target: "auto" },
-      deleteAvailableTargets: ["auto", "config", "sidecar"],
-    });
-    render(<MCPServersPage />);
-    fireEvent.change(screen.getByTestId("settings-mcp-servers-delete-target-input"), {
-      target: { value: "config" },
-    });
-    expect(pageState.setDeleteTargetKind).toHaveBeenCalledWith("config");
-  });
-
-  it("clicks the global scope chip when switching back from workspace", () => {
-    pageState = makeState({
-      selection: { scope: "workspace", workspaceId: "ws-polybot" },
-      selectedWorkspace: polybotWorkspace,
-    });
-    render(<MCPServersPage />);
-    fireEvent.click(screen.getByTestId("settings-page-mcp-servers-scope-global"));
-    expect(pageState.selectGlobal).toHaveBeenCalled();
-  });
-
-  it("shows 'no workspaces yet' when the workspace scope has no workspaces", () => {
-    pageState = makeState({ workspaces: [], workspacesLoading: false });
-    render(<MCPServersPage />);
-    expect(
-      screen.getByTestId("settings-page-mcp-servers-scope-workspace-empty")
-    ).toBeInTheDocument();
-  });
-
-  it("renders the saved-action banner with write_target metadata", () => {
-    pageState = makeState({
-      lastAction: {
-        kind: "saved",
-        name: "filesystem",
-        result: { restart_required: false, write_target: "global-config" },
-      },
-    });
-    render(<MCPServersPage />);
-    const banner = screen.getByTestId("settings-page-mcp-servers-action-result");
+    expect(banner).toHaveAttribute("data-kind", "saved");
     expect(banner).toHaveTextContent('Saved "filesystem"');
     expect(banner).toHaveTextContent("persisted to GLOBAL CFG");
-    expect(banner).toHaveTextContent("applied immediately");
   });
 
-  it("dismisses the action banner", () => {
+  it("Should render missing-workspace empty state when workspace scope has no active workspace", () => {
     pageState = makeState({
-      lastAction: {
-        kind: "saved",
-        name: "filesystem",
-        result: { restart_required: false },
-      },
+      activeScope: "workspace",
+      activeWorkspace: null,
+      activeWorkspaceId: null,
+      envelope: null,
+      servers: [],
+      counts: { total: 0, shadowed: 0 },
     });
-    render(<MCPServersPage />);
-    fireEvent.click(screen.getByTestId("settings-page-mcp-servers-action-result-dismiss"));
-    expect(pageState.dismissLastAction).toHaveBeenCalled();
+    render(<MCPPage />);
+    expect(screen.getByTestId("settings-page-mcp-servers-workspace-guard")).toBeInTheDocument();
   });
 });

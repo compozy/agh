@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -12,8 +12,7 @@ import {
   type SettingsMutationResult,
   type SettingsScope,
 } from "@/systems/settings";
-import { useWorkspaces } from "@/systems/workspace";
-import type { WorkspacePayload } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export type MCPEnvPair = { key: string; value: string };
 
@@ -24,7 +23,7 @@ export type MCPDraft = {
   env: MCPEnvPair[];
 };
 
-export type MCPScopeSelection = { scope: "global" } | { scope: "workspace"; workspaceId: string };
+export type MCPActiveScope = "workspace" | "global";
 
 export type MCPEditorState =
   | { mode: "closed" }
@@ -116,25 +115,17 @@ function resolveAvailableTargets(
   return result;
 }
 
-interface UseSettingsMCPServersPageOptions {
-  initialScope?: MCPScopeSelection;
+interface UseMcpPageOptions {
+  initialScope?: MCPActiveScope;
 }
 
-export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOptions = {}) {
+export function useMcpPage(options: UseMcpPageOptions = {}) {
   const page = useSettingsPage({ currentSlug: "mcp-servers" });
-  const workspaceQuery = useWorkspaces();
-  const workspaces: WorkspacePayload[] = workspaceQuery.data ?? [];
+  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
-  const defaultSelection: MCPScopeSelection = options.initialScope ?? { scope: "global" };
-  const [selection, setSelection] = useState<MCPScopeSelection>(defaultSelection);
-  const filter = useMemo(
-    () =>
-      selection.scope === "workspace"
-        ? { scope: "workspace" as const, workspace_id: selection.workspaceId }
-        : { scope: "global" as const },
-    [selection]
+  const [activeScope, setActiveScope] = useState<MCPActiveScope>(
+    options.initialScope ?? "workspace"
   );
-  const query = useSettingsMCPServers(filter);
   const putMutation = usePutSettingsMCPServer();
   const deleteMutation = useDeleteSettingsMCPServer();
 
@@ -142,9 +133,23 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
   const [deleteTarget, setDeleteTarget] = useState<MCPDeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<LastAction>(null);
 
-  const envelope = query.data ?? null;
+  const filter = useMemo(() => {
+    if (activeScope === "global") {
+      return { scope: "global" as const };
+    }
+    if (!activeWorkspaceId) {
+      return null;
+    }
+    return { scope: "workspace" as const, workspace_id: activeWorkspaceId };
+  }, [activeScope, activeWorkspaceId]);
+
+  const queryEnabled = filter !== null;
+  const query = useSettingsMCPServers(filter ?? { scope: "global" }, { enabled: queryEnabled });
+
+  const envelope = queryEnabled ? (query.data ?? null) : null;
   const servers = envelope?.mcp_servers ?? [];
-  const availableScopes = envelope?.available_scopes ?? ["global"];
+  const availableScopes = envelope?.available_scopes ?? ["global", "workspace"];
+  const workspaceScopeAvailable = availableScopes.includes("workspace");
 
   const counts = useMemo(() => {
     const total = servers.length;
@@ -155,32 +160,29 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
     return { total, shadowed };
   }, [servers]);
 
-  const selectedWorkspace = useMemo(
-    () =>
-      selection.scope === "workspace"
-        ? (workspaces.find(workspace => workspace.id === selection.workspaceId) ?? null)
-        : null,
-    [selection, workspaces]
-  );
-
-  const selectGlobal = useCallback(() => {
+  const resetTransientState = useCallback(() => {
     putMutation.reset();
     deleteMutation.reset();
-    setSelection({ scope: "global" });
     setEditor({ mode: "closed" });
     setDeleteTarget({ mode: "closed" });
   }, [deleteMutation, putMutation]);
 
-  const selectWorkspace = useCallback(
-    (workspaceId: string) => {
-      putMutation.reset();
-      deleteMutation.reset();
-      setSelection({ scope: "workspace", workspaceId });
-      setEditor({ mode: "closed" });
-      setDeleteTarget({ mode: "closed" });
+  const selectScope = useCallback(
+    (scope: MCPActiveScope) => {
+      resetTransientState();
+      setActiveScope(scope);
     },
-    [deleteMutation, putMutation]
+    [resetTransientState]
   );
+
+  const previousWorkspaceIdRef = useRef(activeWorkspaceId);
+  useEffect(() => {
+    if (previousWorkspaceIdRef.current === activeWorkspaceId) {
+      return;
+    }
+    previousWorkspaceIdRef.current = activeWorkspaceId;
+    resetTransientState();
+  }, [activeWorkspaceId, resetTransientState]);
 
   const openCreate = useCallback(() => {
     putMutation.reset();
@@ -234,19 +236,19 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
   const editorAvailableTargets = useMemo<SettingsMCPServerTarget[]>(() => {
     if (editor.mode === "closed") return ["auto", "config", "sidecar"];
     if (editor.mode === "create") return ["auto", "config", "sidecar"];
-    return resolveAvailableTargets(editor.entry, selection.scope);
-  }, [editor, selection]);
+    return resolveAvailableTargets(editor.entry, activeScope);
+  }, [activeScope, editor]);
 
   const saveEditor = useCallback(() => {
-    if (editor.mode === "closed") return;
+    if (editor.mode === "closed" || filter === null) return;
     const name = editor.draft.name.trim();
     const command = editor.draft.command.trim();
     if (!name || !command) return;
     const body = toRequest(editor.draft);
     const target = editor.target;
     const filterPayload =
-      selection.scope === "workspace"
-        ? { scope: "workspace" as const, workspace_id: selection.workspaceId, target }
+      filter.scope === "workspace"
+        ? { scope: "workspace" as const, workspace_id: filter.workspace_id, target }
         : { scope: "global" as const, target };
     putMutation.mutate(
       { name, body, filter: filterPayload },
@@ -257,7 +259,7 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
         },
       }
     );
-  }, [editor, putMutation, selection]);
+  }, [editor, filter, putMutation]);
 
   const openDelete = useCallback(
     (entry: SettingsMCPServerEntry) => {
@@ -281,17 +283,17 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
 
   const deleteAvailableTargets = useMemo<SettingsMCPServerTarget[]>(() => {
     if (deleteTarget.mode === "closed") return ["auto", "config", "sidecar"];
-    return resolveAvailableTargets(deleteTarget.entry, selection.scope);
-  }, [deleteTarget, selection]);
+    return resolveAvailableTargets(deleteTarget.entry, activeScope);
+  }, [activeScope, deleteTarget]);
 
   const confirmDelete = useCallback(() => {
-    if (deleteTarget.mode === "closed") return;
+    if (deleteTarget.mode === "closed" || filter === null) return;
     const target = deleteTarget.entry;
     const deleteFilter =
-      selection.scope === "workspace"
+      filter.scope === "workspace"
         ? {
             scope: "workspace" as const,
-            workspace_id: selection.workspaceId,
+            workspace_id: filter.workspace_id,
             target: deleteTarget.target,
           }
         : { scope: "global" as const, target: deleteTarget.target };
@@ -310,24 +312,29 @@ export function useSettingsMCPServersPage(options: UseSettingsMCPServersPageOpti
         },
       }
     );
-  }, [deleteMutation, deleteTarget, selection]);
+  }, [deleteMutation, deleteTarget, filter]);
 
   const dismissLastAction = useCallback(() => setLastAction(null), []);
 
+  const needsActiveWorkspace = activeScope === "workspace" && !activeWorkspaceId;
+  const isLoading = !needsActiveWorkspace && query.isLoading;
+  const error = needsActiveWorkspace ? null : query.error;
+
   return {
-    isLoading: query.isLoading,
-    error: query.error,
+    isLoading,
+    error,
     envelope,
     servers,
     counts,
     restart: page.restart,
-    selection,
-    selectedWorkspace,
-    workspaces,
-    workspacesLoading: workspaceQuery.isLoading,
+    activeScope,
+    selectScope,
+    activeWorkspace,
+    activeWorkspaceId,
     availableScopes,
-    selectGlobal,
-    selectWorkspace,
+    workspaceScopeAvailable,
+    needsActiveWorkspace,
+    queryEnabled,
     editor,
     editorIsValid,
     editorAvailableTargets,

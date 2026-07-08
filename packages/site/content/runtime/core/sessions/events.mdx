@@ -236,6 +236,7 @@ The default stream writes:
 - `event: transcript_snapshot` for the initial bounded transcript window
 - `event: transcript_delta` for one folded transcript entry after the current cursor
 - `event: session_stopped` when a stopped session has no more rows to deliver
+- `event: error` when the stream fails before it can continue; this frame is terminal
 
 Example transcript snapshot frame:
 
@@ -255,6 +256,7 @@ Raw frames write:
 
 - `id:` as the persisted event sequence number
 - `event:` as the persisted event type
+- `event: error` when the stream fails before it can continue; this frame is terminal
 - `data:` as one `SessionEventPayload`
 
 Example raw SSE frame:

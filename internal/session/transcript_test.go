@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"reflect"
 	"sync"
@@ -346,6 +347,128 @@ func TestManagerTranscriptCache(t *testing.T) {
 			t.Fatalf("session B transcript = %q, want text-sess-cache-b", textB)
 		}
 	})
+
+	t.Run("Should not block another session while one transcript cache refresh is querying", func(t *testing.T) {
+		t.Parallel()
+
+		releaseSlowQuery := make(chan struct{})
+		slowRecorder := &blockingTranscriptRecorder{
+			filteringTranscriptRecorder: filteringTranscriptRecorder{},
+			started:                     make(chan struct{}),
+			release:                     releaseSlowQuery,
+		}
+		fastRecorder := &filteringTranscriptRecorder{}
+		recorders := map[string]EventRecorder{
+			"sess-cache-slow": slowRecorder,
+			"sess-cache-fast": fastRecorder,
+		}
+		h := newHarness(
+			t,
+			WithStore(func(_ context.Context, sessionID string, _ string) (EventRecorder, error) {
+				return recorders[sessionID], nil
+			}),
+		)
+		writeStoppedSessionArtifacts(t, h, "sess-cache-slow", true)
+		writeStoppedSessionArtifacts(t, h, "sess-cache-fast", true)
+		slowRecorder.Append(transcriptCacheEvent(
+			t,
+			"sess-cache-slow",
+			1,
+			"turn-slow",
+			acp.EventTypeAgentMessage,
+			"slow",
+		))
+		fastRecorder.Append(transcriptCacheEvent(
+			t,
+			"sess-cache-fast",
+			1,
+			"turn-fast",
+			acp.EventTypeAgentMessage,
+			"fast",
+		))
+
+		slowDone := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Transcript(testutil.Context(t), "sess-cache-slow", store.EventQuery{})
+			slowDone <- err
+		}()
+		select {
+		case <-slowRecorder.started:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("slow transcript query did not start")
+		}
+
+		fastDone := make(chan error, 1)
+		go func() {
+			entries, err := h.manager.Transcript(testutil.Context(t), "sess-cache-fast", store.EventQuery{})
+			if err != nil {
+				fastDone <- err
+				return
+			}
+			if got := transcript.JoinUIMessageText(transcript.MessagesFromEntries(entries)); got != "fast" {
+				fastDone <- fmt.Errorf("fast transcript = %q, want fast", got)
+				return
+			}
+			fastDone <- nil
+		}()
+		select {
+		case err := <-fastDone:
+			if err != nil {
+				close(releaseSlowQuery)
+				t.Fatalf("Transcript(fast) error = %v", err)
+			}
+		case <-time.After(100 * time.Millisecond):
+			close(releaseSlowQuery)
+			t.Fatal("Transcript(fast) blocked behind unrelated transcript cache query")
+		}
+
+		close(releaseSlowQuery)
+		if err := <-slowDone; err != nil {
+			t.Fatalf("Transcript(slow) error = %v", err)
+		}
+	})
+
+	t.Run("Should drop transcript cache when deleting a session", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &filteringTranscriptRecorder{}
+		h := newHarness(
+			t,
+			WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
+				return recorder, nil
+			}),
+		)
+		sessionID := "sess-cache-delete"
+		writeStoppedSessionArtifacts(t, h, sessionID, true)
+		recorder.Append(transcriptCacheEvent(
+			t,
+			sessionID,
+			1,
+			"turn-delete",
+			acp.EventTypeAgentMessage,
+			"cached",
+		))
+
+		if _, err := h.manager.Transcript(testutil.Context(t), sessionID, store.EventQuery{}); err != nil {
+			t.Fatalf("Transcript(before delete) error = %v", err)
+		}
+		h.manager.transcriptCacheMu.Lock()
+		_, cachedBefore := h.manager.transcriptCache[sessionID]
+		h.manager.transcriptCacheMu.Unlock()
+		if !cachedBefore {
+			t.Fatal("transcript cache missing before delete")
+		}
+
+		if err := h.manager.Delete(testutil.Context(t), sessionID); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+		h.manager.transcriptCacheMu.Lock()
+		_, cachedAfter := h.manager.transcriptCache[sessionID]
+		h.manager.transcriptCacheMu.Unlock()
+		if cachedAfter {
+			t.Fatal("transcript cache still present after delete")
+		}
+	})
 }
 
 type transcriptRecorderStub struct {
@@ -362,6 +485,13 @@ type filteringTranscriptRecorder struct {
 	mu         sync.Mutex
 	events     []store.SessionEvent
 	queryCalls []store.EventQuery
+}
+
+type blockingTranscriptRecorder struct {
+	filteringTranscriptRecorder
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
 }
 
 func (r *filteringTranscriptRecorder) Append(events ...store.SessionEvent) {
@@ -409,6 +539,25 @@ func (r *filteringTranscriptRecorder) Query(_ context.Context, query store.Event
 		events = events[len(events)-query.Limit:]
 	}
 	return append([]store.SessionEvent(nil), events...), nil
+}
+
+func (r *blockingTranscriptRecorder) Query(
+	ctx context.Context,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	shouldBlock := false
+	r.once.Do(func() {
+		shouldBlock = true
+		close(r.started)
+	})
+	if shouldBlock {
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return r.filteringTranscriptRecorder.Query(ctx, query)
 }
 
 func (r *filteringTranscriptRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {

@@ -29,7 +29,9 @@ func WithDriver(driver AgentDriver) Option {
 func WithStore(opener StoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openStore = opener
-		manager.openQueryStore = opener
+		if !manager.queryStoreExplicit {
+			manager.openQueryStore = opener
+		}
 	}
 }
 
@@ -39,6 +41,7 @@ func WithStore(opener StoreOpener) Option {
 func WithQueryStore(opener StoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openQueryStore = opener
+		manager.queryStoreExplicit = true
 	}
 }
 

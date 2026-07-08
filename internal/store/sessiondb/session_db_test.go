@@ -908,6 +908,75 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read bounded history in chunks without splitting returned turns", func(t *testing.T) {
+		t.Parallel()
+
+		events := make([]store.SessionEvent, 0, 302)
+		for sequence := int64(1); sequence <= 300; sequence++ {
+			events = append(events, store.SessionEvent{
+				ID:       fmt.Sprintf("event-%d", sequence),
+				Sequence: sequence,
+				TurnID:   "turn-a",
+				Type:     "agent_message",
+			})
+		}
+		events = append(events,
+			store.SessionEvent{ID: "event-301", Sequence: 301, TurnID: "turn-b", Type: "agent_message"},
+			store.SessionEvent{ID: "event-302", Sequence: 302, TurnID: "turn-c", Type: "agent_message"},
+		)
+
+		calls := make([]store.EventQuery, 0)
+		queryEvents := func(_ context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
+			calls = append(calls, query)
+			filtered := make([]store.SessionEvent, 0, len(events))
+			for _, event := range events {
+				if query.BeforeSequence > 0 && event.Sequence >= query.BeforeSequence {
+					continue
+				}
+				filtered = append(filtered, event)
+			}
+			if query.Limit > 0 && len(filtered) > query.Limit {
+				filtered = filtered[len(filtered)-query.Limit:]
+			}
+			return append([]store.SessionEvent(nil), filtered...), nil
+		}
+
+		history, err := queryTurnHistory(testutil.Context(t), store.EventQuery{Limit: 3}, queryEvents)
+		if err != nil {
+			t.Fatalf("queryTurnHistory() error = %v", err)
+		}
+		if got, want := len(calls), 2; got != want {
+			t.Fatalf("query calls = %d, want %d", got, want)
+		}
+		if calls[0].Limit != historyEventChunkSize {
+			t.Fatalf("first query limit = %d, want %d", calls[0].Limit, historyEventChunkSize)
+		}
+		if calls[0].AfterSequence != 0 {
+			t.Fatalf("first query after_sequence = %d, want 0", calls[0].AfterSequence)
+		}
+		if calls[1].BeforeSequence != 47 {
+			t.Fatalf("second query before_sequence = %d, want 47", calls[1].BeforeSequence)
+		}
+		if got, want := len(history), 3; got != want {
+			t.Fatalf("len(history) = %d, want %d", got, want)
+		}
+		if history[0].TurnID != "turn-a" || history[1].TurnID != "turn-b" ||
+			history[2].TurnID != "turn-c" {
+			t.Fatalf(
+				"turn ids = [%q %q %q], want [turn-a turn-b turn-c]",
+				history[0].TurnID,
+				history[1].TurnID,
+				history[2].TurnID,
+			)
+		}
+		if got, want := len(history[0].Events), 300; got != want {
+			t.Fatalf("turn-a events = %d, want %d", got, want)
+		}
+		if gotSeqs := eventSequences(history[0].Events); !equalInt64Slices(gotSeqs[:2], []int64{1, 2}) {
+			t.Fatalf("turn-a first sequences = %#v, want %#v", gotSeqs[:2], []int64{1, 2})
+		}
+	})
+
 	t.Run("Should not split a read-only turn when after_sequence falls inside it", func(t *testing.T) {
 		t.Parallel()
 

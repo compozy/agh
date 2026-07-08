@@ -421,21 +421,7 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 
 // History returns ordered session events grouped by turn id.
 func (s *SessionDB) History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
-	queryForEvents := query
-	queryForEvents.Limit = 0
-	queryForEvents.AfterSequence = 0
-	events, err := s.Query(ctx, queryForEvents)
-	if err != nil {
-		return nil, err
-	}
-	return groupedTurnHistory(events, query), nil
-}
-
-func limitTurnHistory(turns []store.TurnHistory, limit int) []store.TurnHistory {
-	if limit <= 0 || len(turns) <= limit {
-		return turns
-	}
-	return append([]store.TurnHistory(nil), turns[len(turns)-limit:]...)
+	return queryTurnHistory(ctx, query, s.Query)
 }
 
 // Close drains queued writes, checkpoints the WAL, and closes the database.

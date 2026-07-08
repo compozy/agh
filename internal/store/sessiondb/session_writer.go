@@ -12,7 +12,7 @@ import (
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	for {
-		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery && len(s.writeCh) == 0 {
+		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
 			if err := store.CheckpointPassive(s.writerCtx, s.db); err != nil {
 				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
 			}

@@ -4,6 +4,7 @@ export const SESSION_DEBUG_EVENTS = {
   sseOpen: "sse_open",
   sseReconnect: "sse_reconnect",
   threadEmptyWhileActive: "thread_empty_while_active",
+  transcriptApplyFailed: "transcript_apply_failed",
   transcriptFetchFailed: "transcript_fetch_failed",
 } as const;
 

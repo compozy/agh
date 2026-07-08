@@ -300,14 +300,7 @@ func (s *ReadOnlySessionDB) Query(
 
 // History returns ordered session events grouped by turn id.
 func (s *ReadOnlySessionDB) History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
-	queryForEvents := query
-	queryForEvents.Limit = 0
-	queryForEvents.AfterSequence = 0
-	events, err := s.Query(ctx, queryForEvents)
-	if err != nil {
-		return nil, err
-	}
-	return groupedTurnHistory(events, query), nil
+	return queryTurnHistory(ctx, query, s.Query)
 }
 
 // Close closes the read-only database handle without checkpointing.

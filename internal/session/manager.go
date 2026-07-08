@@ -132,8 +132,9 @@ type Manager struct {
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    aghconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
-	openStore                    StoreOpener
-	openQueryStore               StoreOpener
+	openStore, openQueryStore    StoreOpener
+	queryStoreExplicit           bool
+	queryStoreRuntime            *queryStoreRuntime
 	assembler                    PromptAssembler
 	supervision                  aghconfig.SessionSupervisionConfig
 	busyInput                    aghconfig.SessionBusyInputConfig
@@ -186,12 +187,10 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
-		openQueryStore:               newDefaultQueryStoreOpener(),
 		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    aghconfig.DefaultSessionBusyInputConfig(),
 		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
-		lifecycleCtx:                 context.Background(),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -234,9 +233,7 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.openStore == nil {
 		return errors.New("session: store opener is required")
 	}
-	if m.openQueryStore == nil {
-		return errors.New("session: query store opener is required")
-	}
+	m.ensureQueryStoreRuntime()
 	if m.providerSecrets == nil {
 		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
 	}
@@ -528,7 +525,7 @@ func (m *Manager) releaseReservation(id string) {
 
 func (m *Manager) remove(id string) {
 	target := strings.TrimSpace(id)
-
+	m.invalidateTranscriptCache(target)
 	m.mu.Lock()
 	if done, ok := m.finalizing[target]; ok {
 		close(done)

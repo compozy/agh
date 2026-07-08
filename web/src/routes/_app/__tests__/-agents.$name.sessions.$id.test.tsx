@@ -255,6 +255,7 @@ import {
   fetchSessionById,
   fetchSessions,
   fetchSessionTranscript,
+  SessionApiError,
 } from "@/systems/session/adapters/session-api";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 import { toast } from "sonner";
@@ -566,6 +567,39 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(queryClient.getQueryData(sessionKeys.transcript("ws_alpha", session.id))).toEqual(
       messages
     );
+  });
+
+  it("Should resolve /session/$id when supplementary prefetches fail", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const session = makeSession({ state: "active", badge: "running", attachable: true });
+    vi.mocked(fetchSessionById).mockResolvedValue(session);
+    vi.mocked(fetchSessionTranscript).mockRejectedValue(new Error("transcript unavailable"));
+    vi.mocked(fetchSession).mockRejectedValue(new Error("detail unavailable"));
+
+    const resolved = await resolveSessionPermalink({
+      queryClient,
+      sessionId: session.id,
+    });
+
+    expect(resolved).toEqual(session);
+    expect(queryClient.getQueryData(sessionKeys.detail("ws_alpha", session.id))).toEqual(session);
+  });
+
+  it("Should rethrow non-not-found lookup failures for the canonical session route", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const error = new SessionApiError("daemon unavailable", 503, "sess_123");
+    vi.mocked(fetchSessionById).mockRejectedValue(error);
+
+    await expect(
+      prefetchAgentSessionRoute({
+        queryClient,
+        sessionId: "sess_123",
+      })
+    ).rejects.toBe(error);
   });
 
   it("Should redirect /session/$id from beforeLoad to the canonical session route", async () => {

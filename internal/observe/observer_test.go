@@ -23,36 +23,40 @@ import (
 )
 
 func TestOnSessionCreatedTracksSessionSnapshot(t *testing.T) {
-	t.Parallel()
+	t.Run("Should cache session snapshot on creation", func(t *testing.T) {
+		t.Parallel()
 
-	h := newHarness(t)
-	sess := newSession("sess-created", session.StateActive, h.workspace, h.now)
+		h := newHarness(t)
+		sess := newSession("sess-created", session.StateActive, h.workspace, h.now)
 
-	h.observeSessionCreated(t, sess)
+		h.observeSessionCreated(t, sess)
 
-	snapshot, ok := h.observer.sessionSnapshot(sess.ID)
-	if !ok {
-		t.Fatal("sessionSnapshot() cached = false, want true")
-	}
-	if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
-		t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
-	}
+		snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+		if !ok {
+			t.Fatal("sessionSnapshot() cached = false, want true")
+		}
+		if snapshot.agentName != "coder" || snapshot.workspaceID != h.workspaceID {
+			t.Fatalf("sessionSnapshot() = %#v, want coder workspace snapshot", snapshot)
+		}
+	})
 }
 
 func TestOnSessionStoppedClearsSessionSnapshot(t *testing.T) {
-	t.Parallel()
+	t.Run("Should clear session snapshot on stop", func(t *testing.T) {
+		t.Parallel()
 
-	h := newHarness(t)
-	sess := newSession("sess-stopped", session.StateActive, h.workspace, h.now)
+		h := newHarness(t)
+		sess := newSession("sess-stopped", session.StateActive, h.workspace, h.now)
 
-	h.observeSessionCreated(t, sess)
-	sess.State = session.StateStopped
-	sess.UpdatedAt = h.now.Add(2 * time.Minute)
-	h.observer.OnSessionStopped(testutil.Context(t), sess)
+		h.observeSessionCreated(t, sess)
+		sess.State = session.StateStopped
+		sess.UpdatedAt = h.now.Add(2 * time.Minute)
+		h.observer.OnSessionStopped(testutil.Context(t), sess)
 
-	if _, ok := h.observer.sessionSnapshot(sess.ID); ok {
-		t.Fatal("sessionSnapshot() cached = true, want false after stop")
-	}
+		if _, ok := h.observer.sessionSnapshot(sess.ID); ok {
+			t.Fatal("sessionSnapshot() cached = true, want false after stop")
+		}
+	})
 }
 
 func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {

@@ -73,8 +73,10 @@ export async function resolveSessionPermalink({
   const workspaceId = session.workspace_id?.trim();
   if (workspaceId) {
     queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
-    await queryClient.ensureQueryData(sessionTranscriptOptions(workspaceId, session.id));
-    await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, session.id));
+    await Promise.allSettled([
+      queryClient.ensureQueryData(sessionTranscriptOptions(workspaceId, session.id)),
+      queryClient.ensureQueryData(sessionDetailOptions(workspaceId, session.id)),
+    ]);
   }
   return session;
 }

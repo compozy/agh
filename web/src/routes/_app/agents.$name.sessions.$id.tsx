@@ -25,6 +25,7 @@ import {
   sessionByIdOptions,
   sessionDetailOptions,
   sessionKeys,
+  SessionNotFoundError,
   sessionTranscriptOptions,
   useSessionById,
   type SessionPayload,
@@ -82,8 +83,11 @@ async function resolveSessionRouteWorkspace(
   try {
     const session = await queryClient.ensureQueryData(sessionByIdOptions(sessionId));
     return normalizeWorkspaceId(session.workspace_id);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof SessionNotFoundError) {
+      return null;
+    }
+    throw error;
   }
 }
 
@@ -233,7 +237,11 @@ function SessionClearDialog({
 }: SessionClearDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={!isClearing} className="max-w-md" data-testid="clear-dialog">
+      <DialogContent
+        showCloseButton={!isClearing}
+        className="max-w-md"
+        data-testid="composer-clear-dialog"
+      >
         <DialogHeader>
           <DialogTitle>Clear conversation</DialogTitle>
           <DialogDescription>
@@ -247,7 +255,7 @@ function SessionClearDialog({
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={isClearing}
-            data-testid="clear-dialog-cancel"
+            data-testid="composer-clear-cancel"
           >
             Cancel
           </Button>
@@ -256,7 +264,7 @@ function SessionClearDialog({
             variant="destructive"
             onClick={onConfirm}
             disabled={isClearing}
-            data-testid="clear-dialog-confirm"
+            data-testid="composer-clear-confirm"
           >
             {isClearing ? (
               <>

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
@@ -30,6 +31,14 @@ import {
   type StableSessionRowsState,
 } from "../session-timeline.logic";
 import { WorkingIndicator } from "../session-working-row";
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
 
 // Suite: thread state panes
 // Invariant: ThreadEmpty renders only after the transcript fetch succeeds with zero messages.
@@ -1016,6 +1025,8 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
 describe("SessionThread composer running semantics", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", createFetchMock());
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.warning).mockClear();
     useSessionStore.getState().clearDraft(primarySessionFixture.id);
   });
 
@@ -1044,6 +1055,21 @@ describe("SessionThread composer running semantics", () => {
     });
     // The runtime send never fired, so no user message entered the thread.
     expect(screen.queryByText("queue this follow-up")).not.toBeInTheDocument();
+  });
+
+  it("Should show an error toast and preserve the draft when queue fails", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() => Promise.reject(new Error("queue failed")));
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "queue this follow-up");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("queue failed");
+    });
+    expect((textarea as HTMLTextAreaElement).value).toBe("queue this follow-up");
   });
 
   it("Should show the accent Send disc while idle and the danger Stop disc while running", async () => {
@@ -1097,6 +1123,30 @@ describe("SessionThread composer running semantics", () => {
       expect(textarea.value).toBe("Add a regression test.");
     });
     expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("inq-1");
+  });
+
+  it("Should not overwrite an existing draft when editing a queued prompt", async () => {
+    const user = userEvent.setup();
+    const onRemoveQueuedPrompt = vi.fn();
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt,
+      queuedPrompts: [{ id: "inq-1", text: "Queued prompt text." }],
+    });
+
+    const textarea = await screen.findByTestId("composer-textarea");
+    await user.type(textarea, "Existing draft");
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+
+    expect((textarea as HTMLTextAreaElement).value).toBe("Existing draft");
+    expect(onRemoveQueuedPrompt).not.toHaveBeenCalled();
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Send or clear the current draft before editing a queued prompt."
+    );
   });
 });
 

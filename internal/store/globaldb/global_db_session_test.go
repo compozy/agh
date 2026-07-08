@@ -484,6 +484,74 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
+func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should raise below-minimum epoch and return current epoch when already high enough", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ensure-transcript-epoch-workspace",
+			filepath.Join(t.TempDir(), "ensure-transcript-epoch-workspace"),
+		)
+		now := time.Date(2026, 7, 7, 12, 30, 0, 0, time.UTC)
+		session := store.SessionInfo{
+			ID:              "sess-ensure-transcript-epoch",
+			Name:            "Ensure Transcript Epoch",
+			AgentName:       "coder",
+			Provider:        "claude",
+			WorkspaceID:     workspaceID,
+			SessionType:     defaultSessionType,
+			State:           globalDBSessionStateActive,
+			TranscriptEpoch: 1,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		if err := globalDB.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		epoch, err := globalDB.EnsureSessionTranscriptEpoch(ctx, store.SessionTranscriptEpochUpdate{
+			SessionID: session.ID,
+			Minimum:   5,
+		})
+		if err != nil {
+			t.Fatalf("EnsureSessionTranscriptEpoch(raise) error = %v", err)
+		}
+		if epoch != 5 {
+			t.Fatalf("EnsureSessionTranscriptEpoch(raise) = %d, want 5", epoch)
+		}
+
+		epoch, err = globalDB.EnsureSessionTranscriptEpoch(ctx, store.SessionTranscriptEpochUpdate{
+			SessionID: session.ID,
+			Minimum:   3,
+		})
+		if err != nil {
+			t.Fatalf("EnsureSessionTranscriptEpoch(already high) error = %v", err)
+		}
+		if epoch != 5 {
+			t.Fatalf("EnsureSessionTranscriptEpoch(already high) = %d, want 5", epoch)
+		}
+	})
+
+	t.Run("Should return not found when no session can be raised or read", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		_, err := globalDB.EnsureSessionTranscriptEpoch(testutil.Context(t), store.SessionTranscriptEpochUpdate{
+			SessionID: "sess-missing-transcript-epoch",
+			Minimum:   2,
+		})
+		if !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("EnsureSessionTranscriptEpoch(missing) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
 func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 	t.Parallel()
 

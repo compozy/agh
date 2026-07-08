@@ -37,7 +37,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 	}
 	initial, err := h.sessionStreamInitialEvents(c.Request.Context(), sessionID, query, streamOptions)
 	if err != nil {
-		subscription.cancel()
+		subscription.cancelIfActive()
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}

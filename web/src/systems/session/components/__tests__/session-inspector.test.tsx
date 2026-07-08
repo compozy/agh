@@ -145,6 +145,12 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
   });
 
   it("Should format a non-USD cost with its currency code", () => {
+    const expectedCost = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(2.5);
     render(
       <SessionInspector
         messages={[]}
@@ -156,7 +162,7 @@ describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
 
     openUsageTab();
 
-    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("2.50 EUR");
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(expectedCost);
     expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 1 turn");
   });
 

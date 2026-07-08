@@ -10,6 +10,7 @@ import {
   Network,
   Plus,
   Repeat2,
+  Server,
   Settings,
   Waypoints,
   Wrench,
@@ -188,6 +189,7 @@ const CATALOG_NAV_ITEMS: NavItemProps[] = [
 const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/sandbox", icon: Boxes, label: "Sandbox" },
   { to: "/vault", icon: KeyRound, label: "Vault" },
+  { to: "/mcp", icon: Server, label: "MCP" },
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 

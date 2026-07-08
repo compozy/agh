@@ -168,7 +168,6 @@ export interface SettingsSectionDescriptor {
 export type SettingsSectionSlug =
   | "general"
   | "providers"
-  | "mcp-servers"
   | "sandboxes"
   | "memory"
   | "skills"

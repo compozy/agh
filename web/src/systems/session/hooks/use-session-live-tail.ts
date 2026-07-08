@@ -12,7 +12,6 @@ import {
 import {
   computeStableThreadMessages,
   EMPTY_STABLE_THREAD_MESSAGES,
-  transcriptSignature,
   type StableThreadMessagesState,
 } from "../lib/session-thread-repository";
 import {
@@ -59,6 +58,7 @@ const SESSION_DONE_EVENT = "done";
 const STREAM_ERROR_EVENT = "error";
 const RECONNECT_BASE_DELAY_MS = 250;
 const RECONNECT_MAX_DELAY_MS = 4_000;
+type TranscriptApplyFrame = "snapshot" | "delta";
 
 function defaultEventSourceFactory(url: string): SessionStreamEventSource {
   return new EventSource(url);
@@ -102,9 +102,6 @@ export function useSessionLiveTail({
     const stable = computeStableThreadMessages(transcriptMessages, stableMessagesRef.current);
     stableMessagesRef.current = stable;
     return stable.result;
-  }, [transcriptMessages]);
-  const signature = useMemo(() => {
-    return transcriptMessages ? transcriptSignature(transcriptMessages) : "";
   }, [transcriptMessages]);
 
   useEffect(() => {
@@ -180,6 +177,7 @@ export function useSessionLiveTail({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let source: SessionStreamEventSource | null = null;
     let detachSourceListeners: (() => void) | null = null;
+    let transcriptApplyQueue = Promise.resolve();
 
     const clearReconnectTimer = () => {
       if (reconnectTimer) {
@@ -236,6 +234,39 @@ export function useSessionLiveTail({
       }, delay);
     };
 
+    const recordTranscriptApplyFailure = (
+      frame: TranscriptApplyFrame,
+      sequence: number,
+      error: unknown
+    ) => {
+      recordSessionDebugEvent(SESSION_DEBUG_EVENTS.transcriptApplyFailed, {
+        cursor: cursorRef.current,
+        error: formatSessionDebugError(error),
+        frame,
+        sequence,
+        session_id: sessionId,
+        workspace_id: workspaceId,
+      });
+      void refetchTranscriptRef.current();
+    };
+
+    const enqueueTranscriptApply = (
+      frame: TranscriptApplyFrame,
+      sequence: number,
+      apply: () => Promise<void>
+    ) => {
+      transcriptApplyQueue = transcriptApplyQueue.then(async () => {
+        if (disposed) {
+          return;
+        }
+        try {
+          await apply();
+        } catch (error) {
+          recordTranscriptApplyFailure(frame, sequence, error);
+        }
+      });
+    };
+
     const applySnapshot = (event: MessageEvent) => {
       const payload = parseSessionStreamPayload<TranscriptSnapshotPayload>(event);
       if (!payload) {
@@ -247,58 +278,61 @@ export function useSessionLiveTail({
       const epochChanged = epochRef.current !== null && epochRef.current !== payload.epoch;
       const backwardsMax = payload.max_sequence < previousCursor;
       const sequence = Math.max(payload.max_sequence, eventID ?? 0);
-      if (sequence > cursorRef.current) {
+      if (epochChanged || backwardsMax) {
+        cursorRef.current = sequence;
+      } else if (sequence > cursorRef.current) {
         cursorRef.current = sequence;
       }
       epochRef.current = payload.epoch;
-      void normalizeTranscriptMessages(payload.entries.map(entry => entry.message)).then(
-        messages => {
-          const incomingSequences = new Map<string, number>();
-          for (const [index, message] of messages.entries()) {
-            const entry = payload.entries[index];
-            if (entry) {
-              incomingSequences.set(message.id, entry.sequence);
-            }
+      enqueueTranscriptApply("snapshot", sequence, async () => {
+        const messages = await normalizeTranscriptMessages(
+          payload.entries.map(entry => entry.message)
+        );
+        const incomingSequences = new Map<string, number>();
+        for (const [index, message] of messages.entries()) {
+          const entry = payload.entries[index];
+          if (entry) {
+            incomingSequences.set(message.id, entry.sequence);
           }
-          const incomingIDs = new Set(incomingSequences.keys());
-          queryClient.setQueryData<SessionMessage[]>(transcriptQueryKey, existing => {
-            if (epochChanged || backwardsMax) {
-              messageSequenceRef.current = incomingSequences;
-              return sortMessagesByKnownSequence(messages, incomingSequences);
-            }
-            const nextSequences = new Map<string, number>();
-            const retained = (existing ?? []).filter(message => {
-              if (incomingIDs.has(message.id)) {
-                return false;
-              }
-              const existingSequence = messageSequenceRef.current.get(message.id);
-              if (payload.reset_below) {
-                if (existingSequence === undefined || existingSequence < payload.min_sequence) {
-                  return false;
-                }
-                nextSequences.set(message.id, existingSequence);
-                return true;
-              }
-              if (
-                existingSequence !== undefined &&
-                existingSequence >= payload.min_sequence &&
-                existingSequence <= payload.max_sequence
-              ) {
-                return false;
-              }
-              if (existingSequence !== undefined) {
-                nextSequences.set(message.id, existingSequence);
-              }
-              return true;
-            });
-            for (const [id, incomingSequence] of incomingSequences) {
-              nextSequences.set(id, incomingSequence);
-            }
-            messageSequenceRef.current = nextSequences;
-            return sortMessagesByKnownSequence([...retained, ...messages], nextSequences);
-          });
         }
-      );
+        const incomingIDs = new Set(incomingSequences.keys());
+        queryClient.setQueryData<SessionMessage[]>(transcriptQueryKey, existing => {
+          if (epochChanged || backwardsMax) {
+            messageSequenceRef.current = incomingSequences;
+            return sortMessagesByKnownSequence(messages, incomingSequences);
+          }
+          const nextSequences = new Map<string, number>();
+          const retained = (existing ?? []).filter(message => {
+            if (incomingIDs.has(message.id)) {
+              return false;
+            }
+            const existingSequence = messageSequenceRef.current.get(message.id);
+            if (payload.reset_below) {
+              if (existingSequence === undefined || existingSequence < payload.min_sequence) {
+                return false;
+              }
+              nextSequences.set(message.id, existingSequence);
+              return true;
+            }
+            if (
+              existingSequence !== undefined &&
+              existingSequence >= payload.min_sequence &&
+              existingSequence <= payload.max_sequence
+            ) {
+              return false;
+            }
+            if (existingSequence !== undefined) {
+              nextSequences.set(message.id, existingSequence);
+            }
+            return true;
+          });
+          for (const [id, incomingSequence] of incomingSequences) {
+            nextSequences.set(id, incomingSequence);
+          }
+          messageSequenceRef.current = nextSequences;
+          return sortMessagesByKnownSequence([...retained, ...messages], nextSequences);
+        });
+      });
       invalidateSessionSurfaces();
     };
 
@@ -326,7 +360,8 @@ export function useSessionLiveTail({
       }
       const epochChanged = epochRef.current !== null && epochRef.current !== payload.epoch;
       epochRef.current = payload.epoch;
-      void normalizeTranscriptMessages([payload.entry.message]).then(messages => {
+      enqueueTranscriptApply("delta", sequence, async () => {
+        const messages = await normalizeTranscriptMessages([payload.entry.message]);
         const message = messages[0];
         if (!message) {
           return;
@@ -430,7 +465,6 @@ export function useSessionLiveTail({
 
   return {
     messages: readonlyMessages,
-    signature,
     status: transcriptStatus,
     isPending: transcriptQuery.isPending,
     isError: transcriptQuery.isError,

@@ -225,15 +225,3 @@ export function computeStableThreadMessages(
 
   return anyChanged ? { bySource, result } : previous;
 }
-
-export function transcriptSignature(messages: SessionMessage[]): string {
-  return JSON.stringify(
-    messages.map(message => ({
-      id: message.id,
-      role: message.role,
-      parts: message.parts ?? [],
-      status: (message as SessionMessageWithStatus).status ?? null,
-      metadata: isRecord(message.metadata) ? message.metadata : null,
-    }))
-  );
-}

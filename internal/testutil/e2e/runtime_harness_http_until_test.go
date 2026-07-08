@@ -82,7 +82,8 @@ func TestRuntimeHarnessHTTPUntilContract(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requests <- r.URL.RawQuery
 			w.Header().Set("Content-Type", "text/event-stream")
-			if _, err := fmt.Fprint(w, "event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"); err != nil {
+			event := "event: runtime_progress\ndata: {\"type\":\"runtime_progress\"}\n\n"
+			if _, err := fmt.Fprint(w, event); err != nil {
 				t.Errorf("write SSE response error = %v", err)
 			}
 		}))

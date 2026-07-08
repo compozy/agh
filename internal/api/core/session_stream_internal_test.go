@@ -57,6 +57,25 @@ func TestTranscriptSnapshotReset(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report cache rebuild reason for initial subscriptions below watermark", func(t *testing.T) {
+		t.Parallel()
+
+		reset, reason := transcriptSnapshotReset(0, 1, 9, session.TranscriptWatermark{
+			Sequence: 9,
+			Reason:   session.TranscriptWatermarkReasonCacheRebuild,
+		})
+		if !reset {
+			t.Fatal("transcriptSnapshotReset() reset = false, want true")
+		}
+		if reason != contract.TranscriptSnapshotReasonCacheRebuild {
+			t.Fatalf(
+				"transcriptSnapshotReset() reason = %q, want %q",
+				reason,
+				contract.TranscriptSnapshotReasonCacheRebuild,
+			)
+		}
+	})
+
 	t.Run("Should reset stale cursors above the snapshot max as epoch reset", func(t *testing.T) {
 		t.Parallel()
 
@@ -296,6 +315,142 @@ func TestStreamTranscriptSessionEvents(t *testing.T) {
 			t.Fatalf("snapshot stream body = %s, want epoch_reset reason", body)
 		}
 	})
+}
+
+func TestSessionStreamFallbackCancelsSubscriptionBeforePolling(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		run  func(*BaseHandlers, *gin.Context, FlushWriter, sessionEventStreamSubscription)
+	}{
+		{
+			name: "Should cancel raw subscription before polling after closed subscription",
+			run: func(
+				handlers *BaseHandlers,
+				ctx *gin.Context,
+				writer FlushWriter,
+				subscription sessionEventStreamSubscription,
+			) {
+				handlers.pushAndStreamSessionEvents(
+					ctx,
+					writer,
+					"sess-a",
+					streamTestSessionInfo("sess-a"),
+					store.EventQuery{},
+					1,
+					subscription,
+				)
+			},
+		},
+		{
+			name: "Should cancel raw subscription before polling after sequence gap",
+			run: func(
+				handlers *BaseHandlers,
+				ctx *gin.Context,
+				writer FlushWriter,
+				subscription sessionEventStreamSubscription,
+			) {
+				handlers.pushAndStreamSessionEvents(
+					ctx,
+					writer,
+					"sess-a",
+					streamTestSessionInfo("sess-a"),
+					store.EventQuery{},
+					1,
+					subscription,
+				)
+			},
+		},
+		{
+			name: "Should cancel transcript subscription before polling after closed subscription",
+			run: func(
+				handlers *BaseHandlers,
+				ctx *gin.Context,
+				writer FlushWriter,
+				subscription sessionEventStreamSubscription,
+			) {
+				handlers.pushAndStreamSessionTranscript(
+					ctx,
+					writer,
+					"sess-a",
+					streamTestSessionInfo("sess-a"),
+					store.EventQuery{},
+					1,
+					subscription,
+				)
+			},
+		},
+		{
+			name: "Should cancel transcript subscription before polling after sequence gap",
+			run: func(
+				handlers *BaseHandlers,
+				ctx *gin.Context,
+				writer FlushWriter,
+				subscription sessionEventStreamSubscription,
+			) {
+				handlers.pushAndStreamSessionTranscript(
+					ctx,
+					writer,
+					"sess-a",
+					streamTestSessionInfo("sess-a"),
+					store.EventQuery{},
+					1,
+					subscription,
+				)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			streamDone := make(chan struct{})
+			handlers := &BaseHandlers{PollInterval: time.Hour}
+			handlers.SetStreamDone(streamDone)
+			gin.SetMode(gin.TestMode)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+			writer := &streamTestFlushWriter{}
+
+			events := make(chan store.SessionEvent, 1)
+			if strings.Contains(testCase.name, "sequence gap") {
+				events <- store.SessionEvent{Sequence: 3}
+			}
+			close(events)
+			canceled := make(chan struct{})
+			var cancelOnce sync.Once
+			subscription := sessionEventStreamSubscription{
+				events: events,
+				cancel: func() {
+					cancelOnce.Do(func() { close(canceled) })
+				},
+			}
+
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				testCase.run(handlers, ctx, writer, subscription)
+			}()
+
+			waitForStreamTestSignal(t, canceled, "subscription cancel")
+			close(streamDone)
+			waitForStreamTestSignal(t, done, "stream fallback return")
+		})
+	}
+}
+
+func waitForStreamTestSignal(t *testing.T, signal <-chan struct{}, label string) {
+	t.Helper()
+
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-signal:
+	case <-timer.C:
+		t.Fatalf("timed out waiting for %s", label)
+	}
 }
 
 func streamTestTranscriptEntry(sequence int64, id string) transcript.Entry {

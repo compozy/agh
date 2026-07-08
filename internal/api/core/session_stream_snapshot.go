@@ -158,11 +158,11 @@ func transcriptSnapshotReset(
 	if cursor > maxSequence {
 		return true, contract.TranscriptSnapshotReasonEpochReset
 	}
-	if cursor == 0 {
-		return true, contract.TranscriptSnapshotReasonSubscribe
-	}
 	if watermark.Sequence > 0 && cursor <= watermark.Sequence {
 		return true, transcriptSnapshotWatermarkReason(watermark)
+	}
+	if cursor == 0 {
+		return true, contract.TranscriptSnapshotReasonSubscribe
 	}
 	if minSequence > 0 && cursor < minSequence-1 {
 		return true, contract.TranscriptSnapshotReasonReconnect

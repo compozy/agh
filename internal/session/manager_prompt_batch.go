@@ -38,7 +38,6 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	if err := m.recordPromptEventBatch(ctx, session, normalized); err != nil {
 		m.sessionLogger(session).
 			Warn("session: record prompt event batch failed", "turn_id", turnState.turnID, "error", err)
-		return nil, err.Error(), true
 	}
 
 	for _, event := range normalized {

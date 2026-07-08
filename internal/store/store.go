@@ -62,7 +62,6 @@ type SessionCatalog interface {
 // SessionTranscriptEpochStore manages destructive transcript reset epochs.
 type SessionTranscriptEpochStore interface {
 	SessionTranscriptEpoch(ctx context.Context, sessionID string) (int64, error)
-	BumpSessionTranscriptEpoch(ctx context.Context, update SessionTranscriptEpochUpdate) (int64, error)
 	EnsureSessionTranscriptEpoch(ctx context.Context, update SessionTranscriptEpochUpdate) (int64, error)
 }
 
