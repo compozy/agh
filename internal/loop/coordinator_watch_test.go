@@ -60,6 +60,69 @@ func TestCoordinatorRunnerWatchSource(t *testing.T) {
 		}
 	})
 
+	t.Run("Should render watch source spec templates before polling", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+		loopRun := watchLoopRun(StatusRunning, 0, now.Add(-time.Minute))
+		loopRun.Inputs = map[string]any{
+			"label":         "review",
+			"poll_interval": "30s",
+			"pr":            42,
+			"quiet_period":  "20s",
+		}
+		coordinatorRun := watchCoordinatorRun(loopRun)
+		graph := watchSourceGraphForTest()
+		graph.Nodes[0].WatchSpec = map[string]any{
+			"kind":          "reviews",
+			"labels":        []any{"{{ .inputs.label }}"},
+			"poll_interval": "{{ .inputs.poll_interval }}",
+			"pr":            "{{ .inputs.pr }}",
+			"quiet_period":  "{{ .inputs.quiet_period }}",
+		}
+		poller := watchPollerFunc(func(_ context.Context, req watchpkg.PollRequest) (watchpkg.PollResponse, error) {
+			var spec map[string]any
+			if err := json.Unmarshal(req.Spec, &spec); err != nil {
+				t.Fatalf("unmarshal PollRequest.Spec error = %v", err)
+			}
+			if got, want := spec["pr"], "42"; got != want {
+				t.Fatalf("PollRequest.Spec[pr] = %#v, want %q", got, want)
+			}
+			if got, want := spec["poll_interval"], "30s"; got != want {
+				t.Fatalf("PollRequest.Spec[poll_interval] = %#v, want %q", got, want)
+			}
+			if got, want := spec["quiet_period"], "20s"; got != want {
+				t.Fatalf("PollRequest.Spec[quiet_period] = %#v, want %q", got, want)
+			}
+			labels, ok := spec["labels"].([]any)
+			if !ok || len(labels) != 1 || labels[0] != "review" {
+				t.Fatalf("PollRequest.Spec[labels] = %#v, want rendered label", spec["labels"])
+			}
+			return watchpkg.PollResponse{Ready: false, StateDigest: "sha256:current"}, nil
+		})
+		runner := newWatchCoordinatorRunnerWithGraphForTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{},
+			graph,
+			poller,
+		)
+		runner.now = func() time.Time { return now }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal == nil {
+			t.Fatal("Terminal = nil, want watching terminal")
+		}
+		if got, want := plan.Terminal.Status, string(StatusWatching); got != want {
+			t.Fatalf("Terminal.Status = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should re-claim watching source and enqueue downstream when ready", func(t *testing.T) {
 		t.Parallel()
 
@@ -443,6 +506,27 @@ func newWatchCoordinatorRunnerForTest(
 	poller WatchPoller,
 ) *CoordinatorRunner {
 	t.Helper()
+	return newWatchCoordinatorRunnerWithGraphForTest(
+		t,
+		loopRun,
+		coordinatorRun,
+		runs,
+		outputs,
+		watchSourceGraphForTest(),
+		poller,
+	)
+}
+
+func newWatchCoordinatorRunnerWithGraphForTest(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	runs map[string]task.Run,
+	outputs GenerationOutputReader,
+	graph dsl.Graph,
+	poller WatchPoller,
+) *CoordinatorRunner {
+	t.Helper()
 	if runs == nil {
 		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
@@ -453,7 +537,7 @@ func newWatchCoordinatorRunnerForTest(
 		DefinitionResolverFunc(
 			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
 				return &ResolvedDefinition{
-					Definition: dsl.Definition{Graph: watchSourceGraphForTest()},
+					Definition: dsl.Definition{Graph: graph},
 				}, nil
 			},
 		),

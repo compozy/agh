@@ -75,6 +75,11 @@ export const LOOP_WATCH_EVENT_KINDS = [
   "network.work.opened",
   "network.work.transitioned",
   "network.work.closed",
+  "coordinator.spawned",
+  "coordinator.decision",
+  "coordinator.stopped",
+  "coordinator.failed",
+  "event.post_record",
 ] as const;
 
 export type LoopWatchEventKindValue = (typeof LOOP_WATCH_EVENT_KINDS)[number];

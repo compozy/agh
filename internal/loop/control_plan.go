@@ -338,7 +338,18 @@ func evaluateSourceControlNode(
 		return evaluated, nil, true, err
 	}
 	if isWatchSourceNode(node) {
-		evaluated, terminal, err := evaluateWatchSourceNode(ctx, plan, run, output, node, watchRuntime)
+		evaluated, terminal, err := evaluateWatchSourceNode(
+			ctx,
+			plan,
+			run,
+			generation,
+			resolved,
+			topology,
+			output,
+			node,
+			outputs,
+			watchRuntime,
+		)
 		return evaluated, terminal, true, err
 	}
 	if isWatchEventsNode(node) {

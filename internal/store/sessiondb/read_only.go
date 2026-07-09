@@ -88,6 +88,17 @@ type ReadOnlySessionDB struct {
 
 var _ store.EventRecorder = (*ReadOnlySessionDB)(nil)
 
+// EventMetadata is the content-excluded projection of a session event row.
+type EventMetadata struct {
+	ID        string
+	SessionID string
+	Sequence  int64
+	TurnID    string
+	Type      string
+	AgentName string
+	Timestamp time.Time
+}
+
 // OpenSessionDBReadOnly opens an existing per-session events database in
 // SQLite read-only mode. It intentionally fails for missing paths instead of
 // creating a fresh database during stale transcript/event reads.
@@ -270,7 +281,7 @@ func (s *ReadOnlySessionDB) Query(
 			ORDER BY sequence ASC`
 		args = append(args, query.Limit)
 	} else {
-		sqlQuery += " ORDER BY sequence ASC"
+		sqlQuery += sessionEventsOrderASCClause
 	}
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
@@ -296,6 +307,102 @@ func (s *ReadOnlySessionDB) Query(
 	}
 
 	return events, nil
+}
+
+// MaxEventSequence returns the current highest per-session event sequence.
+func (s *ReadOnlySessionDB) MaxEventSequence(ctx context.Context) (int64, error) {
+	if s == nil || s.db == nil {
+		return 0, errors.New("store: read-only session database is required")
+	}
+	if ctx == nil {
+		return 0, errors.New("store: query read-only session database context is required")
+	}
+	var sequence int64
+	if err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(sequence), 0) FROM events").Scan(&sequence); err != nil {
+		return 0, fmt.Errorf("store: query read-only max event sequence: %w", err)
+	}
+	return sequence, nil
+}
+
+// QueryEventMetadata returns ordered session event metadata without reading content.
+func (s *ReadOnlySessionDB) QueryEventMetadata(
+	ctx context.Context,
+	query store.EventQuery,
+) (events []EventMetadata, err error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("store: read-only session database is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("store: query read-only session database context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+
+	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, timestamp FROM events`
+	where, args := store.BuildClauses(
+		store.StringClause("type", query.Type),
+		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("turn_id", query.TurnID),
+		store.TimeClause("timestamp", ">=", query.Since),
+		store.Int64Clause("sequence", ">", query.AfterSequence),
+	)
+	baseQuery = store.AppendWhere(baseQuery, where)
+
+	sqlQuery := baseQuery
+	if query.Limit > 0 {
+		sqlQuery = `SELECT id, sequence, turn_id, type, agent_name, timestamp
+			FROM (` + baseQuery + ` ORDER BY sequence DESC LIMIT ?) AS recent_events
+			ORDER BY sequence ASC`
+		args = append(args, query.Limit)
+	} else {
+		sqlQuery += sessionEventsOrderASCClause
+	}
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("store: query read-only session event metadata: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close read-only session event metadata rows: %w", closeErr)
+		}
+	}()
+
+	events = make([]EventMetadata, 0)
+	for rows.Next() {
+		event, scanErr := s.scanEventMetadata(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate read-only session event metadata: %w", err)
+	}
+	return events, nil
+}
+
+func (s *ReadOnlySessionDB) scanEventMetadata(row rowScanner) (EventMetadata, error) {
+	var event EventMetadata
+	var timestampRaw string
+	if err := row.Scan(
+		&event.ID,
+		&event.Sequence,
+		&event.TurnID,
+		&event.Type,
+		&event.AgentName,
+		&timestampRaw,
+	); err != nil {
+		return EventMetadata{}, fmt.Errorf("store: scan session event metadata: %w", err)
+	}
+	timestamp, err := store.ParseTimestamp(timestampRaw)
+	if err != nil {
+		return EventMetadata{}, err
+	}
+	event.SessionID = s.sessionID
+	event.Timestamp = timestamp
+	return event, nil
 }
 
 // History returns ordered session events grouped by turn id.

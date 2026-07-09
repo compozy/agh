@@ -60,12 +60,12 @@ type WatchEvent struct {
 // EventMap returns the CEL-facing event namespace used by watch-events filters.
 func (e WatchEvent) EventMap() map[string]any {
 	event := map[string]any{
-		"kind":         strings.TrimSpace(e.Kind),
-		"seq":          e.Seq,
-		"stream":       strings.TrimSpace(e.Stream),
-		"at":           strings.TrimSpace(e.At),
-		"workspace_id": strings.TrimSpace(e.WorkspaceID),
-		"payload":      cloneAnyMap(e.Payload),
+		actionKindMetaKey: strings.TrimSpace(e.Kind),
+		"seq":             e.Seq,
+		"stream":          strings.TrimSpace(e.Stream),
+		"at":              strings.TrimSpace(e.At),
+		"workspace_id":    strings.TrimSpace(e.WorkspaceID),
+		"payload":         cloneAnyMap(e.Payload),
 	}
 	setNonEmptyEventField(event, "task_id", e.TaskID)
 	setNonEmptyEventField(event, "run_id", e.RunID)

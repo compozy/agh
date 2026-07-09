@@ -128,6 +128,11 @@ const (
 	HookDispatchStart    = "hook.dispatch.start"
 	HookDispatchComplete = "hook.dispatch.complete"
 
+	CoordinatorSpawned  = "coordinator.spawned"
+	CoordinatorDecision = "coordinator.decision"
+	CoordinatorStopped  = "coordinator.stopped"
+	CoordinatorFailed   = "coordinator.failed"
+
 	HarnessContextResolved         = "harness.context_resolved"
 	HarnessSectionSelected         = "harness.section_selected"
 	HarnessAugmenterApplied        = "harness.augmenter_applied"
@@ -287,6 +292,10 @@ var registryEntries = []Metadata{
 	global(failure(SkillLoadFailed, "skills", ComponentSkill)),
 	global(info(HookDispatchStart, "hook.dispatch", ComponentHook)),
 	global(info(HookDispatchComplete, "hook.dispatch", ComponentHook)),
+	global(info(CoordinatorSpawned, "coordinator", ComponentHook)),
+	global(info(CoordinatorDecision, "coordinator", ComponentHook)),
+	global(info(CoordinatorStopped, "coordinator", ComponentHook)),
+	global(failure(CoordinatorFailed, "coordinator", ComponentHook)),
 
 	info(HarnessContextResolved, "harness", ComponentHarness),
 	info(HarnessSectionSelected, "harness", ComponentHarness),

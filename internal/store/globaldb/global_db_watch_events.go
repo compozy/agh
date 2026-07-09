@@ -16,26 +16,37 @@ import (
 const (
 	watchEventsParentTaskIDPayloadKey = "parent_task_id"
 
-	watchEventsPayloadAgentNameKey   = "agent_name"
-	watchEventsPayloadAttemptKey     = "attempt"
-	watchEventsPayloadCausationIDKey = "causation_id"
-	watchEventsPayloadChannelKey     = "channel"
-	watchEventsPayloadDirectIDKey    = "direct_id"
-	watchEventsPayloadDirectionKey   = "direction"
-	watchEventsPayloadDurationMSKey  = "duration_ms"
-	watchEventsPayloadErrorKey       = "error"
-	watchEventsPayloadJobIDKey       = "job_id"
-	watchEventsPayloadMessageIDKey   = "message_id"
-	watchEventsPayloadPeerFromKey    = "peer_from"
-	watchEventsPayloadPeerToKey      = "peer_to"
-	watchEventsPayloadSessionIDKey   = "session_id"
-	watchEventsPayloadSurfaceKey     = "surface"
-	watchEventsPayloadThreadIDKey    = "thread_id"
-	watchEventsPayloadTraceIDKey     = "trace_id"
-	watchEventsPayloadTriggerIDKey   = "trigger_id"
-	watchEventsPayloadWillRetryKey   = "will_retry"
-	watchEventsPayloadWorkIDKey      = "work_id"
-	watchEventsPayloadWorkStateKey   = "work_state"
+	watchEventsPayloadAgentNameKey             = "agent_name"
+	watchEventsPayloadAttemptKey               = "attempt"
+	watchEventsPayloadCausationIDKey           = "causation_id"
+	watchEventsPayloadChannelKey               = "channel"
+	watchEventsPayloadCoordinatorSessionIDKey  = "coordinator_session_id"
+	watchEventsPayloadCoordinationChannelIDKey = "coordination_channel_id"
+	watchEventsPayloadDecisionKey              = "decision"
+	watchEventsPayloadDecisionKindKey          = "decision_kind"
+	watchEventsPayloadDirectIDKey              = "direct_id"
+	watchEventsPayloadDirectionKey             = "direction"
+	watchEventsPayloadDurationMSKey            = "duration_ms"
+	watchEventsPayloadErrorKey                 = "error"
+	watchEventsPayloadJobIDKey                 = "job_id"
+	watchEventsPayloadMessageIDKey             = "message_id"
+	watchEventsPayloadModelKey                 = "model"
+	watchEventsPayloadPeerFromKey              = "peer_from"
+	watchEventsPayloadPeerToKey                = "peer_to"
+	watchEventsPayloadProviderKey              = "provider"
+	watchEventsPayloadRecordTypeKey            = "record_type"
+	watchEventsPayloadSequenceKey              = "sequence"
+	watchEventsPayloadSessionIDKey             = "session_id"
+	watchEventsPayloadSurfaceKey               = "surface"
+	watchEventsPayloadStopReasonKey            = "stop_reason"
+	watchEventsPayloadThreadIDKey              = "thread_id"
+	watchEventsPayloadTraceIDKey               = "trace_id"
+	watchEventsPayloadTurnIDKey                = "turn_id"
+	watchEventsPayloadTriggerIDKey             = "trigger_id"
+	watchEventsPayloadWillRetryKey             = "will_retry"
+	watchEventsPayloadWorkIDKey                = "work_id"
+	watchEventsPayloadWorkStateKey             = "work_state"
+	watchEventsPayloadWorkflowIDKey            = "workflow_id"
 )
 
 type normalizedWatchEventsQuery struct {
@@ -103,18 +114,21 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 		case looppkg.WatchEventsTaskStream,
 			looppkg.WatchEventsLoopStream,
 			looppkg.WatchEventsAutomationStream,
-			looppkg.WatchEventsNetworkStream:
+			looppkg.WatchEventsNetworkStream,
+			looppkg.WatchEventsObserveStream:
 		case "":
 			return normalizedWatchEventsQuery{}, fmt.Errorf(
 				"%w: watch-events stream is required",
 				looppkg.ErrValidation,
 			)
 		default:
-			return normalizedWatchEventsQuery{}, fmt.Errorf(
-				"%w: watch-events stream is unsupported: %q",
-				looppkg.ErrValidation,
-				stream,
-			)
+			if _, ok := looppkg.WatchEventsSessionIDFromStream(trimmed); !ok {
+				return normalizedWatchEventsQuery{}, fmt.Errorf(
+					"%w: watch-events stream is unsupported: %q",
+					looppkg.ErrValidation,
+					stream,
+				)
+			}
 		}
 		if cursor < 0 {
 			return normalizedWatchEventsQuery{}, fmt.Errorf(
@@ -182,7 +196,12 @@ func (g *GlobalDB) readWatchEventsCursor(
 		return g.readAutomationWatchEventsCursor(ctx, query)
 	case looppkg.WatchEventsNetworkStream:
 		return g.readNetworkWatchEventsCursor(ctx, query)
+	case looppkg.WatchEventsObserveStream:
+		return g.readObserveWatchEventsCursor(ctx, query)
 	default:
+		if _, ok := looppkg.WatchEventsSessionIDFromStream(stream); ok {
+			return g.readSessionWatchEventsCursor(ctx, query, stream)
+		}
 		return 0, fmt.Errorf("%w: watch-events stream is unsupported: %q", looppkg.ErrValidation, stream)
 	}
 }
@@ -212,7 +231,12 @@ func (g *GlobalDB) readWatchEventsStreamMatches(
 		return g.readAutomationWatchEvents(ctx, query)
 	case looppkg.WatchEventsNetworkStream:
 		return g.readNetworkWatchEvents(ctx, query)
+	case looppkg.WatchEventsObserveStream:
+		return g.readObserveWatchEvents(ctx, query)
 	default:
+		if _, ok := looppkg.WatchEventsSessionIDFromStream(stream); ok {
+			return g.readSessionWatchEvents(ctx, query, stream)
+		}
 		return nil, fmt.Errorf("%w: watch-events stream is unsupported: %q", looppkg.ErrValidation, stream)
 	}
 }

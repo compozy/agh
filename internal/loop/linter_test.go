@@ -738,6 +738,31 @@ func TestLinterShouldValidateWatchEventsSourceNodes(t *testing.T) {
 			})),
 		},
 		{
+			name: "Should accept event post-record only with a session constraint",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind:   "event.post_record",
+				Filter: `event.session_id == "sess-watch" && event.payload.record_type == "agent_message"`,
+			}})),
+		},
+		{
+			name: "Should reject event post-record without a session constraint",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind:   "event.post_record",
+				Filter: `event.payload.record_type == "agent_message"`,
+			}})),
+			wantCodes:     []string{loop.CodeWatchEventsFilterTooBroad},
+			messageCode:   loop.CodeWatchEventsFilterTooBroad,
+			messageSubstr: "session_id",
+		},
+		{
+			name: "Should reject event post-record with a non-conjunctive session constraint",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind:   "event.post_record",
+				Filter: `event.session_id == "sess-watch" || event.payload.record_type == "agent_message"`,
+			}})),
+			wantCodes: []string{loop.CodeWatchEventsFilterTooBroad},
+		},
+		{
 			name:      "Should require at least one watch-events subscription",
 			def:       singleNodeDefinition(watchEventsNodeForTest(nil)),
 			wantCodes: []string{loop.CodeWatchEventsSubscriptionRequired},
@@ -775,6 +800,20 @@ func TestLinterShouldValidateWatchEventsSourceNodes(t *testing.T) {
 			wantCodes:     []string{loop.CodeWatchEventsKindUnsupported},
 			messageCode:   loop.CodeWatchEventsKindUnsupported,
 			messageSubstr: "network.message.persisted",
+		},
+		{
+			name: "Should reject coordinator pre-spawn because it is pre-state",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "coordinator.pre_spawn",
+			}})),
+			wantCodes: []string{loop.CodeWatchEventsKindUnsupported},
+		},
+		{
+			name: "Should reject event pre-record because it is pre-state",
+			def: singleNodeDefinition(watchEventsNodeForTest([]dsl.EventSubscription{{
+				Kind: "event.pre_record",
+			}})),
+			wantCodes: []string{loop.CodeWatchEventsKindUnsupported},
 		},
 		{
 			name: "Should reject invalid watch-events CEL filters",

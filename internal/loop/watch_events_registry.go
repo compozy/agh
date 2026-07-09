@@ -2,6 +2,7 @@ package loop
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/compozy/agh/internal/hooks"
 )
@@ -11,6 +12,9 @@ const (
 	watchEventsLoopStream       = "loop_run_events"
 	watchEventsAutomationStream = "automation_runs"
 	watchEventsNetworkStream    = "network_timeline_log"
+	watchEventsObserveStream    = "event_summaries"
+	watchEventsSessionStream    = "session_events"
+	watchEventsSessionSeparator = ":"
 
 	loopRunEventLedgerStatusChanged = "status_changed"
 	loopRunEventLedgerNodeSucceeded = "node_succeeded"
@@ -37,6 +41,18 @@ const (
 	watchEventsPayloadTriggerID   = "trigger_id"
 	watchEventsPayloadWillRetry   = "will_retry"
 	watchEventsPayloadWorkState   = "work_state"
+
+	watchEventsPayloadCoordinatorSessionID  = "coordinator_session_id"
+	watchEventsPayloadCoordinationChannelID = "coordination_channel_id"
+	watchEventsPayloadDecisionKind          = "decision_kind"
+	watchEventsPayloadDecision              = "decision"
+	watchEventsPayloadModel                 = "model"
+	watchEventsPayloadProvider              = "provider"
+	watchEventsPayloadRecordType            = "record_type"
+	watchEventsPayloadSequence              = "sequence"
+	watchEventsPayloadStopReason            = "stop_reason"
+	watchEventsPayloadTurnID                = "turn_id"
+	watchEventsPayloadWorkflowID            = "workflow_id"
 )
 
 const (
@@ -48,6 +64,10 @@ const (
 	WatchEventsAutomationStream = watchEventsAutomationStream
 	// WatchEventsNetworkStream is the network_timeline_log replay stream name.
 	WatchEventsNetworkStream = watchEventsNetworkStream
+	// WatchEventsObserveStream is the event_summaries replay stream name.
+	WatchEventsObserveStream = watchEventsObserveStream
+	// WatchEventsSessionStream is the per-session event replay stream base name.
+	WatchEventsSessionStream = watchEventsSessionStream
 )
 
 // WatchEventsContract describes one supported watch-events family row.
@@ -319,11 +339,94 @@ var phaseBWatchEvents = []WatchEventsContract{
 	},
 }
 
+var phaseCWatchEvents = []WatchEventsContract{
+	// event_summaries is rowid-cursored and workspace-scoped directly by workspace_id.
+	// Phase C uses dedicated coordinator lifecycle rows because hook.dispatch rows only
+	// exist when a matching public hook is configured.
+	{
+		Kind:        hooks.HookCoordinatorSpawned,
+		Stream:      watchEventsObserveStream,
+		LedgerTypes: []string{string(hooks.HookCoordinatorSpawned)},
+		PayloadFields: []string{
+			watchEventsPayloadAgentName,
+			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadProvider,
+			watchEventsPayloadModel,
+			watchEventsPayloadWorkflowID,
+			watchEventsPayloadDecisionKind,
+			watchEventsPayloadDecision,
+		},
+	},
+	{
+		Kind:        hooks.HookCoordinatorDecision,
+		Stream:      watchEventsObserveStream,
+		LedgerTypes: []string{string(hooks.HookCoordinatorDecision)},
+		PayloadFields: []string{
+			watchEventsPayloadAgentName,
+			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadProvider,
+			watchEventsPayloadModel,
+			watchEventsPayloadWorkflowID,
+			watchEventsPayloadDecisionKind,
+			watchEventsPayloadDecision,
+		},
+	},
+	{
+		Kind:        hooks.HookCoordinatorStopped,
+		Stream:      watchEventsObserveStream,
+		LedgerTypes: []string{string(hooks.HookCoordinatorStopped)},
+		PayloadFields: []string{
+			watchEventsPayloadAgentName,
+			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadProvider,
+			watchEventsPayloadDecisionKind,
+			watchEventsPayloadDecision,
+			watchEventsPayloadStopReason,
+		},
+	},
+	{
+		Kind:        hooks.HookCoordinatorFailed,
+		Stream:      watchEventsObserveStream,
+		LedgerTypes: []string{string(hooks.HookCoordinatorFailed)},
+		PayloadFields: []string{
+			watchEventsPayloadAgentName,
+			watchEventsPayloadCoordinatorSessionID,
+			watchEventsPayloadCoordinationChannelID,
+			watchEventsPayloadWorkflowID,
+			watchEventsPayloadDecisionKind,
+			watchEventsPayloadDecision,
+			watchEventsPayloadError,
+		},
+	},
+	// session_events streams are sequence-cursored per session. The linter requires
+	// a session_id equality constraint so evaluation never scans all session DBs.
+	{
+		Kind:        hooks.HookEventPostRecord,
+		Stream:      watchEventsSessionStream,
+		LedgerTypes: []string{string(hooks.HookEventPostRecord)},
+		PayloadFields: []string{
+			watchEventsPayloadRecordType,
+			watchEventsPayloadSequence,
+			watchEventsPayloadTurnID,
+			watchEventsPayloadAgentName,
+			watchEventsFieldSessionID,
+		},
+		RequiredVars: []string{watchEventsFieldSessionID},
+	},
+}
+
 // SupportedWatchEvents returns the closed watch-events registry for shipped phases.
 func SupportedWatchEvents() map[hooks.HookEvent]WatchEventsContract {
-	rows := make([]WatchEventsContract, 0, len(phaseAWatchEvents)+len(phaseBWatchEvents))
+	rows := make(
+		[]WatchEventsContract,
+		0,
+		len(phaseAWatchEvents)+len(phaseBWatchEvents)+len(phaseCWatchEvents),
+	)
 	rows = append(rows, phaseAWatchEvents...)
 	rows = append(rows, phaseBWatchEvents...)
+	rows = append(rows, phaseCWatchEvents...)
 	contracts := make(map[hooks.HookEvent]WatchEventsContract, len(rows))
 	for _, contract := range rows {
 		contracts[contract.Kind] = cloneWatchEventsContract(contract)
@@ -346,4 +449,32 @@ func sortedSupportedWatchEventKinds() []string {
 	}
 	slices.Sort(kinds)
 	return kinds
+}
+
+// WatchEventsSessionStreamForSession returns the cursor stream key for one session.
+func WatchEventsSessionStreamForSession(sessionID string) string {
+	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return ""
+	}
+	return watchEventsSessionStream + watchEventsSessionSeparator + trimmed
+}
+
+// WatchEventsSessionIDFromStream extracts the session id from a dynamic session event stream key.
+func WatchEventsSessionIDFromStream(stream string) (string, bool) {
+	trimmed := strings.TrimSpace(stream)
+	prefix := watchEventsSessionStream + watchEventsSessionSeparator
+	if !strings.HasPrefix(trimmed, prefix) {
+		return "", false
+	}
+	sessionID := strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+	return sessionID, sessionID != ""
+}
+
+// WatchEventsBaseStream returns the stable registry stream for a cursor stream key.
+func WatchEventsBaseStream(stream string) string {
+	if _, ok := WatchEventsSessionIDFromStream(stream); ok {
+		return watchEventsSessionStream
+	}
+	return strings.TrimSpace(stream)
 }

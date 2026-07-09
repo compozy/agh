@@ -13,6 +13,7 @@ import (
 
 const (
 	watchEventsPayloadAttemptKey      = "attempt"
+	watchEventsPayloadAgentNameKey    = "agent_name"
 	watchEventsPayloadCausationIDKey  = "causation_id"
 	watchEventsPayloadChannelKey      = "channel"
 	watchEventsPayloadDetailsKey      = "details"
@@ -27,12 +28,25 @@ const (
 	watchEventsPayloadPeerFromKey     = "peer_from"
 	watchEventsPayloadPeerToKey       = "peer_to"
 	watchEventsPayloadReasonKey       = "reason"
+	watchEventsPayloadRecordTypeKey   = "record_type"
+	watchEventsPayloadSequenceKey     = "sequence"
+	watchEventsPayloadSessionIDKey    = "session_id"
 	watchEventsPayloadSurfaceKey      = "surface"
 	watchEventsPayloadThreadIDKey     = "thread_id"
 	watchEventsPayloadTraceIDKey      = "trace_id"
+	watchEventsPayloadTurnIDKey       = "turn_id"
 	watchEventsPayloadWillRetryKey    = "will_retry"
 	watchEventsPayloadWorkIDKey       = "work_id"
 	watchEventsPayloadWorkStateKey    = "work_state"
+
+	watchEventsPayloadCoordinatorSessionIDKey  = "coordinator_session_id"
+	watchEventsPayloadCoordinationChannelIDKey = "coordination_channel_id"
+	watchEventsPayloadDecisionKey              = "decision"
+	watchEventsPayloadDecisionKindKey          = "decision_kind"
+	watchEventsPayloadModelKey                 = "model"
+	watchEventsPayloadProviderKey              = "provider"
+	watchEventsPayloadStopReasonKey            = "stop_reason"
+	watchEventsPayloadWorkflowIDKey            = "workflow_id"
 )
 
 func watchEventsTaskStatusChangedEvent(
@@ -211,6 +225,60 @@ func watchEventsNetworkEvent(
 			watchEventsPayloadCausationIDKey: strings.TrimSpace(payload.CausationID),
 		},
 		LedgerKind: string(kind),
+	}
+}
+
+func watchEventsCoordinatorLifecycleEvent(
+	kind hookspkg.HookEvent,
+	payload hookspkg.CoordinatorLifecyclePayload,
+	now func() time.Time,
+) looppkg.WatchEvent {
+	coordinatorSessionID := strings.TrimSpace(payload.CoordinatorSessionID)
+	return looppkg.WatchEvent{
+		Kind:        string(kind),
+		Stream:      looppkg.WatchEventsObserveStream,
+		At:          watchEventsHookAt(payload.Timestamp, now),
+		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		TaskID:      strings.TrimSpace(payload.TaskID),
+		RunID:       strings.TrimSpace(payload.RunID),
+		SessionID:   coordinatorSessionID,
+		Payload: map[string]any{
+			watchEventsPayloadAgentNameKey:             strings.TrimSpace(payload.AgentName),
+			watchEventsPayloadCoordinatorSessionIDKey:  coordinatorSessionID,
+			watchEventsPayloadCoordinationChannelIDKey: strings.TrimSpace(payload.CoordinationChannelID),
+			watchEventsPayloadWorkflowIDKey:            strings.TrimSpace(payload.WorkflowID),
+			watchEventsPayloadProviderKey:              strings.TrimSpace(payload.Provider),
+			watchEventsPayloadModelKey:                 strings.TrimSpace(payload.Model),
+			watchEventsPayloadDecisionKindKey:          strings.TrimSpace(payload.DecisionKind),
+			watchEventsPayloadDecisionKey:              strings.TrimSpace(payload.Decision),
+			watchEventsPayloadStopReasonKey:            strings.TrimSpace(payload.StopReason),
+			watchEventsPayloadErrorKey:                 strings.TrimSpace(payload.Error),
+		},
+		LedgerKind: string(kind),
+	}
+}
+
+func watchEventsEventPostRecordEvent(
+	payload hookspkg.EventPostRecordPayload,
+	now func() time.Time,
+) looppkg.WatchEvent {
+	sessionID := strings.TrimSpace(payload.SessionID)
+	sequence := payload.Sequence
+	return looppkg.WatchEvent{
+		Kind:        string(hookspkg.HookEventPostRecord),
+		Seq:         sequence,
+		Stream:      looppkg.WatchEventsSessionStreamForSession(sessionID),
+		At:          watchEventsHookAt(payload.Timestamp, now),
+		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		SessionID:   sessionID,
+		Payload: map[string]any{
+			watchEventsPayloadRecordTypeKey: strings.TrimSpace(payload.RecordType),
+			watchEventsPayloadSequenceKey:   sequence,
+			watchEventsPayloadTurnIDKey:     strings.TrimSpace(payload.TurnID),
+			watchEventsPayloadAgentNameKey:  strings.TrimSpace(payload.AgentName),
+			watchEventsPayloadSessionIDKey:  sessionID,
+		},
+		LedgerKind: string(hookspkg.HookEventPostRecord),
 	}
 }
 

@@ -43,6 +43,8 @@ type watchEventsObserverSet struct {
 	loopNodeTerminals []loopNodeTerminalObserver
 	automationRuns    []automationRunWatchObserver
 	network           []networkWatchObserver
+	coordinator       []coordinatorWatchObserver
+	eventRecords      []eventRecordWatchObserver
 }
 
 var hooksNotifierWatchEventsObservers sync.Map

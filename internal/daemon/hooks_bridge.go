@@ -757,13 +757,7 @@ func (n *hooksNotifier) DispatchEventPostRecord(
 	ctx context.Context,
 	payload hookspkg.EventPostRecordPayload,
 ) (hookspkg.EventPostRecordPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookEventPostRecord,
-		payload,
-		hookRuntime.DispatchEventPostRecord,
-	)
+	return dispatchEventPostRecordWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchAgentPreStart(
@@ -978,52 +972,28 @@ func (n *hooksNotifier) DispatchCoordinatorSpawned(
 	ctx context.Context,
 	payload hookspkg.CoordinatorSpawnedPayload,
 ) (hookspkg.CoordinatorSpawnedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookCoordinatorSpawned,
-		payload,
-		hookRuntime.DispatchCoordinatorSpawned,
-	)
+	return dispatchCoordinatorSpawnedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchCoordinatorDecision(
 	ctx context.Context,
 	payload hookspkg.CoordinatorDecisionPayload,
 ) (hookspkg.CoordinatorDecisionPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookCoordinatorDecision,
-		payload,
-		hookRuntime.DispatchCoordinatorDecision,
-	)
+	return dispatchCoordinatorDecisionWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchCoordinatorStopped(
 	ctx context.Context,
 	payload hookspkg.CoordinatorStoppedPayload,
 ) (hookspkg.CoordinatorStoppedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookCoordinatorStopped,
-		payload,
-		hookRuntime.DispatchCoordinatorStopped,
-	)
+	return dispatchCoordinatorStoppedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchCoordinatorFailed(
 	ctx context.Context,
 	payload hookspkg.CoordinatorFailedPayload,
 ) (hookspkg.CoordinatorFailedPayload, error) {
-	return dispatchRuntime(
-		ctx,
-		n,
-		hookspkg.HookCoordinatorFailed,
-		payload,
-		hookRuntime.DispatchCoordinatorFailed,
-	)
+	return dispatchCoordinatorFailedWithWatchObservers(ctx, n, payload)
 }
 
 func (n *hooksNotifier) DispatchTaskBlocked(

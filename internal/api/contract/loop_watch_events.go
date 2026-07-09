@@ -27,6 +27,11 @@ const (
 	LoopWatchEventNetworkWorkOpen   LoopWatchEventKind = "network.work.opened"
 	LoopWatchEventNetworkWorkChange LoopWatchEventKind = "network.work.transitioned"
 	LoopWatchEventNetworkWorkClosed LoopWatchEventKind = "network.work.closed"
+	LoopWatchEventCoordinatorSpawn  LoopWatchEventKind = "coordinator.spawned"
+	LoopWatchEventCoordinatorDecide LoopWatchEventKind = "coordinator.decision"
+	LoopWatchEventCoordinatorStop   LoopWatchEventKind = "coordinator.stopped"
+	LoopWatchEventCoordinatorFail   LoopWatchEventKind = "coordinator.failed"
+	LoopWatchEventPostRecord        LoopWatchEventKind = "event.post_record" // #nosec G101 -- event enum.
 )
 
 // LoopWatchEventKindValues returns the closed watch-events kind vocabulary in
@@ -52,6 +57,11 @@ func LoopWatchEventKindValues() []string {
 		string(LoopWatchEventNetworkWorkOpen),
 		string(LoopWatchEventNetworkWorkChange),
 		string(LoopWatchEventNetworkWorkClosed),
+		string(LoopWatchEventCoordinatorSpawn),
+		string(LoopWatchEventCoordinatorDecide),
+		string(LoopWatchEventCoordinatorStop),
+		string(LoopWatchEventCoordinatorFail),
+		string(LoopWatchEventPostRecord),
 	}
 }
 

@@ -15,6 +15,8 @@ const (
 	watchEventsTestLoopStream       = "loop_run_events"
 	watchEventsTestAutomationStream = "automation_runs"
 	watchEventsTestNetworkStream    = "network_timeline_log"
+	watchEventsTestObserveStream    = "event_summaries"
+	watchEventsTestSessionStream    = "session_events"
 
 	loopRunEventTestStatusChanged = "status_changed"
 	loopRunEventTestNodeSucceeded = "node_succeeded"
@@ -28,8 +30,8 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 		t.Parallel()
 
 		contracts := loop.SupportedWatchEvents()
-		if len(contracts) != 17 {
-			t.Fatalf("SupportedWatchEvents() len = %d, want 17", len(contracts))
+		if len(contracts) != 22 {
+			t.Fatalf("SupportedWatchEvents() len = %d, want 22", len(contracts))
 		}
 		expected := map[hooks.HookEvent]struct {
 			stream      string
@@ -103,6 +105,26 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 				stream:      watchEventsTestNetworkStream,
 				ledgerTypes: []string{string(hooks.HookNetworkWorkClosed)},
 			},
+			hooks.HookCoordinatorSpawned: {
+				stream:      watchEventsTestObserveStream,
+				ledgerTypes: []string{string(hooks.HookCoordinatorSpawned)},
+			},
+			hooks.HookCoordinatorDecision: {
+				stream:      watchEventsTestObserveStream,
+				ledgerTypes: []string{string(hooks.HookCoordinatorDecision)},
+			},
+			hooks.HookCoordinatorStopped: {
+				stream:      watchEventsTestObserveStream,
+				ledgerTypes: []string{string(hooks.HookCoordinatorStopped)},
+			},
+			hooks.HookCoordinatorFailed: {
+				stream:      watchEventsTestObserveStream,
+				ledgerTypes: []string{string(hooks.HookCoordinatorFailed)},
+			},
+			hooks.HookEventPostRecord: {
+				stream:      watchEventsTestSessionStream,
+				ledgerTypes: []string{string(hooks.HookEventPostRecord)},
+			},
 		}
 		catalog := hookCatalogForTest()
 		for kind, contract := range contracts {
@@ -112,7 +134,15 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 			if strings.Contains(string(kind), ".pre") {
 				t.Fatalf("SupportedWatchEvents()[%q] is a pre-state hook", kind)
 			}
-			if len(contract.RequiredVars) != 0 {
+			if kind == hooks.HookEventPostRecord {
+				if !slices.Equal(contract.RequiredVars, []string{"session_id"}) {
+					t.Fatalf(
+						"SupportedWatchEvents()[%q].RequiredVars = %#v, want session_id",
+						kind,
+						contract.RequiredVars,
+					)
+				}
+			} else if len(contract.RequiredVars) != 0 {
 				t.Fatalf(
 					"SupportedWatchEvents()[%q].RequiredVars = %#v, want empty",
 					kind,
@@ -155,6 +185,12 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 		if _, ok := contracts[hooks.HookNetworkPeerLeft]; ok {
 			t.Fatal("SupportedWatchEvents() contains network.peer.left, want unsupported")
 		}
+		if _, ok := contracts[hooks.HookCoordinatorPreSpawn]; ok {
+			t.Fatal("SupportedWatchEvents() contains coordinator.pre_spawn, want unsupported")
+		}
+		if _, ok := contracts[hooks.HookEventPreRecord]; ok {
+			t.Fatal("SupportedWatchEvents() contains event.pre_record, want unsupported")
+		}
 		statusChanged := contracts[hooks.HookTaskStatusChanged]
 		if !slices.Contains(statusChanged.PayloadFields, "to_status") {
 			t.Fatalf(
@@ -175,6 +211,24 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 			t.Fatalf(
 				"network.work.transitioned PayloadFields = %#v, want work_state",
 				networkWork.PayloadFields,
+			)
+		}
+		coordinatorStopped := contracts[hooks.HookCoordinatorStopped]
+		if !slices.Contains(coordinatorStopped.PayloadFields, "stop_reason") {
+			t.Fatalf(
+				"coordinator.stopped PayloadFields = %#v, want stop_reason",
+				coordinatorStopped.PayloadFields,
+			)
+		}
+		eventPostRecord := contracts[hooks.HookEventPostRecord]
+		if slices.Contains(eventPostRecord.PayloadFields, "content") {
+			t.Fatalf("event.post_record PayloadFields = %#v, want content excluded", eventPostRecord.PayloadFields)
+		}
+		if !slices.Contains(eventPostRecord.PayloadFields, "sequence") ||
+			!slices.Contains(eventPostRecord.PayloadFields, "record_type") {
+			t.Fatalf(
+				"event.post_record PayloadFields = %#v, want sequence and record_type",
+				eventPostRecord.PayloadFields,
 			)
 		}
 	})

@@ -144,7 +144,21 @@ func watchEventsGapQuery(
 				ref.Kind,
 			)
 		}
-		streams[contract.Stream] = subscription.Cursors[contract.Stream]
+		matchedCursor := false
+		for stream, cursor := range subscription.Cursors {
+			if looppkg.WatchEventsBaseStream(stream) != contract.Stream {
+				continue
+			}
+			streams[stream] = cursor
+			matchedCursor = true
+		}
+		if !matchedCursor {
+			return looppkg.WatchEventsQuery{}, fmt.Errorf(
+				"%w: watch-events cursor for stream %q is required",
+				looppkg.ErrValidation,
+				contract.Stream,
+			)
+		}
 		for _, ledgerType := range contract.LedgerTypes {
 			trimmed := strings.TrimSpace(ledgerType)
 			if trimmed != "" {

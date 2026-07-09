@@ -191,6 +191,8 @@ func installLoopWatchEventsObserver(
 	state.notifier.AddLoopNodeTerminalObserver(observer)
 	state.notifier.AddAutomationRunWatchObserver(observer)
 	state.notifier.AddNetworkWatchObserver(observer)
+	state.notifier.AddCoordinatorWatchObserver(observer)
+	state.notifier.AddEventRecordWatchObserver(observer)
 	return nil
 }
 

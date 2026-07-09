@@ -382,6 +382,131 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 				})
 			},
 		},
+		{
+			name:   "Should wake from a stopped coordinator payload",
+			kind:   hookspkg.HookCoordinatorStopped,
+			stream: looppkg.WatchEventsObserveStream,
+			filter: `event.session_id == "coord-1" && event.payload.stop_reason == "complete"`,
+			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
+				return observer.OnCoordinatorStopped(ctx, hookspkg.CoordinatorStoppedPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookCoordinatorStopped,
+						Timestamp: fixedNow,
+					},
+					CoordinatorContext: hookspkg.CoordinatorContext{
+						WorkspaceID:          "ws-1",
+						AgentName:            "planner",
+						CoordinatorSessionID: "coord-1",
+						TaskID:               "task-target",
+						RunID:                "run-coord",
+						WorkflowID:           "workflow-1",
+						Provider:             "native",
+					},
+					DecisionKind: "terminal",
+					Decision:     "stop",
+					StopReason:   "complete",
+				})
+			},
+		},
+		{
+			name:   "Should wake from a spawned coordinator payload",
+			kind:   hookspkg.HookCoordinatorSpawned,
+			stream: looppkg.WatchEventsObserveStream,
+			filter: `event.session_id == "coord-1" && event.payload.decision_kind == "spawn"`,
+			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
+				return observer.OnCoordinatorSpawned(ctx, hookspkg.CoordinatorSpawnedPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookCoordinatorSpawned,
+						Timestamp: fixedNow,
+					},
+					CoordinatorContext: hookspkg.CoordinatorContext{
+						WorkspaceID:          "ws-1",
+						AgentName:            "planner",
+						CoordinatorSessionID: "coord-1",
+						TaskID:               "task-target",
+						RunID:                "run-coord",
+						WorkflowID:           "workflow-1",
+						Provider:             "native",
+					},
+					DecisionKind: "spawn",
+					Decision:     "launch",
+				})
+			},
+		},
+		{
+			name:   "Should wake from a coordinator decision payload",
+			kind:   hookspkg.HookCoordinatorDecision,
+			stream: looppkg.WatchEventsObserveStream,
+			filter: `event.session_id == "coord-1" && event.payload.decision == "continue"`,
+			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
+				return observer.OnCoordinatorDecision(ctx, hookspkg.CoordinatorDecisionPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookCoordinatorDecision,
+						Timestamp: fixedNow,
+					},
+					CoordinatorContext: hookspkg.CoordinatorContext{
+						WorkspaceID:          "ws-1",
+						AgentName:            "planner",
+						CoordinatorSessionID: "coord-1",
+						TaskID:               "task-target",
+						RunID:                "run-coord",
+						WorkflowID:           "workflow-1",
+						Provider:             "native",
+					},
+					DecisionKind: "next",
+					Decision:     "continue",
+				})
+			},
+		},
+		{
+			name:   "Should wake from a failed coordinator payload",
+			kind:   hookspkg.HookCoordinatorFailed,
+			stream: looppkg.WatchEventsObserveStream,
+			filter: `event.session_id == "coord-1" && event.payload.error == "boom"`,
+			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
+				return observer.OnCoordinatorFailed(ctx, hookspkg.CoordinatorFailedPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookCoordinatorFailed,
+						Timestamp: fixedNow,
+					},
+					CoordinatorContext: hookspkg.CoordinatorContext{
+						WorkspaceID:          "ws-1",
+						AgentName:            "planner",
+						CoordinatorSessionID: "coord-1",
+						TaskID:               "task-target",
+						RunID:                "run-coord",
+						WorkflowID:           "workflow-1",
+						Provider:             "native",
+					},
+					DecisionKind: "terminal",
+					Decision:     "fail",
+					Error:        "boom",
+				})
+			},
+		},
+		{
+			name:   "Should wake from a content-excluded event post-record payload",
+			kind:   hookspkg.HookEventPostRecord,
+			stream: looppkg.WatchEventsSessionStreamForSession("sess-hot"),
+			filter: `event.session_id == "sess-hot" && event.payload.record_type == "agent_message"`,
+			dispatch: func(ctx context.Context, observer *loopWatchEventsObserver) error {
+				return observer.OnEventPostRecord(ctx, hookspkg.EventPostRecordPayload{
+					PayloadBase: hookspkg.PayloadBase{
+						Event:     hookspkg.HookEventPostRecord,
+						Timestamp: fixedNow,
+					},
+					SessionContext: hookspkg.SessionContext{
+						SessionID:   "sess-hot",
+						AgentName:   "coder",
+						WorkspaceID: "ws-1",
+					},
+					TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
+					RecordType:  "agent_message",
+					Sequence:    42,
+					Content:     json.RawMessage(`{"secret":"do not leak"}`),
+				})
+			},
+		},
 	}
 
 	for _, tc := range cases {

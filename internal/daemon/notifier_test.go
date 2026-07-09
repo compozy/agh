@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -426,8 +427,23 @@ func TestHooksNotifierEmitsGlobalHookDispatchSummariesForAutonomyHooks(t *testin
 	}
 
 	records := summaries.snapshot()
-	if got, want := len(records), 4; got != want {
+	if got, want := len(records), 5; got != want {
 		t.Fatalf("len(summary records) = %d, want %d", got, want)
+	}
+
+	coordinatorWatch := findEventSummaryByType(t, records, string(hookspkg.HookCoordinatorStopped))
+	if got, want := coordinatorWatch.CoordinatorSessionID, "sess-coordinator-1"; got != want {
+		t.Fatalf("coordinator watch CoordinatorSessionID = %q, want %q", got, want)
+	}
+	if got, want := coordinatorWatch.HookEvent, string(hookspkg.HookCoordinatorStopped); got != want {
+		t.Fatalf("coordinator watch HookEvent = %q, want %q", got, want)
+	}
+	var coordinatorWatchContent map[string]any
+	if err := json.Unmarshal(coordinatorWatch.Content, &coordinatorWatchContent); err != nil {
+		t.Fatalf("Unmarshal(coordinator watch content) error = %v", err)
+	}
+	if got, want := coordinatorWatchContent[watchEventsPayloadStopReasonKey], "completed"; got != want {
+		t.Fatalf("coordinator watch stop_reason = %v, want %q", got, want)
 	}
 
 	coordinatorStart := findEventSummaryByHookName(t, records, "coord-stop-observer", "hook.dispatch.start")
@@ -450,6 +466,159 @@ func TestHooksNotifierEmitsGlobalHookDispatchSummariesForAutonomyHooks(t *testin
 	}
 }
 
+func TestHooksNotifierWritesCoordinatorWatchSummaryWithoutConfiguredHook(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 7, 9, 13, 0, 0, 0, time.UTC)
+	summaries := &recordingEventSummaryWriter{}
+	notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
+	notifier.setRuntime(&fakeHookRuntime{}, nil, summaries)
+
+	_, err := notifier.DispatchCoordinatorStopped(testutil.Context(t), hookspkg.CoordinatorStoppedPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookCoordinatorStopped,
+			Timestamp: fixedNow,
+		},
+		CoordinatorContext: hookspkg.CoordinatorContext{
+			WorkspaceID:          "ws-1",
+			AgentName:            "coordinator",
+			CoordinatorSessionID: "sess-coordinator-no-hook",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			Provider:             "mock",
+		},
+		StopReason: "completed",
+	})
+	if err != nil {
+		t.Fatalf("DispatchCoordinatorStopped(no hook) error = %v", err)
+	}
+
+	records := summaries.snapshot()
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(summary records) = %d, want dedicated coordinator row only", got)
+	}
+	record := findEventSummaryByType(t, records, string(hookspkg.HookCoordinatorStopped))
+	if got, want := record.WorkspaceID, "ws-1"; got != want {
+		t.Fatalf("WorkspaceID = %q, want %q", got, want)
+	}
+	if got, want := record.CoordinatorSessionID, "sess-coordinator-no-hook"; got != want {
+		t.Fatalf("CoordinatorSessionID = %q, want %q", got, want)
+	}
+	if got, want := record.HookEvent, string(hookspkg.HookCoordinatorStopped); got != want {
+		t.Fatalf("HookEvent = %q, want %q", got, want)
+	}
+	if got, want := record.WorkflowID, "wf-1"; got != want {
+		t.Fatalf("WorkflowID = %q, want %q", got, want)
+	}
+	if record.HookName != "" {
+		t.Fatalf("HookName = %q, want empty dedicated row", record.HookName)
+	}
+}
+
+func TestHooksNotifierDispatchesPhaseCWatchObservers(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 7, 9, 14, 0, 0, 0, time.UTC)
+	summaries := &recordingEventSummaryWriter{}
+	notifier := newHooksNotifier(discardLogger(), func() time.Time { return fixedNow })
+	notifier.setRuntime(&fakeHookRuntime{}, nil, summaries)
+	coordinatorObserver := &recordingCoordinatorWatchObserver{}
+	eventObserver := &recordingEventRecordWatchObserver{}
+	notifier.AddCoordinatorWatchObserver(coordinatorObserver)
+	notifier.AddEventRecordWatchObserver(eventObserver)
+
+	if _, err := notifier.DispatchCoordinatorSpawned(
+		testutil.Context(t),
+		coordinatorPayloadForWatchObserverTest(hookspkg.HookCoordinatorSpawned, fixedNow),
+	); err != nil {
+		t.Fatalf("DispatchCoordinatorSpawned() error = %v", err)
+	}
+	if _, err := notifier.DispatchCoordinatorDecision(
+		testutil.Context(t),
+		coordinatorPayloadForWatchObserverTest(hookspkg.HookCoordinatorDecision, fixedNow),
+	); err != nil {
+		t.Fatalf("DispatchCoordinatorDecision() error = %v", err)
+	}
+	if _, err := notifier.DispatchCoordinatorStopped(
+		testutil.Context(t),
+		coordinatorPayloadForWatchObserverTest(hookspkg.HookCoordinatorStopped, fixedNow),
+	); err != nil {
+		t.Fatalf("DispatchCoordinatorStopped() error = %v", err)
+	}
+	if _, err := notifier.DispatchCoordinatorFailed(
+		testutil.Context(t),
+		coordinatorPayloadForWatchObserverTest(hookspkg.HookCoordinatorFailed, fixedNow),
+	); err != nil {
+		t.Fatalf("DispatchCoordinatorFailed() error = %v", err)
+	}
+	if _, err := notifier.DispatchEventPostRecord(testutil.Context(t), hookspkg.EventPostRecordPayload{
+		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookEventPostRecord, Timestamp: fixedNow},
+		SessionContext: hookspkg.SessionContext{
+			SessionID:   "sess-hot",
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+		},
+		TurnContext: hookspkg.TurnContext{TurnID: "turn-1"},
+		RecordType:  "agent_message",
+		Sequence:    42,
+		Content:     json.RawMessage(`{"secret":"do not leak"}`),
+	}); err != nil {
+		t.Fatalf("DispatchEventPostRecord() error = %v", err)
+	}
+
+	records := summaries.snapshot()
+	for _, event := range []hookspkg.HookEvent{
+		hookspkg.HookCoordinatorSpawned,
+		hookspkg.HookCoordinatorDecision,
+		hookspkg.HookCoordinatorStopped,
+		hookspkg.HookCoordinatorFailed,
+	} {
+		record := findEventSummaryByType(t, records, string(event))
+		if got, want := record.CoordinatorSessionID, "sess-coordinator-phase-c"; got != want {
+			t.Fatalf("%s CoordinatorSessionID = %q, want %q", event, got, want)
+		}
+		if got, want := record.WorkspaceID, "ws-1"; got != want {
+			t.Fatalf("%s WorkspaceID = %q, want %q", event, got, want)
+		}
+	}
+	if got, want := coordinatorObserver.events, []hookspkg.HookEvent{
+		hookspkg.HookCoordinatorSpawned,
+		hookspkg.HookCoordinatorDecision,
+		hookspkg.HookCoordinatorStopped,
+		hookspkg.HookCoordinatorFailed,
+	}; !slices.Equal(got, want) {
+		t.Fatalf("coordinator observer events = %#v, want %#v", got, want)
+	}
+	if got, want := eventObserver.payloads, []int64{42}; !slices.Equal(got, want) {
+		t.Fatalf("event observer sequences = %#v, want %#v", got, want)
+	}
+}
+
+func coordinatorPayloadForWatchObserverTest(
+	event hookspkg.HookEvent,
+	now time.Time,
+) hookspkg.CoordinatorLifecyclePayload {
+	return hookspkg.CoordinatorLifecyclePayload{
+		PayloadBase: hookspkg.PayloadBase{Event: event, Timestamp: now},
+		CoordinatorContext: hookspkg.CoordinatorContext{
+			WorkspaceID:           "ws-1",
+			AgentName:             "coordinator",
+			CoordinatorSessionID:  "sess-coordinator-phase-c",
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			WorkflowID:            "wf-1",
+			CoordinationChannelID: "chan-1",
+			Provider:              "mock",
+			Model:                 "mock-model",
+		},
+		DecisionKind: "next_action",
+		Decision:     "continue",
+		StopReason:   "completed",
+		Error:        "boom",
+	}
+}
+
 func mustJSON(t *testing.T, value any) json.RawMessage {
 	t.Helper()
 
@@ -458,6 +627,22 @@ func mustJSON(t *testing.T, value any) json.RawMessage {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 	return raw
+}
+
+func findEventSummaryByType(
+	t *testing.T,
+	summaries []store.EventSummary,
+	eventType string,
+) store.EventSummary {
+	t.Helper()
+
+	for _, summary := range summaries {
+		if summary.Type == eventType {
+			return summary
+		}
+	}
+	t.Fatalf("missing event summary type %q in %#v", eventType, summaries)
+	return store.EventSummary{}
 }
 
 func findEventSummaryByHookName(
@@ -508,6 +693,54 @@ func (w *recordingEventSummaryWriter) snapshot() []store.EventSummary {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return append([]store.EventSummary(nil), w.summaries...)
+}
+
+type recordingCoordinatorWatchObserver struct {
+	events []hookspkg.HookEvent
+}
+
+func (o *recordingCoordinatorWatchObserver) OnCoordinatorSpawned(
+	_ context.Context,
+	payload hookspkg.CoordinatorSpawnedPayload,
+) error {
+	o.events = append(o.events, payload.Event)
+	return nil
+}
+
+func (o *recordingCoordinatorWatchObserver) OnCoordinatorDecision(
+	_ context.Context,
+	payload hookspkg.CoordinatorDecisionPayload,
+) error {
+	o.events = append(o.events, payload.Event)
+	return nil
+}
+
+func (o *recordingCoordinatorWatchObserver) OnCoordinatorStopped(
+	_ context.Context,
+	payload hookspkg.CoordinatorStoppedPayload,
+) error {
+	o.events = append(o.events, payload.Event)
+	return nil
+}
+
+func (o *recordingCoordinatorWatchObserver) OnCoordinatorFailed(
+	_ context.Context,
+	payload hookspkg.CoordinatorFailedPayload,
+) error {
+	o.events = append(o.events, payload.Event)
+	return nil
+}
+
+type recordingEventRecordWatchObserver struct {
+	payloads []int64
+}
+
+func (o *recordingEventRecordWatchObserver) OnEventPostRecord(
+	_ context.Context,
+	payload hookspkg.EventPostRecordPayload,
+) error {
+	o.payloads = append(o.payloads, payload.Sequence)
+	return nil
 }
 
 func TestDaemonNativeHooksDriveObserverAndDreamCallbacks(t *testing.T) {

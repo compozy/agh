@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -18,6 +19,7 @@ type nativeToolPolicyResolverDeps struct {
 	Sessions          nativeToolPolicySessionReader
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	AgentResolver     nativeToolPolicyAgentResolver
+	ExtensionRegistry *extensionpkg.Registry
 	ApprovalAvailable bool
 }
 
@@ -34,6 +36,7 @@ type nativeToolPolicyResolver struct {
 	sessions          nativeToolPolicySessionReader
 	workspaceResolver workspacepkg.RuntimeResolver
 	agentResolver     nativeToolPolicyAgentResolver
+	extensionRegistry *extensionpkg.Registry
 	approvalAvailable bool
 }
 
@@ -48,6 +51,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		sessions:          deps.Sessions,
 		workspaceResolver: deps.WorkspaceResolver,
 		agentResolver:     deps.AgentResolver,
+		extensionRegistry: deps.ExtensionRegistry,
 		approvalAvailable: deps.ApprovalAvailable,
 	}, nil
 }
@@ -61,6 +65,7 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,
 		}),
+		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ApprovalAvailable: true,
 	})
 }
@@ -86,6 +91,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		return toolspkg.PolicyInputs{}, err
 	}
 	inputs.ApprovalAvailable = r.approvalAvailable
+	if err := r.applyBundledExtensionTrust(&inputs); err != nil {
+		return toolspkg.PolicyInputs{}, err
+	}
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -98,6 +106,41 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		}
 	}
 	return inputs, nil
+}
+
+func (r *nativeToolPolicyResolver) applyBundledExtensionTrust(inputs *toolspkg.PolicyInputs) error {
+	if r == nil || r.extensionRegistry == nil {
+		return nil
+	}
+	infos, err := r.extensionRegistry.List()
+	if err != nil {
+		return fmt.Errorf("daemon: list bundled extension tool policy sources: %w", err)
+	}
+	for _, info := range infos {
+		if !info.Enabled || info.Source != extensionpkg.SourceBundled {
+			continue
+		}
+		grant := toolspkg.SourceGrant{
+			Kind:  toolspkg.SourceExtension,
+			Owner: strings.TrimSpace(info.Name),
+		}
+		if err := grant.Validate("bundled_extension_source"); err != nil {
+			return fmt.Errorf("daemon: bundled extension source %q: %w", info.Name, err)
+		}
+		if !sourceGrantExists(inputs.TrustedSources, grant) {
+			inputs.TrustedSources = append(inputs.TrustedSources, grant)
+		}
+	}
+	return nil
+}
+
+func sourceGrantExists(grants []toolspkg.SourceGrant, target toolspkg.SourceGrant) bool {
+	for _, grant := range grants {
+		if grant.Kind == target.Kind && grant.Owner == target.Owner {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *nativeToolPolicyResolver) sessionInfo(

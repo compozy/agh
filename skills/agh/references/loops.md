@@ -186,8 +186,11 @@ are subscribable — sync-eligible `pre_*` hooks are rejected. Supported familie
 `loop.node.terminal` (`loop_run_events`); `automation.run.completed`, `automation.run.failed`
 (`automation_runs`); `network.message.persisted`, `network.thread.opened`,
 `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`,
-`network.work.closed` (`network_timeline_log`). Phase C (`coordinator`, `event`) extends the matrix
-as it lands.
+`network.work.closed` (`network_timeline_log`); `coordinator.spawned`, `coordinator.decision`,
+`coordinator.stopped`, `coordinator.failed` (`event_summaries`); `event.post_record`
+(`session_events:<session_id>`). `event.post_record` must constrain `event.session_id` with equality
+or lint returns `watch_events_filter_too_broad`; its output excludes record content and exposes only
+metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `session_id`.
 
 A Loop with a `watch-events` node is a watch Loop: it holds `watching` between wakes, defaults to
 `iteration_cap: 0`, and **never stalls on silence** — a quiet subscription is healthy dormancy. The

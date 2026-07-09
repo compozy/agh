@@ -61967,7 +61967,12 @@ export interface operations {
                   | "network.direct_room.opened"
                   | "network.work.opened"
                   | "network.work.transitioned"
-                  | "network.work.closed";
+                  | "network.work.closed"
+                  | "coordinator.spawned"
+                  | "coordinator.decision"
+                  | "coordinator.stopped"
+                  | "coordinator.failed"
+                  | "event.post_record";
               }[];
             } | null;
           };

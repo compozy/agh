@@ -122,8 +122,15 @@ func (c *lintContext) lintWatchEventsFilterReferences(node dsl.Node, namespace r
 		return
 	}
 	eventNamespace := namespaceWithEvent(namespace)
+	supported := SupportedWatchEvents()
 	for idx, subscription := range node.Events {
+		kind := hooks.HookEvent(strings.TrimSpace(subscription.Kind))
+		contract, ok := supported[kind]
+		if !ok {
+			continue
+		}
 		if strings.TrimSpace(subscription.Filter) == "" {
+			c.lintWatchEventsRequiredVars(node, idx, subscription, contract)
 			continue
 		}
 		condition, err := c.compileCondition(subscription.Filter, eventNamespace)
@@ -141,7 +148,29 @@ func (c *lintContext) lintWatchEventsFilterReferences(node dsl.Node, namespace r
 		if condition != nil {
 			c.warnUnknownOutputReferences(node.ID, condition.References, eventNamespace)
 		}
+		c.lintWatchEventsRequiredVars(node, idx, subscription, contract)
 	}
+}
+
+func (c *lintContext) lintWatchEventsRequiredVars(
+	node dsl.Node,
+	idx int,
+	subscription dsl.EventSubscription,
+	contract WatchEventsContract,
+) {
+	if !slices.Contains(contract.RequiredVars, watchEventsFieldSessionID) {
+		return
+	}
+	if watchEventsFilterHasSessionConstraint(subscription.Filter) {
+		return
+	}
+	c.add(
+		node.ID,
+		CodeWatchEventsFilterTooBroad,
+		"watch-events events[%d].filter for kind %q must constrain event.session_id with equality",
+		idx,
+		subscription.Kind,
+	)
 }
 
 func watchEventsOutputSchema() refs.Schema {

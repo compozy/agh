@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -440,6 +443,177 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("network cursor = %d, want event seq %d", got, want)
 		}
 	})
+
+	t.Run("Should replay coordinator observe rows monotonically across restart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 9, 9, 0, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		appendCoordinatorWatchSummaryForTest(
+			ctx,
+			t,
+			globalDB,
+			hookspkg.HookCoordinatorStopped,
+			"ws-a",
+			"coord-a-before",
+			now,
+		)
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsObserveStream: 0},
+			Kinds:       []string{string(hookspkg.HookCoordinatorStopped)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(coordinator before restart) error = %v", err)
+		}
+		cursor := cursors[looppkg.WatchEventsObserveStream]
+		if cursor == 0 {
+			t.Fatal("coordinator observe cursor = 0, want rowid anchor")
+		}
+		path := globalDB.path
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(globalDB before restart) error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(restart) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(reopened) error = %v", err)
+			}
+		})
+		appendCoordinatorWatchSummaryForTest(
+			ctx,
+			t,
+			reopened,
+			hookspkg.HookCoordinatorStopped,
+			"ws-a",
+			"coord-a-after",
+			now.Add(time.Second),
+		)
+		appendCoordinatorWatchSummaryForTest(
+			ctx,
+			t,
+			reopened,
+			hookspkg.HookCoordinatorStopped,
+			"ws-b",
+			"coord-b-after",
+			now.Add(2*time.Second),
+		)
+
+		events, err := reopened.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsObserveStream: cursor},
+			Kinds:       []string{string(hookspkg.HookCoordinatorStopped)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(coordinator after restart) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("coordinator events len = %d, want %d: %#v", got, want, events)
+		}
+		event := events[0]
+		if event.Seq <= cursor ||
+			event.Kind != string(hookspkg.HookCoordinatorStopped) ||
+			event.Stream != looppkg.WatchEventsObserveStream ||
+			event.WorkspaceID != "ws-a" ||
+			event.SessionID != "coord-a-after" {
+			t.Fatalf("coordinator event = %#v, want ws-a row after restart", event)
+		}
+		if got, want := event.Payload[watchEventsPayloadCoordinatorSessionIDKey], "coord-a-after"; got != want {
+			t.Fatalf("coordinator_session_id = %v, want %q", got, want)
+		}
+		assertWatchEventRFC3339UTC(t, event.At)
+	})
+
+	t.Run("Should read session post-record rows without exposing content", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		registerWatchSessionForTest(ctx, t, globalDB, "sess-watch-a", "ws-a", "coder")
+		registerWatchSessionForTest(ctx, t, globalDB, "sess-watch-b", "ws-b", "reviewer")
+		appendSessionWatchEventForTest(
+			ctx,
+			t,
+			globalDB,
+			"sess-watch-a",
+			store.SessionEvent{
+				TurnID:    "turn-target-1",
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"text":"do not leak target content"}`,
+				Timestamp: now,
+			},
+		)
+		appendSessionWatchEventForTest(
+			ctx,
+			t,
+			globalDB,
+			"sess-watch-b",
+			store.SessionEvent{
+				TurnID:    "turn-foreign-1",
+				Type:      "agent_message",
+				AgentName: "reviewer",
+				Content:   `{"text":"do not leak foreign content"}`,
+				Timestamp: now.Add(time.Second),
+			},
+		)
+		stream := looppkg.WatchEventsSessionStreamForSession("sess-watch-a")
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{stream: 0},
+			Kinds:       []string{string(hookspkg.HookEventPostRecord)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(event.post_record) error = %v", err)
+		}
+		if got, want := cursors[stream], int64(1); got != want {
+			t.Fatalf("session cursor = %d, want %d", got, want)
+		}
+		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{stream: 0},
+			Kinds:       []string{string(hookspkg.HookEventPostRecord)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(event.post_record) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("session events len = %d, want %d: %#v", got, want, events)
+		}
+		event := events[0]
+		if event.Kind != string(hookspkg.HookEventPostRecord) ||
+			event.Stream != stream ||
+			event.SessionID != "sess-watch-a" ||
+			event.WorkspaceID != "ws-a" ||
+			event.Seq != 1 {
+			t.Fatalf("session event = %#v, want target session metadata", event)
+		}
+		if got, want := event.Payload[watchEventsPayloadRecordTypeKey], "agent_message"; got != want {
+			t.Fatalf("record_type = %v, want %q", got, want)
+		}
+		if got, want := event.Payload[watchEventsPayloadTurnIDKey], "turn-target-1"; got != want {
+			t.Fatalf("turn_id = %v, want %q", got, want)
+		}
+		if _, ok := event.Payload["content"]; ok {
+			t.Fatalf("event.post_record payload leaked content field: %#v", event.Payload)
+		}
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			t.Fatalf("Marshal(event) error = %v", err)
+		}
+		if strings.Contains(string(encoded), "do not leak") || strings.Contains(string(encoded), "content") {
+			t.Fatalf("event.post_record encoded event leaked content: %s", encoded)
+		}
+	})
 }
 
 func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
@@ -860,6 +1034,183 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 			t.Fatalf("network downstream output = %#v, want enqueued", downstream)
 		}
 	})
+
+	t.Run(
+		"Should reconcile coordinator stopped subscriptions from observe rows written while down",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+			globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+			created := parkWatchEventsLoopWithDefinitionForTest(
+				ctx,
+				t,
+				globalDB,
+				now,
+				"watch-events-coordinator-recovery",
+				map[string]any{"coordinator_session_id": "coord-target"},
+				compileCoordinatorStoppedWatchEventsIntegrationDefinitionForTest(t),
+			)
+			appendCoordinatorWatchSummaryForTest(
+				ctx,
+				t,
+				globalDB,
+				hookspkg.HookCoordinatorStopped,
+				"ws-a",
+				"coord-target",
+				now.Add(time.Second),
+			)
+			appendCoordinatorWatchSummaryForTest(
+				ctx,
+				t,
+				globalDB,
+				hookspkg.HookCoordinatorStopped,
+				"ws-a",
+				"coord-foreign",
+				now.Add(2*time.Second),
+			)
+			actor := coordinatorActorContextForTest()
+			runs, err := globalDB.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now.Add(3*time.Second))
+			if err != nil {
+				t.Fatalf("ReconcileLoopCoordinatorsOnBoot(coordinator) error = %v", err)
+			}
+			if got, want := len(runs), 1; got != want {
+				t.Fatalf("coordinator boot reconcile runs = %d, want %d", got, want)
+			}
+			if got, want := runs[0].LoopRunID, string(created.ID); got != want {
+				t.Fatalf("coordinator boot reconcile loop_run_id = %q, want %q", got, want)
+			}
+
+			events, byNode := claimAndRunWatchEventsWakeForTest(
+				ctx,
+				t,
+				globalDB,
+				created,
+				compileCoordinatorStoppedWatchEventsIntegrationDefinitionForTest(t),
+				runs[0],
+				now.Add(4*time.Second),
+				"watch_coordinator",
+			)
+			if got, want := len(events), 1; got != want {
+				t.Fatalf("coordinator confirmed events len = %d, want %d: %#v", got, want, events)
+			}
+			event := events[0]
+			if event.Kind != string(hookspkg.HookCoordinatorStopped) ||
+				event.WorkspaceID != "ws-a" ||
+				event.SessionID != "coord-target" ||
+				event.Stream != looppkg.WatchEventsObserveStream {
+				t.Fatalf("coordinator confirmed event = %#v", event)
+			}
+			if got, want := event.Payload[watchEventsPayloadStopReasonKey], "completed"; got != want {
+				t.Fatalf("coordinator stop_reason = %v, want %q", got, want)
+			}
+			downstream := byNode["summarize"]
+			if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
+				t.Fatalf("coordinator downstream output = %#v, want enqueued", downstream)
+			}
+		},
+	)
+
+	t.Run(
+		"Should reconcile session-scoped event post-record subscriptions without content leakage",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 9, 12, 30, 0, 0, time.UTC)
+			globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+			registerWatchSessionForTest(ctx, t, globalDB, "sess-target", "ws-a", "coder")
+			registerWatchSessionForTest(ctx, t, globalDB, "sess-foreign", "ws-a", "reviewer")
+			appendSessionWatchEventForTest(ctx, t, globalDB, "sess-target", store.SessionEvent{
+				TurnID:    "turn-target-seed",
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"text":"seed target content"}`,
+				Timestamp: now,
+			})
+			appendSessionWatchEventForTest(ctx, t, globalDB, "sess-foreign", store.SessionEvent{
+				TurnID:    "turn-foreign-seed",
+				Type:      "agent_message",
+				AgentName: "reviewer",
+				Content:   `{"text":"seed foreign content"}`,
+				Timestamp: now,
+			})
+			created := parkWatchEventsLoopWithDefinitionForTest(
+				ctx,
+				t,
+				globalDB,
+				now.Add(time.Second),
+				"watch-events-session-recovery",
+				map[string]any{watchEventsPayloadSessionIDKey: "sess-target"},
+				compileEventPostRecordWatchEventsIntegrationDefinitionForTest(t),
+			)
+			target := appendSessionWatchEventForTest(ctx, t, globalDB, "sess-target", store.SessionEvent{
+				TurnID:    "turn-target-after",
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"text":"target content must not leak"}`,
+				Timestamp: now.Add(2 * time.Second),
+			})
+			appendSessionWatchEventForTest(ctx, t, globalDB, "sess-foreign", store.SessionEvent{
+				TurnID:    "turn-foreign-after",
+				Type:      "agent_message",
+				AgentName: "reviewer",
+				Content:   `{"text":"foreign content must not leak"}`,
+				Timestamp: now.Add(3 * time.Second),
+			})
+			actor := coordinatorActorContextForTest()
+			runs, err := globalDB.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now.Add(4*time.Second))
+			if err != nil {
+				t.Fatalf("ReconcileLoopCoordinatorsOnBoot(event.post_record) error = %v", err)
+			}
+			if got, want := len(runs), 1; got != want {
+				t.Fatalf("event.post_record boot reconcile runs = %d, want %d", got, want)
+			}
+			if got, want := runs[0].LoopRunID, string(created.ID); got != want {
+				t.Fatalf("event.post_record boot reconcile loop_run_id = %q, want %q", got, want)
+			}
+
+			events, byNode := claimAndRunWatchEventsWakeForTest(
+				ctx,
+				t,
+				globalDB,
+				created,
+				compileEventPostRecordWatchEventsIntegrationDefinitionForTest(t),
+				runs[0],
+				now.Add(5*time.Second),
+				"watch_session_events",
+			)
+			if got, want := len(events), 1; got != want {
+				t.Fatalf("event.post_record confirmed events len = %d, want %d: %#v", got, want, events)
+			}
+			event := events[0]
+			if event.Kind != string(hookspkg.HookEventPostRecord) ||
+				event.WorkspaceID != "ws-a" ||
+				event.SessionID != "sess-target" ||
+				event.Stream != looppkg.WatchEventsSessionStreamForSession("sess-target") ||
+				event.Seq != target.Sequence {
+				t.Fatalf("event.post_record confirmed event = %#v", event)
+			}
+			if got, want := event.Payload[watchEventsPayloadTurnIDKey], "turn-target-after"; got != want {
+				t.Fatalf("event.post_record turn_id = %v, want %q", got, want)
+			}
+			if _, ok := event.Payload["content"]; ok {
+				t.Fatalf("event.post_record payload leaked content field: %#v", event.Payload)
+			}
+			encoded, err := json.Marshal(event)
+			if err != nil {
+				t.Fatalf("Marshal(event.post_record confirmed event) error = %v", err)
+			}
+			if strings.Contains(string(encoded), "must not leak") || strings.Contains(string(encoded), "content") {
+				t.Fatalf("event.post_record confirmed event leaked content: %s", encoded)
+			}
+			downstream := byNode["summarize"]
+			if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
+				t.Fatalf("event.post_record downstream output = %#v, want enqueued", downstream)
+			}
+		},
+	)
 }
 
 func TestGlobalDBWatchEventsHelpers(t *testing.T) {
@@ -1176,6 +1527,102 @@ func appendTaskWatchEventForTest(
 	}
 }
 
+func appendCoordinatorWatchSummaryForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	event hookspkg.HookEvent,
+	workspaceID string,
+	coordinatorSessionID string,
+	at time.Time,
+) {
+	t.Helper()
+	content, err := json.Marshal(map[string]any{
+		watchEventsPayloadAgentNameKey:             "coordinator-agent",
+		watchEventsPayloadCoordinatorSessionIDKey:  coordinatorSessionID,
+		watchEventsPayloadCoordinationChannelIDKey: "default",
+		watchEventsPayloadWorkflowIDKey:            "wf-watch",
+		watchEventsPayloadProviderKey:              "mock",
+		watchEventsPayloadModelKey:                 "mock-model",
+		watchEventsPayloadDecisionKindKey:          "stop",
+		watchEventsPayloadDecisionKey:              "stop after verification",
+		watchEventsPayloadStopReasonKey:            "completed",
+	})
+	if err != nil {
+		t.Fatalf("Marshal(coordinator watch content) error = %v", err)
+	}
+	if err := globalDB.WriteEventSummary(ctx, EventSummary{
+		SessionID:   coordinatorSessionID,
+		WorkspaceID: workspaceID,
+		Type:        string(event),
+		AgentName:   "coordinator-agent",
+		Provider:    "mock",
+		Outcome:     "info",
+		Content:     content,
+		EventCorrelation: store.EventCorrelation{
+			HookEvent:            string(event),
+			CoordinatorSessionID: coordinatorSessionID,
+			WorkflowID:           "wf-watch",
+		},
+		Summary:   "coordinator watch summary",
+		Timestamp: at,
+	}); err != nil {
+		t.Fatalf("WriteEventSummary(%s) error = %v", event, err)
+	}
+}
+
+func registerWatchSessionForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	sessionID string,
+	workspaceID string,
+	agentName string,
+) {
+	t.Helper()
+	if err := globalDB.RegisterSession(ctx, SessionInfo{
+		ID:          sessionID,
+		Name:        sessionID,
+		AgentName:   agentName,
+		Provider:    "mock",
+		WorkspaceID: workspaceID,
+		SessionType: defaultSessionType,
+		State:       globalDBSessionStateActive,
+		Lineage:     store.NormalizeSessionLineage(sessionID, nil),
+		CreatedAt:   time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("RegisterSession(%s) error = %v", sessionID, err)
+	}
+}
+
+func appendSessionWatchEventForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	sessionID string,
+	event store.SessionEvent,
+) store.SessionEvent {
+	t.Helper()
+	sessionDir := filepath.Join(sessionsDirForDatabasePath(globalDB.path), sessionID)
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
+	}
+	writer, err := sessiondb.OpenSessionDB(ctx, sessionID, store.SessionDBFile(sessionDir))
+	if err != nil {
+		t.Fatalf("OpenSessionDB(%s) error = %v", sessionID, err)
+	}
+	persisted, recordErr := writer.RecordPersisted(ctx, event)
+	closeErr := writer.Close(ctx)
+	if recordErr != nil {
+		t.Fatalf("RecordPersisted(%s) error = %v", sessionID, recordErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("Close(session %s) error = %v", sessionID, closeErr)
+	}
+	return persisted
+}
+
 func networkWatchThreadMessageForTest(
 	workspaceID string,
 	messageID string,
@@ -1296,6 +1743,82 @@ func compileWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.Resol
 	})
 	if err != nil {
 		t.Fatalf("Compile(watch-events integration) error = %v", err)
+	}
+	return resolved
+}
+
+func compileCoordinatorStoppedWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
+	t.Helper()
+	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Inputs: map[string]dsl.Input{
+			"coordinator_session_id": {Type: dsl.InputTypeString},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "watch_coordinator",
+					Class: dsl.NodeClassSource,
+					Kind:  string(dsl.SourceWatchEvents),
+					Events: []dsl.EventSubscription{{
+						Kind: string(hookspkg.HookCoordinatorStopped),
+						Filter: "event.session_id == inputs.coordinator_session_id" +
+							" && " + `event.payload.stop_reason == "completed"`,
+					}},
+				},
+				{
+					ID:    "summarize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "watch_coordinator", To: "summarize"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile(coordinator watch-events integration) error = %v", err)
+	}
+	return resolved
+}
+
+func compileEventPostRecordWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
+	t.Helper()
+	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Inputs: map[string]dsl.Input{
+			watchEventsPayloadSessionIDKey: {Type: dsl.InputTypeString},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "watch_session_events",
+					Class: dsl.NodeClassSource,
+					Kind:  string(dsl.SourceWatchEvents),
+					Events: []dsl.EventSubscription{{
+						Kind: string(hookspkg.HookEventPostRecord),
+						Filter: "event.session_id == inputs.session_id" +
+							" && " + `event.payload.record_type == "agent_message"`,
+					}},
+				},
+				{
+					ID:    "summarize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "watch_session_events", To: "summarize"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile(event.post_record watch-events integration) error = %v", err)
 	}
 	return resolved
 }

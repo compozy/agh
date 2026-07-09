@@ -55,7 +55,7 @@ type loopWatchEventsObserver struct {
 	backstop loopCoordinatorBackstopRunner
 	actor    taskpkg.ActorContext
 	now      func() time.Time
-	compiler *watchEventsDoorbellCompiler
+	compiler watchEventsDoorbellMatcher
 
 	mu     sync.RWMutex
 	byKind map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription
@@ -68,6 +68,8 @@ var _ loopTerminalObserver = (*loopWatchEventsObserver)(nil)
 var _ loopNodeTerminalObserver = (*loopWatchEventsObserver)(nil)
 var _ automationRunWatchObserver = (*loopWatchEventsObserver)(nil)
 var _ networkWatchObserver = (*loopWatchEventsObserver)(nil)
+var _ coordinatorWatchObserver = (*loopWatchEventsObserver)(nil)
+var _ eventRecordWatchObserver = (*loopWatchEventsObserver)(nil)
 
 func newLoopWatchEventsObserver(
 	store loopWatchEventsStore,
@@ -237,6 +239,41 @@ func (o *loopWatchEventsObserver) OnNetworkWorkClosed(
 	payload hookspkg.NetworkWorkClosedPayload,
 ) error {
 	return o.matchAndWake(ctx, watchEventsNetworkEvent(hookspkg.HookNetworkWorkClosed, payload, o.now))
+}
+
+func (o *loopWatchEventsObserver) OnCoordinatorSpawned(
+	ctx context.Context,
+	payload hookspkg.CoordinatorSpawnedPayload,
+) error {
+	return o.matchAndWake(ctx, watchEventsCoordinatorLifecycleEvent(hookspkg.HookCoordinatorSpawned, payload, o.now))
+}
+
+func (o *loopWatchEventsObserver) OnCoordinatorDecision(
+	ctx context.Context,
+	payload hookspkg.CoordinatorDecisionPayload,
+) error {
+	return o.matchAndWake(ctx, watchEventsCoordinatorLifecycleEvent(hookspkg.HookCoordinatorDecision, payload, o.now))
+}
+
+func (o *loopWatchEventsObserver) OnCoordinatorStopped(
+	ctx context.Context,
+	payload hookspkg.CoordinatorStoppedPayload,
+) error {
+	return o.matchAndWake(ctx, watchEventsCoordinatorLifecycleEvent(hookspkg.HookCoordinatorStopped, payload, o.now))
+}
+
+func (o *loopWatchEventsObserver) OnCoordinatorFailed(
+	ctx context.Context,
+	payload hookspkg.CoordinatorFailedPayload,
+) error {
+	return o.matchAndWake(ctx, watchEventsCoordinatorLifecycleEvent(hookspkg.HookCoordinatorFailed, payload, o.now))
+}
+
+func (o *loopWatchEventsObserver) OnEventPostRecord(
+	ctx context.Context,
+	payload hookspkg.EventPostRecordPayload,
+) error {
+	return o.matchAndWake(ctx, watchEventsEventPostRecordEvent(payload, o.now))
 }
 
 func (o *loopWatchEventsObserver) matchAndWake(ctx context.Context, event looppkg.WatchEvent) error {

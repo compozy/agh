@@ -17,6 +17,10 @@ type watchEventsDoorbellCondition struct {
 	nodeScoped bool
 }
 
+type watchEventsDoorbellMatcher interface {
+	Match(raw string, inputs map[string]any, event looppkg.WatchEvent) bool
+}
+
 type watchEventsDoorbellCompiler struct {
 	env   *cel.Env
 	mu    sync.Mutex
