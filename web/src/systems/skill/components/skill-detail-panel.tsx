@@ -24,6 +24,7 @@ import {
 import {
   deriveSkillAuthor,
   deriveSkillCapabilities,
+  deriveSkillDisplaySource,
   deriveSkillRecentCalls,
   skillSourceTone,
 } from "../lib/skill-formatters";
@@ -403,7 +404,7 @@ function SkillDetailPanel({
             ) : null}
             {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
             <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-              {skill.provenance?.precedence_tier ?? skill.source}
+              {deriveSkillDisplaySource(skill)}
             </Pill>
           </>
         }

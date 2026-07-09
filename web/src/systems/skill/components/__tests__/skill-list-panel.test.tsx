@@ -68,6 +68,12 @@ describe("SkillListPanel", () => {
     expect(screen.getByTestId("skill-item-mp-plugin")).toBeInTheDocument();
     expect(screen.getByTestId("skill-item-ws-tool")).toBeInTheDocument();
     expect(screen.queryByTestId(/^skill-group-/)).not.toBeInTheDocument();
+    // Assert the actual DOM order proves name sorting: the fixture is supplied as
+    // [alpha, beta, ws-tool, mp-plugin], so a no-op sort would leave mp-plugin last.
+    const renderedOrder = screen
+      .getAllByTestId(/^skill-item-/)
+      .map(el => el.getAttribute("data-skill"));
+    expect(renderedOrder).toEqual(["alpha", "beta", "mp-plugin", "ws-tool"]);
   });
 
   it("Should link each row to /skills/$name", () => {

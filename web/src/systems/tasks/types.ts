@@ -126,3 +126,6 @@ export type TaskRunStatus = TaskRun["status"];
 export type TaskInboxLane = TaskInboxItem["lane"];
 
 export type TaskViewMode = "list" | "kanban" | "dashboard" | "inbox";
+
+/** Sort dimension for the tasks list surface toolbar. */
+export type TaskListSortKey = "recent" | "priority";

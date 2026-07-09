@@ -16,6 +16,7 @@ import {
   parseLoopStatusFilter,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 import { useLoopBindingIndex } from "./use-loop-bindings";
 
@@ -25,11 +26,6 @@ export interface LoopsRouteSearch {
   kind?: Exclude<LoopKindFilter, "all">;
   category?: string;
   status?: LoopStatusFilter;
-}
-
-function normalizeSearchValue(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
 }
 
 /** View-model for the Loops catalog route: URL state, data, bindings, and Run launch. */
@@ -55,7 +51,7 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
   const updateSearch = useCallback(
     (updater: (current: LoopsRouteSearch) => LoopsRouteSearch) => {
       void navigate({
-        search: current => updater((current as LoopsRouteSearch | undefined) ?? {}),
+        search: current => updater(current),
         to: "/loops",
       });
     },
@@ -66,7 +62,7 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     (nextQuery: string) => {
       updateSearch(current => ({
         ...current,
-        q: normalizeSearchValue(nextQuery),
+        q: normalizeListingSearchValue(nextQuery),
       }));
     },
     [updateSearch]

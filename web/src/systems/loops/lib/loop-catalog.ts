@@ -14,6 +14,11 @@ export function loopKind(entry: Pick<LoopCatalogEntry, "source">): LoopKind {
   return entry.source === "workspace" ? "workspace" : "read-only";
 }
 
+/** Human label for a loop's editability source, shared by the catalog row and card meta. */
+export function loopSourceLabel(entry: Pick<LoopCatalogEntry, "source">): string {
+  return entry.source === "workspace" ? "Workspace" : "Read-only";
+}
+
 /**
  * The category a catalog row groups under. The daemon exposes a single free-text
  * `catalog.category`; the filter pills are derived from the values actually present

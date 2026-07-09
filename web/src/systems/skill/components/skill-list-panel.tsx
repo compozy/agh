@@ -19,7 +19,11 @@ import {
   type SkillFilterState,
   type SkillSourceFilter,
 } from "../lib/skill-list-filters";
-import { skillSourceLabel, skillSourceTone } from "../lib/skill-formatters";
+import {
+  deriveSkillDisplaySource,
+  skillSourceLabel,
+  skillSourceTone,
+} from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
 
 export interface SkillListPanelProps {
@@ -63,7 +67,7 @@ function SkillEnabledSwitch({ skill, onDisable, onEnable, isActionPending }: Ski
 }
 
 function SkillListingRow({ skill, onDisable, onEnable, isActionPending }: SkillRowProps) {
-  const source = skill.provenance?.precedence_tier ?? skill.source;
+  const source = deriveSkillDisplaySource(skill);
   return (
     <ListingRow data-skill={skill.name} data-testid={`skill-item-${skill.name}`}>
       <ListingRow.Link
@@ -113,7 +117,7 @@ function SkillListingRow({ skill, onDisable, onEnable, isActionPending }: SkillR
 }
 
 function SkillCatalogCard({ skill, onDisable, onEnable, isActionPending }: SkillRowProps) {
-  const source = skill.provenance?.precedence_tier ?? skill.source;
+  const source = deriveSkillDisplaySource(skill);
   return (
     <CatalogCard actionable data-skill={skill.name} data-testid={`skill-card-${skill.name}`}>
       <Link

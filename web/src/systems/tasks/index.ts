@@ -61,6 +61,7 @@ export type {
   TaskInspectView,
   TaskListFilter,
   TaskListItem,
+  TaskListSortKey,
   TaskOwnerKind,
   TaskPriority,
   TaskRecord,

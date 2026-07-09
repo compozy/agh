@@ -42,6 +42,15 @@ export function skillSourceLabel(source: string): string {
   return source;
 }
 
+/**
+ * The display source for a skill: the provenance precedence tier when present
+ * (e.g. an installed marketplace skill resolves to its tier), otherwise the raw
+ * source. Single source of truth for the row, card, and detail-header labels.
+ */
+export function deriveSkillDisplaySource(skill: SkillPayload): string {
+  return skill.provenance?.precedence_tier ?? skill.source;
+}
+
 export function skillStatusTone(enabled: boolean): "success" | "neutral" {
   return enabled ? "success" : "neutral";
 }

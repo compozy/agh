@@ -116,9 +116,16 @@ function ThreadsListSkeleton() {
       data-testid="network-thread-list-skeleton"
       rowClassName="border-b border-line px-4 py-3"
     >
-      <Skeleton className="h-3.5 w-2/3" />
-      <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-3/4" />
+      {/* Mirror the real row's 34px leading icon well so the text column starts at
+          the same offset and the skeleton doesn't shift when content resolves. */}
+      <div className="flex items-start gap-3.5">
+        <Skeleton className="size-[34px] shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Skeleton className="h-3.5 w-2/3" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+      </div>
     </SkeletonRows>
   );
 }

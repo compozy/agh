@@ -634,6 +634,19 @@ const SECTIONS: ShowcaseSection[] = [
   { id: "layout", label: "Sidebar & SplitPane", anchor: "#sidebar-operator-ui" },
   { id: "listing-row", label: "ListingRow", anchor: "#listing-row" },
 ];
+
+/**
+ * Resolve a section by its stable `id` instead of a positional index, so section
+ * labels stay pointed at the right entry even if SECTIONS is reordered.
+ */
+function sectionById(id: string): ShowcaseSection {
+  const section = SECTIONS.find(entry => entry.id === id);
+  if (!section) {
+    throw new Error(`Unknown showcase section id: ${id}`);
+  }
+  return section;
+}
+
 const FILTERS = [
   { label: "All", value: "all" },
   { label: "Primitives", value: "primitives" },
@@ -771,7 +784,7 @@ function FoundationsTokenSection() {
     <Section
       id="foundations"
       data-testid="section-foundations"
-      label={<SectionLink section={SECTIONS[0]}>Foundations: Tokens</SectionLink>}
+      label={<SectionLink section={sectionById("foundations")}>Foundations: Tokens</SectionLink>}
       right={<Pill mono>tokens.css</Pill>}
     >
       <div className="flex flex-col gap-6 pt-4">
@@ -855,7 +868,7 @@ function TypographySection() {
     <Section
       id="typography"
       data-testid="section-typography"
-      label={<SectionLink section={SECTIONS[1]}>Foundations: Typography</SectionLink>}
+      label={<SectionLink section={sectionById("typography")}>Foundations: Typography</SectionLink>}
       right={<Pill mono>Inter · JetBrains Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
@@ -904,7 +917,7 @@ function ButtonsAndPillsSection() {
     <Section
       id="buttons"
       data-testid="section-buttons"
-      label={<SectionLink section={SECTIONS[2]}>Buttons & Pills</SectionLink>}
+      label={<SectionLink section={sectionById("buttons")}>Buttons & Pills</SectionLink>}
       right={
         <Pill mono tone="accent">
           action
@@ -972,7 +985,7 @@ function InputsAndSearchSection() {
     <Section
       id="inputs"
       data-testid="section-inputs"
-      label={<SectionLink section={SECTIONS[3]}>Inputs & Search</SectionLink>}
+      label={<SectionLink section={sectionById("inputs")}>Inputs & Search</SectionLink>}
       right={<Pill mono>form primitives</Pill>}
     >
       <div className="grid gap-6 pt-4 md:grid-cols-2">
@@ -1060,7 +1073,11 @@ function StatusAndMetricSection() {
     <Section
       id="status"
       data-testid="section-status"
-      label={<SectionLink section={SECTIONS[4]}>Status, Metric, MonoBadge, KindChip</SectionLink>}
+      label={
+        <SectionLink section={sectionById("status")}>
+          Status, Metric, MonoBadge, KindChip
+        </SectionLink>
+      }
       right={
         <Pill mono tone="info">
           signal
@@ -1143,7 +1160,11 @@ function FeedbackSection() {
     <Section
       id="feedback"
       data-testid="section-feedback"
-      label={<SectionLink section={SECTIONS[5]}>Feedback (Alert, Empty, Toaster)</SectionLink>}
+      label={
+        <SectionLink section={sectionById("feedback")}>
+          Feedback (Alert, Empty, Toaster)
+        </SectionLink>
+      }
       right={
         <Pill mono tone="warning">
           state
@@ -1197,7 +1218,11 @@ function OverlaysSection() {
     <Section
       id="overlays"
       data-testid="section-overlays"
-      label={<SectionLink section={SECTIONS[6]}>Dialog · Sheet · Popover · Tooltip</SectionLink>}
+      label={
+        <SectionLink section={sectionById("overlays")}>
+          Dialog · Sheet · Popover · Tooltip
+        </SectionLink>
+      }
       right={
         <Pill mono tone="accent">
           motion
@@ -1349,7 +1374,7 @@ agh session list --active`;
     <Section
       id="code-chat"
       data-testid="section-code-chat"
-      label={<SectionLink section={SECTIONS[7]}>Code & Chat</SectionLink>}
+      label={<SectionLink section={sectionById("code-chat")}>Code & Chat</SectionLink>}
       right={
         <Pill mono tone="accent">
           session shells
@@ -1392,7 +1417,7 @@ function LayoutSection() {
     <Section
       id="layout"
       data-testid="section-layout"
-      label={<SectionLink section={SECTIONS[8]}>Sidebar & SplitPane</SectionLink>}
+      label={<SectionLink section={sectionById("layout")}>Sidebar & SplitPane</SectionLink>}
       right={<Pill mono>layout</Pill>}
     >
       <div className="grid gap-4 pt-4 lg:grid-cols-2">
@@ -1519,7 +1544,7 @@ function ListingRowSection() {
     <Section
       id="listing-row"
       data-testid="section-listing-row"
-      label={<SectionLink section={SECTIONS[9]}>ListingRow</SectionLink>}
+      label={<SectionLink section={sectionById("listing-row")}>ListingRow</SectionLink>}
       right={<Pill mono>inventory</Pill>}
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">

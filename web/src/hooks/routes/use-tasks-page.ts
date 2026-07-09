@@ -42,6 +42,7 @@ import type {
   TaskInboxFilter,
   TaskListFilter,
   TaskListItem,
+  TaskListSortKey,
   TaskOwnerKind,
   TaskPriority,
   TaskStatus,
@@ -55,8 +56,6 @@ import {
 import { taskScopeForActiveWorkspace } from "./workspace-scope-filter";
 
 type InboxLaneFilter = InboxLaneFilterId;
-
-export type TaskListSortKey = "recent" | "priority";
 
 const TASK_PRIORITY_RANK: Record<TaskPriority, number> = {
   urgent: 0,

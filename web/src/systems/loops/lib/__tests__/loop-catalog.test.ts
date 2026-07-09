@@ -5,13 +5,17 @@ import type { LoopCatalogEntry } from "../../types";
 import {
   countByKind,
   groupLoopCatalog,
+  hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
+  type LoopCatalogFilter,
   loopCategories,
   loopCategory,
   loopInputCount,
   loopKind,
+  loopSourceLabel,
+  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "../loop-catalog";
@@ -92,6 +96,34 @@ describe("loop-catalog", () => {
     expect(countByKind(loopCatalogFixtures, "all")).toBe(2);
     expect(countByKind(loopCatalogFixtures, "read-only")).toBe(1);
     expect(countByKind(loopCatalogFixtures, "workspace")).toBe(1);
+  });
+
+  it("Should label the editability source shared by the row and card", () => {
+    expect(loopSourceLabel(delivery)).toBe("Workspace");
+    expect(loopSourceLabel(watch)).toBe("Read-only");
+    expect(loopSourceLabel({ source: "marketplace" })).toBe("Read-only");
+  });
+
+  it("Should derive only last-run statuses actually present, deduped and sorted", () => {
+    expect(loopStatuses(loopCatalogFixtures)).toEqual(["running", "watching"]);
+    expect(loopStatuses([delivery, watch, delivery])).toEqual(["running", "watching"]);
+    expect(loopStatuses([])).toEqual([]);
+    const withoutRun: LoopCatalogEntry = { ...delivery, last_run: undefined };
+    expect(loopStatuses([withoutRun, watch])).toEqual(["watching"]);
+  });
+
+  it("Should report active filters for a query or any chip, ignoring whitespace", () => {
+    const cleared: LoopCatalogFilter = { kind: "all", category: null, status: null };
+    expect(hasActiveLoopFilters("", cleared)).toBe(false);
+    expect(hasActiveLoopFilters("   ", cleared)).toBe(false);
+    expect(hasActiveLoopFilters("watch", cleared)).toBe(true);
+    expect(hasActiveLoopFilters("", { kind: "workspace", category: null, status: null })).toBe(
+      true
+    );
+    expect(hasActiveLoopFilters("", { kind: "all", category: "delivery", status: null })).toBe(
+      true
+    );
+    expect(hasActiveLoopFilters("", { kind: "all", category: null, status: "running" })).toBe(true);
   });
 
   it("Should group into read-only/workspace and drop empty groups", () => {

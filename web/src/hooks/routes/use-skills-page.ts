@@ -19,6 +19,7 @@ import {
   type SkillSourceFilter,
 } from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 type Tab = "installed" | "marketplace";
 
@@ -28,11 +29,6 @@ export interface SkillsRouteSearch {
   view?: ListingViewMode;
   source?: SkillSourceFilter;
   enabled?: SkillEnabledFilter;
-}
-
-function normalizeSearchValue(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
 }
 
 function useSkillsPage(search: SkillsRouteSearch = {}) {
@@ -134,7 +130,7 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     (nextQuery: string) => {
       updateSearch(current => ({
         ...current,
-        q: normalizeSearchValue(nextQuery),
+        q: normalizeListingSearchValue(nextQuery),
       }));
     },
     [updateSearch]

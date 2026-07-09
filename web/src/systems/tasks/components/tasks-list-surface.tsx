@@ -6,12 +6,11 @@ import { Empty, ListingPage, ListingToolbar, Skeleton } from "@agh/ui";
 import { groupTasksForList } from "../lib/task-grouping";
 import { formatRelativeTime } from "../lib/task-formatters";
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
-import type { TaskListItem, TaskPriority, TaskStatus } from "../types";
+import type { TaskListItem, TaskListSortKey, TaskPriority, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
 import { TasksListFilters } from "./tasks-list-filters";
 import { TasksListSort } from "./tasks-list-sort";
-import type { TaskListSortKey } from "@/hooks/routes/use-tasks-page";
 
 const TASK_LIST_SKELETON_IDS = [
   "task-list-skeleton-1",

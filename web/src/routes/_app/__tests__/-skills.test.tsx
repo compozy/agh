@@ -35,6 +35,7 @@ const routerState = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   searchListeners: new Set<(search: Record<string, unknown>) => void>(),
   searchParams: {} as Record<string, unknown>,
+  childMatches: [] as unknown[],
   validateSearch: undefined as
     | ((search: Record<string, unknown>) => Record<string, unknown>)
     | undefined,
@@ -72,7 +73,7 @@ vi.mock("@tanstack/react-router", () => ({
         },
       };
     },
-  useChildMatches: () => [],
+  useChildMatches: () => routerState.childMatches,
   useNavigate:
     () =>
     async (options: {
@@ -252,6 +253,7 @@ describe("SkillsPage", () => {
     mockRefetchMarketplace.mockReset();
     routerState.searchListeners.clear();
     routerState.searchParams = {};
+    routerState.childMatches = [];
     routerState.navigateMock.mockReset();
   });
 
@@ -262,6 +264,15 @@ describe("SkillsPage", () => {
     expect(screen.getByTestId("listing-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("skills-split-pane")).not.toBeInTheDocument();
+  });
+
+  it("renders Outlet and hides tabs/actions when a child route is active", () => {
+    routerState.childMatches = [{}];
+    render(<SkillsPage />);
+    expect(screen.getByTestId("skills-outlet")).toBeInTheDocument();
+    expect(screen.queryByTestId("skills-tabs")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skills-topbar-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("skill-list-panel")).not.toBeInTheDocument();
   });
 
   it("clicking MARKETPLACE tab switches to marketplace view", async () => {

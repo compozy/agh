@@ -3,7 +3,7 @@ import { Repeat2 } from "lucide-react";
 
 import { CatalogCard, Pill } from "@agh/ui";
 
-import { loopCategory } from "../../lib/loop-catalog";
+import { loopCategory, loopSourceLabel } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopRunButton } from "./loop-run-button";
 
@@ -18,7 +18,7 @@ interface LoopCatalogCardProps {
  */
 export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
   const category = loopCategory(entry);
-  const sourceLabel = entry.source === "workspace" ? "Workspace" : "Read-only";
+  const sourceLabel = loopSourceLabel(entry);
   return (
     <CatalogCard actionable data-loop={entry.name} data-testid={`loop-catalog-card-${entry.name}`}>
       <Link

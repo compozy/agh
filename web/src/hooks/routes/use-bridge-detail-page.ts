@@ -63,6 +63,10 @@ function useBridgeDetailPage(bridgeId: string) {
 
   const deferredTargetSearchQuery = useDeferredValue(targetSearchQuery);
 
+  // Scope the list query to what the active workspace can see: only global
+  // bridges when no workspace is selected, otherwise global plus the active
+  // workspace's bridges. The list is what seeds the progressive `selectedBridge`
+  // fallback below, so it must cover whatever scope the detail id belongs to.
   const bridgeListFilters = useMemo<BridgeListFilter>(() => {
     if (!activeWorkspaceId) {
       return { scope: "global" };
@@ -101,6 +105,8 @@ function useBridgeDetailPage(bridgeId: string) {
     enabled: Boolean(bridgeId),
   });
 
+  // Progressive fallback: render the list summary immediately while the detail
+  // query is in flight, then upgrade to the full detail record once it lands.
   const selectedBridge = bridgeDetailQuery.data?.bridge ?? listBridgeSummary;
   const selectedBridgeProvider = useMemo(
     () =>
@@ -116,6 +122,10 @@ function useBridgeDetailPage(bridgeId: string) {
   const selectedHealth =
     bridgeDetailQuery.data?.health ?? (bridgeId ? bridgeHealth[bridgeId] : undefined);
   const selectedSecretBindings = bridgeSecretBindingsQuery.data ?? [];
+  // Secret draft inputs are stored under a `${bridgeId}:${bindingName}` key so a
+  // single state map can hold in-flight edits for multiple bridges without
+  // collision. Here we strip the active bridge's prefix back to bare binding
+  // names for the panel, dropping drafts that belong to other bridges.
   const selectedSecretInputMap = useMemo(() => {
     if (!selectedBridge) {
       return {};
@@ -143,8 +153,14 @@ function useBridgeDetailPage(bridgeId: string) {
   const isSecretBindingPending =
     putBridgeSecretBindingMutation.isPending || deleteBridgeSecretBindingMutation.isPending;
 
-  const detailError =
-    bridgeDetailQuery.error ?? bridgeRoutesQuery.error ?? bridgeSecretBindingsQuery.error ?? null;
+  // Only the primary bridge-detail query is fatal to the page: the panel treats a
+  // non-null error as "replace the whole view". Route and secret-binding failures
+  // are non-fatal side loads surfaced within their own sections, so folding them
+  // in here would let a transient list/secret error hide an otherwise loaded
+  // bridge.
+  const detailError = bridgeDetailQuery.error ?? null;
+  // Full-panel spinner only while there is nothing to show yet — once the list
+  // summary is available we render it instead of blocking on the detail query.
   const detailLoading =
     Boolean(bridgeId) &&
     bridgeDetailQuery.isLoading &&

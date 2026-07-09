@@ -10,6 +10,7 @@ import {
   iterationCapLabel,
   loopCategory,
   loopInputCount,
+  loopSourceLabel,
   successRateLabel,
 } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
@@ -33,7 +34,7 @@ export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowPro
   const category = loopCategory(entry);
   const inputCount = loopInputCount(entry);
   const unbounded = isUnboundedCap(entry);
-  const sourceLabel = entry.source === "workspace" ? "Workspace" : "Read-only";
+  const sourceLabel = loopSourceLabel(entry);
   return (
     <ListingRow data-testid="loop-catalog-row" data-loop={entry.name}>
       <ListingRow.Link

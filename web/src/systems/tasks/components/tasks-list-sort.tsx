@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@agh/ui";
 
-import type { TaskListSortKey } from "@/hooks/routes/use-tasks-page";
+import type { TaskListSortKey } from "../types";
 
 const SORT_LABELS: Record<TaskListSortKey, string> = {
   recent: "Most recent",

@@ -100,6 +100,18 @@ describe("LoopCatalog", () => {
     expect(screen.queryByTestId("loop-catalog")).not.toBeInTheDocument();
   });
 
+  it("Should launch a run from the card without navigating to the detail link", () => {
+    const onRun = vi.fn();
+    render(<Harness onRun={onRun} view="cards" />);
+    const card = screen.getByTestId("loop-catalog-card-software-delivery");
+    const link = within(card).getByRole("link", { name: "Open software-delivery" });
+    const runButton = within(card).getByTestId("loop-catalog-run-software-delivery");
+    expect(link).not.toContainElement(runButton);
+    fireEvent.click(runButton);
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(onRun.mock.calls[0][0].name).toBe("software-delivery");
+  });
+
   it("Should launch a run inline without navigating to the detail row", () => {
     const onRun = vi.fn();
     render(<Harness onRun={onRun} />);
