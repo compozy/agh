@@ -273,6 +273,12 @@
             "sourceType": "github",
             "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
         },
+        "deslop": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/deslop/SKILL.md",
+            "computedHash": "e7c32c82e5459ed9817aec248f5c6a15e200dc534e4bc2e3dc6194a4dd9eb5ef"
+        },
         "devops-engineer": {
             "source": "pedronauck/skills",
             "sourceType": "github",
@@ -958,7 +964,7 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/to-prompt/SKILL.md",
-            "computedHash": "291d183c4a0c1c23e9eda91c3f666bb16142c0bfaa4aea7f424c02b91e6b7c35"
+            "computedHash": "5c94e9e8b92f7f316941de148b219ab09cd007d816b176523f31115ea1653a9c"
         },
         "tools": {
             "source": "assistant-ui/skills",
