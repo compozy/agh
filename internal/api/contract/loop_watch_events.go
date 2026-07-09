@@ -15,12 +15,12 @@ const (
 	LoopWatchEventTaskUnblocked     LoopWatchEventKind = "task.unblocked"
 	LoopWatchEventTaskNeedsAttn     LoopWatchEventKind = "task.needs_attention"
 	LoopWatchEventTaskRecovered     LoopWatchEventKind = "task.recovered"
-	LoopWatchEventTaskRunCompleted  LoopWatchEventKind = "task.run.completed"
+	LoopWatchEventTaskRunCompleted  LoopWatchEventKind = "task.run.completed" // #nosec G101 -- event enum.
 	LoopWatchEventTaskRunFailed     LoopWatchEventKind = "task.run.failed"
 	LoopWatchEventLoopTerminal      LoopWatchEventKind = "loop.terminal"
-	LoopWatchEventLoopNodeTerminal  LoopWatchEventKind = "loop.node.terminal"
-	LoopWatchEventAutomationDone    LoopWatchEventKind = "automation.run.completed"
-	LoopWatchEventAutomationFailed  LoopWatchEventKind = "automation.run.failed"
+	LoopWatchEventLoopNodeTerminal  LoopWatchEventKind = "loop.node.terminal"       // #nosec G101 -- event enum.
+	LoopWatchEventAutomationDone    LoopWatchEventKind = "automation.run.completed" // #nosec G101 -- event enum.
+	LoopWatchEventAutomationFailed  LoopWatchEventKind = "automation.run.failed"    // #nosec G101 -- event enum.
 	LoopWatchEventNetworkMessage    LoopWatchEventKind = "network.message.persisted"
 	LoopWatchEventNetworkThread     LoopWatchEventKind = "network.thread.opened"
 	LoopWatchEventNetworkDirect     LoopWatchEventKind = "network.direct_room.opened"

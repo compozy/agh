@@ -10,14 +10,26 @@ func (n *hooksNotifier) DispatchAutomationJobPreFire(
 	ctx context.Context,
 	payload hookspkg.AutomationJobPreFirePayload,
 ) (hookspkg.AutomationJobPreFirePayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookAutomationJobPreFire, payload, hookRuntime.DispatchAutomationJobPreFire)
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookAutomationJobPreFire,
+		payload,
+		hookRuntime.DispatchAutomationJobPreFire,
+	)
 }
 
 func (n *hooksNotifier) DispatchAutomationJobPostFire(
 	ctx context.Context,
 	payload hookspkg.AutomationJobPostFirePayload,
 ) (hookspkg.AutomationJobPostFirePayload, error) {
-	return dispatchRuntime(ctx, n, hookspkg.HookAutomationJobPostFire, payload, hookRuntime.DispatchAutomationJobPostFire)
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookAutomationJobPostFire,
+		payload,
+		hookRuntime.DispatchAutomationJobPostFire,
+	)
 }
 
 func (n *hooksNotifier) DispatchAutomationTriggerPreFire(

@@ -136,7 +136,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -181,7 +181,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -226,7 +226,7 @@ func (n *daemonNativeTools) automationJobsDelete(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -245,7 +245,10 @@ func (n *daemonNativeTools) automationJobsDelete(
 	if err := n.automationManager().DeleteJob(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"job_id": current.ID, nativeAutomationToolsDeletedKey: true}, current.ID)
+	return structuredResult(
+		map[string]any{daemonPayloadJobIDKey: current.ID, nativeAutomationToolsDeletedKey: true},
+		current.ID,
+	)
 }
 
 func (n *daemonNativeTools) automationJobsEnable(
@@ -273,7 +276,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -294,7 +297,7 @@ func (n *daemonNativeTools) automationJobsHistory(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -341,7 +344,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
+	triggerID, err := requiredNativeString(req.ToolID, daemonPayloadTriggerIDKey, input.TriggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -380,7 +383,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
+	triggerID, err := requiredNativeString(req.ToolID, daemonPayloadTriggerIDKey, input.TriggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -422,7 +425,7 @@ func (n *daemonNativeTools) automationTriggersDelete(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
+	triggerID, err := requiredNativeString(req.ToolID, daemonPayloadTriggerIDKey, input.TriggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -441,7 +444,10 @@ func (n *daemonNativeTools) automationTriggersDelete(
 	if err := n.automationManager().DeleteTrigger(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"trigger_id": current.ID, nativeAutomationToolsDeletedKey: true}, current.ID)
+	return structuredResult(
+		map[string]any{daemonPayloadTriggerIDKey: current.ID, nativeAutomationToolsDeletedKey: true},
+		current.ID,
+	)
 }
 
 func (n *daemonNativeTools) automationTriggersEnable(
@@ -469,7 +475,7 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
+	triggerID, err := requiredNativeString(req.ToolID, daemonPayloadTriggerIDKey, input.TriggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -532,7 +538,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	jobID, err := requiredNativeString(req.ToolID, "job_id", input.JobID)
+	jobID, err := requiredNativeString(req.ToolID, daemonPayloadJobIDKey, input.JobID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -553,7 +559,7 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	triggerID, err := requiredNativeString(req.ToolID, "trigger_id", input.TriggerID)
+	triggerID, err := requiredNativeString(req.ToolID, daemonPayloadTriggerIDKey, input.TriggerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

@@ -141,7 +141,11 @@ func (e *RunAgentActionExecutor) promptActionSession(
 		cancelErr = fmt.Errorf("cancel run-agent session: %w", context.DeadlineExceeded)
 	}
 	return result, errors.Join(
-		reasonError(ReasonCodeActionTimeout, ErrActionTimeout, map[string]string{"session_id": binding.SessionID}),
+		reasonError(
+			ReasonCodeActionTimeout,
+			ErrActionTimeout,
+			map[string]string{watchEventsFieldSessionID: binding.SessionID},
+		),
 		err,
 		cancelErr,
 	)

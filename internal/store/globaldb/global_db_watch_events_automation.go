@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/automation"
+	modelpkg "github.com/compozy/agh/internal/automation/model"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
@@ -169,21 +169,21 @@ func automationWatchEventFromRow(row automationWatchEventRow) (looppkg.WatchEven
 		return looppkg.WatchEvent{}, err
 	}
 	payload := map[string]any{
-		"job_id":     strings.TrimSpace(row.jobID),
-		"trigger_id": strings.TrimSpace(row.triggerID),
-		"agent_name": strings.TrimSpace(row.agentName),
-		"session_id": strings.TrimSpace(row.sessionID),
-		"attempt":    row.attempt,
+		watchEventsPayloadJobIDKey:     strings.TrimSpace(row.jobID),
+		watchEventsPayloadTriggerIDKey: strings.TrimSpace(row.triggerID),
+		watchEventsPayloadAgentNameKey: strings.TrimSpace(row.agentName),
+		watchEventsPayloadSessionIDKey: strings.TrimSpace(row.sessionID),
+		watchEventsPayloadAttemptKey:   row.attempt,
 	}
 	if kind == hookspkg.HookAutomationRunCompleted {
 		durationMS, durationErr := automationWatchEventDurationMS(row)
 		if durationErr != nil {
 			return looppkg.WatchEvent{}, durationErr
 		}
-		payload["duration_ms"] = durationMS
+		payload[watchEventsPayloadDurationMSKey] = durationMS
 	} else {
-		payload["error"] = strings.TrimSpace(row.errorText)
-		payload["will_retry"] = automationWatchEventWillRetry(row)
+		payload[watchEventsPayloadErrorKey] = strings.TrimSpace(row.errorText)
+		payload[watchEventsPayloadWillRetryKey] = automationWatchEventWillRetry(row)
 	}
 	return looppkg.WatchEvent{
 		Kind:        string(kind),
@@ -203,19 +203,19 @@ func automationWatchStatusesForKinds(kinds []string) []string {
 	for _, kind := range kinds {
 		switch strings.TrimSpace(kind) {
 		case string(hookspkg.HookAutomationRunCompleted):
-			statuses = append(statuses, string(automation.RunCompleted))
+			statuses = append(statuses, string(modelpkg.RunCompleted))
 		case string(hookspkg.HookAutomationRunFailed):
-			statuses = append(statuses, string(automation.RunFailed))
+			statuses = append(statuses, string(modelpkg.RunFailed))
 		}
 	}
 	return uniqueTrimmedStrings(statuses)
 }
 
 func automationWatchKindForStatus(status string) (hookspkg.HookEvent, bool) {
-	switch automation.RunStatus(strings.TrimSpace(status)) {
-	case automation.RunCompleted:
+	switch modelpkg.RunStatus(strings.TrimSpace(status)) {
+	case modelpkg.RunCompleted:
 		return hookspkg.HookAutomationRunCompleted, true
-	case automation.RunFailed:
+	case modelpkg.RunFailed:
 		return hookspkg.HookAutomationRunFailed, true
 	default:
 		return "", false
@@ -254,9 +254,9 @@ func automationWatchEventDurationMS(row automationWatchEventRow) (int64, error) 
 }
 
 func automationWatchEventWillRetry(row automationWatchEventRow) bool {
-	var retry automation.RetryConfig
+	var retry modelpkg.RetryConfig
 	if err := decodeAutomationJSON(row.retryRaw, &retry, "automation.watch_events.retry"); err != nil {
 		return false
 	}
-	return retry.Strategy == automation.RetryStrategyBackoff && row.attempt <= retry.MaxRetries
+	return retry.Strategy == modelpkg.RetryStrategyBackoff && row.attempt <= retry.MaxRetries
 }

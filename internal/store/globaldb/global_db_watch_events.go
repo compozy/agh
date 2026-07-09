@@ -13,7 +13,30 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-const watchEventsParentTaskIDPayloadKey = "parent_task_id"
+const (
+	watchEventsParentTaskIDPayloadKey = "parent_task_id"
+
+	watchEventsPayloadAgentNameKey   = "agent_name"
+	watchEventsPayloadAttemptKey     = "attempt"
+	watchEventsPayloadCausationIDKey = "causation_id"
+	watchEventsPayloadChannelKey     = "channel"
+	watchEventsPayloadDirectIDKey    = "direct_id"
+	watchEventsPayloadDirectionKey   = "direction"
+	watchEventsPayloadDurationMSKey  = "duration_ms"
+	watchEventsPayloadErrorKey       = "error"
+	watchEventsPayloadJobIDKey       = "job_id"
+	watchEventsPayloadMessageIDKey   = "message_id"
+	watchEventsPayloadPeerFromKey    = "peer_from"
+	watchEventsPayloadPeerToKey      = "peer_to"
+	watchEventsPayloadSessionIDKey   = "session_id"
+	watchEventsPayloadSurfaceKey     = "surface"
+	watchEventsPayloadThreadIDKey    = "thread_id"
+	watchEventsPayloadTraceIDKey     = "trace_id"
+	watchEventsPayloadTriggerIDKey   = "trigger_id"
+	watchEventsPayloadWillRetryKey   = "will_retry"
+	watchEventsPayloadWorkIDKey      = "work_id"
+	watchEventsPayloadWorkStateKey   = "work_state"
+)
 
 type normalizedWatchEventsQuery struct {
 	workspaceID string

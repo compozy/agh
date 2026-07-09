@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 )
+
+const loopWatchEventsTestWatchNodeID = "watch"
 
 func TestLoopWatchEventKindContractParity(t *testing.T) {
 	t.Run("Should mirror the supported watch-events family registry exactly", func(t *testing.T) {
@@ -23,8 +23,9 @@ func TestLoopWatchEventKindContractParity(t *testing.T) {
 		slices.Sort(want)
 		got := slices.Clone(contract.LoopWatchEventKindValues())
 		slices.Sort(got)
-		require.Equal(t, want, got,
-			"contract watch-event kinds must stay in lockstep with SupportedWatchEvents()")
+		if !slices.Equal(got, want) {
+			t.Fatalf("contract watch-event kinds = %#v, want %#v", got, want)
+		}
 	})
 }
 
@@ -43,40 +44,75 @@ func TestLoopWatchEventsReadModel(t *testing.T) {
 		t.Parallel()
 		ref, err := watchpkg.EventsPendingOutputRef(watchpkg.EventsPendingState{
 			Subscriptions: []watchpkg.EventSubscriptionRef{
-				{Kind: string(contract.LoopWatchEventTaskStatusChanged), Filter: "event.payload.to_status == 'completed'"},
+				{
+					Kind:   string(contract.LoopWatchEventTaskStatusChanged),
+					Filter: "event.payload.to_status == 'completed'",
+				},
 			},
-			Cursors: map[string]int64{"task_events": 42},
+			Cursors: map[string]int64{looppkg.WatchEventsTaskStream: 42},
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("EventsPendingOutputRef() error = %v", err)
+		}
 		wokeAt := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
 		run := looppkg.Run{Generation: 1, LastProgressAt: wokeAt}
 		generations := []contract.LoopGenerationPayload{{
 			Generation: 1,
-			Outputs:    []contract.LoopGenerationOutput{{NodeID: "watch", Status: "running", OutputRef: ref}},
+			Outputs: []contract.LoopGenerationOutput{{
+				NodeID:    loopWatchEventsTestWatchNodeID,
+				Status:    daemonRuntimeStatusRunning,
+				OutputRef: ref,
+			}},
 		}}
-		state, err := loopWatchEventsReadModel(run, watchEventsDefinition("watch", string(dsl.SourceWatchEvents)), generations)
-		require.NoError(t, err)
-		require.NotNil(t, state)
-		require.Equal(t, []contract.LoopWatchEventSubscription{
+		state, err := loopWatchEventsReadModel(
+			run,
+			watchEventsDefinition(loopWatchEventsTestWatchNodeID, string(dsl.SourceWatchEvents)),
+			generations,
+		)
+		if err != nil {
+			t.Fatalf("loopWatchEventsReadModel() error = %v", err)
+		}
+		if state == nil {
+			t.Fatal("loopWatchEventsReadModel() state = nil, want parked state")
+		}
+		wantSubscriptions := []contract.LoopWatchEventSubscription{
 			{Kind: contract.LoopWatchEventTaskStatusChanged, Filter: "event.payload.to_status == 'completed'"},
-		}, state.Subscriptions)
-		require.Equal(t, map[string]int64{"task_events": 42}, state.Cursors)
-		require.NotNil(t, state.LastWakeAt)
-		require.Equal(t, wokeAt, *state.LastWakeAt)
+		}
+		if !slices.Equal(state.Subscriptions, wantSubscriptions) {
+			t.Fatalf("subscriptions = %#v, want %#v", state.Subscriptions, wantSubscriptions)
+		}
+		if got, want := state.Cursors[looppkg.WatchEventsTaskStream], int64(42); got != want {
+			t.Fatalf("task_events cursor = %d, want %d", got, want)
+		}
+		if state.LastWakeAt == nil || !state.LastWakeAt.Equal(wokeAt) {
+			t.Fatalf("LastWakeAt = %#v, want %s", state.LastWakeAt, wokeAt)
+		}
 	})
 	t.Run("Should return nil when the watch-events node is not parked", func(t *testing.T) {
 		t.Parallel()
-		ref, err := watchpkg.EventsConfirmedOutputRef([]map[string]any{{"kind": "task.status_changed"}},
-			map[string]int64{"task_events": 43})
-		require.NoError(t, err)
+		ref, err := watchpkg.EventsConfirmedOutputRef(
+			[]map[string]any{{watchEventsPayloadKindKey: string(contract.LoopWatchEventTaskStatusChanged)}},
+			map[string]int64{looppkg.WatchEventsTaskStream: 43},
+		)
+		if err != nil {
+			t.Fatalf("EventsConfirmedOutputRef() error = %v", err)
+		}
 		run := looppkg.Run{Generation: 1, LastProgressAt: time.Now()}
 		generations := []contract.LoopGenerationPayload{{
 			Generation: 1,
 			Outputs:    []contract.LoopGenerationOutput{{NodeID: "watch", Status: "succeeded", OutputRef: ref}},
 		}}
-		state, err := loopWatchEventsReadModel(run, watchEventsDefinition("watch", string(dsl.SourceWatchEvents)), generations)
-		require.NoError(t, err)
-		require.Nil(t, state)
+		state, err := loopWatchEventsReadModel(
+			run,
+			watchEventsDefinition(loopWatchEventsTestWatchNodeID, string(dsl.SourceWatchEvents)),
+			generations,
+		)
+		if err != nil {
+			t.Fatalf("loopWatchEventsReadModel() error = %v", err)
+		}
+		if state != nil {
+			t.Fatalf("loopWatchEventsReadModel() state = %#v, want nil", state)
+		}
 	})
 	t.Run("Should return nil when the definition has no watch-events node", func(t *testing.T) {
 		t.Parallel()
@@ -85,26 +121,50 @@ func TestLoopWatchEventsReadModel(t *testing.T) {
 			Generation: 1,
 			Outputs:    []contract.LoopGenerationOutput{{NodeID: "load", Status: "succeeded"}},
 		}}
-		state, err := loopWatchEventsReadModel(run, watchEventsDefinition("load", string(dsl.SourceFileImport)), generations)
-		require.NoError(t, err)
-		require.Nil(t, state)
+		state, err := loopWatchEventsReadModel(
+			run,
+			watchEventsDefinition("load", string(dsl.SourceFileImport)),
+			generations,
+		)
+		if err != nil {
+			t.Fatalf("loopWatchEventsReadModel() error = %v", err)
+		}
+		if state != nil {
+			t.Fatalf("loopWatchEventsReadModel() state = %#v, want nil", state)
+		}
 	})
 	t.Run("Should omit last_wake_at when the run never progressed", func(t *testing.T) {
 		t.Parallel()
 		ref, err := watchpkg.EventsPendingOutputRef(watchpkg.EventsPendingState{
 			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: string(contract.LoopWatchEventLoopTerminal)}},
-			Cursors:       map[string]int64{"loop_run_events": 0},
+			Cursors:       map[string]int64{looppkg.WatchEventsLoopStream: 0},
 		})
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("EventsPendingOutputRef() error = %v", err)
+		}
 		run := looppkg.Run{Generation: 1}
 		generations := []contract.LoopGenerationPayload{{
 			Generation: 1,
-			Outputs:    []contract.LoopGenerationOutput{{NodeID: "watch", Status: "running", OutputRef: ref}},
+			Outputs: []contract.LoopGenerationOutput{{
+				NodeID:    loopWatchEventsTestWatchNodeID,
+				Status:    daemonRuntimeStatusRunning,
+				OutputRef: ref,
+			}},
 		}}
-		state, err := loopWatchEventsReadModel(run, watchEventsDefinition("watch", string(dsl.SourceWatchEvents)), generations)
-		require.NoError(t, err)
-		require.NotNil(t, state)
-		require.Nil(t, state.LastWakeAt)
+		state, err := loopWatchEventsReadModel(
+			run,
+			watchEventsDefinition(loopWatchEventsTestWatchNodeID, string(dsl.SourceWatchEvents)),
+			generations,
+		)
+		if err != nil {
+			t.Fatalf("loopWatchEventsReadModel() error = %v", err)
+		}
+		if state == nil {
+			t.Fatal("loopWatchEventsReadModel() state = nil, want parked state")
+		}
+		if state.LastWakeAt != nil {
+			t.Fatalf("LastWakeAt = %#v, want nil", state.LastWakeAt)
+		}
 	})
 	t.Run("Should surface a decode error for a corrupt watch-events park ref", func(t *testing.T) {
 		t.Parallel()
@@ -112,11 +172,23 @@ func TestLoopWatchEventsReadModel(t *testing.T) {
 		generations := []contract.LoopGenerationPayload{{
 			Generation: 1,
 			Outputs: []contract.LoopGenerationOutput{
-				{NodeID: "watch", Status: "running", OutputRef: "{not json"},
+				{
+					NodeID:    loopWatchEventsTestWatchNodeID,
+					Status:    daemonRuntimeStatusRunning,
+					OutputRef: "{not json",
+				},
 			},
 		}}
-		state, err := loopWatchEventsReadModel(run, watchEventsDefinition("watch", string(dsl.SourceWatchEvents)), generations)
-		require.Error(t, err)
-		require.Nil(t, state)
+		state, err := loopWatchEventsReadModel(
+			run,
+			watchEventsDefinition(loopWatchEventsTestWatchNodeID, string(dsl.SourceWatchEvents)),
+			generations,
+		)
+		if err == nil {
+			t.Fatal("loopWatchEventsReadModel() error = nil, want decode error")
+		}
+		if state != nil {
+			t.Fatalf("loopWatchEventsReadModel() state = %#v, want nil", state)
+		}
 	})
 }

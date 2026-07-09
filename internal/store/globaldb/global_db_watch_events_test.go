@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+const watchEventsGenerationOutputEnqueuedForTest = "enqueued"
 
 func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 	t.Parallel()
@@ -237,9 +240,11 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
-			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: cursorBefore[looppkg.WatchEventsAutomationStream]},
-			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
-			Limit:       10,
+			Streams: map[string]int64{
+				looppkg.WatchEventsAutomationStream: cursorBefore[looppkg.WatchEventsAutomationStream],
+			},
+			Kinds: []string{string(hookspkg.HookAutomationRunCompleted)},
+			Limit: 10,
 		})
 		if err != nil {
 			t.Fatalf("ReadMatches(automation) error = %v", err)
@@ -248,20 +253,63 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("automation events len = %d, want %d: %#v", got, want, events)
 		}
 		event := events[0]
-		if event.RunID != updated.ID || event.WorkspaceID != "ws-a" || event.Seq <= cursorBefore[looppkg.WatchEventsAutomationStream] {
+		if event.RunID != updated.ID || event.WorkspaceID != "ws-a" ||
+			event.Seq <= cursorBefore[looppkg.WatchEventsAutomationStream] {
 			t.Fatalf(
 				"automation event projection = %#v, cursorBefore=%d",
 				event,
 				cursorBefore[looppkg.WatchEventsAutomationStream],
 			)
 		}
-		if got, want := event.Payload["job_id"], jobA.ID; got != want {
+		if got, want := event.Payload[watchEventsPayloadJobIDKey], jobA.ID; got != want {
 			t.Fatalf("automation job_id = %v, want %q", got, want)
 		}
-		if got, want := event.Payload["duration_ms"], int64((3 * time.Minute).Milliseconds()); got != want {
+		if got, want := event.Payload[watchEventsPayloadDurationMSKey], (3 * time.Minute).Milliseconds(); got != want {
 			t.Fatalf("automation duration_ms = %v, want %d", got, want)
 		}
 		assertWatchEventRFC3339UTC(t, event.At)
+
+		failedJob := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"watch-auto-failed",
+			"ws-a",
+			automation.JobSourceDynamic,
+		)
+		failedJob.Retry = automation.DefaultBackoffRetryConfig()
+		createdFailedJob, err := globalDB.CreateJob(ctx, failedJob)
+		if err != nil {
+			t.Fatalf("CreateJob(failed automation) error = %v", err)
+		}
+		failedRun := automationRunForJob(createdFailedJob.ID, automation.RunFailed, 1, base.Add(5*time.Minute))
+		failedRun.SessionID = "sess-auto-failed"
+		failedRun.Error = "agent crashed"
+		failed, err := globalDB.CreateRun(ctx, failedRun)
+		if err != nil {
+			t.Fatalf("CreateRun(failed automation) error = %v", err)
+		}
+
+		failedEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
+			Kinds:       []string{string(hookspkg.HookAutomationRunFailed)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(automation failed) error = %v", err)
+		}
+		if got, want := len(failedEvents), 1; got != want {
+			t.Fatalf("automation failed events len = %d, want %d: %#v", got, want, failedEvents)
+		}
+		failedEvent := failedEvents[0]
+		if failedEvent.Kind != string(hookspkg.HookAutomationRunFailed) || failedEvent.RunID != failed.ID {
+			t.Fatalf("automation failed event = %#v", failedEvent)
+		}
+		if got, want := failedEvent.Payload[watchEventsPayloadWillRetryKey], true; got != want {
+			t.Fatalf("automation will_retry = %v, want %t", got, want)
+		}
+		if got, want := failedEvent.Payload[watchEventsPayloadErrorKey], "agent crashed"; got != want {
+			t.Fatalf("automation error = %v, want %q", got, want)
+		}
 	})
 
 	t.Run("Should read network work transitions with workspace-column scoping", func(t *testing.T) {
@@ -309,6 +357,54 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 			t.Fatalf("WriteConversationMessage(foreign opening) error = %v", err)
 		}
 
+		threadEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
+			Kinds:       []string{string(hookspkg.HookNetworkThreadOpened)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(thread opened) error = %v", err)
+		}
+		if got, want := len(threadEvents), 1; got != want {
+			t.Fatalf("thread opened events len = %d, want %d: %#v", got, want, threadEvents)
+		}
+		if got, want := threadEvents[0].Payload[watchEventsPayloadThreadIDKey], "thread_watch"; got != want {
+			t.Fatalf("thread_id = %v, want %q", got, want)
+		}
+
+		directID, err := networkWatchDirectIDForTest("ws-a", "builders", "coder.sess-a", "reviewer.sess-a")
+		if err != nil {
+			t.Fatalf("networkWatchDirectIDForTest() error = %v", err)
+		}
+		directMessage := networkWatchDirectMessageForTest(
+			"ws-a",
+			"msg-direct-open",
+			directID,
+			"coder.sess-a",
+			"reviewer.sess-a",
+			"open direct",
+			base.Add(2*time.Minute),
+		)
+		if _, err := globalDB.WriteConversationMessage(ctx, directMessage); err != nil {
+			t.Fatalf("WriteConversationMessage(direct) error = %v", err)
+		}
+		directEvents, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
+			Kinds:       []string{string(hookspkg.HookNetworkDirectRoomOpened)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(direct opened) error = %v", err)
+		}
+		if got, want := len(directEvents), 1; got != want {
+			t.Fatalf("direct opened events len = %d, want %d: %#v", got, want, directEvents)
+		}
+		if got, want := directEvents[0].Payload[watchEventsPayloadDirectIDKey], directID; got != want {
+			t.Fatalf("direct_id = %v, want %q", got, want)
+		}
+
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
@@ -325,10 +421,10 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		if event.WorkspaceID != "ws-a" || event.Channel != "builders" || event.WorkID != "work-watch" {
 			t.Fatalf("network event projection = %#v", event)
 		}
-		if got, want := event.Payload["work_state"], store.NetworkWorkStateWorking; got != want {
+		if got, want := event.Payload[watchEventsPayloadWorkStateKey], store.NetworkWorkStateWorking; got != want {
 			t.Fatalf("network work_state = %v, want %q", got, want)
 		}
-		if got, want := event.Payload["kind"], store.NetworkKindTrace; got != want {
+		if got, want := event.Payload[taskRunResultKindKey], store.NetworkKindTrace; got != want {
 			t.Fatalf("network payload kind = %v, want %q", got, want)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
@@ -478,7 +574,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 			t.Fatalf("confirmed event = %#v, want target blocked event", events[0])
 		}
 		downstream := byNode["summarize"]
-		if downstream.Status != "enqueued" || downstream.TaskRunID == "" {
+		if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
 			t.Fatalf("downstream output = %#v, want enqueued with task run", downstream)
 		}
 		storedRun, err := globalDB.GetTaskRun(ctx, downstream.TaskRunID)
@@ -487,6 +583,93 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 		}
 		if storedRun.Status != taskpkg.TaskRunStatusQueued || storedRun.LoopRunID != string(created.ID) {
 			t.Fatalf("downstream run = %#v, want queued loop worker", storedRun)
+		}
+	})
+
+	t.Run("Should wake automation subscriptions from terminal run rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 8, 21, 0, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		job, err := globalDB.CreateJob(
+			ctx,
+			automationJobForTest(
+				automation.AutomationScopeWorkspace,
+				"watch-auto-integration",
+				"ws-a",
+				automation.JobSourceDynamic,
+			),
+		)
+		if err != nil {
+			t.Fatalf("CreateJob(automation) error = %v", err)
+		}
+		created := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now,
+			"watch-events-automation-integration",
+			map[string]any{watchEventsPayloadJobIDKey: job.ID},
+			compileAutomationWatchEventsIntegrationDefinitionForTest(t),
+		)
+		runningSeed := automationRunForJob(job.ID, automation.RunRunning, 1, now.Add(2*time.Second))
+		runningSeed.EndedAt = nil
+		running, err := globalDB.CreateRun(ctx, runningSeed)
+		if err != nil {
+			t.Fatalf("CreateRun(running automation) error = %v", err)
+		}
+		running.Status = automation.RunCompleted
+		running.SessionID = "sess-auto-integration"
+		running.EndedAt = timePointer(now.Add(42 * time.Second))
+		updated, err := globalDB.UpdateRun(ctx, running)
+		if err != nil {
+			t.Fatalf("UpdateRun(completed automation) error = %v", err)
+		}
+		actor := coordinatorActorContextForTest()
+		wakeRun, added, err := globalDB.EnqueueLoopCoordinatorWake(
+			ctx,
+			string(created.ID),
+			"watch-events-automation-integration-wake",
+			actor.Origin,
+			now.Add(43*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("EnqueueLoopCoordinatorWake(automation) error = %v", err)
+		}
+		if !added {
+			t.Fatal("EnqueueLoopCoordinatorWake(automation) added = false, want true")
+		}
+
+		events, byNode := claimAndRunWatchEventsWakeForTest(
+			ctx,
+			t,
+			globalDB,
+			created,
+			compileAutomationWatchEventsIntegrationDefinitionForTest(t),
+			wakeRun,
+			now.Add(44*time.Second),
+			"watch_automation",
+		)
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("automation confirmed events len = %d, want %d: %#v", got, want, events)
+		}
+		event := events[0]
+		if event.Kind != string(hookspkg.HookAutomationRunCompleted) ||
+			event.RunID != updated.ID ||
+			event.WorkspaceID != "ws-a" ||
+			event.Stream != looppkg.WatchEventsAutomationStream {
+			t.Fatalf("automation confirmed event = %#v", event)
+		}
+		if got, want := event.Payload[watchEventsPayloadJobIDKey], job.ID; got != want {
+			t.Fatalf("automation job_id = %v, want %q", got, want)
+		}
+		if got, want := event.Payload[watchEventsPayloadSessionIDKey], "sess-auto-integration"; got != want {
+			t.Fatalf("automation session_id = %v, want %q", got, want)
+		}
+		downstream := byNode["summarize"]
+		if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
+			t.Fatalf("automation downstream output = %#v, want enqueued", downstream)
 		}
 	})
 }
@@ -586,6 +769,95 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		}
 		if got, want := runs[0].LoopRunID, string(created.ID); got != want {
 			t.Fatalf("boot reconcile loop_run_id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reconcile network message subscriptions from rows written while down", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 8, 21, 30, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		created := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now,
+			"watch-events-network-recovery",
+			map[string]any{
+				watchEventsPayloadChannelKey: "builders",
+				watchEventsPayloadWorkIDKey:  "work-watch",
+			},
+			compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t),
+		)
+		message := networkWatchThreadMessageForTest(
+			"ws-a",
+			"msg-network-recovery",
+			"thread_network_recovery",
+			"coder.sess-a",
+			"please inspect this work",
+			now.Add(time.Second),
+		)
+		message.PeerTo = "reviewer.sess-a"
+		message.WorkID = "work-watch"
+		if _, err := globalDB.WriteConversationMessage(ctx, message); err != nil {
+			t.Fatalf("WriteConversationMessage(network) error = %v", err)
+		}
+		foreign := networkWatchThreadMessageForTest(
+			"ws-b",
+			"msg-network-foreign",
+			"thread_network_foreign",
+			"coder.sess-b",
+			"cross workspace work",
+			now.Add(2*time.Second),
+		)
+		foreign.PeerTo = "reviewer.sess-b"
+		foreign.WorkID = "work-watch"
+		if _, err := globalDB.WriteConversationMessage(ctx, foreign); err != nil {
+			t.Fatalf("WriteConversationMessage(foreign network) error = %v", err)
+		}
+		actor := coordinatorActorContextForTest()
+		runs, err := globalDB.ReconcileLoopCoordinatorsOnBoot(ctx, actor.Origin, now.Add(3*time.Second))
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(network) error = %v", err)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("network boot reconcile runs = %d, want %d", got, want)
+		}
+		if got, want := runs[0].LoopRunID, string(created.ID); got != want {
+			t.Fatalf("network boot reconcile loop_run_id = %q, want %q", got, want)
+		}
+
+		events, byNode := claimAndRunWatchEventsWakeForTest(
+			ctx,
+			t,
+			globalDB,
+			created,
+			compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t),
+			runs[0],
+			now.Add(4*time.Second),
+			"watch_network_messages",
+		)
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("network confirmed events len = %d, want %d: %#v", got, want, events)
+		}
+		event := events[0]
+		if event.Kind != string(hookspkg.HookNetworkMessagePersisted) ||
+			event.WorkspaceID != "ws-a" ||
+			event.Channel != "builders" ||
+			event.WorkID != "work-watch" ||
+			event.Stream != looppkg.WatchEventsNetworkStream {
+			t.Fatalf("network confirmed event = %#v", event)
+		}
+		if got, want := event.Payload[watchEventsPayloadMessageIDKey], "msg-network-recovery"; got != want {
+			t.Fatalf("network message_id = %v, want %q", got, want)
+		}
+		if got, want := event.Payload[watchEventsPayloadWorkIDKey], "work-watch"; got != want {
+			t.Fatalf("network work_id = %v, want %q", got, want)
+		}
+		downstream := byNode["summarize"]
+		if downstream.Status != watchEventsGenerationOutputEnqueuedForTest || downstream.TaskRunID == "" {
+			t.Fatalf("network downstream output = %#v, want enqueued", downstream)
 		}
 	})
 }
@@ -764,6 +1036,113 @@ func parkWatchEventsLoopForRecoveryTest(
 	return created, targetTask
 }
 
+func parkWatchEventsLoopWithDefinitionForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	now time.Time,
+	loopRunID string,
+	inputs map[string]any,
+	resolved *looppkg.ResolvedDefinition,
+) looppkg.Run {
+	t.Helper()
+	loopRun := testLoopRun(loopRunID, now, looppkg.StatusRunning)
+	loopRun.WorkspaceID = "ws-a"
+	loopRun.Inputs = inputs
+	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart(%s) error = %v", loopRunID, err)
+	}
+	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB, resolved)
+	claim := claimCoordinatorRunForTest(ctx, t, globalDB, created.ID, "run-"+loopRunID+"-first", now)
+	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+	if err != nil {
+		t.Fatalf("Run(%s first) error = %v", loopRunID, err)
+	}
+	if plan.Terminal == nil || plan.Terminal.Status != string(looppkg.StatusWatching) {
+		t.Fatalf("%s first terminal = %#v, want watching", loopRunID, plan.Terminal)
+	}
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Actor:      coordinatorActorContextForTest(),
+		Plan:       plan,
+		Now:        now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s first) error = %v", loopRunID, err)
+	}
+	if got, want := coordinatorResultStatus(t, &result), string(looppkg.StatusWatching); got != want {
+		t.Fatalf("%s loop status = %q, want %q", loopRunID, got, want)
+	}
+	return created
+}
+
+func claimAndRunWatchEventsWakeForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	loopRun looppkg.Run,
+	resolved *looppkg.ResolvedDefinition,
+	wakeRun taskpkg.Run,
+	now time.Time,
+	watchNodeID string,
+) ([]looppkg.WatchEvent, map[string]looppkg.GenerationOutput) {
+	t.Helper()
+	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB, resolved)
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            wakeRun.ID,
+		Scope:            taskpkg.ScopeWorkspace,
+		WorkspaceID:      string(loopRun.WorkspaceID),
+		RunKind:          taskpkg.RunKindCoordinator,
+		ClaimerSessionID: "daemon-loop-" + wakeRun.ID,
+		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(%s) error = %v", wakeRun.ID, err)
+	}
+	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+	if err != nil {
+		t.Fatalf("Run(%s) error = %v", wakeRun.ID, err)
+	}
+	if plan.Terminal != nil || plan.Yield {
+		t.Fatalf("wake plan Terminal=%#v Yield=%v, want downstream enqueue", plan.Terminal, plan.Yield)
+	}
+	if got, want := len(plan.NodeRuns), 1; got != want {
+		t.Fatalf("wake NodeRuns = %d, want %d", got, want)
+	}
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Actor:      coordinatorActorContextForTest(),
+		Plan:       plan,
+		Now:        now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", wakeRun.ID, err)
+	}
+	if got, want := len(result.EnqueuedRuns), 1; got != want {
+		t.Fatalf("wake EnqueuedRuns = %d, want %d", got, want)
+	}
+	outputs, err := globalDB.ListGenerationOutputs(ctx, loopRun.ID, 1)
+	if err != nil {
+		t.Fatalf("ListGenerationOutputs(%s) error = %v", loopRun.ID, err)
+	}
+	byNode := watchEventsGenerationOutputsByNode(outputs)
+	watchOutput := byNode[watchNodeID]
+	if watchOutput.Status != "succeeded" {
+		t.Fatalf("%s output status = %q, want succeeded", watchNodeID, watchOutput.Status)
+	}
+	confirmed := decodeWatchEventsConfirmedRefForTest(t, watchOutput.OutputRef)
+	var events []looppkg.WatchEvent
+	if err := json.Unmarshal(confirmed.Events, &events); err != nil {
+		t.Fatalf("Unmarshal confirmed events error = %v", err)
+	}
+	return events, byNode
+}
+
 func appendTaskWatchEventForTest(
 	ctx context.Context,
 	t *testing.T,
@@ -814,6 +1193,41 @@ func networkWatchThreadMessageForTest(
 		ThreadID:    threadID,
 		Direction:   "sent",
 		PeerFrom:    peerFrom,
+		Kind:        store.NetworkKindSay,
+		Text:        text,
+		PreviewText: text,
+		Body:        []byte(`{"text":"` + text + `"}`),
+		Timestamp:   timestamp,
+	}
+}
+
+func networkWatchDirectIDForTest(workspaceID, channel, peerA, peerB string) (string, error) {
+	directID, _, _, err := store.NetworkDirectRoomIdentity(workspaceID, channel, peerA, peerB)
+	if err != nil {
+		return "", fmt.Errorf("derive network direct room identity: %w", err)
+	}
+	return directID, nil
+}
+
+func networkWatchDirectMessageForTest(
+	workspaceID string,
+	messageID string,
+	directID string,
+	peerFrom string,
+	peerTo string,
+	text string,
+	timestamp time.Time,
+) store.NetworkConversationMessage {
+	return store.NetworkConversationMessage{
+		MessageID:   messageID,
+		SessionID:   "sess-" + messageID,
+		WorkspaceID: workspaceID,
+		Channel:     "builders",
+		Surface:     store.NetworkSurfaceDirect,
+		DirectID:    directID,
+		Direction:   "sent",
+		PeerFrom:    peerFrom,
+		PeerTo:      peerTo,
 		Kind:        store.NetworkKindSay,
 		Text:        text,
 		PreviewText: text,
@@ -882,6 +1296,82 @@ func compileWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.Resol
 	})
 	if err != nil {
 		t.Fatalf("Compile(watch-events integration) error = %v", err)
+	}
+	return resolved
+}
+
+func compileAutomationWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
+	t.Helper()
+	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Inputs: map[string]dsl.Input{
+			watchEventsPayloadJobIDKey: {Type: dsl.InputTypeString},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "watch_automation",
+					Class: dsl.NodeClassSource,
+					Kind:  string(dsl.SourceWatchEvents),
+					Events: []dsl.EventSubscription{{
+						Kind:   string(hookspkg.HookAutomationRunCompleted),
+						Filter: "event.payload.job_id == inputs.job_id",
+					}},
+				},
+				{
+					ID:    "summarize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "watch_automation", To: "summarize"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile(automation watch-events integration) error = %v", err)
+	}
+	return resolved
+}
+
+func compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
+	t.Helper()
+	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Inputs: map[string]dsl.Input{
+			watchEventsPayloadChannelKey: {Type: dsl.InputTypeString},
+			watchEventsPayloadWorkIDKey:  {Type: dsl.InputTypeString},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "watch_network_messages",
+					Class: dsl.NodeClassSource,
+					Kind:  string(dsl.SourceWatchEvents),
+					Events: []dsl.EventSubscription{{
+						Kind: string(hookspkg.HookNetworkMessagePersisted),
+						Filter: "event.channel == inputs.channel" +
+							" && " + "event.payload.work_id == inputs.work_id",
+					}},
+				},
+				{
+					ID:    "summarize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "watch_network_messages", To: "summarize"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile(network watch-events integration) error = %v", err)
 	}
 	return resolved
 }

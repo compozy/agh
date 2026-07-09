@@ -288,20 +288,20 @@ func networkWatchEventFromRow(
 	workState string,
 ) looppkg.WatchEvent {
 	payload := map[string]any{
-		"session_id":   strings.TrimSpace(row.message.SessionID),
-		"channel":      strings.TrimSpace(row.message.Channel),
-		"surface":      strings.TrimSpace(row.message.Surface),
-		"thread_id":    strings.TrimSpace(row.message.ThreadID),
-		"direct_id":    strings.TrimSpace(row.message.DirectID),
-		"message_id":   strings.TrimSpace(row.message.MessageID),
-		"kind":         strings.TrimSpace(row.message.Kind),
-		"direction":    strings.TrimSpace(row.message.Direction),
-		"work_id":      strings.TrimSpace(row.message.WorkID),
-		"work_state":   strings.TrimSpace(workState),
-		"peer_from":    strings.TrimSpace(row.message.PeerFrom),
-		"peer_to":      strings.TrimSpace(row.message.PeerTo),
-		"trace_id":     strings.TrimSpace(row.message.TraceID),
-		"causation_id": strings.TrimSpace(row.message.CausationID),
+		watchEventsPayloadSessionIDKey:   strings.TrimSpace(row.message.SessionID),
+		watchEventsPayloadChannelKey:     strings.TrimSpace(row.message.Channel),
+		watchEventsPayloadSurfaceKey:     strings.TrimSpace(row.message.Surface),
+		watchEventsPayloadThreadIDKey:    strings.TrimSpace(row.message.ThreadID),
+		watchEventsPayloadDirectIDKey:    strings.TrimSpace(row.message.DirectID),
+		watchEventsPayloadMessageIDKey:   strings.TrimSpace(row.message.MessageID),
+		taskRunResultKindKey:             strings.TrimSpace(row.message.Kind),
+		watchEventsPayloadDirectionKey:   strings.TrimSpace(row.message.Direction),
+		watchEventsPayloadWorkIDKey:      strings.TrimSpace(row.message.WorkID),
+		watchEventsPayloadWorkStateKey:   strings.TrimSpace(workState),
+		watchEventsPayloadPeerFromKey:    strings.TrimSpace(row.message.PeerFrom),
+		watchEventsPayloadPeerToKey:      strings.TrimSpace(row.message.PeerTo),
+		watchEventsPayloadTraceIDKey:     strings.TrimSpace(row.message.TraceID),
+		watchEventsPayloadCausationIDKey: strings.TrimSpace(row.message.CausationID),
 	}
 	return looppkg.WatchEvent{
 		Kind:        string(kind),
@@ -339,10 +339,10 @@ func (g *GlobalDB) networkConversationOpenedAtTimelineRow(
 	if strings.TrimSpace(message.Surface) != surface {
 		return false, nil
 	}
-	column := "thread_id"
+	column := watchEventsPayloadThreadIDKey
 	containerID := strings.TrimSpace(message.ThreadID)
 	if surface == store.NetworkSurfaceDirect {
-		column = "direct_id"
+		column = watchEventsPayloadDirectIDKey
 		containerID = strings.TrimSpace(message.DirectID)
 	}
 	if containerID == "" {
@@ -378,40 +378,9 @@ func (g *GlobalDB) networkWorkOutcomeAtTimelineRow(
 	if workID == "" {
 		return networkWorkOutcome{}, nil
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			ntl.rowid,
-			ntl.message_id,
-			COALESCE(ntl.session_id, ''),
-			ntl.workspace_id,
-			ntl.channel,
-			COALESCE(ntl.surface, ''),
-			COALESCE(ntl.thread_id, ''),
-			COALESCE(ntl.direct_id, ''),
-			ntl.direction,
-			ntl.peer_from,
-			COALESCE(ntl.peer_to, ''),
-			ntl.kind,
-			COALESCE(ntl.work_id, ''),
-			COALESCE(ntl.reply_to, ''),
-			COALESCE(ntl.trace_id, ''),
-			COALESCE(ntl.causation_id, ''),
-			COALESCE(ntl.intent, ''),
-			COALESCE(ntl.text, ''),
-			ntl.body_json,
-			ntl.timestamp
-		   FROM network_timeline_log ntl
-		  WHERE ntl.workspace_id = ?
-		    AND ntl.work_id = ?
-		    AND ntl.rowid <= ?
-		  ORDER BY ntl.rowid ASC`,
-		row.message.WorkspaceID,
-		workID,
-		row.seq,
-	)
+	rows, err := g.readNetworkWorkTimelineRows(ctx, row, workID)
 	if err != nil {
-		return networkWorkOutcome{}, fmt.Errorf("store: read network work timeline: %w", err)
+		return networkWorkOutcome{}, err
 	}
 	defer rows.Close()
 
@@ -458,6 +427,49 @@ func (g *GlobalDB) networkWorkOutcomeAtTimelineRow(
 		return networkWorkOutcome{}, err
 	}
 	return outcome, nil
+}
+
+func (g *GlobalDB) readNetworkWorkTimelineRows(
+	ctx context.Context,
+	row networkWatchEventRow,
+	workID string,
+) (*sql.Rows, error) {
+	rows, err := g.db.QueryContext(
+		ctx,
+		`SELECT
+			ntl.rowid,
+			ntl.message_id,
+			COALESCE(ntl.session_id, ''),
+			ntl.workspace_id,
+			ntl.channel,
+			COALESCE(ntl.surface, ''),
+			COALESCE(ntl.thread_id, ''),
+			COALESCE(ntl.direct_id, ''),
+			ntl.direction,
+			ntl.peer_from,
+			COALESCE(ntl.peer_to, ''),
+			ntl.kind,
+			COALESCE(ntl.work_id, ''),
+			COALESCE(ntl.reply_to, ''),
+			COALESCE(ntl.trace_id, ''),
+			COALESCE(ntl.causation_id, ''),
+			COALESCE(ntl.intent, ''),
+			COALESCE(ntl.text, ''),
+			ntl.body_json,
+			ntl.timestamp
+		   FROM network_timeline_log ntl
+		  WHERE ntl.workspace_id = ?
+		    AND ntl.work_id = ?
+		    AND ntl.rowid <= ?
+		  ORDER BY ntl.rowid ASC`,
+		row.message.WorkspaceID,
+		workID,
+		row.seq,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: read network work timeline: %w", err)
+	}
+	return rows, nil
 }
 
 func networkMessageOpensWork(message store.NetworkConversationMessage) bool {

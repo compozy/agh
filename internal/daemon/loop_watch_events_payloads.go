@@ -12,12 +12,27 @@ import (
 )
 
 const (
+	watchEventsPayloadAttemptKey      = "attempt"
+	watchEventsPayloadCausationIDKey  = "causation_id"
+	watchEventsPayloadChannelKey      = "channel"
 	watchEventsPayloadDetailsKey      = "details"
+	watchEventsPayloadDirectIDKey     = "direct_id"
+	watchEventsPayloadDirectionKey    = "direction"
+	watchEventsPayloadDurationMSKey   = "duration_ms"
 	watchEventsPayloadErrorKey        = "error"
 	watchEventsPayloadKindKey         = "kind"
+	watchEventsPayloadMessageIDKey    = "message_id"
 	watchEventsPayloadNodeIDKey       = "node_id"
 	watchEventsPayloadParentTaskIDKey = "parent_task_id"
+	watchEventsPayloadPeerFromKey     = "peer_from"
+	watchEventsPayloadPeerToKey       = "peer_to"
 	watchEventsPayloadReasonKey       = "reason"
+	watchEventsPayloadSurfaceKey      = "surface"
+	watchEventsPayloadThreadIDKey     = "thread_id"
+	watchEventsPayloadTraceIDKey      = "trace_id"
+	watchEventsPayloadWillRetryKey    = "will_retry"
+	watchEventsPayloadWorkIDKey       = "work_id"
+	watchEventsPayloadWorkStateKey    = "work_state"
 )
 
 func watchEventsTaskStatusChangedEvent(
@@ -131,12 +146,12 @@ func watchEventsAutomationRunCompletedEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Payload: map[string]any{
-			"job_id":      strings.TrimSpace(payload.JobID),
-			"trigger_id":  strings.TrimSpace(payload.TriggerID),
-			"agent_name":  strings.TrimSpace(payload.AgentName),
-			"session_id":  strings.TrimSpace(payload.SessionID),
-			"attempt":     payload.Attempt,
-			"duration_ms": payload.DurationMS,
+			daemonPayloadJobIDKey:           strings.TrimSpace(payload.JobID),
+			daemonPayloadTriggerIDKey:       strings.TrimSpace(payload.TriggerID),
+			daemonPayloadAgentNameKey:       strings.TrimSpace(payload.AgentName),
+			daemonPayloadSessionIDKey:       strings.TrimSpace(payload.SessionID),
+			watchEventsPayloadAttemptKey:    payload.Attempt,
+			watchEventsPayloadDurationMSKey: payload.DurationMS,
 		},
 		LedgerKind: string(hookspkg.HookAutomationRunCompleted),
 	}
@@ -154,13 +169,13 @@ func watchEventsAutomationRunFailedEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Payload: map[string]any{
-			"job_id":                   strings.TrimSpace(payload.JobID),
-			"trigger_id":               strings.TrimSpace(payload.TriggerID),
-			"agent_name":               strings.TrimSpace(payload.AgentName),
-			"session_id":               strings.TrimSpace(payload.SessionID),
-			"attempt":                  payload.Attempt,
-			watchEventsPayloadErrorKey: strings.TrimSpace(payload.Error),
-			"will_retry":               payload.WillRetry,
+			daemonPayloadJobIDKey:          strings.TrimSpace(payload.JobID),
+			daemonPayloadTriggerIDKey:      strings.TrimSpace(payload.TriggerID),
+			daemonPayloadAgentNameKey:      strings.TrimSpace(payload.AgentName),
+			daemonPayloadSessionIDKey:      strings.TrimSpace(payload.SessionID),
+			watchEventsPayloadAttemptKey:   payload.Attempt,
+			watchEventsPayloadErrorKey:     strings.TrimSpace(payload.Error),
+			watchEventsPayloadWillRetryKey: payload.WillRetry,
 		},
 		LedgerKind: string(hookspkg.HookAutomationRunFailed),
 	}
@@ -180,20 +195,20 @@ func watchEventsNetworkEvent(
 		Channel:     strings.TrimSpace(payload.Channel),
 		WorkID:      strings.TrimSpace(payload.WorkID),
 		Payload: map[string]any{
-			"session_id":              strings.TrimSpace(payload.SessionID),
-			"channel":                 strings.TrimSpace(payload.Channel),
-			"surface":                 strings.TrimSpace(payload.Surface),
-			"thread_id":               strings.TrimSpace(payload.ThreadID),
-			"direct_id":               strings.TrimSpace(payload.DirectID),
-			"message_id":              strings.TrimSpace(payload.MessageID),
-			watchEventsPayloadKindKey: strings.TrimSpace(payload.Kind),
-			"direction":               strings.TrimSpace(payload.Direction),
-			"work_id":                 strings.TrimSpace(payload.WorkID),
-			"work_state":              strings.TrimSpace(payload.WorkState),
-			"peer_from":               strings.TrimSpace(payload.PeerFrom),
-			"peer_to":                 strings.TrimSpace(payload.PeerTo),
-			"trace_id":                strings.TrimSpace(payload.TraceID),
-			"causation_id":            strings.TrimSpace(payload.CausationID),
+			daemonPayloadSessionIDKey:        strings.TrimSpace(payload.SessionID),
+			watchEventsPayloadChannelKey:     strings.TrimSpace(payload.Channel),
+			watchEventsPayloadSurfaceKey:     strings.TrimSpace(payload.Surface),
+			watchEventsPayloadThreadIDKey:    strings.TrimSpace(payload.ThreadID),
+			watchEventsPayloadDirectIDKey:    strings.TrimSpace(payload.DirectID),
+			watchEventsPayloadMessageIDKey:   strings.TrimSpace(payload.MessageID),
+			watchEventsPayloadKindKey:        strings.TrimSpace(payload.Kind),
+			watchEventsPayloadDirectionKey:   strings.TrimSpace(payload.Direction),
+			watchEventsPayloadWorkIDKey:      strings.TrimSpace(payload.WorkID),
+			watchEventsPayloadWorkStateKey:   strings.TrimSpace(payload.WorkState),
+			watchEventsPayloadPeerFromKey:    strings.TrimSpace(payload.PeerFrom),
+			watchEventsPayloadPeerToKey:      strings.TrimSpace(payload.PeerTo),
+			watchEventsPayloadTraceIDKey:     strings.TrimSpace(payload.TraceID),
+			watchEventsPayloadCausationIDKey: strings.TrimSpace(payload.CausationID),
 		},
 		LedgerKind: string(kind),
 	}
