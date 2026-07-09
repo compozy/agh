@@ -1,9 +1,8 @@
 // Pure per-turn aggregation of the files an assistant turn modified via Edit/Write
-// tool calls, feeding the settled-turn "Changed files" roll-up (task 36). This is
-// the AGH analogue of T3Code's `turnDiffTree.ts` / Synara's checkpoint-file
-// summary, except AGH has no git checkpoint to read stats from — the +/- counts
-// are derived directly from the tool payloads the reader already sees in the
-// `edit-content` / `write-content` renderers:
+// tool calls, feeding the settled-turn "Changed files" roll-up. AGH has no git
+// checkpoint to read stats from — the +/- counts are derived directly from the
+// tool payloads the reader already sees in the `edit-content` / `write-content`
+// renderers:
 //   - Write: the whole content is written, so additions = its line count, no deletions.
 //   - Edit: a minimal line-level diff (LCS) of `old_string` → `new_string`.
 // Same file edited twice within a turn collapses to one entry with summed stats.
@@ -12,7 +11,7 @@
 import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import type { ChangedFileEntry, SessionTimelineToolPart } from "./session-timeline.logic";
 
-// The Claude-Code file-modifying tools AGH surfaces structured diff sources for
+// The file-modifying tools AGH surfaces structured diff sources for
 // (`tool-renderers/{edit,write}-content.tsx`). Normalized through
 // `resolveRegisteredToolName` so ACP-style titles ("Edit routes.go") also match.
 const FILE_MODIFYING_TOOLS = new Set(["Edit", "Write"]);

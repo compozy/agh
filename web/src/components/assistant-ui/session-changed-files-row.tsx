@@ -46,10 +46,10 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
 /**
  * The settled-turn "Changed files" roll-up card. Collapsed, it reads
  * `Edited N files +a/-d`; expanded, it lists each modified file with its diff
- * stats. Display-only — AGH exposes no checkpoint/Undo semantics, so unlike the
- * Synara/T3Code cards this carries no Undo/Review actions (truthful UI). Styling
- * per `analysis/07 §4.2 #26`: `--radius-lg` + `border-line` + `bg-canvas-soft` +
- * `<Eyebrow>` header, no `bg-card/45` translucency or custom shadow.
+ * stats. Display-only — AGH exposes no checkpoint/Undo semantics, so this
+ * carries no Undo/Review actions (truthful UI). Styling per `analysis/07 §4.2
+ * #26`: `--radius-lg` + `border-line` + `bg-canvas-soft` + `<Eyebrow>` header,
+ * no `bg-card/45` translucency or custom shadow.
  */
 export function SessionChangedFilesRowView({
   row,

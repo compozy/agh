@@ -30,10 +30,11 @@ interface LoopEditorCanvasProps {
 }
 
 /**
- * The `@xyflow/react` DAG canvas (design §4.6). Controlled flow (librefang precedent):
- * nodes/edges + change handlers live in the editor view-model, and this component only
- * renders + reports interaction. `isValidConnection` is a connect-time UX hint (no
- * self-loops) — never an invariant check; the shared Go linter owns acyclicity (ADR-015).
+ * The `@xyflow/react` DAG canvas (design §4.6). Controlled flow: nodes/edges +
+ * change handlers live in the editor view-model, and this component only renders
+ * + reports interaction. `isValidConnection` is a connect-time UX hint (no
+ * self-loops) — never an invariant check; the shared Go linter owns acyclicity
+ * (ADR-015).
  */
 export function LoopEditorCanvas({
   nodes,

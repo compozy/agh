@@ -35,8 +35,8 @@ function fanOutChips(raw: EditorNode["data"]["raw"]): string[] {
  * One neutral node card on the DAG canvas (design §4.6). Color never encodes class:
  * selection is an accent ring, a lint error is a danger ring + corner badge, everything
  * else is a flat surface with mono class/kind labels. A single custom node type
- * dispatches on `data.nodeClass`/`kind` (librefang precedent) rather than a type per
- * kind, so new kinds render without new React Flow node types.
+ * dispatches on `data.nodeClass`/`kind` rather than a type per kind, so new kinds
+ * render without new React Flow node types.
  */
 export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
   const { raw, nodeClass, kind, hasError } = data;

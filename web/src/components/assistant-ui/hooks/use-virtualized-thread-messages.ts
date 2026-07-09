@@ -10,7 +10,7 @@ import {
 import { estimateMessageSize } from "../timeline-row-estimates";
 
 // Distance (px) from the live edge within which the viewport counts as "at the
-// bottom": inside it, live-follow resumes and the pill hides. Mirrors T3's isAtEnd.
+// bottom": inside it, live-follow resumes and the pill hides.
 const AT_END_THRESHOLD = 96;
 // Gap (px) kept above a freshly-anchored prompt so it sits just below the top edge
 // while its answer streams in below it.
@@ -41,7 +41,7 @@ function findLastUserIndex(messages: readonly ThreadScrollMessage[]): number {
 
 /**
  * Drives the transcript virtualizer with an explicit three-mode live-follow
- * machine ported from T3 (`timeline-scroll-anchoring.ts`):
+ * machine (`timeline-scroll-anchoring.ts`):
  *
  * - `following-end` pins the viewport to the newest message as content streams;
  * - a manual wheel/touch/pointer gesture flips to `free-scrolling` and reveals the
@@ -65,10 +65,10 @@ export function useVirtualizedThreadMessages(
     [messages]
   );
 
-  // Key the virtualizer's measurement cache by message identity (T3's
-  // `keyExtractor`): a settled message's measured height and React key follow the
-  // message across appends/reconnects instead of being pinned to a shifting index,
-  // so recycled rows recycle by the row they actually are.
+  // Key the virtualizer's measurement cache by message identity: a settled
+  // message's measured height and React key follow the message across
+  // appends/reconnects instead of being pinned to a shifting index, so recycled
+  // rows recycle by the row they actually are.
   const getItemKey = useCallback((index: number) => messages[index]?.id ?? index, [messages]);
 
   const virtualizer = useVirtualizer({

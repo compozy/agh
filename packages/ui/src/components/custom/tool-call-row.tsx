@@ -137,8 +137,8 @@ function ToolCallRowOutput(props: ToolCallRowSectionProps) {
  * `ToolCallRow` renders one tool call as a single ~26px line —
  * `[icon well] [heading] [mono preview] [chevron] [status glyph]` — that expands
  * an inline indented body (params/outputs) on click or Enter/Space. It replaces
- * the filled `ToolCallCard` chrome with the Synara/T3Code transcript language:
- * flat depth, neutral `bg-hover` glaze, signal-toned status glyph as information.
+ * the filled `ToolCallCard` chrome with the transcript language: flat depth,
+ * neutral `bg-hover` glaze, signal-toned status glyph as information.
  */
 function ToolCallRowInner({
   toolName,

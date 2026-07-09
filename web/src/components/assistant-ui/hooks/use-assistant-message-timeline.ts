@@ -16,8 +16,7 @@ import { isRecord, stringField, toTimelineParts } from "../timeline-message-part
 
 // A turn is "working" while it streams: assistant-ui marks the message status
 // `running`, and/or a part is still live — a text/reasoning part in a streaming
-// state, or a tool call awaiting its result. Mirrors T3Code's `isWorking` row
-// (`MessagesTimeline.logic.ts`), adapted to AGH's per-message parts.
+// state, or a tool call awaiting its result.
 function messageStatusIsRunning(message: { status?: unknown }): boolean {
   const status = message.status;
   return isRecord(status) && stringField(status, "type") === "running";
@@ -101,8 +100,7 @@ function interruptedTurnIds(
 /**
  * Toggles a disclosure while preserving the reader's viewport anchor: it measures
  * the scroll container before the synchronous state flush, then corrects
- * `scrollTop` by the height delta so newly revealed rows never jump the view
- * (T3's `flushSync` + scroll-offset correction, ported onto our virtualizer).
+ * `scrollTop` by the height delta so newly revealed rows never jump the view.
  */
 function useAnchorPreservingToggle() {
   return useCallback((button: HTMLElement | null, update: () => void) => {

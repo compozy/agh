@@ -715,7 +715,7 @@ describe("SessionThread transcript states", () => {
   it("Should render the working row with typing dots and a live timer while a turn streams, and drop it once settled", async () => {
     // A streaming reasoning part marks the live turn; the settled turn carries only
     // a done text part. The working row must appear once (live turn), never on the
-    // settled turn, and it must be the T3 typing-dots + timer, not the old spinner.
+    // settled turn, and it must be the typing-dots + timer, not the old spinner.
     const startedAtIso = new Date(Date.now() - 5000).toISOString();
     const transcript = [
       {
@@ -806,7 +806,7 @@ describe("SessionThread transcript states", () => {
 
   it("Should advance the working timer text without re-rendering the row per second", () => {
     // The self-ticking timer mutates its own text node, so the React tree must not
-    // commit once per second while a turn streams (T3's WorkingTimer technique).
+    // commit once per second while a turn streams.
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date("2026-07-07T12:00:00Z"));

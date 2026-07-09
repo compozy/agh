@@ -35,7 +35,7 @@ describe("getToolIcon", () => {
     }
   });
 
-  it("Should map AGH native tool families from the agh__ taxonomy, not competitor enums", () => {
+  it("Should map AGH native tool families from the agh__ taxonomy", () => {
     expect(getToolIcon("agh__edit")).toBe(FileEdit);
     expect(getToolIcon("agh__memory_note")).toBe(Brain);
     expect(getToolIcon("agh__memory_search")).toBe(Brain);

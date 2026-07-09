@@ -251,7 +251,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   );
 }
 
-// One memoized dispatcher per row. With T3-style structural sharing
+// One memoized dispatcher per row. With structural sharing
 // (`computeStableSessionRows`) an unchanged row keeps its reference across derive
 // passes, so this memo bails and only the row whose visible content changed
 // re-renders during steady-state streaming. Interactive variants read their

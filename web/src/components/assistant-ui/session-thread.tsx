@@ -159,9 +159,9 @@ export function ScrollToBottomPill({
   visible: boolean;
   onClick: () => void;
 }) {
-  // Synara's floating scroll-to-bottom affordance remapped to AGH tokens: a
-  // neutral `size-8` disc (no glass/backdrop-blur) that fades + drifts in with the
-  // shared disclosure motion and stays mounted so its exit animates too.
+  // Floating scroll-to-bottom affordance: a neutral `size-8` disc (no
+  // glass/backdrop-blur) that fades + drifts in with the shared disclosure
+  // motion and stays mounted so its exit animates too.
   return (
     <div
       className={cn(

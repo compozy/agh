@@ -54,8 +54,8 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 
 /**
  * Icon per AGH native tool family (`agh__<family>_<verb>` → icon). Derived from
- * AGH's own `agh__*` tool taxonomy — NOT from competitor request-kind/item-type
- * enums. Unmapped families fall through to the generic tool fallback.
+ * AGH's own `agh__*` tool taxonomy. Unmapped families fall through to the
+ * generic tool fallback.
  */
 const AGH_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
   edit: FileEdit,

@@ -11,7 +11,7 @@ const meta: Meta<typeof ToolCallRow> = {
     docs: {
       description: {
         component:
-          "Single-line tool call in the Synara/T3Code transcript language. One ~26px row: icon well + tool heading + mono preview + expand chevron + signal-toned status glyph. Expandable rows open an inline indented body (Input/Output) on click or Enter/Space; hover uses the neutral glaze, never an accent fill.",
+          "Single-line tool call in the transcript language. One ~26px row: icon well + tool heading + mono preview + expand chevron + signal-toned status glyph. Expandable rows open an inline indented body (Input/Output) on click or Enter/Space; hover uses the neutral glaze, never an accent fill.",
       },
     },
   },

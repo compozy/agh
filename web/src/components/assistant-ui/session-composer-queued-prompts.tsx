@@ -18,7 +18,7 @@ interface SessionComposerQueuedPromptsProps {
 
 // Collapse a queued prompt to a single-line preview: first non-empty line with
 // leading markdown markers stripped, so a heading / list / quote still reads as
-// one composer row (mirrors Synara's `compactQueuedComposerPreviewMarkdown`).
+// one composer row.
 export function queuedPromptPreview(text: string): string {
   const firstLine =
     text
