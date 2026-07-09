@@ -115,6 +115,7 @@ def ensure_lab_scaffold(workspace_path: Path, qa_output_path: Path) -> None:
         qa_output_path / "qa" / "issues",
         qa_output_path / "qa" / "test-cases",
         qa_output_path / "qa" / "test-plans",
+        qa_output_path / "qa" / "pids",
     ]
     for path in dirs:
         path.mkdir(parents=True, exist_ok=True)
@@ -729,6 +730,8 @@ def main() -> int:
     env_block["JOURNEY_LOG"] = str(evidence_paths["JOURNEY_LOG"])
     env_block["PROVIDER_ATTEMPT"] = str(evidence_paths["PROVIDER_ATTEMPT"])
     env_block["AUDIT_COMMAND"] = str(evidence_paths["AUDIT_COMMAND"])
+    teardown_script = repo_root / ".agents" / "skills" / "agh" / "agh-qa-bootstrap" / "scripts" / "teardown-qa-env.py"
+    env_block["TEARDOWN_COMMAND"] = f"python3 {teardown_script} --manifest {manifest_path}"
     env_block.setdefault("PLAYBOOK_REF", playbook_ref)
     env_block.setdefault("KICKOFF_POSTED", "false")
     env_block.setdefault("KICKOFF_TIMESTAMP", "")
@@ -767,6 +770,7 @@ def main() -> int:
             "journey_log": str(evidence_paths["JOURNEY_LOG"]),
             "provider_attempt": str(evidence_paths["PROVIDER_ATTEMPT"]),
             "audit_command": str(evidence_paths["AUDIT_COMMAND"]),
+            "teardown_command": env_block["TEARDOWN_COMMAND"],
         },
         "project_contract": project_contract,
     }
@@ -794,6 +798,7 @@ def main() -> int:
         "JOURNEY_LOG": env_block["JOURNEY_LOG"],
         "PROVIDER_ATTEMPT": env_block["PROVIDER_ATTEMPT"],
         "AUDIT_COMMAND": env_block["AUDIT_COMMAND"],
+        "TEARDOWN_COMMAND": env_block["TEARDOWN_COMMAND"],
         "REUSED_LAB": "true" if reused_lab else "false",
         "PLAYBOOK_REF": env_block.get("PLAYBOOK_REF", ""),
         "KICKOFF_POSTED": env_block.get("KICKOFF_POSTED", "false"),

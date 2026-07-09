@@ -113,6 +113,7 @@ Match your task to the row. Read the listed files **in full before** producing o
 2. Exit gate: run the project's full automated suite once. A green matrix with a red suite is not ready — say so in Final Status.
 3. Write back: every matrix row terminal (no `Pending` left), `state.csv` verdicts updated per the schema, bug statuses current, charter debriefs appended, report's Final Status written with totals by impact tier.
 4. Never claim PASS without fresh evidence from the current build. An empty report section is a coverage gap, not a green light.
+5. Process hygiene: stop everything the round started. Close browser sessions (`agent-browser close`), then tear down the lab: `eval "$TEARDOWN_COMMAND"` from the bootstrap env block (or `make qa-reap` when no manifest is at hand). Cite the teardown evidence (`teardown.json`, `"clean": true`) in Final Status. A round that leaves daemons, dev servers, tmux servers, or watchers running is not closed — orphaned processes accumulate and freeze the machine.
 
 ## Companion Skills
 

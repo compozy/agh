@@ -46,6 +46,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
    - `JOURNEY_LOG`
    - `PROVIDER_ATTEMPT`
    - `AUDIT_COMMAND`
+   - `TEARDOWN_COMMAND`
    - `REUSED_LAB`
    - `PLAYBOOK_REF` (empty when `--playbook` was not passed)
    - `KICKOFF_POSTED` (`false` until `real-scenario-qa` Step 4 posts the kickoff)
@@ -78,8 +79,19 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 1. When QA completes, keep the manifest path, lab root, `AGH_HOME`, base URL, and the dated run report path (`docs/qa/reports/<YYYY-MM-DD>-<scope>.md`) visible in the final QA summary.
 2. For timed-loop or continuation-driven QA, include the machine-readable QA bootstrap block from `references/bootstrap-contract.md` so the next round can reuse the lab instead of rebuilding it.
 
+**Step 5: Tear Down the Lab (MANDATORY on every terminal path)**
+
+1. A QA pass is not complete while lab processes are alive. On pass, fail, blocked, or abort, run the recorded teardown:
+   `eval "$TEARDOWN_COMMAND"` (equivalent to `python3 .agents/skills/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest "$BOOTSTRAP_MANIFEST"`).
+2. The teardown stops the daemon gracefully, kills the lab tmux server, and sweeps survivors (registered `qa/pids/*.pid`, cmdline references to lab roots, lab-port listeners, open files under runtime/provider homes). It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps the manifest with a `teardown` block.
+3. Cite `teardown.json` (`"clean": true`) as completion evidence in the final QA summary. Exit code `1` (survivors) is a blocking failure — diagnose the survivors, never ignore them.
+4. Register every long-lived process you start against the lab at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` immediately after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/web-dev.pid"`). The registry is the teardown's primary kill list.
+5. Only exception: the same active session/loop keeps the lab alive across a continuation (reuse policy). Whoever ends the loop inherits the teardown obligation.
+6. To reap every discoverable lab on the machine (stale labs from crashed runs), run `make qa-reap` (add `PURGE=1` to also delete runtime dirs after a clean sweep).
+
 ## Error Handling
 
 - If the bootstrap helper reports `REUSED_LAB=false` because health checks failed, use the fresh manifest it just wrote instead of trying to revive the stale state manually.
 - If a bound-secret, brokered, or Codex-specific provider fails with global config errors such as malformed `config.toml`, confirm that commands are using the manifest-derived `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. If a `native_cli` provider with `home_policy=operator` fails, confirm the lane preserved the operator `HOME` instead of incorrectly rewriting it to `PROVIDER_HOME`.
 - If Web flows hit the wrong daemon, confirm `AGH_WEB_API_PROXY_TARGET` matches the manifest and restart the Web dev server with that env.
+- If teardown reports survivors (exit 1), inspect `TEARDOWN_SURVIVOR` lines: EPERM means another user owns the process (escalate to the operator); "still alive after SIGKILL" usually means a zombie parent — find and stop the parent, then re-run the teardown.

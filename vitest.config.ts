@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     pool: "threads",
     isolate: true,
+    // Bounded pool: unbounded per-project workers multiply with turbo's
+    // workspace fan-out and collapse the machine next to other worktrees (L-030).
+    maxWorkers: "50%",
     exclude: ["**/node_modules/**", "**/dist/**", "**/bin/**"],
     coverage: {
       provider: "v8",

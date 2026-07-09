@@ -10,13 +10,14 @@
         "internal/extension/protocol/**",
         "internal/hooks/**",
         "internal/subprocess/handshake.go",
-        "magefile.go",
+        "magefiles/**",
         "openapi/agh.json",
         "openapi/compozy-daemon.json"
     ],
     "tasks": {
         "//#codegen-check": {
-            "outputs": []
+            "outputs": [],
+            "env": ["AGH_CODEGEN_CHECKED"]
         },
         "build": {
             "dependsOn": ["//#codegen-check", "^build"],

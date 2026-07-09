@@ -99,6 +99,30 @@ web-typecheck:
 web-test:
 	@bunx turbo run test --filter=./web
 
+# Parallel worktrees
+#
+# `worktree-new` creates a sibling worktree at ../<repo>-worktrees/<slug> and
+# bootstraps it (mise pins, bun install + skill symlinks; BUILD=1 adds `make
+# build`, E2E=1 installs Playwright chromium). `worktree-bootstrap` preps the
+# current checkout. Removal: scripts/worktree.sh rm <slug>.
+.PHONY: worktree-new worktree-bootstrap
+worktree-new:
+	@test -n "$(SLUG)" || { echo "usage: make worktree-new SLUG=<slug> [BRANCH=] [BASE=] [BUILD=1] [E2E=1]"; exit 2; }
+	@bash scripts/worktree.sh new $(SLUG) $(if $(BRANCH),--branch $(BRANCH),) $(if $(BASE),--base $(BASE),) $(if $(BUILD),--build,) $(if $(E2E),--e2e,)
+
+worktree-bootstrap:
+	@bash scripts/worktree.sh bootstrap $(if $(BUILD),--build,) $(if $(E2E),--e2e,)
+
+# QA lab process hygiene
+#
+# Stops daemons and kills every process still tied to a QA lab (bootstrap labs,
+# $TMPDIR/aghqa-* runtime roots, agh-iso-* isolation envelopes). Run after any
+# QA pass; mandatory before claiming QA completion. Add PURGE=1 to also remove
+# lab runtime dirs after a clean sweep.
+.PHONY: qa-reap
+qa-reap:
+	@python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --all $(if $(PURGE),--purge,)
+
 # Local daemon run
 #
 # `start` rebuilds the web bundle and launches the daemon with the

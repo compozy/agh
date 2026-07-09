@@ -91,8 +91,8 @@ func TestGenerate(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", artifact.OutputPath, err)
 		}
 		formatErr := errors.New("format failed")
-		runner := commandRunnerFunc(func(_ context.Context, _ string, args ...string) error {
-			switch args[0] {
+		runner := commandRunnerFunc(func(_ context.Context, tool string, args ...string) error {
+			switch tool {
 			case "openapi-typescript":
 				outputPath := args[len(args)-1]
 				if err := os.WriteFile(outputPath, []byte("generated output\n"), 0o600); err != nil {
@@ -102,7 +102,7 @@ func TestGenerate(t *testing.T) {
 			case "oxfmt":
 				return formatErr
 			default:
-				return fmt.Errorf("unexpected command args: %v", args)
+				return fmt.Errorf("unexpected tool %q args: %v", tool, args)
 			}
 		})
 
@@ -128,9 +128,9 @@ func TestGenerate(t *testing.T) {
 			SpecPath:   filepath.Join(dir, "spec.json"),
 			OutputPath: filepath.Join(dir, "types.d.ts"),
 		}
-		runner := commandRunnerFunc(func(_ context.Context, _ string, args ...string) error {
+		runner := commandRunnerFunc(func(_ context.Context, tool string, args ...string) error {
 			outputPath := args[len(args)-1]
-			switch args[0] {
+			switch tool {
 			case "openapi-typescript":
 				if err := os.WriteFile(outputPath, []byte("generated output\n"), 0o600); err != nil {
 					return fmt.Errorf("write generated output: %w", err)
@@ -142,7 +142,7 @@ func TestGenerate(t *testing.T) {
 				}
 				return nil
 			default:
-				return fmt.Errorf("unexpected command args: %v", args)
+				return fmt.Errorf("unexpected tool %q args: %v", tool, args)
 			}
 		})
 

@@ -70,10 +70,10 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 
 		before := mapAt(t, cfg, "before")
 		hooks := sliceAt(t, before, "hooks")
-		if !stringSliceContains(hooks, "go run github.com/magefile/mage@v1.17.0 webBuild") {
+		if !stringSliceContains(hooks, "go run github.com/magefile/mage@v1.17.2 webBuild") {
 			t.Fatalf("before.hooks = %#v, want webBuild before GoReleaser builds embedded web assets", hooks)
 		}
-		if !stringSliceContains(hooks, "go run github.com/magefile/mage@v1.17.0 webAssetsCheck") {
+		if !stringSliceContains(hooks, "go run github.com/magefile/mage@v1.17.2 webAssetsCheck") {
 			t.Fatalf("before.hooks = %#v, want webAssetsCheck before GoReleaser builds binaries", hooks)
 		}
 	})

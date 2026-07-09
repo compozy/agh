@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/compozy/agh/internal/api/spec"
+	"github.com/compozy/agh/internal/codegen/jsbin"
 	"github.com/compozy/agh/internal/codegen/sdkts"
 	"github.com/compozy/agh/internal/fileutil"
 )
@@ -349,7 +350,9 @@ func loopEnumsPathFor(openapiPath string) string {
 }
 
 func formatTypeScript(ctx context.Context, path string, content []byte) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "bunx", "oxfmt", "--stdin-filepath", path)
+	argv := jsbin.Argv(".", "oxfmt", "--stdin-filepath", path)
+	//nolint:gosec // argv[0] comes from jsbin.Argv with a constant tool name: workspace shim or bunx fallback.
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Stdin = bytes.NewReader(content)
 
 	var stdout bytes.Buffer

@@ -68,4 +68,4 @@ Verbatim canonical rules. Reviewers will quote these.
 - Maps for <10 items — no registry interfaces for small collections.
 - File-level organization within packages — sub-packages only when complexity justifies it.
 - `internal/api/core` is the canonical handler home. REST/UDS endpoints exist as shared `BaseHandlers` methods; HTTP and UDS only choose registration and authentication. No transport-duplicated parsing/validation.
-- New `internal/api/*` subpackage requires updating `magefile.go` `Boundaries()` in the same commit (CI-enforceable boundaries prevent import cycles).
+- New `internal/api/*` subpackage requires updating `magefiles/boundaries.go` in the same commit (CI-enforceable boundaries prevent import cycles).

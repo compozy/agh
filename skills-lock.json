@@ -1061,6 +1061,12 @@
             "sourceType": "github",
             "computedHash": "136a0413255aa82d800459c775eabf041620b2e9cbf2d713b739bf1b87a3db3a"
         },
+        "writing-great-skills": {
+            "source": "mattpocock/skills",
+            "sourceType": "github",
+            "skillPath": "skills/productivity/writing-great-skills/SKILL.md",
+            "computedHash": "42fe94c64d7b9acda9ce7d6495a3476893a1b18615986528f55f7162a29789d4"
+        },
         "writing-tech-post": {
             "source": "pedronauck/skills",
             "sourceType": "github",
