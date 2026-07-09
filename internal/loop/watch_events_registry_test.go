@@ -3,7 +3,6 @@ package loop_test
 import (
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/hooks"
@@ -131,9 +130,6 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 			if _, ok := catalog[kind]; !ok {
 				t.Fatalf("SupportedWatchEvents()[%q] is not in AllHookEvents()", kind)
 			}
-			if strings.Contains(string(kind), ".pre") {
-				t.Fatalf("SupportedWatchEvents()[%q] is a pre-state hook", kind)
-			}
 			if kind == hooks.HookEventPostRecord {
 				if !slices.Equal(contract.RequiredVars, []string{"session_id"}) {
 					t.Fatalf(
@@ -171,6 +167,18 @@ func TestSupportedWatchEventsShouldExposeSupportedContracts(t *testing.T) {
 					contract.LedgerTypes,
 					want.ledgerTypes,
 				)
+			}
+		}
+		for _, preStateKind := range []hooks.HookEvent{
+			hooks.HookAutomationJobPreFire,
+			hooks.HookEventPreRecord,
+			hooks.HookCoordinatorPreSpawn,
+			hooks.HookTaskRunPreClaim,
+			hooks.HookLoopGenerationPre,
+			hooks.HookLoopGatePre,
+		} {
+			if _, ok := contracts[preStateKind]; ok {
+				t.Fatalf("SupportedWatchEvents() contains pre-state hook %q", preStateKind)
 			}
 		}
 		if _, ok := contracts[hooks.HookAutomationJobPreFire]; ok {

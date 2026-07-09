@@ -24,45 +24,39 @@ type eventRecordWatchObserver interface {
 }
 
 func (n *hooksNotifier) AddCoordinatorWatchObserver(observer coordinatorWatchObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.coordinator = append(set.coordinator, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.coordinatorWatchHooks = append(n.coordinatorWatchHooks, observer)
 }
 
 func (n *hooksNotifier) AddEventRecordWatchObserver(observer eventRecordWatchObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.eventRecords = append(set.eventRecords, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.eventRecordWatchHooks = append(n.eventRecordWatchHooks, observer)
 }
 
 func (n *hooksNotifier) coordinatorWatchObservers() []coordinatorWatchObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]coordinatorWatchObserver(nil), set.coordinator...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]coordinatorWatchObserver(nil), n.coordinatorWatchHooks...)
 }
 
 func (n *hooksNotifier) eventRecordWatchObservers() []eventRecordWatchObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]eventRecordWatchObserver(nil), set.eventRecords...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]eventRecordWatchObserver(nil), n.eventRecordWatchHooks...)
 }
 
 func dispatchEventPostRecordWithWatchObservers(

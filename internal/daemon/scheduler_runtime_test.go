@@ -197,7 +197,11 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t
 				t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 			}
 
-			started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(
+			started, err := (schedulerTaskSource{
+				manager:            manager,
+				store:              db,
+				watchEventsGapScan: newLoopWatchEventsGapScanState(),
+			}).RunLoopCoordinatorBackstop(
 				ctx,
 				now.Add(2*time.Second),
 				actor,

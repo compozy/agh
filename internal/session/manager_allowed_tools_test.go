@@ -11,13 +11,20 @@ import (
 
 func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 	t.Parallel()
+	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
+		ID:    toolspkg.ToolsetIDTasks,
+		Tools: []string{"agh__task_*"},
+	})
+	if err != nil {
+		t.Fatalf("NewToolsetCatalog() error = %v", err)
+	}
 
 	t.Run("Should accept unrestricted agent profiles", func(t *testing.T) {
 		t.Parallel()
 
 		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{}, []string{
 			toolspkg.ToolIDTaskRead.String(),
-		})
+		}, catalog)
 		if err != nil {
 			t.Fatalf("validateAllowedToolsOverrideSubset(unrestricted) error = %v", err)
 		}
@@ -30,7 +37,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			Tools: []string{"agh__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
-		})
+		}, catalog)
 		if err != nil {
 			t.Fatalf("validateAllowedToolsOverrideSubset(wildcard) error = %v", err)
 		}
@@ -43,7 +50,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			DenyTools: []string{"agh__task_*"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
-		})
+		}, catalog)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("validateAllowedToolsOverrideSubset(denied) error = %v, want %v", err, ErrValidation)
 		}
@@ -52,20 +59,29 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail closed for toolset-only profiles", func(t *testing.T) {
+	t.Run("Should accept members of toolset-only profiles", func(t *testing.T) {
 		t.Parallel()
 
 		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
 			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
-		})
-		if !errors.Is(err, ErrValidation) {
-			t.Fatalf("validateAllowedToolsOverrideSubset(toolset only) error = %v, want %v", err, ErrValidation)
+		}, catalog)
+		if err != nil {
+			t.Fatalf("validateAllowedToolsOverrideSubset(toolset member) error = %v", err)
 		}
-		if !strings.Contains(err.Error(), toolspkg.ToolIDTaskRead.String()) ||
-			!strings.Contains(err.Error(), "widens agent profile") {
-			t.Fatalf("validateAllowedToolsOverrideSubset(toolset only) error = %v, want widening message", err)
+	})
+
+	t.Run("Should reject nonmembers of toolset-only profiles", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateAllowedToolsOverrideSubset(aghconfig.ResolvedAgent{
+			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
+		}, []string{
+			toolspkg.ToolIDSessionList.String(),
+		}, catalog)
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "widens agent profile") {
+			t.Fatalf("validateAllowedToolsOverrideSubset(toolset nonmember) error = %v, want widening validation", err)
 		}
 	})
 
@@ -76,7 +92,7 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 			Toolsets: []string{"Bad"},
 		}, []string{
 			toolspkg.ToolIDTaskRead.String(),
-		})
+		}, catalog)
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("validateAllowedToolsOverrideSubset(invalid toolset) error = %v, want %v", err, ErrValidation)
 		}

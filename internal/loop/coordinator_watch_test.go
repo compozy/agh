@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -313,6 +314,86 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		}
 	})
 
+	t.Run("Should advance capped nonmatching streams and enqueue a continuation wake", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+		loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
+		coordinatorRun := watchCoordinatorRun(loopRun)
+		filter := `event.task_id == "task-target"`
+		pendingRef := watchEventsPendingRefForTest(t, int64(1), filter)
+		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)}
+		runner := newWatchEventsCoordinatorRunnerForTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "watch_tasks", Status: generationOutputPending, OutputRef: pendingRef},
+				{Generation: 1, NodeID: "summarize", Status: generationOutputPending},
+			}}},
+			compileCoordinatorControlDefinition(t, watchEventsDefinitionForTest(filter)),
+			ledger,
+		)
+		runner.now = func() time.Time { return now }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if !plan.Yield {
+			t.Fatal("Yield = false, want yield while no events match")
+		}
+		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		pending := decodeWatchEventsOutputRefForTest(t, outputs["watch_tasks"].OutputRef)
+		wantCursor := int64(1 + LoopMaxFanoutWidth)
+		if got := pending.Cursors[WatchEventsTaskStream]; got != wantCursor {
+			t.Fatalf("pending cursor = %d, want %d", got, wantCursor)
+		}
+		if got, want := len(plan.PostCommitWakes), 1; got != want {
+			t.Fatalf("PostCommitWakes len = %d, want %d", got, want)
+		}
+		if got, want := plan.PostCommitWakes[0].IdempotencyKey,
+			watchEventsWakeKey(loopRun.ID, "watch_tasks"); got != want {
+			t.Fatalf("wake key = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should expose empty optional event fields to CEL filters", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+		loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
+		coordinatorRun := watchCoordinatorRun(loopRun)
+		filter := `event.run_id == ""`
+		pendingRef := watchEventsPendingRefForTest(t, int64(7), filter)
+		ledger := &watchEventsLedgerForTest{
+			rows: []WatchEvent{watchTaskStatusEventForTest(8, "task-1", "blocked")},
+		}
+		runner := newWatchEventsCoordinatorRunnerForTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "watch_tasks", Status: generationOutputPending, OutputRef: pendingRef},
+				{Generation: 1, NodeID: "summarize", Status: generationOutputPending},
+			}}},
+			compileCoordinatorControlDefinition(t, watchEventsDefinitionForTest(filter)),
+			ledger,
+		)
+		runner.now = func() time.Time { return now }
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Yield || plan.Terminal != nil {
+			t.Fatalf("plan Yield=%v Terminal=%#v, want downstream enqueue", plan.Yield, plan.Terminal)
+		}
+		if got, want := len(plan.NodeRuns), 1; got != want {
+			t.Fatalf("NodeRuns = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should apply exact CEL and confirm only matched rows with advanced cursors", func(t *testing.T) {
 		t.Parallel()
 
@@ -429,16 +510,20 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 }
 
 func TestWatchEventsEvaluatorHelpers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should reject invalid pending state", func(t *testing.T) {
 		t.Parallel()
 
-		if err := validateWatchEventsPendingState(watchpkg.EventsPendingState{}); err == nil {
-			t.Fatal("validateWatchEventsPendingState(empty) error = nil, want error")
+		err := validateWatchEventsPendingState(watchpkg.EventsPendingState{})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "subscriptions are required") {
+			t.Fatalf("validateWatchEventsPendingState(empty) error = %v, want subscriptions validation", err)
 		}
-		if err := validateWatchEventsPendingState(watchpkg.EventsPendingState{
+		err = validateWatchEventsPendingState(watchpkg.EventsPendingState{
 			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: string(hooks.HookTaskStatusChanged)}},
-		}); err == nil {
-			t.Fatal("validateWatchEventsPendingState(no cursors) error = nil, want error")
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "cursor for kind") {
+			t.Fatalf("validateWatchEventsPendingState(no cursors) error = %v, want cursor validation", err)
 		}
 	})
 
@@ -449,8 +534,8 @@ func TestWatchEventsEvaluatorHelpers(t *testing.T) {
 			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: "unknown.event"}},
 			Cursors:       map[string]int64{WatchEventsTaskStream: 1},
 		})
-		if err == nil {
-			t.Fatal("watchEventsQuery(unknown kind) error = nil, want error")
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), `unsupported: "unknown.event"`) {
+			t.Fatalf("watchEventsQuery(unknown kind) error = %v, want unsupported-kind validation", err)
 		}
 	})
 

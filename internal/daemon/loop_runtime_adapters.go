@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const loopRuntimeSessionPrefix = "loop"
@@ -30,8 +29,7 @@ type loopPromptSessionManager interface {
 type loopActionSessionBinder struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
-	workspaceResolver   workspacepkg.RuntimeResolver
-	agentResolver       loopActionAgentResolver
+	policyGate          *loopSessionPolicyGate
 }
 
 var _ looppkg.ActionSessionBinder = (*loopActionSessionBinder)(nil)
@@ -62,7 +60,7 @@ func (b *loopActionSessionBinder) BindActionSession(
 	} else {
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action workspace is required")
 	}
-	if err := b.applyPolicyGate(ctx, &opts, agent, req.AllowedTools); err != nil {
+	if err := b.policyGate.apply(ctx, &opts, agent, req.AllowedTools); err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
 	created, err := b.sessions.Create(ctx, opts)
@@ -112,6 +110,7 @@ func (b *loopActionSessionBinder) CancelActionSession(
 type loopGateJudgeRunner struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
+	policyGate          *loopSessionPolicyGate
 }
 
 var _ gate.JudgeRunner = (*loopGateJudgeRunner)(nil)
@@ -138,6 +137,9 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 		opts.WorkspacePath = strings.TrimSpace(r.globalWorkspacePath)
 	} else {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge workspace is required")
+	}
+	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
+		return gate.JudgeResponse{}, err
 	}
 	created, err := r.sessions.Create(ctx, opts)
 	if err != nil {

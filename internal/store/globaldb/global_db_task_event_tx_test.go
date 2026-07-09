@@ -30,6 +30,9 @@ func TestGlobalDBUpdateTaskStatusShouldAppendStatusChangedEvent(t *testing.T) {
 	}
 
 	event := requireTaskEventRecordForTest(t, globalDB, taskRecord.ID, string(hookspkg.HookTaskStatusChanged))
+	if got, want := event.Event.Timestamp, updated.UpdatedAt; !got.Equal(want) {
+		t.Fatalf("status_changed timestamp = %s, want task UpdatedAt %s", got, want)
+	}
 	var payload struct {
 		FromStatus string `json:"from_status"`
 		ToStatus   string `json:"to_status"`

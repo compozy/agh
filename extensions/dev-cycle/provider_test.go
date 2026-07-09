@@ -396,31 +396,51 @@ func TestCodeRabbitInputHelpersShouldNormalizePRAndRemotes(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
+			name  string
 			value any
 			want  string
 		}{
-			{value: float64(17), want: "17"},
-			{value: 18, want: "18"},
-			{value: "#19", want: "19"},
+			{name: "Should normalize float values", value: float64(17), want: "17"},
+			{name: "Should normalize integer values", value: 18, want: "18"},
+			{name: "Should normalize prefixed string values", value: "#19", want: "19"},
 		}
 		for _, tc := range cases {
-			got, err := normalizePR(tc.value)
-			if err != nil {
-				t.Fatalf("normalizePR(%#v) error = %v", tc.value, err)
-			}
-			if got != tc.want {
-				t.Fatalf("normalizePR(%#v) = %q, want %q", tc.value, got, tc.want)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, err := normalizePR(tc.value)
+				if err != nil {
+					t.Fatalf("normalizePR(%#v) error = %v", tc.value, err)
+				}
+				if got != tc.want {
+					t.Fatalf("normalizePR(%#v) = %q, want %q", tc.value, got, tc.want)
+				}
+			})
 		}
 	})
 
 	t.Run("Should reject unsupported pull request values", func(t *testing.T) {
 		t.Parallel()
 
-		for _, value := range []any{float64(1.5), 0, "abc", []string{"17"}} {
-			if got, err := normalizePR(value); err == nil {
-				t.Fatalf("normalizePR(%#v) = %q, nil; want validation error", value, got)
-			}
+		cases := []struct {
+			name    string
+			value   any
+			wantErr string
+		}{
+			{name: "Should reject fractional values", value: float64(1.5), wantErr: "positive integer"},
+			{name: "Should reject zero", value: 0, wantErr: "positive integer"},
+			{name: "Should reject nonnumeric strings", value: "abc", wantErr: "must be numeric"},
+			{name: "Should reject unsupported types", value: []string{"17"}, wantErr: "unsupported pr value"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, err := normalizePR(tc.value)
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("normalizePR(%#v) = %q, %v; want %q validation", tc.value, got, err, tc.wantErr)
+				}
+			})
 		}
 	})
 
@@ -428,28 +448,34 @@ func TestCodeRabbitInputHelpersShouldNormalizePRAndRemotes(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
+			name   string
 			remote string
 			want   string
 		}{
-			{remote: "git@github.com:acme/repo.git", want: "acme/repo"},
-			{remote: "https://github.com/acme/repo.git", want: "acme/repo"},
+			{name: "Should parse SSH remotes", remote: "git@github.com:acme/repo.git", want: "acme/repo"},
+			{name: "Should parse HTTPS remotes", remote: "https://github.com/acme/repo.git", want: "acme/repo"},
 		}
 		for _, tc := range cases {
-			got, err := parseGitHubRemote(tc.remote)
-			if err != nil {
-				t.Fatalf("parseGitHubRemote(%q) error = %v", tc.remote, err)
-			}
-			if got != tc.want {
-				t.Fatalf("parseGitHubRemote(%q) = %q, want %q", tc.remote, got, tc.want)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got, err := parseGitHubRemote(tc.remote)
+				if err != nil {
+					t.Fatalf("parseGitHubRemote(%q) error = %v", tc.remote, err)
+				}
+				if got != tc.want {
+					t.Fatalf("parseGitHubRemote(%q) = %q, want %q", tc.remote, got, tc.want)
+				}
+			})
 		}
 	})
 
 	t.Run("Should reject non-GitHub remotes", func(t *testing.T) {
 		t.Parallel()
 
-		if got, err := parseGitHubRemote("https://example.com/acme/repo.git"); err == nil {
-			t.Fatalf("parseGitHubRemote(non-github) = %q, nil; want validation error", got)
+		got, err := parseGitHubRemote("https://example.com/acme/repo.git")
+		if err == nil || !strings.Contains(err.Error(), "origin remote is not github.com") {
+			t.Fatalf("parseGitHubRemote(non-github) = %q, %v; want host validation", got, err)
 		}
 	})
 }

@@ -12,24 +12,29 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-type loopActionAgentResolver interface {
+type loopSessionAgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (aghconfig.AgentDef, error)
 }
 
-func (b *loopActionSessionBinder) applyPolicyGate(
+type loopSessionPolicyGate struct {
+	workspaceResolver workspacepkg.RuntimeResolver
+	agentResolver     loopSessionAgentResolver
+}
+
+func (g *loopSessionPolicyGate) apply(
 	ctx context.Context,
 	opts *session.CreateOpts,
 	agentName string,
 	allowedTools []string,
 ) error {
 	if opts == nil {
-		return errors.New("daemon: loop action session options are required")
+		return errors.New("daemon: loop session options are required")
 	}
-	resolved, err := b.resolveActionSessionWorkspace(ctx, *opts)
+	resolved, err := g.resolveWorkspace(ctx, *opts)
 	if err != nil {
 		return err
 	}
-	policy, err := b.resolveActionSessionPolicy(agentName, &resolved)
+	policy, err := g.resolvePolicy(agentName, &resolved)
 	if err != nil {
 		return err
 	}
@@ -41,18 +46,18 @@ func (b *loopActionSessionBinder) applyPolicyGate(
 	return nil
 }
 
-func (b *loopActionSessionBinder) resolveActionSessionWorkspace(
+func (g *loopSessionPolicyGate) resolveWorkspace(
 	ctx context.Context,
 	opts session.CreateOpts,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	if b == nil || b.workspaceResolver == nil {
+	if g == nil || g.workspaceResolver == nil {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
 	if workspaceID := strings.TrimSpace(opts.Workspace); workspaceID != "" {
-		resolved, err := b.workspaceResolver.Resolve(ctx, workspaceID)
+		resolved, err := g.workspaceResolver.Resolve(ctx, workspaceID)
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-				"daemon: resolve loop action workspace %q: %w",
+				"daemon: resolve loop session workspace %q: %w",
 				workspaceID,
 				err,
 			)
@@ -61,12 +66,12 @@ func (b *loopActionSessionBinder) resolveActionSessionWorkspace(
 	}
 	workspacePath := strings.TrimSpace(opts.WorkspacePath)
 	if workspacePath == "" {
-		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop action workspace is required")
+		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop session workspace is required")
 	}
-	resolved, err := b.workspaceResolver.ResolveOrRegister(ctx, workspacePath)
+	resolved, err := g.workspaceResolver.ResolveOrRegister(ctx, workspacePath)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-			"daemon: resolve loop action workspace path %q: %w",
+			"daemon: resolve loop session workspace path %q: %w",
 			workspacePath,
 			err,
 		)
@@ -74,17 +79,17 @@ func (b *loopActionSessionBinder) resolveActionSessionWorkspace(
 	return resolved, nil
 }
 
-func (b *loopActionSessionBinder) resolveActionSessionPolicy(
+func (g *loopSessionPolicyGate) resolvePolicy(
 	agentName string,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (SessionPolicy, error) {
 	if resolved == nil {
-		return SessionPolicy{}, errors.New("daemon: resolved loop action workspace is required")
+		return SessionPolicy{}, errors.New("daemon: resolved loop session workspace is required")
 	}
-	agentDef, err := b.resolveActionSessionAgent(agentName, resolved)
+	agentDef, err := g.resolveAgent(agentName, resolved)
 	if err != nil {
 		return SessionPolicy{}, fmt.Errorf(
-			"%w: resolve loop action agent policy for %q: %w",
+			"%w: resolve loop session agent policy for %q: %w",
 			looppkg.ErrValidation,
 			strings.TrimSpace(agentName),
 			err,
@@ -93,7 +98,7 @@ func (b *loopActionSessionBinder) resolveActionSessionPolicy(
 	resolvedAgent, err := resolved.Config.ResolveAgent(agentDef)
 	if err != nil {
 		return SessionPolicy{}, fmt.Errorf(
-			"%w: resolve loop action session policy for %q: %w",
+			"%w: resolve loop session policy for %q: %w",
 			looppkg.ErrValidation,
 			strings.TrimSpace(agentName),
 			err,
@@ -102,16 +107,16 @@ func (b *loopActionSessionBinder) resolveActionSessionPolicy(
 	return sessionPolicyFromResolvedAgentWorkspace(resolvedAgent, resolved), nil
 }
 
-func (b *loopActionSessionBinder) resolveActionSessionAgent(
+func (g *loopSessionPolicyGate) resolveAgent(
 	agentName string,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (aghconfig.AgentDef, error) {
 	target := strings.TrimSpace(agentName)
 	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("daemon: loop action agent name is required")
+		return aghconfig.AgentDef{}, errors.New("daemon: loop session agent name is required")
 	}
-	if b != nil && b.agentResolver != nil {
-		return b.agentResolver.ResolveAgent(target, resolved)
+	if g != nil && g.agentResolver != nil {
+		return g.agentResolver.ResolveAgent(target, resolved)
 	}
 	for _, agent := range resolved.Agents {
 		if strings.TrimSpace(agent.Name) == target {

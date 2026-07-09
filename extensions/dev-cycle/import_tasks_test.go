@@ -100,7 +100,7 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		}
 	})
 
-	t.Run("Should derive the tasks directory from an unmatched wildcard pattern", func(t *testing.T) {
+	t.Run("Should reject manifest files when the wildcard matches no task files", func(t *testing.T) {
 		t.Parallel()
 
 		tasksDir := t.TempDir()
@@ -109,15 +109,90 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		writeImportTaskFile(t, tasksDir, "task_02.md", "finished", "Second task", "# Second\n")
 		writeImportTaskFile(t, tasksDir, "task_03.md", "completed", "Third task", "# Third\n")
 
-		result, err := importMarkdownTasks(filepath.Join(tasksDir, "missing_*.md"))
-		if err != nil {
-			t.Fatalf("importMarkdownTasks() error = %v", err)
+		_, err := importMarkdownTasks(filepath.Join(tasksDir, "missing_*.md"))
+		if !errors.Is(err, looppkg.ErrValidation) ||
+			!strings.Contains(err.Error(), `md_tasks manifest file "task_01.md" is outside glob`) {
+			t.Fatalf("importMarkdownTasks() error = %v, want empty-glob membership validation", err)
 		}
-		if got, want := len(result.Tasks), 1; got != want {
-			t.Fatalf("len(tasks) = %d, want %d pending task", got, want)
+	})
+
+	t.Run("Should reject manifest node paths that traverse outside the tasks directory", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		tasksDir := filepath.Join(root, "tasks")
+		outsideDir := filepath.Join(root, "outside")
+		writeImportTasksFile(t, tasksDir, compozyTaskManifestFileName, strings.Join([]string{
+			"---",
+			`schema_version: "compozy.tasks/v2"`,
+			"workflow: demo",
+			"graph:",
+			"  nodes:",
+			"    - id: task_01",
+			"      file: ../outside/task_01.md",
+			"  edges: []",
+			"---",
+			"",
+		}, "\n"))
+		writeImportTaskFile(t, outsideDir, "task_01.md", "pending", "Outside task", "# Outside\n")
+
+		_, err := importMarkdownTasks(filepath.Join(tasksDir, "missing_*.md"))
+		if !errors.Is(err, looppkg.ErrValidation) ||
+			!strings.Contains(err.Error(), `node file "../outside/task_01.md" must be a base name`) {
+			t.Fatalf("importMarkdownTasks() error = %v, want traversal validation", err)
 		}
-		if got, want := result.Tasks[0].ID, "task_01"; got != want {
-			t.Fatalf("tasks[0].id = %q, want %q", got, want)
+	})
+
+	t.Run("Should reject manifest task symlinks that resolve outside the tasks directory", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		tasksDir := filepath.Join(root, "tasks")
+		outsideDir := filepath.Join(root, "outside")
+		writeImportTasksFile(t, tasksDir, compozyTaskManifestFileName, strings.Join([]string{
+			"---",
+			`schema_version: "compozy.tasks/v2"`,
+			"workflow: demo",
+			"graph:",
+			"  nodes:",
+			"    - id: task_01",
+			"      file: task_01.md",
+			"  edges: []",
+			"---",
+			"",
+		}, "\n"))
+		outsidePath := filepath.Join(outsideDir, "task_01.md")
+		writeImportTaskFile(t, outsideDir, "task_01.md", "pending", "Outside task", "# Outside\n")
+		if err := os.Symlink(outsidePath, filepath.Join(tasksDir, "task_01.md")); err != nil {
+			t.Fatalf("Symlink(%s) error = %v", outsidePath, err)
+		}
+
+		_, err := importMarkdownTasks(filepath.Join(tasksDir, "task_*.md"))
+		if !errors.Is(err, looppkg.ErrValidation) ||
+			!strings.Contains(err.Error(), `node file "task_01.md" resolves outside the tasks directory`) {
+			t.Fatalf("importMarkdownTasks() error = %v, want symlink containment validation", err)
+		}
+	})
+
+	t.Run("Should reject manifest symlinks that resolve outside the tasks directory", func(t *testing.T) {
+		t.Parallel()
+
+		tasksDir := t.TempDir()
+		outsideDir := t.TempDir()
+		writeImportTasksManifest(t, outsideDir, compozyTaskManifestVersion, nil)
+		writeImportTaskFile(t, tasksDir, "task_01.md", "pending", "First task", "# First\n")
+		writeImportTaskFile(t, tasksDir, "task_02.md", "pending", "Second task", "# Second\n")
+		writeImportTaskFile(t, tasksDir, "task_03.md", "pending", "Third task", "# Third\n")
+		outsideManifest := filepath.Join(outsideDir, compozyTaskManifestFileName)
+		if err := os.Symlink(outsideManifest, filepath.Join(tasksDir, compozyTaskManifestFileName)); err != nil {
+			t.Skipf("create manifest symlink: %v", err)
+		}
+
+		_, err := importMarkdownTasks(filepath.Join(tasksDir, "task_*.md"))
+		if !errors.Is(err, looppkg.ErrValidation) ||
+			!strings.Contains(err.Error(), "manifest") ||
+			!strings.Contains(err.Error(), "resolves outside the tasks directory") {
+			t.Fatalf("importMarkdownTasks() error = %v, want manifest symlink containment validation", err)
 		}
 	})
 

@@ -37,7 +37,7 @@ Authors of AGH PRDs, TechSpecs, and `_tasks.md` repeatedly produce drafts that m
 1. Resolve the active task slug: the `.compozy/tasks/<slug>/` directory the artifact targets.
 2. If a `_techspec.md` exists at the slug, read it before authoring tasks.
 3. If `adrs/*.md` exist, read every one before authoring techspec/tasks.
-4. If `analysis/*.md` exist (e.g., from `cy-research-competitors`), read before authoring techspec.
+4. If `analysis/*.md` exist under the slug, read before authoring techspec.
 5. If a prior phase artifact exists (PRD before TechSpec, TechSpec before Tasks), read it.
 
 **Step 3: Apply Phase-Specific Checks**

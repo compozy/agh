@@ -123,32 +123,36 @@ func TestSessionPolicyGateAppliesAllowedToolsNarrowing(t *testing.T) {
 func TestSessionPolicyGateKeepsTaskRoleCreateOptsParity(t *testing.T) {
 	t.Parallel()
 
-	activation := taskRoleActivation{
-		TaskID:        "task-parity",
-		RunID:         "run-parity",
-		Scope:         taskpkg.ScopeWorkspace,
-		WorkspaceID:   "ws-parity",
-		AgentName:     "frontend-engineer",
-		Provider:      "claude",
-		Model:         "sonnet",
-		Channel:       "design-review",
-		Title:         "Parity task",
-		Capabilities:  []string{"frontend"},
-		Profile:       legacyTaskRoleParityProfile(),
-		WorkspacePath: "/unused",
-	}
+	t.Run("Should preserve task-role create options through the shared gate", func(t *testing.T) {
+		t.Parallel()
 
-	got, err := taskRoleCreateOpts(activation)
-	if err != nil {
-		t.Fatalf("taskRoleCreateOpts() error = %v", err)
-	}
-	want, err := legacyTaskRoleCreateOptsForTest(activation)
-	if err != nil {
-		t.Fatalf("legacyTaskRoleCreateOptsForTest() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("taskRoleCreateOpts() = %#v, want legacy parity %#v", got, want)
-	}
+		activation := taskRoleActivation{
+			TaskID:        "task-parity",
+			RunID:         "run-parity",
+			Scope:         taskpkg.ScopeWorkspace,
+			WorkspaceID:   "ws-parity",
+			AgentName:     "frontend-engineer",
+			Provider:      "claude",
+			Model:         "sonnet",
+			Channel:       "design-review",
+			Title:         "Parity task",
+			Capabilities:  []string{"frontend"},
+			Profile:       legacyTaskRoleParityProfile(),
+			WorkspacePath: "/unused",
+		}
+
+		got, err := taskRoleCreateOpts(activation)
+		if err != nil {
+			t.Fatalf("taskRoleCreateOpts() error = %v", err)
+		}
+		want, err := legacyTaskRoleCreateOptsForTest(activation)
+		if err != nil {
+			t.Fatalf("legacyTaskRoleCreateOptsForTest() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("taskRoleCreateOpts() = %#v, want legacy parity %#v", got, want)
+		}
+	})
 }
 
 func legacyTaskRoleParityProfile() *taskpkg.ExecutionProfile {

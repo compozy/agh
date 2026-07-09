@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	watchEventsMatchedEvent      = "loop.watch_events.matched"
-	watchEventsWakeEnqueuedEvent = "loop.watch_events.wake_enqueued"
-	watchEventsWakeErrorEvent    = "loop.watch_events.wake_error"
+	watchEventsMatchedEvent       = "loop.watch_events.matched"
+	watchEventsWakeEnqueuedEvent  = "loop.watch_events.wake_enqueued"
+	watchEventsWakeCoalescedEvent = "loop.watch_events.wake_coalesced"
+	watchEventsWakeErrorEvent     = "loop.watch_events.wake_error"
 
 	watchEventsRecoverySessionID = "loop-watch-events-recovery"
 	watchEventsDaemonAgentName   = "daemon"
@@ -37,24 +38,85 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakes(
 	origin taskpkg.Origin,
 	now time.Time,
 ) ([]taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "enqueue watch-events gap wakes"); err != nil {
-		return nil, err
-	}
-	normalizedOrigin, err := normalizeLoopCoordinatorReconcileOrigin(origin)
+	normalizedOrigin, now, err := g.normalizeWatchEventsGapScan(ctx, origin, now)
 	if err != nil {
 		return nil, err
 	}
-	now = g.normalizeLoopCoordinatorReconcileTime(now)
-
 	parked, err := g.ListParkedWatchEventSubscriptions(ctx)
 	if err != nil {
 		return nil, err
 	}
+	return g.enqueueWatchEventsGapWakesForSubscriptions(ctx, parked, normalizedOrigin, now)
+}
+
+// EnqueueWatchEventsGapWakesPage checks one bounded page of parked
+// subscriptions and returns the durable cursor for the next scheduler cycle.
+func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
+	ctx context.Context,
+	origin taskpkg.Origin,
+	now time.Time,
+	after looppkg.ParkedWatchEventScanCursor,
+	limit int,
+) ([]taskpkg.Run, looppkg.ParkedWatchEventScanCursor, error) {
+	normalizedOrigin, now, err := g.normalizeWatchEventsGapScan(ctx, origin, now)
+	if err != nil {
+		return nil, after, err
+	}
+	parked, err := g.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
+	if err != nil {
+		return nil, after, err
+	}
+	if len(parked) == 0 && !parkedWatchEventScanCursorEmpty(after) {
+		after = looppkg.ParkedWatchEventScanCursor{}
+		parked, err = g.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
+		if err != nil {
+			return nil, after, err
+		}
+	}
+
+	enqueued := make([]taskpkg.Run, 0)
+	for _, subscription := range parked {
+		runs, enqueueErr := g.enqueueWatchEventsGapWakesForSubscriptions(
+			ctx,
+			[]looppkg.ParkedWatchEventSubscription{subscription},
+			normalizedOrigin,
+			now,
+		)
+		enqueued = append(enqueued, runs...)
+		if enqueueErr != nil {
+			return enqueued, after, enqueueErr
+		}
+		after = parkedWatchEventScanCursor(subscription)
+	}
+	return enqueued, after, nil
+}
+
+func (g *GlobalDB) normalizeWatchEventsGapScan(
+	ctx context.Context,
+	origin taskpkg.Origin,
+	now time.Time,
+) (taskpkg.Origin, time.Time, error) {
+	if err := g.checkReady(ctx, "enqueue watch-events gap wakes"); err != nil {
+		return taskpkg.Origin{}, time.Time{}, err
+	}
+	normalizedOrigin, err := normalizeLoopCoordinatorReconcileOrigin(origin)
+	if err != nil {
+		return taskpkg.Origin{}, time.Time{}, err
+	}
+	return normalizedOrigin, g.normalizeLoopCoordinatorReconcileTime(now), nil
+}
+
+func (g *GlobalDB) enqueueWatchEventsGapWakesForSubscriptions(
+	ctx context.Context,
+	parked []looppkg.ParkedWatchEventSubscription,
+	origin taskpkg.Origin,
+	now time.Time,
+) ([]taskpkg.Run, error) {
 	enqueued := make([]taskpkg.Run, 0)
 	for _, subscription := range parked {
 		hasGap, err := g.parkedWatchEventSubscriptionHasGap(ctx, subscription)
 		if err != nil {
-			return nil, err
+			return enqueued, err
 		}
 		if !hasGap {
 			continue
@@ -68,16 +130,16 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakes(
 			now,
 			nil,
 		); err != nil {
-			return nil, err
+			return enqueued, err
 		}
-		run, added, err := g.EnqueueLoopCoordinatorWake(
+		run, added, wakeErr := g.EnqueueLoopCoordinatorWake(
 			ctx,
 			subscription.LoopRunID,
 			watchEventsCoordinatorWakeKey(subscription.LoopRunID, subscription.NodeID),
-			normalizedOrigin,
+			origin,
 			now,
 		)
-		if err := normalizeWatchEventsGapWakeError(err); err != nil {
+		if err := normalizeWatchEventsGapWakeError(wakeErr); err != nil {
 			if writeErr := g.writeWatchEventsGapEvent(
 				ctx,
 				subscription,
@@ -87,26 +149,46 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakes(
 				now,
 				err,
 			); writeErr != nil {
-				return nil, errors.Join(err, writeErr)
+				return enqueued, errors.Join(err, writeErr)
 			}
-			return nil, err
+			return enqueued, err
+		}
+		if added {
+			enqueued = append(enqueued, run)
+		}
+		eventType := watchEventsWakeEnqueuedEvent
+		if !added {
+			eventType = watchEventsWakeCoalescedEvent
 		}
 		if err := g.writeWatchEventsGapEvent(
 			ctx,
 			subscription,
 			run,
-			watchEventsWakeEnqueuedEvent,
+			eventType,
 			string(eventspkg.OutcomeInfo),
 			now,
-			nil,
+			wakeErr,
 		); err != nil {
-			return nil, err
-		}
-		if added {
-			enqueued = append(enqueued, run)
+			return enqueued, err
 		}
 	}
 	return enqueued, nil
+}
+
+func parkedWatchEventScanCursor(
+	subscription looppkg.ParkedWatchEventSubscription,
+) looppkg.ParkedWatchEventScanCursor {
+	return looppkg.ParkedWatchEventScanCursor{
+		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
+		LoopRunID:   strings.TrimSpace(subscription.LoopRunID),
+		NodeID:      strings.TrimSpace(subscription.NodeID),
+	}
+}
+
+func parkedWatchEventScanCursorEmpty(cursor looppkg.ParkedWatchEventScanCursor) bool {
+	return strings.TrimSpace(cursor.WorkspaceID) == "" &&
+		strings.TrimSpace(cursor.LoopRunID) == "" &&
+		strings.TrimSpace(cursor.NodeID) == ""
 }
 
 func (g *GlobalDB) parkedWatchEventSubscriptionHasGap(
@@ -222,6 +304,8 @@ func watchEventsGapSummary(eventType string, subscription looppkg.ParkedWatchEve
 	switch eventType {
 	case watchEventsMatchedEvent:
 		return "watch-events gap matched for " + strings.TrimSpace(subscription.NodeID)
+	case watchEventsWakeCoalescedEvent:
+		return "watch-events gap wake coalesced for " + strings.TrimSpace(subscription.NodeID)
 	case watchEventsWakeErrorEvent:
 		return "watch-events gap wake failed for " + strings.TrimSpace(subscription.NodeID)
 	default:

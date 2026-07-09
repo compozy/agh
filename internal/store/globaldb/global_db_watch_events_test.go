@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -120,6 +121,19 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		if _, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
+		for index := range 256 {
+			if err := appendLoopRunEventWithExecutor(
+				ctx,
+				globalDB.db,
+				loopRun.ID,
+				loopRun.WorkspaceID,
+				loopRunEventStatusChanged,
+				map[string]string{"from": "paused", "to": "running", "status": "running"},
+				base.Add(time.Duration(index+1)*time.Millisecond),
+			); err != nil {
+				t.Fatalf("append non-terminal loop status event %d error = %v", index, err)
+			}
+		}
 		if err := globalDB.CompareAndSwapLoopRunStatus(
 			ctx,
 			loopRun.ID,
@@ -173,6 +187,75 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 		for _, event := range events {
 			assertWatchEventRFC3339UTC(t, event.At)
+			if event.Stream == looppkg.WatchEventsLoopStream && event.Payload["to"] != string(looppkg.StatusDone) {
+				t.Fatalf("loop event payload = %#v, want terminal done status", event.Payload)
+			}
+		}
+	})
+
+	t.Run("Should scope loop cursors and matches to the requested workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		base := time.Date(2026, 7, 8, 16, 0, 0, 0, time.UTC)
+		local := testLoopRun("watch-loop-local", base, looppkg.StatusRunning)
+		local.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, local, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(local) error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			local.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(local) error = %v", err)
+		}
+		foreign := testLoopRun("watch-loop-foreign", base.Add(2*time.Minute), looppkg.StatusRunning)
+		foreign.WorkspaceID = "ws-b"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, foreign, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(foreign) error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			foreign.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(3*time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(foreign) error = %v", err)
+		}
+
+		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(loop workspace) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("loop events len = %d, want %d: %#v", got, want, events)
+		}
+		if got := events[0]; got.WorkspaceID != "ws-a" || got.LoopRunID != string(local.ID) {
+			t.Fatalf("loop event = %#v, want local workspace/run", got)
+		}
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(loop workspace) error = %v", err)
+		}
+		if got, want := cursors[looppkg.WatchEventsLoopStream], events[0].Seq; got != want {
+			t.Fatalf("loop cursor = %d, want local terminal seq %d", got, want)
 		}
 	})
 
@@ -881,6 +964,79 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should scope and page parked subscriptions with a rotating cursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 8, 18, 35, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		definition := compileWatchEventsIntegrationDefinitionForTest(t)
+		loopIDs := []string{"watch-page-a", "watch-page-b", "watch-page-c"}
+		for index, loopID := range loopIDs {
+			target := workspaceTaskRecordForTest("target-"+loopID, "ws-a")
+			if err := globalDB.CreateTask(ctx, target); err != nil {
+				t.Fatalf("CreateTask(%s) error = %v", target.ID, err)
+			}
+			parkWatchEventsLoopWithDefinitionForTest(
+				ctx,
+				t,
+				globalDB,
+				now.Add(time.Duration(index)*time.Minute),
+				loopID,
+				map[string]any{"target_task_id": target.ID},
+				definition,
+			)
+		}
+
+		scoped, err := globalDB.ListParkedWatchEventSubscriptionsForLoopRun(ctx, loopIDs[1])
+		if err != nil {
+			t.Fatalf("ListParkedWatchEventSubscriptionsForLoopRun() error = %v", err)
+		}
+		if got, want := len(scoped), 1; got != want || scoped[0].LoopRunID != loopIDs[1] {
+			t.Fatalf("scoped parked subscriptions = %#v, want only %q", scoped, loopIDs[1])
+		}
+
+		first, err := globalDB.ListParkedWatchEventSubscriptionsPage(
+			ctx,
+			looppkg.ParkedWatchEventScanCursor{},
+			2,
+		)
+		if err != nil {
+			t.Fatalf("ListParkedWatchEventSubscriptionsPage(first) error = %v", err)
+		}
+		if got := parkedWatchEventLoopRunIDs(first); !slices.Equal(got, loopIDs[:2]) {
+			t.Fatalf("first parked page loop IDs = %#v, want %#v", got, loopIDs[:2])
+		}
+		second, err := globalDB.ListParkedWatchEventSubscriptionsPage(
+			ctx,
+			parkedWatchEventScanCursor(first[len(first)-1]),
+			2,
+		)
+		if err != nil {
+			t.Fatalf("ListParkedWatchEventSubscriptionsPage(second) error = %v", err)
+		}
+		if got, want := parkedWatchEventLoopRunIDs(second), loopIDs[2:]; !slices.Equal(got, want) {
+			t.Fatalf("second parked page loop IDs = %#v, want %#v", got, want)
+		}
+
+		runs, next, err := globalDB.EnqueueWatchEventsGapWakesPage(
+			ctx,
+			coordinatorActorContextForTest().Origin,
+			now.Add(4*time.Minute),
+			parkedWatchEventScanCursor(second[0]),
+			2,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueWatchEventsGapWakesPage(wrap) error = %v", err)
+		}
+		if len(runs) != 0 {
+			t.Fatalf("gap wake runs = %#v, want none without ledger gaps", runs)
+		}
+		if got, want := next.LoopRunID, loopIDs[1]; got != want {
+			t.Fatalf("wrapped next loop run ID = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should enqueue idempotent gap wakes without claiming coordinator runs", func(t *testing.T) {
 		t.Parallel()
 
@@ -921,6 +1077,80 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		}
 		if got := len(summaries); got == 0 {
 			t.Fatal("wake_enqueued summaries = 0, want at least one")
+		}
+		coalesced, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+			Type: "loop.watch_events.wake_coalesced",
+		})
+		if err != nil {
+			t.Fatalf("ListEventSummaries(wake_coalesced) error = %v", err)
+		}
+		if got, want := len(coalesced), 1; got != want {
+			t.Fatalf("wake_coalesced summaries = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should return committed wake runs when a later audit write fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 8, 18, 50, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		definition := compileWatchEventsIntegrationDefinitionForTest(t)
+		firstTask := workspaceTaskRecordForTest("watch-partial-target-a", "ws-a")
+		if err := globalDB.CreateTask(ctx, firstTask); err != nil {
+			t.Fatalf("CreateTask(first target) error = %v", err)
+		}
+		secondTask := workspaceTaskRecordForTest("watch-partial-target-b", "ws-a")
+		if err := globalDB.CreateTask(ctx, secondTask); err != nil {
+			t.Fatalf("CreateTask(second target) error = %v", err)
+		}
+		firstLoop := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now,
+			"watch-events-partial-a",
+			map[string]any{"target_task_id": firstTask.ID},
+			definition,
+		)
+		secondLoop := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now,
+			"watch-events-partial-b",
+			map[string]any{"target_task_id": secondTask.ID},
+			definition,
+		)
+		appendTaskWatchEventForTest(ctx, t, globalDB, firstTask.ID, now.Add(2*time.Second), "blocked")
+		appendTaskWatchEventForTest(ctx, t, globalDB, secondTask.ID, now.Add(3*time.Second), "blocked")
+		if _, err := globalDB.db.ExecContext(ctx, `
+			CREATE TRIGGER fail_second_watch_events_wake_audit
+			BEFORE INSERT ON event_summaries
+			WHEN NEW.type = 'loop.watch_events.wake_enqueued'
+			 AND instr(NEW.content_json, '"loop_run_id":"watch-events-partial-b"') > 0
+			BEGIN
+				SELECT RAISE(ABORT, 'forced watch-events wake audit failure');
+			END;
+		`); err != nil {
+			t.Fatalf("create wake audit failure trigger error = %v", err)
+		}
+
+		runs, err := globalDB.EnqueueWatchEventsGapWakes(
+			ctx,
+			coordinatorActorContextForTest().Origin,
+			now.Add(4*time.Second),
+		)
+		if err == nil || !strings.Contains(err.Error(), "forced watch-events wake audit failure") {
+			t.Fatalf("EnqueueWatchEventsGapWakes() error = %v, want forced audit failure", err)
+		}
+		if got, want := len(runs), 2; got != want {
+			t.Fatalf("committed wake runs = %d, want %d", got, want)
+		}
+		gotLoopIDs := []string{runs[0].LoopRunID, runs[1].LoopRunID}
+		wantLoopIDs := []string{string(firstLoop.ID), string(secondLoop.ID)}
+		if !slices.Equal(gotLoopIDs, wantLoopIDs) {
+			t.Fatalf("committed wake loop IDs = %#v, want %#v", gotLoopIDs, wantLoopIDs)
 		}
 	})
 
@@ -1216,29 +1446,6 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 func TestGlobalDBWatchEventsHelpers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should classify supported loop status events", func(t *testing.T) {
-		t.Parallel()
-
-		if !loopWatchEventSupported(looppkg.WatchEvent{
-			LedgerKind: "status_changed",
-			Payload:    map[string]any{"status": string(looppkg.StatusDone)},
-		}) {
-			t.Fatal("loopWatchEventSupported(done status) = false, want true")
-		}
-		if loopWatchEventSupported(looppkg.WatchEvent{
-			LedgerKind: "status_changed",
-			Payload:    map[string]any{"to": string(looppkg.StatusRunning)},
-		}) {
-			t.Fatal("loopWatchEventSupported(running status) = true, want false")
-		}
-		if loopWatchEventSupported(looppkg.WatchEvent{LedgerKind: "status_changed"}) {
-			t.Fatal("loopWatchEventSupported(missing status) = true, want false")
-		}
-		if !loopWatchEventSupported(looppkg.WatchEvent{LedgerKind: "node_succeeded"}) {
-			t.Fatal("loopWatchEventSupported(node_succeeded) = false, want true")
-		}
-	})
-
 	t.Run("Should decode watch event payload edge cases", func(t *testing.T) {
 		t.Parallel()
 
@@ -1310,6 +1517,11 @@ func TestGlobalDBWatchEventsHelpers(t *testing.T) {
 				name:      "Should summarize a wake error",
 				eventType: watchEventsWakeErrorEvent,
 				want:      "watch-events gap wake failed for watch_tasks",
+			},
+			{
+				name:      "Should summarize a coalesced wake",
+				eventType: watchEventsWakeCoalescedEvent,
+				want:      "watch-events gap wake coalesced for watch_tasks",
 			},
 			{
 				name:      "Should summarize an enqueued wake",
@@ -1960,6 +2172,14 @@ func watchEventCountsByStream(events []looppkg.WatchEvent) map[string]int {
 		counts[event.Stream]++
 	}
 	return counts
+}
+
+func parkedWatchEventLoopRunIDs(entries []looppkg.ParkedWatchEventSubscription) []string {
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		ids = append(ids, entry.LoopRunID)
+	}
+	return ids
 }
 
 func assertWatchEventRFC3339UTC(t *testing.T, value string) {

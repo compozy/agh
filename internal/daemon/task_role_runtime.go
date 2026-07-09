@@ -104,11 +104,8 @@ func (r *taskRoleRuntime) OnTaskRunEnqueued(ctx context.Context, payload hookspk
 	if r == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	} else {
-		ctx = context.WithoutCancel(ctx)
-	}
+	ctx, cancel := taskRunActivationContext(ctx)
+	defer cancel()
 	runID := strings.TrimSpace(payload.RunID)
 	if runID == "" {
 		r.logTaskRoleError("daemon: task role enqueue payload missing run id", nil, payload)

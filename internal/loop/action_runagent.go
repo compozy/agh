@@ -125,14 +125,20 @@ func (e *RunAgentActionExecutor) promptActionSession(
 	}
 	timeout := max(time.Until(deadline), 0)
 	timeoutCancel := make(chan error, 1)
-	timer := time.AfterFunc(timeout, func() {
+	cancelSession := func() error {
 		cancelCtx, cancelCancel := context.WithTimeout(context.WithoutCancel(ctx), actionCancelMaxWait)
 		defer cancelCancel()
-		timeoutCancel <- e.binder.CancelActionSession(cancelCtx, binding)
+		return e.binder.CancelActionSession(cancelCtx, binding)
+	}
+	timer := time.AfterFunc(timeout, func() {
+		timeoutCancel <- cancelSession()
 	})
 	result, err := e.binder.PromptActionSession(ctx, binding, req)
 	if timer.Stop() {
-		return result, err
+		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return result, err
+		}
+		timeoutCancel <- cancelSession()
 	}
 	var cancelErr error
 	select {

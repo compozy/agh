@@ -386,7 +386,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, err
 	}
-	if err := spec.applyAllowedToolsOverride(&resolved); err != nil {
+	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
 		return sessionStartRuntime{}, err
 	}
 

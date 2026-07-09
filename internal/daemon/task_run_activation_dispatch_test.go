@@ -66,11 +66,43 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 			t.Fatalf("role observer run IDs = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should detach post-commit dispatch with a bounded context", func(t *testing.T) {
+		t.Parallel()
+
+		store := newActivationDispatchStore(
+			activationDispatchRun("run-plain-worker", taskpkg.RunKindWorker, ""),
+		)
+		roles := &activationDispatchObserver{}
+		dispatcher, err := newTaskRunActivationDispatcher(store, roles, nil, nil)
+		if err != nil {
+			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
+		}
+		parent, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		dispatcher.OnTaskRunEnqueued(parent, hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-plain-worker"},
+		})
+
+		hasDeadline, contextErr := store.getContextState()
+		if !hasDeadline {
+			t.Fatal("GetTaskRun() context has no deadline, want bounded post-commit work")
+		}
+		if contextErr != nil {
+			t.Fatalf("GetTaskRun() context error = %v, want detached live context", contextErr)
+		}
+		if got, want := roles.runIDs(), []string{"run-plain-worker"}; !slices.Equal(got, want) {
+			t.Fatalf("role observer run IDs = %#v, want %#v", got, want)
+		}
+	})
 }
 
 type activationDispatchStore struct {
-	mu   sync.Mutex
-	runs map[string]taskpkg.Run
+	mu             sync.Mutex
+	runs           map[string]taskpkg.Run
+	getHasDeadline bool
+	getContextErr  error
 }
 
 func newActivationDispatchStore(runs ...taskpkg.Run) *activationDispatchStore {
@@ -81,9 +113,11 @@ func newActivationDispatchStore(runs ...taskpkg.Run) *activationDispatchStore {
 	return store
 }
 
-func (s *activationDispatchStore) GetTaskRun(_ context.Context, id string) (taskpkg.Run, error) {
+func (s *activationDispatchStore) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	_, s.getHasDeadline = ctx.Deadline()
+	s.getContextErr = ctx.Err()
 	run, ok := s.runs[id]
 	if !ok {
 		return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
@@ -108,6 +142,12 @@ func (s *activationDispatchStore) ListTaskRunsByStatus(
 		}
 	}
 	return runs, nil
+}
+
+func (s *activationDispatchStore) getContextState() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getHasDeadline, s.getContextErr
 }
 
 type activationDispatchObserver struct {

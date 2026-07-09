@@ -267,11 +267,19 @@ func newBootLoopCoordinatorRunner(
 		}
 		return state.deps.ToolRegistry
 	}}
+	policyGate := &loopSessionPolicyGate{
+		workspaceResolver: workspaceResolver,
+		agentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+	}
 	gateEvaluator := gate.NewEvaluator(
 		gate.WithCommandRunner(loopGateCommandRunner{}),
 		gate.WithJudgeRunner(&loopGateJudgeRunner{
 			sessions:            state.sessions,
 			globalWorkspacePath: homePaths.HomeDir,
+			policyGate:          policyGate,
 		}),
 		gate.WithToolCaller(toolRegistry),
 	)
@@ -279,11 +287,7 @@ func newBootLoopCoordinatorRunner(
 		looppkg.WithActionSessionBinder(&loopActionSessionBinder{
 			sessions:            state.sessions,
 			globalWorkspacePath: homePaths.HomeDir,
-			workspaceResolver:   workspaceResolver,
-			agentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-				soul:      state.soulCatalog,
-				heartbeat: state.heartbeatCatalog,
-			}),
+			policyGate:          policyGate,
 		}),
 		looppkg.WithActionLoopStarter(lazyLoopStarter{current: func() looppkg.ActionLoopStarter {
 			if state == nil {

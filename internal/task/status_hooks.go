@@ -13,6 +13,9 @@ func (m *Service) dispatchTaskStatusChanged(
 	to Status,
 	actor ActorContext,
 ) {
+	if from.Normalize() == to.Normalize() {
+		return
+	}
 	payload := hookspkg.TaskStatusChangedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskStatusChanged,

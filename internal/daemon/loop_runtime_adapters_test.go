@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -106,8 +107,10 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-policy"}
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
-			workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
 			},
 		}
 
@@ -162,8 +165,10 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{createErr: wideningErr}
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
-			workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
 			},
 		}
 
@@ -192,8 +197,10 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{sessionID: "unused"}
 		binder := &loopActionSessionBinder{
 			sessions: sessions,
-			workspaceResolver: loopActionBinderWorkspaceResolver{
-				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
 			},
 		}
 
@@ -207,6 +214,48 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got := sessions.createCount(); got != 0 {
 			t.Fatalf("Create call count = %d, want 0", got)
+		}
+	})
+}
+
+func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create judge sessions with resolved sandbox and permissions", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []aghconfig.AgentDef{{
+			Name:        "loop-judge",
+			Provider:    "mock",
+			Prompt:      "Judge the loop gate.",
+			Permissions: string(aghconfig.PermissionModeDenyAll),
+		}})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-judge"}
+		runner := &loopGateJudgeRunner{
+			sessions: sessions,
+			policyGate: &loopSessionPolicyGate{
+				workspaceResolver: loopActionBinderWorkspaceResolver{
+					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+				},
+			},
+		}
+
+		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
+			GateID:      "quality-gate",
+			CriterionID: "review",
+			WorkspaceID: "ws-loop",
+			Agent:       "loop-judge",
+			Rubric:      "Review the evidence.",
+		})
+		if err != nil {
+			t.Fatalf("Judge() error = %v", err)
+		}
+		createCall := sessions.singleCreateCall(t)
+		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
+			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
+		}
+		if got, want := createCall.Permissions, aghconfig.PermissionModeDenyAll; got != want {
+			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
 	})
 }

@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"sync"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
@@ -36,134 +35,94 @@ type networkWatchObserver interface {
 	OnNetworkWorkClosed(context.Context, hookspkg.NetworkWorkClosedPayload) error
 }
 
-type watchEventsObserverSet struct {
-	mu                sync.RWMutex
-	taskStatusChanged []taskStatusChangedObserver
-	taskLifecycle     []taskLifecycleWatchObserver
-	loopNodeTerminals []loopNodeTerminalObserver
-	automationRuns    []automationRunWatchObserver
-	network           []networkWatchObserver
-	coordinator       []coordinatorWatchObserver
-	eventRecords      []eventRecordWatchObserver
-}
-
-var hooksNotifierWatchEventsObservers sync.Map
-
-func watchEventsObserversFor(n *hooksNotifier) *watchEventsObserverSet {
-	if n == nil {
-		return nil
-	}
-	value, _ := hooksNotifierWatchEventsObservers.LoadOrStore(n, &watchEventsObserverSet{})
-	set, ok := value.(*watchEventsObserverSet)
-	if !ok {
-		return nil
-	}
-	return set
-}
-
 func (n *hooksNotifier) AddTaskStatusChangedObserver(observer taskStatusChangedObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.taskStatusChanged = append(set.taskStatusChanged, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.taskStatusChangedHooks = append(n.taskStatusChangedHooks, observer)
 }
 
 func (n *hooksNotifier) AddTaskLifecycleWatchObserver(observer taskLifecycleWatchObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.taskLifecycle = append(set.taskLifecycle, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.taskLifecycleWatchHooks = append(n.taskLifecycleWatchHooks, observer)
 }
 
 func (n *hooksNotifier) AddLoopNodeTerminalObserver(observer loopNodeTerminalObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.loopNodeTerminals = append(set.loopNodeTerminals, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.loopNodeTerminalHooks = append(n.loopNodeTerminalHooks, observer)
 }
 
 func (n *hooksNotifier) AddAutomationRunWatchObserver(observer automationRunWatchObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.automationRuns = append(set.automationRuns, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.automationRunWatchHooks = append(n.automationRunWatchHooks, observer)
 }
 
 func (n *hooksNotifier) AddNetworkWatchObserver(observer networkWatchObserver) {
-	if observer == nil {
+	if n == nil || observer == nil {
 		return
 	}
-	if set := watchEventsObserversFor(n); set != nil {
-		set.mu.Lock()
-		defer set.mu.Unlock()
-		set.network = append(set.network, observer)
-	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.networkWatchHooks = append(n.networkWatchHooks, observer)
 }
 
 func (n *hooksNotifier) taskStatusChangedObservers() []taskStatusChangedObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]taskStatusChangedObserver(nil), set.taskStatusChanged...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]taskStatusChangedObserver(nil), n.taskStatusChangedHooks...)
 }
 
 func (n *hooksNotifier) taskLifecycleWatchObservers() []taskLifecycleWatchObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]taskLifecycleWatchObserver(nil), set.taskLifecycle...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]taskLifecycleWatchObserver(nil), n.taskLifecycleWatchHooks...)
 }
 
 func (n *hooksNotifier) loopNodeTerminalObservers() []loopNodeTerminalObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]loopNodeTerminalObserver(nil), set.loopNodeTerminals...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]loopNodeTerminalObserver(nil), n.loopNodeTerminalHooks...)
 }
 
 func (n *hooksNotifier) automationRunWatchObservers() []automationRunWatchObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]automationRunWatchObserver(nil), set.automationRuns...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]automationRunWatchObserver(nil), n.automationRunWatchHooks...)
 }
 
 func (n *hooksNotifier) networkWatchObservers() []networkWatchObserver {
-	set := watchEventsObserversFor(n)
-	if set == nil {
+	if n == nil {
 		return nil
 	}
-	set.mu.RLock()
-	defer set.mu.RUnlock()
-	return append([]networkWatchObserver(nil), set.network...)
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return append([]networkWatchObserver(nil), n.networkWatchHooks...)
 }
 
 func dispatchTaskStatusChangedWithWatchObservers(

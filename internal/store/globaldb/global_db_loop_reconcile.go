@@ -53,10 +53,10 @@ func (g *GlobalDB) ReconcileLoopCoordinatorsOnBoot(
 		return nil, err
 	}
 	watchEventsRuns, err := g.EnqueueWatchEventsGapWakes(ctx, normalizedOrigin, now)
-	if err != nil {
-		return nil, err
-	}
 	enqueued = append(enqueued, watchEventsRuns...)
+	if err != nil {
+		return enqueued, err
+	}
 	return enqueued, nil
 }
 

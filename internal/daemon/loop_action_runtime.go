@@ -86,11 +86,8 @@ func (r *loopActionRuntime) OnTaskRunEnqueued(
 	if r == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	} else {
-		ctx = context.WithoutCancel(ctx)
-	}
+	ctx, cancel := taskRunActivationContext(ctx)
+	defer cancel()
 	runID := strings.TrimSpace(payload.RunID)
 	if runID == "" {
 		r.logError("daemon: loop action enqueue payload missing run id", nil, payload)

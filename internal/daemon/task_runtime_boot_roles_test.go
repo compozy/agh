@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -17,6 +18,44 @@ import (
 )
 
 func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *testing.T) {
+	t.Parallel()
+
+	validStatuses := []looppkg.Status{
+		looppkg.StatusQueued,
+		looppkg.StatusRunning,
+		looppkg.StatusWatching,
+		looppkg.StatusNeedsApproval,
+		looppkg.StatusPaused,
+		looppkg.StatusDone,
+		looppkg.StatusNoOp,
+		looppkg.StatusBlocked,
+		looppkg.StatusFailed,
+		looppkg.StatusExhausted,
+		looppkg.StatusStalled,
+	}
+	for _, status := range validStatuses {
+		t.Run("Should accept "+string(status), func(t *testing.T) {
+			t.Parallel()
+
+			if err := runBootWiredCoordinatorTerminalStatus(t, string(status)); err != nil {
+				t.Fatalf("StartRun(%q) error = %v", status, err)
+			}
+		})
+	}
+
+	t.Run("Should reject statuses outside the loop vocabulary", func(t *testing.T) {
+		t.Parallel()
+
+		err := runBootWiredCoordinatorTerminalStatus(t, "not-a-loop-status")
+		if !errors.Is(err, taskpkg.ErrValidation) || !coordinatorOwnerRejectedStatus(err) {
+			t.Fatalf("StartRun(invalid status) error = %v, want owner ErrValidation", err)
+		}
+	})
+}
+
+func runBootWiredCoordinatorTerminalStatus(t *testing.T, status string) error {
+	t.Helper()
+
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
 	db := openDaemonTestGlobalDB(t)
@@ -34,6 +73,7 @@ func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *t
 		aghconfig.SchedulerConfig{},
 		0,
 	)
+	options = append(options, taskpkg.WithManagerNow(func() time.Time { return now }))
 	manager, err := taskpkg.NewManager(options...)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -42,44 +82,7 @@ func TestTaskManagerOptionsShouldWireLoopCoordinatorTerminalStatusValidator(t *t
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 	}
-
-	validStatuses := []looppkg.Status{
-		looppkg.StatusQueued,
-		looppkg.StatusRunning,
-		looppkg.StatusWatching,
-		looppkg.StatusNeedsApproval,
-		looppkg.StatusPaused,
-		looppkg.StatusDone,
-		looppkg.StatusNoOp,
-		looppkg.StatusBlocked,
-		looppkg.StatusFailed,
-		looppkg.StatusExhausted,
-		looppkg.StatusStalled,
-	}
-	for _, status := range validStatuses {
-		t.Run("Should accept "+string(status), func(t *testing.T) {
-			err := startBootWiredCoordinatorWithTerminalStatus(ctx, t, db, manager, runner, actor, now, string(status))
-			if coordinatorOwnerRejectedStatus(err) {
-				t.Fatalf("StartRun(%q) error = %v, want daemon-wired validator to accept it", status, err)
-			}
-		})
-	}
-
-	t.Run("Should reject statuses outside the loop vocabulary", func(t *testing.T) {
-		err := startBootWiredCoordinatorWithTerminalStatus(
-			ctx,
-			t,
-			db,
-			manager,
-			runner,
-			actor,
-			now,
-			"not-a-loop-status",
-		)
-		if !coordinatorOwnerRejectedStatus(err) {
-			t.Fatalf("StartRun(invalid status) error = %v, want daemon-wired validator rejection", err)
-		}
-	})
+	return startBootWiredCoordinatorWithTerminalStatus(ctx, t, db, manager, runner, actor, now, status)
 }
 
 func startBootWiredCoordinatorWithTerminalStatus(

@@ -5,10 +5,13 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
+
+const taskRunActivationTimeout = 30 * time.Second
 
 type taskRunActivationDispatcher struct {
 	store       taskRunActivationStore
@@ -49,11 +52,8 @@ func (d *taskRunActivationDispatcher) OnTaskRunEnqueued(
 	if d == nil || d.store == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	} else {
-		ctx = context.WithoutCancel(ctx)
-	}
+	ctx, cancel := taskRunActivationContext(ctx)
+	defer cancel()
 	runID := strings.TrimSpace(payload.RunID)
 	if runID == "" {
 		return
@@ -64,6 +64,13 @@ func (d *taskRunActivationDispatcher) OnTaskRunEnqueued(
 		return
 	}
 	d.dispatch(ctx, run, payload)
+}
+
+func taskRunActivationContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), taskRunActivationTimeout)
 }
 
 func (d *taskRunActivationDispatcher) Recover(ctx context.Context) {

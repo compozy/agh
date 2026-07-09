@@ -44,8 +44,9 @@ func FreeTCPPort(t testing.TB) int {
 	t.Helper()
 
 	const (
-		minPort     = 20000
-		portSpan    = 40000
+		minPort = 20000
+		// Keep test allocations below the default Linux and macOS ephemeral ranges.
+		portSpan    = 10000
 		maxAttempts = portSpan
 	)
 

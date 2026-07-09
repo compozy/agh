@@ -92,12 +92,23 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 ) (toolspkg.CallRequest, error) {
-	if req.ToolID != devCycleImportTasksToolID || h.workspaceResolver == nil {
+	if req.ToolID != devCycleImportTasksToolID {
 		return req, nil
+	}
+	if h.workspaceResolver == nil {
+		return toolspkg.CallRequest{}, importTasksScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q has no workspace resolver", req.ToolID),
+			toolspkg.ErrToolInvalidInput,
+		)
 	}
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
 	if workspaceID == "" {
-		return req, nil
+		return toolspkg.CallRequest{}, importTasksScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q requires workspace scope", req.ToolID),
+			toolspkg.ErrToolInvalidInput,
+		)
 	}
 	var input struct {
 		Pattern string `json:"pattern"`
@@ -112,38 +123,23 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 		)
 	}
 	pattern := strings.TrimSpace(input.Pattern)
-	if pattern == "" || filepath.IsAbs(pattern) {
-		return req, nil
+	if pattern == "" {
+		return toolspkg.CallRequest{}, importTasksScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q pattern is required", req.ToolID),
+			fmt.Errorf("%w: pattern is required", toolspkg.ErrToolInvalidInput),
+		)
 	}
-	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
+	if filepath.IsAbs(pattern) {
+		return toolspkg.CallRequest{}, importTasksScopeError(
+			req.ToolID,
+			fmt.Sprintf("tool %q pattern must be workspace-relative", req.ToolID),
+			fmt.Errorf("%w: absolute pattern %q", toolspkg.ErrToolInvalidInput, pattern),
+		)
+	}
+	absolute, err := h.resolveImportTasksPattern(ctx, req.ToolID, workspaceID, pattern)
 	if err != nil {
-		return toolspkg.CallRequest{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			req.ToolID,
-			fmt.Sprintf("tool %q workspace %q is invalid", req.ToolID, workspaceID),
-			fmt.Errorf("%w: resolve workspace: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
-	root := strings.TrimSpace(resolved.RootDir)
-	if root == "" {
-		return toolspkg.CallRequest{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			req.ToolID,
-			fmt.Sprintf("tool %q workspace %q has no root directory", req.ToolID, workspaceID),
-			toolspkg.ErrToolInvalidInput,
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
-	absolute, err := workspaceRelativePattern(root, pattern)
-	if err != nil {
-		return toolspkg.CallRequest{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			req.ToolID,
-			fmt.Sprintf("tool %q pattern escapes workspace root", req.ToolID),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonScopeMismatch,
-		)
+		return toolspkg.CallRequest{}, err
 	}
 	input.Pattern = absolute
 	encoded, err := json.Marshal(input)
@@ -154,22 +150,55 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	return req, nil
 }
 
-func workspaceRelativePattern(root string, pattern string) (string, error) {
-	rootAbs, err := filepath.Abs(strings.TrimSpace(root))
+func (h *daemonExtensionToolHandle) resolveImportTasksPattern(
+	ctx context.Context,
+	toolID toolspkg.ToolID,
+	workspaceID string,
+	pattern string,
+) (string, error) {
+	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
 	if err != nil {
-		return "", fmt.Errorf("workspace root: %w", err)
+		return "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolID,
+			fmt.Sprintf("tool %q workspace %q is invalid", toolID, workspaceID),
+			fmt.Errorf("%w: resolve workspace: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonScopeMismatch,
+		)
 	}
-	absolute := filepath.Join(rootAbs, strings.TrimSpace(pattern))
-	patternAbs, err := filepath.Abs(absolute)
+	root := strings.TrimSpace(resolved.RootDir)
+	if root == "" {
+		return "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolID,
+			fmt.Sprintf("tool %q workspace %q has no root directory", toolID, workspaceID),
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonScopeMismatch,
+		)
+	}
+	absolute, err := workspaceRelativePattern(root, pattern)
 	if err != nil {
-		return "", fmt.Errorf("pattern: %w", err)
+		return "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolID,
+			fmt.Sprintf("tool %q pattern escapes workspace root", toolID),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonScopeMismatch,
+		)
 	}
-	rel, err := filepath.Rel(rootAbs, patternAbs)
-	if err != nil {
-		return "", fmt.Errorf("relative pattern: %w", err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("relative pattern %q escapes %q", pattern, rootAbs)
-	}
-	return patternAbs, nil
+	return absolute, nil
+}
+
+func importTasksScopeError(
+	toolID toolspkg.ToolID,
+	message string,
+	cause error,
+) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		toolID,
+		message,
+		cause,
+		toolspkg.ReasonScopeMismatch,
+	)
 }

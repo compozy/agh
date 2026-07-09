@@ -134,6 +134,34 @@ func BenchmarkLoopWatchEventsObserverEventPostRecordDoorbell(b *testing.B) {
 	})
 }
 
+func BenchmarkLoopWatchEventsObserverWorkerTerminal(b *testing.B) {
+	watchStore := newRecordingLoopWatchEventsStore()
+	watchStore.setParked(watchEventsDoorbellSubscriptionsForTest(
+		4096,
+		hookspkg.HookTaskStatusChanged,
+		looppkg.WatchEventsTaskStream,
+		`event.payload.to_status == "blocked"`,
+	))
+	observer := newLoopWatchEventsObserverForBenchmark(b, watchStore)
+	runKind := "worker"
+	payload := hookspkg.TaskRunLeasePayload{
+		PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted},
+		TaskRunContext: hookspkg.TaskRunContext{
+			RunID:     "worker-run",
+			RunKind:   &runKind,
+			LoopRunID: "loop-run-1",
+		},
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := observer.OnTaskRunTerminal(context.Background(), payload); err != nil {
+			b.Fatalf("OnTaskRunTerminal(worker) error = %v", err)
+		}
+	}
+}
+
 type countingWatchEventsDoorbellMatcher struct {
 	calls atomic.Int64
 }

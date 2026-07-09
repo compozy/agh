@@ -170,12 +170,15 @@ func TestLoopWatchEventsObserverShouldRefreshIndex(t *testing.T) {
 			t.Fatalf("OnTaskStatusChanged(empty index) error = %v", err)
 		}
 		watchStore.setParked([]looppkg.ParkedWatchEventSubscription{watchEventsParkedSubscriptionForTest("")})
+		coordinatorRunKind := taskpkg.RunKindCoordinator.String()
 		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
 			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
 			TaskRunContext: hookspkg.TaskRunContext{
 				WorkspaceID: "ws-1",
 				TaskID:      "coordinator-task",
 				RunID:       "coordinator-run",
+				RunKind:     &coordinatorRunKind,
+				LoopRunID:   "loop-run-1",
 				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
 			},
 		}); err != nil {
@@ -195,6 +198,8 @@ func TestLoopWatchEventsObserverShouldRefreshIndex(t *testing.T) {
 				WorkspaceID: "ws-1",
 				TaskID:      "coordinator-task",
 				RunID:       "coordinator-run-2",
+				RunKind:     &coordinatorRunKind,
+				LoopRunID:   "loop-run-1",
 				RunStatus:   taskpkg.TaskRunStatusCompleted.String(),
 			},
 		}); err != nil {
@@ -205,6 +210,67 @@ func TestLoopWatchEventsObserverShouldRefreshIndex(t *testing.T) {
 		}
 		if got, want := len(watchStore.snapshotWakes()), 1; got != want {
 			t.Fatalf("wake calls after removal = %d, want unchanged %d", got, want)
+		}
+		globalCalls, scopedCalls := watchStore.snapshotListCalls()
+		if globalCalls != 1 || scopedCalls != 2 {
+			t.Fatalf("parked index reads = global %d scoped %d, want global 1 scoped 2", globalCalls, scopedCalls)
+		}
+	})
+
+	t.Run("Should not refresh the parked index for worker terminals", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 8, 18, 20, 0, 0, time.UTC)
+		watchStore := newRecordingLoopWatchEventsStore()
+		watchStore.setParked([]looppkg.ParkedWatchEventSubscription{watchEventsParkedSubscriptionForTest("")})
+		observer := newLoopWatchEventsObserverForTest(t, watchStore, &recordingWatchEventsBackstop{}, fixedNow)
+		workerRunKind := taskpkg.RunKindWorker.String()
+
+		if err := observer.OnTaskRunTerminal(t.Context(), hookspkg.TaskRunLeasePayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunCompleted, Timestamp: fixedNow},
+			TaskRunContext: hookspkg.TaskRunContext{
+				WorkspaceID: "ws-1",
+				RunID:       "worker-run",
+				RunKind:     &workerRunKind,
+				LoopRunID:   "loop-run-1",
+			},
+		}); err != nil {
+			t.Fatalf("OnTaskRunTerminal(worker) error = %v", err)
+		}
+		globalCalls, scopedCalls := watchStore.snapshotListCalls()
+		if globalCalls != 1 || scopedCalls != 0 {
+			t.Fatalf(
+				"parked index reads = global %d scoped %d, want initial global read only",
+				globalCalls,
+				scopedCalls,
+			)
+		}
+	})
+
+	t.Run("Should remove a terminal loop from memory without reading the store", func(t *testing.T) {
+		t.Parallel()
+
+		fixedNow := time.Date(2026, 7, 8, 18, 25, 0, 0, time.UTC)
+		watchStore := newRecordingLoopWatchEventsStore()
+		watchStore.setParked([]looppkg.ParkedWatchEventSubscription{watchEventsParkedSubscriptionForTest("")})
+		observer := newLoopWatchEventsObserverForTest(t, watchStore, &recordingWatchEventsBackstop{}, fixedNow)
+
+		if err := observer.OnLoopTerminal(t.Context(), hookspkg.LoopTerminalPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookLoopTerminal, Timestamp: fixedNow},
+			LoopContext: hookspkg.LoopContext{WorkspaceID: "ws-1", LoopRunID: "loop-run-1"},
+		}); err != nil {
+			t.Fatalf("OnLoopTerminal() error = %v", err)
+		}
+		if got := observer.subscriptionsForKind(hookspkg.HookTaskStatusChanged); len(got) != 0 {
+			t.Fatalf("task status subscriptions = %#v, want terminal loop removed", got)
+		}
+		globalCalls, scopedCalls := watchStore.snapshotListCalls()
+		if globalCalls != 1 || scopedCalls != 0 {
+			t.Fatalf(
+				"parked index reads = global %d scoped %d, want initial global read only",
+				globalCalls,
+				scopedCalls,
+			)
 		}
 	})
 }
@@ -713,12 +779,14 @@ func watchEventsTaskStatusPayloadForTest(
 }
 
 type recordingLoopWatchEventsStore struct {
-	mu        sync.Mutex
-	parked    []looppkg.ParkedWatchEventSubscription
-	wakes     []recordingWatchEventsWake
-	summaries []store.EventSummary
-	wakeErr   error
-	seenKeys  map[string]struct{}
+	mu              sync.Mutex
+	parked          []looppkg.ParkedWatchEventSubscription
+	wakes           []recordingWatchEventsWake
+	summaries       []store.EventSummary
+	wakeErr         error
+	seenKeys        map[string]struct{}
+	globalListCalls int
+	scopedListCalls int
 }
 
 type recordingWatchEventsWake struct {
@@ -749,7 +817,30 @@ func (s *recordingLoopWatchEventsStore) ListParkedWatchEventSubscriptions(
 ) ([]looppkg.ParkedWatchEventSubscription, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.globalListCalls++
 	return cloneParkedWatchEventSubscriptionsForTest(s.parked), nil
+}
+
+func (s *recordingLoopWatchEventsStore) ListParkedWatchEventSubscriptionsForLoopRun(
+	_ context.Context,
+	loopRunID string,
+) ([]looppkg.ParkedWatchEventSubscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.scopedListCalls++
+	entries := make([]looppkg.ParkedWatchEventSubscription, 0)
+	for _, entry := range s.parked {
+		if entry.LoopRunID == loopRunID {
+			entries = append(entries, entry)
+		}
+	}
+	return cloneParkedWatchEventSubscriptionsForTest(entries), nil
+}
+
+func (s *recordingLoopWatchEventsStore) snapshotListCalls() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.globalListCalls, s.scopedListCalls
 }
 
 func (s *recordingLoopWatchEventsStore) EnqueueLoopCoordinatorWake(

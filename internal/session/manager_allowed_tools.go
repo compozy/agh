@@ -10,7 +10,17 @@ import (
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
-func (s *sessionStartSpec) applyAllowedToolsOverride(resolved *aghconfig.ResolvedAgent) error {
+// WithToolsetCatalog injects the catalog used to validate toolset-backed overrides.
+func WithToolsetCatalog(catalog toolspkg.ToolsetCatalog) Option {
+	return func(manager *Manager) {
+		manager.toolsetCatalog = catalog
+	}
+}
+
+func (s *sessionStartSpec) applyAllowedToolsOverride(
+	resolved *aghconfig.ResolvedAgent,
+	catalog toolspkg.ToolsetCatalog,
+) error {
 	override, hasOverride, err := normalizeAllowedToolsOverride(s.allowedToolsOverride)
 	if err != nil {
 		return err
@@ -21,7 +31,7 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(resolved *aghconfig.Resolve
 	if resolved == nil {
 		return fmt.Errorf("%w: resolved agent is required for allowed_tools override", ErrValidation)
 	}
-	if err := validateAllowedToolsOverrideSubset(*resolved, override); err != nil {
+	if err := validateAllowedToolsOverrideSubset(*resolved, override, catalog); err != nil {
 		return err
 	}
 
@@ -69,7 +79,11 @@ func normalizeAllowedToolsOverride(values []string) ([]string, bool, error) {
 	return normalized, len(normalized) > 0, nil
 }
 
-func validateAllowedToolsOverrideSubset(resolved aghconfig.ResolvedAgent, requested []string) error {
+func validateAllowedToolsOverrideSubset(
+	resolved aghconfig.ResolvedAgent,
+	requested []string,
+	catalog toolspkg.ToolsetCatalog,
+) error {
 	allowPatterns, err := toolspkg.ParseToolPatterns(resolved.Tools)
 	if err != nil {
 		return fmt.Errorf("%w: agent tools policy is invalid: %w", ErrValidation, err)
@@ -89,7 +103,11 @@ func validateAllowedToolsOverrideSubset(resolved aghconfig.ResolvedAgent, reques
 		if matchesAllowedToolsPattern(denyPatterns, id) {
 			return fmt.Errorf("%w: allowed_tools override tool %q is denied by agent profile", ErrValidation, raw)
 		}
-		if !agentRestrictsTools || matchesAllowedToolsPattern(allowPatterns, id) {
+		toolsetMember, err := catalog.Contains(id, toolsets)
+		if err != nil {
+			return fmt.Errorf("%w: resolve agent toolsets for allowed_tools override: %w", ErrValidation, err)
+		}
+		if !agentRestrictsTools || matchesAllowedToolsPattern(allowPatterns, id) || toolsetMember {
 			continue
 		}
 		return fmt.Errorf("%w: allowed_tools override tool %q widens agent profile", ErrValidation, raw)

@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/bridges"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func BenchmarkReplaceBridgeInstances(b *testing.B) {
@@ -28,6 +31,71 @@ func BenchmarkReplaceBridgeInstances(b *testing.B) {
 			b.Fatalf("ReplaceBridgeInstances() error = %v", err)
 		}
 	}
+}
+
+func BenchmarkReadNetworkMessagePersistedCursor(b *testing.B) {
+	globalDB := openBenchmarkGlobalDB(b)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	workspaceID := "ws-network-cursor-bench"
+	if err := globalDB.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID:        workspaceID,
+		RootDir:   b.TempDir(),
+		Name:      "Network cursor benchmark",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		b.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	const rowCount = 4096
+	for index := range rowCount {
+		if err := globalDB.WriteNetworkMessage(ctx, store.NetworkMessageEntry{
+			MessageID:   fmt.Sprintf("msg-bench-%04d", index),
+			WorkspaceID: workspaceID,
+			Channel:     "bench",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_bench",
+			Direction:   "received",
+			PeerFrom:    "peer.bench",
+			Kind:        store.NetworkKindSay,
+			Body:        []byte(`{}`),
+			Timestamp:   now.Add(time.Duration(index) * time.Millisecond),
+		}); err != nil {
+			b.Fatalf("WriteNetworkMessage(%d) error = %v", index, err)
+		}
+	}
+	query := normalizedWatchEventsQuery{
+		workspaceID: workspaceID,
+		streams:     map[string]int64{looppkg.WatchEventsNetworkStream: 0},
+		kinds:       []string{string(hookspkg.HookNetworkMessagePersisted)},
+		limit:       looppkg.LoopMaxFanoutWidth,
+	}
+
+	b.Run("max_rowid", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			cursor, err := globalDB.readNetworkWatchEventsCursor(ctx, query)
+			if err != nil {
+				b.Fatalf("readNetworkWatchEventsCursor() error = %v", err)
+			}
+			if cursor != rowCount {
+				b.Fatalf("cursor = %d, want %d", cursor, rowCount)
+			}
+		}
+	})
+
+	b.Run("projected_replay", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			cursor, err := globalDB.readProjectedNetworkWatchEventsCursor(ctx, query)
+			if err != nil {
+				b.Fatalf("readProjectedNetworkWatchEventsCursor() error = %v", err)
+			}
+			if cursor != rowCount {
+				b.Fatalf("cursor = %d, want %d", cursor, rowCount)
+			}
+		}
+	})
 }
 
 func openBenchmarkGlobalDB(b *testing.B) *GlobalDB {

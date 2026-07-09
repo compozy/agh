@@ -12,8 +12,8 @@
 # Reviewed alongside CLAUDE.md (see Standing Directives for cadence).
 #
 # When in doubt, prefer to exclude. Explicit Read on a specific path still
-# works for subagents (e.g. cy-researcher Reads files under .resources/<repo>/
-# by exact path, which is the intended workflow).
+# works for subagents (e.g. reading files under .resources/<repo>/ by exact
+# path, which is the intended workflow).
 
 # ─── Build outputs ────────────────────────────────────────────────────────────
 bin/
@@ -58,8 +58,7 @@ yarn.lock
 go.sum             # large; go.mod is the readable manifest
 
 # ─── Vendored competitor repos (3.6 GB) ───────────────────────────────────────
-# The cy-research-competitors / cy-researcher skill Reads specific files
-# under .resources/<repo>/ by exact path — explicit Reads still work.
+# Explicit Reads of specific files under .resources/<repo>/ still work.
 # This block prevents accidental wide-fanout Grep/Glob across all 21 repos.
 .resources/
 

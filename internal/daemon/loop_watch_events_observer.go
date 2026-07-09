@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -42,12 +41,12 @@ const (
 
 type loopWatchEventsStore interface {
 	ListParkedWatchEventSubscriptions(context.Context) ([]looppkg.ParkedWatchEventSubscription, error)
+	ListParkedWatchEventSubscriptionsForLoopRun(
+		context.Context,
+		string,
+	) ([]looppkg.ParkedWatchEventSubscription, error)
 	EnqueueLoopCoordinatorWake(context.Context, string, string, taskpkg.Origin, time.Time) (taskpkg.Run, bool, error)
 	WriteEventSummary(context.Context, store.EventSummary) error
-}
-
-type loopWatchEventsGapWakeStore interface {
-	EnqueueWatchEventsGapWakes(context.Context, taskpkg.Origin, time.Time) ([]taskpkg.Run, error)
 }
 
 type loopWatchEventsObserver struct {
@@ -57,8 +56,9 @@ type loopWatchEventsObserver struct {
 	now      func() time.Time
 	compiler watchEventsDoorbellMatcher
 
-	mu     sync.RWMutex
-	byKind map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription
+	mu        sync.RWMutex
+	byKind    map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription
+	byLoopRun map[string]map[hookspkg.HookEvent]struct{}
 }
 
 var _ taskStatusChangedObserver = (*loopWatchEventsObserver)(nil)
@@ -94,45 +94,14 @@ func newLoopWatchEventsObserver(
 		return nil, err
 	}
 	return &loopWatchEventsObserver{
-		store:    store,
-		backstop: backstop,
-		actor:    actor,
-		now:      now,
-		compiler: compiler,
-		byKind:   map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription{},
+		store:     store,
+		backstop:  backstop,
+		actor:     actor,
+		now:       now,
+		compiler:  compiler,
+		byKind:    map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription{},
+		byLoopRun: map[string]map[hookspkg.HookEvent]struct{}{},
 	}, nil
-}
-
-func (o *loopWatchEventsObserver) Hydrate(ctx context.Context) error {
-	parked, err := o.store.ListParkedWatchEventSubscriptions(ctx)
-	if err != nil {
-		return fmt.Errorf("daemon: hydrate loop watch-events observer: %w", err)
-	}
-	o.replaceIndex(parked)
-	return nil
-}
-
-func (o *loopWatchEventsObserver) replaceIndex(entries []looppkg.ParkedWatchEventSubscription) {
-	index := make(map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription)
-	supported := looppkg.SupportedWatchEvents()
-	for _, entry := range entries {
-		cloned := cloneParkedWatchEventSubscription(entry)
-		seen := map[hookspkg.HookEvent]struct{}{}
-		for _, ref := range cloned.Subscriptions {
-			kind := hookspkg.HookEvent(strings.TrimSpace(ref.Kind))
-			if _, ok := supported[kind]; !ok {
-				continue
-			}
-			if _, ok := seen[kind]; ok {
-				continue
-			}
-			seen[kind] = struct{}{}
-			index[kind] = append(index[kind], cloned)
-		}
-	}
-	o.mu.Lock()
-	o.byKind = index
-	o.mu.Unlock()
 }
 
 func (o *loopWatchEventsObserver) OnTaskStatusChanged(
@@ -165,17 +134,19 @@ func (o *loopWatchEventsObserver) OnTaskRunTerminal(
 	ctx context.Context,
 	payload hookspkg.TaskRunLeasePayload,
 ) error {
-	return errors.Join(
-		o.matchAndWake(ctx, watchEventsTaskRunTerminalEvent(payload, o.now)),
-		o.Hydrate(ctx),
-	)
+	matchErr := o.matchAndWake(ctx, watchEventsTaskRunTerminalEvent(payload, o.now))
+	if payload.RunKind == nil ||
+		taskpkg.ParseRunKind(*payload.RunKind) != taskpkg.RunKindCoordinator ||
+		strings.TrimSpace(payload.LoopRunID) == "" {
+		return matchErr
+	}
+	return errors.Join(matchErr, o.refreshLoopRun(ctx, payload.LoopRunID))
 }
 
 func (o *loopWatchEventsObserver) OnLoopTerminal(ctx context.Context, payload hookspkg.LoopTerminalPayload) error {
-	return errors.Join(
-		o.matchAndWake(ctx, watchEventsLoopTerminalEvent(payload, o.now)),
-		o.Hydrate(ctx),
-	)
+	err := o.matchAndWake(ctx, watchEventsLoopTerminalEvent(payload, o.now))
+	o.removeLoopRun(payload.LoopRunID)
+	return err
 }
 
 func (o *loopWatchEventsObserver) OnLoopNodeTerminal(
@@ -338,14 +309,6 @@ func (o *loopWatchEventsObserver) matchAndWake(ctx context.Context, event looppk
 	return errors.Join(errs...)
 }
 
-func (o *loopWatchEventsObserver) subscriptionsForKind(
-	kind hookspkg.HookEvent,
-) []looppkg.ParkedWatchEventSubscription {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	return append([]looppkg.ParkedWatchEventSubscription(nil), o.byKind[kind]...)
-}
-
 func (o *loopWatchEventsObserver) subscriptionMatchesEvent(
 	subscription looppkg.ParkedWatchEventSubscription,
 	event looppkg.WatchEvent,
@@ -450,15 +413,6 @@ func loopWatchEventsSummary(
 	default:
 		return "watch-events wake enqueued for " + strings.TrimSpace(subscription.NodeID)
 	}
-}
-
-func cloneParkedWatchEventSubscription(
-	src looppkg.ParkedWatchEventSubscription,
-) looppkg.ParkedWatchEventSubscription {
-	src.Inputs = maps.Clone(src.Inputs)
-	src.Subscriptions = append(src.Subscriptions[:0:0], src.Subscriptions...)
-	src.Cursors = maps.Clone(src.Cursors)
-	return src
 }
 
 func firstNonEmptyWatchEventsValue(values ...string) string {

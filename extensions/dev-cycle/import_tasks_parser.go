@@ -138,7 +138,14 @@ func tasksDirFromPattern(pattern string, matches []string) (string, error) {
 }
 
 func readCompozyTaskManifest(tasksDir string) (compozyTaskManifest, error) {
-	path := filepath.Join(tasksDir, compozyTaskManifestFileName)
+	path, err := resolvedCompozyPath(
+		tasksDir,
+		compozyTaskManifestFileName,
+		fmt.Sprintf("manifest %q", compozyTaskManifestFileName),
+	)
+	if err != nil {
+		return compozyTaskManifest{}, err
+	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return compozyTaskManifest{}, fmt.Errorf("%w: read md_tasks manifest %q: %w", looppkg.ErrValidation, path, err)
@@ -210,6 +217,13 @@ func validateCompozyTaskNodes(tasksDir string, nodes []compozyTaskGraphNode, mat
 		if node.ID == "" || node.File == "" {
 			return fmt.Errorf("%w: md_tasks manifest nodes require id and file", looppkg.ErrValidation)
 		}
+		if node.File == "." || node.File == ".." || strings.ContainsAny(node.File, `/\\`) {
+			return fmt.Errorf(
+				"%w: md_tasks node file %q must be a base name",
+				looppkg.ErrValidation,
+				node.File,
+			)
+		}
 		if idFromTaskFile(node.File) != node.ID {
 			return fmt.Errorf("%w: md_tasks node file %q must match id %q", looppkg.ErrValidation, node.File, node.ID)
 		}
@@ -226,10 +240,11 @@ func validateCompozyTaskNodes(tasksDir string, nodes []compozyTaskGraphNode, mat
 			)
 		}
 		seenFiles[node.File] = node.ID
-		if len(matchedFiles) > 0 {
-			if _, ok := matchedFiles[node.File]; !ok {
-				return fmt.Errorf("%w: md_tasks manifest file %q is outside glob", looppkg.ErrValidation, node.File)
-			}
+		if _, ok := matchedFiles[node.File]; !ok {
+			return fmt.Errorf("%w: md_tasks manifest file %q is outside glob", looppkg.ErrValidation, node.File)
+		}
+		if _, err := resolvedCompozyTaskFilePath(tasksDir, node.File); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -271,7 +286,10 @@ func validateCompozyTaskEdges(nodes []compozyTaskGraphNode, edges []compozyTaskG
 func readCompozyTaskFiles(tasksDir string, nodes []compozyTaskGraphNode) (map[string]compozyTaskFile, error) {
 	files := make(map[string]compozyTaskFile, len(nodes))
 	for _, node := range nodes {
-		path := filepath.Join(tasksDir, filepath.FromSlash(node.File))
+		path, err := resolvedCompozyTaskFilePath(tasksDir, node.File)
+		if err != nil {
+			return nil, err
+		}
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("%w: read md_tasks task file %q: %w", looppkg.ErrValidation, path, err)
@@ -299,6 +317,46 @@ func readCompozyTaskFiles(tasksDir string, nodes []compozyTaskGraphNode) (map[st
 		}
 	}
 	return files, nil
+}
+
+func resolvedCompozyTaskFilePath(tasksDir string, nodeFile string) (string, error) {
+	return resolvedCompozyPath(tasksDir, nodeFile, fmt.Sprintf("node file %q", nodeFile))
+}
+
+func resolvedCompozyPath(tasksDir string, relativePath string, subject string) (string, error) {
+	root, err := filepath.Abs(strings.TrimSpace(tasksDir))
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve md_tasks directory: %w", looppkg.ErrValidation, err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve md_tasks directory %q: %w", looppkg.ErrValidation, root, err)
+	}
+	path, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(relativePath)))
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve md_tasks %s: %w", looppkg.ErrValidation, subject, err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve md_tasks %s: %w", looppkg.ErrValidation, subject, err)
+	}
+	rel, err := filepath.Rel(resolvedRoot, resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf(
+			"%w: compare md_tasks %s to tasks directory: %w",
+			looppkg.ErrValidation,
+			subject,
+			err,
+		)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf(
+			"%w: md_tasks %s resolves outside the tasks directory",
+			looppkg.ErrValidation,
+			subject,
+		)
+	}
+	return resolvedPath, nil
 }
 
 func parseCompozyTaskFile(content []byte) (compozyTaskFrontmatter, string, error) {

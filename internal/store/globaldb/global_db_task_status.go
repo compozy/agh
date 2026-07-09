@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
@@ -25,6 +26,7 @@ func setTaskStatusWithExecutor(
 	from taskpkg.Status,
 	to taskpkg.Status,
 	actor taskpkg.ActorContext,
+	timestamp time.Time,
 ) error {
 	trimmedTaskID, err := requireTaskValue(taskID, "task id")
 	if err != nil {
@@ -80,11 +82,49 @@ func setTaskStatusWithExecutor(
 		Actor:     actor.Actor,
 		Origin:    actor.Origin,
 		Payload:   payload,
+		Timestamp: timestamp,
 	}); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func setTaskStatusIfChangedWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current taskpkg.Task,
+	updated taskpkg.Task,
+	actor taskpkg.ActorContext,
+	changed bool,
+) error {
+	if !changed {
+		return nil
+	}
+	return setTaskStatusWithExecutor(
+		ctx,
+		exec,
+		updated.ID,
+		current.Status,
+		updated.Status,
+		actor,
+		updated.UpdatedAt,
+	)
+}
+
+func taskStatusChangedForUpdate(
+	current taskpkg.Status,
+	updated taskpkg.Status,
+	actor taskpkg.ActorContext,
+) (bool, error) {
+	changed := current.Normalize() != updated.Normalize()
+	if !changed {
+		return false, nil
+	}
+	if err := actor.Validate(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func explainTaskStatusChokepointMiss(

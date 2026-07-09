@@ -20,7 +20,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
 - <critical>**Context-budget docs stay lean.** `CLAUDE.md` files, `SKILL.md`s, and agent docs load into system prompts — every line costs context on every turn. Before writing or editing one, apply `.agents/skills/writing-great-skills/SKILL.md`: one source of truth per meaning, no no-op lines the model already obeys, prune sediment in the same edit. Growing one of these files with restated or redundant prose is a blocking failure — concision is correctness here.</critical>
 - **Test placement before test creation** (skill: `consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
-- **Subagents for exploration** (keeps your context clean): single-file lookup → `Explore`; multi-area research needing written artifacts → `agent-exploration`; competitor/`.resources/` research → `cy-research-competitors`.
+- **Subagents for exploration** (keeps your context clean): single-file lookup → `Explore`; multi-area research needing written artifacts → `agent-exploration`.
 - **Subagents are read-only by default.** The paired agent authors every code change; subagent output is evidence. A subagent writes/edits/commits only when the parent prompt explicitly delegates it.
 
 ## Workflow Rules
@@ -80,44 +80,42 @@ AGH Impact Audit:
 
 <critical>**ALWAYS** activate skills **before** writing code.</critical> Match task domain → activate all required skills. Multiple domains → activate multiple. No skipping "because it's small".
 
-| Domain                                | Required Skills                                                                          | Conditional Skills                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                                                |
-| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                                           |
-| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                                           |
-| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                                            |
-| Writing Go tests                      | `agh-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs)                     |
-| Test placement / consolidation        | `consolidate-test-suites`                                                                | `testing-boss`                                            |
-| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       |                                                           |
-| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                                           |
-| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                                           |
-| Task completion                       | `deslop` + `cy-final-verify`                                                             |                                                           |
-| Lessons learned                       | `lesson-learned`                                                                         |                                                           |
-| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`                            |
-| Concurrency / races                   | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                                     |
-| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                                    |
-| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                                           |
-| Security review                       | `security-review`                                                                        | `ubs`                                                     |
-| Creative / new features               | `cy-idea-factory`                                                                        | `council`                                                 |
-| Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                                         |
-| Design spec (pre-PRD, UI surfaces)    | `cy-create-design-spec` + `agh-design` + `ui-craft`                                      | `impeccable` + `agh-ui-screenshot`                        |
-| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                                         |
-| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review` + `cy-research-competitors`         |
-| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                           |
-| Research → executable issue backlog   | `cy-research-issues`                                                                     | `cy-research-competitors` + `consolidate-test-suites`     |
-| Competitor research                   | `cy-research-competitors`                                                                | `context7`                                                |
-| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                                      |
-| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                                           |
-| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`                                  |
-| Git rebase / conflicts                | `git-rebase`                                                                             |                                                           |
-| External docs lookup                  | `context7`                                                                               | `exa-web-search-free`                                     |
-| Parallel multi-area research          | `agent-exploration`                                                                      | `cy-research-competitors` (for `.resources/<repo>/` only) |
-| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                                        |
-| Documentation (internal)              | `documentation-writer`                                                                   |                                                           |
-| Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                                               |
-| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                                           |
-| UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                                       |
-| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                                           |
+| Domain                                | Required Skills                                                                          | Conditional Skills                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                            |
+| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                       |
+| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                       |
+| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |
+| Writing Go tests                      | `agh-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs) |
+| Test placement / consolidation        | `consolidate-test-suites`                                                                | `testing-boss`                        |
+| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       |                                       |
+| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                       |
+| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                       |
+| Task completion                       | `deslop` + `cy-final-verify`                                                             |                                       |
+| Lessons learned                       | `lesson-learned`                                                                         |                                       |
+| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`        |
+| Concurrency / races                   | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                 |
+| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                |
+| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                       |
+| Security review                       | `security-review`                                                                        | `ubs`                                 |
+| Creative / new features               | `cy-idea-factory`                                                                        | `council`                             |
+| Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                     |
+| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                     |
+| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review`                 |
+| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
+| Research → executable issue backlog   | `cy-research-issues`                                                                     | `consolidate-test-suites`             |
+| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
+| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                       |
+| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`              |
+| Git rebase / conflicts                | `git-rebase`                                                                             |                                       |
+| External docs lookup                  | `context7`                                                                               | `exa-web-search-free`                 |
+| Parallel multi-area research          | `agent-exploration`                                                                      |                                       |
+| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                    |
+| Documentation (internal)              | `documentation-writer`                                                                   |                                       |
+| Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
+| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                       |
+| UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                   |
+| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                       |
 
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 

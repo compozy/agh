@@ -793,7 +793,7 @@ func (s *inMemoryManagerStore) CreateTaskBlock(
 			if err := s.appendTaskEventForTest(
 				result.EscalatedTask.ID,
 				"",
-				taskEventNeedsAttention,
+				taskWatchEventNeedsAttention,
 				mutation.Actor,
 				map[string]any{"reason": needsAttention.Reason, "block_id": result.Block.ID},
 				needsAttention.At,
@@ -946,7 +946,7 @@ func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 	if err := s.appendTaskEventForTest(
 		taskRecord.ID,
 		"",
-		taskEventRecovered,
+		taskWatchEventRecovered,
 		ActorContext{
 			Actor:     mutation.ClearedBy,
 			Origin:    mutation.Origin,
@@ -1038,7 +1038,7 @@ func (s *inMemoryManagerStore) BlockTaskAndReleaseRun(
 			if err := s.appendTaskEventForTest(
 				blockResult.EscalatedTask.ID,
 				"",
-				taskEventNeedsAttention,
+				taskWatchEventNeedsAttention,
 				mutation.Actor,
 				map[string]any{"reason": needsAttention.Reason, "block_id": blockResult.Block.ID},
 				needsAttention.At,
@@ -5238,7 +5238,7 @@ func TestManagerTaskBlockBreakerEscalatesAtLimit(t *testing.T) {
 			if needsAttentionHooks != 1 {
 				t.Fatalf("needs_attention hooks = %d, want 1", needsAttentionHooks)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events = %d, want %d", got, want)
 			}
 
@@ -5264,7 +5264,7 @@ func TestManagerTaskBlockBreakerEscalatesAtLimit(t *testing.T) {
 					needsAttentionHooks,
 				)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events after fourth block = %d, want %d", got, want)
 			}
 		},
@@ -5325,7 +5325,7 @@ func TestManagerTaskBlockBreakerReEscalatesAfterRecover(t *testing.T) {
 			if needsAttentionHooks != 1 {
 				t.Fatalf("needs_attention hooks before recover = %d, want 1", needsAttentionHooks)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events before recover = %d, want %d", got, want)
 			}
 
@@ -5361,7 +5361,7 @@ func TestManagerTaskBlockBreakerReEscalatesAfterRecover(t *testing.T) {
 					needsAttentionHooks,
 				)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 2; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 2; got != want {
 				t.Fatalf(
 					"task.needs_attention events after recover re-block = %d, want %d",
 					got,
@@ -5575,7 +5575,7 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 		if recoveredHooks != 1 {
 			t.Fatalf("task.recovered hooks = %d, want 1", recoveredHooks)
 		}
-		if got, want := countTaskEventsByType(store.events, taskEventRecovered), 1; got != want {
+		if got, want := countTaskEventsByType(store.events, taskWatchEventRecovered), 1; got != want {
 			t.Fatalf("task.recovered events = %d, want %d", got, want)
 		}
 		if got, want := len(store.runs), 1; got != want {

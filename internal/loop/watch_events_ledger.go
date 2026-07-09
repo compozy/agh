@@ -38,6 +38,13 @@ type ParkedWatchEventSubscription struct {
 	Cursors       map[string]int64
 }
 
+// ParkedWatchEventScanCursor resumes a deterministic parked-subscription scan.
+type ParkedWatchEventScanCursor struct {
+	WorkspaceID string
+	LoopRunID   string
+	NodeID      string
+}
+
 // WatchEvent is the normalized loop-facing event envelope produced from a
 // durable replay row.
 type WatchEvent struct {
@@ -65,15 +72,15 @@ func (e WatchEvent) EventMap() map[string]any {
 		"stream":          strings.TrimSpace(e.Stream),
 		"at":              strings.TrimSpace(e.At),
 		"workspace_id":    strings.TrimSpace(e.WorkspaceID),
+		"task_id":         strings.TrimSpace(e.TaskID),
+		"run_id":          strings.TrimSpace(e.RunID),
+		"loop_run_id":     strings.TrimSpace(e.LoopRunID),
+		"loop_name":       strings.TrimSpace(e.LoopName),
+		"session_id":      strings.TrimSpace(e.SessionID),
+		"channel":         strings.TrimSpace(e.Channel),
+		"work_id":         strings.TrimSpace(e.WorkID),
 		"payload":         cloneAnyMap(e.Payload),
 	}
-	setNonEmptyEventField(event, "task_id", e.TaskID)
-	setNonEmptyEventField(event, "run_id", e.RunID)
-	setNonEmptyEventField(event, "loop_run_id", e.LoopRunID)
-	setNonEmptyEventField(event, "loop_name", e.LoopName)
-	setNonEmptyEventField(event, "session_id", e.SessionID)
-	setNonEmptyEventField(event, "channel", e.Channel)
-	setNonEmptyEventField(event, "work_id", e.WorkID)
 	return event
 }
 
@@ -86,11 +93,4 @@ func (e WatchEvent) ledgerKind() string {
 		return strings.TrimSpace(e.LedgerKind)
 	}
 	return strings.TrimSpace(e.Kind)
-}
-
-func setNonEmptyEventField(event map[string]any, key string, value string) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed != "" {
-		event[key] = trimmed
-	}
 }

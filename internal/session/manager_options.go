@@ -235,3 +235,17 @@ func WithPromptBufferSize(size int) Option {
 		manager.promptBufSize = size
 	}
 }
+
+// WithSessionSupervision overrides runtime activity supervision settings.
+func WithSessionSupervision(config aghconfig.SessionSupervisionConfig) Option {
+	return func(manager *Manager) {
+		manager.supervision = config
+	}
+}
+
+// WithSessionBusyInputConfig overrides busy-input queue behavior.
+func WithSessionBusyInputConfig(config aghconfig.SessionBusyInputConfig) Option {
+	return func(manager *Manager) {
+		manager.busyInput = config.Normalize()
+	}
+}
