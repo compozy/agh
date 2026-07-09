@@ -1,0 +1,131 @@
+# Task: Promote the inventory listing row into `@agh/ui` as `ListingRow` — one canonical row, zero overlapping primitives
+
+## Task type
+
+Improvement / design-system consolidation. Extract the canonical inventory listing-row pattern into the shared UI package (`@agh/ui`), migrate the Loops catalog to consume it, delete the dormant overlapping primitive (`ReviewRow`), and document the job boundaries so no two shared components answer the same "list row" question.
+
+## Decision record (locked — these are requirements, not suggestions)
+
+These decisions were made after a full usage census of the repo. Do not re-litigate them; implement them.
+
+1. **The HTML class contract is the source of truth, not the Loops row.** The normative spec is the `.listing-row` contract in `docs/design/opendesign/catalog-design-system.html` + `docs/design/opendesign/LISTING-STANDARD.md`. `web/src/systems/loops/components/catalog/loop-catalog-row.tsx` is the first production consumer of that contract, not the spec itself. Where the Loops row and the HTML contract disagree, the HTML contract wins.
+2. **The canonical React inventory row is a new `ListingRow` compound component** at `packages/ui/src/components/custom/listing-row.tsx`, named exactly as `LISTING-REDESIGN-BRIEF.md` §5 prescribes ("a `ListingRow` slot component … Candidate home: `packages/ui/src/components/custom/`"). A census confirmed no `ListingRow`/`CatalogRow` component or export exists anywhere in `packages/ui`, `web/src`, or `packages/site` — the namespace is clear.
+3. **`CatalogCard` keeps its name and API.** `LISTING-STANDARD.md` explicitly binds the card half to `@agh/ui` `CatalogCard` ("Compose like `@agh/ui` CatalogCard"). The `ListingRow`/`CatalogCard` naming asymmetry is accepted because both names are normative in the standard. No rename, no dual export, no alias.
+4. **`ReviewRow` is deleted.** It is dormant primitive code: zero production imports anywhere in `web/src` or `packages/site` (verified — the only references are its own story, its own unit test, the two barrel exports, and one `packages/ui/README.md` mention; the `runReviewRow` e2e selector in `web/e2e` is an unrelated tasks-DOM testid, not this component). Its slot shape (leading/title/description/meta/actions) overlaps the listing row, and its visual grammar (bordered `bg-canvas-soft` flex row with tone border) violates the flat listing standard. Greenfield alpha policy: hard cut. Delete the component file, its story, its test, both barrel export lines, and the README mention. No deprecation period, no compat re-export.
+5. **`Item` stays, re-scoped in documentation.** Its job is *selection*: master-detail panel rows and pickers (rail/dot indicators, `selected`/`selectable`, `aria-pressed`, button polymorphism) used across ~14 production surfaces (skills/bridges/knowledge/automation panels, network rail/directs/threads, vault session panel). That is a different job from a navigational inventory row. Do not modify `Item`'s code; write the boundary down (see Deliverables).
+6. **`ListGroup` stays as-is.** It is a section shell (eyebrow label + count Pill + items wrapper), not a row. It composes around rows; it does not compete with them.
+7. **`TasksListRow` stays domain-specific.** It implements a different grammar (the `.task-row` proposal: selectable button, optional 10px status-dot column, selection rail, no icon well) and its own file comment already documents that. It is a selection row in `Item`'s family, not a listing row. Out of scope; document the boundary only.
+8. **Scope is the row, not the toolbar.** `ListingToolbar` (search + filters + view toggle + URL `view=` state) is a separate follow-up task: URL state is router-bound and cannot live in the domain-free `packages/ui`, so it needs its own design. Do NOT ship a partial toolbar, a view toggle, or URL-state handling in this change. Do NOT restructure `loop-catalog-filters.tsx`.
+
+## Problem / background
+
+AGH's operator inventory pages (Loops, Vault, Skills, Jobs, Bridges, Tasks, …) are supposed to share one listing pattern: dense rows by default, optional cards, shared toolbar/topbar grammar. The card half is already a shared primitive (`CatalogCard`). The row half is not: the Loops catalog implements it inline as a domain component, other surfaces use different anatomies (`Item` panels, tables, ad-hoc markup), and the redesign brief flags this drift explicitly ("the product reads as a collage of one-offs instead of one operator surface"). Promoting the row without clarifying boundaries against `Item`, `ReviewRow`, `ListGroup`, and domain rows would leave `@agh/ui` with multiple plausible "list row" answers — the exact inconsistency this task exists to prevent.
+
+## Normative visual contract (must match exactly)
+
+From `catalog-design-system.html` (lines ~259–289) and `LISTING-STANDARD.md`:
+
+- **Grid:** `[ leading 34px ] [ main minmax(0,1fr) ] [ trail auto ]`; gap 14px; padding 12px 16px.
+- **Row chrome:** `border-bottom: 1px solid var(--line-soft)`, none on last child; hover = `--row-hover` background only. No lift, no shadow, no accent side-stripe, no gradients (P0 anti-patterns).
+- **Leading:** neutral icon well 34×34, `radius-md`, `bg-elevated`, `text-muted`; glyph 16px per the HTML spec (the current Loops row uses 17px — the shared component leaves glyph size to the consumer's icon, but the well is fixed).
+- **Main · name line:** truncated name — sans 14px/500 `fg-strong` (mono variant: 12px/500) — plus kind/source tags as `Pill` (xs, sans, neutral in the name line) and an optional mono slug (11px, `faint`, no-wrap).
+- **Main · description:** one truncated line, 12.5px / 1.45, `muted`. Optional.
+- **Main · meta:** 11px `faint`, flex-wrap, dot separators; mono fact keys 10px `subtle`; optional neutral binding badge. Optional.
+- **Trail:** flex, gap 12px; type/status `Pill` (`mono`, `size="sm"`, `tone="neutral"` for type labels); optional stat block (value mono 12px/600 tabular-nums + label 10px `faint`); always-visible primary action. Never duplicate the type in meta when the trail shows a type Pill.
+- **List container:** rows sit inside a bordered wrapper — `rounded-lg border border-line bg-canvas-soft overflow-hidden` (the `.list` class in the HTML; `loop-catalog.tsx` already renders exactly this).
+- All values come from `packages/ui/src/tokens.css` / `DESIGN.md` tokens — no hex, no invented chrome.
+
+Reference implementations to verify against: `docs/design/opendesign/loops-catalog.html` (rows) and `docs/design/opendesign/vault-redesign.html` (rows/cards).
+
+## Current implementation (what exists today)
+
+### The production row to be migrated — `web/src/systems/loops/components/catalog/loop-catalog-row.tsx`
+
+Domain component, not in `@agh/ui`. Hardcodes the grid/hover/slot markup inline and mixes in Loops domain content (`LoopCatalogEntry`, `LoopStatusPill`, `LoopBindingBadge`, loop formatters) and TanStack Router `Link`:
+
+```tsx
+<div
+  className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-line-soft px-4 py-3.5 transition-colors last:border-b-0 hover:bg-row-hover"
+  data-testid="loop-catalog-row"
+  data-loop={entry.name}
+>
+  <Link
+    to="/loops/$name" params={{ name: entry.name }}
+    className="col-span-2 grid min-w-0 grid-cols-[34px_minmax(0,1fr)] items-center gap-3.5"
+    aria-label={`Open ${entry.name}`}
+  >
+    <span className="grid size-[34px] place-items-center rounded-md bg-elevated text-muted">
+      <Repeat2 aria-hidden="true" className="size-[17px]" />
+    </span>
+    <div className="min-w-0">
+      {/* name (b.truncate text-sm font-medium text-fg-strong) + Pill xs tags + mono version */}
+      {/* optional goal line: mt-1 truncate text-[12.5px] text-muted */}
+      {/* meta: mt-1.5 flex-wrap gap-2 text-[11px] text-faint — inputs · iteration cap · human gate · <LoopBindingBadge/> */}
+    </div>
+  </Link>
+  <div className="flex items-center gap-4.5">
+    {/* category (hidden sm:block) · <LoopStatusPill/> · success-rate stat (mono xs semibold tabular) · Run button */}
+  </div>
+</div>
+```
+
+Load-bearing behavior to preserve: the name/main region is a single link to the detail page (covering icon well + main via the `col-span-2` inner-grid technique) with an accessible label, while the trail is a sibling — so the Run button and other trail controls are NOT nested inside the link. Test hooks `data-testid="loop-catalog-row"`, `data-testid="loop-catalog-run"`, and `data-loop={entry.name}` must survive the migration (e2e selectors depend on them).
+
+Parent list `loop-catalog.tsx`: groups entries by kind (Eyebrow + mono count header per group), wraps rows in `<div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">`, uses shared `Empty` for the zero state. Grouping and filters (`loop-catalog-filters.tsx`) are NOT part of this task.
+
+### The shared card half (ambient compound pattern to mirror) — `packages/ui/src/components/custom/catalog-card.tsx`
+
+`CatalogCard` is the API-shape precedent: a root that extends `React.ComponentProps<"article">` with minimal boolean props (`selected`, `actionable`), plus slot subcomponents (`CatalogCard.Logo/.Title/.Description/.Meta/.Actions`) built via `Object.assign`, each a native-element wrapper (`data-slot` attribute, `cn()` class merge, `{...props}` spread), tokens-only styling. All domain content flows through slot children — zero domain props. `ListingRow` must follow this same compound style.
+
+### The overlap surface (census results)
+
+- **`Item`** (`packages/ui/src/components/item.tsx`): polymorphic (`as="div"|"button"`), cva variants (`default|outline|muted`, sizes `default|sm|xs`), selection (`selected`, `selectable`, `indicator="rail"|"dot"|"none"`, `aria-pressed`), sub-parts `ItemGroup/Media/Content/Title/Description/Actions/Header/Footer/SelectionIndicator`. Rounded flex row. ~14 production consumers, all selection-shaped (master-detail panels, pickers, rails).
+- **`ReviewRow`** (`packages/ui/src/components/custom/review-row.tsx`): props `leading?/title/description?/meta?/actions?/tone?`; bordered flex row with tone border. Referenced ONLY by: `packages/ui/src/components/custom/stories/review-row.stories.tsx`, `packages/ui/src/components/custom/__tests__/review-row.test.tsx`, `packages/ui/src/components/custom/index.ts` (~line 232), `packages/ui/src/index.ts` (~line 367), `packages/ui/README.md` (~line 211, "Recent Primitive Additions"). Zero production routes. Delete all of it.
+- **`ListGroup`** (`packages/ui/src/components/custom/list-group.tsx`): compound `Root/Header/Items`; label + count Pill + actions header, items wrapper. 3 consumers (skill/bridges/knowledge list panels). Keep.
+- **`TasksListRow`** (`web/src/systems/tasks/components/tasks-list-row.tsx`): `<button aria-pressed>` with selection rail + optional 10px status-dot column, conditional 2/3-column grid, `MonoId` meta. Different grammar by design (its file comment cites the `.task-row` proposal). Keep, out of scope.
+- Other `*Row` names (`FieldRow`, `ToolCallRow`, `OperationalLinksRow`, `MetadataList.Row`) are different jobs; untouched.
+
+### Package conventions that bind this task
+
+- `packages/ui` is **domain-free**: no imports from `web/`, no `@tanstack/react-router`, no query/store/openapi types. Domain content enters through slots/children only. Consequence: `ListingRow` must be router-agnostic — the consumer supplies the link element for the clickable main region; the shared component only guarantees the layout contract (link region spans icon well + main; trail stays a sibling, never nested in the link).
+- Public surface: export through `packages/ui/src/components/custom/index.ts` AND `packages/ui/src/index.ts` (if it is not in `src/index.ts`, `web/` cannot import it).
+- README rule (verbatim): "**No new exports without a story and a test. Both land in the same PR.**" Every variant gets a story; tokens only, no hex.
+- Stories for custom components are split across two dirs today (`components/stories/` and `components/custom/stories/`, both matched by the `../src/**/*.stories.@(ts|tsx)` glob). Place the new story in `packages/ui/src/components/custom/stories/listing-row.stories.tsx` — colocated with its source's sibling stories; do not invent a third location.
+- Hard cap 500 lines per production file, one responsibility per file. Native DOM wrappers extend `React.ComponentProps<"…">`, merge `className` via `cn()`, spread `{...props}`. Kebab-case filenames. Named exports only. Oxlint is zero-tolerance.
+
+## Deliverables
+
+1. **`ListingRow` compound** in `packages/ui/src/components/custom/listing-row.tsx` implementing the normative contract above, in `CatalogCard`'s compound slot style. Slot decomposition, exact prop names, and the mechanism for the consumer-supplied link region are yours to design — within the locked constraints (domain-free, router-agnostic, tokens-only, trail outside the link region, `data-slot` attributes, no selection/rail/dot features — selection is `Item`'s job and must not leak into `ListingRow`).
+2. **Storybook story + unit test** for `ListingRow`, same PR (story: `packages/ui/src/components/custom/stories/listing-row.stories.tsx`; test under the nearest `__tests__/`). Stories must cover the anatomy variants that exist in the contract (full row, no description, no meta, stat block, mono name variant, tag pills, trail action) — rendered with neutral placeholder content, never Loops domain data.
+3. **Loops migration:** `LoopCatalogRow` becomes a thin domain composition over `ListingRow` — it keeps its props (`entry`, `bindingKinds`, `onRun`), its domain content (icon, `LoopStatusPill`, `LoopBindingBadge`, formatters, Run button), its TanStack `Link`, and its three test hooks, and deletes every line of inline grid/hover/well/typography markup that `ListingRow` now owns. The rendered result on `/loops` must be visually identical (pixel-parity within token rounding) to the current production row. `loop-catalog.tsx` and `loop-catalog-filters.tsx` are untouched except for anything the row swap strictly requires.
+4. **`ReviewRow` deletion:** remove `review-row.tsx`, its story, its test, both barrel export lines, and the `packages/ui/README.md` mention. Then verify `grep -r "ReviewRow" web/src packages/ui/src packages/site --include="*.ts*"` returns zero component references.
+5. **Boundary documentation** in `packages/ui/README.md`: a short "Which list component?" decision table covering — `ListingRow` (navigational inventory rows: Loops/Vault/Skills/Jobs/Bridges catalogs), `Item` (selectable master-detail/picker rows with rail/dot), `ListGroup` (section shell around either), `CatalogCard` (card view of the same listing data), and a note that domain rows with different grammars (e.g. `TasksListRow`) are intentionally not `ListingRow`. A new contributor reading this table must be unable to reasonably pick the wrong component for an inventory page.
+6. **Design-system showcase:** add a `ListingRow` demo to `web/src/components/design-system-showcase.tsx` (the `/design-system` route already showcases `Item` and `CatalogCard`), with neutral placeholder content.
+
+## Verification gates (all required before completion)
+
+- `bunx turbo run lint typecheck test --filter=./packages/ui` and `--filter=./web` from the repo root during iteration (never `cd`-local runs); full `make verify` once as the completion gate.
+- **Visual verification via `agh-ui-screenshot`:** capture (a) the new `ListingRow` Storybook story and (b) the `/loops` route after migration; diff (b) against a pre-migration capture of `/loops` and against `docs/design/opendesign/loops-catalog.html` / `catalog-design-system.html`. Cite the captures. Tests verify code; screenshots verify pixels.
+- **QA tracker:** if the `/loops` migration is pixel-identical (which it must be), declare "no user-visible change — pure refactor, verified by screenshot diff" for `docs/qa/state.csv`. If any visible drift is intentional, reset the affected `/loops` rows to `untested` instead.
+- **AGH Impact Audit** in the completion notes (Native tools: no impact — presentational web/packages/ui only, no `agh__*` surfaces touched; Extensibility and hooks: no impact — no extension/config surfaces; Workspace data isolation: no impact — no data reads/writes; Official AGH skill: no impact — no public behavior/CLI/tool change; each with the checked surfaces named).
+- Commit style: `refactor: promote inventory listing row into @agh/ui` (or `feat:` if you judge the new public export dominates), one commit for the batch.
+
+## Success criteria
+
+- `@agh/ui` exports exactly one canonical inventory-row component (`ListingRow`), and no second plausible answer exists (`ReviewRow` is gone; `Item`'s selection job is documented as distinct).
+- Inventory pages adopting the listing standard compose `ListingRow` slots instead of re-copying grid/hover/well markup; Loops proves it as the reference consumer with zero visual regression.
+- Domain content (status pills, binding badges, Run actions) flows through slots without forking the layout contract — `ListingRow` contains no Loops (or any domain) knowledge.
+- Visual alignment with `catalog-design-system.html` / `LISTING-STANDARD.md` is screenshot-verified: 34px icon well, `--row-hover` only, flat depth, trail Pill grammar.
+- All gates above pass with zero warnings.
+
+## Non-goals
+
+- No `ListingToolbar`, view toggle, URL `view=` state, filter rework, or empty-state changes (follow-up task).
+- No redesign of any route beyond the Loops row swap; `/vault`, `/skills`, `/jobs`, etc. adopt later.
+- No changes to `Item`, `ListGroup`, `CatalogCard`, `TasksListRow`, or session/network/chat row contracts.
+- No daemon/API changes, no invented metrics.
+- No compat shims, deprecated aliases, or dual exports of any kind.
+
+## Environment
+
+Monorepo: Bun workspaces + Turborepo. Web = Vite + React 19 + TanStack Router/Query + Tailwind v4 + shadcn (base-nova). Shared package `@agh/ui` at `packages/ui` (tokens at `packages/ui/src/tokens.css`; generated spec `DESIGN.md` at repo root). Design authorities under `docs/design/opendesign/`. Frontend validation runs through Turborepo from the repo root only.

@@ -957,7 +957,8 @@
         "to-prompt": {
             "source": "pedronauck/skills",
             "sourceType": "github",
-            "computedHash": "8b211cbc89c668e081db0a499d70098ac702e723cc879a6cc69a47327e01c2b1"
+            "skillPath": "skills/mine/to-prompt/SKILL.md",
+            "computedHash": "291d183c4a0c1c23e9eda91c3f666bb16142c0bfaa4aea7f424c02b91e6b7c35"
         },
         "tools": {
             "source": "assistant-ui/skills",

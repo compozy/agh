@@ -60,15 +60,9 @@ is the one place Loops needed a new bridge surface: the capability
 An extension declares a watch source with the SDK:
 
 ```ts
-extension.watchSource(
-  "acme.pull_request",
-  {
-    /* options */
-  },
-  async (spec, expectedStateDigest) => {
-    // return { ready, state_digest, payload, settled_at }
-  }
-);
+extension.watchSource("acme.pull_request", {/* options */}, async (spec, expectedStateDigest) => {
+  // return { ready, state_digest, payload, settled_at }
+});
 ```
 
 `extension.watchSource()` auto-declares the `loop.watch_source` capability and registers the

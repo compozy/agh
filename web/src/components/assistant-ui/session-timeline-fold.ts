@@ -20,7 +20,7 @@ export function foldSettledTurns(
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const folded: SessionRow[] = [];
-  for (let index = 0; index < rows.length; ) {
+  for (let index = 0; index < rows.length;) {
     const row = rows[index];
     const turnId = row?.turnId;
     if (!row || !turnId) {
