@@ -15,11 +15,6 @@ export interface SkillDetailRouteSearch {
   content?: string;
 }
 
-function normalizeSearchValue(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
 function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
@@ -99,4 +94,4 @@ function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
   };
 }
 
-export { normalizeSearchValue, useSkillDetailPage };
+export { useSkillDetailPage };

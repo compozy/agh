@@ -7,19 +7,12 @@ import {
   type SkillDetailRouteSearch,
   useSkillDetailPage,
 } from "@/hooks/routes/use-skill-detail-page";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { SkillDetailPanel } from "@/systems/skill";
-
-function normalizeSearchValue(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
 
 function validateSkillDetailSearch(search: Record<string, unknown>): SkillDetailRouteSearch {
   return {
-    content: normalizeSearchValue(search.content),
+    content: normalizeListingSearchValue(search.content),
   };
 }
 

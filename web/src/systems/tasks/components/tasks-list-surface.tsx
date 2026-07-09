@@ -40,12 +40,6 @@ export interface TasksListSurfaceProps {
   onSearchQueryChange: (next: string) => void;
 }
 
-/**
- * Full-page `/tasks` list surface. Composes the shared `ListingPage` shell
- * (width-capped container + page head) and `ListingToolbar` (search · filters ·
- * sort), then renders the status-grouped sections from `groupTasksForList` —
- * each group's rows sit in the same bordered list card as the Loops catalog.
- */
 export function TasksListSurface({
   tasks,
   totalCount,
@@ -74,14 +68,11 @@ export function TasksListSurface({
   const hasFilters = Boolean(statusFilter) || Boolean(ownerFilter) || Boolean(priorityFilter);
   const countLabel =
     visibleCount === totalCount ? `${totalCount}` : `${visibleCount} of ${totalCount}`;
-  const syncedLabel = listUpdatedAt
-    ? formatRelativeTime(new Date(listUpdatedAt).toISOString())
-    : null;
-  const syncedText = syncedLabel
-    ? syncedLabel === "now"
-      ? "synced just now"
-      : `synced ${syncedLabel} ago`
-    : null;
+  let syncedText: string | null = null;
+  if (listUpdatedAt) {
+    const syncedLabel = formatRelativeTime(new Date(listUpdatedAt).toISOString());
+    syncedText = syncedLabel === "now" ? "synced just now" : `synced ${syncedLabel} ago`;
+  }
 
   return (
     <ListingPage data-testid="tasks-list-surface">

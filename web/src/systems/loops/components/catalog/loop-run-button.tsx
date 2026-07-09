@@ -8,13 +8,6 @@ interface LoopRunButtonProps extends ComponentProps<"button"> {
   onRun: () => void;
 }
 
-/**
- * Inline "Run" launch shared by the catalog row and card. Neutral resting fill
- * that flips to accent on hover, with the design-system focus ring so keyboard
- * users get a visible target. Test id is suffixed by loop name to stay unique
- * across the grid/list. Extends the native button props so callers can pass
- * `disabled`, `aria-*`, and other intrinsic attributes through.
- */
 export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunButtonProps) {
   return (
     <button

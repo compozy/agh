@@ -25,11 +25,6 @@ interface LoopCatalogProps {
 const NO_BINDINGS: readonly LoopBindingKind[] = [];
 const GROUP_PASS_THROUGH: LoopCatalogFilter = { kind: "all", category: null, status: null };
 
-/**
- * The Loops catalog list surface: filtered rows (grouped Read-only / Workspace)
- * or cards. Toolbar/search/filters live on the route; this panel owns empty +
- * view branching only.
- */
 export function LoopCatalog({
   entries,
   searchQuery,

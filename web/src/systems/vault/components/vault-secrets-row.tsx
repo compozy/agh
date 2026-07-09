@@ -10,12 +10,6 @@ export interface VaultSecretsRowProps {
   onDelete?: (secret: VaultSecret) => void;
 }
 
-/**
- * One vault inventory row: neutral KeyRound well, mono `ref` title with the
- * namespace Pill (`sessions` → info tone), an `updated` meta line, and the
- * always-visible delete action in the trail. Vault secrets have no detail
- * route, so the row is not a link.
- */
 export function VaultSecretsRow({ secret, onDelete }: VaultSecretsRowProps) {
   const trimmedKind = secret.kind?.trim();
   return (

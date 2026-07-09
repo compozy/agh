@@ -19,15 +19,6 @@ export interface TaskCardProps {
   task: TaskListItem;
 }
 
-/**
- * Full-detail list card — composes the shared `tasks-list-row` primitive and
- * pushes the rich task metadata into a single inline `__meta` row. Status dots
- * live on list group headers (`TaskGroup`), not on each row. Pills
- * (priority, approval, blocked) sit in the `trailing` column; the parent
- * identifier renders through `<MonoId>` so identifier styling matches every
- * other row-context surface. Publish + retry actions belong to the detail
- * header (`tasks-detail-header.tsx`), not the row.
- */
 export function TaskCard({ task }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
   const needsAttention = task.status === "needs_attention";

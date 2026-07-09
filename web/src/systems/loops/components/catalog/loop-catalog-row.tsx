@@ -24,12 +24,6 @@ interface LoopCatalogRowProps {
   onRun: (entry: LoopCatalogEntry) => void;
 }
 
-/**
- * One catalog list row: neutral icon well, name + kind tag + version, one-line
- * goal, meta (inputs / iteration cap / human gate / binding badge), category,
- * last-outcome pill, 30d success-rate, and an inline Run launch. The name/goal
- * area links to the detail page; Run stays a sibling control.
- */
 export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowProps) {
   const category = loopCategory(entry);
   const inputCount = loopInputCount(entry);

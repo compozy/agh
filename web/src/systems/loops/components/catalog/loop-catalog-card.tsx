@@ -12,10 +12,6 @@ interface LoopCatalogCardProps {
   onRun: (entry: LoopCatalogEntry) => void;
 }
 
-/**
- * Catalog card view for one Loop: logo + title + meta eyebrow, optional goal,
- * category Pill in the footer opposite an always-visible Run action.
- */
 export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
   const category = loopCategory(entry);
   const sourceLabel = loopSourceLabel(entry);
@@ -43,14 +39,12 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
           <CatalogCard.Description>{entry.contract.goal}</CatalogCard.Description>
         ) : null}
       </Link>
-      <CatalogCard.Actions className="justify-between">
+      <CatalogCard.Actions className={category ? "justify-between" : "justify-end"}>
         {category ? (
           <Pill mono size="sm" tone="neutral">
             {category}
           </Pill>
-        ) : (
-          <span />
-        )}
+        ) : null}
         <LoopRunButton loopName={entry.name} onRun={() => onRun(entry)} />
       </CatalogCard.Actions>
     </CatalogCard>

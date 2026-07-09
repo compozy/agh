@@ -22,11 +22,6 @@ export interface TasksListSortProps {
   onSortChange: (next: TaskListSortKey) => void;
 }
 
-/**
- * Sort control for the tasks listing toolbar trailing slot. Tasks is the only
- * listing surface with a real sort, so the "Sorted by …" label is allowed here
- * (LISTING-STANDARD forbids it only when no sort control exists).
- */
 export function TasksListSort({ sortBy, onSortChange }: TasksListSortProps) {
   return (
     <DropdownMenu>

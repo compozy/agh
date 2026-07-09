@@ -21,21 +21,6 @@ type ListingPageHeadProps = Omit<React.ComponentProps<"header">, "title"> & {
   meta?: React.ReactNode;
 };
 
-/**
- * Canonical inventory listing shell. Owns the scroll area and the centered,
- * width-capped content container so every listing route shares one container
- * contract instead of re-deriving `mx-auto max-w-… px-… py-…` per page. Compose
- * `ListingPage.Head` → `ListingToolbar` → the row/card body inside it.
- *
- * @example
- * ```tsx
- * <ListingPage banner={backgroundError}>
- *   <ListingPage.Head title="Loops" count={count} meta={<>…</>} />
- *   <ListingToolbar>…</ListingToolbar>
- *   <LoopCatalog … />
- * </ListingPage>
- * ```
- */
 function ListingPage({ banner, bodyClassName, className, children, ...props }: ListingPageProps) {
   return (
     <div

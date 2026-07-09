@@ -19,14 +19,6 @@ export interface TaskGroupProps {
   className?: string;
 }
 
-/**
- * Tasks index — List-view status group. Renders a six-group anatomy per
- * (`Active` · `Blocked` · `Needs attention` · `Queued` · `Done` · `Failed`).
- *
- * Header composition: `<StatusDot>` + `<Eyebrow>` label + bare mono count +
- * optional actions slot. One dot per group replaces per-row status dots on the
- * list surface.
- */
 function TaskGroup({ id, label, count, children, actions, className }: TaskGroupProps) {
   const { tone, variant } = listGroupDotProps(id);
 

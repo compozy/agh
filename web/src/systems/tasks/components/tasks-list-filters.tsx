@@ -20,12 +20,6 @@ export interface TasksListFiltersProps extends TaskFilterState {
   onPriorityChange: TaskFilterHandlers["onPriorityChange"];
 }
 
-/**
- * Tasks list reui `<Filters>` chip bar (status · owner · priority). Renders
- * inside `ListingToolbar.Filters`; sort moved to `TasksListSort` on the toolbar
- * trailing slot. State stays owned by `useTasksPage`; this component only
- * translates typed filters ⇄ chip array via `lib/tasks-list-filters.ts`.
- */
 export function TasksListFilters({
   statusFilter,
   ownerFilter,

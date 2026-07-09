@@ -15,11 +15,6 @@ interface VaultSecretsListProps {
   "data-testid"?: string;
 }
 
-/**
- * Vault inventory list: `ListingRow` rows inside the shared bordered list card,
- * with loading / error / empty routed through `DataSurface`. Replaces the former
- * secrets table so vault matches the catalog listing standard.
- */
 export function VaultSecretsList({
   secrets,
   isLoading = false,

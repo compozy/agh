@@ -44,26 +44,6 @@ const VIEW_ITEMS = [
   },
 ];
 
-/**
- * Canonical inventory listing toolbar shell.
- * Compose Search → Filters in Leading, ViewToggle in Trailing.
- * URL persistence stays in the route — this composite is presentational only.
- *
- * @example
- * ```tsx
- * <ListingToolbar>
- *   <ListingToolbar.Leading>
- *     <ListingToolbar.Search value={q} onChange={setQ} placeholder="Search skills" />
- *     <ListingToolbar.Filters>
- *       <Filters ... />
- *     </ListingToolbar.Filters>
- *   </ListingToolbar.Leading>
- *   <ListingToolbar.Trailing>
- *     <ListingToolbar.ViewToggle value={view} onChange={setView} />
- *   </ListingToolbar.Trailing>
- * </ListingToolbar>
- * ```
- */
 function ListingToolbar({ className, ...props }: ListingToolbarRootProps) {
   return (
     <div

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import type { ListingViewMode } from "@agh/ui";
 
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
   buildBridgeCreateRequest,
   createBridgeCreateDraft,
@@ -31,11 +32,6 @@ export interface BridgesRouteSearch {
   scope?: BridgeScopeFilter;
   platform?: BridgePlatformFilter;
   status?: BridgeStatusFilter;
-}
-
-function normalizeSearchValue(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
 }
 
 function useBridgesPage(search: BridgesRouteSearch = {}) {
@@ -137,7 +133,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     (nextQuery: string) => {
       updateSearch(current => ({
         ...current,
-        q: normalizeSearchValue(nextQuery),
+        q: normalizeListingSearchValue(nextQuery),
       }));
     },
     [updateSearch]

@@ -38,11 +38,6 @@ function joinMeta(children: React.ReactNode): React.ReactNode[] {
   });
 }
 
-/**
- * List-mode task row composed on `@agh/ui` ListingRow. Status dots live on
- * `TaskGroup` headers, not on each row. The main region is a real link to
- * `/tasks/$id`; trail pills stay siblings of the link.
- */
 function TasksListRow({ task, trailing, meta, testId, className }: TasksListRowProps) {
   const identifier = taskShortId(task);
   const lastActivity = task.last_activity_at ?? task.updated_at;
@@ -86,9 +81,7 @@ function TasksListRow({ task, trailing, meta, testId, className }: TasksListRowP
       </ListingRow.Link>
       {trailing !== undefined ? (
         <ListingRow.Trail data-slot="tasks-list-row-trailing">{trailing}</ListingRow.Trail>
-      ) : (
-        <ListingRow.Trail />
-      )}
+      ) : null}
     </ListingRow>
   );
 }

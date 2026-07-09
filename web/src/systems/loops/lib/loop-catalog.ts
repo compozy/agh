@@ -14,7 +14,6 @@ export function loopKind(entry: Pick<LoopCatalogEntry, "source">): LoopKind {
   return entry.source === "workspace" ? "workspace" : "read-only";
 }
 
-/** Human label for a loop's editability source, shared by the catalog row and card meta. */
 export function loopSourceLabel(entry: Pick<LoopCatalogEntry, "source">): string {
   return entry.source === "workspace" ? "Workspace" : "Read-only";
 }
@@ -91,7 +90,6 @@ export function loopStatuses(entries: readonly LoopCatalogEntry[]): LoopStatusFi
   return [...seen].sort((a, b) => a.localeCompare(b));
 }
 
-/** True when search/query or any chip filter is active. */
 export function hasActiveLoopFilters(query: string, filter: LoopCatalogFilter): boolean {
   return (
     query.trim() !== "" ||
