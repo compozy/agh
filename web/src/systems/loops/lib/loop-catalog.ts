@@ -15,7 +15,7 @@ export function loopKind(entry: Pick<LoopCatalogEntry, "source">): LoopKind {
 }
 
 export function loopSourceLabel(entry: Pick<LoopCatalogEntry, "source">): string {
-  return entry.source === "workspace" ? "Workspace" : "Read-only";
+  return loopKind(entry) === "workspace" ? "Workspace" : "Read-only";
 }
 
 /**
