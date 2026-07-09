@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -6,7 +6,6 @@ import {
   createRoute,
   createRouter,
   Outlet,
-  useNavigate,
 } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
@@ -233,17 +232,12 @@ function buildSelectionRouter(initialUrl: string) {
   return { router, detailRoute };
 
   function TasksListRouteComponent() {
-    const navigate = useNavigate({ from: "/tasks" });
-
     return (
       <div data-testid="tasks-shell">
         <TasksListSurface
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
           onSearchQueryChange={() => {}}
-          onSelectTask={taskId => {
-            void navigate({ params: { id: taskId }, to: "/tasks/$id" });
-          }}
           onSortChange={() => {}}
           onStatusChange={() => {}}
           ownerFilter={null}
@@ -280,8 +274,9 @@ describe("tasks router selection (integration)", () => {
     await waitFor(() => expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument());
     expect(router.state.location.pathname).toBe("/tasks");
 
-    // Click the second task row.
-    fireEvent.click(screen.getByTestId("task-card-task_002"));
+    // Click the second task row's main link region (trail stays outside the link).
+    const row = screen.getByTestId("task-card-task_002");
+    fireEvent.click(within(row).getByRole("link"));
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe("/tasks/task_002");

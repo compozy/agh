@@ -3,10 +3,12 @@ import { delay, HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
+import { ListingToolbar } from "@agh/ui";
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 
+import { SkillListFilters } from "../skill-list-filters";
 import { SkillListPanel } from "../skill-list-panel";
 
 const meta: Meta<typeof SkillListPanel> = {
@@ -23,16 +25,43 @@ type Story = StoryObj<typeof meta>;
 function SkillListPanelFromPage(props: { errorMessage?: string | null; isLoading?: boolean }) {
   const page = useSkillsPage();
   return (
-    <PanelSurface className="max-w-[340px]">
-      <SkillListPanel
-        errorMessage={props.errorMessage ?? (page.error ? page.error.message : null)}
-        isLoading={props.isLoading ?? page.isLoading}
-        onSearchChange={page.setSearchQuery}
-        onSelectSkill={page.setSelectedSkillName}
-        searchQuery={page.searchQuery}
-        selectedSkillName={page.effectiveSelectedName}
-        skills={page.skills}
-      />
+    <PanelSurface className="max-w-3xl">
+      <div className="flex flex-col gap-4 p-4">
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              data-testid="skill-search-input"
+              onChange={page.setSearchQuery}
+              placeholder="Search skills"
+              value={page.searchQuery}
+            />
+            <ListingToolbar.Filters>
+              <SkillListFilters
+                enabledFilter={page.enabledFilter}
+                onEnabledFilterChange={page.setEnabledFilter}
+                onSourceFilterChange={page.setSourceFilter}
+                sourceFilter={page.sourceFilter}
+              />
+            </ListingToolbar.Filters>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
+        <SkillListPanel
+          enabledFilter={page.enabledFilter}
+          errorMessage={props.errorMessage ?? (page.error ? page.error.message : null)}
+          isActionPending={page.isActionPending}
+          isLoading={props.isLoading ?? page.isLoading}
+          onClearFilters={page.clearFilters}
+          onDisable={page.handleDisable}
+          onEnable={page.handleEnable}
+          searchQuery={page.searchQuery}
+          sourceFilter={page.sourceFilter}
+          skills={page.skills}
+          view={page.view}
+        />
+      </div>
     </PanelSurface>
   );
 }

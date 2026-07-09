@@ -1,18 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import {
-  Eyebrow,
-  Item,
-  ItemContent,
-  ItemFooter,
-  ItemHeader,
-  ItemMedia,
-  ItemTitle,
-  Skeleton,
-  SkeletonRows,
-} from "@agh/ui";
-
-import { cn } from "@/lib/utils";
+import { ListingRow, Eyebrow, Skeleton, SkeletonRows } from "@agh/ui";
 
 import type { ChannelMember, ChannelMemberRole } from "../../hooks/use-channel-members";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
@@ -62,55 +50,53 @@ function DirectsListRow({
   const otherPeerId = pickOtherPeerId(direct, selfPeerId);
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
   const avatarRole = role === "human" ? "human" : "agent";
+  const preview = direct.last_message_preview ?? "No messages yet.";
 
   return (
-    <Item
+    <ListingRow
       aria-current={active ? "page" : undefined}
-      className={cn("rounded-none border-b border-line px-5 py-3")}
       data-testid={`network-direct-list-row-${direct.direct_id}`}
-      indicator={active ? "rail" : "none"}
-      render={
-        <Link
-          params={{ workspaceId, channel, directId: direct.direct_id }}
-          to="/network/$workspaceId/$channel/directs/$directId"
-        />
-      }
-      selectable
       selected={active}
     >
-      <ItemMedia>
-        <MessageAvatar
-          initialFrom={otherPeerId}
-          name={otherPeerId}
-          ownerRole={avatarRole}
-          seed={otherPeerId}
-          sizePx={36}
-        />
-      </ItemMedia>
-
-      <ItemContent>
-        <ItemHeader className="items-center justify-start">
-          <ItemTitle className="min-w-0">@{otherPeerId}</ItemTitle>
-          {role ? (
-            <Eyebrow data-testid={`network-direct-list-row-role-${direct.direct_id}`}>
-              {role === "agent" ? "AGENT" : "HUMAN"}
-            </Eyebrow>
-          ) : null}
-        </ItemHeader>
-        <p className="line-clamp-2 text-small-body text-muted">
-          {direct.last_message_preview ?? "No messages yet."}
-        </p>
-      </ItemContent>
-
-      <ItemFooter className="basis-auto self-start">
-        <Eyebrow
-          className="shrink-0"
+      <ListingRow.Link
+        render={
+          <Link
+            params={{ workspaceId, channel, directId: direct.direct_id }}
+            to="/network/$workspaceId/$channel/directs/$directId"
+            aria-label={`Open @${otherPeerId}`}
+          />
+        }
+      >
+        <ListingRow.Icon className="overflow-hidden p-0">
+          <MessageAvatar
+            initialFrom={otherPeerId}
+            name={otherPeerId}
+            ownerRole={avatarRole}
+            seed={otherPeerId}
+            sizePx={32}
+          />
+        </ListingRow.Icon>
+        <ListingRow.Main>
+          <ListingRow.Name>
+            <ListingRow.Title>@{otherPeerId}</ListingRow.Title>
+            {role ? (
+              <Eyebrow data-testid={`network-direct-list-row-role-${direct.direct_id}`}>
+                {role === "agent" ? "AGENT" : "HUMAN"}
+              </Eyebrow>
+            ) : null}
+          </ListingRow.Name>
+          <ListingRow.Description>{preview}</ListingRow.Description>
+        </ListingRow.Main>
+      </ListingRow.Link>
+      <ListingRow.Trail>
+        <span
+          className="shrink-0 text-eyebrow text-faint"
           data-testid={`network-direct-list-row-time-${direct.direct_id}`}
         >
           {lastActivity}
-        </Eyebrow>
-      </ItemFooter>
-    </Item>
+        </span>
+      </ListingRow.Trail>
+    </ListingRow>
   );
 }
 
@@ -119,7 +105,7 @@ function DirectsListSkeleton() {
     <SkeletonRows
       count={3}
       data-testid="network-direct-list-skeleton"
-      rowClassName="flex-row gap-3 border-b border-line px-5 py-3"
+      rowClassName="flex-row gap-3 border-b border-line px-4 py-3"
     >
       <Skeleton className="size-9 rounded-chip" />
       <div className="flex flex-1 flex-col gap-1.5">

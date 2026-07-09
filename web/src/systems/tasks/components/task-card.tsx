@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { MonoId, Pill } from "@agh/ui";
 
@@ -17,8 +17,6 @@ import { TasksListRow } from "./tasks-list-row";
 
 export interface TaskCardProps {
   task: TaskListItem;
-  selected?: boolean;
-  onSelect?: () => void;
 }
 
 /**
@@ -30,7 +28,7 @@ export interface TaskCardProps {
  * other row-context surface. Publish + retry actions belong to the detail
  * header (`tasks-detail-header.tsx`), not the row.
  */
-export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
+export function TaskCard({ task }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
   const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
@@ -88,51 +86,40 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
     );
   }
 
-  const trailing = useMemo(
-    () => (
-      <>
-        {task.priority ? (
-          <Pill size="sm" tone={taskPriorityTone(task.priority)}>
-            {taskPriorityLabel(task.priority)}
-          </Pill>
-        ) : null}
-        {showApproval ? (
-          <Pill size="sm" tone="accent">
-            {taskApprovalStateLabel(task.approval_state)}
-          </Pill>
-        ) : null}
-        {isBlocked ? (
-          <Pill
-            data-testid={`task-card-blocked-${task.id}`}
-            mono
-            size="sm"
-            tone={taskStatusTone("blocked")}
-          >
-            Blocked
-          </Pill>
-        ) : null}
-        {needsAttention ? (
-          <Pill
-            data-testid={`task-card-needs-attention-${task.id}`}
-            mono
-            size="sm"
-            tone={taskStatusTone("needs_attention")}
-          >
-            Needs attention
-          </Pill>
-        ) : null}
-      </>
-    ),
-    [isBlocked, needsAttention, showApproval, task.approval_state, task.id, task.priority]
+  const trailing = (
+    <>
+      {task.priority ? (
+        <Pill size="sm" tone={taskPriorityTone(task.priority)}>
+          {taskPriorityLabel(task.priority)}
+        </Pill>
+      ) : null}
+      {showApproval ? (
+        <Pill size="sm" tone="accent">
+          {taskApprovalStateLabel(task.approval_state)}
+        </Pill>
+      ) : null}
+      {isBlocked ? (
+        <Pill
+          data-testid={`task-card-blocked-${task.id}`}
+          mono
+          size="sm"
+          tone={taskStatusTone("blocked")}
+        >
+          Blocked
+        </Pill>
+      ) : null}
+      {needsAttention ? (
+        <Pill
+          data-testid={`task-card-needs-attention-${task.id}`}
+          mono
+          size="sm"
+          tone={taskStatusTone("needs_attention")}
+        >
+          Needs attention
+        </Pill>
+      ) : null}
+    </>
   );
 
-  return (
-    <TasksListRow
-      meta={metaItems}
-      onSelect={onSelect ? () => onSelect() : undefined}
-      selected={selected}
-      task={task}
-      trailing={trailing}
-    />
-  );
+  return <TasksListRow meta={metaItems} task={task} trailing={trailing} />;
 }

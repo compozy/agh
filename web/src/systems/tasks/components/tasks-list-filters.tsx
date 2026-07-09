@@ -1,16 +1,9 @@
-import { ChevronDown, ListFilter } from "lucide-react";
+import { ListFilter } from "lucide-react";
 import { useMemo } from "react";
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@agh/ui";
+import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui/components/reui/filters";
 
-import type { TaskListSortKey } from "@/hooks/routes/use-tasks-page";
 import {
   applyTaskFilterChips,
   buildTaskFilterFields,
@@ -20,40 +13,27 @@ import {
   type TaskFilterState,
 } from "../lib/tasks-list-filters";
 
-const SORT_LABELS: Record<TaskListSortKey, string> = {
-  recent: "Most recent",
-  priority: "Priority",
-};
-
-const SORT_OPTIONS: TaskListSortKey[] = ["recent", "priority"];
-
 export interface TasksListFiltersProps extends TaskFilterState {
   ownerOptions: TaskFilterOwnerOption[];
-  sortBy: TaskListSortKey;
   onStatusChange: TaskFilterHandlers["onStatusChange"];
   onOwnerChange: TaskFilterHandlers["onOwnerChange"];
   onPriorityChange: TaskFilterHandlers["onPriorityChange"];
-  onSortChange: (next: TaskListSortKey) => void;
 }
 
 /**
- * Inline filter bar for the tasks list page — replaces the old
- * lane PillGroup (All/Mine/Watched/Blocked/Failed). Wraps the shared
- * `<Filters>` chip primitive with task-aware field config and a right-aligned
- * Sort dropdown. State stays owned by `useTasksPage`; this component is a
- * presentation shell that translates typed filters ⇄ chip array via
- * `lib/tasks-list-filters.ts`.
+ * Tasks list reui `<Filters>` chip bar (status · owner · priority). Renders
+ * inside `ListingToolbar.Filters`; sort moved to `TasksListSort` on the toolbar
+ * trailing slot. State stays owned by `useTasksPage`; this component only
+ * translates typed filters ⇄ chip array via `lib/tasks-list-filters.ts`.
  */
 export function TasksListFilters({
   statusFilter,
   ownerFilter,
   priorityFilter,
   ownerOptions,
-  sortBy,
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
-  onSortChange,
 }: TasksListFiltersProps) {
   const fields = useMemo(() => buildTaskFilterFields(ownerOptions), [ownerOptions]);
 
@@ -71,10 +51,7 @@ export function TasksListFilters({
   };
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
-      data-testid="tasks-list-filters"
-    >
+    <div className="flex flex-wrap items-center gap-2" data-testid="tasks-list-filters">
       <Filters<string>
         allowMultiple={false}
         fields={fields}
@@ -94,42 +71,6 @@ export function TasksListFilters({
           </Button>
         }
       />
-
-      <div className="ml-auto flex items-center gap-1.5">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label="Sort tasks"
-                data-testid="tasks-list-sort-trigger"
-                size="sm"
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <ListFilter aria-hidden="true" className="size-3 text-subtle" />
-            <span className="text-muted">Sorted by</span>
-            <span className="text-fg-strong">{SORT_LABELS[sortBy]}</span>
-            <ChevronDown aria-hidden="true" className="size-3 text-subtle" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {SORT_OPTIONS.map(option => (
-              <DropdownMenuItem
-                data-active={option === sortBy ? "true" : undefined}
-                data-testid={`tasks-list-sort-${option}`}
-                key={option}
-                onSelect={event => {
-                  event.preventDefault();
-                  onSortChange(option);
-                }}
-              >
-                {SORT_LABELS[option]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
     </div>
   );
 }

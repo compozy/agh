@@ -111,28 +111,23 @@ describe("VaultPage", () => {
   it("renders vault counts, filters, and redacted metadata rows", () => {
     render(<VaultPage />);
 
-    expect(screen.getByTestId("vault-page-total")).toHaveTextContent("1 secrets");
+    expect(screen.getByTestId("vault-page-count")).toHaveTextContent("1");
     expect(screen.getByTestId("vault-page-sessions")).toHaveTextContent("1 session-scoped");
-    expect(screen.getByTestId("vault-page-filters")).toBeInTheDocument();
-    expect(screen.getByTestId("vault-page-table")).toHaveTextContent(sessionSecret.ref);
-    expect(screen.getByTestId("vault-page-table")).not.toHaveTextContent("super-secret-token");
+    expect(screen.getByTestId("vault-list-filters-add")).toBeInTheDocument();
+    expect(screen.getByTestId("vault-page-list")).toHaveTextContent(sessionSecret.ref);
+    expect(screen.getByTestId("vault-page-list")).not.toHaveTextContent("super-secret-token");
   });
 
-  it("forwards filter changes to the page state hook", () => {
-    const setNamespace = vi.fn();
+  it("forwards prefix search changes to the page state hook", () => {
     const setPrefix = vi.fn();
-    mockUseVaultPage.mockReturnValue(makeState({ setNamespace, setPrefix }));
+    mockUseVaultPage.mockReturnValue(makeState({ setPrefix }));
 
     render(<VaultPage />);
 
-    fireEvent.change(screen.getByTestId("vault-page-namespace"), {
-      target: { value: "sessions" },
-    });
     fireEvent.change(screen.getByTestId("vault-page-prefix"), {
       target: { value: "vault:sessions/sess_123/" },
     });
 
-    expect(setNamespace).toHaveBeenCalledWith("sessions");
     expect(setPrefix).toHaveBeenCalledWith("vault:sessions/sess_123/");
   });
 

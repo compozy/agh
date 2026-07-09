@@ -70,7 +70,6 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
           onOwnerChange={setOwnerFilter}
           onPriorityChange={setPriorityFilter}
           onSearchQueryChange={setSearchQuery}
-          onSelectTask={() => {}}
           onSortChange={setSortBy}
           onStatusChange={setStatusFilter}
           ownerFilter={ownerFilter}

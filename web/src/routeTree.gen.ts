@@ -28,6 +28,7 @@ import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
+import { Route as AppSkillsNameRouteImport } from './routes/_app/skills.$name'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
@@ -39,6 +40,7 @@ import { Route as AppSettingsAutomationRouteImport } from './routes/_app/setting
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppLoopsNameRouteImport } from './routes/_app/loops.$name'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
+import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
 import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit'
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
@@ -146,6 +148,11 @@ const AppTasksIdRoute = AppTasksIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AppTasksRoute,
 } as any)
+const AppSkillsNameRoute = AppSkillsNameRouteImport.update({
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppSkillsRoute,
+} as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -202,6 +209,11 @@ const AppLoopRunsRunIdRoute = AppLoopRunsRunIdRouteImport.update({
   id: '/$runId',
   path: '/$runId',
   getParentRoute: () => AppLoopRunsRoute,
+} as any)
+const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppBridgesRoute,
 } as any)
 const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
   id: '/agents/$name',
@@ -272,7 +284,7 @@ const AppNetworkWorkspaceIdChannelDirectsDirectIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
-  '/bridges': typeof AppBridgesRoute
+  '/bridges': typeof AppBridgesRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
@@ -281,11 +293,12 @@ export interface FileRoutesByFullPath {
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
   '/settings': typeof AppSettingsRouteWithChildren
-  '/skills': typeof AppSkillsRoute
+  '/skills': typeof AppSkillsRouteWithChildren
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/bridges/$id': typeof AppBridgesIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
@@ -297,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/skills/$name': typeof AppSkillsNameRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -314,7 +328,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
-  '/bridges': typeof AppBridgesRoute
+  '/bridges': typeof AppBridgesRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
@@ -322,12 +336,13 @@ export interface FileRoutesByTo {
   '/mcp': typeof AppMcpRoute
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
-  '/skills': typeof AppSkillsRoute
+  '/skills': typeof AppSkillsRouteWithChildren
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
   '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/bridges/$id': typeof AppBridgesIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
@@ -339,6 +354,7 @@ export interface FileRoutesByTo {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/skills/$name': typeof AppSkillsNameRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -358,7 +374,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
-  '/_app/bridges': typeof AppBridgesRoute
+  '/_app/bridges': typeof AppBridgesRouteWithChildren
   '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
@@ -367,12 +383,13 @@ export interface FileRoutesById {
   '/_app/network': typeof AppNetworkRouteWithChildren
   '/_app/sandbox': typeof AppSandboxRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
-  '/_app/skills': typeof AppSkillsRoute
+  '/_app/skills': typeof AppSkillsRouteWithChildren
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/triggers': typeof AppTriggersRoute
   '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/_app/bridges/$id': typeof AppBridgesIdRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/_app/session/$id': typeof AppSessionIdRoute
@@ -384,6 +401,7 @@ export interface FileRoutesById {
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
+  '/_app/skills/$name': typeof AppSkillsNameRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -418,6 +436,7 @@ export interface FileRouteTypes {
     | '/triggers'
     | '/vault'
     | '/agents/$name'
+    | '/bridges/$id'
     | '/loop-runs/$runId'
     | '/loops/$name'
     | '/session/$id'
@@ -429,6 +448,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/skills/$name'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings/'
@@ -460,6 +480,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/'
     | '/agents/$name'
+    | '/bridges/$id'
     | '/loop-runs/$runId'
     | '/loops/$name'
     | '/session/$id'
@@ -471,6 +492,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
+    | '/skills/$name'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings'
@@ -504,6 +526,7 @@ export interface FileRouteTypes {
     | '/_app/vault'
     | '/_app/'
     | '/_app/agents/$name'
+    | '/_app/bridges/$id'
     | '/_app/loop-runs/$runId'
     | '/_app/loops/$name'
     | '/_app/session/$id'
@@ -515,6 +538,7 @@ export interface FileRouteTypes {
     | '/_app/settings/observability'
     | '/_app/settings/providers'
     | '/_app/settings/skills'
+    | '/_app/skills/$name'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/settings/'
@@ -671,6 +695,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIdRouteImport
       parentRoute: typeof AppTasksRoute
     }
+    '/_app/skills/$name': {
+      id: '/_app/skills/$name'
+      path: '/$name'
+      fullPath: '/skills/$name'
+      preLoaderRoute: typeof AppSkillsNameRouteImport
+      parentRoute: typeof AppSkillsRoute
+    }
     '/_app/settings/skills': {
       id: '/_app/settings/skills'
       path: '/skills'
@@ -747,6 +778,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/loop-runs/$runId'
       preLoaderRoute: typeof AppLoopRunsRunIdRouteImport
       parentRoute: typeof AppLoopRunsRoute
+    }
+    '/_app/bridges/$id': {
+      id: '/_app/bridges/$id'
+      path: '/$id'
+      fullPath: '/bridges/$id'
+      preLoaderRoute: typeof AppBridgesIdRouteImport
+      parentRoute: typeof AppBridgesRoute
     }
     '/_app/agents/$name': {
       id: '/_app/agents/$name'
@@ -834,6 +872,18 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppBridgesRouteChildren {
+  AppBridgesIdRoute: typeof AppBridgesIdRoute
+}
+
+const AppBridgesRouteChildren: AppBridgesRouteChildren = {
+  AppBridgesIdRoute: AppBridgesIdRoute,
+}
+
+const AppBridgesRouteWithChildren = AppBridgesRoute._addFileChildren(
+  AppBridgesRouteChildren,
+)
 
 interface AppLoopRunsRouteChildren {
   AppLoopRunsRunIdRoute: typeof AppLoopRunsRunIdRoute
@@ -952,6 +1002,18 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
   AppSettingsRouteChildren,
 )
 
+interface AppSkillsRouteChildren {
+  AppSkillsNameRoute: typeof AppSkillsNameRoute
+}
+
+const AppSkillsRouteChildren: AppSkillsRouteChildren = {
+  AppSkillsNameRoute: AppSkillsNameRoute,
+}
+
+const AppSkillsRouteWithChildren = AppSkillsRoute._addFileChildren(
+  AppSkillsRouteChildren,
+)
+
 interface AppTasksIdRouteChildren {
   AppTasksIdEditRoute: typeof AppTasksIdEditRoute
   AppTasksIdRunsRunIdRoute: typeof AppTasksIdRunsRunIdRoute
@@ -993,7 +1055,7 @@ const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
-  AppBridgesRoute: typeof AppBridgesRoute
+  AppBridgesRoute: typeof AppBridgesRouteWithChildren
   AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
@@ -1002,7 +1064,7 @@ interface AppRouteChildren {
   AppNetworkRoute: typeof AppNetworkRouteWithChildren
   AppSandboxRoute: typeof AppSandboxRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
-  AppSkillsRoute: typeof AppSkillsRoute
+  AppSkillsRoute: typeof AppSkillsRouteWithChildren
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRoute
   AppVaultRoute: typeof AppVaultRoute
@@ -1012,7 +1074,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppBridgesRoute: AppBridgesRoute,
+  AppBridgesRoute: AppBridgesRouteWithChildren,
   AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
@@ -1021,7 +1083,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNetworkRoute: AppNetworkRouteWithChildren,
   AppSandboxRoute: AppSandboxRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
-  AppSkillsRoute: AppSkillsRoute,
+  AppSkillsRoute: AppSkillsRouteWithChildren,
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTriggersRoute: AppTriggersRoute,
   AppVaultRoute: AppVaultRoute,

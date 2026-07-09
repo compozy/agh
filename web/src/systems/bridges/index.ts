@@ -93,6 +93,24 @@ export {
   isBridgeProviderSelectable,
   normalizeBridgeDeliveryDefaults,
 } from "./lib/bridge-formatters";
+export {
+  applyBridgeFilterChips,
+  bridgeFiltersToChips,
+  buildBridgeFilterFields,
+  effectiveBridgeStatus,
+  filterBridges,
+  matchesBridgeScope,
+  matchesBridgeSearch,
+  parseBridgePlatformFilter,
+  parseBridgeScopeFilter,
+  parseBridgeStatusFilter,
+  type BridgeFilterFieldKey,
+  type BridgeFilterHandlers,
+  type BridgeFilterState,
+  type BridgePlatformFilter,
+  type BridgeStatusFilter,
+} from "./lib/bridge-list-filters";
+export { BridgeListFilters } from "./components/bridge-list-filters";
 export { bridgeKeys } from "./lib/query-keys";
 export {
   bridgeDetailOptions,

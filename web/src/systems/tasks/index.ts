@@ -329,10 +329,10 @@ export { TasksListRow } from "./components/tasks-list-row";
 export type { TasksListRowProps } from "./components/tasks-list-row";
 export { TasksListSurface } from "./components/tasks-list-surface";
 export type { TasksListSurfaceProps } from "./components/tasks-list-surface";
-export { TasksListPageHead } from "./components/tasks-list-page-head";
-export type { TasksListPageHeadProps } from "./components/tasks-list-page-head";
 export { TasksListFilters } from "./components/tasks-list-filters";
 export type { TasksListFiltersProps } from "./components/tasks-list-filters";
+export { TasksListSort } from "./components/tasks-list-sort";
+export type { TasksListSortProps } from "./components/tasks-list-sort";
 export {
   applyTaskFilterChips,
   buildTaskFilterFields,

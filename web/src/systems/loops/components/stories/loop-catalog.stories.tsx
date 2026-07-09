@@ -1,11 +1,14 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { ListingToolbar, type ListingViewMode } from "@agh/ui";
+
 import { StorySurface } from "@/storybook/story-layout";
 
 import { LoopCatalog } from "../catalog/loop-catalog";
+import { LoopCatalogFilters } from "../catalog/loop-catalog-filters";
 import type { LoopBindingKind } from "../../lib/loop-bindings";
-import type { LoopCatalogFilter } from "../../lib/loop-catalog";
+import type { LoopCatalogFilter, LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopCatalog> = {
@@ -18,18 +21,63 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const BOUND_LOOPS = new Map<string, LoopBindingKind[]>([["software-delivery", ["schedule"]]]);
+const DEFAULT_FILTER: LoopCatalogFilter = { kind: "all", category: null, status: null };
 
-function CatalogHarness() {
-  const [filter, setFilter] = useState<LoopCatalogFilter>({ kind: "all", category: null });
+function CatalogHarness({
+  initialFilter = DEFAULT_FILTER,
+  initialView = "rows" as ListingViewMode,
+}: {
+  initialFilter?: LoopCatalogFilter;
+  initialView?: ListingViewMode;
+}) {
+  const [filter, setFilter] = useState<LoopCatalogFilter>(initialFilter);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<ListingViewMode>(initialView);
+
   return (
     <StorySurface className="p-8">
-      <div className="mx-auto max-w-[1320px]">
+      <div className="mx-auto flex max-w-[1320px] flex-col gap-5">
+        <ListingToolbar>
+          <ListingToolbar.Leading>
+            <ListingToolbar.Search
+              aria-label="Search loops"
+              onChange={setSearchQuery}
+              placeholder="Search loops"
+              value={searchQuery}
+            />
+            <ListingToolbar.Filters>
+              <LoopCatalogFilters
+                categoryFilter={filter.category}
+                entries={loopCatalogFixtures}
+                kindFilter={filter.kind}
+                onCategoryFilterChange={(category: string | null) =>
+                  setFilter(current => ({ ...current, category }))
+                }
+                onKindFilterChange={(kind: LoopKindFilter) =>
+                  setFilter(current => ({ ...current, kind }))
+                }
+                onStatusFilterChange={(status: LoopStatusFilter | null) =>
+                  setFilter(current => ({ ...current, status }))
+                }
+                statusFilter={filter.status}
+              />
+            </ListingToolbar.Filters>
+          </ListingToolbar.Leading>
+          <ListingToolbar.Trailing>
+            <ListingToolbar.ViewToggle onChange={setView} value={view} />
+          </ListingToolbar.Trailing>
+        </ListingToolbar>
         <LoopCatalog
+          boundLoops={BOUND_LOOPS}
           entries={loopCatalogFixtures}
           filter={filter}
-          onFilterChange={setFilter}
-          boundLoops={BOUND_LOOPS}
+          onClearFilters={() => {
+            setFilter(DEFAULT_FILTER);
+            setSearchQuery("");
+          }}
           onRun={() => {}}
+          searchQuery={searchQuery}
+          view={view}
         />
       </div>
     </StorySurface>
@@ -40,18 +88,12 @@ export const Default: Story = {
   render: () => <CatalogHarness />,
 };
 
+export const Cards: Story = {
+  render: () => <CatalogHarness initialView="cards" />,
+};
+
 export const ReadOnlyOnly: Story = {
   render: () => (
-    <StorySurface className="p-8">
-      <div className="mx-auto max-w-[1320px]">
-        <LoopCatalog
-          entries={loopCatalogFixtures}
-          filter={{ kind: "read-only", category: null }}
-          onFilterChange={() => {}}
-          boundLoops={BOUND_LOOPS}
-          onRun={() => {}}
-        />
-      </div>
-    </StorySurface>
+    <CatalogHarness initialFilter={{ kind: "read-only", category: null, status: null }} />
   ),
 };

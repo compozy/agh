@@ -142,7 +142,6 @@ export function TasksRoute() {
             listUpdatedAt={page.listUpdatedAt}
             onOwnerChange={page.handleOwnerChange}
             onPriorityChange={page.handlePriorityChange}
-            onSelectTask={handleSelectTask}
             onSortChange={page.handleSortChange}
             onStatusChange={page.handleStatusChange}
             onSearchQueryChange={page.setSearchQuery}

@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 import { PanelSurface } from "@/storybook/story-layout";
 import type { VaultSecret } from "@/systems/vault/types";
 
-import { VaultSecretsTable } from "../vault-secrets-table";
+import { VaultSecretsList } from "../vault-secrets-list";
 
 const secrets: VaultSecret[] = [
   {
@@ -45,14 +45,15 @@ const denseSecrets = Array.from(
   })
 );
 
-const meta: Meta<typeof VaultSecretsTable> = {
-  title: "systems/vault/components/VaultSecretsTable",
-  component: VaultSecretsTable,
+const meta: Meta<typeof VaultSecretsList> = {
+  title: "systems/vault/components/VaultSecretsList",
+  component: VaultSecretsList,
   parameters: {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Vault metadata table with namespace chips and optional destructive actions.",
+        component:
+          "Vault metadata listing rows (mono refs + namespace Pills) inside the shared bordered list card, with optional destructive actions.",
       },
     },
   },
@@ -68,18 +69,14 @@ const meta: Meta<typeof VaultSecretsTable> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * Read-only table shown on the settings vault page.
- */
+/** Read-only rows shown on the vault page. */
 export const Default: Story = {
   args: {
     secrets,
   },
 };
 
-/**
- * Delete actions appear only when the parent route wires the mutation.
- */
+/** Delete actions appear only when the parent route wires the mutation. */
 export const WithDeleteActions: Story = {
   args: {
     secrets,
@@ -87,9 +84,7 @@ export const WithDeleteActions: Story = {
   },
 };
 
-/**
- * Loading state preserves table footprint while metadata resolves.
- */
+/** Loading state preserves the list footprint while metadata resolves. */
 export const Loading: Story = {
   args: {
     secrets: [],
@@ -97,9 +92,7 @@ export const Loading: Story = {
   },
 };
 
-/**
- * Empty state uses caller-provided copy for scoped vault views.
- */
+/** Empty state uses caller-provided copy for scoped vault views. */
 export const Empty: Story = {
   args: {
     secrets: [],
@@ -108,9 +101,7 @@ export const Empty: Story = {
   },
 };
 
-/**
- * Error state keeps daemon failure copy visible in the shared data surface.
- */
+/** Error state keeps daemon failure copy visible in the shared data surface. */
 export const Error: Story = {
   args: {
     secrets: [],
@@ -118,9 +109,7 @@ export const Error: Story = {
   },
 };
 
-/**
- * Dense state exercises long refs and mixed namespaces.
- */
+/** Dense state exercises long refs and mixed namespaces. */
 export const Dense: Story = {
   args: {
     secrets: denseSecrets,

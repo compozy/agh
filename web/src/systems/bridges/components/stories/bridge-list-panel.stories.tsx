@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { bridgesListFixture } from "@/systems/bridges/mocks";
 import type { BridgeSummary } from "@/systems/bridges/types";
 
@@ -28,72 +29,58 @@ const defaultBridges: BridgeSummary[] = [
     platform: "slack",
     scope: "global",
     status: "ready",
+    workspace_id: undefined,
   },
 ];
 
+const defaultProps = {
+  activeWorkspaceId: storyWorkspaceIds.hq as string | null,
+  bridgeHealth: bridgesListFixture.bridge_health ? { ...bridgesListFixture.bridge_health } : {},
+  bridges: defaultBridges,
+  onClearFilters: () => undefined,
+  platformFilter: null,
+  scopeFilter: "all" as const,
+  searchQuery: "",
+  statusFilter: null,
+  view: "rows" as const,
+};
+
 export const Default: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <BridgeListPanel
-        bridgeHealth={
-          bridgesListFixture.bridge_health ? { ...bridgesListFixture.bridge_health } : {}
-        }
-        bridges={defaultBridges}
-        onSearchChange={() => undefined}
-        onSelectBridge={() => undefined}
-        searchQuery=""
-        selectedBridgeId={defaultBridges[0]?.id ?? null}
-        summary="2 bridges visible"
-      />
+    <PanelSurface className="max-w-3xl">
+      <BridgeListPanel {...defaultProps} />
+    </PanelSurface>
+  ),
+};
+
+export const Cards: Story = {
+  render: () => (
+    <PanelSurface className="max-w-5xl">
+      <BridgeListPanel {...defaultProps} view="cards" />
     </PanelSurface>
   ),
 };
 
 export const Empty: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        onSearchChange={() => undefined}
-        onSelectBridge={() => undefined}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary="0 bridges visible"
-      />
+    <PanelSurface className="max-w-3xl">
+      <BridgeListPanel {...defaultProps} bridges={[]} />
     </PanelSurface>
   ),
 };
 
 export const FilteredEmpty: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        onSearchChange={() => undefined}
-        onSelectBridge={() => undefined}
-        searchQuery="zzzzzz"
-        selectedBridgeId={null}
-        summary="0 bridges match the filter"
-      />
+    <PanelSurface className="max-w-3xl">
+      <BridgeListPanel {...defaultProps} bridges={[]} searchQuery="zzzzzz" />
     </PanelSurface>
   ),
 };
 
 export const Error: Story = {
   render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        errorMessage="Failed to load bridges"
-        onSearchChange={() => undefined}
-        onSelectBridge={() => undefined}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary=""
-      />
+    <PanelSurface className="max-w-3xl">
+      <BridgeListPanel {...defaultProps} bridges={[]} errorMessage="Failed to load bridges" />
     </PanelSurface>
   ),
 };
@@ -101,16 +88,8 @@ export const Error: Story = {
 export const RowSelect: Story = {
   tags: ["play-fn"],
   render: () => (
-    <PanelSurface className="max-w-[340px]">
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={defaultBridges}
-        onSearchChange={() => undefined}
-        onSelectBridge={() => undefined}
-        searchQuery=""
-        selectedBridgeId={defaultBridges[0]?.id ?? null}
-        summary="2 bridges visible"
-      />
+    <PanelSurface className="max-w-3xl">
+      <BridgeListPanel {...defaultProps} />
     </PanelSurface>
   ),
   play: async ({ canvasElement }) => {

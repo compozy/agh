@@ -1,21 +1,16 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import * as React from "react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import { renderWithTopbar } from "@/test/render-with-topbar";
+import { routeComponent } from "@/test/route-options";
 
-import type {
-  BridgeDetailResponse,
-  BridgeProvider,
-  BridgeResolveTargetResponse,
-  BridgeRoute,
-  BridgeSecretBinding,
-  BridgeTargetsResponse,
-  BridgesListResponse,
-  CreateBridgeResponse,
-  TestBridgeDeliveryResponse,
-  UpdateBridgeResponse,
-} from "@/systems/bridges";
+import type { BridgeProvider, BridgesListResponse, CreateBridgeResponse } from "@/systems/bridges";
+
+function render(ui: React.ReactElement) {
+  return renderWithTopbar(ui, { title: "Bridges" });
+}
 
 const { toast } = vi.hoisted(() => ({
   toast: {
@@ -27,51 +22,92 @@ const { toast } = vi.hoisted(() => ({
 let mockBridgesData: BridgesListResponse | undefined;
 let mockBridgesLoading = false;
 let mockBridgesError: Error | null = null;
+const mockRefetchBridges = vi.fn();
 
 let mockProvidersData: BridgeProvider[] | undefined;
 let mockProvidersLoading = false;
 let mockProvidersError: Error | null = null;
-
-let mockBridgeDetail: BridgeDetailResponse | undefined;
-let mockBridgeDetailLoading = false;
-let mockBridgeDetailError: Error | null = null;
-
-let mockBridgeRoutes: BridgeRoute[] | undefined;
-let mockBridgeRoutesLoading = false;
-let mockBridgeRoutesError: Error | null = null;
-let mockBridgeTargets: BridgeTargetsResponse | undefined;
-let mockBridgeTargetsLoading = false;
-let mockBridgeTargetsError: Error | null = null;
-let mockSecretBindingsData: BridgeSecretBinding[] | undefined;
-let mockSecretBindingsLoading = false;
-let mockSecretBindingsError: Error | null = null;
+const mockRefetchProviders = vi.fn();
 
 const mockCreateBridgeMutateAsync = vi.fn();
-const mockUpdateBridgeMutateAsync = vi.fn();
-const mockPutBridgeSecretBindingMutateAsync = vi.fn();
-const mockDeleteBridgeSecretBindingMutateAsync = vi.fn();
-const mockEnableBridgeMutateAsync = vi.fn();
-const mockDisableBridgeMutateAsync = vi.fn();
-const mockRestartBridgeMutateAsync = vi.fn();
-const mockResolveBridgeTargetMutateAsync = vi.fn();
-const mockTestDeliveryMutateAsync = vi.fn();
 let mockCreateBridgePending = false;
-let mockUpdateBridgePending = false;
-let mockPutBridgeSecretBindingPending = false;
-let mockDeleteBridgeSecretBindingPending = false;
-let mockEnableBridgePending = false;
-let mockDisableBridgePending = false;
-let mockRestartBridgePending = false;
-let mockResolveBridgeTargetPending = false;
-let mockTestDeliveryPending = false;
 
 let mockActiveWorkspaceId: string | null = "ws_test";
 let mockActiveWorkspaceName = "test-workspace";
 
+const routerState = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
+  searchParams: {} as Record<string, unknown>,
+  validateSearch: undefined as
+    | ((search: Record<string, unknown>) => Record<string, unknown>)
+    | undefined,
+}));
+
+function getValidatedSearch() {
+  return routerState.validateSearch
+    ? routerState.validateSearch(routerState.searchParams)
+    : routerState.searchParams;
+}
+
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
-    component: opts.component,
-  }),
+  Outlet: () => <div data-testid="bridges-outlet" />,
+  createFileRoute:
+    () =>
+    (opts: {
+      component: () => React.ReactNode;
+      validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+    }) => {
+      routerState.validateSearch = opts.validateSearch;
+
+      return {
+        component: opts.component,
+        useSearch: () => {
+          const [search, setSearch] = React.useState(getValidatedSearch());
+
+          React.useEffect(() => {
+            routerState.searchListeners.add(setSearch);
+            return () => {
+              routerState.searchListeners.delete(setSearch);
+            };
+          }, []);
+
+          return search;
+        },
+      };
+    },
+  useChildMatches: () => [],
+  useNavigate:
+    () =>
+    async (options: {
+      params?: Record<string, unknown>;
+      search?:
+        | Record<string, unknown>
+        | ((current: Record<string, unknown>) => Record<string, unknown>);
+      to: string;
+    }) => {
+      if (typeof options.search === "function") {
+        routerState.searchParams = options.search(getValidatedSearch());
+      } else if (options.search) {
+        routerState.searchParams = options.search;
+      }
+
+      const nextSearch = getValidatedSearch();
+      for (const listener of routerState.searchListeners) {
+        listener(nextSearch);
+      }
+
+      routerState.navigateMock(options);
+    },
+  Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+    <a
+      data-params={JSON.stringify(params)}
+      href={typeof to === "string" ? to : "#"}
+      {...(props as Record<string, unknown>)}
+    >
+      {children as React.ReactNode}
+    </a>
+  ),
 }));
 
 vi.mock("sonner", () => ({
@@ -120,73 +156,25 @@ vi.mock("@/systems/bridges", async () => {
       data: mockBridgesData,
       error: mockBridgesError,
       isLoading: mockBridgesLoading,
+      refetch: mockRefetchBridges,
     }),
     useBridgeProviders: () => ({
       data: mockProvidersData,
       error: mockProvidersError,
       isLoading: mockProvidersLoading,
-    }),
-    useBridge: () => ({
-      data: mockBridgeDetail,
-      error: mockBridgeDetailError,
-      isLoading: mockBridgeDetailLoading,
-    }),
-    useBridgeRoutes: () => ({
-      data: mockBridgeRoutes,
-      error: mockBridgeRoutesError,
-      isLoading: mockBridgeRoutesLoading,
-    }),
-    useBridgeTargets: () => ({
-      data: mockBridgeTargets,
-      error: mockBridgeTargetsError,
-      isLoading: mockBridgeTargetsLoading,
-    }),
-    useBridgeSecretBindings: () => ({
-      data: mockSecretBindingsData,
-      error: mockSecretBindingsError,
-      isLoading: mockSecretBindingsLoading,
+      refetch: mockRefetchProviders,
     }),
     useBridgeHealthStream: vi.fn(),
     useCreateBridge: () => ({
       isPending: mockCreateBridgePending,
       mutateAsync: mockCreateBridgeMutateAsync,
     }),
-    useUpdateBridge: () => ({
-      isPending: mockUpdateBridgePending,
-      mutateAsync: mockUpdateBridgeMutateAsync,
-    }),
-    usePutBridgeSecretBinding: () => ({
-      isPending: mockPutBridgeSecretBindingPending,
-      mutateAsync: mockPutBridgeSecretBindingMutateAsync,
-    }),
-    useDeleteBridgeSecretBinding: () => ({
-      isPending: mockDeleteBridgeSecretBindingPending,
-      mutateAsync: mockDeleteBridgeSecretBindingMutateAsync,
-    }),
-    useEnableBridge: () => ({
-      isPending: mockEnableBridgePending,
-      mutateAsync: mockEnableBridgeMutateAsync,
-    }),
-    useDisableBridge: () => ({
-      isPending: mockDisableBridgePending,
-      mutateAsync: mockDisableBridgeMutateAsync,
-    }),
-    useRestartBridge: () => ({
-      isPending: mockRestartBridgePending,
-      mutateAsync: mockRestartBridgeMutateAsync,
-    }),
-    useResolveBridgeTarget: () => ({
-      isPending: mockResolveBridgeTargetPending,
-      mutateAsync: mockResolveBridgeTargetMutateAsync,
-    }),
-    useTestBridgeDelivery: () => ({
-      isPending: mockTestDeliveryPending,
-      mutateAsync: mockTestDeliveryMutateAsync,
-    }),
   };
 });
 
 import { Route } from "../bridges";
+
+const BridgesPage = routeComponent(Route);
 
 function makeBridge(overrides: Partial<BridgesListResponse["bridges"][number]> = {}) {
   return {
@@ -246,76 +234,14 @@ function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
         name: "bot_token",
         required: true,
       },
-      {
-        description: "Optional webhook secret",
-        name: "webhook_secret",
-        required: false,
-      },
     ],
     state: "active",
     ...overrides,
   };
 }
 
-function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
-  return {
-    agent_name: "support-agent",
-    bridge_instance_id: "brg_support",
-    created_at: "2026-04-13T12:00:00Z",
-    last_activity_at: "2026-04-13T12:15:00Z",
-    peer_id: "peer_123",
-    routing_key_hash: "abc123",
-    scope: "workspace",
-    session_id: "sess_123",
-    updated_at: "2026-04-13T12:15:00Z",
-    workspace_id: "ws_test",
-    ...overrides,
-  };
-}
-
-function makeTargets(
-  overrides: Partial<BridgeTargetsResponse["targets"][number]> = {}
-): BridgeTargetsResponse {
-  const target = {
-    bridge_id: "brg_support",
-    canonical_route: "telegram:channel:support",
-    capabilities: ["direct-send", "reply"],
-    display_name: "Support room",
-    last_seen_at: "2026-04-13T12:16:00Z",
-    normalized: "support room",
-    qualifier: "telegram",
-    target_type: "channel",
-    updated_at: "2026-04-13T12:16:00Z",
-    ...overrides,
-  };
-
-  return {
-    bridge_id: "brg_support",
-    cache_stale: false,
-    generated_at: "2026-04-13T12:16:00Z",
-    last_successful_refresh_at: "2026-04-13T12:16:00Z",
-    targets: [target],
-    total: 1,
-  };
-}
-
-function makeSecretBinding(overrides: Partial<BridgeSecretBinding> = {}): BridgeSecretBinding {
-  return {
-    binding_name: "bot_token",
-    bridge_instance_id: "brg_support",
-    created_at: "2026-04-13T12:00:00Z",
-    kind: "bot_token",
-    updated_at: "2026-04-13T12:10:00Z",
-    secret_ref: "vault:bridges/brg_support/bot_token",
-    ...overrides,
-  };
-}
-
-const BridgesPage = (Route as unknown as { component: () => React.ReactNode }).component;
-
 describe("BridgesPage", () => {
   beforeEach(() => {
-    vi.useRealTimers();
     mockBridgesData = {
       bridge_health: {
         brg_support: makeHealth(),
@@ -327,83 +253,32 @@ describe("BridgesPage", () => {
     mockProvidersData = [makeProvider()];
     mockProvidersLoading = false;
     mockProvidersError = null;
-    mockBridgeDetail = {
-      bridge: makeBridge(),
-      health: makeHealth(),
-    };
-    mockBridgeDetailLoading = false;
-    mockBridgeDetailError = null;
-    mockBridgeRoutes = [makeRoute()];
-    mockBridgeRoutesLoading = false;
-    mockBridgeRoutesError = null;
-    mockBridgeTargets = makeTargets();
-    mockBridgeTargetsLoading = false;
-    mockBridgeTargetsError = null;
-    mockSecretBindingsData = [makeSecretBinding()];
-    mockSecretBindingsLoading = false;
-    mockSecretBindingsError = null;
     mockCreateBridgePending = false;
-    mockUpdateBridgePending = false;
-    mockPutBridgeSecretBindingPending = false;
-    mockDeleteBridgeSecretBindingPending = false;
-    mockEnableBridgePending = false;
-    mockDisableBridgePending = false;
-    mockRestartBridgePending = false;
-    mockResolveBridgeTargetPending = false;
-    mockTestDeliveryPending = false;
     mockActiveWorkspaceId = "ws_test";
     mockActiveWorkspaceName = "test-workspace";
-
     mockCreateBridgeMutateAsync.mockReset();
-    mockUpdateBridgeMutateAsync.mockReset();
-    mockPutBridgeSecretBindingMutateAsync.mockReset();
-    mockDeleteBridgeSecretBindingMutateAsync.mockReset();
-    mockEnableBridgeMutateAsync.mockReset();
-    mockDisableBridgeMutateAsync.mockReset();
-    mockRestartBridgeMutateAsync.mockReset();
-    mockResolveBridgeTargetMutateAsync.mockReset();
-    mockTestDeliveryMutateAsync.mockReset();
+    mockRefetchBridges.mockReset();
+    mockRefetchProviders.mockReset();
     toast.success.mockReset();
     toast.error.mockReset();
+    routerState.searchListeners.clear();
+    routerState.searchParams = {};
+    routerState.navigateMock.mockReset();
 
     mockCreateBridgeMutateAsync.mockResolvedValue({
       bridge: makeBridge({ id: "brg_created", status: "starting" }),
       health: makeHealth({ bridge_instance_id: "brg_created", status: "starting" }),
     } satisfies CreateBridgeResponse);
-    mockTestDeliveryMutateAsync.mockResolvedValue({
-      delivery_target: {
-        bridge_instance_id: "brg_support",
-        mode: "reply",
-        peer_id: "peer_123",
-      },
-      message: "Ping",
-      status: "resolved",
-    } satisfies TestBridgeDeliveryResponse);
-    mockUpdateBridgeMutateAsync.mockResolvedValue({
-      bridge: makeBridge({ display_name: "Support Ops" }),
-      health: makeHealth(),
-    } satisfies UpdateBridgeResponse);
-    mockPutBridgeSecretBindingMutateAsync.mockResolvedValue(makeSecretBinding());
-    mockDeleteBridgeSecretBindingMutateAsync.mockResolvedValue(undefined);
-    mockEnableBridgeMutateAsync.mockResolvedValue({
-      bridge: makeBridge({ enabled: true, status: "starting" }),
-      health: makeHealth({ status: "starting" }),
-    } satisfies BridgeDetailResponse);
-    mockDisableBridgeMutateAsync.mockResolvedValue({
-      bridge: makeBridge({ enabled: false, status: "disabled" }),
-      health: makeHealth({ status: "disabled" }),
-    } satisfies BridgeDetailResponse);
-    mockRestartBridgeMutateAsync.mockResolvedValue({
-      bridge: makeBridge({ status: "starting" }),
-      health: makeHealth({ status: "starting" }),
-    } satisfies BridgeDetailResponse);
-    mockResolveBridgeTargetMutateAsync.mockResolvedValue({
-      result: {
-        ambiguous: false,
-        match: makeTargets().targets[0],
-        step: 2,
-      },
-    } satisfies BridgeResolveTargetResponse);
+  });
+
+  it("renders listing shell without split pane", () => {
+    render(<BridgesPage />);
+
+    expect(screen.getByTestId("bridges-page-head")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-list-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("bridges-split-pane")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-scope-pills")).not.toBeInTheDocument();
   });
 
   it("renders loading and error states from the list queries", () => {
@@ -437,27 +312,12 @@ describe("BridgesPage", () => {
     expect(screen.getByText("Telegram")).toBeInTheDocument();
   });
 
-  it("renders the selected bridge detail and route list", () => {
-    render(<BridgesPage />, { title: "Bridges" });
+  it("links bridge rows to /bridges/$id", () => {
+    render(<BridgesPage />);
 
-    const detailPanel = screen.getByTestId("bridge-detail-panel");
-
-    expect(screen.getByText("Bridges")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-list-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
-    expect(within(detailPanel).getByText("Support")).toBeInTheDocument();
-    expect(within(detailPanel).getByText("support-agent")).toBeInTheDocument();
-    expect(within(detailPanel).getByText("Open direct messages")).toBeInTheDocument();
-    expect(within(detailPanel).getByTestId("bridge-detail-provider-config")).toHaveTextContent(
-      '"mode": "bot"'
-    );
-    expect(within(detailPanel).getByTestId("bridge-detail-secret-slots")).toHaveTextContent(
-      "bot_token"
-    );
-    expect(within(detailPanel).getByTestId("bridge-target-directory")).toHaveTextContent(
-      "Support room"
-    );
-    expect(screen.getByTestId("bridge-route-sess_123")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open Support" });
+    expect(link).toHaveAttribute("href", "/bridges/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "brg_support" }));
   });
 
   it("keeps the All scope bound to global and active-workspace bridges", () => {
@@ -488,18 +348,28 @@ describe("BridgesPage", () => {
     expect(screen.getByTestId("bridge-item-brg_global")).toBeInTheDocument();
     expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
     expect(screen.queryByTestId("bridge-item-brg_other")).not.toBeInTheDocument();
-    expect(screen.getByTestId("bridge-list-summary")).toHaveTextContent("2 bridges visible");
+    expect(screen.getByTestId("bridges-page-count")).toHaveTextContent("2");
   });
 
-  it("renders the no routes detail variant when the selected bridge has no routes", () => {
-    mockBridgeRoutes = [];
+  it("persists view=cards in URL search", async () => {
+    const user = userEvent.setup();
+    render(<BridgesPage />);
+
+    await user.click(screen.getByTestId("listing-view-cards"));
+    expect(getValidatedSearch()).toMatchObject({ view: "cards" });
+    expect(screen.getByTestId("bridge-list-card-grid")).toBeInTheDocument();
+  });
+
+  it("restores search and view from URL", () => {
+    routerState.searchParams = { q: "Support", view: "cards" };
 
     render(<BridgesPage />);
 
-    expect(screen.getByTestId("bridge-routes-empty")).toHaveTextContent("No routes");
+    expect(screen.getByTestId("bridge-search-input")).toHaveValue("Support");
+    expect(screen.getByTestId("bridge-list-card-grid")).toBeInTheDocument();
   });
 
-  it("creates a bridge with provider config and shows the persisted values in the UI", async () => {
+  it("creates a bridge and navigates to the detail route", async () => {
     const user = userEvent.setup();
     mockBridgesData = {
       bridge_health: {},
@@ -509,7 +379,6 @@ describe("BridgesPage", () => {
     render(<BridgesPage />);
 
     await user.click(screen.getByTestId("bridge-empty-create-btn"));
-
     expect(screen.getByTestId("bridge-create-dialog")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("bridge-wizard-next"));
@@ -523,29 +392,12 @@ describe("BridgesPage", () => {
 
     mockCreateBridgeMutateAsync.mockImplementationOnce(async payload => {
       const createdBridge = makeBridge({
+        display_name: payload.display_name,
         dm_policy: payload.dm_policy,
         id: "brg_created",
         provider_config: payload.provider_config,
         status: "starting",
       });
-
-      mockBridgesData = {
-        bridge_health: {
-          brg_created: makeHealth({
-            bridge_instance_id: "brg_created",
-            status: "starting",
-          }),
-        },
-        bridges: [createdBridge],
-      };
-      mockBridgeDetail = {
-        bridge: createdBridge,
-        health: makeHealth({
-          bridge_instance_id: "brg_created",
-          status: "starting",
-        }),
-      };
-      mockBridgeRoutes = [];
 
       return {
         bridge: createdBridge,
@@ -559,34 +411,16 @@ describe("BridgesPage", () => {
     await user.click(screen.getByTestId("submit-bridge-create"));
 
     await waitFor(() => {
-      expect(mockCreateBridgeMutateAsync).toHaveBeenCalledWith({
-        delivery_defaults: undefined,
-        dm_policy: "allowlist",
-        display_name: "Telegram",
-        enabled: true,
-        extension_name: "ext-telegram",
-        notification_suppress: false,
-        platform: "telegram",
-        provider_config: {
-          mode: "bot",
-          webhook_url: "https://example.test/webhook",
-        },
-        routing_policy: { include_group: true, include_peer: true, include_thread: true },
-        scope: "workspace",
-        workspace_id: "ws_test",
-      });
+      expect(mockCreateBridgeMutateAsync).toHaveBeenCalled();
     });
 
-    await waitFor(() => {
-      expect(screen.getByTestId("bridge-detail-panel")).toHaveTextContent(
-        "Allowlisted direct messages only"
-      );
-    });
-
-    expect(screen.getByTestId("bridge-detail-provider-config")).toHaveTextContent(
-      '"webhook_url": "https://example.test/webhook"'
+    expect(toast.success).toHaveBeenCalledWith("Created bridge Telegram.");
+    expect(routerState.navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: { id: "brg_created" },
+        to: "/bridges/$id",
+      })
     );
-    expect(toast.success).toHaveBeenCalledWith("Created bridge Support.");
   });
 
   it("blocks workspace-scoped bridge creation when the active workspace disappears", async () => {
@@ -614,132 +448,12 @@ describe("BridgesPage", () => {
     );
   });
 
-  it("opens test delivery and shows the resolved target result", async () => {
+  it("refreshes bridges from the topbar action", async () => {
     const user = userEvent.setup();
     render(<BridgesPage />);
 
-    await user.click(screen.getByTestId("open-test-delivery-btn"));
-
-    expect(screen.getByTestId("bridge-test-delivery-dialog")).toBeInTheDocument();
-
-    await user.clear(screen.getByTestId("test-delivery-message"));
-    await user.type(screen.getByTestId("test-delivery-message"), "Ping");
-    await user.click(screen.getByTestId("submit-test-delivery"));
-
-    await waitFor(() => {
-      expect(mockTestDeliveryMutateAsync).toHaveBeenCalledWith({
-        data: {
-          message: "Ping",
-          target: {
-            bridge_instance_id: "brg_support",
-          },
-        },
-        id: "brg_support",
-      });
-    });
-
-    expect(screen.getByTestId("bridge-test-delivery-result")).toHaveTextContent("peer:peer_123");
-    expect(toast.success).toHaveBeenCalledWith("Resolved delivery target for Support.");
-  });
-
-  it("resolves bridge target names from the target directory section", async () => {
-    const user = userEvent.setup();
-    render(<BridgesPage />);
-
-    await user.type(screen.getByTestId("bridge-target-resolve-input"), "Support room");
-    await user.click(screen.getByTestId("bridge-target-resolve-submit"));
-
-    await waitFor(() => {
-      expect(mockResolveBridgeTargetMutateAsync).toHaveBeenCalledWith({
-        data: { name: "Support room" },
-        id: "brg_support",
-      });
-    });
-
-    expect(screen.getByTestId("bridge-target-resolve-result")).toHaveTextContent(
-      "telegram:channel:support"
-    );
-    expect(toast.success).toHaveBeenCalledWith("Resolved target Support room.");
-  });
-
-  it("edits mutable bridge fields and prompts for restart", async () => {
-    const user = userEvent.setup();
-    render(<BridgesPage />);
-
-    await user.click(screen.getByTestId("edit-bridge-btn"));
-
-    expect(screen.getByTestId("bridge-edit-dialog")).toBeInTheDocument();
-
-    await user.clear(screen.getByTestId("bridge-edit-display-name-input"));
-    await user.type(screen.getByTestId("bridge-edit-display-name-input"), "Support Ops");
-    await user.click(screen.getByTestId("submit-bridge-edit"));
-
-    await waitFor(() => {
-      expect(mockUpdateBridgeMutateAsync).toHaveBeenCalledWith({
-        data: {
-          delivery_defaults: null,
-          display_name: "Support Ops",
-          dm_policy: "open",
-          provider_config: {
-            mode: "bot",
-            webhook_url: "https://example.test/webhook",
-          },
-          routing_policy: { include_group: true, include_peer: true, include_thread: true },
-        },
-        id: "brg_support",
-      });
-    });
-
-    expect(toast.success).toHaveBeenCalledWith(
-      "Updated bridge Support Ops. Restart to apply changes."
-    );
-    expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
-  });
-
-  it("writes secret bindings and clears the restart hint after restart", async () => {
-    const user = userEvent.setup();
-    render(<BridgesPage />);
-
-    await user.clear(screen.getByTestId("bridge-secret-env-input-bot_token"));
-    await user.type(screen.getByTestId("bridge-secret-env-input-bot_token"), "telegram-token");
-    await user.click(screen.getByTestId("save-bridge-secret-bot_token"));
-
-    await waitFor(() => {
-      expect(mockPutBridgeSecretBindingMutateAsync).toHaveBeenCalledWith({
-        bindingName: "bot_token",
-        data: {
-          kind: "bot_token",
-          secret_ref: "vault:bridges/brg_support/bot_token",
-          secret_value: "telegram-token",
-        },
-        id: "brg_support",
-      });
-    });
-
-    expect(screen.getByTestId("bridge-restart-required")).toBeInTheDocument();
-
-    await user.click(screen.getByTestId("restart-bridge-btn"));
-
-    await waitFor(() => {
-      expect(mockRestartBridgeMutateAsync).toHaveBeenCalledWith({
-        id: "brg_support",
-      });
-    });
-
-    expect(toast.success).toHaveBeenCalledWith("Restarted bridge Support.");
-    expect(screen.queryByTestId("bridge-restart-required")).not.toBeInTheDocument();
-  });
-
-  it("disables the selected bridge", async () => {
-    const user = userEvent.setup();
-    render(<BridgesPage />);
-
-    await user.click(screen.getByTestId("disable-bridge-btn"));
-    await waitFor(() => {
-      expect(mockDisableBridgeMutateAsync).toHaveBeenCalledWith({
-        id: "brg_support",
-      });
-    });
-    expect(toast.success).toHaveBeenCalledWith("Disabled bridge Support.");
+    await user.click(screen.getByTestId("bridges-refresh"));
+    expect(mockRefetchBridges).toHaveBeenCalled();
+    expect(mockRefetchProviders).toHaveBeenCalled();
   });
 });

@@ -25,7 +25,7 @@ export interface TaskGroupProps {
  *
  * Header composition: `<StatusDot>` + `<Eyebrow>` label + bare mono count +
  * optional actions slot. One dot per group replaces per-row status dots on the
- * list surface (see `TasksListRow` `showStatusDot`).
+ * list surface.
  */
 function TaskGroup({ id, label, count, children, actions, className }: TaskGroupProps) {
   const { tone, variant } = listGroupDotProps(id);
@@ -36,9 +36,9 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
       data-slot="task-group"
       data-group-id={id}
       data-testid={`task-group-${id}`}
-      className={cn("flex min-w-0 flex-col gap-1", className)}
+      className={cn("flex min-w-0 flex-col gap-2", className)}
     >
-      <header className="flex items-center gap-2 px-3 pb-2 pt-4" data-slot="task-group-head">
+      <header className="flex items-center gap-2 px-1" data-slot="task-group-head">
         <StatusDot
           data-testid={`task-group-dot-${id}`}
           label={label}
@@ -62,7 +62,10 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
           </div>
         ) : null}
       </header>
-      <div className="flex flex-col" data-slot="task-group-rows">
+      <div
+        className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        data-slot="task-group-rows"
+      >
         {children}
       </div>
     </section>

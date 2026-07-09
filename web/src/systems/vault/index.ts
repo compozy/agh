@@ -34,4 +34,11 @@ export { useSessionVaultSecrets, useVaultSecret, useVaultSecrets } from "./hooks
 export { useDeleteVaultSecret, usePutVaultSecret } from "./hooks/use-vault-actions";
 
 // Components
-export { SessionVaultPanel, VaultSecretsTable } from "./components";
+export {
+  SessionVaultPanel,
+  VaultListFilters,
+  VaultSecretsList,
+  VaultSecretsRow,
+  type VaultListFiltersProps,
+  type VaultSecretsRowProps,
+} from "./components";

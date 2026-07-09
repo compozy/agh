@@ -1,8 +1,24 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskCard } from "../task-card";
-import type { TaskListItem } from "../../types";
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
+const { TaskCard } = await import("../task-card");
+type TaskListItem = import("../../types").TaskListItem;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -43,18 +59,15 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 children");
     expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
     expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
-    // Priority pill stays as a textual pill in the trailing slot.
     expect(screen.getByText("High")).toBeInTheDocument();
   });
 
-  it("Should invoke onSelect when the card is clicked and reflect selection state", () => {
-    const onSelect = vi.fn();
-    render(<TaskCard onSelect={onSelect} selected task={buildTask()} />);
+  it("Should link the main region to /tasks/$id", () => {
+    render(<TaskCard task={buildTask()} />);
 
-    const card = screen.getByTestId("task-card-task_001");
-    expect(card).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(card);
-    expect(onSelect).toHaveBeenCalledTimes(1);
+    const link = screen.getByRole("link", { name: "Open Summarize feedback" });
+    expect(link).toHaveAttribute("href", "/tasks/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_001" }));
   });
 
   it("Should render the failed-run error inline in the meta row (no inline retry button)", () => {
@@ -78,7 +91,6 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-error-task_001")).toHaveTextContent(
       "rate-limited by upstream"
     );
-    // Retry control lives on the detail panel (tasks-detail-header), not the row.
     expect(screen.queryByTestId("task-card-retry-task_001")).not.toBeInTheDocument();
   });
 
@@ -98,7 +110,6 @@ describe("TaskCard", () => {
 
     const pill = screen.getByTestId("task-card-needs-attention-task_001");
     expect(pill).toHaveTextContent("Needs attention");
-    // Not coerced into the Blocked pill.
     expect(screen.queryByTestId("task-card-blocked-task_001")).not.toBeInTheDocument();
   });
 });

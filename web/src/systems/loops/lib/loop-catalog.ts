@@ -60,16 +60,40 @@ export function successRateLabel(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
+export type LoopStatusFilter = NonNullable<LoopCatalogEntry["last_run"]>["status"];
+
 export interface LoopCatalogFilter {
   kind: LoopKindFilter;
   category: string | null;
+  status: LoopStatusFilter | null;
 }
 
-/** Applies the kind + category filter to one row. */
+/** Applies kind + category + last-run status filters to one row. */
 export function matchesLoopFilter(entry: LoopCatalogEntry, filter: LoopCatalogFilter): boolean {
   if (filter.kind !== "all" && loopKind(entry) !== filter.kind) return false;
   if (filter.category && loopCategory(entry) !== filter.category) return false;
+  if (filter.status && entry.last_run?.status !== filter.status) return false;
   return true;
+}
+
+/** Distinct last-run statuses present in the catalog, sorted for a stable filter bar. */
+export function loopStatuses(entries: readonly LoopCatalogEntry[]): LoopStatusFilter[] {
+  const seen = new Set<LoopStatusFilter>();
+  for (const entry of entries) {
+    const status = entry.last_run?.status;
+    if (status) seen.add(status);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/** True when search/query or any chip filter is active. */
+export function hasActiveLoopFilters(query: string, filter: LoopCatalogFilter): boolean {
+  return (
+    query.trim() !== "" ||
+    filter.kind !== "all" ||
+    filter.category !== null ||
+    filter.status !== null
+  );
 }
 
 export interface LoopCatalogGroup {

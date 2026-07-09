@@ -1,45 +1,19 @@
 import * as React from "react";
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  SkillMarketplaceListingPayload,
-  SkillPayload,
-  SkillShadowsResponse,
-} from "@/systems/skill/types";
+import type { SkillMarketplaceListingPayload, SkillPayload } from "@/systems/skill/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
   return renderWithTopbar(ui, { title: "Skills" });
 }
 
-// ---------------------------------------------------------------------------
-// Mock state
-// ---------------------------------------------------------------------------
-
 let mockSkills: SkillPayload[] = [];
 let mockSkillsLoading = false;
 let mockSkillsError: Error | null = null;
-
-let mockSkillDetail: SkillPayload | undefined;
-let mockSkillDetailLoading = false;
-let mockSkillDetailError: Error | null = null;
-let mockSkillContent: string | undefined;
-let mockSkillContentLoading = false;
-let mockSkillContentError: Error | null = null;
-let mockSkillShadows: SkillShadowsResponse | undefined;
-let mockSkillShadowsLoading = false;
-let mockSkillShadowsError: Error | null = null;
-const mockRefetchSkillContent = vi.fn();
-const routerState = vi.hoisted(() => ({
-  navigateMock: vi.fn(),
-  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
-  searchParams: {} as Record<string, unknown>,
-  validateSearch: undefined as
-    | ((search: Record<string, unknown>) => Record<string, unknown>)
-    | undefined,
-}));
+const mockRefetchSkills = vi.fn();
 
 const mockDisableMutate = vi.fn();
 const mockEnableMutate = vi.fn();
@@ -55,10 +29,16 @@ let mockRemovePending = false;
 let mockMarketplaceListings: SkillMarketplaceListingPayload[] = [];
 let mockMarketplaceSearching = false;
 let mockMarketplaceError: Error | null = null;
+const mockRefetchMarketplace = vi.fn();
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
+const routerState = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
+  searchParams: {} as Record<string, unknown>,
+  validateSearch: undefined as
+    | ((search: Record<string, unknown>) => Record<string, unknown>)
+    | undefined,
+}));
 
 function getValidatedSearch() {
   return routerState.validateSearch
@@ -67,6 +47,7 @@ function getValidatedSearch() {
 }
 
 vi.mock("@tanstack/react-router", () => ({
+  Outlet: () => <div data-testid="skills-outlet" />,
   createFileRoute:
     () =>
     (opts: {
@@ -91,9 +72,11 @@ vi.mock("@tanstack/react-router", () => ({
         },
       };
     },
+  useChildMatches: () => [],
   useNavigate:
     () =>
     async (options: {
+      params?: Record<string, unknown>;
       search?:
         | Record<string, unknown>
         | ((current: Record<string, unknown>) => Record<string, unknown>);
@@ -112,6 +95,15 @@ vi.mock("@tanstack/react-router", () => ({
 
       routerState.navigateMock(options);
     },
+  Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+    <a
+      href={typeof to === "string" ? to : "#"}
+      data-params={JSON.stringify(params)}
+      {...(props as Record<string, unknown>)}
+    >
+      {children as React.ReactNode}
+    </a>
+  ),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -151,22 +143,7 @@ vi.mock("@/systems/skill", async () => {
       data: mockSkills,
       isLoading: mockSkillsLoading,
       error: mockSkillsError,
-    }),
-    useSkill: () => ({
-      data: mockSkillDetail,
-      isLoading: mockSkillDetailLoading,
-      error: mockSkillDetailError,
-    }),
-    useSkillContent: (_name: string, _workspace: string, enabled = false) => ({
-      data: enabled ? mockSkillContent : undefined,
-      isLoading: enabled && mockSkillContentLoading,
-      error: enabled ? mockSkillContentError : null,
-      refetch: mockRefetchSkillContent,
-    }),
-    useSkillShadows: () => ({
-      data: mockSkillShadows,
-      isLoading: mockSkillShadowsLoading,
-      error: mockSkillShadowsError,
+      refetch: mockRefetchSkills,
     }),
     useDisableSkill: () => ({
       mutate: mockDisableMutate,
@@ -180,6 +157,7 @@ vi.mock("@/systems/skill", async () => {
       data: mockMarketplaceListings,
       isFetching: mockMarketplaceSearching,
       error: mockMarketplaceError,
+      refetch: mockRefetchMarketplace,
     }),
     useInstallSkillMarketplace: () => ({
       mutate: mockInstallMutate,
@@ -201,10 +179,6 @@ import { Route } from "../skills";
 
 const SkillsPage = routeComponent(Route);
 
-// ---------------------------------------------------------------------------
-// Test data
-// ---------------------------------------------------------------------------
-
 function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
   return {
     name: "test-skill",
@@ -216,22 +190,15 @@ function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
   };
 }
 
-const BUNDLED_SKILLS: SkillPayload[] = [
+const ALL_SKILLS: SkillPayload[] = [
   makeSkill({ name: "alpha-skill", source: "bundled", enabled: true, version: "1.0.0" }),
   makeSkill({ name: "beta-skill", source: "bundled", enabled: false }),
-];
-
-const WORKSPACE_SKILLS: SkillPayload[] = [
   makeSkill({ name: "ws-tool", source: "workspace", enabled: true, version: "0.2.0" }),
-];
-
-const MARKETPLACE_SKILLS: SkillPayload[] = [
   makeSkill({
     name: "mp-plugin",
     source: "marketplace",
     enabled: true,
     version: "3.1.0",
-    metadata: { tags: ["testing", "ai"], downloads: 1234 },
     provenance: {
       slug: "author",
       registry: "clawhub",
@@ -241,8 +208,6 @@ const MARKETPLACE_SKILLS: SkillPayload[] = [
     },
   }),
 ];
-
-const ALL_SKILLS = [...BUNDLED_SKILLS, ...WORKSPACE_SKILLS, ...MARKETPLACE_SKILLS];
 
 const MARKETPLACE_LISTINGS: SkillMarketplaceListingPayload[] = [
   {
@@ -265,29 +230,12 @@ const MARKETPLACE_LISTINGS: SkillMarketplaceListingPayload[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe("SkillsPage", () => {
   beforeEach(() => {
     mockSkills = ALL_SKILLS;
     mockSkillsLoading = false;
     mockSkillsError = null;
-    mockSkillDetail = undefined;
-    mockSkillDetailLoading = false;
-    mockSkillDetailError = null;
-    mockSkillContent = undefined;
-    mockSkillContentLoading = false;
-    mockSkillContentError = null;
-    mockSkillShadows = undefined;
-    mockSkillShadowsLoading = false;
-    mockSkillShadowsError = null;
-    mockRefetchSkillContent.mockReset();
+    mockRefetchSkills.mockReset();
     mockDisablePending = false;
     mockEnablePending = false;
     mockInstallPending = false;
@@ -301,19 +249,19 @@ describe("SkillsPage", () => {
     mockMarketplaceListings = MARKETPLACE_LISTINGS;
     mockMarketplaceSearching = false;
     mockMarketplaceError = null;
+    mockRefetchMarketplace.mockReset();
     routerState.searchListeners.clear();
     routerState.searchParams = {};
     routerState.navigateMock.mockReset();
   });
 
-  // -----------------------------------------------------------------------
-  // Rendering & tabs
-  // -----------------------------------------------------------------------
-
-  it("renders Installed tab by default with skill list", () => {
+  it("renders Installed tab by default with listing shell", () => {
     render(<SkillsPage />);
     expect(screen.getByTestId("tab-installed")).toHaveTextContent("Installed");
+    expect(screen.getByTestId("skills-page-head")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("skills-split-pane")).not.toBeInTheDocument();
   });
 
   it("clicking MARKETPLACE tab switches to marketplace view", async () => {
@@ -348,158 +296,32 @@ describe("SkillsPage", () => {
     expect(screen.getByTestId("marketplace-search-input")).toHaveValue("mp-plugin");
   });
 
-  it("shows total skill count badge in header", () => {
+  it("shows total skill count badge in page head", () => {
     render(<SkillsPage />);
-    // 4 total skills
-    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByTestId("skills-page-count")).toHaveTextContent("4");
   });
 
-  // -----------------------------------------------------------------------
-  // Skill list grouping
-  // -----------------------------------------------------------------------
-
-  it("groups skills by source (BUNDLED, WORKSPACE, MARKETPLACE)", () => {
+  it("renders a flat listing without source group headers", () => {
     render(<SkillsPage />);
-    expect(screen.getByTestId("skill-group-bundled")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-group-workspace")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-group-marketplace")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-list-rows")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^skill-group-/)).not.toBeInTheDocument();
   });
 
-  it("shows section count for each group", () => {
+  it("links skill rows to /skills/$name", () => {
     render(<SkillsPage />);
-    const bundledGroup = screen.getByTestId("skill-group-bundled");
-    expect(within(bundledGroup).getByText("2")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open alpha-skill" });
+    expect(link).toHaveAttribute("href", "/skills/$name");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ name: "alpha-skill" }));
   });
 
-  // -----------------------------------------------------------------------
-  // Skill selection
-  // -----------------------------------------------------------------------
-
-  it("selecting a skill highlights it with accent left bar", async () => {
+  it("persists view=cards in URL search", async () => {
     const user = userEvent.setup();
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("skill-item-beta-skill"));
-
-    expect(getValidatedSearch()).toMatchObject({ skill: "beta-skill" });
-    const item = screen.getByTestId("skill-item-beta-skill");
-    const indicator = within(item).getByTestId("skill-active-indicator");
-    expect(indicator).toBeInTheDocument();
+    await user.click(screen.getByTestId("listing-view-cards"));
+    expect(getValidatedSearch()).toMatchObject({ view: "cards" });
+    expect(screen.getByTestId("skill-list-card-grid")).toBeInTheDocument();
   });
-
-  it("auto-selects first skill when no selection is made", () => {
-    render(<SkillsPage />);
-    // First skill alphabetically in bundled is alpha-skill
-    const item = screen.getByTestId("skill-item-alpha-skill");
-    expect(within(item).getByTestId("skill-active-indicator")).toBeInTheDocument();
-  });
-
-  it("shows detail panel with correct name when skill is selected", () => {
-    mockSkillDetail = ALL_SKILLS[0];
-    render(<SkillsPage />);
-    const detailPanel = screen.getByTestId("skill-detail-panel");
-    expect(within(detailPanel).getByTestId("skill-detail-title")).toHaveTextContent("alpha-skill");
-  });
-
-  it("restores selected skill, requested content, and query from URL search", () => {
-    routerState.searchParams = {
-      content: "beta-skill",
-      q: "beta",
-      skill: "beta-skill",
-    };
-    mockSkillDetail = makeSkill({ name: "beta-skill", source: "bundled", enabled: false });
-    mockSkillContent = "## Beta instructions";
-
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("skill-search-input")).toHaveValue("beta");
-    expect(
-      within(screen.getByTestId("skill-item-beta-skill")).getByTestId("skill-active-indicator")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("content-body")).toHaveTextContent("Beta instructions");
-  });
-
-  // -----------------------------------------------------------------------
-  // Skill detail panel
-  // -----------------------------------------------------------------------
-
-  it("detail panel renders source as MonoBadge with accent tone", () => {
-    mockSkillDetail = makeSkill({ name: "mp-plugin", source: "marketplace" });
-    render(<SkillsPage />);
-
-    const badge = screen.getByTestId("source-badge");
-    expect(badge).toHaveTextContent("marketplace");
-    expect(badge).toHaveAttribute("data-tone", "accent");
-  });
-
-  it("detail panel renders version and author as MonoBadge meta", () => {
-    mockSkillDetail = makeSkill({
-      name: "mp-plugin",
-      source: "marketplace",
-      version: "3.1.0",
-      provenance: {
-        slug: "author",
-        registry: "clawhub",
-        version: "3.1.0",
-        installed_at: "",
-        precedence_tier: "marketplace",
-      },
-    });
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
-    expect(screen.getByTestId("detail-author-badge")).toHaveTextContent("@author");
-  });
-
-  it("detail panel shows empty state when no skill selected and no skills exist", () => {
-    mockSkills = [];
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("skill-detail-empty")).toHaveTextContent(
-      "Select a skill to view details"
-    );
-  });
-
-  it("detail panel Switch toggles the disable mutation when enabled", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled", enabled: true });
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("skill-enabled-switch"));
-
-    expect(mockDisableMutate).toHaveBeenCalledWith({
-      name: "alpha-skill",
-      workspace: "ws_test",
-    });
-  });
-
-  it("detail panel Switch toggles the enable mutation when disabled", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = makeSkill({ name: "beta-skill", source: "bundled", enabled: false });
-    mockSkills = [makeSkill({ name: "beta-skill", source: "bundled", enabled: false })];
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("skill-enabled-switch"));
-
-    expect(mockEnableMutate).toHaveBeenCalledWith({
-      name: "beta-skill",
-      workspace: "ws_test",
-    });
-  });
-
-  it("detail panel Switch is disabled while an action is pending", () => {
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled", enabled: true });
-    mockEnablePending = true;
-    render(<SkillsPage />);
-
-    const sw = screen.getByTestId("skill-enabled-switch");
-    expect(sw).toHaveAttribute("aria-disabled", "true");
-    expect(sw).toHaveAttribute("data-disabled");
-  });
-
-  // -----------------------------------------------------------------------
-  // Skill list search
-  // -----------------------------------------------------------------------
 
   it("search input filters displayed skills", async () => {
     const user = userEvent.setup();
@@ -511,7 +333,6 @@ describe("SkillsPage", () => {
     expect(getValidatedSearch()).toMatchObject({ q: "alpha" });
     expect(screen.getByTestId("skill-item-alpha-skill")).toBeInTheDocument();
     expect(screen.queryByTestId("skill-item-beta-skill")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("skill-item-ws-tool")).not.toBeInTheDocument();
   });
 
   it("search with no results shows empty message", async () => {
@@ -521,37 +342,42 @@ describe("SkillsPage", () => {
     const searchInput = screen.getByTestId("skill-search-input");
     await user.type(searchInput, "zzzznotfound");
 
-    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills found");
+    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills match");
   });
 
-  // -----------------------------------------------------------------------
-  // Status dots
-  // -----------------------------------------------------------------------
-
-  it("shows success status dot for enabled skills", () => {
+  it("trail enabled switch calls disable/enable mutations", async () => {
+    const user = userEvent.setup();
     render(<SkillsPage />);
-    const dot = screen.getByTestId("skill-status-dot-alpha-skill");
-    expect(dot).toHaveAttribute("data-tone", "success");
+
+    await user.click(screen.getByTestId("skill-enabled-switch-alpha-skill"));
+    expect(mockDisableMutate).toHaveBeenCalledWith({
+      name: "alpha-skill",
+      workspace: "ws_test",
+    });
+
+    await user.click(screen.getByTestId("skill-enabled-switch-beta-skill"));
+    expect(mockEnableMutate).toHaveBeenCalledWith({
+      name: "beta-skill",
+      workspace: "ws_test",
+    });
   });
 
-  it("shows neutral status dot for disabled skills", () => {
+  it("Browse marketplace topbar action switches tab", async () => {
+    const user = userEvent.setup();
     render(<SkillsPage />);
-    const dot = screen.getByTestId("skill-status-dot-beta-skill");
-    expect(dot).toHaveAttribute("data-tone", "neutral");
+
+    await user.click(screen.getByTestId("skills-browse-marketplace"));
+    expect(getValidatedSearch()).toMatchObject({ tab: "marketplace" });
+    expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
   });
 
-  // -----------------------------------------------------------------------
-  // Marketplace view
-  // -----------------------------------------------------------------------
-
-  it("marketplace tab shows a search prompt with no query and no listings fetched", async () => {
+  it("marketplace tab shows a search prompt with no query", async () => {
     const user = userEvent.setup();
     mockMarketplaceListings = [];
     render(<SkillsPage />);
 
     await user.click(screen.getByTestId("tab-marketplace"));
 
-    expect(screen.queryByTestId("marketplace-readonly-notice")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketplace-search-prompt")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
   });
@@ -562,10 +388,7 @@ describe("SkillsPage", () => {
 
     expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-remote-only")).toBeInTheDocument();
-
     expect(screen.getByTestId("installed-pill-mp-plugin")).toBeInTheDocument();
-    expect(screen.getByTestId("update-btn-mp-plugin")).toBeInTheDocument();
-    expect(screen.getByTestId("remove-btn-mp-plugin")).toBeInTheDocument();
     expect(screen.getByTestId("install-btn-remote-only")).toBeInTheDocument();
   });
 
@@ -582,7 +405,7 @@ describe("SkillsPage", () => {
     });
   });
 
-  it("marketplace update button triggers the update mutation with the installed name", async () => {
+  it("marketplace update button triggers the update mutation", async () => {
     const user = userEvent.setup();
     routerState.searchParams = { q: "plugin", tab: "marketplace" };
     render(<SkillsPage />);
@@ -610,7 +433,7 @@ describe("SkillsPage", () => {
     });
   });
 
-  it("marketplace shows empty state when remote search returns nothing for the query", () => {
+  it("marketplace shows empty state when remote search returns nothing", () => {
     routerState.searchParams = { q: "no-match", tab: "marketplace" };
     mockMarketplaceListings = [];
     render(<SkillsPage />);
@@ -626,10 +449,6 @@ describe("SkillsPage", () => {
 
     expect(screen.getByTestId("marketplace-error")).toHaveTextContent("clawhub unavailable");
   });
-
-  // -----------------------------------------------------------------------
-  // Loading / Error states
-  // -----------------------------------------------------------------------
 
   it("loading state shows spinner", () => {
     mockSkillsLoading = true;
@@ -663,132 +482,22 @@ describe("SkillsPage", () => {
     mockSkills = [];
     render(<SkillsPage />);
 
-    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills found");
+    expect(screen.getByTestId("skill-list-empty")).toHaveTextContent("No skills yet");
   });
 
-  // -----------------------------------------------------------------------
-  // Detail loading / error
-  // -----------------------------------------------------------------------
-
-  it("detail panel shows loading spinner when fetching detail", () => {
-    mockSkillDetailLoading = true;
-    render(<SkillsPage />);
-    expect(screen.getByTestId("skill-detail-loading")).toBeInTheDocument();
-  });
-
-  it("detail panel shows error when detail fetch fails", () => {
-    mockSkillDetailError = new Error("Detail fetch failed");
-    render(<SkillsPage />);
-    expect(screen.getByTestId("skill-detail-error")).toHaveTextContent(
-      "Failed to load skill details"
-    );
-  });
-
-  it("detail panel shows capabilities and recent calls from metadata", () => {
-    mockSkillDetail = makeSkill({
-      name: "alpha-skill",
-      source: "bundled",
-      metadata: {
-        capabilities: ["shell.run", "git.stage"],
-        recent_calls: [
-          { label: "skill.run", status: "success", timestamp: new Date().toISOString() },
-        ],
-      },
-    });
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("skill-capability-shell.run")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-capability-git.stage")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-recent-call-row-0")).toHaveTextContent("skill.run");
-  });
-
-  it("detail panel shows Empty state when no capabilities or recent calls exist", () => {
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
-    render(<SkillsPage />);
-
-    expect(screen.getByTestId("skill-capabilities-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("skill-recent-calls-empty")).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Content preview
-  // -----------------------------------------------------------------------
-
-  it("detail panel loads full content only after clicking view full content", async () => {
+  it("full page flow: load skills, switch tabs, toggle view", async () => {
     const user = userEvent.setup();
-    mockSkillDetail = makeSkill({
-      name: "alpha-skill",
-      source: "bundled",
-    });
-    mockSkillContent = "## Skill instructions\nDo things.";
     render(<SkillsPage />);
 
-    expect(screen.queryByTestId("content-body")).not.toBeInTheDocument();
-    await user.click(screen.getByTestId("view-full-content-btn"));
-
-    expect(getValidatedSearch()).toMatchObject({
-      content: "alpha-skill",
-      skill: "alpha-skill",
-    });
-    expect(screen.getByTestId("content-body")).toBeInTheDocument();
-    expect(screen.getByText(/Skill instructions/)).toBeInTheDocument();
-  });
-
-  it("detail panel shows content loading state after content is requested", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
-    mockSkillContentLoading = true;
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("view-full-content-btn"));
-
-    expect(screen.getByTestId("content-loading")).toBeInTheDocument();
-  });
-
-  it("detail panel shows content error state after failed content request", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
-    mockSkillContentError = new Error("Content fetch failed");
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("view-full-content-btn"));
-
-    expect(screen.getByTestId("content-error")).toBeInTheDocument();
-  });
-
-  it("detail panel retries content fetch after a failed request", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = makeSkill({ name: "alpha-skill", source: "bundled" });
-    mockSkillContentError = new Error("Content fetch failed");
-    render(<SkillsPage />);
-
-    await user.click(screen.getByTestId("view-full-content-btn"));
-    await user.click(screen.getByTestId("retry-view-content-btn"));
-
-    expect(mockRefetchSkillContent).toHaveBeenCalledTimes(1);
-  });
-
-  // -----------------------------------------------------------------------
-  // Integration: full flow
-  // -----------------------------------------------------------------------
-
-  it("full page flow: load skills, select skill, view detail, toggle tab", async () => {
-    const user = userEvent.setup();
-    mockSkillDetail = ALL_SKILLS[0];
-    render(<SkillsPage />);
-
-    // Skills are loaded and displayed
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
     expect(screen.getByTestId("skill-item-alpha-skill")).toBeInTheDocument();
 
-    // Select a different skill
-    await user.click(screen.getByTestId("skill-item-ws-tool"));
+    await user.click(screen.getByTestId("listing-view-cards"));
+    expect(screen.getByTestId("skill-list-card-grid")).toBeInTheDocument();
 
-    // Switch to marketplace
     await user.click(screen.getByTestId("tab-marketplace"));
     expect(screen.getByTestId("marketplace-view")).toBeInTheDocument();
 
-    // Switch back to installed
     await user.click(screen.getByTestId("tab-installed"));
     expect(screen.getByTestId("skill-list-panel")).toBeInTheDocument();
   });

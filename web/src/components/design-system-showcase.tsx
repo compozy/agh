@@ -77,6 +77,7 @@ import {
   Kbd,
   KbdGroup,
   Label,
+  ListingRow,
   Metric,
   NativeSelect,
   NativeSelectOption,
@@ -631,8 +632,8 @@ const SECTIONS: ShowcaseSection[] = [
   { id: "overlays", label: "Dialog, Sheet, Popover, Tooltip", anchor: "#4-component-stylings" },
   { id: "code-chat", label: "Code & Chat", anchor: "#chat-components" },
   { id: "layout", label: "Sidebar & SplitPane", anchor: "#sidebar-operator-ui" },
+  { id: "listing-row", label: "ListingRow", anchor: "#listing-row" },
 ];
-
 const FILTERS = [
   { label: "All", value: "all" },
   { label: "Primitives", value: "primitives" },
@@ -756,6 +757,7 @@ function DesignSystemShowcase() {
           <OverlaysSection />
           <CodeAndChatSection />
           <LayoutSection />
+          <ListingRowSection />
         </div>
 
         <Toaster />
@@ -1507,6 +1509,100 @@ function LayoutSection() {
             }
           />
         </div>
+      </div>
+    </Section>
+  );
+}
+
+function ListingRowSection() {
+  return (
+    <Section
+      id="listing-row"
+      data-testid="section-listing-row"
+      label={<SectionLink section={SECTIONS[9]}>ListingRow</SectionLink>}
+      right={<Pill mono>inventory</Pill>}
+    >
+      <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        <ListingRow>
+          <ListingRow.Link href="#listing-alpha" aria-label="Open alpha-delivery">
+            <ListingRow.Icon>
+              <BoxesIcon aria-hidden="true" className="size-4" />
+            </ListingRow.Icon>
+            <ListingRow.Main>
+              <ListingRow.Name>
+                <ListingRow.Title>alpha-delivery</ListingRow.Title>
+                <Pill size="xs" tone="neutral">
+                  Workspace
+                </Pill>
+                <ListingRow.Slug>v1.2.0</ListingRow.Slug>
+              </ListingRow.Name>
+              <ListingRow.Description>
+                Ships a release candidate through the gate.
+              </ListingRow.Description>
+              <ListingRow.Meta>
+                <span className="font-mono text-[10px] text-subtle">3 inputs</span>
+                <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+                <span>iteration cap 8</span>
+              </ListingRow.Meta>
+            </ListingRow.Main>
+          </ListingRow.Link>
+          <ListingRow.Trail>
+            <Pill mono size="sm" tone="neutral">
+              delivery
+            </Pill>
+            <ListingRow.Stat>
+              <ListingRow.Stat.Value>92%</ListingRow.Stat.Value>
+              <ListingRow.Stat.Label>12 runs · 30d</ListingRow.Stat.Label>
+            </ListingRow.Stat>
+            <Button size="sm" type="button" variant="outline">
+              Run
+            </Button>
+          </ListingRow.Trail>
+        </ListingRow>
+        <ListingRow selected>
+          <ListingRow.Link href="#listing-beta" aria-label="Open beta-watch">
+            <ListingRow.Icon>
+              <Avatar shape="circle" size="sm">
+                <AvatarFallback>OP</AvatarFallback>
+              </Avatar>
+            </ListingRow.Icon>
+            <ListingRow.Main>
+              <ListingRow.Name>
+                <ListingRow.Title>@operator</ListingRow.Title>
+                <Pill size="xs" tone="neutral">
+                  peer
+                </Pill>
+              </ListingRow.Name>
+              <ListingRow.Description>Selected row uses --row-selected.</ListingRow.Description>
+              <ListingRow.Meta>
+                <span>2h ago</span>
+              </ListingRow.Meta>
+            </ListingRow.Main>
+          </ListingRow.Link>
+          <ListingRow.Trail>
+            <span className="text-[11px] text-faint">2h</span>
+          </ListingRow.Trail>
+        </ListingRow>
+        <ListingRow>
+          <ListingRow.Link href="#listing-gamma" aria-label="Open gamma">
+            <ListingRow.Icon>
+              <BoxesIcon aria-hidden="true" className="size-4" />
+            </ListingRow.Icon>
+            <ListingRow.Main>
+              <ListingRow.Name mono>
+                <ListingRow.Title>sessions/operator.token</ListingRow.Title>
+              </ListingRow.Name>
+              <ListingRow.Meta>
+                <span>updated 2h ago</span>
+              </ListingRow.Meta>
+            </ListingRow.Main>
+          </ListingRow.Link>
+          <ListingRow.Trail>
+            <Pill mono size="sm" tone="neutral">
+              sessions
+            </Pill>
+          </ListingRow.Trail>
+        </ListingRow>
       </div>
     </Section>
   );

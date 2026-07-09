@@ -83,11 +83,13 @@ export type {
   LoopCatalogGroup,
   LoopKind,
   LoopKindFilter,
+  LoopStatusFilter,
 } from "./lib/loop-catalog";
 export {
   UNBOUNDED_CAP,
   countByKind,
   groupLoopCatalog,
+  hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
@@ -95,9 +97,23 @@ export {
   loopCategory,
   loopInputCount,
   loopKind,
+  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "./lib/loop-catalog";
+
+// Listing filter bridge (reui Filters + URL parsers)
+export type { LoopFilterFieldKey, LoopFilterHandlers } from "./lib/loop-list-filters";
+export {
+  applyLoopFilterChips,
+  buildLoopFilterFields,
+  filterLoopCatalog,
+  filterLoopsByQuery,
+  loopFiltersToChips,
+  parseLoopCategoryFilter,
+  parseLoopKindFilter,
+  parseLoopStatusFilter,
+} from "./lib/loop-list-filters";
 
 // Start-binding helpers
 export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";
@@ -288,6 +304,8 @@ export type {
 export { LoopStatusPill } from "./components/loop-status-pill";
 export type { LoopStatusPillProps } from "./components/loop-status-pill";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
+export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
+export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopBindingBadge } from "./components/catalog/loop-binding-badge";
 export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
