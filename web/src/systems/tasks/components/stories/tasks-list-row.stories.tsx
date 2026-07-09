@@ -7,7 +7,7 @@ import { TasksListRow } from "../tasks-list-row";
 import { buildTaskFixture, TASK_FIXTURES } from "./fixtures";
 
 const meta: Meta<typeof TasksListRow> = {
-  title: "systems/tasks/TasksListRow",
+  title: "systems/tasks/components/TasksListRow",
   component: TasksListRow,
   parameters: {
     layout: "fullscreen",

@@ -8,7 +8,7 @@ import type { AutomationTriggerFilter } from "@/systems/automation";
 import { FilterConditions } from "../../trigger-form/filter-conditions";
 
 const meta: Meta<typeof FilterConditions> = {
-  title: "systems/automation/trigger-form/FilterConditions",
+  title: "systems/automation/components/trigger-form/FilterConditions",
   component: FilterConditions,
   parameters: {
     layout: "fullscreen",

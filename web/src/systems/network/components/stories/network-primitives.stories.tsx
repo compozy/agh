@@ -24,7 +24,7 @@ const systemMessage = {
 } as NetworkConversationMessage;
 
 const meta: Meta<typeof KindChip> = {
-  title: "systems/network/NetworkPrimitives",
+  title: "systems/network/components/NetworkPrimitives",
   component: KindChip,
   parameters: {
     layout: "fullscreen",

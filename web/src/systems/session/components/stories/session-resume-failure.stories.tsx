@@ -6,7 +6,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { SessionResumeFailure } from "../session-resume-failure";
 
 const meta: Meta<typeof SessionResumeFailure> = {
-  title: "systems/session/SessionResumeFailure",
+  title: "systems/session/components/SessionResumeFailure",
   component: SessionResumeFailure,
   parameters: {
     layout: "fullscreen",

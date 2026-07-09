@@ -8,7 +8,7 @@ import { bridgeDetailFixture, testBridgeDeliveryFixture } from "@/systems/bridge
 import { BridgeTestDeliveryDialog } from "../bridge-test-delivery-dialog";
 
 const meta: Meta<typeof BridgeTestDeliveryDialog> = {
-  title: "systems/bridges/BridgeTestDeliveryDialog",
+  title: "systems/bridges/components/BridgeTestDeliveryDialog",
   component: BridgeTestDeliveryDialog,
   parameters: {
     layout: "fullscreen",

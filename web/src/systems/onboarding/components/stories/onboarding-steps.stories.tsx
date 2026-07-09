@@ -89,7 +89,7 @@ const baseWorkspaces: OnboardingWorkspacesApi = {
 };
 
 const meta: Meta = {
-  title: "systems/onboarding/Steps",
+  title: "systems/onboarding/components/Steps",
   parameters: { layout: "fullscreen" },
   decorators: [
     Story => (

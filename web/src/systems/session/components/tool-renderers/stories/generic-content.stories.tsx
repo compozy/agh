@@ -6,7 +6,7 @@ import { genericToolMessageFixture } from "@/systems/session/mocks";
 import { GenericContent } from "../generic-content";
 
 const meta: Meta<typeof GenericContent> = {
-  title: "systems/session/tool-renderers/GenericContent",
+  title: "systems/session/components/tool-renderers/GenericContent",
   component: GenericContent,
   parameters: {
     layout: "centered",

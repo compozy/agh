@@ -8,7 +8,7 @@ import { EventCatalog } from "../../trigger-form/event-catalog";
 import type { SubConfigValues } from "../../trigger-form/event-sub-config";
 
 const meta: Meta<typeof EventCatalog> = {
-  title: "systems/automation/trigger-form/EventCatalog",
+  title: "systems/automation/components/trigger-form/EventCatalog",
   component: EventCatalog,
   parameters: {
     layout: "fullscreen",

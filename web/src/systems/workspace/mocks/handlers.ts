@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { primaryWorkspaceFixture, workspaceDetailFixture, workspaceFixtures } from "./fixtures";
 
@@ -22,8 +23,23 @@ function resolveWorkspaceFromPath(path: string) {
 }
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/workspaces", () => HttpResponse.json({ workspaces: workspaceFixtures })),
-  http.get("/api/workspaces/:id", ({ params }) => {
+  aghApiMock.get("/api/workspaces", () => HttpResponse.json({ workspaces: workspaceFixtures })),
+  aghApiMock.post("/api/workspaces", async ({ request }) => {
+    const body = (await request.json()) as { root_dir?: string };
+    const rootDir = body.root_dir?.trim();
+
+    if (!rootDir) {
+      return HttpResponse.json({ error: "Workspace root_dir is required." }, { status: 400 });
+    }
+
+    return HttpResponse.json(
+      {
+        workspace: resolveWorkspaceFromPath(rootDir),
+      },
+      { status: 201 }
+    );
+  }),
+  aghApiMock.get("/api/workspaces/{id}", ({ params }) => {
     const id = String(params.id);
     const workspace = workspaceFixtures.find(candidate => candidate.id === id);
 
@@ -36,7 +52,7 @@ export const handlers: HttpHandler[] = [
       workspace,
     });
   }),
-  http.post("/api/workspaces/resolve", async ({ request }) => {
+  aghApiMock.post("/api/workspaces/resolve", async ({ request }) => {
     const body = (await request.json()) as { path?: string };
     const path = body.path?.trim();
 

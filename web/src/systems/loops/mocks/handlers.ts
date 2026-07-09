@@ -1,4 +1,12 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
+import type {
+  LoopAnnotationsUpdateRequest,
+  LoopConfigUpdateRequest,
+  LoopDefinition,
+  LoopDefinitionMeta,
+  LoopValidationIssue,
+} from "@/systems/loops";
 
 import {
   loopAnnotationsFixture,
@@ -13,12 +21,13 @@ import {
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
 
 const FAN_OUT_CEILING = 64;
+const loopRunEventStreamEncoder = new TextEncoder();
 
 interface MockLintIssue {
   node_id?: string;
   code: string;
   message: string;
-  severity: string;
+  severity: "error" | "warning";
 }
 
 /** Detects the first node caught in an edge cycle, mirroring the daemon acyclicity check. */
@@ -84,14 +93,42 @@ function lintDefinition(graph?: { nodes?: unknown[]; edges?: unknown[] }): MockL
   return issues;
 }
 
+function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): Response {
+  const frame = {
+    id: `${runId}:storybook:1`,
+    seq: 1,
+    at: "2026-04-17T18:10:00Z",
+    workspace_id: workspaceId,
+    loop_run_id: runId,
+    kind: "node_running",
+    payload: { node_id: "execute_task", generation: 2 },
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        loopRunEventStreamEncoder.encode(`event: node_running\ndata: ${JSON.stringify(frame)}\n\n`)
+      );
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    },
+  });
+}
+
 export const handlers: HttpHandler[] = [
-  http.get("/api/workspaces/:workspaceId/loops", () =>
+  aghApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
     HttpResponse.json({ loops: loopCatalogFixtures })
   ),
-  http.post("/api/workspaces/:workspaceId/loops", () =>
-    HttpResponse.json({ loop: loopDetailByName.get("software-delivery") }, { status: 201 })
+  aghApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
+    HttpResponse.json({ loop: loopDetailByName.get("software-delivery")! }, { status: 201 })
   ),
-  http.get("/api/workspaces/:workspaceId/loops/:name", ({ params }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
     const detail = loopDetailByName.get(String(params.name));
     if (!detail) {
       return HttpResponse.json(
@@ -101,7 +138,7 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ loop: detail });
   }),
-  http.patch("/api/workspaces/:workspaceId/loops/:name", async ({ params, request }) => {
+  aghApiMock.patch("/api/workspaces/{workspace_id}/loops/{name}", async ({ params, request }) => {
     const detail = loopDetailByName.get(String(params.name));
     if (!detail) {
       return HttpResponse.json(
@@ -115,18 +152,25 @@ export const handlers: HttpHandler[] = [
     };
     // Echo the published definition with a bumped monotonic meta.version (§9.13);
     // the store is not mutated so parallel tests stay isolated.
-    const published = body.definition ?? detail.definition;
-    const meta = (published.meta as Record<string, unknown>) ?? {};
+    const published = (body.definition ?? detail.definition) as Partial<LoopDefinition>;
+    const publishedMeta =
+      typeof published.meta === "object" && published.meta !== null
+        ? (published.meta as Partial<LoopDefinitionMeta>)
+        : {};
     const nextVersion = (detail.version ?? 0) + 1;
     return HttpResponse.json({
       loop: {
         ...detail,
         version: nextVersion,
-        definition: { ...published, meta: { ...meta, version: nextVersion } },
+        definition: {
+          ...detail.definition,
+          ...published,
+          meta: { ...detail.definition.meta, ...publishedMeta, version: nextVersion },
+        },
       },
     });
   }),
-  http.delete("/api/workspaces/:workspaceId/loops/:name", ({ params }) => {
+  aghApiMock.delete("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
     if (!catalogByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
@@ -135,7 +179,7 @@ export const handlers: HttpHandler[] = [
     }
     return new HttpResponse(null, { status: 204 });
   }),
-  http.get("/api/workspaces/:workspaceId/loops/:name/config", ({ params }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", ({ params }) => {
     if (!catalogByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
@@ -144,18 +188,18 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ config: loopConfigFixture });
   }),
-  http.put("/api/workspaces/:workspaceId/loops/:name/config", async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { config?: unknown };
+  aghApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/config", async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as Partial<LoopConfigUpdateRequest>;
     return HttpResponse.json({ config: body.config ?? loopConfigFixture });
   }),
-  http.get("/api/workspaces/:workspaceId/loops/:name/annotations", () =>
+  aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/annotations", () =>
     HttpResponse.json({ annotations: loopAnnotationsFixture })
   ),
-  http.put("/api/workspaces/:workspaceId/loops/:name/annotations", async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { annotations?: unknown };
+  aghApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/annotations", async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as Partial<LoopAnnotationsUpdateRequest>;
     return HttpResponse.json({ annotations: body.annotations ?? loopAnnotationsFixture });
   }),
-  http.post("/api/workspaces/:workspaceId/loops/:name/run", ({ request, params }) => {
+  aghApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/run", ({ request, params }) => {
     const url = new URL(request.url);
     const name = String(params.name);
     const entry = catalogByName.get(name);
@@ -179,6 +223,7 @@ export const handlers: HttpHandler[] = [
             fan_out_width: 4,
             gate_max_revisions: 3,
             human_gate_enabled: true,
+            model_defaults: { judge: "claude", worker: "codex" },
             no_progress_window: 3,
             reattempt_strategy: "failed_only",
             enabled_checks_json: null,
@@ -191,17 +236,17 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ run: detail?.run }, { status: 201 });
   }),
-  http.post("/api/workspaces/:workspaceId/loops/:name/validate", async ({ request }) => {
+  aghApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/validate", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
       definition?: { graph?: { nodes?: unknown[]; edges?: unknown[] } };
     };
     const errors = lintDefinition(body.definition?.graph);
-    return HttpResponse.json(
-      { valid: errors.length === 0, errors },
-      { status: errors.length ? 422 : 200 }
-    );
+    return HttpResponse.json({
+      valid: errors.length === 0,
+      errors: errors satisfies LoopValidationIssue[],
+    });
   }),
-  http.get("/api/workspaces/:workspaceId/loop-runs", ({ request }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs", ({ request }) => {
     const url = new URL(request.url);
     const loop = url.searchParams.get("loop");
     const status = url.searchParams.get("status");
@@ -212,26 +257,37 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ runs, aggregates: loopRunAggregatesFixture });
   }),
-  http.get("/api/workspaces/:workspaceId/loop-runs/:runId", ({ params }) => {
-    const detail = loopRunDetailByRunId.get(String(params.runId));
+  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", ({ params }) => {
+    const detail = loopRunDetailByRunId.get(String(params.run_id));
     if (!detail) {
       return HttpResponse.json(
-        { error: `Loop run not found: ${String(params.runId)}` },
+        { error: `Loop run not found: ${String(params.run_id)}` },
         { status: 404 }
       );
     }
     return HttpResponse.json(detail);
   }),
-  http.post("/api/workspaces/:workspaceId/loop-runs/:runId/approve", () =>
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events",
+    ({ params, response }) => {
+      const workspaceId = String(params.workspace_id);
+      const runId = String(params.run_id);
+      if (!loopRunDetailByRunId.has(runId)) {
+        return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
+      }
+      return response.untyped(createLoopRunEventsStreamResponse(workspaceId, runId));
+    }
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve", () =>
     HttpResponse.json({ ok: true })
   ),
-  http.post("/api/workspaces/:workspaceId/loop-runs/:runId/pause", () =>
+  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause", () =>
     HttpResponse.json({ ok: true })
   ),
-  http.post("/api/workspaces/:workspaceId/loop-runs/:runId/resume", () =>
+  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume", () =>
     HttpResponse.json({ ok: true })
   ),
-  http.post("/api/workspaces/:workspaceId/loop-runs/:runId/stop", () =>
+  aghApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/stop", () =>
     HttpResponse.json({ ok: true })
   ),
 ];

@@ -9,7 +9,7 @@ import type { KnowledgeMemoryItem } from "@/systems/knowledge/types";
 import { KnowledgeListPanel } from "@/systems/knowledge/components/knowledge-list-panel";
 
 const meta: Meta<typeof KnowledgeListPanel> = {
-  title: "systems/knowledge/KnowledgeListPanel",
+  title: "systems/knowledge/components/KnowledgeListPanel",
   component: KnowledgeListPanel,
   parameters: {
     layout: "fullscreen",

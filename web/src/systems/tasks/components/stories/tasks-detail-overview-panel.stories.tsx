@@ -5,7 +5,7 @@ import { TasksDetailOverviewPanel } from "../tasks-detail-overview-panel";
 import { buildDetailFixture } from "./fixtures";
 
 const meta: Meta<typeof TasksDetailOverviewPanel> = {
-  title: "systems/tasks/TasksDetailOverviewPanel",
+  title: "systems/tasks/components/TasksDetailOverviewPanel",
   component: TasksDetailOverviewPanel,
   parameters: {
     layout: "fullscreen",

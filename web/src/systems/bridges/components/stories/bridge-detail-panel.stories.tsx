@@ -14,7 +14,7 @@ import {
 import { BridgeDetailPanel } from "../bridge-detail-panel";
 
 const meta: Meta<typeof BridgeDetailPanel> = {
-  title: "systems/bridges/BridgeDetailPanel",
+  title: "systems/bridges/components/BridgeDetailPanel",
   component: BridgeDetailPanel,
   parameters: {
     layout: "fullscreen",

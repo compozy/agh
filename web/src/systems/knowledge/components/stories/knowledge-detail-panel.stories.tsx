@@ -7,7 +7,7 @@ import type { MemoryDecision, MemoryHeader } from "@/systems/knowledge/types";
 import { KnowledgeDetailPanel } from "@/systems/knowledge/components/knowledge-detail-panel";
 
 const meta: Meta<typeof KnowledgeDetailPanel> = {
-  title: "systems/knowledge/KnowledgeDetailPanel",
+  title: "systems/knowledge/components/KnowledgeDetailPanel",
   component: KnowledgeDetailPanel,
   parameters: {
     layout: "fullscreen",

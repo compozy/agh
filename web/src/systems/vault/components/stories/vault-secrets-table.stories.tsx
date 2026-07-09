@@ -46,7 +46,7 @@ const denseSecrets = Array.from(
 );
 
 const meta: Meta<typeof VaultSecretsTable> = {
-  title: "systems/vault/VaultSecretsTable",
+  title: "systems/vault/components/VaultSecretsTable",
   component: VaultSecretsTable,
   parameters: {
     layout: "fullscreen",

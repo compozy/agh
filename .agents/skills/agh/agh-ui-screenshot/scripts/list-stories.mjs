@@ -2,7 +2,7 @@
 // Required dep in the working dir: none (uses node built-in http).
 // Usage:
 //   bun run list-stories.mjs <storybook-base-url> [--filter <substring>]
-//   e.g. bun run list-stories.mjs http://localhost:6006 --filter routes-app-stories-tasks
+//   e.g. bun run list-stories.mjs http://localhost:6006 --filter systems-tasks-routes
 // Output:
 //   stdout: one story-id per line (filtered by --filter substring if given).
 //   stderr: HTTP / JSON parse errors.

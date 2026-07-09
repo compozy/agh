@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   skillActionFixture,
@@ -16,8 +17,8 @@ import {
 const skillByName = new Map(skillFixtures.map(skill => [skill.name, skill]));
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/skills", () => HttpResponse.json({ skills: skillFixtures })),
-  http.get("/api/skills/marketplace/search", ({ request }) => {
+  aghApiMock.get("/api/skills", () => HttpResponse.json({ skills: skillFixtures })),
+  aghApiMock.get("/api/skills/marketplace/search", ({ request }) => {
     const url = new URL(request.url);
     const query = url.searchParams.get("query")?.trim() ?? "";
     if (query === "") {
@@ -34,7 +35,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ skills: matches });
   }),
-  http.get("/api/skills/marketplace/info", ({ request }) => {
+  aghApiMock.get("/api/skills/marketplace/info", ({ request }) => {
     const url = new URL(request.url);
     const slug = url.searchParams.get("slug")?.trim() ?? "";
     if (slug === "") {
@@ -53,7 +54,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/skills/marketplace/install", async ({ request }) => {
+  aghApiMock.post("/api/skills/marketplace/install", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
       slug?: string;
       version?: string;
@@ -77,7 +78,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/skills/marketplace/update", async ({ request }) => {
+  aghApiMock.post("/api/skills/marketplace/update", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as {
       name?: string;
       all?: boolean;
@@ -88,13 +89,13 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json({ skills: skillMarketplaceUpdateFixtures });
   }),
-  http.delete("/api/skills/marketplace/:name", ({ params }) => {
+  aghApiMock.delete("/api/skills/marketplace/{name}", ({ params }) => {
     const name = String(params.name);
     return HttpResponse.json({
       skill: { ...skillMarketplaceRemoveFixture, name },
     });
   }),
-  http.get("/api/skills/:name", ({ params }) => {
+  aghApiMock.get("/api/skills/{name}", ({ params }) => {
     const name = String(params.name);
     const skill = skillByName.get(name);
 
@@ -104,7 +105,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ skill });
   }),
-  http.get("/api/skills/:name/content", ({ params }) => {
+  aghApiMock.get("/api/skills/{name}/content", ({ params }) => {
     const name = String(params.name);
     const content = skillContentFixtures[name];
 
@@ -114,7 +115,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ content });
   }),
-  http.get("/api/skills/:name/shadows", ({ params }) => {
+  aghApiMock.get("/api/skills/{name}/shadows", ({ params }) => {
     const name = String(params.name);
     const shadows = skillShadowsFixtures[name];
 
@@ -124,7 +125,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(shadows);
   }),
-  http.post("/api/skills/:name/enable", ({ params }) => {
+  aghApiMock.post("/api/skills/{name}/enable", ({ params }) => {
     if (!skillByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Skill not found: ${String(params.name)}` },
@@ -134,7 +135,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(skillActionFixture);
   }),
-  http.post("/api/skills/:name/disable", ({ params }) => {
+  aghApiMock.post("/api/skills/{name}/disable", ({ params }) => {
     if (!skillByName.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Skill not found: ${String(params.name)}` },

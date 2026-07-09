@@ -9,7 +9,7 @@ import { SettingsFieldRow } from "../settings-field-row";
 import { SettingsSourceBadge } from "../settings-source-badge";
 
 const meta: Meta<typeof PageShell> = {
-  title: "systems/settings/PageShell",
+  title: "systems/settings/components/PageShell",
   component: PageShell,
   parameters: {
     layout: "fullscreen",

@@ -645,6 +645,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/health/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream bridge health snapshots */
+    get: operations["streamBridgeHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/providers": {
     parameters: {
       query?: never;
@@ -16656,6 +16673,172 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamBridgeHealth: {
+    parameters: {
+      query?: {
+        /** @description Filter by bridge scope */
+        scope?: "all" | "global" | "workspace";
+        /** @description Filter by active workspace id */
+        workspace_id?: string;
+        /** @description Filter by workspace id, name, or path */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bridge health snapshot stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            bridge_health: {
+              [key: string]: {
+                auth_failures_total: number;
+                bridge_instance_id: string;
+                degradation?: {
+                  message?: string;
+                  /** @enum {string} */
+                  reason:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                } | null;
+                delivery_backlog: number;
+                delivery_dropped_by_reason?: {
+                  [key: string]: number;
+                };
+                delivery_dropped_total: number;
+                delivery_failures_total: number;
+                diagnostics?: {
+                  bridge_instance_id?: string;
+                  /** @enum {string} */
+                  degradation_reason?:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                  /** @enum {string} */
+                  kind:
+                    | "unknown_destination"
+                    | "missing_token"
+                    | "permission_denied"
+                    | "unsupported_capability"
+                    | "transient_delivery_failure";
+                  message: string;
+                  next_action?: string;
+                  secret_slot?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source: string;
+                  /** @enum {string} */
+                  status?:
+                    | "auth_required"
+                    | "degraded"
+                    | "disabled"
+                    | "error"
+                    | "ready"
+                    | "starting";
+                }[];
+                last_error?: string;
+                /** Format: date-time */
+                last_error_at?: string | null;
+                /** Format: date-time */
+                last_success_at?: string | null;
+                route_count: number;
+                /** @enum {string} */
+                status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              };
+            };
+            /** Format: date-time */
+            generated_at: string;
+          };
+        };
+      };
+      /** @description Invalid bridge list filter */
+      400: {
         headers: {
           [name: string]: unknown;
         };

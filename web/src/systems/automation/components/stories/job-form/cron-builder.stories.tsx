@@ -14,7 +14,7 @@ import type { CronFrequency, CronModel } from "@/systems/automation/lib/cron-eng
 import { CronBuilder } from "../../job-form/cron-builder";
 
 const meta: Meta<typeof CronBuilder> = {
-  title: "systems/automation/job-form/CronBuilder",
+  title: "systems/automation/components/job-form/CronBuilder",
   component: CronBuilder,
   parameters: {
     layout: "fullscreen",

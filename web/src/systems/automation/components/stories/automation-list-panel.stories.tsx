@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
@@ -11,7 +12,7 @@ import { automationJobFixtures, automationTriggerFixtures } from "@/systems/auto
 import { AutomationListPanel } from "../automation-list-panel";
 
 const meta: Meta<typeof AutomationListPanel> = {
-  title: "systems/automation/AutomationListPanel",
+  title: "systems/automation/components/AutomationListPanel",
   component: AutomationListPanel,
   parameters: {
     layout: "fullscreen",
@@ -40,7 +41,7 @@ export const Empty: Story = {
   args: {},
   parameters: {
     ...storybookMswParameters({
-      automation: [http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
+      automation: [aghApiMock.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
     }),
   },
   render: () => <AutomationListPanelFromPage />,
@@ -51,7 +52,7 @@ export const Error: Story = {
   parameters: {
     ...storybookMswParameters({
       automation: [
-        http.get("/api/automation/jobs", () =>
+        aghApiMock.get("/api/automation/jobs", () =>
           HttpResponse.json({ error: "automation unavailable" }, { status: 500 })
         ),
       ],

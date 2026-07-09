@@ -52,7 +52,7 @@ const markerEvent: AgentEventPayload = {
 };
 
 const meta: Meta<typeof RuntimeActivityNotice> = {
-  title: "systems/session/SessionCommandControls",
+  title: "systems/session/components/SessionCommandControls",
   component: RuntimeActivityNotice,
   parameters: {
     layout: "fullscreen",

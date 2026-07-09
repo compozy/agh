@@ -31555,6 +31555,399 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
+        "/api/bridges/health/stream": {
+            "get": {
+                "operationId": "streamBridgeHealth",
+                "parameters": [
+                    {
+                        "description": "Filter by bridge scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["all", "global", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by active workspace id",
+                        "in": "query",
+                        "name": "workspace_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by workspace id, name, or path",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "properties": {
+                                        "bridge_health": {
+                                            "additionalProperties": {
+                                                "properties": {
+                                                    "auth_failures_total": {
+                                                        "type": "integer"
+                                                    },
+                                                    "bridge_instance_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "degradation": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "reason": {
+                                                                "enum": [
+                                                                    "auth_failed",
+                                                                    "rate_limited",
+                                                                    "webhook_invalid",
+                                                                    "provider_timeout",
+                                                                    "tenant_config_invalid"
+                                                                ],
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["reason"],
+                                                        "type": "object"
+                                                    },
+                                                    "delivery_backlog": {
+                                                        "type": "integer"
+                                                    },
+                                                    "delivery_dropped_by_reason": {
+                                                        "additionalProperties": {
+                                                            "type": "integer"
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "delivery_dropped_total": {
+                                                        "type": "integer"
+                                                    },
+                                                    "delivery_failures_total": {
+                                                        "type": "integer"
+                                                    },
+                                                    "diagnostics": {
+                                                        "items": {
+                                                            "properties": {
+                                                                "bridge_instance_id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "degradation_reason": {
+                                                                    "enum": [
+                                                                        "auth_failed",
+                                                                        "rate_limited",
+                                                                        "webhook_invalid",
+                                                                        "provider_timeout",
+                                                                        "tenant_config_invalid"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "kind": {
+                                                                    "enum": [
+                                                                        "unknown_destination",
+                                                                        "missing_token",
+                                                                        "permission_denied",
+                                                                        "unsupported_capability",
+                                                                        "transient_delivery_failure"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "message": {
+                                                                    "type": "string"
+                                                                },
+                                                                "next_action": {
+                                                                    "type": "string"
+                                                                },
+                                                                "secret_slot": {
+                                                                    "type": "string"
+                                                                },
+                                                                "severity": {
+                                                                    "enum": [
+                                                                        "info",
+                                                                        "warning",
+                                                                        "error"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "source": {
+                                                                    "type": "string"
+                                                                },
+                                                                "status": {
+                                                                    "enum": [
+                                                                        "auth_required",
+                                                                        "degraded",
+                                                                        "disabled",
+                                                                        "error",
+                                                                        "ready",
+                                                                        "starting"
+                                                                    ],
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "message",
+                                                                "severity",
+                                                                "source"
+                                                            ],
+                                                            "type": "object"
+                                                        },
+                                                        "type": "array"
+                                                    },
+                                                    "last_error": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_error_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_success_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "route_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "status": {
+                                                        "enum": [
+                                                            "auth_required",
+                                                            "degraded",
+                                                            "disabled",
+                                                            "error",
+                                                            "ready",
+                                                            "starting"
+                                                        ],
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "auth_failures_total",
+                                                    "bridge_instance_id",
+                                                    "delivery_backlog",
+                                                    "delivery_dropped_total",
+                                                    "delivery_failures_total",
+                                                    "route_count",
+                                                    "status"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            "type": "object"
+                                        },
+                                        "generated_at": {
+                                            "format": "date-time",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["bridge_health", "generated_at"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge health snapshot stream"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid bridge list filter"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Bridge service is not configured"
+                    }
+                },
+                "summary": "Stream bridge health snapshots",
+                "tags": ["bridges"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
         "/api/bridges/providers": {
             "get": {
                 "operationId": "listBridgeProviders",

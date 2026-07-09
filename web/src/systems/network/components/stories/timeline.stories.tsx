@@ -5,7 +5,7 @@ import { networkThreadMessagesFixture } from "@/systems/network/mocks";
 import { Timeline } from "@/systems/network/components/timeline";
 
 const meta: Meta<typeof Timeline> = {
-  title: "systems/network/Timeline",
+  title: "systems/network/components/Timeline",
   component: Timeline,
   parameters: {
     layout: "fullscreen",

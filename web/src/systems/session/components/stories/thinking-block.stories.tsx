@@ -6,7 +6,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { ThinkingBlock } from "../thinking-block";
 
 const meta: Meta<typeof ThinkingBlock> = {
-  title: "systems/session/ThinkingBlock",
+  title: "systems/session/components/ThinkingBlock",
   component: ThinkingBlock,
   parameters: {
     layout: "centered",

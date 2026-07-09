@@ -14,7 +14,7 @@ import type { UIMessage } from "@/systems/session/types";
 import { ToolCallRow } from "../tool-call-card";
 
 const meta: Meta<typeof ToolCallRow> = {
-  title: "systems/session/ToolCallRow",
+  title: "systems/session/components/ToolCallRow",
   component: ToolCallRow,
   parameters: {
     layout: "centered",

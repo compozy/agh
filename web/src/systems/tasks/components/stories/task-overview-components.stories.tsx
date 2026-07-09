@@ -51,7 +51,7 @@ const treeNodes: MultiAgentAgent[] = [tree.root, ...(tree.descendants ?? [])].ma
 const inboxItems = inbox.groups?.flatMap(group => group.items ?? []) ?? [];
 
 const meta: Meta<typeof TaskCard> = {
-  title: "systems/tasks/TaskOverviewComponents",
+  title: "systems/tasks/components/TaskOverviewComponents",
   component: TaskCard,
   parameters: {
     layout: "fullscreen",

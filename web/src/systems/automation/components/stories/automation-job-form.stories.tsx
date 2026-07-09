@@ -14,7 +14,7 @@ import { createAutomationJobDraft, setJobOutputMode } from "../../lib/automation
 import { AutomationJobForm } from "../automation-job-form";
 
 const meta: Meta<typeof AutomationJobForm> = {
-  title: "systems/automation/AutomationJobForm",
+  title: "systems/automation/components/AutomationJobForm",
   component: AutomationJobForm,
   parameters: {
     layout: "fullscreen",

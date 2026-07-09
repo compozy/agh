@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { KnowledgeEditDialog } from "@/systems/knowledge/components/knowledge-edit-dialog";
 
 const meta: Meta<typeof KnowledgeEditDialog> = {
-  title: "systems/knowledge/KnowledgeEditDialog",
+  title: "systems/knowledge/components/KnowledgeEditDialog",
   component: KnowledgeEditDialog,
   parameters: {
     layout: "fullscreen",

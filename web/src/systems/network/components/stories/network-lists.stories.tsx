@@ -57,7 +57,7 @@ const members: ChannelMember[] = [
 ];
 
 const meta: Meta<typeof ThreadsList> = {
-  title: "systems/network/NetworkLists",
+  title: "systems/network/components/NetworkLists",
   component: ThreadsList,
   parameters: {
     layout: "fullscreen",

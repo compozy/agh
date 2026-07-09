@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -23,7 +24,7 @@ function JobsPageStory() {
 }
 
 const meta: Meta<typeof AutomationOperationsPage> = {
-  title: "systems/automation/AutomationOperationsPage",
+  title: "systems/automation/components/AutomationOperationsPage",
   component: AutomationOperationsPage,
   parameters: {
     layout: "fullscreen",
@@ -54,7 +55,7 @@ export const InitialError: Story = {
   parameters: {
     ...storybookMswParameters({
       automation: [
-        http.get("/api/automation/jobs", () =>
+        aghApiMock.get("/api/automation/jobs", () =>
           HttpResponse.json({ error: "automation unavailable" }, { status: 500 })
         ),
       ],

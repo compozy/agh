@@ -42,7 +42,7 @@ const recents: NetworkRecentEntry[] = [
 const allChannels: NetworkChannelSummary[] = [...networkChannelsFixture.channels];
 
 const meta: Meta<typeof NetworkShell> = {
-  title: "systems/network/NetworkShell",
+  title: "systems/network/components/NetworkShell",
   component: NetworkShell,
   parameters: {
     layout: "fullscreen",

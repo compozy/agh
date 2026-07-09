@@ -9,7 +9,7 @@ import type { NetworkChannelSummary } from "@/systems/network";
 const heroChannel: NetworkChannelSummary | undefined = networkChannelsFixture.channels[0];
 
 const meta: Meta<typeof ChannelHeader> = {
-  title: "systems/network/ChannelHeader",
+  title: "systems/network/components/ChannelHeader",
   component: ChannelHeader,
   parameters: {
     layout: "fullscreen",

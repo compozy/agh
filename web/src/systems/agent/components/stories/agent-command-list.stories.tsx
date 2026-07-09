@@ -12,7 +12,7 @@ import { withStoryAgentCategories } from "./agent-command-select.stories";
 const categorizedAgents = withStoryAgentCategories(agentFixtures);
 
 const meta: Meta<typeof AgentCommandList> = {
-  title: "systems/agent/AgentCommandList",
+  title: "systems/agent/components/AgentCommandList",
   component: AgentCommandList,
   parameters: {
     layout: "fullscreen",

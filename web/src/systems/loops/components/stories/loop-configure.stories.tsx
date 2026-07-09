@@ -6,7 +6,7 @@ import { LoopConfigureSheet } from "../configure/loop-configure-sheet";
 import { loopConfigFixture, loopDetailByName } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopConfigureSheet> = {
-  title: "systems/loops/LoopConfigureSheet",
+  title: "systems/loops/components/LoopConfigureSheet",
   component: LoopConfigureSheet,
   parameters: { layout: "fullscreen" },
 };

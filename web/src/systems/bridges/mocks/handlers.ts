@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   bridgeDetailFixture,
@@ -13,12 +14,40 @@ import {
   updateBridgeFixture,
 } from "./fixtures";
 
+const bridgeHealthStreamEncoder = new TextEncoder();
+
+function createBridgeHealthStreamResponse(): Response {
+  const snapshot = {
+    bridge_health: bridgesListFixture.bridge_health ?? {},
+    generated_at: "2026-04-17T18:10:00Z",
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        bridgeHealthStreamEncoder.encode(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`)
+      );
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    },
+  });
+}
+
 export const handlers: HttpHandler[] = [
-  http.get("/api/bridges", () => HttpResponse.json(bridgesListFixture)),
-  http.get("/api/bridges/providers", () =>
+  aghApiMock.get("/api/bridges", () => HttpResponse.json(bridgesListFixture)),
+  aghApiMock.get("/api/bridges/providers", () =>
     HttpResponse.json({ providers: bridgeProvidersFixture })
   ),
-  http.get("/api/bridges/:id", ({ params }) => {
+  aghApiMock.get("/api/bridges/health/stream", ({ response }) =>
+    response.untyped(createBridgeHealthStreamResponse())
+  ),
+  aghApiMock.get("/api/bridges/{id}", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -27,7 +56,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(bridgeDetailFixture);
   }),
-  http.get("/api/bridges/:id/routes", ({ params }) => {
+  aghApiMock.get("/api/bridges/{id}/routes", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -36,7 +65,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ routes: bridgeRoutesFixture });
   }),
-  http.get("/api/bridges/:id/targets", ({ params, request }) => {
+  aghApiMock.get("/api/bridges/{id}/targets", ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -60,7 +89,7 @@ export const handlers: HttpHandler[] = [
       total: targets.length,
     });
   }),
-  http.post("/api/bridges/:id/resolve", async ({ params, request }) => {
+  aghApiMock.post("/api/bridges/{id}/resolve", async ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -123,7 +152,7 @@ export const handlers: HttpHandler[] = [
       { status: 404 }
     );
   }),
-  http.get("/api/bridges/:id/secret-bindings", ({ params }) => {
+  aghApiMock.get("/api/bridges/{id}/secret-bindings", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -132,7 +161,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ bindings: bridgeSecretBindingsFixture });
   }),
-  http.post("/api/bridges", async ({ request }) => {
+  aghApiMock.post("/api/bridges", async ({ request }) => {
     const body = (await request.json()) as {
       display_name?: string;
       scope?: "global" | "workspace";
@@ -152,7 +181,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.patch("/api/bridges/:id", async ({ params, request }) => {
+  aghApiMock.patch("/api/bridges/{id}", async ({ params, request }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -181,7 +210,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.put("/api/bridges/:id/secret-bindings/:binding_name", ({ params }) => {
+  aghApiMock.put("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
     const id = String(params.id);
     const bindingName = String(params.binding_name);
 
@@ -196,7 +225,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.delete("/api/bridges/:id/secret-bindings/:binding_name", ({ params }) => {
+  aghApiMock.delete("/api/bridges/{id}/secret-bindings/{binding_name}", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -205,7 +234,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.post("/api/bridges/:id/enable", ({ params }) => {
+  aghApiMock.post("/api/bridges/{id}/enable", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -221,7 +250,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/bridges/:id/disable", ({ params }) => {
+  aghApiMock.post("/api/bridges/{id}/disable", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -237,7 +266,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/bridges/:id/restart", ({ params }) => {
+  aghApiMock.post("/api/bridges/{id}/restart", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {
@@ -246,7 +275,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(bridgeDetailFixture);
   }),
-  http.post("/api/bridges/:id/test-delivery", ({ params }) => {
+  aghApiMock.post("/api/bridges/{id}/test-delivery", ({ params }) => {
     const id = String(params.id);
 
     if (id !== bridgeDetailFixture.bridge.id) {

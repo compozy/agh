@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { StorySurface } from "@/storybook/story-layout";
 
@@ -33,13 +34,15 @@ function editorHandlers(detail: LoopDetail) {
   // The override getLoop must win, but keep the loop handlers (validate lints the posted
   // definition) so the auto-validate still surfaces the fan_out_ceiling_exceeded issue.
   return [
-    http.get("/api/workspaces/:workspaceId/loops/:name", () => HttpResponse.json({ loop: detail })),
+    aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", () =>
+      HttpResponse.json({ loop: detail })
+    ),
     ...loopHandlers,
   ];
 }
 
 const meta: Meta<typeof LoopEditor> = {
-  title: "systems/loops/LoopEditor",
+  title: "systems/loops/components/LoopEditor",
   component: LoopEditor,
   parameters: { layout: "fullscreen" },
   render: args => (

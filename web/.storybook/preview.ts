@@ -11,6 +11,8 @@ import {
 } from "@tanstack/react-router";
 import { Fragment, createElement, useState, type ReactNode } from "react";
 import { initialize, mswLoader } from "msw-storybook-addon";
+import type { UnhandledRequestCallback } from "msw";
+import { configure as configureStorybookTestingLibrary } from "storybook/test";
 
 import "../src/styles.css";
 import { routeTree } from "@/routeTree.gen";
@@ -20,7 +22,59 @@ import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-wo
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
 
-initialize({ onUnhandledRequest: "bypass" });
+configureStorybookTestingLibrary({ asyncUtilTimeout: 5000 });
+
+const STORYBOOK_STATIC_PATH_PREFIXES = [
+  "/@",
+  "/__tsd/",
+  "/node_modules/",
+  "/sb-",
+  "/src/",
+  "/storybook/",
+  "/vite.svg",
+] as const;
+const STORYBOOK_STATIC_FILE_PATTERN =
+  /\.(?:avif|css|gif|html|ico|jpeg|jpg|js|json|map|png|svg|ttf|txt|webp|woff2?)$/iu;
+
+function getStorybookRuntimeOrigin() {
+  if (typeof globalThis.location === "undefined") {
+    return "http://storybook.local";
+  }
+
+  return location.origin;
+}
+
+export function isStorybookLocalApiRequest(url: URL) {
+  return url.origin === getStorybookRuntimeOrigin() && url.pathname.startsWith("/api/");
+}
+
+export function isBypassableStorybookRequest(url: URL) {
+  if (url.origin !== getStorybookRuntimeOrigin()) {
+    return true;
+  }
+
+  return (
+    STORYBOOK_STATIC_FILE_PATTERN.test(url.pathname) ||
+    STORYBOOK_STATIC_PATH_PREFIXES.some(prefix => url.pathname.startsWith(prefix))
+  );
+}
+
+export const storybookUnhandledRequest: UnhandledRequestCallback = (request, print) => {
+  const url = new URL(request.url);
+
+  if (isStorybookLocalApiRequest(url)) {
+    print.error();
+    return;
+  }
+
+  if (isBypassableStorybookRequest(url)) {
+    return;
+  }
+
+  print.warning();
+};
+
+initialize({ onUnhandledRequest: storybookUnhandledRequest });
 
 type StoryRenderer = () => ReactNode;
 export type StorybookRouterMode = "app" | "stub";

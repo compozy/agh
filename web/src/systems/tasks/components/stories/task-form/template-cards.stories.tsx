@@ -8,7 +8,7 @@ import type { TaskTemplateId } from "@/systems/tasks";
 import { TemplateCards, type TaskFormMode } from "../../task-form/template-cards";
 
 const meta: Meta<typeof TemplateCards> = {
-  title: "systems/tasks/task-form/TemplateCards",
+  title: "systems/tasks/components/task-form/TemplateCards",
   component: TemplateCards,
   parameters: {
     layout: "fullscreen",

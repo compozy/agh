@@ -8,7 +8,7 @@ import { readLoopGraph } from "../../lib/loop-graph";
 import { loopCatalogFixtures, loopDetailByName, loopRunFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopDetailView> = {
-  title: "systems/loops/LoopDetail",
+  title: "systems/loops/components/LoopDetail",
   component: LoopDetailView,
   parameters: { layout: "fullscreen" },
 };

@@ -6,7 +6,7 @@ import { ReadContent } from "@/systems/session/components/tool-renderers/read-co
 import { readToolMessageFixture, truncatedReadToolMessageFixture } from "@/systems/session/mocks";
 
 const meta: Meta<typeof ReadContent> = {
-  title: "systems/session/tool-renderers/ReadContent",
+  title: "systems/session/components/tool-renderers/ReadContent",
   component: ReadContent,
   parameters: {
     layout: "centered",

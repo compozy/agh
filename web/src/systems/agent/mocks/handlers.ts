@@ -1,12 +1,13 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { agentFixtures } from "./fixtures";
 
 const agentByName = new Map(agentFixtures.map(agent => [agent.name, agent]));
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures })),
-  http.get("/api/agents/:name", ({ params }) => {
+  aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures })),
+  aghApiMock.get("/api/agents/{name}", ({ params }) => {
     const name = String(params.name);
     const agent = agentByName.get(name);
 

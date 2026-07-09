@@ -8,7 +8,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { OptionCard } from "../option-card";
 
 const meta: Meta<typeof OptionCard> = {
-  title: "systems/workspace/OptionCard",
+  title: "systems/workspace/components/OptionCard",
   component: OptionCard,
   parameters: {
     layout: "fullscreen",

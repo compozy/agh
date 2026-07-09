@@ -7,7 +7,7 @@ import { automationRunFixtures } from "@/systems/automation/mocks";
 import { AutomationRunHistory } from "../automation-run-history";
 
 const meta: Meta<typeof AutomationRunHistory> = {
-  title: "systems/automation/AutomationRunHistory",
+  title: "systems/automation/components/AutomationRunHistory",
   component: AutomationRunHistory,
   parameters: {
     layout: "centered",

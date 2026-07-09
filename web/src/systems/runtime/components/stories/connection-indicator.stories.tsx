@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { RuntimeConnectionIndicator } from "../connection-indicator";
 
 const meta: Meta<typeof RuntimeConnectionIndicator> = {
-  title: "app/runtime/RuntimeConnectionIndicator",
+  title: "systems/runtime/components/RuntimeConnectionIndicator",
   component: RuntimeConnectionIndicator,
   parameters: {
     layout: "centered",

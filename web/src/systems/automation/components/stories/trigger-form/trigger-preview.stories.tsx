@@ -9,7 +9,7 @@ import { buildTriggerPreview } from "@/systems/automation/lib/trigger-preview";
 import { TriggerPreview } from "../../trigger-form/preview/trigger-preview";
 
 const meta: Meta<typeof TriggerPreview> = {
-  title: "systems/automation/trigger-form/TriggerPreview",
+  title: "systems/automation/components/trigger-form/TriggerPreview",
   component: TriggerPreview,
   parameters: {
     layout: "fullscreen",

@@ -40,7 +40,7 @@ const baseArgs: SessionInspectorProps = {
 };
 
 const meta: Meta<typeof SessionInspector> = {
-  title: "systems/session/SessionInspector",
+  title: "systems/session/components/SessionInspector",
   component: SessionInspector,
   parameters: {
     layout: "fullscreen",

@@ -47,6 +47,7 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
       sessionId: params.id,
     });
   },
+  pendingComponent: SessionRouteLoading,
   component: SessionPage,
 });
 
@@ -298,6 +299,14 @@ export function SessionPage() {
   return <SessionPageResolved name={name} id={id} workspaceId={workspaceId} />;
 }
 
+function SessionRouteLoading() {
+  return (
+    <div className="flex flex-1 items-center justify-center" data-testid="session-route-loading">
+      <Spinner className="size-5 text-subtle" />
+    </div>
+  );
+}
+
 interface SessionPageResolvedProps {
   name: string;
   id: string;
@@ -354,11 +363,7 @@ function SessionPageWithWorkspace({
   }, [error, navigate, name]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center" data-testid="session-route-loading">
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
+    return <SessionRouteLoading />;
   }
 
   if (!session) {

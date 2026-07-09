@@ -8,7 +8,7 @@ import { SettingsEditorDialog } from "../settings-editor-dialog";
 import { SettingsFieldRow } from "../settings-field-row";
 
 const meta: Meta<typeof SettingsEditorDialog> = {
-  title: "systems/settings/SettingsDialogs",
+  title: "systems/settings/components/SettingsDialogs",
   component: SettingsEditorDialog,
   parameters: {
     layout: "centered",

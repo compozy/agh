@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { KnowledgeCreateDialog } from "@/systems/knowledge/components/knowledge-create-dialog";
 
 const meta: Meta<typeof KnowledgeCreateDialog> = {
-  title: "systems/knowledge/KnowledgeCreateDialog",
+  title: "systems/knowledge/components/KnowledgeCreateDialog",
   component: KnowledgeCreateDialog,
   parameters: {
     layout: "fullscreen",

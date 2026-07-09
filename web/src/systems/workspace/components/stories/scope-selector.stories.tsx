@@ -63,7 +63,7 @@ function ScopeSelectorHarness({
 }
 
 const meta: Meta<typeof ScopeSelectorHarness> = {
-  title: "systems/workspace/ScopeSelector",
+  title: "systems/workspace/components/ScopeSelector",
   component: ScopeSelectorHarness,
   parameters: {
     layout: "fullscreen",

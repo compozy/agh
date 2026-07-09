@@ -6,7 +6,7 @@ import { markdownFixture } from "@/systems/session/mocks";
 import { MessageMarkdown } from "../message-markdown";
 
 const meta: Meta<typeof MessageMarkdown> = {
-  title: "systems/session/MessageMarkdown",
+  title: "systems/session/components/MessageMarkdown",
   component: MessageMarkdown,
   parameters: {
     layout: "centered",

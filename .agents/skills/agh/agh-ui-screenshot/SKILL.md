@@ -26,7 +26,7 @@ Capture deterministic PNGs of AGH runtime UI surfaces (Storybook isolation ifram
 **Step 4: Capture screenshots via the CDP helper.**
 1. From the workdir created in Step 2, run the mutating helper `bun run .agents/skills/agh-ui-screenshot/scripts/cap.mjs --out <output-dir> --width <W> --height <H> --wait <ms> --shot <name> <url> [--shot <name> <url> ...]`. Each `--shot` pair writes `<output-dir>/<name>.png`.
 2. Use `1440 × 900` for full-route surfaces, `1680 × 1050` for wide-breakpoint validation, `1100 × 700` for primitive previews, `320 × 800` for collapsed sidebar. Defaults documented in `references/cdp-flow.md`.
-3. Use `--wait 2200` as the empirical floor for AGH's `routes-app-stories-*` surfaces. Bump to `4000` if any capture shows fallback fonts.
+3. Use `--wait 2200` as the empirical floor for AGH's `systems-*-routes-*` surfaces. Bump to `4000` if any capture shows fallback fonts.
 4. Verify the helper's stdout: each successful capture prints `saved <name>`; failures print `FAIL <name> <message>` and the script exits 0 — scan for `FAIL` lines.
 5. Inspect output PNG sizes. Anything under 20 KB is suspicious — see `references/troubleshooting.md`.
 

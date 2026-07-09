@@ -43,7 +43,7 @@ function SettingsInputHarness() {
 }
 
 const meta: Meta<typeof SettingsNumberInput> = {
-  title: "systems/settings/SettingsInputs",
+  title: "systems/settings/components/SettingsInputs",
   component: SettingsNumberInput,
   parameters: {
     layout: "fullscreen",

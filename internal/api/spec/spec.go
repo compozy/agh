@@ -158,6 +158,7 @@ const (
 	specFilesystemKey                                        = "filesystem"
 	specExtensionKey                                         = "extension"
 	specExtensionsKey                                        = "extensions"
+	specGlobalKey                                            = "global"
 	specHooksKey                                             = "hooks"
 	specIntegerKey                                           = "integer"
 	specLogsKey                                              = "logs"
@@ -1178,7 +1179,7 @@ var operationRegistry = []OperationSpec{
 		Tags:        []string{specBridgesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by bridge scope", []string{"all", "global", specWorkspaceKey}),
+			enumQueryParam("scope", "Filter by bridge scope", []string{"all", specGlobalKey, specWorkspaceKey}),
 			queryParam("workspace_id", "Filter by active workspace id", false),
 			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
 		},
@@ -1214,6 +1215,30 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.BridgeProvidersResponse{}},
+			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/bridges/health/stream",
+		OperationID: "streamBridgeHealth",
+		Summary:     "Stream bridge health snapshots",
+		Tags:        []string{specBridgesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Filter by bridge scope", []string{"all", specGlobalKey, specWorkspaceKey}),
+			queryParam("workspace_id", "Filter by active workspace id", false),
+			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Bridge health snapshot stream",
+				Body:        contract.BridgeHealthStreamPayload{},
+				ContentType: specContentTypeEventStream,
+			},
+			{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

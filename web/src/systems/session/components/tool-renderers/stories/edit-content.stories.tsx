@@ -6,7 +6,7 @@ import { editToolMessageFixture, multiHunkEditToolMessageFixture } from "@/syste
 import { EditContent } from "../edit-content";
 
 const meta: Meta<typeof EditContent> = {
-  title: "systems/session/tool-renderers/EditContent",
+  title: "systems/session/components/tool-renderers/EditContent",
   component: EditContent,
   parameters: {
     layout: "centered",

@@ -10,7 +10,7 @@ import {
 import { SchedulerControlsPanel } from "../scheduler-controls-panel";
 
 const meta: Meta<typeof SchedulerControlsPanel> = {
-  title: "systems/scheduler/SchedulerControlsPanel",
+  title: "systems/scheduler/components/SchedulerControlsPanel",
   component: SchedulerControlsPanel,
   parameters: {
     layout: "fullscreen",

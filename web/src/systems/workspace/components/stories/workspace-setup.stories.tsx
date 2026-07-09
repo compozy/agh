@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, http, HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
 import { statusFixture } from "@/systems/status/mocks/fixtures";
+import { primaryWorkspaceFixture } from "@/systems/workspace/mocks/fixtures";
 
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
 
 const meta: Meta<typeof WorkspaceOnboarding> = {
-  title: "systems/workspace/WorkspaceSetup",
+  title: "systems/workspace/components/WorkspaceSetup",
   component: WorkspaceOnboarding,
   parameters: {
     layout: "fullscreen",
@@ -62,7 +64,7 @@ export const OnboardingGlobalUnavailable: Story = {
   parameters: {
     ...storybookMswParameters({
       daemon: [
-        http.get("/api/status", () =>
+        aghApiMock.get("/api/status", () =>
           HttpResponse.json({
             ...statusFixture,
             daemon: { ...statusFixture.daemon, user_home_dir: "" },
@@ -143,9 +145,9 @@ export const OnboardingLoadingGlobal: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        http.post("/api/workspaces", async () => {
+        aghApiMock.post("/api/workspaces", async () => {
           await delay("infinite");
-          return HttpResponse.json({});
+          return HttpResponse.json({ workspace: primaryWorkspaceFixture }, { status: 201 });
         }),
       ],
     }),
@@ -175,9 +177,9 @@ export const OnboardingLoadingManual: Story = {
   parameters: {
     ...storybookMswParameters({
       workspace: [
-        http.post("/api/workspaces", async () => {
+        aghApiMock.post("/api/workspaces", async () => {
           await delay("infinite");
-          return HttpResponse.json({});
+          return HttpResponse.json({ workspace: primaryWorkspaceFixture }, { status: 201 });
         }),
       ],
     }),

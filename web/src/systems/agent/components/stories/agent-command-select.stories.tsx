@@ -58,7 +58,7 @@ function Frame({ children }: FrameProps) {
 }
 
 const meta: Meta<typeof AgentCommandSelect> = {
-  title: "systems/agent/AgentCommandSelect",
+  title: "systems/agent/components/AgentCommandSelect",
   component: AgentCommandSelect,
   parameters: {
     layout: "fullscreen",

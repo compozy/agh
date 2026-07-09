@@ -6,7 +6,7 @@ import { agentFixtures, primaryAgentFixture } from "@/systems/agent/mocks";
 import { AgentIcon } from "../agent-icon";
 
 const meta: Meta<typeof AgentIcon> = {
-  title: "systems/agent/AgentIcon",
+  title: "systems/agent/components/AgentIcon",
   component: AgentIcon,
   parameters: {
     layout: "centered",

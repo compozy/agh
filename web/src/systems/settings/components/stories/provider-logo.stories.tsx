@@ -7,7 +7,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { ProviderLogo } from "../provider-logo";
 
 const meta: Meta<typeof ProviderLogo> = {
-  title: "systems/settings/ProviderLogo",
+  title: "systems/settings/components/ProviderLogo",
   component: ProviderLogo,
   parameters: {
     layout: "fullscreen",

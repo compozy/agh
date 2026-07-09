@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   memoryDecisionsFixture,
@@ -44,11 +45,11 @@ function filterMemories(selector: MemorySelector): MemoryHeader[] {
 }
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/memory", ({ request }) => {
+  aghApiMock.get("/api/memory", ({ request }) => {
     const selector = readSelector(new URL(request.url));
     return HttpResponse.json({ memories: filterMemories(selector) });
   }),
-  http.get("/api/memory/decisions", ({ request }) => {
+  aghApiMock.get("/api/memory/decisions", ({ request }) => {
     const selector = readSelector(new URL(request.url));
     if (!selector.scope) {
       return HttpResponse.json(memoryDecisionsFixture);
@@ -62,7 +63,7 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ decisions });
   }),
-  http.get("/api/memory/:filename", ({ params }) => {
+  aghApiMock.get("/api/memory/{filename}", ({ params }) => {
     const filename = decodeURIComponent(String(params.filename));
     const memory = memoryReadFixtures[filename];
     if (!memory) {
@@ -73,9 +74,9 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(memory);
   }),
-  http.post("/api/memory", () => HttpResponse.json(memoryWriteFixture)),
-  http.patch("/api/memory/:filename", () => HttpResponse.json(memoryEditFixture)),
-  http.delete("/api/memory/:filename", () => HttpResponse.json(memoryDeleteFixture)),
-  http.post("/api/memory/search", () => HttpResponse.json(memorySearchFixture)),
-  http.post("/api/memory/dreams/trigger", () => HttpResponse.json(memoryDreamTriggerFixture)),
+  aghApiMock.post("/api/memory", () => HttpResponse.json(memoryWriteFixture)),
+  aghApiMock.patch("/api/memory/{filename}", () => HttpResponse.json(memoryEditFixture)),
+  aghApiMock.delete("/api/memory/{filename}", () => HttpResponse.json(memoryDeleteFixture)),
+  aghApiMock.post("/api/memory/search", () => HttpResponse.json(memorySearchFixture)),
+  aghApiMock.post("/api/memory/dreams/trigger", () => HttpResponse.json(memoryDreamTriggerFixture)),
 ];

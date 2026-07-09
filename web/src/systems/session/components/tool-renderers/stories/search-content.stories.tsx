@@ -5,7 +5,7 @@ import { SearchContent } from "@/systems/session/components/tool-renderers/searc
 import { emptySearchToolMessageFixture, searchToolMessageFixture } from "@/systems/session/mocks";
 
 const meta: Meta<typeof SearchContent> = {
-  title: "systems/session/tool-renderers/SearchContent",
+  title: "systems/session/components/tool-renderers/SearchContent",
   component: SearchContent,
   parameters: {
     layout: "centered",

@@ -7,7 +7,7 @@ import { settingsProviderFixtures } from "@/systems/settings/mocks";
 import { ProvidersGrid } from "../providers-grid";
 
 const meta: Meta<typeof ProvidersGrid> = {
-  title: "systems/settings/ProvidersGrid",
+  title: "systems/settings/components/ProvidersGrid",
   component: ProvidersGrid,
   parameters: {
     layout: "fullscreen",
