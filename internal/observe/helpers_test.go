@@ -36,7 +36,7 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 
-	observer, err := New(testutil.Context(t),
+	observer, err := New(observeTestContext(t),
 		WithHomePaths(home),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	)
@@ -50,7 +50,7 @@ func TestNewOpensRegistryAndCloseSucceeds(t *testing.T) {
 	if observer.registry.Path() != home.DatabaseFile {
 		t.Fatalf("observer.registry.Path() = %q, want %q", observer.registry.Path(), home.DatabaseFile)
 	}
-	if err := observer.Close(testutil.Context(t)); err != nil {
+	if err := observer.Close(observeTestContext(t)); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
 }
@@ -64,7 +64,7 @@ func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
 	}
 
 	observer, err := New(
-		testutil.Context(t),
+		observeTestContext(t),
 		WithHomePaths(home),
 		WithTaskDashboardConfig(TaskDashboardConfig{
 			ActiveRunLimit:   7,
@@ -76,7 +76,7 @@ func TestWithTaskDashboardConfigOverridesDefaults(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 	t.Cleanup(func() {
-		if closeErr := observer.Close(testutil.Context(t)); closeErr != nil {
+		if closeErr := observer.Close(observeTestContext(t)); closeErr != nil {
 			t.Fatalf("Close() error = %v", closeErr)
 		}
 	})
@@ -304,7 +304,7 @@ func TestDefaultPermissionModeResolverRequiresResolverForWorkspaceID(t *testing.
 	}
 }
 
-func TestOnSessionCreatedResolverFailureStillRegistersSession(t *testing.T) {
+func TestOnSessionCreatedResolverFailureStillTracksSession(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -313,14 +313,14 @@ func TestOnSessionCreatedResolverFailureStillRegistersSession(t *testing.T) {
 	}
 
 	sess := newSession("sess-resolver-failure", session.StateActive, h.workspace, h.now)
-	h.observer.OnSessionCreated(testutil.Context(t), sess)
+	h.observeSessionCreated(t, sess)
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
+	snapshot, ok := h.observer.sessionSnapshot(sess.ID)
+	if !ok {
+		t.Fatal("sessionSnapshot() cached = false, want true")
 	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
+	if snapshot.permissionMode != "" {
+		t.Fatalf("sessionSnapshot().permissionMode = %q, want empty after resolver failure", snapshot.permissionMode)
 	}
 }
 

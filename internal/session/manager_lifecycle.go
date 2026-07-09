@@ -81,6 +81,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (_ *Session, err error)
 	if restoreErr != nil {
 		return nil, errors.Join(err, restoreErr)
 	}
+	if projectionErr := m.persistSessionCatalogFromMeta(ctx, restoredMeta); projectionErr != nil {
+		return nil, errors.Join(err, projectionErr)
+	}
 	if !clearACP {
 		return nil, err
 	}
@@ -164,8 +167,8 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	defer m.finishFinalization(session.ID)
 
 	var errs []error
-	errs = appendLifecycleErr(errs, m.beginStoppingSession(session))
-	errs = appendLifecycleErr(errs, m.persistStopClassification(session, waitErr))
+	errs = appendLifecycleErr(errs, m.beginStoppingSession(ctx, session))
+	errs = appendLifecycleErr(errs, m.persistStopClassification(ctx, session, waitErr))
 	errs = appendLifecycleErr(errs, m.recordProcessExitEvent(ctx, session, waitErr))
 	errs = appendLifecycleErr(errs, m.recordSessionStoppedEvent(ctx, session, waitErr))
 
@@ -175,7 +178,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	errs = appendLifecycleErr(errs, m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session)))
 
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
-	errs = appendLifecycleErr(errs, m.markSessionStopped(session))
+	errs = appendLifecycleErr(errs, m.markSessionStopped(ctx, session))
 	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
 	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
 	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
@@ -248,17 +251,17 @@ func appendLifecycleErr(errs []error, err error) []error {
 	return append(errs, err)
 }
 
-func (m *Manager) beginStoppingSession(session *Session) error {
+func (m *Manager) beginStoppingSession(ctx context.Context, session *Session) error {
 	if session.Info().State != StateActive {
 		return nil
 	}
 	if err := session.beginStopping(m.now()); err != nil {
 		return err
 	}
-	return m.writeMeta(session)
+	return m.persistSessionLifecycleState(ctx, session, false)
 }
 
-func (m *Manager) persistStopClassification(session *Session, waitErr error) error {
+func (m *Manager) persistStopClassification(ctx context.Context, session *Session, waitErr error) error {
 	stopCause, stopDetailHint := session.stopCauseDetail()
 	stopReason, stopDetail := classifyStopReason(stopCause, waitErr, stopDetailHint)
 	failure := sessionFailureForStop(stopCause, waitErr, stopDetail)
@@ -268,12 +271,12 @@ func (m *Manager) persistStopClassification(session *Session, waitErr error) err
 		if proc := session.processHandle(); proc != nil {
 			stderr = proc.Stderr()
 		}
-		failure, bundleErr = m.attachCrashBundleToFailure(context.Background(), session, failure, waitErr, stderr)
+		failure, bundleErr = m.attachCrashBundleToFailure(ctx, session, failure, waitErr, stderr)
 	}
 	session.setStopClassification(stopReason, stopDetail)
 	session.setFailure(failure)
 	session.markExited(m.now())
-	return errors.Join(m.writeMeta(session), bundleErr)
+	return errors.Join(m.persistSessionLifecycleState(ctx, session, false), bundleErr)
 }
 
 func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
@@ -403,7 +406,7 @@ func (m *Manager) persistFailedStart(ctx context.Context, session *Session, star
 
 	var errs []error
 	errs = appendLifecycleErr(errs, bundleErr)
-	errs = appendLifecycleErr(errs, m.writeMeta(session))
+	errs = appendLifecycleErr(errs, m.persistSessionLifecycleState(ctx, session, true))
 	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, summary, stopReason))
 	m.notifyFailedStart(ctx, session)
 	return errors.Join(errs...)
@@ -459,13 +462,13 @@ func (m *Manager) closeSessionRecorder(session *Session) error {
 	return err
 }
 
-func (m *Manager) markSessionStopped(session *Session) error {
+func (m *Manager) markSessionStopped(ctx context.Context, session *Session) error {
 	now := m.now()
 	session.clearProcess(now)
 	if err := session.markStopped(now); err != nil {
 		return err
 	}
-	return m.writeMeta(session)
+	return m.persistSessionLifecycleState(ctx, session, false)
 }
 
 func (m *Manager) leaveSessionNetwork(ctx context.Context, session *Session) error {

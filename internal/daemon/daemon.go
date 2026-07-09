@@ -236,16 +236,8 @@ type networkBindableSessionManager interface {
 	SetTurnEndNotifier(session.TurnEndNotifier)
 }
 
-type shutdownStopper interface {
-	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
-}
-
 type memoryProviderShutdowner interface {
 	Shutdown(context.Context) error
-}
-
-type finalizationWaiter interface {
-	WaitForFinalizations(ctx context.Context) error
 }
 
 type observerRetentionStarter interface {
@@ -353,6 +345,7 @@ type SessionManagerDeps struct {
 	SessionBusyInput     aghconfig.SessionBusyInputConfig
 	SessionInputQueue    store.SessionInputQueueStore
 	SessionHealthConfig  aghconfig.HeartbeatConfig
+	SessionCatalog       store.SessionCatalog
 	ProcessRegistry      *toolruntime.Registry
 	HostedMCP            session.HostedMCPLauncher
 	ProviderSecrets      session.ProviderSecretResolver
@@ -636,6 +629,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
+			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
 			session.WithSoulSnapshotStore(deps.SoulStore),
@@ -1390,34 +1384,4 @@ func (d *Daemon) signalSource() (<-chan os.Signal, func()) {
 	return ch, func() {
 		signal.Stop(ch)
 	}
-}
-
-func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) error {
-	if sessions == nil {
-		return nil
-	}
-
-	infos := sessions.List()
-	var errs []error
-	for _, info := range infos {
-		if info == nil {
-			continue
-		}
-		var err error
-		if stopper, ok := sessions.(shutdownStopper); ok {
-			err = stopper.StopWithCause(ctx, info.ID, session.CauseShutdown, "daemon shutdown")
-		} else {
-			err = sessions.Stop(ctx, info.ID)
-		}
-		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
-			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
-		}
-	}
-	if waiter, ok := sessions.(finalizationWaiter); ok {
-		if err := waiter.WaitForFinalizations(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))
-		}
-	}
-
-	return errors.Join(errs...)
 }

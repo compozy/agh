@@ -26,7 +26,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
-	"github.com/compozy/agh/internal/transcript"
+	transcriptpkg "github.com/compozy/agh/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
 
@@ -378,8 +378,9 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	if err != nil {
 		t.Fatalf("SessionTranscript() error = %v", err)
 	}
-	if !strings.Contains(joinTransportTranscript(transcript.Messages), "partial before crash") {
-		t.Fatalf("transcript = %#v, want partial assistant output", transcript.Messages)
+	messages := transcriptpkg.MessagesFromEntries(transcript.Entries)
+	if !strings.Contains(joinTransportTranscript(messages), "partial before crash") {
+		t.Fatalf("transcript = %#v, want partial assistant output", messages)
 	}
 
 	eventsResp, err := runtimeHarness.SessionEvents(ctx, session.ID)
@@ -426,8 +427,9 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SessionTranscript() error = %v", err)
 	}
-	if !strings.Contains(joinTransportTranscript(transcriptResp.Messages), "alpha says hi") {
-		t.Fatalf("transcript = %#v, want assistant reply", transcriptResp.Messages)
+	messages := transcriptpkg.MessagesFromEntries(transcriptResp.Entries)
+	if !strings.Contains(joinTransportTranscript(messages), "alpha says hi") {
+		t.Fatalf("transcript = %#v, want assistant reply", messages)
 	}
 
 	httpHarnessEvents := waitForTransportListLogs(
@@ -1113,8 +1115,8 @@ func logEventTypes(events []aghcontract.LogEventPayload) []string {
 	return types
 }
 
-func joinTransportTranscript(messages []transcript.UIMessage) string {
-	return transcript.JoinUIMessageText(messages)
+func joinTransportTranscript(messages []transcriptpkg.UIMessage) string {
+	return transcriptpkg.JoinUIMessageText(messages)
 }
 
 func transportMockFixturePath(t testing.TB, name string) string {

@@ -202,7 +202,7 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 		HistoryFn: func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
+		TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
 			return nil, session.ErrSessionNotFound
 		},
 	}
@@ -296,6 +296,46 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 			http.StatusBadRequest,
 		)
 	}
+}
+
+func TestStreamSessionInitialEventsErrorWithoutLiveSubscription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return an error response when live subscription is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		initialErr := errors.New("events unavailable")
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				return nil, initialErr
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw",
+			nil,
+		)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("stream initial error status = %d, want %d", resp.Code, http.StatusInternalServerError)
+		}
+		if !strings.Contains(resp.Body.String(), initialErr.Error()) {
+			t.Fatalf("stream initial error body = %s, want %q", resp.Body.String(), initialErr.Error())
+		}
+	})
 }
 
 func TestListAgentsHandlesMissingDirectory(t *testing.T) {

@@ -130,7 +130,7 @@ func (m *Manager) prepareSandboxForStart(
 	}
 	meta = sessionSandboxMetaFromState(state, sandboxStatePrepared)
 	session.setSandbox(meta, m.now())
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionMetadataOnly(session); err != nil {
 		return acp.StartOpts{}, err
 	}
 
@@ -164,7 +164,7 @@ func (m *Manager) initializeSandboxMetaForStart(
 
 	meta := initialSessionSandboxMeta(sandboxID, resolvedEnv, spec.sandbox)
 	session.setSandbox(meta, m.now())
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionMetadataOnly(session); err != nil {
 		return "", nil, err
 	}
 	return sandboxID, meta, nil
@@ -520,7 +520,7 @@ func (m *Manager) finishSandboxSyncSuccess(
 ) error {
 	meta.LastSyncError = ""
 	session.setSandbox(meta, outcome.syncTime)
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionMetadataOnly(session); err != nil {
 		return err
 	}
 	if err := m.dispatchSandboxSyncAfter(
@@ -600,7 +600,7 @@ func syncSandboxWriteError(
 ) error {
 	meta.LastSyncError = outcome.err.Error()
 	session.setSandbox(meta, outcome.syncTime)
-	if writeErr := m.writeMeta(session); writeErr != nil {
+	if writeErr := m.persistSessionMetadataOnly(session); writeErr != nil {
 		return errors.Join(outcome.err, writeErr)
 	}
 	return outcome.err
@@ -666,7 +666,7 @@ func (m *Manager) finalizeSandbox(
 		if meta != nil {
 			meta.State = sandboxStateStopped
 			session.setSandbox(meta, now)
-			if err := m.writeMeta(session); err != nil {
+			if err := m.persistSessionMetadataOnly(session); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -720,7 +720,7 @@ func (m *Manager) destroySandbox(
 	if meta != nil {
 		meta.State = sandboxStateDestroyed
 		session.setSandbox(meta, now)
-		if err := m.writeMeta(session); err != nil {
+		if err := m.persistSessionMetadataOnly(session); err != nil {
 			return err
 		}
 	}
@@ -770,8 +770,8 @@ func (m *Manager) logSandboxLifecycle(event SandboxLifecycleEvent) {
 		"profile", strings.TrimSpace(event.Profile),
 		"sandbox_id", strings.TrimSpace(event.SandboxID),
 		"instance_id", strings.TrimSpace(event.InstanceID),
-		"workspace_id", strings.TrimSpace(event.WorkspaceID),
-		"session_id", strings.TrimSpace(event.SessionID),
+		workspaceIDFieldKey, strings.TrimSpace(event.WorkspaceID),
+		sessionIDFieldKey, strings.TrimSpace(event.SessionID),
 		"duration_ms", event.Duration.Milliseconds(),
 	}
 	if strings.TrimSpace(event.Reason) != "" {

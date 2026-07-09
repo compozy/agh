@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { KnowledgeDeleteDialog } from "@/systems/knowledge/components/knowledge-delete-dialog";
 
 const meta: Meta<typeof KnowledgeDeleteDialog> = {
-  title: "systems/knowledge/KnowledgeDeleteDialog",
+  title: "systems/knowledge/components/KnowledgeDeleteDialog",
   component: KnowledgeDeleteDialog,
   parameters: {
     layout: "fullscreen",

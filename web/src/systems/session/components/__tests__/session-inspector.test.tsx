@@ -65,6 +65,10 @@ function openMemoryTab() {
   fireEvent.click(screen.getByTestId("session-inspector-tab-memory"));
 }
 
+function openUsageTab() {
+  fireEvent.click(screen.getByTestId("session-inspector-tab-usage"));
+}
+
 describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
   it("Should consume <DetailInspector> with 5 tabs in a single flat tab strip", () => {
     const ledger = makeLedger();
@@ -106,6 +110,77 @@ describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
 
   it("Should expose DETAIL_INSPECTOR_INLINE_BREAKPOINT as the canonical 1440 px constant", () => {
     expect(DETAIL_INSPECTOR_INLINE_BREAKPOINT).toBe(1440);
+  });
+});
+
+describe("SessionInspector — Usage tab truthful wiring (/ §3.4)", () => {
+  it("Should render real aggregated usage values from the daemon summary", () => {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{
+          tokensIn: 128_400,
+          tokensOut: 24_900,
+          totalTokens: 153_300,
+          costUsd: 18.42,
+          costCurrency: "USD",
+          turnCount: 12,
+        }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.getByTestId("session-inspector-usage-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-usage-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-usage-tokens-in")).toHaveTextContent("128,400");
+    expect(screen.getByTestId("session-inspector-usage-tokens-out")).toHaveTextContent("24,900");
+    expect(screen.getByTestId("session-inspector-usage-total-tokens")).toHaveTextContent("153,300");
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent("$18.42");
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent(
+      "Across 12 turns"
+    );
+  });
+
+  it("Should format a non-USD cost with its currency code", () => {
+    const expectedCost = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(2.5);
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{ costUsd: 2.5, costCurrency: "EUR", turnCount: 1 }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.getByTestId("session-inspector-usage-cost")).toHaveTextContent(expectedCost);
+    expect(screen.getByTestId("session-inspector-usage-turns")).toHaveTextContent("Across 1 turn");
+  });
+
+  it("Should show the truthful empty state when the session reported no usage", () => {
+    render(
+      <SessionInspector
+        messages={[]}
+        sessionId="sess_123"
+        usage={{ turnCount: 0 }}
+        memory={{ ledger: null }}
+      />
+    );
+
+    openUsageTab();
+
+    expect(screen.queryByTestId("session-inspector-usage-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-usage-empty")).toHaveTextContent("No usage yet");
+    expect(screen.queryByTestId("session-inspector-usage-turns")).not.toBeInTheDocument();
   });
 });
 

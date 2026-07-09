@@ -588,16 +588,27 @@ describe("browser runtime seed helpers", () => {
         "/api/workspaces/ws_browser_automation/sessions/sess_browser_automation_01/transcript"
       ) {
         return {
-          messages: [
+          entries: [
             {
-              id: "msg_user_automation",
-              role: "user",
-              content: browserAutomationOperatorFlowScenario.job.prompt,
+              message: {
+                id: "msg_user_automation",
+                role: "user",
+                parts: [{ type: "text", text: browserAutomationOperatorFlowScenario.job.prompt }],
+              },
+              sequence: 1,
             },
             {
-              id: "msg_assistant_automation",
-              role: "assistant",
-              content: browserAutomationOperatorFlowScenario.transcript.assistant,
+              message: {
+                id: "msg_assistant_automation",
+                role: "assistant",
+                parts: [
+                  {
+                    type: "text",
+                    text: browserAutomationOperatorFlowScenario.transcript.assistant,
+                  },
+                ],
+              },
+              sequence: 2,
             },
           ],
         };

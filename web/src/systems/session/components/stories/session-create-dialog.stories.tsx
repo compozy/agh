@@ -71,7 +71,7 @@ const baseArgs = {
 };
 
 const meta: Meta<typeof SessionCreateDialog> = {
-  title: "systems/session/SessionCreateDialog",
+  title: "systems/session/components/SessionCreateDialog",
   component: SessionCreateDialog,
   parameters: {
     layout: "fullscreen",

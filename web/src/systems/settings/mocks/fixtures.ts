@@ -1,19 +1,23 @@
 import type {
   ConfigApplyRecordsResponse,
   SettingsAutomationSection,
+  SettingsSandboxCollection,
   SettingsSandboxEntry,
   SettingsExtensionEntry,
   SettingsExtensionMarketplaceEntry,
   SettingsApplyResponse,
   SettingsGeneralSection,
+  SettingsHookCollection,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
+  SettingsMCPServerCollection,
   SettingsMCPServerEntry,
   SettingsMemorySection,
   SettingsMutationResult,
   SettingsNetworkSection,
   SettingsNotificationPresetCollection,
   SettingsObservabilitySection,
+  SettingsProviderCollection,
   SettingsProviderEntry,
   SettingsRestartResponse,
   SettingsRestartStatus,
@@ -869,20 +873,32 @@ export const settingsExtensionMarketplaceFixtures: SettingsExtensionMarketplaceE
 ];
 
 export const settingsProvidersCollectionFixture = {
+  available_scopes: ["global"],
+  collection: "providers",
   providers: settingsProviderFixtures,
-};
+  scope: "global",
+} satisfies SettingsProviderCollection;
 
 export const settingsSandboxesCollectionFixture = {
+  available_scopes: ["global"],
+  collection: "sandboxes",
   sandboxes: settingsSandboxFixtures,
-};
+  scope: "global",
+} satisfies SettingsSandboxCollection;
 
 export const settingsHooksCollectionFixture = {
+  available_scopes: ["global"],
+  collection: "hooks",
   hooks: settingsHookFixtures,
-};
+  scope: "global",
+} satisfies SettingsHookCollection;
 
 export const settingsMCPServersCollectionFixture = {
+  available_scopes: ["global", "workspace"],
+  collection: "mcp-servers",
   mcp_servers: settingsMCPServerFixtures,
-};
+  scope: "global",
+} satisfies SettingsMCPServerCollection;
 
 export const settingsExtensionsCollectionFixture = {
   extensions: settingsExtensionFixtures,

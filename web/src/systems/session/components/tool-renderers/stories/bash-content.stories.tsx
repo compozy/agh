@@ -6,7 +6,7 @@ import { bashToolMessageFixture, longBashToolMessageFixture } from "@/systems/se
 import { BashContent } from "../bash-content";
 
 const meta: Meta<typeof BashContent> = {
-  title: "systems/session/tool-renderers/BashContent",
+  title: "systems/session/components/tool-renderers/BashContent",
   component: BashContent,
   parameters: {
     layout: "centered",

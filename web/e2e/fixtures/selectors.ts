@@ -573,7 +573,8 @@ export const settingsMCPServersTestIds = {
   create: "settings-page-mcp-servers-create",
   actionResult: "settings-page-mcp-servers-action-result",
   actionResultDismiss: "settings-page-mcp-servers-action-result-dismiss",
-  scopeGlobal: "settings-page-mcp-servers-scope-global",
+  scopeGlobal: "mcp-scope-global",
+  scopeWorkspace: "mcp-scope-workspace",
   scopeLabel: "settings-page-mcp-servers-scope-label",
   editor: "settings-mcp-servers-editor",
   editorNameInput: "settings-mcp-servers-editor-name-input",
@@ -679,7 +680,7 @@ interface SettingsMCPServersSelectors {
   rowSource(name: string): Locator;
   scopeGlobal: Locator;
   scopeLabel: Locator;
-  scopeWorkspace(workspaceId: string): Locator;
+  scopeWorkspace: Locator;
 }
 
 interface SettingsHooksExtensionsSelectors {
@@ -1269,6 +1270,7 @@ export function settingsOperatorSelectors(
       actionResult: page.getByTestId(settingsMCPServersTestIds.actionResult),
       actionResultDismiss: page.getByTestId(settingsMCPServersTestIds.actionResultDismiss),
       scopeGlobal: page.getByTestId(settingsMCPServersTestIds.scopeGlobal),
+      scopeWorkspace: page.getByTestId(settingsMCPServersTestIds.scopeWorkspace),
       scopeLabel: page.getByTestId(settingsMCPServersTestIds.scopeLabel),
       editor: page.getByTestId(settingsMCPServersTestIds.editor),
       editorNameInput: page.getByTestId(settingsMCPServersTestIds.editorNameInput),
@@ -1282,8 +1284,6 @@ export function settingsOperatorSelectors(
       rowSource: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-source`),
       editRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-edit`),
       deleteRow: (name: string) => page.getByTestId(`settings-page-mcp-servers-row-${name}-delete`),
-      scopeWorkspace: (workspaceId: string) =>
-        page.getByTestId(`settings-page-mcp-servers-scope-workspace-${workspaceId}`),
     },
     hooksExtensions: {
       page: page.getByTestId(settingsHooksExtensionsTestIds.page),

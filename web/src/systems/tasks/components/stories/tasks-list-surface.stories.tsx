@@ -90,7 +90,7 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
 }
 
 const meta: Meta<typeof TasksListSurface> = {
-  title: "systems/tasks/TasksListSurface",
+  title: "systems/tasks/components/TasksListSurface",
   component: TasksListSurface,
   parameters: { layout: "fullscreen" },
 };

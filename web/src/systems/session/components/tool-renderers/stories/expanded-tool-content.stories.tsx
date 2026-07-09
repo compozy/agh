@@ -6,7 +6,7 @@ import { bashToolMessageFixture, runningBashToolMessageFixture } from "@/systems
 import { ExpandedToolContent } from "../expanded-tool-content";
 
 const meta: Meta<typeof ExpandedToolContent> = {
-  title: "systems/session/tool-renderers/ExpandedToolContent",
+  title: "systems/session/components/tool-renderers/ExpandedToolContent",
   component: ExpandedToolContent,
   parameters: {
     layout: "centered",

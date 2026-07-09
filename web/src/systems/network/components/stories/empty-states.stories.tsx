@@ -11,7 +11,7 @@ import {
 } from "@/systems/network";
 
 const meta: Meta = {
-  title: "systems/network/EmptyStates",
+  title: "systems/network/components/EmptyStates",
   parameters: {
     layout: "fullscreen",
     docs: {

@@ -4,7 +4,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { WorkBanner, WorkChip, WorkInspector, type OpenWorkEntry } from "@/systems/network";
 
 const meta: Meta<typeof WorkChip> = {
-  title: "systems/network/Work",
+  title: "systems/network/components/Work",
   component: WorkChip,
   parameters: {
     layout: "fullscreen",

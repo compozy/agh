@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   automationJobFixtures,
@@ -12,8 +13,8 @@ const jobById = new Map(automationJobFixtures.map(job => [job.id, job]));
 const triggerById = new Map(automationTriggerFixtures.map(trigger => [trigger.id, trigger]));
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/automation/jobs", () => HttpResponse.json({ jobs: automationJobFixtures })),
-  http.get("/api/automation/jobs/:id", ({ params }) => {
+  aghApiMock.get("/api/automation/jobs", () => HttpResponse.json({ jobs: automationJobFixtures })),
+  aghApiMock.get("/api/automation/jobs/{id}", ({ params }) => {
     const id = String(params.id);
     const job = jobById.get(id);
 
@@ -23,7 +24,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ job });
   }),
-  http.post("/api/automation/jobs", async ({ request }) => {
+  aghApiMock.post("/api/automation/jobs", async ({ request }) => {
     const body = (await request.json()) as Partial<typeof primaryAutomationJobFixture>;
     return HttpResponse.json(
       {
@@ -38,7 +39,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.patch("/api/automation/jobs/:id", async ({ params, request }) => {
+  aghApiMock.patch("/api/automation/jobs/{id}", async ({ params, request }) => {
     const id = String(params.id);
     const job = jobById.get(id);
 
@@ -49,7 +50,7 @@ export const handlers: HttpHandler[] = [
     const body = (await request.json()) as Partial<typeof primaryAutomationJobFixture>;
     return HttpResponse.json({ job: { ...job, ...body, id } });
   }),
-  http.delete("/api/automation/jobs/:id", ({ params }) => {
+  aghApiMock.delete("/api/automation/jobs/{id}", ({ params }) => {
     const id = String(params.id);
 
     if (!jobById.has(id)) {
@@ -58,7 +59,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.post("/api/automation/jobs/:id/trigger", ({ params }) => {
+  aghApiMock.post("/api/automation/jobs/{id}/trigger", ({ params }) => {
     const id = String(params.id);
 
     if (!jobById.has(id)) {
@@ -70,11 +71,11 @@ export const handlers: HttpHandler[] = [
         ...automationRunFixtures[0],
         id: `run_${id}_manual`,
         job_id: id,
-        status: "queued",
+        status: "scheduled",
       },
     });
   }),
-  http.get("/api/automation/jobs/:id/runs", ({ params }) => {
+  aghApiMock.get("/api/automation/jobs/{id}/runs", ({ params }) => {
     const id = String(params.id);
 
     if (!jobById.has(id)) {
@@ -85,10 +86,10 @@ export const handlers: HttpHandler[] = [
       runs: automationRunFixtures.filter(run => run.job_id === id),
     });
   }),
-  http.get("/api/automation/triggers", () =>
+  aghApiMock.get("/api/automation/triggers", () =>
     HttpResponse.json({ triggers: automationTriggerFixtures })
   ),
-  http.get("/api/automation/triggers/:id", ({ params }) => {
+  aghApiMock.get("/api/automation/triggers/{id}", ({ params }) => {
     const id = String(params.id);
     const trigger = triggerById.get(id);
 
@@ -98,7 +99,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ trigger });
   }),
-  http.post("/api/automation/triggers", async ({ request }) => {
+  aghApiMock.post("/api/automation/triggers", async ({ request }) => {
     const body = (await request.json()) as Partial<typeof primaryAutomationTriggerFixture>;
     return HttpResponse.json(
       {
@@ -113,7 +114,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.patch("/api/automation/triggers/:id", async ({ params, request }) => {
+  aghApiMock.patch("/api/automation/triggers/{id}", async ({ params, request }) => {
     const id = String(params.id);
     const trigger = triggerById.get(id);
 
@@ -124,7 +125,7 @@ export const handlers: HttpHandler[] = [
     const body = (await request.json()) as Partial<typeof primaryAutomationTriggerFixture>;
     return HttpResponse.json({ trigger: { ...trigger, ...body, id } });
   }),
-  http.delete("/api/automation/triggers/:id", ({ params }) => {
+  aghApiMock.delete("/api/automation/triggers/{id}", ({ params }) => {
     const id = String(params.id);
 
     if (!triggerById.has(id)) {
@@ -133,7 +134,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.get("/api/automation/triggers/:id/runs", ({ params }) => {
+  aghApiMock.get("/api/automation/triggers/{id}/runs", ({ params }) => {
     const id = String(params.id);
 
     if (!triggerById.has(id)) {
@@ -144,5 +145,5 @@ export const handlers: HttpHandler[] = [
       runs: automationRunFixtures.filter(run => run.trigger_id === id),
     });
   }),
-  http.get("/api/automation/runs", () => HttpResponse.json({ runs: automationRunFixtures })),
+  aghApiMock.get("/api/automation/runs", () => HttpResponse.json({ runs: automationRunFixtures })),
 ];

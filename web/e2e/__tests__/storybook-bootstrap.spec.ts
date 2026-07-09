@@ -9,13 +9,14 @@ import { expect, test } from "@playwright/test";
 const storybookHost = "127.0.0.1";
 const storybookPort = 6106;
 const storybookBaseURL = `http://${storybookHost}:${storybookPort}`;
-const storyURL = `${storybookBaseURL}/iframe.html?id=components-designsystemshowcase--default&viewMode=story`;
-const storyModulePath = "/src/components/stories/design-system-showcase.stories.tsx";
+const storyURL = `${storybookBaseURL}/iframe.html?id=systems-design-system-components-designsystemshowcase--default&viewMode=story`;
+const storyModulePath =
+  "/src/systems/design-system/components/stories/design-system-showcase.stories.tsx";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 test.setTimeout(180_000);
 
-test("registers the MSW worker and bypasses unknown requests in web Storybook", async ({
+test("registers the MSW worker and fails unknown local API requests in web Storybook", async ({
   page,
 }) => {
   const cwd = path.resolve(currentDir, "../..");
@@ -61,16 +62,24 @@ test("registers the MSW worker and bypasses unknown requests in web Storybook", 
       .toBeTruthy();
 
     const unknownRequest = await page.evaluate(async () => {
-      const response = await fetch("/api/storybook-unhandled-request");
-      return {
-        ok: response.ok,
-        status: response.status,
-      };
+      try {
+        const response = await fetch("/api/storybook-unhandled-request");
+        return {
+          ok: response.ok,
+          rejected: false,
+          status: response.status,
+        };
+      } catch (error) {
+        return {
+          message: error instanceof Error ? error.message : String(error),
+          rejected: true,
+        };
+      }
     });
 
-    expect(unknownRequest).toEqual({ ok: false, status: 404 });
+    expect(unknownRequest).toMatchObject({ rejected: true });
     expect(browserConsole.some(entry => entry.includes("without a matching request handler"))).toBe(
-      false
+      true
     );
   } finally {
     await stopStorybook(storybook);

@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
-import { Play, Square, Trash2 } from "lucide-react";
+import { Eraser, Play, Square, Trash2 } from "lucide-react";
 
 import { Button, Pill, Spinner, useTopbarSlot, type PillTone } from "@agh/ui";
 
@@ -40,24 +40,32 @@ interface UseSessionTopbarSlotInput {
   isDeleting: boolean;
   isStopping: boolean;
   isResuming: boolean;
+  isClearing: boolean;
+  canClear: boolean;
   onDelete: () => void;
   onStop: () => void;
   onResume: () => void;
+  onClear: () => void;
 }
 
 /**
  * Composes the session detail-route topbar slot — agent name as
  * the slot title, daemon badge + provider as the meta slot, and the lifecycle
- * controls (delete/stop/attach) as the actions slot.
+ * controls (clear/delete/stop/attach) as the actions slot. Clear-conversation
+ * lives here rather than beside the composer input so a destructive reset is not
+ * one keystroke from the prompt field.
  */
 export function useSessionTopbarSlot({
   session,
   isDeleting,
   isStopping,
   isResuming,
+  isClearing,
+  canClear,
   onDelete,
   onStop,
   onResume,
+  onClear,
 }: UseSessionTopbarSlotInput): void {
   const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
   const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
@@ -115,6 +123,17 @@ export function useSessionTopbarSlot({
           type="button"
           variant="ghost"
           size="icon-sm"
+          onClick={onClear}
+          disabled={!canClear}
+          data-testid="composer-clear-button"
+          aria-label="Clear conversation"
+        >
+          {isClearing ? <Spinner className="size-3" /> : <Eraser className="size-3" />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
           onClick={onDelete}
           disabled={controlsBusy}
           data-testid="delete-button"
@@ -153,10 +172,13 @@ export function useSessionTopbarSlot({
     [
       controlsBusy,
       canResume,
+      canClear,
       isActive,
+      isClearing,
       isDeleting,
       isStopping,
       isResuming,
+      onClear,
       onDelete,
       onStop,
       onResume,

@@ -1045,10 +1045,10 @@ export async function seedBrowserAutomationOperatorFlow(
         timeoutMs,
         (baselineRun as { workspace_id?: string }).workspace_id
       );
-      const payload = await runtime.requestJSON<{ messages: unknown[] }>(
+      const payload = await runtime.requestJSON<{ entries: Array<{ message: unknown }> }>(
         workspaceSessionPath(workspaceId, baselineRun.session_id ?? "", "/transcript")
       );
-      const transcript = JSON.stringify(payload.messages);
+      const transcript = JSON.stringify(payload.entries.map(entry => entry.message));
 
       return transcript.includes(browserAutomationOperatorFlowScenario.job.prompt) &&
         transcript.includes(browserAutomationOperatorFlowScenario.transcript.assistant)
@@ -1835,10 +1835,10 @@ export async function triggerBrowserBridgeIngress(
         (routes[0] as { workspace_id?: string } | undefined)?.workspace_id,
         `bridge route for session ${sessionId}`
       );
-      const payload = await runtime.requestJSON<{ messages: unknown[] }>(
+      const payload = await runtime.requestJSON<{ entries: Array<{ message: unknown }> }>(
         workspaceSessionPath(workspaceId, sessionId, "/transcript")
       );
-      const transcript = JSON.stringify(payload.messages);
+      const transcript = JSON.stringify(payload.entries.map(entry => entry.message));
       const assistantText =
         seed.assistantText?.trim() || browserBridgeOperatorFlowScenario.ingress.assistant;
 
@@ -1851,7 +1851,7 @@ export async function triggerBrowserBridgeIngress(
   return {
     routes,
     sessionId,
-    transcript: JSON.stringify(transcriptPayload.messages),
+    transcript: JSON.stringify(transcriptPayload.entries.map(entry => entry.message)),
   };
 }
 

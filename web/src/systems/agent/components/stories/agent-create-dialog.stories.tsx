@@ -26,7 +26,7 @@ const validDraft: AgentCreateDialogDraft = {
 };
 
 const meta: Meta<typeof AgentCreateDialog> = {
-  title: "systems/agent/AgentCreateDialog",
+  title: "systems/agent/components/AgentCreateDialog",
   component: AgentCreateDialog,
   parameters: {
     layout: "fullscreen",

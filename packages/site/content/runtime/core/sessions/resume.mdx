@@ -158,14 +158,15 @@ diagnostic payload is redacted before it leaves the daemon when it contains sens
 
 ## Replay surfaces
 
-AGH exposes four read paths for old work:
+AGH exposes these read paths for old work:
 
-| Surface                                                             | Use it for                                |
-| ------------------------------------------------------------------- | ----------------------------------------- |
-| `agh session events`                                                | Raw persisted event rows.                 |
-| `agh session history`                                               | Turn-grouped operator history.            |
-| `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` | Canonical chat transcript reconstruction. |
-| `agh session recap` / `GET .../recap`                               | Bounded redacted reorientation snapshot.  |
+| Surface                                                             | Use it for                               |
+| ------------------------------------------------------------------- | ---------------------------------------- |
+| `agh session events`                                                | Raw persisted event rows.                |
+| `agh session history`                                               | Turn-grouped operator history.           |
+| `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` | Canonical chat transcript entries.       |
+| `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`     | Live transcript snapshots and deltas.    |
+| `agh session recap` / `GET .../recap`                               | Bounded redacted reorientation snapshot. |
 
 Transcript assembly is deterministic and event-driven:
 
@@ -176,6 +177,12 @@ Transcript assembly is deterministic and event-driven:
 - marker events are kept as marker records instead of being guessed from message text
 - empty text chunks are dropped
 - non-chat events such as `plan`, `system`, `done`, and `error` only flush in-progress assistant buffers
+
+The transcript API returns `entries`, not a bare `messages` array. Each entry carries the folded
+AI SDK UI message plus the persisted event `sequence` that last shaped it. Use `after_sequence` for
+forward paging, `before_sequence` for backward paging, and `limit` for the bounded window size.
+Live clients should use the session stream's default transcript frames with `replay=snapshot` when
+they need an initial window followed by incremental `transcript_delta` frames.
 
 ## Common cases and gotchas
 

@@ -6,7 +6,7 @@ import { LoopRunForm } from "../run-form/loop-run-form";
 import { loopDetailByName } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopRunForm> = {
-  title: "systems/loops/LoopRunForm",
+  title: "systems/loops/components/LoopRunForm",
   component: LoopRunForm,
   parameters: { layout: "fullscreen" },
 };

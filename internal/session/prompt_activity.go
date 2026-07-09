@@ -166,7 +166,7 @@ func (s *promptActivitySupervisor) finish(now time.Time) {
 		now = s.now()
 	}
 	s.session.clearRuntimeActivity(now)
-	if err := s.manager.writeMeta(s.session); err != nil {
+	if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity clear failed", "turn_id", s.turnID, "error", err)
 	}
@@ -349,7 +349,7 @@ func (s *promptActivitySupervisor) recordRuntimeTimeout(now time.Time, stopDetai
 		return
 	}
 	s.session.markRuntimeStalled(stopDetail, now)
-	if err := s.manager.writeMeta(s.session); err != nil {
+	if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime timeout stall failed", "turn_id", s.turnID, "error", err)
 	}
@@ -464,7 +464,7 @@ func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail 
 	s.mu.Unlock()
 
 	stallState, stallReason := s.session.observeRuntimeActivity(activity, now)
-	if err := s.manager.writeMeta(s.session); err != nil {
+	if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime heartbeat failed", "turn_id", s.turnID, "error", err)
 	}
@@ -520,7 +520,7 @@ func (s *promptActivitySupervisor) touchWithTool(
 	s.mu.Unlock()
 
 	stallState, stallReason := s.session.observeRuntimeActivity(activity, now)
-	if err := s.manager.writeMeta(s.session); err != nil {
+	if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity failed", "turn_id", s.turnID, "error", err)
 	}
@@ -555,7 +555,7 @@ func (s *promptActivitySupervisor) buildRuntimeEvent(
 	if s.session != nil && s.manager != nil {
 		if meta := storeActivityFromRuntime(activity); meta != nil {
 			s.session.observeRuntimeEventActivity(*meta, now)
-			if err := s.manager.writeMeta(s.session); err != nil {
+			if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 				s.manager.sessionLogger(s.session).
 					Warn("session: persist runtime progress failed", "turn_id", s.turnID, "error", err)
 			}
@@ -717,7 +717,7 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 	if shouldPersist {
 		healthError := unhealthyProcessDiagnostic(health)
 		s.session.markRuntimeStalled(store.SessionStallReasonProcessUnhealthy, now)
-		if err := s.manager.writeMeta(s.session); err != nil {
+		if err := s.manager.persistSessionMetadataOnly(s.session); err != nil {
 			s.manager.sessionLogger(s.session).
 				Warn("session: persist unhealthy runtime stall failed", "turn_id", s.turnID, "error", err)
 		}

@@ -13,7 +13,7 @@ import {
 import { SkillDetailPanel } from "../skill-detail-panel";
 
 const meta: Meta<typeof SkillDetailPanel> = {
-  title: "systems/skill/SkillDetailPanel",
+  title: "systems/skill/components/SkillDetailPanel",
   component: SkillDetailPanel,
   parameters: {
     layout: "fullscreen",

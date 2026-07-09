@@ -13,7 +13,7 @@ import { agentFixtures } from "@/systems/agent/mocks";
 import { NetworkCreateChannelDialog } from "../network-create-channel-dialog";
 
 const meta: Meta<typeof NetworkCreateChannelDialog> = {
-  title: "systems/network/NetworkCreateChannelDialog",
+  title: "systems/network/components/NetworkCreateChannelDialog",
   component: NetworkCreateChannelDialog,
   parameters: {
     layout: "fullscreen",

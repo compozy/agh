@@ -8,7 +8,7 @@ import type { TaskScope } from "@/systems/tasks";
 import { ModeToolbar, type TaskFormMode } from "../../task-form/mode-toolbar";
 
 const meta: Meta<typeof ModeToolbar> = {
-  title: "systems/tasks/task-form/ModeToolbar",
+  title: "systems/tasks/components/task-form/ModeToolbar",
   component: ModeToolbar,
   parameters: {
     layout: "fullscreen",

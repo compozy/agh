@@ -7,7 +7,7 @@ import { DirectRoom } from "../directs/direct-room";
 import { NewDirectDialog } from "../directs/new-direct-dialog";
 
 const meta: Meta<typeof DirectRoom> = {
-  title: "systems/network/DirectRoom",
+  title: "systems/network/components/DirectRoom",
   component: DirectRoom,
   parameters: {
     layout: "fullscreen",

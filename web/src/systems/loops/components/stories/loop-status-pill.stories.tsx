@@ -7,7 +7,7 @@ import { LoopStatusPill } from "../loop-status-pill";
 import type { LoopRunStatus } from "../../types";
 
 const meta: Meta<typeof LoopStatusPill> = {
-  title: "systems/loops/LoopStatusPill",
+  title: "systems/loops/components/LoopStatusPill",
   component: LoopStatusPill,
   parameters: {
     layout: "fullscreen",

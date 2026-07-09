@@ -392,9 +392,11 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 		opsTranscript := mustSessionTranscript(t, ctx, harness, opsSession.ID)
 		patchTranscript := mustSessionTranscript(t, ctx, harness, patchSession.ID)
+		opsMessages := sessionTranscriptMessages(opsTranscript)
+		patchMessages := sessionTranscriptMessages(patchTranscript)
 		audit := mustNetworkAuditSnapshot(t, harness)
 
-		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_direct_01",
 			Kind:            "say",
 			Surface:         "direct",
@@ -408,7 +410,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("validateNetworkCorrelationSurfaces(direct) error = %v", err)
 		}
-		if err := validateNetworkCorrelationSurfaces(patchTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(patchMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_receipt_01",
 			Kind:            "receipt",
 			Surface:         "direct",
@@ -422,7 +424,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("validateNetworkCorrelationSurfaces(receipt) error = %v", err)
 		}
-		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_trace_02",
 			Kind:            "trace",
 			Surface:         "direct",
@@ -436,7 +438,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("validateNetworkCorrelationSurfaces(trace) error = %v", err)
 		}
-		if err := validateNetworkCorrelationSurfaces(opsTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(opsMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_summary_01",
 			Kind:            "say",
 			Surface:         "thread",
@@ -739,9 +741,11 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 
 		releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
 		curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)
+		releaseMessages := sessionTranscriptMessages(releaseTranscript)
+		curatorMessages := sessionTranscriptMessages(curatorTranscript)
 		audit := mustNetworkAuditSnapshot(t, harness)
 
-		releaseContent := joinTranscriptContent(releaseTranscript.Messages)
+		releaseContent := joinTranscriptContent(releaseMessages)
 		for _, needle := range []string{
 			attributeNeedle("kind", "whois"),
 			attributeNeedle("reply-to", "msg_whois_01"),
@@ -754,7 +758,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 				t.Fatalf("release transcript missing %q in %s", needle, releaseContent)
 			}
 		}
-		if err := validateNetworkCorrelationSurfaces(curatorTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(curatorMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_direct_20",
 			Kind:            "say",
 			Surface:         "direct",
@@ -768,7 +772,7 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("validateNetworkCorrelationSurfaces(capability direct) error = %v", err)
 		}
-		if err := validateNetworkCorrelationSurfaces(releaseTranscript.Messages, audit, networkCorrelationExpectation{
+		if err := validateNetworkCorrelationSurfaces(releaseMessages, audit, networkCorrelationExpectation{
 			MessageID:       "msg_trace_21",
 			Kind:            "trace",
 			Surface:         "direct",
@@ -1576,7 +1580,7 @@ func sessionTranscriptHasNeedle(
 	if err != nil {
 		return false
 	}
-	return strings.Contains(joinTranscriptContent(response.Messages), needle)
+	return strings.Contains(joinTranscriptContent(sessionTranscriptMessages(response)), needle)
 }
 
 func mustNetworkAuditSnapshot(
@@ -1647,7 +1651,7 @@ func registerNetworkScenarioArtifacts(
 				t.Logf("SessionEvents(%q) artifact error = %v", session.ID, err)
 				continue
 			}
-			transcripts[session.AgentName] = transcriptResp.Messages
+			transcripts[session.AgentName] = sessionTranscriptMessages(transcriptResp)
 			events[session.AgentName] = eventResp.Events
 		}
 		if len(transcripts) > 0 {

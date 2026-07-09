@@ -15,9 +15,12 @@ const webPreviewModule = await import("../../../.storybook/preview");
 const {
   createStorybookQueryClient,
   createStorybookRouter,
+  isBypassableStorybookRequest,
+  isStorybookLocalApiRequest,
   queryClientDecorator,
   routerDecorator,
   storybookDecorators,
+  storybookUnhandledRequest,
   storybookSystemHandlers,
 } = webPreviewModule;
 
@@ -39,10 +42,36 @@ function QueryClientProbe() {
 
 describe("web Storybook config", () => {
   it("registers MSW and exposes router decorators with system handlers", () => {
-    expect(initialize).toHaveBeenCalledWith({ onUnhandledRequest: "bypass" });
+    expect(initialize).toHaveBeenCalledWith({ onUnhandledRequest: storybookUnhandledRequest });
     expect(storybookSystemHandlers.length).toBeGreaterThan(0);
     expect(storybookDecorators).toContain(routerDecorator);
     expect(storybookDecorators).not.toContain(queryClientDecorator);
+  });
+
+  it("fails local unhandled API requests while bypassing assets and third-party calls", () => {
+    const print = {
+      error: vi.fn(),
+      warning: vi.fn(),
+    };
+    const localApiUrl = new URL(`${location.origin}/api/storybook-unhandled-request`);
+    const storybookConsolePipeUrl = new URL(`${location.origin}/__tsd/console-pipe`);
+    const storyAssetUrl = new URL(`${location.origin}/src/main.tsx`);
+    const thirdPartyUrl = new URL("https://cdn.example.com/library.js");
+    const localUnknownUrl = new URL(`${location.origin}/unexpected-route`);
+
+    expect(isStorybookLocalApiRequest(localApiUrl)).toBe(true);
+    expect(isBypassableStorybookRequest(storybookConsolePipeUrl)).toBe(true);
+    expect(isBypassableStorybookRequest(storyAssetUrl)).toBe(true);
+    expect(isBypassableStorybookRequest(thirdPartyUrl)).toBe(true);
+
+    storybookUnhandledRequest(new Request(localApiUrl.href), print);
+    storybookUnhandledRequest(new Request(storybookConsolePipeUrl.href), print);
+    storybookUnhandledRequest(new Request(storyAssetUrl.href), print);
+    storybookUnhandledRequest(new Request(thirdPartyUrl.href), print);
+    storybookUnhandledRequest(new Request(localUnknownUrl.href), print);
+
+    expect(print.error).toHaveBeenCalledTimes(1);
+    expect(print.warning).toHaveBeenCalledTimes(1);
   });
 
   it("creates story-scoped query clients with retry disabled and infinite stale time", () => {

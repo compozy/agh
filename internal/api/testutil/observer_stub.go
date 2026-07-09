@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 
+	"github.com/compozy/agh/internal/acp"
 	core "github.com/compozy/agh/internal/api/core"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/observe"
@@ -12,11 +13,13 @@ import (
 
 type StubObserver struct {
 	QueryEventsFn        func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	OnAgentEventFn       func(context.Context, string, acp.AgentEvent)
 	QueryHookCatalogFn   func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
 	QueryHookRunsFn      func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
 	QueryHookEventsFn    func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 	QueryBridgeHealthFn  func(context.Context) ([]observe.BridgeInstanceHealth, error)
 	HealthFn             func(context.Context) (observe.Health, error)
+	QueryTokenStatsFn    func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error)
 	QueryTaskDashboardFn func(context.Context, observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
 	QueryTaskInboxFn     func(
 		context.Context,
@@ -30,6 +33,17 @@ func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQ
 		return s.QueryEventsFn(ctx, query)
 	}
 	return nil, nil
+}
+
+func (s StubObserver) OnAgentEvent(ctx context.Context, sessionID string, event any) {
+	if s.OnAgentEventFn == nil {
+		return
+	}
+	agentEvent, ok := event.(acp.AgentEvent)
+	if !ok {
+		return
+	}
+	s.OnAgentEventFn(ctx, sessionID, agentEvent)
 }
 
 func (s StubObserver) QueryTaskDashboard(
@@ -90,6 +104,16 @@ func (s StubObserver) QueryHookEvents(
 ) ([]hookspkg.EventDescriptor, error) {
 	if s.QueryHookEventsFn != nil {
 		return s.QueryHookEventsFn(ctx, filter)
+	}
+	return nil, nil
+}
+
+func (s StubObserver) QueryTokenStats(
+	ctx context.Context,
+	query store.TokenStatsQuery,
+) ([]store.TokenStats, error) {
+	if s.QueryTokenStatsFn != nil {
+		return s.QueryTokenStatsFn(ctx, query)
 	}
 	return nil, nil
 }

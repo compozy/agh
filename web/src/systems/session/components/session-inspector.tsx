@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  Activity,
-  AlertCircle,
-  ChevronRight,
-  FileCode,
-  Gauge,
-  KeyRound,
-  Library,
-} from "lucide-react";
+import { Activity, AlertCircle, ChevronRight, FileCode, Gauge, Library } from "lucide-react";
 import type { AssistantState } from "@assistant-ui/react";
 
 import {
@@ -25,6 +17,7 @@ import {
 } from "@agh/ui";
 
 import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
+import { formatMessageTimestamp } from "../lib/format-timestamp";
 import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
@@ -52,16 +45,22 @@ export interface InspectorTraceEvent {
   status: InspectorTraceStatus;
 }
 
+/**
+ * Aggregated token-usage summary for the inspector Usage tab. Every field maps
+ * to a value the daemon actually reports (`GET .../sessions/{id}/usage`), so the
+ * tab renders real data instead of a structurally-empty metric surface. Absent
+ * fields render as "—" rather than fabricated zeros; per-turn rates and deltas
+ * are intentionally omitted because the daemon does not expose them truthfully.
+ */
 export interface InspectorUsage {
   tokensIn?: number;
   tokensOut?: number;
+  totalTokens?: number;
   costUsd?: number;
-  /** Rate shown as a mono detail (e.g., tokens per second). */
-  ratePerSecond?: number;
-  /** Delta vs previous turn — positive green, negative red, zero neutral. */
-  tokensInDelta?: number;
-  tokensOutDelta?: number;
-  costDelta?: number;
+  /** ISO-4217 currency code for `costUsd`; defaults to USD formatting when empty. */
+  costCurrency?: string;
+  /** Number of turns the aggregate spans; shown as a caption when > 0. */
+  turnCount?: number;
 }
 
 export interface InspectorSessionLedger {
@@ -348,32 +347,26 @@ function readFilePathFromInput(input: Record<string, unknown> | undefined): stri
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
 }
 
-function formatTimestamp(ts: number): string {
-  if (!Number.isFinite(ts) || ts <= 0) return "";
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
 function formatNumber(value?: number): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return value.toLocaleString();
 }
 
-function formatCost(value?: number): string {
+function formatCost(value?: number, currency?: string): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  const abs = Math.abs(value);
-  if (abs < 1) return `$${value.toFixed(3)}`;
-  return `$${value.toFixed(2)}`;
+  const code = normalizedCurrencyCode(currency);
+  const digits = Math.abs(value) < 1 ? 3 : 2;
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: code,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
 }
 
-function deltaTone(delta?: number): "default" | "success" | "danger" {
-  if (typeof delta !== "number" || !Number.isFinite(delta) || delta === 0) return "default";
-  return delta > 0 ? "success" : "danger";
-}
-
-function deltaLabel(delta?: number): string | undefined {
-  if (typeof delta !== "number" || !Number.isFinite(delta) || delta === 0) return undefined;
-  const prefix = delta > 0 ? "+" : "−";
-  return `${prefix}${Math.abs(delta).toLocaleString()}`;
+function normalizedCurrencyCode(currency?: string): string {
+  const code = currency?.trim().toUpperCase();
+  return code && /^[A-Z]{3}$/.test(code) ? code : "USD";
 }
 
 interface InspectorTabRendererProps {
@@ -559,7 +552,7 @@ function TraceSection({ events, total, limit, onViewAll }: TraceSectionProps) {
 function TraceRow({ event }: { event: InspectorTraceEvent }) {
   const tone = TRACE_STATUS_TONE[event.status];
   const pulse = event.status === "pending";
-  const ts = formatTimestamp(event.timestamp);
+  const ts = formatMessageTimestamp(event.timestamp);
   return (
     <li
       data-testid="session-inspector-trace-row"
@@ -607,53 +600,51 @@ function UsageSection({ usage }: UsageSectionProps) {
     usage !== undefined &&
     (usage.tokensIn !== undefined ||
       usage.tokensOut !== undefined ||
-      usage.costUsd !== undefined ||
-      usage.ratePerSecond !== undefined);
+      usage.totalTokens !== undefined ||
+      usage.costUsd !== undefined);
+  const turnCount = usage?.turnCount ?? 0;
 
   return (
-    <div data-testid="session-inspector-usage" className="flex min-h-full flex-col">
+    <div data-testid="session-inspector-usage" className="flex min-h-full flex-col gap-3">
       {hasUsage ? (
-        <div data-testid="session-inspector-usage-grid" className="grid grid-cols-2 gap-2">
-          <Metric
-            label="Tokens in"
-            value={formatNumber(usage?.tokensIn)}
-            tone={deltaTone(usage?.tokensInDelta)}
-            detail={deltaLabel(usage?.tokensInDelta)}
-            data-testid="session-inspector-usage-tokens-in"
-            className="p-3"
-          />
-          <Metric
-            label="Tokens out"
-            value={formatNumber(usage?.tokensOut)}
-            tone={deltaTone(usage?.tokensOutDelta)}
-            detail={deltaLabel(usage?.tokensOutDelta)}
-            data-testid="session-inspector-usage-tokens-out"
-            className="p-3"
-          />
-          <Metric
-            label="Total cost"
-            value={formatCost(usage?.costUsd)}
-            tone={deltaTone(usage?.costDelta)}
-            detail={deltaLabel(usage?.costDelta)}
-            data-testid="session-inspector-usage-cost"
-            className="p-3"
-          />
-          <Metric
-            label="Est. rate"
-            value={
-              typeof usage?.ratePerSecond === "number" && Number.isFinite(usage.ratePerSecond)
-                ? `${usage.ratePerSecond.toFixed(1)}/s`
-                : "—"
-            }
-            data-testid="session-inspector-usage-rate"
-            className="p-3"
-          />
-        </div>
+        <>
+          <div data-testid="session-inspector-usage-grid" className="grid grid-cols-2 gap-2">
+            <Metric
+              label="Tokens in"
+              value={formatNumber(usage?.tokensIn)}
+              data-testid="session-inspector-usage-tokens-in"
+              className="p-3"
+            />
+            <Metric
+              label="Tokens out"
+              value={formatNumber(usage?.tokensOut)}
+              data-testid="session-inspector-usage-tokens-out"
+              className="p-3"
+            />
+            <Metric
+              label="Total tokens"
+              value={formatNumber(usage?.totalTokens)}
+              data-testid="session-inspector-usage-total-tokens"
+              className="p-3"
+            />
+            <Metric
+              label="Total cost"
+              value={formatCost(usage?.costUsd, usage?.costCurrency)}
+              data-testid="session-inspector-usage-cost"
+              className="p-3"
+            />
+          </div>
+          {turnCount > 0 ? (
+            <Eyebrow data-testid="session-inspector-usage-turns" className="text-subtle self-start">
+              {`Across ${turnCount.toLocaleString()} turn${turnCount === 1 ? "" : "s"}`}
+            </Eyebrow>
+          ) : null}
+        </>
       ) : (
         <Empty
           icon={Gauge}
           title="No usage yet"
-          description="Token counts and cost land here once the agent completes its first turn."
+          description="Token counts and cost land here once the agent reports its first turn."
           data-testid="session-inspector-usage-empty"
         />
       )}
@@ -933,9 +924,3 @@ function FilesSection({ files }: FilesSectionProps) {
     </div>
   );
 }
-
-/**
- * Vault icon export preserved for downstream consumers (kept to avoid breaking
- * imports relying on the legacy KeyRound icon symbol).
- */
-export const SessionInspectorVaultIcon = KeyRound;

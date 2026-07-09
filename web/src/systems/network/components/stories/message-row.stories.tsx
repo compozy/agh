@@ -17,7 +17,7 @@ const traceMessage =
   networkThreadMessagesFixture.find(message => message.kind === "trace") ?? sayMessage;
 
 const meta: Meta<typeof MessageRow> = {
-  title: "systems/network/MessageRow",
+  title: "systems/network/components/MessageRow",
   component: MessageRow,
   parameters: {
     layout: "fullscreen",

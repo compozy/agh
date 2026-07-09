@@ -147,7 +147,7 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 	}
 
 	transcriptResp := mustSessionTranscript(t, ctx, harness, run.SessionID)
-	transcriptContent := joinTranscriptContent(transcriptResp.Messages)
+	transcriptContent := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
 	if !strings.Contains(transcriptContent, "Review payload deploy for main") {
 		t.Fatalf("transcript = %q, want rendered automation prompt", transcriptContent)
 	}
@@ -309,7 +309,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	}
 
 	taskTranscript := mustSessionTranscript(t, ctx, harness, startedRun.SessionID)
-	taskTranscriptContent := joinTranscriptContent(taskTranscript.Messages)
+	taskTranscriptContent := joinTranscriptContent(sessionTranscriptMessages(taskTranscript))
 	if !strings.Contains(taskTranscriptContent, "Continue delegated task run") {
 		t.Fatalf("task transcript = %q, want task-session prompt", taskTranscriptContent)
 	}

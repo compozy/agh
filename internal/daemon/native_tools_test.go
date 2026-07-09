@@ -6630,6 +6630,13 @@ func (o *nativeObserverStub) QueryHookEvents(
 	return hookspkg.AllEventDescriptors(), nil
 }
 
+func (o *nativeObserverStub) QueryTokenStats(
+	context.Context,
+	store.TokenStatsQuery,
+) ([]store.TokenStats, error) {
+	return nil, nil
+}
+
 func (o *nativeObserverStub) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
 	return append([]observe.BridgeInstanceHealth(nil), o.bridgeHealth...), nil
 }

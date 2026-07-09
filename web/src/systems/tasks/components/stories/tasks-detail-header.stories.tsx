@@ -5,7 +5,7 @@ import { TasksDetailHeader } from "../tasks-detail-header";
 import { buildDetailFixture } from "./fixtures";
 
 const meta: Meta<typeof TasksDetailHeader> = {
-  title: "systems/tasks/TasksDetailHeader",
+  title: "systems/tasks/components/TasksDetailHeader",
   component: TasksDetailHeader,
   parameters: {
     layout: "fullscreen",

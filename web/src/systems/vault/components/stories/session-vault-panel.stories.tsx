@@ -37,7 +37,7 @@ const denseSecrets = Array.from(
 );
 
 const meta: Meta<typeof SessionVaultPanel> = {
-  title: "systems/vault/SessionVaultPanel",
+  title: "systems/vault/components/SessionVaultPanel",
   component: SessionVaultPanel,
   parameters: {
     layout: "fullscreen",

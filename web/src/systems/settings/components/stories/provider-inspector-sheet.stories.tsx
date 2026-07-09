@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { useMemo, useState } from "react";
 import { fn } from "storybook/test";
 
@@ -14,7 +15,7 @@ const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;
 
 const freshHandlers = [
-  http.get("/api/model-catalog/providers/:provider_id/models/status", () =>
+  aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
     HttpResponse.json({
       sources: [
         {
@@ -30,8 +31,21 @@ const freshHandlers = [
       ],
     })
   ),
-  http.post("/api/model-catalog/providers/:provider_id/models/refresh", () =>
-    HttpResponse.json({ operation_id: "model_refresh_story", status: "queued" })
+  aghApiMock.post("/api/model-catalog/providers/{provider_id}/models/refresh", () =>
+    HttpResponse.json({
+      sources: [
+        {
+          source_id: "models.dev",
+          source_kind: "models_dev",
+          priority: 0,
+          provider_id: "claude",
+          refresh_state: "queued",
+          row_count: 42,
+          stale: false,
+          next_refresh: "2026-04-17T18:12:00Z",
+        },
+      ],
+    })
   ),
 ];
 
@@ -128,7 +142,7 @@ function Harness({ initialState }: HarnessProps) {
 }
 
 const meta: Meta<typeof ProviderInspectorSheet> = {
-  title: "systems/settings/ProviderInspectorSheet",
+  title: "systems/settings/components/ProviderInspectorSheet",
   component: ProviderInspectorSheet,
   parameters: {
     layout: "fullscreen",

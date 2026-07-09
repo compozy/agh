@@ -104,4 +104,39 @@ func TestRegistryMetadata(t *testing.T) {
 			t.Fatal("AllowsGlobalScope(MemoryProviderCollision) = false, want true for extension collision summaries")
 		}
 	})
+
+	t.Run("Should expose transcript stream snapshot metadata", func(t *testing.T) {
+		t.Parallel()
+
+		meta, ok := Lookup(SessionStreamSnapshotServed)
+		if !ok {
+			t.Fatal("Lookup(SessionStreamSnapshotServed) = false")
+		}
+		if meta.Family != "transcript_stream" ||
+			meta.Component != ComponentTranscript ||
+			meta.Outcome != OutcomeInfo ||
+			!meta.EmitsToLogs {
+			t.Fatalf("SessionStreamSnapshotServed metadata = %#v", meta)
+		}
+		subscribed, ok := Lookup(SessionStreamSubscribed)
+		if !ok {
+			t.Fatal("Lookup(SessionStreamSubscribed) = false")
+		}
+		if subscribed.Family != "transcript_stream" ||
+			subscribed.Component != ComponentTranscript ||
+			subscribed.Outcome != OutcomeInfo ||
+			!subscribed.EmitsToLogs {
+			t.Fatalf("SessionStreamSubscribed metadata = %#v", subscribed)
+		}
+		overflow, ok := Lookup(SessionStreamOverflowFallback)
+		if !ok {
+			t.Fatal("Lookup(SessionStreamOverflowFallback) = false")
+		}
+		if overflow.Family != "transcript_stream" ||
+			overflow.Component != ComponentTranscript ||
+			overflow.Outcome != OutcomeWarning ||
+			!overflow.EmitsToLogs {
+			t.Fatalf("SessionStreamOverflowFallback metadata = %#v", overflow)
+		}
+	})
 }

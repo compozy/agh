@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
@@ -909,10 +910,11 @@ func waitForSessionTranscriptText(
 	var lastVisible string
 	var lastErr error
 	for time.Now().Before(deadline) {
-		messages, err := sessions.Transcript(testutil.Context(t), sessionID)
+		entries, err := sessions.Transcript(testutil.Context(t), sessionID, store.EventQuery{})
 		if err != nil {
 			lastErr = err
 		} else {
+			messages := transcriptpkg.MessagesFromEntries(entries)
 			lastVisible = transcriptpkg.JoinUIMessageText(messages)
 			if containsAllText(lastVisible, wantTexts) {
 				return messages

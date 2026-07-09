@@ -1,11 +1,14 @@
 import { useMemo } from "react";
 
+import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import { useSessionTopbarSlot } from "@/hooks/routes/use-session-topbar-slot";
 import {
   useSessionLedger,
+  useSessionUsage,
   type InspectorMemoryState,
+  type InspectorUsage,
   type SessionPayload,
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
@@ -19,8 +22,10 @@ export interface UseSessionDetailPageInput {
 export interface UseSessionDetailPageResult {
   controls: ReturnType<typeof useSessionPageControls>;
   inspectorMemory: InspectorMemoryState;
+  inspectorUsage: InspectorUsage | null;
   sessionVault: ReturnType<typeof useSessionVaultSecrets>;
   deleteDialog: ReturnType<typeof useSessionDeleteDialog>;
+  clearDialog: ReturnType<typeof useSessionClearDialog>;
 }
 
 /**
@@ -50,17 +55,36 @@ export function useSessionDetailPage({
     }),
     [sessionLedger.data, sessionLedger.isLoading, sessionLedger.error]
   );
+  const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state);
+  const inspectorUsage = useMemo<InspectorUsage | null>(() => {
+    const usage = sessionUsage.data;
+    if (!usage) {
+      return null;
+    }
+    return {
+      tokensIn: usage.input_tokens ?? undefined,
+      tokensOut: usage.output_tokens ?? undefined,
+      totalTokens: usage.total_tokens ?? undefined,
+      costUsd: usage.total_cost ?? undefined,
+      costCurrency: usage.cost_currency || undefined,
+      turnCount: usage.turn_count,
+    };
+  }, [sessionUsage.data]);
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
+  const clearDialog = useSessionClearDialog(controls.handleClear);
 
   useSessionTopbarSlot({
     session,
     isDeleting: controls.isDeleting,
     isStopping: controls.isStopping,
     isResuming: controls.isResuming,
+    isClearing: controls.isClearing,
+    canClear: controls.canClear,
     onDelete: deleteDialog.openDialog,
     onStop: controls.handleStop,
     onResume: controls.handleResume,
+    onClear: clearDialog.openDialog,
   });
 
-  return { controls, inspectorMemory, sessionVault, deleteDialog };
+  return { controls, inspectorMemory, inspectorUsage, sessionVault, deleteDialog, clearDialog };
 }

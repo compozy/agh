@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -57,7 +58,7 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			t.Fatalf("clear restart ResumeSessionID = %q, want empty for fresh provider context", got)
 		}
 
-		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID)
+		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID, store.EventQuery{})
 		if err != nil {
 			t.Fatalf("Transcript(after clear) error = %v", err)
 		}
@@ -139,7 +140,7 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 		if got := len(events); got != 0 {
 			t.Fatalf("Events(after clear) len = %d, want 0", got)
 		}
-		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID)
+		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID, store.EventQuery{})
 		if err != nil {
 			t.Fatalf("Transcript(after clear) error = %v", err)
 		}
@@ -219,6 +220,112 @@ func TestClearConversationResetsStoreOpenedWithStaleRows(t *testing.T) {
 	})
 }
 
+func TestClearConversationFailureRecovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stop the replacement session and restore the old event store when epoch commit fails", func(
+		t *testing.T,
+	) {
+		h := newHarness(t)
+		epochStore := newFakeTranscriptEpochStore()
+		epochStore.ensureErr = errors.New("epoch store unavailable")
+		h.manager = newManagerWithHarness(t, h, WithTranscriptEpochStore(epochStore))
+		session := createSession(t, h)
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
+		if err != nil {
+			t.Fatalf("Prompt(before clear) error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+
+		_, err = h.manager.ClearConversation(testutil.Context(t), session.ID)
+		if err == nil {
+			t.Fatal("ClearConversation() error = nil, want epoch commit failure")
+		}
+		if !strings.Contains(err.Error(), "ensure transcript epoch") {
+			t.Fatalf("ClearConversation() error = %v, want transcript epoch failure", err)
+		}
+		if got := h.driver.stopCalls; got < 2 {
+			t.Fatalf("driver stop calls = %d, want original stop plus replacement rollback", got)
+		}
+		if _, ok := h.manager.Get(session.ID); ok {
+			t.Fatal("manager.Get() ok = true, want replacement session removed after rollback")
+		}
+		if _, statErr := os.Stat(sessionDBClearCommitPath(session.DBPath())); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(clear commit marker) error = %v, want os.ErrNotExist", statErr)
+		}
+
+		stored := readStoredEvents(t, session)
+		if got := len(stored); got == 0 {
+			t.Fatal("stored events after failed clear = 0, want restored pre-clear transcript")
+		}
+		foundOriginalPrompt := false
+		for _, event := range stored {
+			if strings.Contains(event.Content, "before clear") {
+				foundOriginalPrompt = true
+				break
+			}
+		}
+		if !foundOriginalPrompt {
+			t.Fatalf("stored events after failed clear = %#v, want original prompt content", stored)
+		}
+	})
+
+	t.Run("Should keep committed clear marker when epoch reconciliation fails before backup", func(t *testing.T) {
+		h := newHarness(t)
+		epochStore := newFakeTranscriptEpochStore()
+		epochStore.ensureErr = errors.New("epoch store unavailable")
+		h.manager = newManagerWithHarness(t, h, WithTranscriptEpochStore(epochStore))
+		session := createSession(t, h)
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before committed clear")
+		if err != nil {
+			t.Fatalf("Prompt(before committed clear) error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		dbPath := session.DBPath()
+		backups, err := backupSessionDBAfterRecovery(dbPath)
+		if err != nil {
+			t.Fatalf("backupSessionDBAfterRecovery() error = %v", err)
+		}
+		if got := len(backups); got == 0 {
+			t.Fatal("backupSessionDBAfterRecovery() backups = 0, want at least session database backup")
+		}
+		recorder, err := sessiondb.OpenSessionDB(testutil.Context(t), session.ID, dbPath)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(fresh committed DB) error = %v", err)
+		}
+		if err := recorder.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(fresh committed DB) error = %v", err)
+		}
+		if err := commitSessionDBClear(dbPath, 7); err != nil {
+			t.Fatalf("commitSessionDBClear() error = %v", err)
+		}
+
+		_, err = h.manager.backupSessionDBForClear(testutil.Context(t), dbPath, session.ID)
+		if err == nil {
+			t.Fatal("backupSessionDBForClear() error = nil, want epoch reconciliation failure")
+		}
+		if !strings.Contains(err.Error(), "reconcile transcript epoch") {
+			t.Fatalf("backupSessionDBForClear() error = %v, want epoch reconciliation failure", err)
+		}
+		if _, statErr := os.Stat(sessionDBClearCommitPath(dbPath)); statErr != nil {
+			t.Fatalf("Stat(clear commit marker) error = %v, want marker preserved", statErr)
+		}
+		if _, statErr := os.Stat(dbPath + ".clear-backup"); statErr != nil {
+			t.Fatalf("Stat(clear backup) error = %v, want backup preserved", statErr)
+		}
+		if got := epochStore.ensureCallCount(); got != 1 {
+			t.Fatalf("ensure call count = %d, want 1", got)
+		}
+		if got := epochStore.ensureMinimum(session.ID); got != 7 {
+			t.Fatalf("ensure minimum = %d, want 7", got)
+		}
+	})
+}
+
 func TestClearConversationRejectsPromptInProgress(t *testing.T) {
 	t.Parallel()
 
@@ -259,6 +366,58 @@ func TestClearConversationRejectsPromptInProgress(t *testing.T) {
 			t.Fatalf("cleanup Stop() error = %v", stopErr)
 		}
 	})
+}
+
+type fakeTranscriptEpochStore struct {
+	mu        sync.Mutex
+	epochs    map[string]int64
+	minimums  map[string]int64
+	ensureErr error
+}
+
+func newFakeTranscriptEpochStore() *fakeTranscriptEpochStore {
+	return &fakeTranscriptEpochStore{
+		epochs:   make(map[string]int64),
+		minimums: make(map[string]int64),
+	}
+}
+
+func (s *fakeTranscriptEpochStore) SessionTranscriptEpoch(
+	_ context.Context,
+	sessionID string,
+) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.epochs[strings.TrimSpace(sessionID)], nil
+}
+
+func (s *fakeTranscriptEpochStore) EnsureSessionTranscriptEpoch(
+	_ context.Context,
+	update store.SessionTranscriptEpochUpdate,
+) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	target := strings.TrimSpace(update.SessionID)
+	s.minimums[target] = update.Minimum
+	if s.ensureErr != nil {
+		return 0, s.ensureErr
+	}
+	if s.epochs[target] < update.Minimum {
+		s.epochs[target] = update.Minimum
+	}
+	return s.epochs[target], nil
+}
+
+func (s *fakeTranscriptEpochStore) ensureCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.minimums)
+}
+
+func (s *fakeTranscriptEpochStore) ensureMinimum(sessionID string) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.minimums[strings.TrimSpace(sessionID)]
 }
 
 func TestBackupSessionDB(t *testing.T) {
@@ -361,7 +520,7 @@ func TestBackupSessionDB(t *testing.T) {
 		if err := os.WriteFile(backupPath, []byte("old"), 0o600); err != nil {
 			t.Fatalf("WriteFile(session.db clear backup) error = %v", err)
 		}
-		if err := commitSessionDBClear(dbPath); err != nil {
+		if err := commitSessionDBClear(dbPath, 1); err != nil {
 			t.Fatalf("commitSessionDBClear() error = %v", err)
 		}
 
@@ -376,6 +535,36 @@ func TestBackupSessionDB(t *testing.T) {
 		}
 		if _, statErr := os.Stat(sessionDBClearCommitPath(dbPath)); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("Stat(clear commit marker) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+
+	t.Run("Should keep committed clear marker when committed backup discard fails", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "session.db")
+		backupPath := dbPath + ".clear-backup"
+
+		if err := os.WriteFile(dbPath, []byte("fresh"), 0o600); err != nil {
+			t.Fatalf("WriteFile(fresh session.db) error = %v", err)
+		}
+		if err := os.Mkdir(backupPath, 0o755); err != nil {
+			t.Fatalf("Mkdir(session.db clear backup blocker) error = %v", err)
+		}
+		if err := commitSessionDBClear(dbPath, 1); err != nil {
+			t.Fatalf("commitSessionDBClear() error = %v", err)
+		}
+
+		err := (&Manager{}).finalizeCommittedSessionDBClear(
+			dbPath,
+			[]sessionDBBackup{{original: dbPath, backup: backupPath}},
+		)
+		if err == nil {
+			t.Fatal("finalizeCommittedSessionDBClear() error = nil, want backup discard failure")
+		}
+		if !strings.Contains(err.Error(), "remove clear backup") {
+			t.Fatalf("finalizeCommittedSessionDBClear() error = %v, want backup discard failure", err)
+		}
+		if _, statErr := os.Stat(sessionDBClearCommitPath(dbPath)); statErr != nil {
+			t.Fatalf("Stat(clear commit marker) error = %v, want marker preserved", statErr)
 		}
 	})
 }

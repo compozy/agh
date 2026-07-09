@@ -62,7 +62,7 @@ const fraudSessionsWithFailure: SessionPayload[] = [
 ];
 
 const meta: Meta<typeof AgentSessionsList> = {
-  title: "systems/agent/AgentSessionsList",
+  title: "systems/agent/components/AgentSessionsList",
   component: AgentSessionsList,
   parameters: {
     layout: "fullscreen",

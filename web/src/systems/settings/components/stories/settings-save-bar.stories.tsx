@@ -5,7 +5,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { SettingsSaveBar } from "../settings-save-bar";
 
 const meta: Meta<typeof SettingsSaveBar> = {
-  title: "systems/settings/SettingsSaveBar",
+  title: "systems/settings/components/SettingsSaveBar",
   component: SettingsSaveBar,
   parameters: {
     layout: "padded",

@@ -10,7 +10,7 @@ Fix: list valid ids first.
 bun run .agents/skills/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 --filter <substring>
 ```
 
-Match the exact id (case-sensitive, dashes only). Common slip: `routes-app-stories-tasks-id--overview` vs `routes-app-stories-tasks--id-overview` (the `id-` segment is part of the story file name, not a separator).
+Match the exact id (case-sensitive, dashes only). Common slip: `systems-tasks-routes-taskdetail--overview` vs `systems-tasks-routes-tasks--id-overview` (Storybook derives the id from the literal `systems/<system>/routes/...` title, not the app URL).
 
 ## Symptom: PNGs render in fallback system fonts (Arial / Helvetica)
 

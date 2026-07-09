@@ -14,7 +14,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { AgentStatsGrid } from "../agent-stats-grid";
 
 const meta: Meta<typeof AgentStatsGrid> = {
-  title: "systems/agent/AgentStatsGrid",
+  title: "systems/agent/components/AgentStatsGrid",
   component: AgentStatsGrid,
   parameters: {
     layout: "fullscreen",

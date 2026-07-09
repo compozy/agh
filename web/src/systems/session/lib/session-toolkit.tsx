@@ -1,103 +1,25 @@
-import type { DataMessagePartProps, ToolCallMessagePartProps, Toolkit } from "@assistant-ui/react";
+import type { DataMessagePartProps, ToolDefinition, Toolkit } from "@assistant-ui/react";
 import { makeAssistantDataUI } from "@assistant-ui/react";
-import { AlertCircle } from "lucide-react";
 
-import { Eyebrow, Spinner } from "@agh/ui";
-
-import { cn } from "@/lib/utils";
 import { PermissionDataPart } from "../components/permission-prompt";
 import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
-import { ToolCallCard } from "../components/tool-call-card";
-import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
-import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
-import { resolveRegisteredToolName } from "./tool-labels";
+import type { AgentEventPayload, AghPermissionData } from "../types";
 
-type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
-
-export function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
-  const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
-
-  return {
-    id: part.toolCallId,
-    role: part.result || part.isError ? "tool_result" : "tool_call",
-    content: "",
-    toolName: part.toolName,
-    toolInput: part.args,
-    toolResult: result ?? undefined,
-    toolError: part.isError,
-    isStreaming: part.status.type === "running",
-    timestamp: Date.now(),
-  };
-}
-
-export function BackendToolPart(part: SessionToolPartProps) {
-  if (part.status.type === "running" && Object.keys(part.args ?? {}).length === 0) {
-    return (
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
-          "border-line bg-canvas",
-          "text-xs text-subtle"
-        )}
-      >
-        <Spinner className="size-3 shrink-0" />
-        <Eyebrow className="min-w-0 truncate text-subtle" title={part.toolName}>
-          {resolveRegisteredToolName(part.toolName)}
-        </Eyebrow>
-        <span className="shrink-0">preparing input</span>
-      </div>
-    );
-  }
-
-  if (part.isError && !part.result) {
-    return (
-      <div
-        className={cn(
-          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
-          "border-danger/30 bg-danger/8",
-          "text-xs text-danger"
-        )}
-      >
-        <AlertCircle className="size-3 shrink-0" />
-        <span className="min-w-0 truncate font-medium" title={part.toolName}>
-          {resolveRegisteredToolName(part.toolName)}
-        </span>
-      </div>
-    );
-  }
-
-  return <ToolCallCard message={toLegacyToolMessage(part)} />;
-}
-
-function createBackendTool() {
-  return { type: "backend" as const };
-}
+// Every session tool executes server-side: the daemon streams each call and its
+// result as already-resolved transcript parts, so the client registers these
+// tools only to mark them backend-owned. Tool rendering is centralized in the
+// session timeline's `ToolCallRow` (the single fallback renderer), so no toolkit
+// entry carries a per-tool `render` — one shared backend definition is reused for
+// every registered tool.
+const backendTool: ToolDefinition = { type: "backend" };
 
 export const sessionToolkit: Toolkit = {
-  Bash: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Read: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Write: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Edit: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Grep: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
-  Glob: {
-    ...createBackendTool(),
-    render: (part: SessionToolPartProps) => <BackendToolPart {...part} />,
-  },
+  Bash: backendTool,
+  Read: backendTool,
+  Write: backendTool,
+  Edit: backendTool,
+  Grep: backendTool,
+  Glob: backendTool,
 };
 
 export function createAghPermissionDataUI(workspaceId: string, sessionId: string) {

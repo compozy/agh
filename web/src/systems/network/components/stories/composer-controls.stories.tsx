@@ -11,7 +11,7 @@ import { ComposerToolbar } from "../composer/composer-toolbar";
 import { DetailComposer } from "../composer/detail-composer";
 
 const meta: Meta<typeof Composer> = {
-  title: "systems/network/ComposerControls",
+  title: "systems/network/components/ComposerControls",
   component: Composer,
   parameters: {
     layout: "fullscreen",

@@ -11,7 +11,7 @@ import { withStoryAgentCategories } from "./agent-command-select.stories";
 const categorizedAgents = withStoryAgentCategories(agentFixtures);
 
 const meta: Meta<typeof AgentCommandMultiSelect> = {
-  title: "systems/agent/AgentCommandMultiSelect",
+  title: "systems/agent/components/AgentCommandMultiSelect",
   component: AgentCommandMultiSelect,
   parameters: {
     layout: "fullscreen",

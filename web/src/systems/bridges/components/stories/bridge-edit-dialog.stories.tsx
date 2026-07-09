@@ -6,7 +6,7 @@ import { bridgeDetailFixture, bridgeProvidersFixture } from "@/systems/bridges/m
 import { BridgeEditDialog } from "@/systems/bridges/components/bridge-edit-dialog";
 
 const meta: Meta<typeof BridgeEditDialog> = {
-  title: "systems/bridges/BridgeEditDialog",
+  title: "systems/bridges/components/BridgeEditDialog",
   component: BridgeEditDialog,
   parameters: {
     layout: "fullscreen",

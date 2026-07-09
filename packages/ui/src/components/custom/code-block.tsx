@@ -19,6 +19,7 @@ export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "child
   copiedLabel?: string;
   copyFailedLabel?: string;
   copyLabel?: string;
+  density?: CodeBlockDensity;
   highlightLines?: readonly number[];
   language?: string;
   showLineNumbers?: boolean;
@@ -29,6 +30,7 @@ export interface CodeBlockProps extends Omit<React.ComponentProps<"div">, "child
   wrapLines?: boolean;
 }
 
+export type CodeBlockDensity = "default" | "compact";
 export type CodeBlockTone = "default" | "warning" | "danger" | "success" | "info" | "accent";
 
 export interface CopyIconButtonProps extends Omit<React.ComponentProps<typeof Button>, "children"> {
@@ -57,6 +59,7 @@ function CodeBlock({
   copyLabel = "Copy to clipboard",
   copiedLabel = "Copied",
   copyFailedLabel = "Copy failed",
+  density = "default",
   themeMode = "auto",
   tone = "default",
   truncateLines,
@@ -82,17 +85,25 @@ function CodeBlock({
       data-slot="code-block"
       data-highlight-state={highlightState}
       data-language={normalizedLanguage ?? undefined}
+      data-density={density}
       data-theme={resolvedThemeName}
       data-tone={tone}
       className={cn(
-        "relative overflow-hidden rounded-lg border border-line bg-rail",
+        "relative overflow-hidden border border-line",
+        density === "compact" ? "rounded-sm bg-canvas" : "rounded-lg bg-rail",
         codeBlockToneClass(tone),
         className
       )}
       {...props}
     >
       {label ? (
-        <Eyebrow data-slot="code-block-language" className="absolute top-3 left-5 text-subtle">
+        <Eyebrow
+          data-slot="code-block-language"
+          className={cn(
+            "absolute text-subtle",
+            density === "compact" ? "top-2 left-3" : "top-3 left-5"
+          )}
+        >
           {label}
         </Eyebrow>
       ) : null}
@@ -102,7 +113,10 @@ function CodeBlock({
           copyLabel={copyLabel}
           copiedLabel={copiedLabel}
           copyFailedLabel={copyFailedLabel}
-          className="absolute top-2 right-2 text-subtle hover:text-accent data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger"
+          className={cn(
+            "absolute text-subtle hover:text-accent data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger",
+            density === "compact" ? "top-1.5 right-1.5" : "top-2 right-2"
+          )}
         />
       ) : null}
       <pre
@@ -111,12 +125,19 @@ function CodeBlock({
           clampedLines ? ({ "--code-block-lines": clampedLines } as React.CSSProperties) : undefined
         }
         className={cn(
-          "overflow-x-auto px-5 py-4 font-mono text-card-title leading-relaxed text-fg",
+          "overflow-x-auto font-mono text-fg",
+          density === "compact"
+            ? "px-3 py-2 text-small-body leading-normal"
+            : "px-5 py-4 text-card-title leading-relaxed",
           wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
           codeBlockToneTextClass(tone),
-          label ? "pt-9" : null,
-          copyable ? "pr-12" : null,
-          clampedLines ? "max-h-[calc(var(--code-block-lines)*1.6em+2rem)] overflow-y-auto" : null
+          label ? (density === "compact" ? "pt-7" : "pt-9") : null,
+          copyable ? (density === "compact" ? "pr-10" : "pr-12") : null,
+          clampedLines
+            ? density === "compact"
+              ? "max-h-[calc(var(--code-block-lines)*1.4em+1.5rem)] overflow-y-auto"
+              : "max-h-[calc(var(--code-block-lines)*1.6em+2rem)] overflow-y-auto"
+            : null
         )}
       >
         <code data-slot="code-block-code">

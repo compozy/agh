@@ -1,9 +1,11 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -124,15 +126,18 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				}},
 			}}, nil
 		},
-		TranscriptFn: func(_ context.Context, _ string) ([]transcript.UIMessage, error) {
-			return []transcript.UIMessage{{
-				ID:   "msg-1",
-				Role: transcript.UIRoleUser,
-				Parts: []transcript.UIMessagePart{{
-					Type:  "text",
-					Text:  "hello",
-					State: "done",
-				}},
+		TranscriptFn: func(_ context.Context, _ string, _ store.EventQuery) ([]transcript.Entry, error) {
+			return []transcript.Entry{{
+				Sequence: 1,
+				Message: transcript.UIMessage{
+					ID:   "msg-1",
+					Role: transcript.UIRoleUser,
+					Parts: []transcript.UIMessagePart{{
+						Type:  "text",
+						Text:  "hello",
+						State: "done",
+					}},
+				},
 			}}, nil
 		},
 	}
@@ -410,10 +415,10 @@ func TestCreateSessionProviderAuthFailureReturnsDiagnostic(t *testing.T) {
 	})
 }
 
-func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
+func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should include redacted transcript markers from observer summaries", func(t *testing.T) {
+	t.Run("Should serve recap from one bounded transcript read", func(t *testing.T) {
 		t.Parallel()
 
 		occurredAt := time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
@@ -425,10 +430,6 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("transcript.NewMarker() error = %v", err)
-		}
-		rawMarker, err := json.Marshal(marker)
-		if err != nil {
-			t.Fatalf("json.Marshal(marker) error = %v", err)
 		}
 		openMarker, err := transcript.NewMarker(
 			transcript.MarkerSessionUnhealthy,
@@ -466,97 +467,66 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("transcript.NewMarker(preRecoveryProvider) error = %v", err)
 		}
-		markerEventContent := func(marker transcript.Marker, turnID string) string {
+		markerEntry := func(id string, sequence int64, eventType string, marker transcript.Marker) transcript.Entry {
 			t.Helper()
-			agentEvent, err := marker.AgentEvent("sess-a", turnID)
-			if err != nil {
-				t.Fatalf("marker.AgentEvent(%s) error = %v", marker.Kind, err)
+			normalized := marker.Normalize()
+			return transcript.Entry{
+				Message: transcript.UIMessage{
+					ID:   id,
+					Role: transcript.UIRoleSystem,
+					Parts: []transcript.UIMessagePart{{
+						Type:  "text",
+						Text:  normalized.Summary,
+						State: "done",
+					}},
+				},
+				Sequence:  sequence,
+				EventType: eventType,
+				Marker:    &normalized,
 			}
-			content, err := transcript.MarshalAgentEvent(agentEvent)
-			if err != nil {
-				t.Fatalf("transcript.MarshalAgentEvent(%s) error = %v", marker.Kind, err)
-			}
-			return content
 		}
 
+		var transcriptCalls atomic.Int64
 		manager := testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
-			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
+				transcriptCalls.Add(1)
 				if id != "sess-a" {
-					t.Fatalf("Events() id = %q, want sess-a", id)
+					t.Fatalf("Transcript() id = %q, want sess-a", id)
 				}
-				switch query.Type {
-				case "":
-					if query.Limit != 500 {
-						t.Fatalf("Events() query = %#v, want recap query limit 500", query)
-					}
-					return []store.SessionEvent{{
-						ID:        "ev-1",
-						SessionID: id,
-						Sequence:  1,
-						TurnID:    "turn-1",
-						Type:      "agent_message",
-						AgentName: "coder",
-						Content:   `{"text":"hello"}`,
-						Timestamp: occurredAt.Add(-time.Second),
-					}}, nil
-				case events.TranscriptMarkerCreated:
-					if query.Limit != 500 {
-						t.Fatalf("Events() created marker limit = %d, want %d", query.Limit, 500)
-					}
-					return []store.SessionEvent{
-						{
-							ID:        "ev-marker-provider-before-recovery",
-							SessionID: id,
-							Sequence:  1,
-							TurnID:    "turn-provider-before",
-							Type:      events.TranscriptMarkerCreated,
-							AgentName: "coder",
-							Content:   markerEventContent(preRecoveryProviderMarker, "turn-provider-before"),
-							Timestamp: occurredAt.Add(-750 * time.Millisecond),
-						},
-						{
-							ID:        "ev-marker-open",
-							SessionID: id,
-							Sequence:  2,
-							TurnID:    "turn-open",
-							Type:      events.TranscriptMarkerCreated,
-							AgentName: "coder",
-							Content:   markerEventContent(openMarker, "turn-open"),
-							Timestamp: occurredAt.Add(-500 * time.Millisecond),
-						},
-						{
-							ID:        "ev-marker-recovered",
-							SessionID: id,
-							Sequence:  3,
-							TurnID:    "turn-open",
-							Type:      events.TranscriptMarkerCreated,
-							AgentName: "coder",
-							Content:   markerEventContent(recoveredMarker, "turn-open"),
-							Timestamp: occurredAt.Add(-250 * time.Millisecond),
-						},
-						{
-							ID:        "ev-marker-provider",
-							SessionID: id,
-							Sequence:  4,
-							TurnID:    "turn-provider",
-							Type:      events.TranscriptMarkerCreated,
-							AgentName: "coder",
-							Content:   markerEventContent(providerMarker, "turn-provider"),
-							Timestamp: occurredAt.Add(250 * time.Millisecond),
-						},
-					}, nil
-				case events.TranscriptMarkerRedacted:
-					if query.Limit != 500 {
-						t.Fatalf("Events() redacted marker limit = %d, want %d", query.Limit, 500)
-					}
-					return nil, nil
-				default:
-					t.Fatalf("unexpected Events() query = %#v", query)
-					return nil, nil
+				if query.Limit != 500 {
+					t.Fatalf("Transcript() query = %#v, want single bounded recap read limit 500", query)
 				}
+				return []transcript.Entry{
+					markerEntry(
+						"marker-provider-before-recovery",
+						1,
+						events.TranscriptMarkerCreated,
+						preRecoveryProviderMarker,
+					),
+					markerEntry("marker-open", 2, events.TranscriptMarkerCreated, openMarker),
+					markerEntry("marker-recovered", 3, events.TranscriptMarkerCreated, recoveredMarker),
+					markerEntry("marker-provider", 4, events.TranscriptMarkerCreated, providerMarker),
+					markerEntry("marker-redacted", 5, events.TranscriptMarkerRedacted, marker),
+					{
+						Message: transcript.UIMessage{
+							ID:   "msg-1",
+							Role: "assistant",
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "hello",
+								State: "done",
+							}},
+						},
+						Sequence: 10,
+					},
+				}, nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				t.Fatalf("Events() called with id=%q query=%#v; recap must use one transcript read", id, query)
+				return nil, nil
 			},
 			InputQueueFn: func(_ context.Context, id string) (session.InputQueueSummary, error) {
 				if id != "sess-a" {
@@ -567,21 +537,8 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		}
 		observer := testutil.StubObserver{
 			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
-				switch query.Type {
-				case events.TranscriptMarkerCreated:
-					return nil, nil
-				case events.TranscriptMarkerRedacted:
-					return []store.EventSummary{{
-						ID:        "sum-redacted",
-						SessionID: "sess-a",
-						Type:      events.TranscriptMarkerRedacted,
-						Content:   rawMarker,
-						Timestamp: occurredAt,
-					}}, nil
-				default:
-					t.Fatalf("unexpected marker summary query = %#v", query)
-					return nil, nil
-				}
+				t.Fatalf("QueryEvents() called with query=%#v; recap markers must come from transcript entries", query)
+				return nil, nil
 			},
 		}
 
@@ -590,7 +547,7 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/recap?limit=5",
+			"/workspaces/ws-workspace/sessions/sess-a/recap?limit=1",
 			nil,
 		)
 		if response.Code != http.StatusOK {
@@ -601,11 +558,20 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(recap response) error = %v", err)
 		}
-		if got, want := len(payload.Recap.RecentMarkers), 1; got != want {
+		if got, want := len(payload.Recap.RecentMarkers), 5; got != want {
 			t.Fatalf("len(recent_markers) = %d, want %d", got, want)
 		}
-		if got, want := payload.Recap.RecentMarkers[0].Kind, transcript.MarkerPromptInterrupted; got != want {
-			t.Fatalf("recent_markers[0].Kind = %q, want %q", got, want)
+		wantMarkerKinds := []string{
+			transcript.MarkerPromptInterrupted,
+			transcript.MarkerProviderFailure,
+			transcript.MarkerSessionRecovered,
+			transcript.MarkerSessionUnhealthy,
+			transcript.MarkerProviderFailure,
+		}
+		for index, want := range wantMarkerKinds {
+			if got := payload.Recap.RecentMarkers[index].Kind; got != want {
+				t.Fatalf("recent_markers[%d].Kind = %q, want %q", index, got, want)
+			}
 		}
 		if got, want := payload.Recap.PendingInputs, 2; got != want {
 			t.Fatalf("pending_inputs = %d, want %d", got, want)
@@ -613,11 +579,247 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		if got, want := payload.Recap.PendingMarkers, 2; got != want {
 			t.Fatalf("pending_markers = %d, want %d", got, want)
 		}
+		if got, want := len(payload.Recap.RecentMessages), 1; got != want {
+			t.Fatalf("len(recent_messages) = %d, want %d", got, want)
+		}
+		if got, want := payload.Recap.RecentMessages[0].Parts[0].Text, "hello"; got != want {
+			t.Fatalf("recent_messages[0].parts[0].text = %q, want %q", got, want)
+		}
 		if got, want := payload.Recap.Snapshot.QueueGeneration, int64(7); got != want {
 			t.Fatalf("snapshot.queue_generation = %d, want %d", got, want)
 		}
+		if got, want := payload.Recap.Snapshot.EventCursor, int64(10); got != want {
+			t.Fatalf("snapshot.event_cursor = %d, want %d", got, want)
+		}
 		if got, want := payload.Recap.Snapshot.Consistency, "persisted_reads"; got != want {
 			t.Fatalf("snapshot.consistency = %q, want %q", got, want)
+		}
+		if got, want := transcriptCalls.Load(), int64(1); got != want {
+			t.Fatalf("Transcript() calls = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestSessionUsageEndpoint(t *testing.T) {
+	t.Parallel()
+
+	int64Ptr := func(v int64) *int64 { return &v }
+	float64Ptr := func(v float64) *float64 { return &v }
+	stringPtr := func(v string) *string { return &v }
+
+	t.Run("Should return aggregated token usage summed across agent rows", func(t *testing.T) {
+		t.Parallel()
+
+		var usageCalls atomic.Int64
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(_ context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
+				usageCalls.Add(1)
+				if query.SessionID != "sess-a" {
+					t.Fatalf("QueryTokenStats() session id = %q, want sess-a", query.SessionID)
+				}
+				return []store.TokenStats{
+					{
+						SessionID:    "sess-a",
+						AgentName:    "coder",
+						InputTokens:  int64Ptr(100),
+						OutputTokens: int64Ptr(40),
+						TotalTokens:  int64Ptr(140),
+						TotalCost:    float64Ptr(0.02),
+						CostCurrency: stringPtr("USD"),
+						TurnCount:    2,
+					},
+					{
+						SessionID:    "sess-a",
+						AgentName:    "helper",
+						InputTokens:  int64Ptr(10),
+						OutputTokens: int64Ptr(5),
+						TotalTokens:  int64Ptr(15),
+						TotalCost:    float64Ptr(0.01),
+						CostCurrency: stringPtr("USD"),
+						TurnCount:    1,
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(usage response) error = %v", err)
+		}
+		if got := payload.Usage.InputTokens; got == nil || *got != 110 {
+			t.Fatalf("usage.input_tokens = %v, want 110", got)
+		}
+		if got := payload.Usage.OutputTokens; got == nil || *got != 45 {
+			t.Fatalf("usage.output_tokens = %v, want 45", got)
+		}
+		if got := payload.Usage.TotalTokens; got == nil || *got != 155 {
+			t.Fatalf("usage.total_tokens = %v, want 155", got)
+		}
+		if got := payload.Usage.TotalCost; got == nil || *got < 0.0299 || *got > 0.0301 {
+			t.Fatalf("usage.total_cost = %v, want ~0.03", got)
+		}
+		if got, want := payload.Usage.CostCurrency, "USD"; got != want {
+			t.Fatalf("usage.cost_currency = %q, want %q", got, want)
+		}
+		if got, want := payload.Usage.TurnCount, int64(3); got != want {
+			t.Fatalf("usage.turn_count = %d, want %d", got, want)
+		}
+		if got, want := usageCalls.Load(), int64(1); got != want {
+			t.Fatalf("QueryTokenStats() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should omit aggregate cost when token stats use mixed currencies", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(_ context.Context, query store.TokenStatsQuery) ([]store.TokenStats, error) {
+				if query.SessionID != "sess-a" {
+					t.Fatalf("QueryTokenStats() session id = %q, want sess-a", query.SessionID)
+				}
+				return []store.TokenStats{
+					{
+						SessionID:    "sess-a",
+						AgentName:    "coder",
+						InputTokens:  int64Ptr(100),
+						TotalTokens:  int64Ptr(100),
+						TotalCost:    float64Ptr(0.02),
+						CostCurrency: stringPtr("USD"),
+						TurnCount:    2,
+					},
+					{
+						SessionID:    "sess-a",
+						AgentName:    "helper",
+						OutputTokens: int64Ptr(25),
+						TotalTokens:  int64Ptr(25),
+						TotalCost:    float64Ptr(0.03),
+						CostCurrency: stringPtr("EUR"),
+						TurnCount:    1,
+					},
+				}, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(usage response) error = %v", err)
+		}
+		if got := payload.Usage.TotalTokens; got == nil || *got != 125 {
+			t.Fatalf("usage.total_tokens = %v, want 125", got)
+		}
+		if got := payload.Usage.TotalCost; got != nil {
+			t.Fatalf("usage.total_cost = %v, want nil for mixed currencies", got)
+		}
+		if got := payload.Usage.CostCurrency; got != "" {
+			t.Fatalf("usage.cost_currency = %q, want empty for mixed currencies", got)
+		}
+		if got, want := payload.Usage.TurnCount, int64(3); got != want {
+			t.Fatalf("usage.turn_count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should return an empty usage summary when no token stats exist", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
+				return nil, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/usage",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(usage response) error = %v", err)
+		}
+		if payload.Usage.InputTokens != nil || payload.Usage.OutputTokens != nil ||
+			payload.Usage.TotalTokens != nil || payload.Usage.TotalCost != nil {
+			t.Fatalf("empty usage carried token/cost values: %#v", payload.Usage)
+		}
+		if got, want := payload.Usage.TurnCount, int64(0); got != want {
+			t.Fatalf("usage.turn_count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should return 404 for an unknown session", func(t *testing.T) {
+		t.Parallel()
+
+		var usageCalls atomic.Int64
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return nil, session.ErrSessionNotFound
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTokenStatsFn: func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error) {
+				usageCalls.Add(1)
+				return nil, nil
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/does-not-exist/usage",
+			nil,
+		)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("usage status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusNotFound)
+		}
+		if got := usageCalls.Load(); got != 0 {
+			t.Fatalf("QueryTokenStats() calls = %d, want 0 for unknown session", got)
 		}
 	})
 }
@@ -740,7 +942,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream",
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw",
 			nil,
 		)
 		if streamResp.Code != http.StatusOK {
@@ -763,6 +965,392 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		doctorResp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
 		if doctorResp.Code != http.StatusOK {
 			t.Fatalf("doctor = %d, want %d", doctorResp.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("Should log stream lifecycle and catch-up metrics", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-a" {
+					t.Fatalf("Events() id = %q, want sess-a", id)
+				}
+				if query.AfterSequence != 3 {
+					t.Fatalf("Events() AfterSequence = %d, want 3", query.AfterSequence)
+				}
+				return []store.SessionEvent{{
+					ID:        "event-4",
+					SessionID: "sess-a",
+					Sequence:  4,
+					TurnID:    "turn-4",
+					Type:      events.ACPAgentMessage,
+					AgentName: "coder",
+					Content:   `{"type":"agent_message","content":"hello"}`,
+					Timestamp: time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC),
+				}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		var logs bytes.Buffer
+		fixture.Handlers.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&after_sequence=3",
+			nil,
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		records := testutil.ParseSSE(t, streamResp.Body.String())
+		if got := len(records); got == 0 {
+			t.Fatal("stream records = 0, want raw catch-up event")
+		}
+		logOutput := logs.String()
+		for _, want := range []string{
+			`"msg":"api: session stream opened"`,
+			`"msg":"api: session stream closed"`,
+			`"session_id":"sess-a"`,
+			`"workspace_id":"ws-workspace"`,
+			`"frame_mode":"raw"`,
+			`"cursor":3`,
+			`"catch_up_batch_size":1`,
+			`"active_streams":1`,
+		} {
+			if !strings.Contains(logOutput, want) {
+				t.Fatalf("stream logs missing %s in %s", want, logOutput)
+			}
+		}
+	})
+
+	t.Run("Should skip unused raw event read for transcript snapshot streams", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		var eventsCalls atomic.Int32
+		emitted := make([]acp.AgentEvent, 0, 1)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				info := testutil.NewSessionInfo(id)
+				info.TranscriptEpoch = 3
+				return info, nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				eventsCalls.Add(1)
+				return nil, nil
+			},
+			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
+				if id != "sess-a" || query.Limit <= 0 {
+					t.Fatalf("Transcript() call = %q %#v, want bounded snapshot read", id, query)
+				}
+				return []transcript.Entry{{
+					Sequence: 7,
+					Message: transcript.UIMessage{
+						ID:   "msg-7",
+						Role: transcript.UIRoleAssistant,
+						Parts: []transcript.UIMessagePart{{
+							Type:  "text",
+							Text:  "snapshot",
+							State: "done",
+						}},
+					},
+				}}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			OnAgentEventFn: func(_ context.Context, sessionID string, event acp.AgentEvent) {
+				if sessionID != "sess-a" {
+					t.Fatalf("OnAgentEvent() session id = %q, want sess-a", sessionID)
+				}
+				emitted = append(emitted, event)
+			},
+		}
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&replay=snapshot",
+			nil,
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		if got := eventsCalls.Load(); got != 0 {
+			t.Fatalf("Events() calls = %d, want 0 for transcript snapshot mode", got)
+		}
+		records := testutil.ParseSSE(t, streamResp.Body.String())
+		if got := len(records); got == 0 {
+			t.Fatal("stream records = 0, want snapshot")
+		}
+		if got := records[0].Event; got != contract.SessionStreamEventTranscriptSnapshot {
+			t.Fatalf("first stream event = %q, want %q", got, contract.SessionStreamEventTranscriptSnapshot)
+		}
+		if got, want := len(emitted), 1; got != want {
+			t.Fatalf("emitted events len = %d, want %d", got, want)
+		}
+		if got := emitted[0].Type; got != events.SessionStreamSnapshotServed {
+			t.Fatalf("emitted event type = %q, want %q", got, events.SessionStreamSnapshotServed)
+		}
+		var eventPayload struct {
+			WorkspaceID string `json:"workspace_id"`
+			SessionID   string `json:"session_id"`
+			Epoch       int64  `json:"epoch"`
+			ResetBelow  bool   `json:"reset_below"`
+			Reason      string `json:"reason"`
+			MinSequence int64  `json:"min_sequence"`
+			MaxSequence int64  `json:"max_sequence"`
+		}
+		if err := json.Unmarshal(emitted[0].Raw, &eventPayload); err != nil {
+			t.Fatalf("json.Unmarshal(snapshot event raw) error = %v raw=%s", err, string(emitted[0].Raw))
+		}
+		if eventPayload.WorkspaceID != "ws-workspace" ||
+			eventPayload.SessionID != "sess-a" ||
+			eventPayload.Epoch != 3 ||
+			eventPayload.Reason != contract.TranscriptSnapshotReasonSubscribe ||
+			eventPayload.MinSequence != 7 ||
+			eventPayload.MaxSequence != 7 ||
+			!eventPayload.ResetBelow {
+			t.Fatalf("snapshot served event payload = %#v", eventPayload)
+		}
+	})
+
+	t.Run("Should serve a snapshot on a stale Last-Event-ID reconnect", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		close(done)
+		var eventsCalls atomic.Int32
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				// Idle background session: still active, no in-flight turn.
+				info := testutil.NewSessionInfo(id)
+				info.TranscriptEpoch = 2
+				return info, nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				// The stale cursor's incremental catch-up is empty for an idle session; snapshot
+				// mode must not depend on it, so Events must never be read for the initial frame.
+				eventsCalls.Add(1)
+				return nil, nil
+			},
+			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
+				if id != "sess-a" || query.Limit <= 0 {
+					t.Fatalf("Transcript() call = %q %#v, want bounded snapshot read", id, query)
+				}
+				return []transcript.Entry{
+					{
+						Sequence: 5,
+						Message: transcript.UIMessage{
+							ID:   "msg-user",
+							Role: transcript.UIRoleUser,
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "summarize the launch blockers",
+								State: "done",
+							}},
+						},
+					},
+					{
+						Sequence: 6,
+						Message: transcript.UIMessage{
+							ID:   "msg-assistant",
+							Role: transcript.UIRoleAssistant,
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "snapshot tail",
+								State: "done",
+							}},
+						},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := testutil.PerformRequestWithHeaders(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&replay=snapshot",
+			nil,
+			map[string]string{"Last-Event-ID": "3"},
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		records := testutil.ParseSSE(t, streamResp.Body.String())
+		if len(records) == 0 {
+			t.Fatal("stream records = 0, want a transcript snapshot on a stale reconnect")
+		}
+		if got := records[0].Event; got != contract.SessionStreamEventTranscriptSnapshot {
+			t.Fatalf("first stream event = %q, want %q", got, contract.SessionStreamEventTranscriptSnapshot)
+		}
+		var snapshot contract.TranscriptSnapshotPayload
+		testutil.DecodeSSEData(t, records[0], &snapshot)
+		if len(snapshot.Entries) == 0 {
+			t.Fatal("snapshot entries = 0, want non-empty render inputs for an idle active reconnect")
+		}
+		if snapshot.MinSequence != 5 || snapshot.MaxSequence != 6 {
+			t.Fatalf("snapshot bounds = [%d,%d], want [5,6]", snapshot.MinSequence, snapshot.MaxSequence)
+		}
+		if snapshot.Reason != contract.TranscriptSnapshotReasonReconnect {
+			t.Fatalf("snapshot reason = %q, want %q", snapshot.Reason, contract.TranscriptSnapshotReasonReconnect)
+		}
+		// The frame id carries the max sequence so a native Last-Event-ID resume advances past the
+		// stale cursor instead of re-requesting the same empty catch-up window.
+		if records[0].ID != "6" {
+			t.Fatalf("snapshot frame id = %q, want \"6\"", records[0].ID)
+		}
+		if got := eventsCalls.Load(); got != 0 {
+			t.Fatalf("Events() calls = %d, want 0 — snapshot must not depend on incremental catch-up", got)
+		}
+	})
+
+	t.Run("Should reject negative transcript stream query cursors", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				t.Fatal("Events() should not be called for invalid cursor")
+				return nil, nil
+			},
+			TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
+				t.Fatal("Transcript() should not be called for invalid cursor")
+				return nil, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?after_sequence=-1",
+			nil,
+		)
+		if streamResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"stream negative cursor status = %d, want %d; body=%s",
+				streamResp.Code,
+				http.StatusBadRequest,
+				streamResp.Body.String(),
+			)
+		}
+		if !strings.Contains(streamResp.Body.String(), "invalid event after sequence -1") {
+			t.Fatalf("stream negative cursor body = %q, want invalid cursor message", streamResp.Body.String())
+		}
+	})
+
+	t.Run("Should reject negative transcript stream last event ids", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+				t.Fatal("Events() should not be called for invalid Last-Event-ID")
+				return nil, nil
+			},
+			TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
+				t.Fatal("Transcript() should not be called for invalid Last-Event-ID")
+				return nil, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+		streamResp := testutil.PerformRequestWithHeaders(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?replay=snapshot",
+			nil,
+			map[string]string{"Last-Event-ID": "-1"},
+		)
+		if streamResp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"stream negative Last-Event-ID status = %d, want %d; body=%s",
+				streamResp.Code,
+				http.StatusBadRequest,
+				streamResp.Body.String(),
+			)
+		}
+		if !strings.Contains(streamResp.Body.String(), "Last-Event-ID") {
+			t.Fatalf("stream negative Last-Event-ID body = %q, want header message", streamResp.Body.String())
+		}
+	})
+
+	t.Run("Should preserve raw stream initial replay limit and unbound polling", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		var calls atomic.Int32
+		initialSeen := make(chan store.EventQuery, 1)
+		pollSeen := make(chan store.EventQuery, 1)
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				switch calls.Add(1) {
+				case 1:
+					initialSeen <- query
+					return []store.SessionEvent{{
+						Sequence:  11,
+						Type:      "agent_message",
+						TurnID:    "turn-1",
+						AgentName: "coder",
+						Content:   "initial",
+					}}, nil
+				default:
+					pollSeen <- query
+					close(done)
+					return nil, nil
+				}
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.SetStreamDone(done)
+
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=2",
+			nil,
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", streamResp.Code, http.StatusOK, streamResp.Body.String())
+		}
+		initialQuery := <-initialSeen
+		if initialQuery.Limit != 2 {
+			t.Fatalf("initial Events() limit = %d, want 2", initialQuery.Limit)
+		}
+		pollQuery := <-pollSeen
+		if pollQuery.Limit != 0 {
+			t.Fatalf("poll Events() limit = %d, want 0", pollQuery.Limit)
+		}
+		if pollQuery.AfterSequence != 11 {
+			t.Fatalf("poll Events() after_sequence = %d, want 11", pollQuery.AfterSequence)
 		}
 	})
 }

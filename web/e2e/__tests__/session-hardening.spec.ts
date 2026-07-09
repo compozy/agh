@@ -80,13 +80,44 @@ test("operator rejects a permission request, records tool output, and keeps sess
 }) => {
   const workspace = await prepareSessionRuntime(runtime, appPage);
   const session = await createSession(runtime, permissionAgent, workspace.id);
+  const deepLinkLoadingPhases = new Set<string>();
+  let sampleDeepLinkLoading = true;
+  const deepLinkLoadingSampler = (async () => {
+    while (sampleDeepLinkLoading) {
+      if (
+        await appPage
+          .getByTestId("session-route-loading")
+          .isVisible()
+          .catch(() => false)
+      ) {
+        deepLinkLoadingPhases.add("route");
+      }
+      if (
+        await appPage
+          .getByTestId("thread-transcript-skeleton")
+          .isVisible()
+          .catch(() => false)
+      ) {
+        deepLinkLoadingPhases.add("transcript");
+      }
+      await appPage.waitForTimeout(25).catch(() => {
+        sampleDeepLinkLoading = false;
+      });
+    }
+  })();
 
-  await appPage.goto(runtime.url(sessionPath(permissionAgent, session.id)), {
+  await appPage.goto(runtime.url(`/session/${session.id}`), {
     waitUntil: "domcontentloaded",
   });
 
   const ui = sessionLifecycleSelectors(appPage);
   await expect(ui.chatHeader).toBeVisible();
+  sampleDeepLinkLoading = false;
+  await deepLinkLoadingSampler;
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(sessionPath(permissionAgent, session.id));
+  expect(deepLinkLoadingPhases.size).toBeLessThanOrEqual(1);
   await expect(ui.composerTextarea).toBeEnabled();
 
   await ui.composerTextarea.fill("exercise permission hardening");
@@ -181,6 +212,9 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   );
   await appPage.getByTestId("composer-clear-confirm").click();
   expect((await clearResponsePromise).ok()).toBe(true);
+  await expect(ui.chatView).not.toContainText("block until canceled");
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(ui.chatHeader).toBeVisible();
   await expect(ui.chatView).not.toContainText("block until canceled");
 
   const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);

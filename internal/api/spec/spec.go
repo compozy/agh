@@ -35,7 +35,10 @@ const (
 	httpMethodPut    = "PUT"
 )
 
-const specContentTypeEventStream = "text/event-stream"
+const (
+	specContentTypeEventStream = "text/event-stream"
+	specFormatInt64            = "int64"
+)
 
 const (
 	specNetworkThreadNotFoundDescription = "Network thread not found"
@@ -155,6 +158,7 @@ const (
 	specFilesystemKey                                        = "filesystem"
 	specExtensionKey                                         = "extension"
 	specExtensionsKey                                        = "extensions"
+	specGlobalKey                                            = "global"
 	specHooksKey                                             = "hooks"
 	specIntegerKey                                           = "integer"
 	specLogsKey                                              = "logs"
@@ -1175,7 +1179,7 @@ var operationRegistry = []OperationSpec{
 		Tags:        []string{specBridgesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by bridge scope", []string{"all", "global", specWorkspaceKey}),
+			enumQueryParam("scope", "Filter by bridge scope", []string{"all", specGlobalKey, specWorkspaceKey}),
 			queryParam("workspace_id", "Filter by active workspace id", false),
 			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
 		},
@@ -1211,6 +1215,30 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.BridgeProvidersResponse{}},
+			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/bridges/health/stream",
+		OperationID: "streamBridgeHealth",
+		Summary:     "Stream bridge health snapshots",
+		Tags:        []string{specBridgesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("scope", "Filter by bridge scope", []string{"all", specGlobalKey, specWorkspaceKey}),
+			queryParam("workspace_id", "Filter by active workspace id", false),
+			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Bridge health snapshot stream",
+				Body:        contract.BridgeHealthStreamPayload{},
+				ContentType: specContentTypeEventStream,
+			},
+			{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -2944,7 +2972,7 @@ var operationRegistry = []OperationSpec{
 				Description: "Turn sequence",
 				Required:    true,
 				Kind:        specIntegerKey,
-				Format:      "int64",
+				Format:      specFormatInt64,
 			},
 		},
 		Responses: []ResponseSpec{
@@ -3399,6 +3427,23 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
+		Path:        "/api/sessions/{session_id}",
+		OperationID: "getSessionByID",
+		Summary:     "Get one session snapshot by id",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("session_id", "Session id"),
+			boolQueryParam("include_health", "Include metadata-only session health when available"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}",
 		OperationID: "getSession",
 		Summary:     "Get one session snapshot",
@@ -3567,6 +3612,23 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
+		OperationID: "getSessionUsage",
+		Summary:     "Get aggregated token usage for a session",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionUsageResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
 		OperationID: "repairSession",
@@ -3597,7 +3659,10 @@ var operationRegistry = []OperationSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
+			intQueryParam(
+				"limit",
+				"Maximum number of records to return; defaults to the newest 200 and is capped at 1000",
+			),
 			afterSequenceQueryParam("Only return events after this sequence number"),
 			queryParam("type", "Event type", false),
 			queryParam("agent_name", "Agent name", false),
@@ -3621,7 +3686,10 @@ var operationRegistry = []OperationSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
+			intQueryParam(
+				"limit",
+				"Maximum number of turns to return; defaults to the newest 200 and is capped at 1000",
+			),
 			afterSequenceQueryParam("Only return events after this sequence number"),
 			queryParam("type", "Event type", false),
 			queryParam("agent_name", "Agent name", false),
@@ -3644,9 +3712,50 @@ var operationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
+			intQueryParam(
+				"limit",
+				"Maximum number of transcript entries to return; defaults to the newest 200 and is capped at 1000",
+			),
+			afterSequenceQueryParam("Only return transcript entries after this event sequence"),
+			beforeSequenceQueryParam("Return transcript entries before this event sequence for backward pagination"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionTranscriptResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
+		OperationID: "streamSession",
+		Summary:     "Stream session events or assembled transcript updates",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			optionalHeaderParam("Last-Event-ID", "Resume after the last received SSE id"),
+			afterSequenceQueryParam("Initial replay cursor when Last-Event-ID is not supplied"),
+			enumQueryParam(
+				"frames",
+				"Frame mode. The default is transcript; raw preserves persisted event frames for CLI consumers.",
+				[]string{contract.SessionStreamFrameRaw, contract.SessionStreamFrameTranscript},
+			),
+			enumQueryParam(
+				"replay",
+				"Replay policy. snapshot seeds transcript subscribers with the current assembled tail.",
+				[]string{contract.SessionStreamReplaySnapshot},
+			),
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Session event stream",
+				Body:        contract.SessionStreamPayload{},
+				ContentType: specContentTypeEventStream,
+			},
+			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -6498,7 +6607,18 @@ func afterSequenceQueryParam(description string) ParameterSpec {
 		Description: description,
 		Required:    false,
 		Kind:        specIntegerKey,
-		Format:      "int64",
+		Format:      specFormatInt64,
+	}
+}
+
+func beforeSequenceQueryParam(description string) ParameterSpec {
+	return ParameterSpec{
+		Name:        "before_sequence",
+		In:          openapi3.ParameterInQuery,
+		Description: description,
+		Required:    false,
+		Kind:        specIntegerKey,
+		Format:      specFormatInt64,
 	}
 }
 

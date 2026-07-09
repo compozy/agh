@@ -18,7 +18,8 @@ type StubSessionManager struct {
 	StatusFn          func(context.Context, string) (*session.Info, error)
 	EventsFn          func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	HistoryFn         func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn      func(context.Context, string) ([]transcript.UIMessage, error)
+	TranscriptFn      func(context.Context, string, store.EventQuery) ([]transcript.Entry, error)
+	WatermarkFn       func(context.Context, string) session.TranscriptWatermark
 	RepairFn          func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	DeleteFn          func(context.Context, string) error
 	StopFn            func(context.Context, string) error
@@ -128,11 +129,25 @@ func (s StubSessionManager) History(
 	return nil, nil
 }
 
-func (s StubSessionManager) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
+func (s StubSessionManager) Transcript(
+	ctx context.Context,
+	id string,
+	query store.EventQuery,
+) ([]transcript.Entry, error) {
 	if s.TranscriptFn != nil {
-		return s.TranscriptFn(ctx, id)
+		return s.TranscriptFn(ctx, id, query)
 	}
 	return nil, nil
+}
+
+func (s StubSessionManager) TranscriptWatermark(
+	ctx context.Context,
+	id string,
+) session.TranscriptWatermark {
+	if s.WatermarkFn != nil {
+		return s.WatermarkFn(ctx, id)
+	}
+	return session.TranscriptWatermark{}
 }
 
 func (s StubSessionManager) RepairSession(
@@ -315,6 +330,7 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		ParentSoulDigest: info.ParentSoulDigest,
 		AttachedTo:       info.AttachedTo,
 		AttachExpiresAt:  info.AttachExpiresAt,
+		TranscriptEpoch:  info.TranscriptEpoch,
 		CreatedAt:        info.CreatedAt,
 		UpdatedAt:        info.UpdatedAt,
 	}

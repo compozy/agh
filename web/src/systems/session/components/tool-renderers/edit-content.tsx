@@ -34,11 +34,11 @@ export function EditContent({ message }: { message: UIMessage }) {
     <div className="space-y-1.5 text-xs" data-testid="edit-content">
       {filePath && <div className="font-mono text-eyebrow text-subtle">{filePath}</div>}
       {(oldStr || newStr) && (
-        <div className="overflow-hidden rounded-md border border-line">
+        <div className="overflow-hidden rounded-sm">
           {oldStr ? (
             <CodeBlock
               code={`${displayOld}${!showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
-              className="rounded-none"
+              density="compact"
               copyable={false}
               showPrompt={false}
               tone="danger"
@@ -49,7 +49,7 @@ export function EditContent({ message }: { message: UIMessage }) {
           {newStr ? (
             <CodeBlock
               code={`${displayNew}${!showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
-              className="rounded-none"
+              density="compact"
               copyable={false}
               showPrompt={false}
               tone="success"

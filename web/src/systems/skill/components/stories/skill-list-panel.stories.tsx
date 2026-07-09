@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, http, HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { useSkillsPage } from "@/hooks/routes/use-skills-page";
@@ -9,7 +10,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { SkillListPanel } from "../skill-list-panel";
 
 const meta: Meta<typeof SkillListPanel> = {
-  title: "systems/skill/SkillListPanel",
+  title: "systems/skill/components/SkillListPanel",
   component: SkillListPanel,
   parameters: {
     layout: "fullscreen",
@@ -44,7 +45,7 @@ export const Loading: Story = {
   parameters: {
     ...storybookMswParameters({
       skill: [
-        http.get("/api/skills", async () => {
+        aghApiMock.get("/api/skills", async () => {
           await delay("infinite");
           return HttpResponse.json({ skills: [] });
         }),
@@ -58,7 +59,7 @@ export const ErrorState: Story = {
   parameters: {
     ...storybookMswParameters({
       skill: [
-        http.get("/api/skills", () =>
+        aghApiMock.get("/api/skills", () =>
           HttpResponse.json({ error: "skills registry offline" }, { status: 500 })
         ),
       ],
@@ -70,7 +71,7 @@ export const ErrorState: Story = {
 export const Empty: Story = {
   parameters: {
     ...storybookMswParameters({
-      skill: [http.get("/api/skills", () => HttpResponse.json({ skills: [] }))],
+      skill: [aghApiMock.get("/api/skills", () => HttpResponse.json({ skills: [] }))],
     }),
   },
   render: () => <SkillListPanelFromPage />,

@@ -26,7 +26,7 @@ const activeSessions: SessionPayload[] = [
 ];
 
 const meta: Meta<typeof AgentPageActions> = {
-  title: "systems/agent/AgentPageHeader",
+  title: "systems/agent/components/AgentPageHeader",
   component: AgentPageActions,
   parameters: {
     layout: "fullscreen",

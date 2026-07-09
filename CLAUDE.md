@@ -98,6 +98,7 @@ AGH Impact Audit:
 | Security review                       | `security-review`                                                                        | `ubs`                                                     |
 | Creative / new features               | `cy-idea-factory`                                                                        | `council`                                                 |
 | Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                                         |
+| Design spec (pre-PRD, UI surfaces)    | `cy-create-design-spec` + `agh-design` + `ui-craft`                                      | `impeccable` + `agh-ui-screenshot`                        |
 | PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                                         |
 | TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review` + `cy-research-competitors`         |
 | Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                           |

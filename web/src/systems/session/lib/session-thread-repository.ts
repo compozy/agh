@@ -67,6 +67,23 @@ function toJSONObject(value: unknown): JSONObject {
   return isJSONValue(value) ? value : {};
 }
 
+function threadPartMetadata(record: Record<string, unknown>): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  const turnId = stringField(record, "turn_id") ?? stringField(record, "turnId");
+  if (turnId) {
+    metadata.turnId = turnId;
+  }
+  const timestamp = stringField(record, "timestamp");
+  if (timestamp) {
+    metadata.timestamp = timestamp;
+  }
+  const state = stringField(record, "state");
+  if (state) {
+    metadata.state = state;
+  }
+  return metadata;
+}
+
 function toToolPart(record: Record<string, unknown>, type: string): ThreadContentPart {
   const toolName = type.slice("tool-".length).trim() || stringField(record, "toolName") || "tool";
   const toolCallId =
@@ -82,7 +99,8 @@ function toToolPart(record: Record<string, unknown>, type: string): ThreadConten
     argsText: jsonText(input),
     result: record.output,
     isError: state === "output-error" || Boolean(record.isError),
-  };
+    ...threadPartMetadata(record),
+  } as ThreadContentPart;
 }
 
 function toThreadPart(part: SessionMessagePart): ThreadContentPart | null {
@@ -96,15 +114,27 @@ function toThreadPart(part: SessionMessagePart): ThreadContentPart | null {
   }
 
   if (type === "text") {
-    return { type: "text" as const, text: stringField(part, "text") ?? "" };
+    return {
+      type: "text" as const,
+      text: stringField(part, "text") ?? "",
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type === "reasoning") {
-    return { type: "reasoning" as const, text: stringField(part, "text") ?? "" };
+    return {
+      type: "reasoning" as const,
+      text: stringField(part, "text") ?? "",
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type.startsWith("data-")) {
-    return { type: type as `data-${string}`, data: (part as { data?: unknown }).data };
+    return {
+      type: type as `data-${string}`,
+      data: (part as { data?: unknown }).data,
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
   }
 
   if (type.startsWith("tool-")) {
@@ -121,16 +151,25 @@ function toThreadRole(role: SessionMessage["role"]): ThreadMessageLike["role"] {
   return "assistant";
 }
 
+function toThreadMetadata(message: SessionMessage): ThreadMessageLike["metadata"] | undefined {
+  if (!isRecord(message.metadata)) {
+    return undefined;
+  }
+  return { custom: message.metadata };
+}
+
 export function toThreadMessageLikes(messages: SessionMessage[]): ThreadMessageLike[] {
   return messages.map(message => {
     const parts = message.parts?.map(toThreadPart).filter(part => part !== null) ?? [];
     const role = toThreadRole(message.role);
     const status = role === "assistant" ? (message as SessionMessageWithStatus).status : undefined;
+    const metadata = toThreadMetadata(message);
     return {
       id: message.id,
       role,
       content: parts,
       status,
+      metadata,
     } satisfies ThreadMessageLike;
   });
 }
@@ -142,13 +181,47 @@ export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMess
   return repository.messages.map(item => item.message);
 }
 
-export function transcriptSignature(messages: SessionMessage[]): string {
-  return JSON.stringify(
-    messages.map(message => ({
-      id: message.id,
-      role: message.role,
-      parts: message.parts ?? [],
-      status: (message as SessionMessageWithStatus).status ?? null,
-    }))
-  );
+export interface StableThreadMessagesState {
+  bySource: WeakMap<SessionMessage, ThreadMessage>;
+  result: readonly ThreadMessage[];
+}
+
+export const EMPTY_STABLE_THREAD_MESSAGES: StableThreadMessagesState = {
+  bySource: new WeakMap(),
+  result: [],
+};
+
+/**
+ * Structural sharing for the read-model, mirroring `computeStableSessionRows` at
+ * the message layer. `toReadonlyThreadMessages` reallocates every `ThreadMessage`
+ * on each pass, so a single-message streaming delta would churn the identity of
+ * every settled message and force the whole thread to reconcile. This reuses the
+ * prior `ThreadMessage` whenever its source `SessionMessage` reference is unchanged
+ * (TanStack Query's structural sharing keeps that reference stable for messages a
+ * delta or no-op refetch did not touch), so only the mutated message gets a fresh
+ * object. Reuse is position-independent: an exported `ThreadMessage` carries no
+ * parent linkage, so a reordered-but-unchanged message keeps its identity safely.
+ */
+export function computeStableThreadMessages(
+  messages: SessionMessage[],
+  previous: StableThreadMessagesState
+): StableThreadMessagesState {
+  const converted = toReadonlyThreadMessages(messages);
+  const bySource = new WeakMap<SessionMessage, ThreadMessage>();
+  let anyChanged = converted.length !== previous.result.length;
+
+  const result = converted.map((thread, index) => {
+    const source = messages[index];
+    const reused = source ? previous.bySource.get(source) : undefined;
+    const stable = reused ?? thread;
+    if (source) {
+      bySource.set(source, stable);
+    }
+    if (!anyChanged && previous.result[index] !== stable) {
+      anyChanged = true;
+    }
+    return stable;
+  });
+
+  return anyChanged ? { bySource, result } : previous;
 }

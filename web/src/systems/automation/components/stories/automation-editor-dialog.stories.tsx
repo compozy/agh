@@ -14,7 +14,7 @@ import type {
 import { AutomationEditorDialog } from "@/systems/automation/components/automation-editor-dialog";
 
 const meta: Meta<typeof AutomationEditorDialog> = {
-  title: "systems/automation/AutomationEditorDialog",
+  title: "systems/automation/components/AutomationEditorDialog",
   component: AutomationEditorDialog,
   parameters: {
     layout: "fullscreen",

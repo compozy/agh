@@ -645,6 +645,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/health/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream bridge health snapshots */
+    get: operations["streamBridgeHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/providers": {
     parameters: {
       query?: never;
@@ -2255,6 +2272,23 @@ export interface paths {
     put?: never;
     /** Create a session */
     post: operations["createSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/{session_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one session snapshot by id */
+    get: operations["getSessionByID"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -4627,6 +4661,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream session events or assembled transcript updates */
+    get: operations["streamSession"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/tools": {
     parameters: {
       query?: never;
@@ -4670,6 +4721,23 @@ export interface paths {
     };
     /** Get the canonical transcript for one session */
     get: operations["getSessionTranscript"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get aggregated token usage for a session */
+    get: operations["getSessionUsage"];
     put?: never;
     post?: never;
     delete?: never;
@@ -7477,6 +7545,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                /** Format: int64 */
+                transcript_epoch?: number;
                 /** @enum {string} */
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
@@ -16603,6 +16673,172 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamBridgeHealth: {
+    parameters: {
+      query?: {
+        /** @description Filter by bridge scope */
+        scope?: "all" | "global" | "workspace";
+        /** @description Filter by active workspace id */
+        workspace_id?: string;
+        /** @description Filter by workspace id, name, or path */
+        workspace?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bridge health snapshot stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            bridge_health: {
+              [key: string]: {
+                auth_failures_total: number;
+                bridge_instance_id: string;
+                degradation?: {
+                  message?: string;
+                  /** @enum {string} */
+                  reason:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                } | null;
+                delivery_backlog: number;
+                delivery_dropped_by_reason?: {
+                  [key: string]: number;
+                };
+                delivery_dropped_total: number;
+                delivery_failures_total: number;
+                diagnostics?: {
+                  bridge_instance_id?: string;
+                  /** @enum {string} */
+                  degradation_reason?:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                  /** @enum {string} */
+                  kind:
+                    | "unknown_destination"
+                    | "missing_token"
+                    | "permission_denied"
+                    | "unsupported_capability"
+                    | "transient_delivery_failure";
+                  message: string;
+                  next_action?: string;
+                  secret_slot?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source: string;
+                  /** @enum {string} */
+                  status?:
+                    | "auth_required"
+                    | "degraded"
+                    | "disabled"
+                    | "error"
+                    | "ready"
+                    | "starting";
+                }[];
+                last_error?: string;
+                /** Format: date-time */
+                last_error_at?: string | null;
+                /** Format: date-time */
+                last_success_at?: string | null;
+                route_count: number;
+                /** @enum {string} */
+                status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              };
+            };
+            /** Format: date-time */
+            generated_at: string;
+          };
+        };
+      };
+      /** @description Invalid bridge list filter */
+      400: {
         headers: {
           [name: string]: unknown;
         };
@@ -33611,6 +33847,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
               /** @enum {string} */
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
@@ -33840,6 +34078,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
               /** @enum {string} */
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
@@ -33902,6 +34142,229 @@ export interface operations {
       };
       /** @description Session creation conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSessionByID: {
+    parameters: {
+      query?: {
+        /** @description Include metadata-only session health when available */
+        include_health?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            session: {
+              acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
+                supported_modes?: string[];
+                supports_load_session: boolean;
+              } | null;
+              acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
+              channel?: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              model?: string;
+              name?: string;
+              provider: string;
+              reasoning_effort?: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -60602,6 +61065,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
               /** @enum {string} */
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
@@ -65835,6 +66300,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                /** Format: int64 */
+                transcript_epoch?: number;
                 /** @enum {string} */
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
@@ -66162,6 +66629,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                /** Format: int64 */
+                transcript_epoch?: number;
                 /** @enum {string} */
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
@@ -66498,6 +66967,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                /** Format: int64 */
+                transcript_epoch?: number;
                 /** @enum {string} */
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
@@ -69241,6 +69712,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
               /** @enum {string} */
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
@@ -69661,6 +70134,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
               /** @enum {string} */
               type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
@@ -69753,7 +70228,7 @@ export interface operations {
       query?: {
         /** @description Only events emitted since this timestamp */
         since?: string;
-        /** @description Maximum number of records to return */
+        /** @description Maximum number of records to return; defaults to the newest 200 and is capped at 1000 */
         limit?: number;
         /** @description Only return events after this sequence number */
         after_sequence?: number;
@@ -70044,7 +70519,7 @@ export interface operations {
       query?: {
         /** @description Only events emitted since this timestamp */
         since?: string;
-        /** @description Maximum number of records to return */
+        /** @description Maximum number of turns to return; defaults to the newest 200 and is capped at 1000 */
         limit?: number;
         /** @description Only return events after this sequence number */
         after_sequence?: number;
@@ -71122,6 +71597,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
+                /** Format: int64 */
+                transcript_epoch?: number;
                 /** @enum {string} */
                 type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
@@ -71975,6 +72452,283 @@ export interface operations {
       };
     };
   };
+  streamSession: {
+    parameters: {
+      query?: {
+        /** @description Initial replay cursor when Last-Event-ID is not supplied */
+        after_sequence?: number;
+        /** @description Frame mode. The default is transcript; raw preserves persisted event frames for CLI consumers. */
+        frames?: "raw" | "transcript";
+        /** @description Replay policy. snapshot seeds transcript subscribers with the current assembled tail. */
+        replay?: "snapshot";
+      };
+      header?: {
+        /** @description Resume after the last received SSE id */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            raw?: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+            session_stopped?: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              content: unknown;
+              coordinator_session_id?: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              parent_session_id?: string;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              spawn_depth: number;
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              turn_id: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+            transcript_delta?: {
+              entry: {
+                message: {
+                  id: string;
+                  metadata?: unknown;
+                  parts: {
+                    data?: unknown;
+                    errorText?: string;
+                    id?: string;
+                    input?: unknown;
+                    output?: unknown;
+                    preliminary?: boolean;
+                    rawInput?: unknown;
+                    state?: string;
+                    text?: string;
+                    title?: string;
+                    toolCallId?: string;
+                    toolName?: string;
+                    type: string;
+                  }[];
+                  role: string;
+                };
+                /** Format: int64 */
+                sequence: number;
+              };
+              /** Format: int64 */
+              epoch: number;
+              /** Format: int64 */
+              sequence: number;
+              session_id: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+            transcript_snapshot?: {
+              entries: {
+                message: {
+                  id: string;
+                  metadata?: unknown;
+                  parts: {
+                    data?: unknown;
+                    errorText?: string;
+                    id?: string;
+                    input?: unknown;
+                    output?: unknown;
+                    preliminary?: boolean;
+                    rawInput?: unknown;
+                    state?: string;
+                    text?: string;
+                    title?: string;
+                    toolCallId?: string;
+                    toolName?: string;
+                    type: string;
+                  }[];
+                  role: string;
+                };
+                /** Format: int64 */
+                sequence: number;
+              }[];
+              /** Format: int64 */
+              epoch: number;
+              /** Format: int64 */
+              max_sequence: number;
+              /** Format: int64 */
+              min_sequence: number;
+              reason?: string;
+              reset_below: boolean;
+              session_id: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listSessionTools: {
     parameters: {
       query?: {
@@ -72639,6 +73393,113 @@ export interface operations {
   };
   getSessionTranscript: {
     parameters: {
+      query?: {
+        /** @description Maximum number of transcript entries to return; defaults to the newest 200 and is capped at 1000 */
+        limit?: number;
+        /** @description Only return transcript entries after this event sequence */
+        after_sequence?: number;
+        /** @description Return transcript entries before this event sequence for backward pagination */
+        before_sequence?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              message: {
+                id: string;
+                metadata?: unknown;
+                parts: {
+                  data?: unknown;
+                  errorText?: string;
+                  id?: string;
+                  input?: unknown;
+                  output?: unknown;
+                  preliminary?: boolean;
+                  rawInput?: unknown;
+                  state?: string;
+                  text?: string;
+                  title?: string;
+                  toolCallId?: string;
+                  toolName?: string;
+                  type: string;
+                }[];
+                role: string;
+              };
+              /** Format: int64 */
+              sequence: number;
+            }[];
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSessionUsage: {
+    parameters: {
       query?: never;
       header?: never;
       path: {
@@ -72658,26 +73519,19 @@ export interface operations {
         };
         content: {
           "application/json": {
-            messages: {
-              id: string;
-              metadata?: unknown;
-              parts: {
-                data?: unknown;
-                errorText?: string;
-                id?: string;
-                input?: unknown;
-                output?: unknown;
-                preliminary?: boolean;
-                rawInput?: unknown;
-                state?: string;
-                text?: string;
-                title?: string;
-                toolCallId?: string;
-                toolName?: string;
-                type: string;
-              }[];
-              role: string;
-            }[];
+            usage: {
+              cost_currency?: string;
+              /** Format: int64 */
+              input_tokens?: number | null;
+              /** Format: int64 */
+              output_tokens?: number | null;
+              /** Format: double */
+              total_cost?: number | null;
+              /** Format: int64 */
+              total_tokens?: number | null;
+              /** Format: int64 */
+              turn_count: number;
+            };
           };
         };
       };

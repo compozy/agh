@@ -9,7 +9,7 @@ import { bridgeProvidersFixture } from "@/systems/bridges/mocks";
 import { BridgeCreateDialog } from "../bridge-create-dialog";
 
 const meta: Meta<typeof BridgeCreateDialog> = {
-  title: "systems/bridges/BridgeCreateDialog",
+  title: "systems/bridges/components/BridgeCreateDialog",
   component: BridgeCreateDialog,
   parameters: {
     layout: "fullscreen",

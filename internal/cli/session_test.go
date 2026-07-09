@@ -436,6 +436,9 @@ func TestSessionEventsJSONLOutput(t *testing.T) {
 				if query.Type != "agent_message" {
 					t.Fatalf("SessionEvents() query.Type = %q, want agent_message", query.Type)
 				}
+				if query.Last != 2 || query.AfterSequence != 7 {
+					t.Fatalf("SessionEvents() query = %#v, want last 2 after 7", query)
+				}
 				return []SessionEventRecord{
 					{
 						ID:        "evt-1",
@@ -463,6 +466,10 @@ func TestSessionEventsJSONLOutput(t *testing.T) {
 			"sess-1",
 			"--type",
 			"agent_message",
+			"--last",
+			"2",
+			"--after",
+			"7",
 			"-o",
 			"jsonl",
 		)
@@ -480,6 +487,62 @@ func TestSessionEventsJSONLOutput(t *testing.T) {
 		}
 		if decoded.ID != "evt-1" || decoded.Sequence != 1 {
 			t.Fatalf("decoded first event = %#v, want evt-1 sequence 1", decoded)
+		}
+	})
+}
+
+func TestSessionHistoryUsesCursorFlags(t *testing.T) {
+	t.Run("Should use cursor flags for session history", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			sessionHistoryFn: func(_ context.Context, id string, query SessionEventQuery) ([]TurnHistoryRecord, error) {
+				if id != "sess-1" {
+					t.Fatalf("SessionHistory() id = %q, want sess-1", id)
+				}
+				if query.Last != 3 || query.AfterSequence != 11 {
+					t.Fatalf("SessionHistory() query = %#v, want last 3 after 11", query)
+				}
+				return []TurnHistoryRecord{
+					{
+						TurnID: "turn-1",
+						Events: []SessionEventRecord{
+							{
+								ID:        "evt-12",
+								SessionID: id,
+								Sequence:  12,
+								TurnID:    "turn-1",
+								Type:      "agent_message",
+								Timestamp: fixedTestNow,
+							},
+						},
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"history",
+			"sess-1",
+			"--last",
+			"3",
+			"--after",
+			"11",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session history) error = %v", err)
+		}
+		var decoded []TurnHistoryRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session history) error = %v", err)
+		}
+		if len(decoded) != 1 || decoded[0].TurnID != "turn-1" {
+			t.Fatalf("decoded history = %#v, want one turn", decoded)
 		}
 	})
 }

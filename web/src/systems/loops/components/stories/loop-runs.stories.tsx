@@ -8,7 +8,7 @@ import type { LoopOutcomeValue } from "../runs/loop-runs-outcome-filter";
 import { loopRunFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopRunsView> = {
-  title: "systems/loops/LoopRuns",
+  title: "systems/loops/components/LoopRuns",
   component: LoopRunsView,
   parameters: { layout: "fullscreen" },
 };

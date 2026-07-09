@@ -6,7 +6,7 @@ import { bridgeProvidersFixture } from "@/systems/bridges/mocks";
 import { BridgeEmptyState } from "../bridge-empty-state";
 
 const meta: Meta<typeof BridgeEmptyState> = {
-  title: "systems/bridges/BridgeEmptyState",
+  title: "systems/bridges/components/BridgeEmptyState",
   component: BridgeEmptyState,
   parameters: {
     layout: "fullscreen",

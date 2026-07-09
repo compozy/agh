@@ -6,7 +6,7 @@ import type { TaskDetailPanel } from "@/hooks/routes/use-task-detail-page";
 import { TasksDetailTabs } from "../tasks-detail-tabs";
 
 const meta: Meta<typeof TasksDetailTabs> = {
-  title: "systems/tasks/TasksDetailTabs",
+  title: "systems/tasks/components/TasksDetailTabs",
   component: TasksDetailTabs,
   parameters: {
     layout: "fullscreen",

@@ -58,7 +58,7 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 	if err != nil {
 		t.Fatalf("SessionTranscript() error = %v", err)
 	}
-	gotTranscript := joinTranscriptContent(transcriptResp.Messages)
+	gotTranscript := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
 	if !strings.Contains(gotTranscript, "alpha says hi") || !strings.Contains(gotTranscript, "bridge-alpha") {
 		t.Fatalf("transcript = %q, want alpha assistant and bridge content", gotTranscript)
 	}
@@ -135,8 +135,8 @@ func TestDaemonE2EMockAgentsRemainIsolated(t *testing.T) {
 		t.Fatalf("SessionTranscript(beta) error = %v", err)
 	}
 
-	alphaContent := joinTranscriptContent(alphaTranscript.Messages)
-	betaContent := joinTranscriptContent(betaTranscript.Messages)
+	alphaContent := joinTranscriptContent(sessionTranscriptMessages(alphaTranscript))
+	betaContent := joinTranscriptContent(sessionTranscriptMessages(betaTranscript))
 	if !strings.Contains(alphaContent, "alpha says hi") || strings.Contains(alphaContent, "beta only") {
 		t.Fatalf("alpha transcript = %q, want only alpha content", alphaContent)
 	}

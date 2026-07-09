@@ -20,11 +20,12 @@ AGH exposes two different streaming models for session work:
 
 | Surface                  | Endpoint                                                         | What you get                                                                                |
 | ------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Persisted session stream | `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`  | Stored `SessionEventPayload` rows with stable sequence numbers and SSE replay support       |
+| Persisted session stream | `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`  | Assembled transcript frames by default; raw stored event rows when `frames=raw` is supplied |
 | Prompt stream            | `POST /api/workspaces/:workspace_id/sessions/:session_id/prompt` | Raw live prompt events in the AI SDK UI stream format (`x-vercel-ai-ui-message-stream: v1`) |
 
-Use the persisted session stream when you need auditability or reconnect support. Use the prompt
-stream when you are driving one interactive prompt call.
+Use the persisted session stream when you need reconnect support or a live transcript projection.
+Use `frames=raw` on that stream when you need audit-grade event rows. Use the prompt stream when
+you are driving one interactive prompt call.
 
 ## Outer persisted event envelope
 
@@ -186,27 +187,79 @@ The HTTP query surfaces accept these filters:
 For HTTP, `since` must be RFC3339 or RFC3339Nano. The CLI is more convenient: `agh session events
 --since 5m` converts the duration into an absolute UTC timestamp before calling the API.
 
+`events` defaults to the newest 200 matching rows. `history` defaults to the newest 200 grouped
+turns after grouping all matching rows. Both are capped at 1000 by `limit` and reject
+`before_sequence`.
+
+The transcript endpoint accepts `limit`, `after_sequence`, and `before_sequence`. It returns
+sequence-bearing entries so clients can page or merge transcript state without guessing which
+persisted event shaped a message:
+
+```json
+{
+  "entries": [
+    {
+      "message": {
+        "id": "msg-42",
+        "role": "assistant",
+        "parts": [{ "type": "text", "text": "Done.", "state": "done" }]
+      },
+      "sequence": 42
+    }
+  ]
+}
+```
+
+`after_sequence` and `before_sequence` are mutually exclusive. `before_sequence` is only supported
+on `/transcript`.
+
 ## Subscribing over SSE
 
-Follow persisted events live:
+Follow persisted events from the CLI:
 
 ```bash
 agh session events sess-1234 --follow
 ```
 
-Open the raw SSE stream directly:
+`agh session events --follow` requests `frames=raw`, because the CLI command is an operational
+event reader.
+
+Open the default transcript SSE stream directly:
 
 ```bash
-curl -N http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream
+curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?replay=snapshot'
 ```
 
-The stream writes:
+The default stream writes:
+
+- `id:` as the transcript cursor sequence
+- `event: transcript_snapshot` for the initial bounded transcript window
+- `event: transcript_delta` for one folded transcript entry after the current cursor
+- `event: session_stopped` when a stopped session has no more rows to deliver
+- `event: error` when the stream fails before it can continue; this frame is terminal
+
+Example transcript snapshot frame:
+
+```text
+id: 42
+event: transcript_snapshot
+data: {"session_id":"sess-1234","workspace_id":"ws_alpha","epoch":0,"entries":[{"message":{"id":"msg-42","role":"assistant","parts":[{"type":"text","text":"Done.","state":"done"}]},"sequence":42}],"min_sequence":42,"max_sequence":42,"reset_below":true,"reason":"subscribe"}
+```
+
+Open the raw stored-event stream when you need event rows:
+
+```bash
+curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?frames=raw'
+```
+
+Raw frames write:
 
 - `id:` as the persisted event sequence number
 - `event:` as the persisted event type
+- `event: error` when the stream fails before it can continue; this frame is terminal
 - `data:` as one `SessionEventPayload`
 
-Example SSE frame:
+Example raw SSE frame:
 
 ```text
 id: 42
@@ -221,11 +274,13 @@ Reconnect from a known sequence:
 ```bash
 curl -N \
   -H "Last-Event-ID: 42" \
-  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream
+  'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream'
 ```
 
-`Last-Event-ID` must be a numeric persisted sequence. AGH first replays backlog rows after that
-sequence and then continues polling for new rows.
+`Last-Event-ID` must be a numeric persisted sequence. In transcript mode, AGH emits deltas after
+that cursor unless `replay=snapshot` is supplied. Without `Last-Event-ID`, AGH seeds transcript
+subscribers with a bounded snapshot automatically. In raw mode, AGH replays persisted backlog rows
+after the cursor and then continues polling for new rows.
 
 If the session is already stopped and no new stored rows arrive, AGH emits a terminal synthetic
 `session_stopped` SSE event and closes the stream. When the stopped session has failure
@@ -282,7 +337,8 @@ matching rows first and then re-sorts them ascending before returning them.
 The [resume attach and replay](/runtime/core/sessions/resume) path depends on this stored event log:
 
 - `agh session history` groups the stored rows by `turn_id`
-- `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay messages from these rows
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay entries from these rows
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/stream` emits transcript snapshots and deltas by default
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/recap` returns a bounded, redacted reorientation snapshot
 - `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, and MCP auth prompts as durable marker evidence
 

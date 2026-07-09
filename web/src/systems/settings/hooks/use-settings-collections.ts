@@ -42,8 +42,11 @@ export function useSettingsHooks() {
   return useQuery(settingsHooksListOptions());
 }
 
-export function useSettingsMCPServers(filter: SettingsMCPServerListFilter = {}) {
-  return useQuery(settingsMCPServersListOptions(filter));
+export function useSettingsMCPServers(
+  filter: SettingsMCPServerListFilter = {},
+  options: QueryEnabledOptions = {}
+) {
+  return useQuery(settingsMCPServersListOptions(filter, options.enabled ?? true));
 }
 
 export function useSettingsExtensions() {

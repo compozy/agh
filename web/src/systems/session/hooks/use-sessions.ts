@@ -6,9 +6,10 @@ import {
   sessionDetailOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
-  sessionWorkspaceResolutionOptions,
+  sessionUsageOptions,
   sessionsListOptions,
 } from "../lib/query-options";
+import type { SessionState } from "../types";
 
 interface UseSessionsOptions {
   enabled?: boolean;
@@ -27,19 +28,9 @@ export function useSession(id: string, workspace?: string | null) {
   return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
-export function useSessionById(id: string) {
-  const workspaceQuery = useQuery(sessionWorkspaceResolutionOptions(id));
-  const workspaceId = workspaceQuery.data ?? "";
-  const detailQuery = useQuery(sessionDetailOptions(workspaceId, id));
-  const error = workspaceQuery.error ?? detailQuery.error ?? null;
-
-  return {
-    ...detailQuery,
-    error,
-    isError: workspaceQuery.isError || detailQuery.isError,
-    isLoading: workspaceQuery.isLoading || (workspaceId !== "" && detailQuery.isLoading),
-    isPending: workspaceQuery.isPending || (workspaceId !== "" && detailQuery.isPending),
-  };
+export function useSessionById(id: string, workspace: string) {
+  const workspaceId = workspace.trim();
+  return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
 export interface UseSessionLedgerOptions {
@@ -66,4 +57,14 @@ export function useSessionRecap(id: string, workspace?: string | null, limit?: n
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? activeWorkspaceId ?? "";
   return useQuery(sessionRecapOptions(workspaceId, id, limit));
+}
+
+export function useSessionUsage(
+  id: string,
+  workspace?: string | null,
+  sessionState?: SessionState | null
+) {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  return useQuery(sessionUsageOptions(workspaceId, id, sessionState));
 }

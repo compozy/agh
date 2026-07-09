@@ -57,7 +57,7 @@ function AppSidebarHarness({
 }
 
 const meta: Meta<typeof AppSidebarHarness> = {
-  title: "app/AppSidebar",
+  title: "systems/runtime/components/AppSidebar",
   component: AppSidebarHarness,
   parameters: {
     layout: "fullscreen",

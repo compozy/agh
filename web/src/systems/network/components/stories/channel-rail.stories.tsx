@@ -60,7 +60,7 @@ const recents: NetworkRecentEntry[] = [
 ];
 
 const meta: Meta<typeof ChannelRail> = {
-  title: "systems/network/ChannelRail",
+  title: "systems/network/components/ChannelRail",
   component: ChannelRail,
   parameters: {
     layout: "fullscreen",

@@ -151,12 +151,14 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/providers",
 		"GET /api/providers/:provider_id",
 		"GET /api/sessions",
+		"GET /api/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
@@ -2358,20 +2360,23 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 	}
 }
 
-func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
+func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string) ([]transcript.UIMessage, error) {
-			return []transcript.UIMessage{{
-				ID:   "msg-1",
-				Role: transcript.UIRoleAssistant,
-				Parts: []transcript.UIMessagePart{{
-					Type:  "text",
-					Text:  "hello",
-					State: "done",
-				}},
+		TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
+			return []transcript.Entry{{
+				Sequence: 1,
+				Message: transcript.UIMessage{
+					ID:   "msg-1",
+					Role: transcript.UIRoleAssistant,
+					Parts: []transcript.UIMessagePart{{
+						Type:  "text",
+						Text:  "hello",
+						State: "done",
+					}},
+				},
 			}}, nil
 		},
 	}
@@ -2390,14 +2395,17 @@ func TestSessionTranscriptHandlerReturnsMessages(t *testing.T) {
 	}
 
 	var response struct {
-		Messages []transcript.UIMessage `json:"messages"`
+		Entries []transcript.Entry `json:"entries"`
 	}
 	decodeJSONResponse(t, recorder, &response)
-	if len(response.Messages) != 1 {
-		t.Fatalf("len(messages) = %d, want 1", len(response.Messages))
+	if len(response.Entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(response.Entries))
 	}
-	if got := response.Messages[0].Parts[0].Text; got != "hello" {
-		t.Fatalf("messages[0].Parts[0].Text = %q, want %q", got, "hello")
+	if got := response.Entries[0].Sequence; got != 1 {
+		t.Fatalf("entries[0].Sequence = %d, want 1", got)
+	}
+	if got := response.Entries[0].Message.Parts[0].Text; got != "hello" {
+		t.Fatalf("entries[0].Message.Parts[0].Text = %q, want %q", got, "hello")
 	}
 }
 

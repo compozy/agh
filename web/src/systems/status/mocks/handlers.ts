@@ -1,10 +1,11 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { statusFixture } from "./fixtures";
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/status", () => HttpResponse.json(statusFixture)),
-  http.get("/api/doctor", () =>
+  aghApiMock.get("/api/status", () => HttpResponse.json(statusFixture)),
+  aghApiMock.get("/api/doctor", () =>
     HttpResponse.json({
       schema_version: "2026-05-20",
       generated_at: statusFixture.generated_at,

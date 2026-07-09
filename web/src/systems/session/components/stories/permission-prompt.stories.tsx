@@ -7,7 +7,7 @@ import { permissionRequestFixture, primarySessionFixture } from "@/systems/sessi
 import { PermissionPrompt } from "../permission-prompt";
 
 const meta: Meta<typeof PermissionPrompt> = {
-  title: "systems/session/PermissionPrompt",
+  title: "systems/session/components/PermissionPrompt",
   component: PermissionPrompt,
   parameters: {
     layout: "centered",

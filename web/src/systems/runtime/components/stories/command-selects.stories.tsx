@@ -36,7 +36,7 @@ const reasoningOptions: ReasoningSelectOption[] = [
 ];
 
 const meta: Meta<typeof ProviderCommandSelect> = {
-  title: "systems/runtime/CommandSelects",
+  title: "systems/runtime/components/CommandSelects",
   component: ProviderCommandSelect,
   parameters: {
     layout: "fullscreen",

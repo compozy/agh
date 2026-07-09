@@ -5,7 +5,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
 
 const meta: Meta<typeof SessionChatRuntimeProvider> = {
-  title: "systems/session/SessionChatRuntimeProvider",
+  title: "systems/session/components/SessionChatRuntimeProvider",
   component: SessionChatRuntimeProvider,
   parameters: {
     layout: "fullscreen",

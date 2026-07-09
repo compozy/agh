@@ -50,7 +50,7 @@ function FiltersHarness({ initial, totalCount = 26, visibleCount }: HarnessProps
 }
 
 const meta: Meta<typeof ProvidersListFilters> = {
-  title: "systems/settings/ProvidersListFilters",
+  title: "systems/settings/components/ProvidersListFilters",
   component: ProvidersListFilters,
   parameters: {
     layout: "fullscreen",

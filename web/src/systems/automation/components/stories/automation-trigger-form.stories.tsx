@@ -13,7 +13,7 @@ import type { CreateAutomationTriggerRequest } from "@/systems/automation";
 import { AutomationTriggerForm } from "../automation-trigger-form";
 
 const meta: Meta<typeof AutomationTriggerForm> = {
-  title: "systems/automation/AutomationTriggerForm",
+  title: "systems/automation/components/AutomationTriggerForm",
   component: AutomationTriggerForm,
   parameters: {
     layout: "fullscreen",

@@ -211,17 +211,18 @@ func (m *Manager) History(
 }
 
 func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
-	return m.openRecorder(ctx, id, m.openQueryStore)
+	return m.openRecorder(ctx, id, m.openQueryStore, true)
 }
 
 func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
-	return m.openRecorder(ctx, id, m.openStore)
+	return m.openRecorder(ctx, id, m.openStore, false)
 }
 
 func (m *Manager) openRecorder(
 	ctx context.Context,
 	id string,
 	opener StoreOpener,
+	allowReadOnlyFallback bool,
 ) (EventRecorder, func() error, error) {
 	if ctx == nil {
 		return nil, nil, errors.New("session: query context is required")
@@ -250,7 +251,16 @@ func (m *Manager) openRecorder(
 			if recorder != nil {
 				return recorder, func() error { return nil }, nil
 			}
-			return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+			if allowReadOnlyFallback {
+				m.logger.DebugContext(
+					ctx,
+					"session: active recorder unavailable; falling back to stored events",
+					"session_id",
+					target,
+				)
+			} else {
+				return nil, nil, fmt.Errorf("session: recorder is not available for %q", target)
+			}
 		}
 	}
 
@@ -259,7 +269,7 @@ func (m *Manager) openRecorder(
 	}
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
-	if err := recoverSessionDBClear(dbPath); err != nil {
+	if err := m.recoverSessionDBClear(ctx, target, dbPath); err != nil {
 		return nil, nil, fmt.Errorf("session: recover clear state for %q: %w", target, err)
 	}
 	if _, err := os.Stat(dbPath); err != nil {
@@ -363,6 +373,20 @@ func hasWindowsDriveRelativePrefix(value string) bool {
 
 func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta store.SessionMeta) *Info {
 	info := sessionInfoFromMeta(meta)
+	if m != nil && m.transcriptEpochStore != nil {
+		epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID)
+		if err != nil {
+			m.logger.Warn(
+				"session: read transcript epoch for metadata failed",
+				"session_id",
+				meta.ID,
+				"error",
+				err,
+			)
+		} else {
+			info.TranscriptEpoch = epoch
+		}
+	}
 	workspaceRoot, err := m.resolveWorkspaceRoot(ctx, meta.WorkspaceID)
 	if err != nil {
 		m.logger.Warn(

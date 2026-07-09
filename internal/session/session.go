@@ -73,6 +73,7 @@ type Info struct {
 	ParentSoulDigest string
 	AttachedTo       string
 	AttachExpiresAt  *time.Time
+	TranscriptEpoch  int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -107,6 +108,7 @@ type Session struct {
 	ParentSoulDigest     string
 	AttachedTo           string
 	AttachExpiresAt      *time.Time
+	TranscriptEpoch      int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 
@@ -165,6 +167,7 @@ func (s *Session) Info() *Info {
 		ParentSoulDigest: s.ParentSoulDigest,
 		AttachedTo:       strings.TrimSpace(s.AttachedTo),
 		AttachExpiresAt:  cloneSessionTimePtr(s.AttachExpiresAt),
+		TranscriptEpoch:  s.TranscriptEpoch,
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { useAutomationJobsPage } from "@/hooks/routes/use-automation-page";
@@ -14,7 +15,7 @@ import {
 import { AutomationDetailPanel } from "../automation-detail-panel";
 
 const meta: Meta<typeof AutomationDetailPanel> = {
-  title: "systems/automation/AutomationDetailPanel",
+  title: "systems/automation/components/AutomationDetailPanel",
   component: AutomationDetailPanel,
   parameters: {
     layout: "fullscreen",
@@ -44,7 +45,7 @@ export const Error: Story = {
   parameters: {
     ...storybookMswParameters({
       automation: [
-        http.get("/api/automation/jobs/:id", ({ params }) =>
+        aghApiMock.get("/api/automation/jobs/{id}", ({ params }) =>
           HttpResponse.json(
             { error: `Failed to load automation job ${String(params.id)}` },
             { status: 500 }

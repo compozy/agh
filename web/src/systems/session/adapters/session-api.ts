@@ -18,6 +18,7 @@ import type {
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
+  SessionUsagePayload,
   TurnHistoryPayload,
 } from "../types";
 import { normalizeTranscriptMessages } from "../lib/message-schemas";
@@ -120,6 +121,17 @@ export async function fetchSession(
   return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
 }
 
+export async function fetchSessionById(id: string, signal?: AbortSignal): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.GET("/api/sessions/{session_id}", {
+    params: { path: { session_id: id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to fetch session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to fetch session "${id}"`).session;
+}
+
 export async function deleteSession(
   workspaceId: string,
   id: string,
@@ -208,10 +220,14 @@ export function buildSessionStreamUrl(
   afterSequence?: number
 ): string {
   const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/stream`;
-  if (afterSequence === undefined || afterSequence <= 0) {
-    return path;
+  const params = new URLSearchParams({
+    frames: "transcript",
+    replay: "snapshot",
+  });
+  if (afterSequence !== undefined && afterSequence > 0) {
+    params.set("after_sequence", String(afterSequence));
   }
-  return `${path}?after_sequence=${encodeURIComponent(String(afterSequence))}`;
+  return `${path}?${params.toString()}`;
 }
 
 export async function interruptSessionPrompt(
@@ -324,6 +340,24 @@ export async function fetchSessionRecap(
     throwSessionRequestError(response, error, `Failed to fetch session recap "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session recap "${id}"`).recap;
+}
+
+export async function fetchSessionUsage(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionUsagePayload> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to fetch session usage "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to fetch session usage "${id}"`).usage;
 }
 
 export async function repairSession(
@@ -513,5 +547,5 @@ export async function fetchSessionTranscript(
 
   const payload = requireResponseData(data, response, `Failed to fetch session transcript "${id}"`);
 
-  return normalizeTranscriptMessages(payload.messages);
+  return normalizeTranscriptMessages(payload.entries.map(entry => entry.message));
 }

@@ -8,11 +8,13 @@ import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as loopsHandlers } from "@/systems/loops/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
+import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
 import { handlers as schedulerHandlers } from "@/systems/scheduler/mocks";
 import { handlers as tasksHandlers } from "@/systems/tasks/mocks";
+import { handlers as vaultHandlers } from "@/systems/vault/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 
 export type StorybookHandlerGroupName =
@@ -20,15 +22,18 @@ export type StorybookHandlerGroupName =
   | "automation"
   | "bridges"
   | "daemon"
+  | "design-system"
   | "knowledge"
   | "loops"
   | "network"
   | "onboarding"
+  | "runtime"
   | "session"
   | "settings"
   | "skill"
   | "scheduler"
   | "tasks"
+  | "vault"
   | "workspace";
 
 export type StorybookHandlerGroups = Record<StorybookHandlerGroupName, HttpHandler[]>;
@@ -39,15 +44,18 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   automation: automationHandlers,
   bridges: bridgeHandlers,
   daemon: daemonHandlers,
+  "design-system": [],
   knowledge: knowledgeHandlers,
   loops: loopsHandlers,
   network: networkHandlers,
   onboarding: onboardingHandlers,
+  runtime: runtimeHandlers,
   session: sessionHandlers,
   settings: settingsHandlers,
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,
+  vault: vaultHandlers,
   workspace: workspaceHandlers,
 };
 

@@ -8,7 +8,7 @@ import type { BridgeSummary } from "@/systems/bridges/types";
 import { BridgeListPanel } from "../bridge-list-panel";
 
 const meta: Meta<typeof BridgeListPanel> = {
-  title: "systems/bridges/BridgeListPanel",
+  title: "systems/bridges/components/BridgeListPanel",
   component: BridgeListPanel,
   parameters: {
     layout: "fullscreen",

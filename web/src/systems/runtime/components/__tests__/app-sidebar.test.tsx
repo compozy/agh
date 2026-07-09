@@ -680,6 +680,7 @@ describe("AppSidebar", () => {
         "nav-bridges",
         "nav-sandbox",
         "nav-vault",
+        "nav-mcp",
         "nav-settings",
       ]);
     });
@@ -696,6 +697,7 @@ describe("AppSidebar", () => {
       ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
       ["vault", "/vault"],
+      ["mcp", "/mcp"],
       ["settings", "/settings"],
     ])("Should render the %s nav item linking to %s", (testKey, href) => {
       renderSidebar(makeProps());
@@ -720,6 +722,7 @@ describe("AppSidebar", () => {
       ["bridges", "/bridges"],
       ["sandbox", "/sandbox"],
       ["vault", "/vault"],
+      ["mcp", "/mcp"],
     ])("Should render the 2px accent bar on active %s nav", (testKey, path) => {
       matchedRoute[path] = true;
       renderSidebar(makeProps());

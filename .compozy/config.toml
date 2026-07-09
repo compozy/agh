@@ -12,7 +12,13 @@ reasoning_effort = 'xhigh'
 type = 'frontend'
 ide = 'claude'
 model = 'opus'
-reasoning_effort = 'high'
+reasoning_effort = 'xhigh'
+
+[[tasks.run.task_runtime_rules]]
+type = 'docs'
+ide = 'claude'
+model = 'opus'
+reasoning_effort = 'xhigh'
 
 [[tasks.run.task_runtime_rules]]
 type = 'backend'

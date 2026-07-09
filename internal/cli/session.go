@@ -357,7 +357,7 @@ func newSessionRecapCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionRecapBundle(recap))
+			return writeCommandOutput(cmd, sessionRecapBundle(&recap))
 		},
 	}
 	cmd.Flags().IntVar(&limit, "limit", 20, "Maximum recent messages to include")
@@ -589,10 +589,11 @@ func runSessionPromptAction(
 
 func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 	var (
-		eventType string
-		last      int
-		sinceRaw  string
-		follow    bool
+		eventType     string
+		last          int
+		afterSequence int64
+		sinceRaw      string
+		follow        bool
 	)
 
 	cmd := &cobra.Command{
@@ -614,10 +615,14 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := validateSessionEventCursorFlags(last, afterSequence); err != nil {
+				return err
+			}
 			query := SessionEventQuery{
-				Type:  eventType,
-				Last:  last,
-				Since: since,
+				Type:          eventType,
+				Last:          last,
+				AfterSequence: afterSequence,
+				Since:         since,
 			}
 
 			if follow {
@@ -633,6 +638,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&eventType, extensionTypeKey, "", "Filter by event type")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N events")
+	cmd.Flags().Int64Var(&afterSequence, "after", 0, "Show events after the supplied sequence")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")
 	return cmd
@@ -664,25 +670,42 @@ func writeSessionEventsOutput(cmd *cobra.Command, events []SessionEventRecord) e
 }
 
 func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var (
+		last          int
+		afterSequence int64
+	)
+
+	cmd := &cobra.Command{
 		Use:   sessionHistoryIDValue,
 		Short: "Show session history grouped by turn",
 		Example: `  # Show replayable turn history for one session
-  agh session history sess_1234`,
+  agh session history sess_1234
+
+  # Show turns after a known event sequence
+  agh session history sess_1234 --after 120 --last 10`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
+			if err := validateSessionEventCursorFlags(last, afterSequence); err != nil {
+				return err
+			}
 
-			history, err := client.SessionHistory(cmd.Context(), args[0], SessionEventQuery{})
+			history, err := client.SessionHistory(cmd.Context(), args[0], SessionEventQuery{
+				Last:          last,
+				AfterSequence: afterSequence,
+			})
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, sessionHistoryBundle(history))
 		},
 	}
+	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N turns")
+	cmd.Flags().Int64Var(&afterSequence, "after", 0, "Show turns after the supplied event sequence")
+	return cmd
 }
 
 func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, query SessionEventQuery) error {
@@ -936,7 +959,7 @@ func sessionResumeEmptyBundle() outputBundle {
 	}
 }
 
-func sessionRecapBundle(record SessionRecapRecord) outputBundle {
+func sessionRecapBundle(record *SessionRecapRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
@@ -1365,4 +1388,14 @@ func parseSinceFlag(raw string, now func() time.Time) (time.Time, error) {
 		current = now().UTC()
 	}
 	return current.Add(-duration), nil
+}
+
+func validateSessionEventCursorFlags(last int, afterSequence int64) error {
+	if last < 0 {
+		return fmt.Errorf("cli: --last must be zero or positive: %d", last)
+	}
+	if afterSequence < 0 {
+		return fmt.Errorf("cli: --after must be zero or positive: %d", afterSequence)
+	}
+	return nil
 }

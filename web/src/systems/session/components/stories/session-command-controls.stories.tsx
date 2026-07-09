@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { AgentEventPayload, RuntimeActivityPayload } from "@/systems/session/types";
 import { PanelSurface } from "@/storybook/story-layout";
 
-import { RuntimeActivityNotice, SessionActivityInline } from "../runtime-activity-notice";
+import { RuntimeActivityNotice } from "../runtime-activity-notice";
 
 const runtimeActivity: RuntimeActivityPayload = {
   current_tool: "read_file",
@@ -52,7 +52,7 @@ const markerEvent: AgentEventPayload = {
 };
 
 const meta: Meta<typeof RuntimeActivityNotice> = {
-  title: "systems/session/SessionCommandControls",
+  title: "systems/session/components/SessionCommandControls",
   component: RuntimeActivityNotice,
   parameters: {
     layout: "fullscreen",
@@ -76,8 +76,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * RuntimeActivityNotice and SessionActivityInline expose progress, warning,
- * marker, and failure states without opening a live session.
+ * RuntimeActivityNotice exposes progress, warning, marker, and failure states
+ * without opening a live session.
  */
 export const RuntimeActivity: Story = {
   args: {},
@@ -87,7 +87,6 @@ export const RuntimeActivity: Story = {
       <RuntimeActivityNotice event={warningEvent} />
       <RuntimeActivityNotice event={markerEvent} />
       <RuntimeActivityNotice event={errorEvent} />
-      <SessionActivityInline activity={runtimeActivity} />
     </div>
   ),
 };

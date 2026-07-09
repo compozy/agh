@@ -398,8 +398,8 @@ describe("settings operator selectors", () => {
     expect(selectors.mcpServers.scopeGlobal).toBe(
       `locator:${settingsMCPServersTestIds.scopeGlobal}`
     );
-    expect(selectors.mcpServers.scopeWorkspace("ws_browser")).toBe(
-      "locator:settings-page-mcp-servers-scope-workspace-ws_browser"
+    expect(selectors.mcpServers.scopeWorkspace).toBe(
+      `locator:${settingsMCPServersTestIds.scopeWorkspace}`
     );
     expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
       "locator:settings-page-mcp-servers-row-browser-global-mcp"

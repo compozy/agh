@@ -8,7 +8,7 @@ import { TasksKanbanBoard } from "../tasks-kanban-board";
 import { buildTaskFixture } from "./fixtures";
 
 const meta: Meta<typeof TasksKanbanBoard> = {
-  title: "systems/tasks/TasksKanbanBoard",
+  title: "systems/tasks/components/TasksKanbanBoard",
   component: TasksKanbanBoard,
   parameters: {
     layout: "fullscreen",

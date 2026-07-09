@@ -388,6 +388,7 @@ export { TypingDots, type TypingDotsProps } from "./components/custom/typing-dot
 export {
   CodeBlock,
   CopyIconButton,
+  type CodeBlockDensity,
   type CodeBlockHighlightState,
   type CodeBlockProps,
   type CodeBlockTone,
@@ -503,12 +504,11 @@ export {
   type ChatMessageAlign,
 } from "./components/custom/chat-message-bubble";
 export {
-  TOOL_CALL_STATUS_LABEL,
-  ToolCallCard,
-  type ToolCallCardProps,
-  type ToolCallCardSectionProps,
+  ToolCallRow,
+  type ToolCallRowProps,
+  type ToolCallRowSectionProps,
   type ToolCallStatus,
-} from "./components/custom/tool-call-card";
+} from "./components/custom/tool-call-row";
 export {
   ToolCallStatusIcon,
   type ToolCallStatusIconProps,

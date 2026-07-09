@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   createNetworkChannelFixture,
@@ -55,12 +56,17 @@ function readStringArray(record: Record<string, unknown> | null, key: string): s
   return value.filter((candidate): candidate is string => typeof candidate === "string");
 }
 
+function readTaskPriority(record: Record<string, unknown> | null) {
+  const priority = readOptionalString(record, "priority");
+  return priority === "urgent" || priority === "high" || priority === "low" ? priority : "medium";
+}
+
 export const handlers: HttpHandler[] = [
-  http.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
-  http.get("/api/workspaces/:workspace_id/network/channels", () =>
+  aghApiMock.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
     HttpResponse.json(networkChannelsFixture)
   ),
-  http.get("/api/workspaces/:workspace_id/network/channels/:channel", ({ params }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/channels/{channel}", ({ params }) => {
     const channel = String(params.channel);
 
     if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
@@ -74,8 +80,8 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.patch(
-    "/api/workspaces/:workspace_id/network/channels/:channel",
+  aghApiMock.patch(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}",
     async ({ params, request }) => {
       const channel = String(params.channel);
 
@@ -98,23 +104,25 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.get("/api/workspaces/:workspace_id/network/channels/:channel/subscriptions", ({ params }) =>
-    HttpResponse.json({
-      subscriptions: [
-        {
-          channel: String(params.channel),
-          created_at: "2026-04-17T18:10:00Z",
-          mode: "digest",
-          peer_id: "peer_northstar_launch_control",
-          thread_id: "thread_launch_command",
-          updated_at: "2026-04-17T18:12:00Z",
-          workspace_id: String(params.workspace_id),
-        },
-      ],
-    })
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+    ({ params }) =>
+      HttpResponse.json({
+        subscriptions: [
+          {
+            channel: String(params.channel),
+            created_at: "2026-04-17T18:10:00Z",
+            mode: "digest",
+            peer_id: "peer_northstar_launch_control",
+            thread_id: "thread_launch_command",
+            updated_at: "2026-04-17T18:12:00Z",
+            workspace_id: String(params.workspace_id),
+          },
+        ],
+      })
   ),
-  http.put(
-    "/api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
+  aghApiMock.put(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
     async ({ params, request }) => {
       const body = readRecord(await request.json());
       const peerId = readRequiredString(body, "peer_id");
@@ -138,23 +146,26 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.delete(
-    "/api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
+  aghApiMock.delete(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
     () => new HttpResponse(null, { status: 204 })
   ),
-  http.get("/api/workspaces/:workspace_id/network/channels/:channel/threads", ({ params }) => {
-    const channel = String(params.channel);
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads",
+    ({ params }) => {
+      const channel = String(params.channel);
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        threads: networkThreadsFixture.map(thread => ({ ...thread, channel })),
+      });
     }
-
-    return HttpResponse.json({
-      threads: networkThreadsFixture.map(thread => ({ ...thread, channel })),
-    });
-  }),
-  http.get(
-    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id",
+  ),
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
     ({ params }) => {
       const channel = String(params.channel);
       const threadId = String(params.thread_id);
@@ -173,8 +184,8 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.post(
-    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/promote-task",
+  aghApiMock.post(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
     async ({ params, request }) => {
       const channel = String(params.channel);
       const threadId = String(params.thread_id);
@@ -187,12 +198,14 @@ export const handlers: HttpHandler[] = [
 
       const taskId = "task_story_thread_promoted";
       const now = "2026-04-17T18:20:00Z";
+      const title =
+        readOptionalString(body, "title") ?? networkThreadDetailFixture.title ?? "Thread follow-up";
       return HttpResponse.json(
         {
           origin: {
             channel,
             created_at: now,
-            digest: readOptionalString(body, "title") ?? networkThreadDetailFixture.title,
+            digest: title,
             origin_message_id: originMessageId,
             source_message_ids: [originMessageId],
             task_id: taskId,
@@ -210,11 +223,12 @@ export const handlers: HttpHandler[] = [
             latest_event_seq: 1,
             network_channel: channel,
             origin: { kind: "network", ref: `${channel}/${threadId}` },
-            priority: readOptionalString(body, "priority") ?? "medium",
+            priority: readTaskPriority(body),
             scope: "workspace",
             status: "draft",
-            title: readOptionalString(body, "title") ?? networkThreadDetailFixture.title,
+            title,
             updated_at: now,
+            wake_creator: false,
             workspace_id: String(params.workspace_id),
           },
         },
@@ -222,8 +236,8 @@ export const handlers: HttpHandler[] = [
       );
     }
   ),
-  http.get(
-    "/api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
     ({ params }) => {
       const channel = String(params.channel);
       const threadId = String(params.thread_id);
@@ -242,19 +256,22 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.get("/api/workspaces/:workspace_id/network/channels/:channel/directs", ({ params }) => {
-    const channel = String(params.channel);
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs",
+    ({ params }) => {
+      const channel = String(params.channel);
 
-    if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
-      return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      if (!networkChannelsFixture.channels.some(candidate => candidate.channel === channel)) {
+        return HttpResponse.json({ error: `Channel not found: ${channel}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        directs: networkDirectRoomsFixture.map(direct => ({ ...direct, channel })),
+      });
     }
-
-    return HttpResponse.json({
-      directs: networkDirectRoomsFixture.map(direct => ({ ...direct, channel })),
-    });
-  }),
-  http.post(
-    "/api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
+  ),
+  aghApiMock.post(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
     async ({ params, request }) => {
       const channel = String(params.channel);
       const body = readRecord(await request.json());
@@ -280,8 +297,8 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.get(
-    "/api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id",
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
     ({ params }) => {
       const channel = String(params.channel);
       const directId = String(params.direct_id);
@@ -299,8 +316,8 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.get(
-    "/api/workspaces/:workspace_id/network/channels/:channel/directs/:direct_id/messages",
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
     ({ params }) => {
       const channel = String(params.channel);
       const directId = String(params.direct_id);
@@ -319,7 +336,7 @@ export const handlers: HttpHandler[] = [
       });
     }
   ),
-  http.get("/api/workspaces/:workspace_id/network/work/:work_id", ({ params }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/work/{work_id}", ({ params }) => {
     const workId = String(params.work_id);
     return HttpResponse.json({
       work: {
@@ -328,7 +345,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.get("/api/workspaces/:workspace_id/network/peers", ({ request }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/peers", ({ request }) => {
     const channel = new URL(request.url).searchParams.get("channel");
     const peers = channel
       ? networkPeersFixture.filter(peer => peer.channel === channel)
@@ -336,7 +353,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ peers });
   }),
-  http.get("/api/workspaces/:workspace_id/network/peers/:peer_id", ({ params }) => {
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/peers/{peer_id}", ({ params }) => {
     const peerId = String(params.peer_id);
     const peerSummary = networkPeersFixture.find(peer => peer.peer_id === peerId);
 
@@ -360,7 +377,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/workspaces/:workspace_id/network/channels", async ({ request }) => {
+  aghApiMock.post("/api/workspaces/{workspace_id}/network/channels", async ({ request }) => {
     const body = (await request.json()) as {
       agent_names?: string[];
       channel?: string;
@@ -392,7 +409,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.post("/api/workspaces/:workspace_id/network/send", async ({ request }) => {
+  aghApiMock.post("/api/workspaces/{workspace_id}/network/send", async ({ request }) => {
     const body = readRecord(await request.json());
     const sessionId = readRequiredString(body, "session_id");
     const channel = readRequiredString(body, "channel");

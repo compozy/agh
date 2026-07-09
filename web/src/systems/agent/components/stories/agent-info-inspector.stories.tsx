@@ -21,7 +21,7 @@ const richAgentFixture: AgentPayload = {
 };
 
 const meta: Meta<typeof AgentInfoInspector> = {
-  title: "systems/agent/AgentInfoInspector",
+  title: "systems/agent/components/AgentInfoInspector",
   component: AgentInfoInspector,
   parameters: {
     layout: "fullscreen",

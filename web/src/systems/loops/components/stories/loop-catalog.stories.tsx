@@ -9,7 +9,7 @@ import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopCatalog> = {
-  title: "systems/loops/LoopCatalog",
+  title: "systems/loops/components/LoopCatalog",
   component: LoopCatalog,
   parameters: { layout: "fullscreen" },
 };

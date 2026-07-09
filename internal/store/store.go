@@ -59,6 +59,12 @@ type SessionCatalog interface {
 	ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error)
 }
 
+// SessionTranscriptEpochStore manages destructive transcript reset epochs.
+type SessionTranscriptEpochStore interface {
+	SessionTranscriptEpoch(ctx context.Context, sessionID string) (int64, error)
+	EnsureSessionTranscriptEpoch(ctx context.Context, update SessionTranscriptEpochUpdate) (int64, error)
+}
+
 // EventSummaryStore manages persisted observability event summaries.
 type EventSummaryStore interface {
 	WriteEventSummary(ctx context.Context, summary EventSummary) error

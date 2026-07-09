@@ -72,7 +72,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -106,7 +106,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream?frames=raw",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)

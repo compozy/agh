@@ -106,6 +106,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.ListSessions)
+		sessions.GET("/:session_id", handlers.GetSessionByID)
 		sessions.POST("", handlers.CreateSession)
 	}
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
@@ -129,6 +130,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/history", handlers.SessionHistory)
 		workspaceSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 		workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
+		workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
 		workspaceSessions.GET("/:session_id/stream", handlers.StreamSession)
 		workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 	}

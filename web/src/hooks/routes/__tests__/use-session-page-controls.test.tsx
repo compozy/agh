@@ -35,7 +35,12 @@ const routeHookMocks = vi.hoisted(() => ({
   },
   steerPromptMutation: {
     isPending: false,
+    mutate: vi.fn(),
     mutateAsync: vi.fn(),
+  },
+  cancelQueuedPromptMutation: {
+    isPending: false,
+    mutate: vi.fn(),
   },
   stopMutation: {
     isPending: false,
@@ -70,6 +75,7 @@ vi.mock("@/systems/session", () => ({
     session.state !== "stopped" &&
     (Boolean(session.activity?.turn_id) || session.badge === "running"),
   isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
+  useCancelQueuedSessionPrompt: () => routeHookMocks.cancelQueuedPromptMutation,
   useClearSessionConversation: () => routeHookMocks.clearMutation,
   useDeleteSession: () => routeHookMocks.deleteMutation,
   useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
@@ -140,7 +146,10 @@ describe("useSessionPageControls", () => {
     routeHookMocks.interruptPromptMutation.isPending = false;
     routeHookMocks.interruptPromptMutation.mutateAsync.mockReset();
     routeHookMocks.steerPromptMutation.isPending = false;
+    routeHookMocks.steerPromptMutation.mutate.mockReset();
     routeHookMocks.steerPromptMutation.mutateAsync.mockReset();
+    routeHookMocks.cancelQueuedPromptMutation.isPending = false;
+    routeHookMocks.cancelQueuedPromptMutation.mutate.mockReset();
     routeHookMocks.stopMutation.isPending = false;
     routeHookMocks.stopMutation.mutate.mockReset();
   });
@@ -211,6 +220,11 @@ describe("useSessionPageControls", () => {
       "sess-1",
       expect.objectContaining({ onSuccess: expect.any(Function) })
     );
+    const [, options] = routeHookMocks.clearMutation.mutate.mock.calls[0] ?? [];
+    act(() => {
+      options.onSuccess();
+    });
+    expect(routeHookMocks.resetThread).toHaveBeenCalledTimes(1);
   });
 
   it("blocks stop while another control action is pending", () => {
@@ -279,5 +293,264 @@ describe("useSessionPageControls", () => {
     });
 
     expect(routeHookMocks.toastError).toHaveBeenCalledWith("delete failed");
+  });
+
+  it("captures the daemon queue entry id and exposes it as a queued prompt row", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+
+    expect(routeHookMocks.queuePromptMutation.mutateAsync).toHaveBeenCalledWith({
+      id: "sess-1",
+      message: "queue me",
+    });
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+  });
+
+  it("does not show a queued prompt toast when the daemon runs the prompt immediately", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: false,
+    });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("run now");
+    });
+
+    expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
+    expect(result.current.queuedPrompts).toEqual([]);
+  });
+
+  it("removes a queued prompt through the cancel-queued API and drops its row", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+
+    act(() => {
+      result.current.handleRemoveQueuedPrompt("inq-1");
+    });
+
+    expect(routeHookMocks.cancelQueuedPromptMutation.mutate).toHaveBeenCalledWith(
+      { id: "sess-1", queueEntryId: "inq-1" },
+      expect.objectContaining({ onError: expect.any(Function) })
+    );
+    expect(result.current.queuedPrompts).toEqual([]);
+  });
+
+  it("restores a queued prompt when cancel-queued fails", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+
+    act(() => {
+      result.current.handleRemoveQueuedPrompt("inq-1");
+    });
+    const [, options] = routeHookMocks.cancelQueuedPromptMutation.mutate.mock.calls[0] ?? [];
+    act(() => {
+      options.onError(new Error("cancel failed"));
+    });
+
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("cancel failed");
+  });
+
+  it("steers a queued prompt into the live turn then cancels its durable entry", () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.steerPromptMutation.mutate.mockImplementation(
+      (_params: unknown, options: { onSuccess?: () => void }) => options?.onSuccess?.()
+    );
+    routeHookMocks.cancelQueuedPromptMutation.mutate.mockImplementation(
+      (_params: unknown, options: { onSuccess?: () => void }) => options?.onSuccess?.()
+    );
+
+    const { result } = renderControls("active");
+
+    act(() => {
+      result.current.handleSteerQueuedPrompt({ id: "inq-9", text: "steer me" });
+    });
+
+    expect(routeHookMocks.steerPromptMutation.mutate).toHaveBeenCalledWith(
+      { id: "sess-1", message: "steer me" },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    );
+    expect(routeHookMocks.cancelQueuedPromptMutation.mutate).toHaveBeenCalledWith(
+      {
+        id: "sess-1",
+        queueEntryId: "inq-9",
+      },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
+    );
+    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Steer staged.");
+  });
+
+  it("restores a queued prompt when queued steer fails", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+
+    act(() => {
+      result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
+    });
+    const [, options] = routeHookMocks.steerPromptMutation.mutate.mock.calls[0] ?? [];
+    act(() => {
+      options.onError(new Error("steer failed"));
+    });
+
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("steer failed");
+  });
+
+  it("restores a queued prompt when steering cannot cancel the durable queue entry", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+    routeHookMocks.steerPromptMutation.mutate.mockImplementation(
+      (_params: unknown, options: { onSuccess?: () => void }) => options?.onSuccess?.()
+    );
+    routeHookMocks.cancelQueuedPromptMutation.mutate.mockImplementation(
+      (_params: unknown, options: { onError?: (error: Error) => void }) =>
+        options?.onError?.(new Error("cancel failed"))
+    );
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+    act(() => {
+      result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
+    });
+
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+    expect(routeHookMocks.toastError).toHaveBeenCalledWith("cancel failed");
+  });
+
+  it("blocks queued steer while another busy-input mutation is pending", () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.steerPromptMutation.isPending = true;
+
+    const { result } = renderControls("active");
+
+    act(() => {
+      result.current.handleSteerQueuedPrompt({ id: "inq-1", text: "queue me" });
+    });
+
+    expect(routeHookMocks.steerPromptMutation.mutate).not.toHaveBeenCalled();
+  });
+
+  it("clears queued prompts when a prompt is interrupted", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+    routeHookMocks.interruptPromptMutation.mutateAsync.mockResolvedValue({ queued: false });
+
+    const { result } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+    expect(result.current.queuedPrompts).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.handleInterruptPrompt("stop and do this instead");
+    });
+
+    expect(routeHookMocks.interruptPromptMutation.mutateAsync).toHaveBeenCalledWith({
+      id: "sess-1",
+      message: "stop and do this instead",
+    });
+    expect(result.current.queuedPrompts).toEqual([]);
+  });
+
+  it("drops queued prompts once the running turn settles", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+
+    const { result, rerender } = renderControls("active");
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+    expect(result.current.queuedPrompts).toHaveLength(1);
+
+    routeHookMocks.auiState.thread.isRunning = false;
+    act(() => {
+      rerender();
+    });
+
+    expect(result.current.queuedPrompts).toEqual([]);
+  });
+
+  it("drops queued prompts when the daemon advances to a new active turn", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockResolvedValue({
+      queued: true,
+      queue_entry_id: "inq-1",
+    });
+    let session = {
+      ...makeSession("active"),
+      badge: "running",
+      activity: { turn_id: "turn-1" } as SessionPayload["activity"],
+    };
+
+    const { result, rerender } = renderHook(() =>
+      useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID })
+    );
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("queue me");
+    });
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-1", text: "queue me" }]);
+
+    session = {
+      ...session,
+      activity: { turn_id: "turn-2" } as SessionPayload["activity"],
+    };
+    act(() => {
+      rerender();
+    });
+
+    expect(result.current.queuedPrompts).toEqual([]);
   });
 });

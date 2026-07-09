@@ -14,7 +14,7 @@ import {
 import type { TaskRecord } from "../../types";
 
 const meta: Meta<typeof TaskEditorModal> = {
-  title: "systems/tasks/TaskEditorModal",
+  title: "systems/tasks/components/TaskEditorModal",
   component: TaskEditorModal,
   parameters: {
     layout: "fullscreen",

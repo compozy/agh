@@ -16,6 +16,7 @@ export type {
   SessionLedgerMeta,
   SessionLedgerResponse,
   SessionMessage,
+  SessionByIDResponse,
   SessionPayload,
   SessionPromptPayload,
   SessionPromptRequest,
@@ -24,6 +25,8 @@ export type {
   SessionBadge,
   SessionRecapPayload,
   SessionRecapResponse,
+  SessionUsagePayload,
+  SessionUsageResponse,
   SessionRepairPayload,
   SessionRepairQuery,
   SessionRepairResponse,
@@ -48,10 +51,12 @@ export {
   createSession,
   deleteSession,
   fetchSession,
+  fetchSessionById,
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionLedger,
   fetchSessionRecap,
+  fetchSessionUsage,
   fetchSessionTranscript,
   fetchSessions,
   interruptSessionPrompt,
@@ -66,15 +71,17 @@ export {
 } from "./adapters/session-api";
 
 // Query infrastructure
+export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { sessionKeys } from "./lib/query-keys";
 export { filterVisibleSessions, isInternalSession } from "./lib/session-visibility";
 export {
+  sessionByIdOptions,
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
-  sessionWorkspaceResolutionOptions,
+  sessionUsageOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
@@ -101,9 +108,17 @@ export {
   useSessionById,
   useSessionLedger,
   useSessionRecap,
+  useSessionUsage,
   useSessions,
 } from "./hooks/use-sessions";
-export { useSessionTranscriptThreadMessages } from "./hooks/use-session-transcript-thread-messages";
+export {
+  useSessionTranscriptThreadMessages,
+  useSessionTranscriptThreadState,
+} from "./hooks/use-session-transcript-thread-messages";
+export type {
+  SessionTranscriptThreadState,
+  SessionTranscriptThreadStatus,
+} from "./lib/session-transcript-thread-context-value";
 export {
   useClearSessionConversation,
   useCancelQueuedSessionPrompt,
@@ -142,7 +157,7 @@ export {
   SessionResumeFailure,
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
-export { ToolCallCard, type ToolCallCardProps } from "./components/tool-call-card";
+export { ToolCallRow, type ToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,
   type SessionChatRuntimeProviderProps,

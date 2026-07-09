@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { ProviderModelCatalogStatus } from "../provider-model-catalog-status";
 
 const meta: Meta<typeof ProviderModelCatalogStatus> = {
-  title: "systems/settings/ProviderModelCatalogStatus",
+  title: "systems/settings/components/ProviderModelCatalogStatus",
   component: ProviderModelCatalogStatus,
   parameters: {
     layout: "fullscreen",
@@ -33,22 +34,28 @@ export const Default: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/model-catalog/providers/:provider/models/status", () =>
+        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({
             sources: [
               {
                 source_id: "anthropic-cloud",
+                source_kind: "provider_live",
+                priority: 0,
+                provider_id: "claude",
                 refresh_state: "fresh",
                 stale: false,
                 row_count: 14,
-                last_refreshed_at: "2026-04-17T18:00:00Z",
+                last_success: "2026-04-17T18:00:00Z",
               },
               {
                 source_id: "manifest",
+                source_kind: "models_dev",
+                priority: 1,
+                provider_id: "claude",
                 refresh_state: "fresh",
                 stale: false,
                 row_count: 6,
-                last_refreshed_at: "2026-04-17T18:00:00Z",
+                last_success: "2026-04-17T18:00:00Z",
               },
             ],
           })
@@ -76,22 +83,28 @@ export const StaleSources: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/model-catalog/providers/:provider/models/status", () =>
+        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({
             sources: [
               {
                 source_id: "openai-cloud",
+                source_kind: "provider_live",
+                priority: 0,
+                provider_id: "codex",
                 refresh_state: "fresh",
                 stale: false,
                 row_count: 22,
-                last_refreshed_at: "2026-04-17T18:00:00Z",
+                last_success: "2026-04-17T18:00:00Z",
               },
               {
                 source_id: "preview-channel",
+                source_kind: "models_dev",
+                priority: 1,
+                provider_id: "codex",
                 refresh_state: "stale",
                 stale: true,
                 row_count: 4,
-                last_refreshed_at: "2026-04-12T08:00:00Z",
+                last_refresh: "2026-04-12T08:00:00Z",
               },
             ],
           })
@@ -119,7 +132,7 @@ export const EmptySources: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/model-catalog/providers/:provider/models/status", () =>
+        aghApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", () =>
           HttpResponse.json({ sources: [] })
         ),
       ],

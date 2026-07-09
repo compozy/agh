@@ -127,7 +127,7 @@ import {
   Toaster,
   ToggleGroup,
   ToggleGroupItem,
-  ToolCallCard,
+  ToolCallRow,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -1372,10 +1372,10 @@ agh session list --active`;
             Starting run_01HQ8… against agh-core. Streaming events to the inspector.
           </ChatMessageBubble>
           <ChatMessageBubble messageRole="tool">
-            <ToolCallCard
+            <ToolCallRow
               toolName="read_file"
-              filePath="internal/daemon/daemon.go"
-              status="in_progress"
+              preview="internal/daemon/daemon.go"
+              status="running"
             />
           </ChatMessageBubble>
           <ChatMessageBubble messageRole="system">Session idle · 2m</ChatMessageBubble>

@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import {
   primarySessionFixture,
@@ -13,8 +14,18 @@ import {
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/sessions", () => HttpResponse.json({ sessions: sessionFixtures })),
-  http.post("/api/sessions", async ({ request }) => {
+  aghApiMock.get("/api/sessions", () => HttpResponse.json({ sessions: sessionFixtures })),
+  aghApiMock.get("/api/sessions/{session_id}", ({ params }) => {
+    const id = String(params.session_id);
+    const session = sessionById.get(id);
+
+    if (!session) {
+      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({ session });
+  }),
+  aghApiMock.post("/api/sessions", async ({ request }) => {
     const body = (await request.json()) as {
       agent_name?: string;
       name?: string;
@@ -38,8 +49,8 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.get("/api/workspaces/:workspace_id/sessions/:id", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
+    const id = String(params.session_id);
     const session = sessionById.get(id);
 
     if (!session) {
@@ -48,8 +59,8 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ session });
   }),
-  http.delete("/api/workspaces/:workspace_id/sessions/:id", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.delete("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
+    const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
       return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
@@ -57,8 +68,8 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.post("/api/workspaces/:workspace_id/sessions/:id/attach", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/attach", ({ params }) => {
+    const id = String(params.session_id);
     const session = sessionById.get(id);
 
     if (!session) {
@@ -79,8 +90,8 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.get("/api/workspaces/:workspace_id/sessions/:id/recap", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/recap", ({ params }) => {
+    const id = String(params.session_id);
     const session = sessionById.get(id);
 
     if (!session) {
@@ -104,30 +115,33 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/workspaces/:workspace_id/sessions/:id/repair", ({ params, request }) => {
-    const id = String(params.id);
+  aghApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
+    ({ params, request }) => {
+      const id = String(params.session_id);
 
-    if (!sessionById.has(id)) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
-    }
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
 
-    const url = new URL(request.url);
-    const dryRun = url.searchParams.get("dry_run") === "true";
+      const url = new URL(request.url);
+      const dryRun = url.searchParams.get("dry_run") === "true";
 
-    return HttpResponse.json({
-      repair: {
-        ...sessionRepairFixture,
-        session_id: id,
-        persisted: !dryRun,
-        actions: sessionRepairFixture.actions.map(action => ({
-          ...action,
+      return HttpResponse.json({
+        repair: {
+          ...sessionRepairFixture,
+          session_id: id,
           persisted: !dryRun,
-        })),
-      },
-    });
-  }),
-  http.post("/api/workspaces/:workspace_id/sessions/:id/approve", ({ params }) => {
-    const id = String(params.id);
+          actions: sessionRepairFixture.actions.map(action => ({
+            ...action,
+            persisted: !dryRun,
+          })),
+        },
+      });
+    }
+  ),
+  aghApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/approve", ({ params }) => {
+    const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
       return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
@@ -135,8 +149,8 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json(sessionApprovalFixture);
   }),
-  http.get("/api/workspaces/:workspace_id/sessions/:id/events", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/events", ({ params }) => {
+    const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
       return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
@@ -144,8 +158,8 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ events: sessionEventsFixture });
   }),
-  http.get("/api/workspaces/:workspace_id/sessions/:id/history", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/history", ({ params }) => {
+    const id = String(params.session_id);
 
     if (!sessionById.has(id)) {
       return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
@@ -153,13 +167,21 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ history: sessionHistoryFixture });
   }),
-  http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", ({ params }) => {
-    const id = String(params.id);
+  aghApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+    ({ params }) => {
+      const id = String(params.session_id);
 
-    if (!sessionById.has(id)) {
-      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return HttpResponse.json({
+        entries: sessionTranscriptFixture.map((message, index) => ({
+          message,
+          sequence: index + 1,
+        })),
+      });
     }
-
-    return HttpResponse.json({ messages: sessionTranscriptFixture });
-  }),
+  ),
 ];

@@ -143,15 +143,12 @@ describe("useSessionById", () => {
     vi.restoreAllMocks();
   });
 
-  it("resolves the owning workspace before loading session detail", async () => {
-    vi.mocked(fetchSessions).mockResolvedValue([
-      makeSession({ id: "sess-001", workspace_id: "ws_alpha" }),
-    ]);
+  it("resolves session detail without issuing a full session-list request", async () => {
     vi.mocked(fetchSession).mockResolvedValue(
       makeSession({ id: "sess-001", workspace_id: "ws_alpha", name: "Detailed session" })
     );
 
-    const { result } = renderHook(() => useSessionById("sess-001"), {
+    const { result } = renderHook(() => useSessionById("sess-001", "ws_alpha"), {
       wrapper: createWrapper(),
     });
 
@@ -159,14 +156,14 @@ describe("useSessionById", () => {
       expect(result.current.data?.name).toBe("Detailed session");
     });
 
-    expect(fetchSessions).toHaveBeenCalledWith(undefined, expect.any(AbortSignal));
+    expect(fetchSessions).not.toHaveBeenCalled();
     expect(fetchSession).toHaveBeenCalledWith("ws_alpha", "sess-001", expect.any(AbortSignal));
   });
 
-  it("reports not found without probing the active workspace when the global list has no session", async () => {
-    vi.mocked(fetchSessions).mockResolvedValue([]);
+  it("reports detail not found without falling back to the full session list", async () => {
+    vi.mocked(fetchSession).mockRejectedValue(new Error("Session not found: missing-session"));
 
-    const { result } = renderHook(() => useSessionById("missing-session"), {
+    const { result } = renderHook(() => useSessionById("missing-session", "ws_alpha"), {
       wrapper: createWrapper(),
     });
 
@@ -174,6 +171,11 @@ describe("useSessionById", () => {
       expect(result.current.error?.message).toBe("Session not found: missing-session");
     });
 
-    expect(fetchSession).not.toHaveBeenCalled();
+    expect(fetchSessions).not.toHaveBeenCalled();
+    expect(fetchSession).toHaveBeenCalledWith(
+      "ws_alpha",
+      "missing-session",
+      expect.any(AbortSignal)
+    );
   });
 });

@@ -10,7 +10,7 @@ import { AgentCategoryTree } from "../agent-category-tree";
 const categorizedAgents = withStoryAgentCategories(agentFixtures);
 
 const meta: Meta<typeof AgentCategoryTree> = {
-  title: "systems/agent/AgentCategoryTree",
+  title: "systems/agent/components/AgentCategoryTree",
   component: AgentCategoryTree,
   parameters: {
     layout: "fullscreen",

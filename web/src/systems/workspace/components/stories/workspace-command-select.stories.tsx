@@ -48,7 +48,7 @@ function WorkspaceCommandSelectHarness({
 }
 
 const meta: Meta<typeof WorkspaceCommandSelectHarness> = {
-  title: "systems/workspace/WorkspaceCommandSelect",
+  title: "systems/workspace/components/WorkspaceCommandSelect",
   component: WorkspaceCommandSelectHarness,
   parameters: {
     layout: "fullscreen",

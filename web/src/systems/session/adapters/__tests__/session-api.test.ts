@@ -16,6 +16,7 @@ import {
   createSession,
   deleteSession,
   fetchSession,
+  fetchSessionById,
   fetchSessionEvents,
   fetchSessionLedger,
   fetchSessionRecap,
@@ -270,6 +271,23 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
+  });
+});
+
+describe("fetchSessionById", () => {
+  it("returns a single SessionPayload from the direct session endpoint", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    const result = await fetchSessionById("sess-001");
+
+    expect(result).toEqual(mockSession);
+    await expectFetchRequest({ path: "/api/sessions/sess-001" });
+  });
+
+  it("throws 404 error for an unknown direct session id", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(fetchSessionById("unknown")).rejects.toThrow("Session not found: unknown");
   });
 });
 
@@ -637,28 +655,34 @@ describe("fetchSessionLedger", () => {
 
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
-    messages: [
+    entries: [
       {
-        id: "evt-1",
-        role: "assistant",
-        parts: [{ type: "text", text: "Hello", state: "done" }],
+        sequence: 1,
+        message: {
+          id: "evt-1",
+          role: "assistant",
+          parts: [{ type: "text", text: "Hello", state: "done" }],
+        },
       },
       {
-        id: "tool-1",
-        role: "assistant",
-        parts: [
-          {
-            type: "tool-Read",
-            toolCallId: "tool-1",
-            state: "output-available",
-            input: { file_path: "/tmp/file.ts" },
-            output: {
-              type: "tool_result",
-              title: "Read",
-              raw: { stdout: "done", file_path: "/tmp/file.ts" },
+        sequence: 2,
+        message: {
+          id: "tool-1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-Read",
+              toolCallId: "tool-1",
+              state: "output-available",
+              input: { file_path: "/tmp/file.ts" },
+              output: {
+                type: "tool_result",
+                title: "Read",
+                raw: { stdout: "done", file_path: "/tmp/file.ts" },
+              },
             },
-          },
-        ],
+          ],
+        },
       },
     ],
   };
@@ -668,20 +692,63 @@ describe("fetchSessionTranscript", () => {
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
-    expect(result).toEqual(mockTranscript.messages);
+    expect(result).toEqual(mockTranscript.entries.map(entry => entry.message));
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
     });
   });
 
   it("returns an empty transcript without treating it as an invalid AI SDK message list", async () => {
-    mockJsonResponse({ messages: [] });
+    mockJsonResponse({ entries: [] });
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual([]);
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
+    });
+  });
+
+  it("returns AGH errored tool parts with raw output payloads", async () => {
+    const blockedTranscript = {
+      entries: [
+        {
+          sequence: 1,
+          message: {
+            id: "blocked-turn",
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-Attempt blocked terminal write",
+                toolCallId: "tool-blocked-1",
+                state: "output-error",
+                input: { command: "touch browser-blocked.txt" },
+                output: {
+                  type: "tool_result",
+                  title: "Attempt blocked terminal write",
+                  error: "terminal/create denied before writing workspace marker",
+                },
+                errorText: "terminal/create denied before writing workspace marker",
+              },
+              {
+                type: "text",
+                text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+                state: "done",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    mockJsonResponse(blockedTranscript);
+
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+
+    expect(result).toEqual(blockedTranscript.entries.map(entry => entry.message));
+    expect(result[0]?.parts).toHaveLength(2);
+    expect(result[0]?.parts?.[1]).toMatchObject({
+      text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
+      type: "text",
     });
   });
 

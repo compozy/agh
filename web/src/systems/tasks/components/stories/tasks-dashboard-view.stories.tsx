@@ -7,7 +7,7 @@ import { TasksDashboardView } from "../tasks-dashboard-view";
 import { buildDashboardFixture } from "../test-fixtures";
 
 const meta: Meta<typeof TasksDashboardView> = {
-  title: "systems/tasks/TasksDashboardView",
+  title: "systems/tasks/components/TasksDashboardView",
   component: TasksDashboardView,
   parameters: {
     layout: "fullscreen",

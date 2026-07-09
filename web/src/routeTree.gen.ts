@@ -19,6 +19,7 @@ import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
+import { Route as AppMcpRouteImport } from './routes/_app/mcp'
 import { Route as AppLoopsRouteImport } from './routes/_app/loops'
 import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
@@ -32,7 +33,6 @@ import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsNetworkRouteImport } from './routes/_app/settings/network'
 import { Route as AppSettingsMemoryRouteImport } from './routes/_app/settings/memory'
-import { Route as AppSettingsMcpServersRouteImport } from './routes/_app/settings/mcp-servers'
 import { Route as AppSettingsHooksExtensionsRouteImport } from './routes/_app/settings/hooks-extensions'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
@@ -101,6 +101,11 @@ const AppNetworkRoute = AppNetworkRouteImport.update({
   path: '/network',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMcpRoute = AppMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLoopsRoute = AppLoopsRouteImport.update({
   id: '/loops',
   path: '/loops',
@@ -165,11 +170,6 @@ const AppSettingsNetworkRoute = AppSettingsNetworkRouteImport.update({
 const AppSettingsMemoryRoute = AppSettingsMemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
-  getParentRoute: () => AppSettingsRoute,
-} as any)
-const AppSettingsMcpServersRoute = AppSettingsMcpServersRouteImport.update({
-  id: '/mcp-servers',
-  path: '/mcp-servers',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsHooksExtensionsRoute =
@@ -277,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
+  '/mcp': typeof AppMcpRoute
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
   '/settings': typeof AppSettingsRouteWithChildren
@@ -291,7 +292,6 @@ export interface FileRoutesByFullPath {
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
-  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -319,6 +319,7 @@ export interface FileRoutesByTo {
   '/knowledge': typeof AppKnowledgeRoute
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/loops': typeof AppLoopsRouteWithChildren
+  '/mcp': typeof AppMcpRoute
   '/network': typeof AppNetworkRouteWithChildren
   '/sandbox': typeof AppSandboxRoute
   '/skills': typeof AppSkillsRoute
@@ -333,7 +334,6 @@ export interface FileRoutesByTo {
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
-  '/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/settings/memory': typeof AppSettingsMemoryRoute
   '/settings/network': typeof AppSettingsNetworkRoute
   '/settings/observability': typeof AppSettingsObservabilityRoute
@@ -363,6 +363,7 @@ export interface FileRoutesById {
   '/_app/knowledge': typeof AppKnowledgeRoute
   '/_app/loop-runs': typeof AppLoopRunsRouteWithChildren
   '/_app/loops': typeof AppLoopsRouteWithChildren
+  '/_app/mcp': typeof AppMcpRoute
   '/_app/network': typeof AppNetworkRouteWithChildren
   '/_app/sandbox': typeof AppSandboxRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
@@ -378,7 +379,6 @@ export interface FileRoutesById {
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/hooks-extensions': typeof AppSettingsHooksExtensionsRoute
-  '/_app/settings/mcp-servers': typeof AppSettingsMcpServersRoute
   '/_app/settings/memory': typeof AppSettingsMemoryRoute
   '/_app/settings/network': typeof AppSettingsNetworkRoute
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
@@ -409,6 +409,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loop-runs'
     | '/loops'
+    | '/mcp'
     | '/network'
     | '/sandbox'
     | '/settings'
@@ -423,7 +424,6 @@ export interface FileRouteTypes {
     | '/settings/automation'
     | '/settings/general'
     | '/settings/hooks-extensions'
-    | '/settings/mcp-servers'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -451,6 +451,7 @@ export interface FileRouteTypes {
     | '/knowledge'
     | '/loop-runs'
     | '/loops'
+    | '/mcp'
     | '/network'
     | '/sandbox'
     | '/skills'
@@ -465,7 +466,6 @@ export interface FileRouteTypes {
     | '/settings/automation'
     | '/settings/general'
     | '/settings/hooks-extensions'
-    | '/settings/mcp-servers'
     | '/settings/memory'
     | '/settings/network'
     | '/settings/observability'
@@ -494,6 +494,7 @@ export interface FileRouteTypes {
     | '/_app/knowledge'
     | '/_app/loop-runs'
     | '/_app/loops'
+    | '/_app/mcp'
     | '/_app/network'
     | '/_app/sandbox'
     | '/_app/settings'
@@ -509,7 +510,6 @@ export interface FileRouteTypes {
     | '/_app/settings/automation'
     | '/_app/settings/general'
     | '/_app/settings/hooks-extensions'
-    | '/_app/settings/mcp-servers'
     | '/_app/settings/memory'
     | '/_app/settings/network'
     | '/_app/settings/observability'
@@ -608,6 +608,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNetworkRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/mcp': {
+      id: '/_app/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof AppMcpRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/loops': {
       id: '/_app/loops'
       path: '/loops'
@@ -697,13 +704,6 @@ declare module '@tanstack/react-router' {
       path: '/memory'
       fullPath: '/settings/memory'
       preLoaderRoute: typeof AppSettingsMemoryRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
-    '/_app/settings/mcp-servers': {
-      id: '/_app/settings/mcp-servers'
-      path: '/mcp-servers'
-      fullPath: '/settings/mcp-servers'
-      preLoaderRoute: typeof AppSettingsMcpServersRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/hooks-extensions': {
@@ -928,7 +928,6 @@ interface AppSettingsRouteChildren {
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsHooksExtensionsRoute: typeof AppSettingsHooksExtensionsRoute
-  AppSettingsMcpServersRoute: typeof AppSettingsMcpServersRoute
   AppSettingsMemoryRoute: typeof AppSettingsMemoryRoute
   AppSettingsNetworkRoute: typeof AppSettingsNetworkRoute
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
@@ -941,7 +940,6 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsHooksExtensionsRoute: AppSettingsHooksExtensionsRoute,
-  AppSettingsMcpServersRoute: AppSettingsMcpServersRoute,
   AppSettingsMemoryRoute: AppSettingsMemoryRoute,
   AppSettingsNetworkRoute: AppSettingsNetworkRoute,
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
@@ -1000,6 +998,7 @@ interface AppRouteChildren {
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLoopRunsRoute: typeof AppLoopRunsRouteWithChildren
   AppLoopsRoute: typeof AppLoopsRouteWithChildren
+  AppMcpRoute: typeof AppMcpRoute
   AppNetworkRoute: typeof AppNetworkRouteWithChildren
   AppSandboxRoute: typeof AppSandboxRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
@@ -1018,6 +1017,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLoopRunsRoute: AppLoopRunsRouteWithChildren,
   AppLoopsRoute: AppLoopsRouteWithChildren,
+  AppMcpRoute: AppMcpRoute,
   AppNetworkRoute: AppNetworkRouteWithChildren,
   AppSandboxRoute: AppSandboxRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,

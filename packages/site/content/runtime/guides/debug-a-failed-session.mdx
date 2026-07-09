@@ -74,6 +74,8 @@ agh session events sess_1234 --follow
 
 What happened: AGH read the append-only session event database. This is the best evidence for
 prompt submission, permission requests, provider messages, tool calls, errors, and stop behavior.
+The CLI follow mode reads raw persisted events; browser live-tail clients use transcript SSE frames
+when they need assembled UI messages.
 
 ## 5. Reconstruct the conversation history
 

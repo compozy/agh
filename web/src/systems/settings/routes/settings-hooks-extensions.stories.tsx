@@ -1,0 +1,187 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { delay, HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
+import { expect, userEvent, within } from "storybook/test";
+
+import { storybookMswParameters } from "@/storybook/msw";
+import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
+import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks";
+import {
+  StorybookRestartBannerSetup,
+  StorybookRouteCanvas,
+  StorybookWorkspaceSetup,
+  appRouteParameters,
+} from "@/storybook/route-story-meta";
+
+const meta: Meta<typeof StorybookRouteCanvas> = {
+  title: "systems/settings/routes/SettingsHooksExtensions",
+  component: StorybookRouteCanvas,
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Hooks and extensions route stories covering policy editing, empty collections, toggle flows, and request boundary states.",
+      },
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+/**
+ * Default hooks and extensions surface with transport parity, hook declarations and installed extensions.
+ */
+export const Default: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dirty policy draft -- the marketplace registry input has been edited so the
+ * policy save-bar reads dirty and enables the save button.
+ */
+export const Dirty: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookFieldDirtySetup
+        testId="settings-page-hooks-extensions-policy-registry-input"
+        value="github-dirty"
+      />
+    </>
+  ),
+};
+
+/**
+ * Empty collections branch when no hooks are configured and no extensions are currently visible.
+ */
+export const EmptyCollections: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/hooks-extensions"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/hooks-extensions", () =>
+          HttpResponse.json({
+            ...settingsHooksExtensionsSectionFixture,
+            hooks: [],
+            installed: [],
+          })
+        ),
+        aghApiMock.get("/api/extensions", () => HttpResponse.json({ extensions: [] })),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Hook toggle flow that produces the route-level action result banner.
+ */
+export const ToggleHook: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByTestId("settings-page-hooks-extensions-hooks-row-pre-commit-lint-toggle")
+    );
+    await expect(
+      canvas.findByTestId("settings-page-hooks-extensions-action-result")
+    ).resolves.toBeDefined();
+  },
+};
+
+/**
+ * Installed extension provenance panel with trust evidence expanded.
+ */
+export const ProvenanceOpen: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByTestId("settings-page-hooks-extensions-extensions-item-daytona-provenance")
+    );
+    await expect(
+      canvas.findByTestId("settings-page-hooks-extensions-extensions-item-daytona-provenance-panel")
+    ).resolves.toBeDefined();
+  },
+};
+
+/**
+ * Notification preset management with SQLite-backed built-ins and target fanout visible.
+ */
+export const NotificationPresets: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const section = await canvas.findByTestId(
+      "settings-page-hooks-extensions-notification-presets-section"
+    );
+    section.scrollIntoView({ block: "center" });
+    await expect(
+      canvas.findByTestId("settings-page-hooks-extensions-notification-presets-table")
+    ).resolves.toBeDefined();
+  },
+};
+
+/**
+ * Restart banner after saving policy that changes extension capabilities or declaration loading.
+ */
+export const RestartBanner: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookRestartBannerSetup section="hooks-extensions" />
+    </>
+  ),
+};
+
+/**
+ * Loading state while the hooks/extensions section envelope is still fetching.
+ */
+export const Loading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/hooks-extensions"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/hooks-extensions", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsHooksExtensionsSectionFixture);
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Error branch shown when the hooks/extensions section request fails.
+ */
+export const Error: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/hooks-extensions"),
+    ...storybookMswParameters({
+      settings: [
+        aghApiMock.get("/api/settings/hooks-extensions", () =>
+          HttpResponse.json({ error: "Failed to load hooks and extensions" }, { status: 500 })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};

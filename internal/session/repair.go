@@ -15,6 +15,7 @@ import (
 
 const (
 	repairContentKey = "content"
+	repairTypeKey    = "type"
 )
 
 const (
@@ -152,6 +153,9 @@ func (m *Manager) RepairSession(
 	}
 	result.Actions = persisted
 	result.Persisted = len(persisted) > 0
+	if result.Persisted {
+		m.markTranscriptBelowWindowMutation(target, 0)
+	}
 	return result, nil
 }
 
@@ -510,10 +514,10 @@ func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessa
 		},
 		repairContentKey: []map[string]any{
 			{
-				"type": repairContentKey,
+				repairTypeKey: repairContentKey,
 				repairContentKey: map[string]string{
-					"type": "text",
-					"text": repairInterruptedToolMessage,
+					repairTypeKey:            hookMessageDeltaTypeText,
+					hookMessageDeltaTypeText: repairInterruptedToolMessage,
 				},
 			},
 		},

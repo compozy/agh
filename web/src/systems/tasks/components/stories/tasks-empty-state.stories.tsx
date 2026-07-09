@@ -4,7 +4,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { TasksEmptyState } from "../tasks-empty-state";
 
 const meta: Meta<typeof TasksEmptyState> = {
-  title: "systems/tasks/TasksEmptyState",
+  title: "systems/tasks/components/TasksEmptyState",
   component: TasksEmptyState,
   parameters: {
     layout: "fullscreen",

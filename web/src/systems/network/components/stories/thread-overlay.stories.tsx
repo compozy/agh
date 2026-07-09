@@ -17,7 +17,7 @@ const root: NetworkConversationMessage | undefined = networkThreadMessagesFixtur
 const replies = networkThreadMessagesFixture.filter(message => message.kind === "say").slice(0, 4);
 
 const meta: Meta = {
-  title: "systems/network/ThreadOverlay",
+  title: "systems/network/components/ThreadOverlay",
   parameters: {
     layout: "fullscreen",
     router: { kind: "stub" as const },

@@ -6,7 +6,7 @@ import type { MemoryDecision } from "@/systems/knowledge/types";
 import { KnowledgeDecisionsSection } from "@/systems/knowledge/components/knowledge-decisions-section";
 
 const meta: Meta<typeof KnowledgeDecisionsSection> = {
-  title: "systems/knowledge/KnowledgeDecisionsSection",
+  title: "systems/knowledge/components/KnowledgeDecisionsSection",
   component: KnowledgeDecisionsSection,
   parameters: { layout: "fullscreen" },
 };

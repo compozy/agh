@@ -22,162 +22,174 @@ const faultyMockAgentName = "mock-faulty"
 
 func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 	acpmock.RequireDriver(t)
-	t.Parallel()
 
-	harness, session := startFaultyMockSession(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	t.Run("Should project runtime failure when the ACP mock crashes mid-stream", func(t *testing.T) {
+		t.Parallel()
 
-	stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger crash mid-stream")
-	if err != nil {
-		t.Fatalf("PromptSessionHTTP() error = %v", err)
-	}
-	assertFaultPromptProjection(
-		t,
-		ctx,
-		harness,
-		session.ID,
-		stream,
-		"partial before crash",
-		false,
-	)
+		harness, session := startFaultyMockSession(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger crash mid-stream")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP() error = %v", err)
+		}
+		assertFaultPromptProjection(
+			t,
+			ctx,
+			harness,
+			session.ID,
+			stream,
+			"partial before crash",
+			false,
+		)
+	})
 }
 
 func TestDaemonE2EACPmockInvalidFrameProjectsRuntimeFailure(t *testing.T) {
 	acpmock.RequireDriver(t)
-	t.Parallel()
 
-	harness, session := startFaultyMockSession(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	t.Run("Should project runtime failure when the ACP mock emits an invalid frame", func(t *testing.T) {
+		t.Parallel()
 
-	stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger invalid frame")
-	if err != nil {
-		t.Fatalf("PromptSessionHTTP() error = %v", err)
-	}
-	assertFaultPromptProjection(
-		t,
-		ctx,
-		harness,
-		session.ID,
-		stream,
-		"partial before invalid frame",
-		false,
-	)
+		harness, session := startFaultyMockSession(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger invalid frame")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP() error = %v", err)
+		}
+		assertFaultPromptProjection(
+			t,
+			ctx,
+			harness,
+			session.ID,
+			stream,
+			"partial before invalid frame",
+			false,
+		)
+	})
 }
 
 func TestDaemonE2EACPmockPermissionDisconnectProjectsRuntimeFailure(t *testing.T) {
 	acpmock.RequireDriver(t)
-	t.Parallel()
 
-	harness, session := startFaultyMockSession(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	t.Run("Should project runtime failure when the ACP mock disconnects during permission", func(t *testing.T) {
+		t.Parallel()
 
-	stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger permission disconnect")
-	if err != nil {
-		t.Fatalf("PromptSessionHTTP() error = %v", err)
-	}
-	assertFaultPromptProjection(
-		t,
-		ctx,
-		harness,
-		session.ID,
-		stream,
-		"",
-		true,
-	)
+		harness, session := startFaultyMockSession(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger permission disconnect")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP() error = %v", err)
+		}
+		assertFaultPromptProjection(
+			t,
+			ctx,
+			harness,
+			session.ID,
+			stream,
+			"",
+			true,
+		)
+	})
 }
 
 func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) {
 	acpmock.RequireDriver(t)
-	t.Parallel()
 
-	harness, session := startFaultyMockSession(t, func(cfg *aghconfig.Config) {
-		cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
-		cfg.Session.Supervision.ProgressNotifyInterval = 20 * time.Millisecond
-		cfg.Session.Supervision.InactivityWarningAfter = 0
-		cfg.Session.Supervision.InactivityTimeout = 0
-	})
+	t.Run("Should stop a blocked prompt without orphaning runtime liveness", func(t *testing.T) {
+		t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+		harness, session := startFaultyMockSession(t, func(cfg *aghconfig.Config) {
+			cfg.Session.Supervision.ActivityHeartbeatInterval = 20 * time.Millisecond
+			cfg.Session.Supervision.ProgressNotifyInterval = 20 * time.Millisecond
+			cfg.Session.Supervision.InactivityWarningAfter = 0
+			cfg.Session.Supervision.InactivityTimeout = 0
+		})
 
-	stream, err := harness.PromptSessionHTTPUntil(
-		ctx,
-		session.ID,
-		"block until canceled",
-		func(event e2etest.SSEEvent) bool {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		stream, err := harness.PromptSessionHTTPUntil(
+			ctx,
+			session.ID,
+			"block until canceled",
+			func(event e2etest.SSEEvent) bool {
+				return event.Event == "runtime_progress"
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromptSessionHTTPUntil(blocked progress) error = %v", err)
+		}
+		if !sseStreamContainsEvent(stream, "runtime_progress") {
+			t.Fatalf("prompt stream = %#v, want runtime_progress before explicit stop", stream)
+		}
+
+		sessionStream, err := harness.StreamSessionRawHTTPUntil(ctx, session.ID, func(event e2etest.SSEEvent) bool {
 			return event.Event == "runtime_progress"
-		},
-	)
-	if err != nil {
-		t.Fatalf("PromptSessionHTTPUntil(blocked progress) error = %v", err)
-	}
-	if !sseStreamContainsEvent(stream, "runtime_progress") {
-		t.Fatalf("prompt stream = %#v, want runtime_progress before explicit stop", stream)
-	}
+		})
+		if err != nil {
+			t.Fatalf("StreamSessionRawHTTPUntil(runtime_progress) error = %v", err)
+		}
+		if !sseStreamContainsEvent(sessionStream, "runtime_progress") {
+			t.Fatalf("session stream = %#v, want runtime_progress replay", sessionStream)
+		}
 
-	sessionStream, err := harness.StreamSessionHTTPUntil(ctx, session.ID, func(event e2etest.SSEEvent) bool {
-		return event.Event == "runtime_progress"
+		if err := harness.StopSession(ctx, session.ID); err != nil {
+			t.Fatalf("StopSession(%q) error = %v", session.ID, err)
+		}
+
+		waitForRuntimeCondition(t, "blocked ACP session stopped", 10*time.Second, func() bool {
+			current, err := harness.GetSession(ctx, session.ID)
+			return err == nil && string(current.State) == "stopped"
+		})
+
+		sessionInfo, err := harness.GetSession(ctx, session.ID)
+		if err != nil {
+			t.Fatalf("GetSession(%q) error = %v", session.ID, err)
+		}
+		if got, want := string(sessionInfo.State), "stopped"; got != want {
+			t.Fatalf("sessionInfo.State = %q, want %q", got, want)
+		}
+		if got, want := sessionInfo.StopReason, store.StopUserCanceled; got != want {
+			t.Fatalf("sessionInfo.StopReason = %q, want %q", got, want)
+		}
+
+		meta := mustReadSessionMeta(t, harness, session.ID)
+		if meta.Liveness == nil {
+			t.Fatal("meta.Liveness = nil, want persisted liveness metadata")
+		}
+		if got := meta.Liveness.SubprocessPID; got != 0 {
+			t.Fatalf("meta.Liveness.SubprocessPID = %d, want 0 after clean stop", got)
+		}
+		if got := strings.TrimSpace(meta.Liveness.StallState); got != "" {
+			t.Fatalf("meta.Liveness.StallState = %q, want empty after clean stop", got)
+		}
+		if got := strings.TrimSpace(meta.Liveness.StallReason); got != "" {
+			t.Fatalf("meta.Liveness.StallReason = %q, want empty after clean stop", got)
+		}
+
+		eventsResp := mustSessionEvents(t, ctx, harness, session.ID)
+		events := decodeAgentEvents(t, eventsResp.Events)
+		if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "runtime_progress"}) {
+			t.Fatalf("events = %#v, want runtime_progress before blocked peer stop", events)
+		}
+		assertNoFatalBlockedCancelError(t, events)
+
+		if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
+			t.Fatalf("CaptureSessionTranscript() error = %v", err)
+		}
+		if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
+			t.Fatalf("CaptureSessionEvents() error = %v", err)
+		}
+		if err := harness.CaptureSessionSandbox(ctx, session.ID); err != nil {
+			t.Fatalf("CaptureSessionSandbox() error = %v", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("StreamSessionHTTPUntil(runtime_progress) error = %v", err)
-	}
-	if !sseStreamContainsEvent(sessionStream, "runtime_progress") {
-		t.Fatalf("session stream = %#v, want runtime_progress replay", sessionStream)
-	}
-
-	if err := harness.StopSession(ctx, session.ID); err != nil {
-		t.Fatalf("StopSession(%q) error = %v", session.ID, err)
-	}
-
-	waitForRuntimeCondition(t, "blocked ACP session stopped", 10*time.Second, func() bool {
-		current, err := harness.GetSession(ctx, session.ID)
-		return err == nil && string(current.State) == "stopped"
-	})
-
-	sessionInfo, err := harness.GetSession(ctx, session.ID)
-	if err != nil {
-		t.Fatalf("GetSession(%q) error = %v", session.ID, err)
-	}
-	if got, want := string(sessionInfo.State), "stopped"; got != want {
-		t.Fatalf("sessionInfo.State = %q, want %q", got, want)
-	}
-	if got, want := sessionInfo.StopReason, store.StopUserCanceled; got != want {
-		t.Fatalf("sessionInfo.StopReason = %q, want %q", got, want)
-	}
-
-	meta := mustReadSessionMeta(t, harness, session.ID)
-	if meta.Liveness == nil {
-		t.Fatal("meta.Liveness = nil, want persisted liveness metadata")
-	}
-	if got := meta.Liveness.SubprocessPID; got != 0 {
-		t.Fatalf("meta.Liveness.SubprocessPID = %d, want 0 after clean stop", got)
-	}
-	if got := strings.TrimSpace(meta.Liveness.StallState); got != "" {
-		t.Fatalf("meta.Liveness.StallState = %q, want empty after clean stop", got)
-	}
-	if got := strings.TrimSpace(meta.Liveness.StallReason); got != "" {
-		t.Fatalf("meta.Liveness.StallReason = %q, want empty after clean stop", got)
-	}
-
-	eventsResp := mustSessionEvents(t, ctx, harness, session.ID)
-	events := decodeAgentEvents(t, eventsResp.Events)
-	if !containsAgentEvent(events, aghcontract.AgentEventPayload{Type: "runtime_progress"}) {
-		t.Fatalf("events = %#v, want runtime_progress before blocked peer stop", events)
-	}
-	assertNoFatalBlockedCancelError(t, events)
-
-	if err := harness.CaptureSessionTranscript(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionTranscript() error = %v", err)
-	}
-	if err := harness.CaptureSessionEvents(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionEvents() error = %v", err)
-	}
-	if err := harness.CaptureSessionSandbox(ctx, session.ID); err != nil {
-		t.Fatalf("CaptureSessionSandbox() error = %v", err)
-	}
 }
 
 func startFaultyMockSession(
@@ -243,7 +255,7 @@ func assertFaultPromptProjection(
 	}
 
 	transcript := mustSessionTranscript(t, ctx, harness, sessionID)
-	content := joinTranscriptContent(transcript.Messages)
+	content := joinTranscriptContent(sessionTranscriptMessages(transcript))
 	if wantTranscriptFragment != "" && !strings.Contains(content, wantTranscriptFragment) {
 		t.Fatalf("transcript = %q, want fragment %q", content, wantTranscriptFragment)
 	}

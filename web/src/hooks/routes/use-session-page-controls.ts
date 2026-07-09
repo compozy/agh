@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
+import type { QueuedPrompt } from "@/components/assistant-ui/session-composer-queued-prompts";
 import {
   cancelSessionPrompt,
+  useCancelQueuedSessionPrompt,
   useClearSessionConversation,
   useDeleteSession,
   useInterruptSessionPrompt,
@@ -72,6 +74,20 @@ function describePromptActionError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function restoreQueuedPrompt(
+  prompts: QueuedPrompt[],
+  prompt: QueuedPrompt,
+  originalIndex: number
+): QueuedPrompt[] {
+  if (prompts.some(item => item.id === prompt.id)) {
+    return prompts;
+  }
+  const restored = [...prompts];
+  const insertAt = originalIndex >= 0 ? Math.min(originalIndex, restored.length) : restored.length;
+  restored.splice(insertAt, 0, prompt);
+  return restored;
+}
+
 export function useSessionPageControls(
   sessionId: string,
   session: SessionPayload,
@@ -90,14 +106,38 @@ export function useSessionPageControls(
   const queuePromptMutation = useQueueSessionPrompt({ workspaceId });
   const interruptPromptMutation = useInterruptSessionPrompt({ workspaceId });
   const steerPromptMutation = useSteerSessionPrompt({ workspaceId });
+  const cancelQueuedPromptMutation = useCancelQueuedSessionPrompt({ workspaceId });
   const [isCancellingPrompt, setIsCancellingPrompt] = useState(false);
   const [resumeFailure, setResumeFailure] = useState<SessionResumeFailure | null>(null);
+  const [queuedPrompts, setQueuedPrompts] = useState<QueuedPrompt[]>([]);
+  const activeTurnId = session.activity?.turn_id?.trim() ?? "";
+  const lastActiveTurnIdRef = useRef(activeTurnId);
 
   const daemonRunning = isSessionRunning(session);
   const userControllable = isUserControllableSession(session);
   const effectiveRunning = isRunning || daemonRunning;
   const promptControlsAvailable = effectiveRunning && userControllable;
   const canPrompt = session.state === "active" && userControllable;
+
+  // Queued prompts are a client-tracked optimistic mirror of the daemon's durable
+  // busy-input queue: every row carries the real `queue_entry_id` the queue mutation
+  // returned, so delete/steer act on real entries. When the turn settles the daemon
+  // drains the queue, so drop the local rows — never render a queued prompt that the
+  // runtime no longer holds (truthful UI). It may briefly under-show a second queued
+  // prompt across a multi-dispatch settle, which is safe; it never over-shows.
+  useEffect(() => {
+    if (!effectiveRunning) {
+      setQueuedPrompts(prev => (prev.length > 0 ? [] : prev));
+    }
+  }, [effectiveRunning]);
+
+  useEffect(() => {
+    const previousTurnId = lastActiveTurnIdRef.current;
+    lastActiveTurnIdRef.current = activeTurnId;
+    if (activeTurnId.length > 0 && activeTurnId !== previousTurnId) {
+      setQueuedPrompts(prev => (prev.length > 0 ? [] : prev));
+    }
+  }, [activeTurnId]);
 
   const handleCancelPrompt = useCallback(() => {
     if (!promptControlsAvailable || isCancellingPrompt) {
@@ -133,12 +173,11 @@ export function useSessionPageControls(
         return;
       }
 
-      try {
-        await queuePromptMutation.mutateAsync({ id: sessionId, message: text });
+      const result = await queuePromptMutation.mutateAsync({ id: sessionId, message: text });
+      const queueEntryId = result.queue_entry_id;
+      if (result.queued && queueEntryId) {
+        setQueuedPrompts(prev => [...prev, { id: queueEntryId, text }]);
         toast.success("Prompt queued.");
-      } catch (error) {
-        toast.error(describePromptActionError(error, "Couldn't queue prompt."));
-        throw error;
       }
     },
     [isBusyInputPending, promptControlsAvailable, queuePromptMutation, sessionId]
@@ -151,13 +190,11 @@ export function useSessionPageControls(
         return;
       }
 
-      try {
-        await interruptPromptMutation.mutateAsync({ id: sessionId, message: text });
-        toast.success("Prompt interrupted.");
-      } catch (error) {
-        toast.error(describePromptActionError(error, "Couldn't interrupt prompt."));
-        throw error;
-      }
+      await interruptPromptMutation.mutateAsync({ id: sessionId, message: text });
+      // Interrupt advances the busy-input generation, which cancels every pending
+      // queued entry on the daemon — clear the local mirror so it can't lie.
+      setQueuedPrompts([]);
+      toast.success("Prompt interrupted.");
     },
     [interruptPromptMutation, isBusyInputPending, promptControlsAvailable, sessionId]
   );
@@ -169,15 +206,78 @@ export function useSessionPageControls(
         return;
       }
 
-      try {
-        await steerPromptMutation.mutateAsync({ id: sessionId, message: text });
-        toast.success("Steer staged.");
-      } catch (error) {
-        toast.error(describePromptActionError(error, "Couldn't stage steer."));
-        throw error;
-      }
+      await steerPromptMutation.mutateAsync({ id: sessionId, message: text });
+      toast.success("Steer staged.");
     },
     [isBusyInputPending, promptControlsAvailable, sessionId, steerPromptMutation]
+  );
+
+  const handleRemoveQueuedPrompt = useCallback(
+    (queueEntryId: string) => {
+      const removedIndex = queuedPrompts.findIndex(item => item.id === queueEntryId);
+      const removedPrompt = removedIndex >= 0 ? queuedPrompts[removedIndex] : undefined;
+      setQueuedPrompts(prev => prev.filter(item => item.id !== queueEntryId));
+      cancelQueuedPromptMutation.mutate(
+        { id: sessionId, queueEntryId },
+        {
+          onError: error => {
+            if (removedPrompt) {
+              setQueuedPrompts(prev => restoreQueuedPrompt(prev, removedPrompt, removedIndex));
+            }
+            toast.error(describePromptActionError(error, "Couldn't remove queued prompt."));
+          },
+        }
+      );
+    },
+    [cancelQueuedPromptMutation, queuedPrompts, sessionId]
+  );
+
+  const handleSteerQueuedPrompt = useCallback(
+    (prompt: QueuedPrompt) => {
+      if (!promptControlsAvailable || isBusyInputPending) {
+        return;
+      }
+      const removedIndex = queuedPrompts.findIndex(item => item.id === prompt.id);
+      setQueuedPrompts(prev => prev.filter(item => item.id !== prompt.id));
+      steerPromptMutation.mutate(
+        { id: sessionId, message: prompt.text },
+        {
+          onSuccess: () => {
+            // Steer injects the queued text into the live turn now, so drop its
+            // durable queue slot to avoid re-running it after the turn ends.
+            cancelQueuedPromptMutation.mutate(
+              { id: sessionId, queueEntryId: prompt.id },
+              {
+                onSuccess: () => {
+                  toast.success("Steer staged.");
+                },
+                onError: error => {
+                  setQueuedPrompts(prev => restoreQueuedPrompt(prev, prompt, removedIndex));
+                  toast.error(
+                    describePromptActionError(
+                      error,
+                      "Steer staged, but couldn't remove queued prompt."
+                    )
+                  );
+                },
+              }
+            );
+          },
+          onError: error => {
+            setQueuedPrompts(prev => restoreQueuedPrompt(prev, prompt, removedIndex));
+            toast.error(describePromptActionError(error, "Couldn't steer queued prompt."));
+          },
+        }
+      );
+    },
+    [
+      cancelQueuedPromptMutation,
+      isBusyInputPending,
+      promptControlsAvailable,
+      queuedPrompts,
+      sessionId,
+      steerPromptMutation,
+    ]
   );
 
   const handleStop = useCallback(() => {
@@ -258,8 +358,10 @@ export function useSessionPageControls(
       handleDelete,
       handleInterruptPrompt,
       handleQueuePrompt,
+      handleRemoveQueuedPrompt,
       handleResume,
       handleSteerPrompt,
+      handleSteerQueuedPrompt,
       handleStop,
       isBusyInputPending,
       isClearing,
@@ -268,6 +370,7 @@ export function useSessionPageControls(
       isSessionRunning: daemonRunning,
       isStopping,
       messages,
+      queuedPrompts,
       resumeFailure,
     }),
     [
@@ -280,8 +383,10 @@ export function useSessionPageControls(
       handleDelete,
       handleInterruptPrompt,
       handleQueuePrompt,
+      handleRemoveQueuedPrompt,
       handleResume,
       handleSteerPrompt,
+      handleSteerQueuedPrompt,
       handleStop,
       isBusyInputPending,
       isClearing,
@@ -290,6 +395,7 @@ export function useSessionPageControls(
       daemonRunning,
       isStopping,
       messages,
+      queuedPrompts,
       resumeFailure,
     ]
   );

@@ -6,7 +6,7 @@ import { overwriteWriteToolMessageFixture, writeToolMessageFixture } from "@/sys
 import { WriteContent } from "../write-content";
 
 const meta: Meta<typeof WriteContent> = {
-  title: "systems/session/tool-renderers/WriteContent",
+  title: "systems/session/components/tool-renderers/WriteContent",
   component: WriteContent,
   parameters: {
     layout: "centered",

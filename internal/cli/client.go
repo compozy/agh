@@ -3067,11 +3067,13 @@ func (c *unixSocketClient) StreamSessionEvents(
 	if err != nil {
 		return err
 	}
+	values := sessionEventValues(query)
+	values.Set("frames", contract.SessionStreamFrameRaw)
 	return c.doSSE(
 		ctx,
 		http.MethodGet,
 		path,
-		sessionEventValues(query),
+		values,
 		nil,
 		lastEventID,
 		handler,

@@ -170,7 +170,7 @@ func (m *Manager) storeSoulRefresh(
 	}
 
 	session.updateSoulSnapshot(snapshot, info.ParentSoulDigest, refreshedAt)
-	if err := m.writeMeta(session); err != nil {
+	if err := m.persistSessionMetadataOnly(session); err != nil {
 		return err
 	}
 	return nil

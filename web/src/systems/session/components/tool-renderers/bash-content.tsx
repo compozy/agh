@@ -40,14 +40,28 @@ export function BashContent({ message }: { message: UIMessage }) {
 
   return (
     <div className="space-y-1.5 text-xs" data-testid="bash-content">
-      {!!command && <CodeBlock code={String(command)} copyable={false} truncateLines={4} />}
+      {!!command && (
+        <CodeBlock code={String(command)} copyable={false} density="compact" truncateLines={4} />
+      )}
       {result && (
         <div>
           {result.stderr && (
-            <CodeBlock code={result.stderr} copyable={false} showPrompt={false} tone="danger" />
+            <CodeBlock
+              code={result.stderr}
+              copyable={false}
+              density="compact"
+              showPrompt={false}
+              tone="danger"
+            />
           )}
           {displayText && (
-            <CodeBlock code={displayText} copyable={false} showPrompt={false} truncateLines={20} />
+            <CodeBlock
+              code={displayText}
+              copyable={false}
+              density="compact"
+              showPrompt={false}
+              truncateLines={20}
+            />
           )}
           {isTruncated && (
             <button

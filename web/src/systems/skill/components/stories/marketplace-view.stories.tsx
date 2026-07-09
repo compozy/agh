@@ -9,7 +9,7 @@ import type { SkillMarketplaceListingPayload } from "@/systems/skill";
 import { MarketplaceView } from "../marketplace-view";
 
 const meta: Meta<typeof MarketplaceView> = {
-  title: "systems/skill/MarketplaceView",
+  title: "systems/skill/components/MarketplaceView",
   component: MarketplaceView,
   parameters: {
     layout: "fullscreen",

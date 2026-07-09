@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import type { SettingsNotificationPresetCollection } from "@/systems/settings";
 
@@ -58,41 +59,47 @@ function applyRecordsForUrl(request: Request) {
 }
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/settings/general", () => HttpResponse.json(settingsGeneralSectionFixture)),
-  http.patch("/api/settings/general", () => HttpResponse.json(mutationResult("general", true))),
+  aghApiMock.get("/api/settings/general", () => HttpResponse.json(settingsGeneralSectionFixture)),
+  aghApiMock.patch("/api/settings/general", () =>
+    HttpResponse.json(mutationResult("general", true))
+  ),
 
-  http.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
-  http.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
+  aghApiMock.get("/api/settings/memory", () => HttpResponse.json(settingsMemorySectionFixture)),
+  aghApiMock.patch("/api/settings/memory", () => HttpResponse.json(mutationResult("memory"))),
 
-  http.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
-  http.patch("/api/settings/skills", () => HttpResponse.json(mutationResult("skills", true))),
+  aghApiMock.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
+  aghApiMock.patch("/api/settings/skills", () => HttpResponse.json(mutationResult("skills", true))),
 
-  http.get("/api/settings/automation", () => HttpResponse.json(settingsAutomationSectionFixture)),
-  http.patch("/api/settings/automation", () =>
+  aghApiMock.get("/api/settings/automation", () =>
+    HttpResponse.json(settingsAutomationSectionFixture)
+  ),
+  aghApiMock.patch("/api/settings/automation", () =>
     HttpResponse.json(mutationResult("automation", true))
   ),
 
-  http.get("/api/settings/network", () => HttpResponse.json(settingsNetworkSectionFixture)),
-  http.patch("/api/settings/network", () => HttpResponse.json(mutationResult("network", true))),
+  aghApiMock.get("/api/settings/network", () => HttpResponse.json(settingsNetworkSectionFixture)),
+  aghApiMock.patch("/api/settings/network", () =>
+    HttpResponse.json(mutationResult("network", true))
+  ),
 
-  http.get("/api/settings/observability", () =>
+  aghApiMock.get("/api/settings/observability", () =>
     HttpResponse.json(settingsObservabilitySectionFixture)
   ),
-  http.patch("/api/settings/observability", () =>
+  aghApiMock.patch("/api/settings/observability", () =>
     HttpResponse.json(mutationResult("observability"))
   ),
 
-  http.get("/api/settings/hooks-extensions", () =>
+  aghApiMock.get("/api/settings/hooks-extensions", () =>
     HttpResponse.json(settingsHooksExtensionsSectionFixture)
   ),
-  http.patch("/api/settings/hooks-extensions", () =>
+  aghApiMock.patch("/api/settings/hooks-extensions", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
 
-  http.get("/api/notifications/presets", () =>
+  aghApiMock.get("/api/notifications/presets", () =>
     HttpResponse.json(settingsNotificationPresetCollectionFixture)
   ),
-  http.post("/api/notifications/presets", async ({ request }) => {
+  aghApiMock.post("/api/notifications/presets", async ({ request }) => {
     const body = (await request.json()) as {
       name?: string;
       events?: string[];
@@ -120,7 +127,7 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.put("/api/notifications/presets/:name", async ({ params, request }) => {
+  aghApiMock.put("/api/notifications/presets/{name}", async ({ params, request }) => {
     const name = String(params.name);
     const body = (await request.json()) as { enabled?: boolean };
     const existing = settingsNotificationPresetCollectionFixture.presets.find(
@@ -135,10 +142,15 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.delete("/api/notifications/presets/:name", () => new HttpResponse(null, { status: 204 })),
+  aghApiMock.delete(
+    "/api/notifications/presets/{name}",
+    () => new HttpResponse(null, { status: 204 })
+  ),
 
-  http.get("/api/settings/providers", () => HttpResponse.json(settingsProvidersCollectionFixture)),
-  http.get("/api/settings/providers/:name", ({ params }) => {
+  aghApiMock.get("/api/settings/providers", () =>
+    HttpResponse.json(settingsProvidersCollectionFixture)
+  ),
+  aghApiMock.get("/api/settings/providers/{name}", ({ params }) => {
     const name = String(params.name);
     const provider = settingsProviderFixtures.find(entry => entry.name === name);
 
@@ -148,15 +160,17 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ provider });
   }),
-  http.put("/api/settings/providers/:name", () =>
+  aghApiMock.put("/api/settings/providers/{name}", () =>
     HttpResponse.json(mutationResult("providers", true))
   ),
-  http.delete("/api/settings/providers/:name", () =>
+  aghApiMock.delete("/api/settings/providers/{name}", () =>
     HttpResponse.json(mutationResult("providers", true))
   ),
 
-  http.get("/api/settings/sandboxes", () => HttpResponse.json(settingsSandboxesCollectionFixture)),
-  http.get("/api/settings/sandboxes/:name", ({ params }) => {
+  aghApiMock.get("/api/settings/sandboxes", () =>
+    HttpResponse.json(settingsSandboxesCollectionFixture)
+  ),
+  aghApiMock.get("/api/settings/sandboxes/{name}", ({ params }) => {
     const name = String(params.name);
     const sandbox = settingsSandboxFixtures.find(entry => entry.name === name);
 
@@ -166,54 +180,61 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ sandbox });
   }),
-  http.put("/api/settings/sandboxes/:name", () =>
+  aghApiMock.put("/api/settings/sandboxes/{name}", () =>
     HttpResponse.json(mutationResult("sandboxes", true))
   ),
-  http.delete("/api/settings/sandboxes/:name", () =>
+  aghApiMock.delete("/api/settings/sandboxes/{name}", () =>
     HttpResponse.json(mutationResult("sandboxes", true))
   ),
 
-  http.get("/api/settings/hooks", () => HttpResponse.json(settingsHooksCollectionFixture)),
-  http.put("/api/settings/hooks/:name", () =>
+  aghApiMock.get("/api/settings/hooks", () => HttpResponse.json(settingsHooksCollectionFixture)),
+  aghApiMock.put("/api/settings/hooks/{name}", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
-  http.delete("/api/settings/hooks/:name", () =>
+  aghApiMock.delete("/api/settings/hooks/{name}", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
 
-  http.get("/api/settings/mcp-servers", ({ request }) => {
+  aghApiMock.get("/api/settings/mcp-servers", ({ request }) => {
     const url = new URL(request.url);
     const scope = url.searchParams.get("scope");
     const workspaceId = url.searchParams.get("workspace_id");
 
     if (scope === "workspace" && workspaceId) {
-      return HttpResponse.json({ mcp_servers: [] });
+      return HttpResponse.json({
+        ...settingsMCPServersCollectionFixture,
+        mcp_servers: [],
+        scope: "workspace",
+        workspace_id: workspaceId,
+      });
     }
 
     return HttpResponse.json(settingsMCPServersCollectionFixture);
   }),
-  http.put("/api/settings/mcp-servers/:name", () =>
+  aghApiMock.put("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
-  http.delete("/api/settings/mcp-servers/:name", () =>
+  aghApiMock.delete("/api/settings/mcp-servers/{name}", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
 
-  http.get("/api/settings/apply", ({ request }) => HttpResponse.json(applyRecordsForUrl(request))),
-  http.post("/api/settings/reload", () => HttpResponse.json(settingsReloadBlockedFixture)),
+  aghApiMock.get("/api/settings/apply", ({ request }) =>
+    HttpResponse.json(applyRecordsForUrl(request))
+  ),
+  aghApiMock.post("/api/settings/reload", () => HttpResponse.json(settingsReloadBlockedFixture)),
 
-  http.post("/api/settings/actions/restart", () =>
+  aghApiMock.post("/api/settings/actions/restart", () =>
     HttpResponse.json(settingsRestartResponseFixture, { status: 202 })
   ),
-  http.get("/api/settings/actions/restart/:operation_id", () =>
+  aghApiMock.get("/api/settings/actions/restart/{operation_id}", () =>
     HttpResponse.json(settingsRestartStatusFixture)
   ),
 
-  http.get("/api/extensions", () => HttpResponse.json(settingsExtensionsCollectionFixture)),
-  http.get("/api/extensions/marketplace", () =>
+  aghApiMock.get("/api/extensions", () => HttpResponse.json(settingsExtensionsCollectionFixture)),
+  aghApiMock.get("/api/extensions/marketplace", () =>
     HttpResponse.json(settingsExtensionMarketplaceCollectionFixture)
   ),
-  http.post("/api/extensions", async ({ request }) => {
+  aghApiMock.post("/api/extensions", async ({ request }) => {
     const body = (await request.json()) as { slug?: string };
     const marketplaceEntry = settingsExtensionMarketplaceCollectionFixture.extensions.find(
       entry => entry.slug === body.slug
@@ -222,13 +243,13 @@ export const handlers: HttpHandler[] = [
       ? {
           ...settingsExtensionFixtures[0],
           name: marketplaceEntry.name,
-          version: marketplaceEntry.version,
+          version: marketplaceEntry.version ?? settingsExtensionFixtures[0]!.version,
         }
       : settingsExtensionFixtures[0];
 
     return HttpResponse.json({ extension: installed }, { status: 201 });
   }),
-  http.put("/api/extensions/:name", ({ params }) => {
+  aghApiMock.put("/api/extensions/{name}", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
 
@@ -248,7 +269,7 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.delete("/api/extensions/:name", ({ params }) => {
+  aghApiMock.delete("/api/extensions/{name}", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
 
@@ -260,7 +281,7 @@ export const handlers: HttpHandler[] = [
       extension: { name, path: `/tmp/agh/extensions/${name}`, status: "removed" },
     });
   }),
-  http.get("/api/extensions/:name/provenance", ({ params }) => {
+  aghApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
 
@@ -270,7 +291,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ provenance: extension.provenance });
   }),
-  http.post("/api/extensions/:name/enable", ({ params }) => {
+  aghApiMock.post("/api/extensions/{name}/enable", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
 
@@ -280,7 +301,7 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ extension: { ...extension, enabled: true } });
   }),
-  http.post("/api/extensions/:name/disable", ({ params }) => {
+  aghApiMock.post("/api/extensions/{name}/disable", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
 

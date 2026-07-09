@@ -163,7 +163,7 @@ function RunPage({ run, definition, generations, live }: RunPageProps) {
 }
 
 const meta: Meta<typeof RunPage> = {
-  title: "systems/loops/LoopRunPage",
+  title: "systems/loops/components/LoopRunPage",
   component: RunPage,
   parameters: { layout: "fullscreen" },
 };

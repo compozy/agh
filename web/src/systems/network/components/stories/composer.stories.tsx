@@ -4,7 +4,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import { Composer } from "@/systems/network/components/composer";
 
 const meta: Meta<typeof Composer> = {
-  title: "systems/network/Composer",
+  title: "systems/network/components/Composer",
   component: Composer,
   parameters: {
     layout: "fullscreen",

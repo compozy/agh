@@ -179,67 +179,11 @@ func payloadJSONBytes(raw json.RawMessage) json.RawMessage {
 
 // ToUIMessages projects persisted session events into AI SDK UIMessage objects.
 func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
-	if len(events) == 0 {
-		return []UIMessage{}, nil
+	entries, err := ToUIEntries(events)
+	if err != nil {
+		return nil, err
 	}
-
-	sorted := sortedTranscriptEvents(events)
-	messages := make([]UIMessage, 0, len(sorted))
-	var assistant *uiMessageBuilder
-	toolLifecycles := make(map[string]*uiToolLifecycle)
-	usedMessageIDs := make(map[string]struct{})
-
-	appendMessage := func(message UIMessage) {
-		message.ID = uniqueUIMessageID(message.ID, usedMessageIDs)
-		usedMessageIDs[message.ID] = struct{}{}
-		messages = append(messages, message)
-	}
-
-	flushAssistant := func(forceComplete bool) {
-		if assistant == nil {
-			return
-		}
-		if message := assistant.build(forceComplete || assistant.finished); message != nil {
-			appendMessage(*message)
-		}
-		assistant = nil
-	}
-
-	for _, storedEvent := range sorted {
-		decoded := decodeStoredEvent(storedEvent)
-		if markerText := transcriptMarkerText(decoded.parsed); markerText != "" {
-			flushAssistant(true)
-			appendMessage(runtimeMarkerUIMessage(decoded, markerText))
-			continue
-		}
-		switch decoded.parsed.Type {
-		case acp.EventTypeUserMessage:
-			flushAssistant(true)
-			if message := inputUIMessage(decoded, UIRoleUser); message != nil {
-				appendMessage(*message)
-			}
-		case acp.EventTypeSyntheticReentry:
-			flushAssistant(true)
-			if message := inputUIMessage(decoded, UIRoleSystem); message != nil {
-				appendMessage(*message)
-			}
-		default:
-			assistantID := assistantMessageID(decoded)
-			if assistant == nil || assistant.logicalID != assistantID {
-				flushAssistant(true)
-				assistant = newUIMessageBuilder(
-					uniqueUIMessageID(assistantID, usedMessageIDs),
-					assistantID,
-					UIRoleAssistant,
-					toolLifecycles,
-				)
-			}
-			applyDecodedEvent(assistant, decoded)
-		}
-	}
-
-	flushAssistant(false)
-	return messages, nil
+	return MessagesFromEntries(entries), nil
 }
 
 func newUIMessageBuilder(

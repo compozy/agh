@@ -9,7 +9,7 @@ import { buildJobPreview } from "@/systems/automation/lib/job-preview";
 import { JobPreview } from "../../job-form/preview/job-preview";
 
 const meta: Meta<typeof JobPreview> = {
-  title: "systems/automation/job-form/JobPreview",
+  title: "systems/automation/components/job-form/JobPreview",
   component: JobPreview,
   parameters: {
     layout: "fullscreen",

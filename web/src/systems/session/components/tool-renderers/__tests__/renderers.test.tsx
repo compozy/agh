@@ -13,6 +13,7 @@ import { WriteContent } from "../write-content";
 import { EditContent } from "../edit-content";
 import { SearchContent } from "../search-content";
 import { GenericContent } from "../generic-content";
+import { ToolCallRow } from "../../tool-call-card";
 
 function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
@@ -245,4 +246,72 @@ describe("GenericContent", () => {
     );
     expect(screen.getByText("something went wrong")).toBeInTheDocument();
   });
+});
+
+describe("Per-tool renderers inside the ToolCallRow inline body (task 25 — no regression)", () => {
+  const cases: Array<{ name: string; message: UIMessage; expected: string }> = [
+    {
+      name: "Bash",
+      message: makeMessage({
+        toolName: "Bash",
+        toolInput: { command: "echo hi" },
+        toolResult: { stdout: "bash-output-marker" },
+      }),
+      expected: "bash-output-marker",
+    },
+    {
+      name: "Read",
+      message: makeMessage({
+        toolName: "Read",
+        toolInput: { file_path: "/src/read-marker.ts" },
+        toolResult: { content: "a\nb" },
+      }),
+      expected: "/src/read-marker.ts",
+    },
+    {
+      name: "Write",
+      message: makeMessage({
+        toolName: "Write",
+        toolInput: { file_path: "/out.txt", content: "write-body-marker" },
+        toolResult: { content: "ok" },
+      }),
+      expected: "write-body-marker",
+    },
+    {
+      name: "Edit",
+      message: makeMessage({
+        toolName: "Edit",
+        toolInput: { file_path: "/src/edit-marker.ts", old_string: "a", new_string: "b" },
+        toolResult: { content: "ok" },
+      }),
+      expected: "/src/edit-marker.ts",
+    },
+    {
+      name: "Grep",
+      message: makeMessage({
+        toolName: "Grep",
+        toolInput: { pattern: "TODO" },
+        toolResult: { stdout: "src/grep-marker.ts" },
+      }),
+      expected: "src/grep-marker.ts",
+    },
+    {
+      name: "generic MCP",
+      message: makeMessage({
+        toolName: "mcp__context7__resolve-library-id",
+        toolInput: { libraryName: "react" },
+        toolResult: { content: "/websites/generic-marker" },
+      }),
+      expected: "/websites/generic-marker",
+    },
+  ];
+
+  for (const { name, message, expected } of cases) {
+    it(`Should mount the ${name} renderer unchanged inside the row's expanded body`, () => {
+      const { container } = render(<ToolCallRow message={message} defaultExpanded />);
+      const body = container.querySelector<HTMLElement>('[data-slot="tool-call-row-body"]');
+      expect(body).not.toBeNull();
+      expect(body).toHaveTextContent(expected);
+    });
+  }
 });

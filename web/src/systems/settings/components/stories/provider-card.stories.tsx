@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { fn } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
@@ -33,8 +34,8 @@ const binaryMissingFixture: SettingsProviderEntry = {
   credentials: undefined,
 };
 
-const freshCatalogHandler = http.get(
-  "/api/model-catalog/providers/:provider_id/models/status",
+const freshCatalogHandler = aghApiMock.get(
+  "/api/model-catalog/providers/{provider_id}/models/status",
   () =>
     HttpResponse.json({
       sources: [
@@ -52,12 +53,27 @@ const freshCatalogHandler = http.get(
     })
 );
 
-const refreshHandler = http.post("/api/model-catalog/providers/:provider_id/models/refresh", () =>
-  HttpResponse.json({ operation_id: "model_refresh_story", status: "queued" })
+const refreshHandler = aghApiMock.post(
+  "/api/model-catalog/providers/{provider_id}/models/refresh",
+  () =>
+    HttpResponse.json({
+      sources: [
+        {
+          source_id: "models.dev",
+          source_kind: "models_dev",
+          priority: 0,
+          provider_id: "claude",
+          refresh_state: "queued",
+          row_count: 42,
+          stale: false,
+          next_refresh: "2026-04-17T18:12:00Z",
+        },
+      ],
+    })
 );
 
-const staleCatalogHandler = http.get(
-  "/api/model-catalog/providers/:provider_id/models/status",
+const staleCatalogHandler = aghApiMock.get(
+  "/api/model-catalog/providers/{provider_id}/models/status",
   () =>
     HttpResponse.json({
       sources: [
@@ -85,8 +101,8 @@ const staleCatalogHandler = http.get(
     })
 );
 
-const failedCatalogHandler = http.get(
-  "/api/model-catalog/providers/:provider_id/models/status",
+const failedCatalogHandler = aghApiMock.get(
+  "/api/model-catalog/providers/{provider_id}/models/status",
   () =>
     HttpResponse.json({
       sources: [
@@ -104,13 +120,13 @@ const failedCatalogHandler = http.get(
     })
 );
 
-const emptyCatalogHandler = http.get(
-  "/api/model-catalog/providers/:provider_id/models/status",
+const emptyCatalogHandler = aghApiMock.get(
+  "/api/model-catalog/providers/{provider_id}/models/status",
   () => HttpResponse.json({ sources: [] })
 );
 
 const meta: Meta<typeof ProviderCard> = {
-  title: "systems/settings/ProviderCard",
+  title: "systems/settings/components/ProviderCard",
   component: ProviderCard,
   parameters: {
     layout: "fullscreen",

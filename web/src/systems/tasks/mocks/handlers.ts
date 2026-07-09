@@ -1,4 +1,5 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { HttpResponse, type HttpHandler } from "msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 
 import type {
   CreateTaskRequest,
@@ -223,7 +224,7 @@ function buildInboxResponse(requestUrl: URL) {
   const flatItems = (taskInboxFixture.groups ?? []).flatMap(group => group.items ?? []);
   const filteredItems = filterInboxItems(flatItems, requestUrl);
 
-  const grouped = new Map<string, TaskInboxItem[]>();
+  const grouped = new Map<TaskInboxItem["lane"], TaskInboxItem[]>();
   for (const item of filteredItems) {
     const existing = grouped.get(item.lane) ?? [];
     existing.push(item);
@@ -267,35 +268,35 @@ function withTriageState(taskId: string, overrides: Partial<TaskTriageState> = {
 }
 
 function notFound(entity: string, id: string) {
-  return HttpResponse.json({ error: `${entity} not found: ${id}` }, { status: 404 });
+  return { error: `${entity} not found: ${id}` };
 }
 
 export const handlers: HttpHandler[] = [
-  http.get("/api/tasks", ({ request }) =>
+  aghApiMock.get("/api/tasks", ({ request }) =>
     HttpResponse.json({ tasks: filterTasks(new URL(request.url)) })
   ),
-  http.get("/api/tasks/:id", ({ params }) => {
+  aghApiMock.get("/api/tasks/{id}", ({ params, response }) => {
     const id = String(params.id);
     const detail = resolveTaskDetail(id);
 
     if (!detail) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({ task: detail });
   }),
-  http.get("/api/tasks/:id/runs", ({ params, request }) => {
+  aghApiMock.get("/api/tasks/{id}/runs", ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({ runs: filterRuns(resolveTaskRuns(id), new URL(request.url)) });
   }),
-  http.get("/api/tasks/:id/timeline", ({ params, request }) => {
+  aghApiMock.get("/api/tasks/{id}/timeline", ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     const limit = Number(new URL(request.url).searchParams.get("limit") ?? "0");
@@ -306,44 +307,44 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ timeline });
   }),
-  http.get("/api/tasks/:id/tree", ({ params }) => {
+  aghApiMock.get("/api/tasks/{id}/tree", ({ params, response }) => {
     const id = String(params.id);
     const tree = resolveTaskTree(id);
 
     if (!tree) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({ tree });
   }),
-  http.get("/api/tasks/:id/inspect", ({ params }) => {
+  aghApiMock.get("/api/tasks/{id}/inspect", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
 
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({
       inspect: buildTaskInspectFixture({ task, target: "task" }),
     });
   }),
-  http.get("/api/task-runs/:id", ({ params }) => {
+  aghApiMock.get("/api/task-runs/{id}", ({ params, response }) => {
     const id = String(params.id);
     const run = resolveTaskRun(id);
 
     if (!run) {
-      return notFound("Task run", id);
+      return response(404).json(notFound("Task run", id));
     }
 
     return HttpResponse.json({ run });
   }),
-  http.get("/api/runs/:id/inspect", ({ params }) => {
+  aghApiMock.get("/api/runs/{id}/inspect", ({ params, response }) => {
     const id = String(params.id);
     const run = resolveTaskRun(id);
 
     if (!run) {
-      return notFound("Task run", id);
+      return response(404).json(notFound("Task run", id));
     }
 
     return HttpResponse.json({
@@ -366,22 +367,22 @@ export const handlers: HttpHandler[] = [
       }),
     });
   }),
-  http.get("/api/observe/tasks/dashboard", () =>
+  aghApiMock.get("/api/observe/tasks/dashboard", () =>
     HttpResponse.json({ dashboard: taskDashboardFixture })
   ),
-  http.get("/api/observe/tasks/inbox", ({ request }) =>
+  aghApiMock.get("/api/observe/tasks/inbox", ({ request }) =>
     HttpResponse.json({ inbox: buildInboxResponse(new URL(request.url)) })
   ),
-  http.post("/api/tasks", async ({ request }) => {
+  aghApiMock.post("/api/tasks", async ({ request }) => {
     const body = (await request.json()) as Partial<CreateTaskRequest>;
 
     return HttpResponse.json({ task: buildCreatedTaskFixture(body) }, { status: 201 });
   }),
-  http.patch("/api/tasks/:id", async ({ params, request }) => {
+  aghApiMock.patch("/api/tasks/{id}", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     const body = (await request.json()) as Partial<UpdateTaskRequest>;
@@ -401,25 +402,34 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/publish", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/publish", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({
+      run: buildTaskRunRecordFixture({
+        id: `run_publish_${id}`,
+        task_id: id,
+        attempt: 1,
+        status: "queued",
+        queued_at: "2026-04-17T10:05:00Z",
+        started_at: null,
+        session_id: undefined,
+      }),
       task: {
         ...task,
         status: "ready",
       },
     });
   }),
-  http.post("/api/tasks/:id/cancel", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/cancel", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({
@@ -429,11 +439,11 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/pause", async ({ params, request }) => {
+  aghApiMock.post("/api/tasks/{id}/pause", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
     const body = (await request.json()) as { reason?: string };
 
@@ -449,11 +459,11 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/resume", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/resume", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({
@@ -468,14 +478,14 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/recover", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/recover", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
     if (task.status !== "needs_attention") {
-      return HttpResponse.json({ error: `Task ${id} is not in needs_attention` }, { status: 409 });
+      return response(409).json({ error: `Task ${id} is not in needs_attention` });
     }
 
     // Models the all-clear recovery path only (no other open blocking causes):
@@ -493,26 +503,38 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/approve", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/approve", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
-    return HttpResponse.json({
-      task: {
-        ...task,
-        status: "ready",
-        approval_state: "approved",
+    return HttpResponse.json(
+      {
+        run: buildTaskRunRecordFixture({
+          id: `run_approve_${id}`,
+          task_id: id,
+          attempt: 1,
+          status: "queued",
+          queued_at: "2026-04-17T10:05:00Z",
+          started_at: null,
+          session_id: undefined,
+        }),
+        task: {
+          ...task,
+          status: "ready",
+          approval_state: "approved",
+        },
       },
-    });
+      { status: 201 }
+    );
   }),
-  http.post("/api/tasks/:id/reject", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/reject", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json({
@@ -523,11 +545,11 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
-  http.post("/api/tasks/:id/runs", ({ params }) => {
+  aghApiMock.post("/api/tasks/{id}/runs", ({ params, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     return HttpResponse.json(
@@ -545,11 +567,11 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.post("/api/tasks/:id/runs/fan-out", async ({ params, request }) => {
+  aghApiMock.post("/api/tasks/{id}/runs/fan-out", async ({ params, request, response }) => {
     const id = String(params.id);
     const task = resolveTask(id);
     if (!task) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
 
     const body = (await request.json()) as Partial<FanOutTaskRunsRequest>;
@@ -580,50 +602,50 @@ export const handlers: HttpHandler[] = [
       { status: 201 }
     );
   }),
-  http.post("/api/tasks/:id/triage/read", ({ params }) =>
+  aghApiMock.post("/api/tasks/{id}/triage/read", ({ params }) =>
     HttpResponse.json({ triage: withTriageState(String(params.id), { read: true }) })
   ),
-  http.post("/api/tasks/:id/triage/archive", ({ params }) =>
+  aghApiMock.post("/api/tasks/{id}/triage/archive", ({ params }) =>
     HttpResponse.json({
       triage: withTriageState(String(params.id), { archived: true, read: true }),
     })
   ),
-  http.post("/api/tasks/:id/triage/dismiss", ({ params }) =>
+  aghApiMock.post("/api/tasks/{id}/triage/dismiss", ({ params }) =>
     HttpResponse.json({
       triage: withTriageState(String(params.id), { dismissed: true, read: true }),
     })
   ),
 
   // Execution profile
-  http.get("/api/tasks/:id/execution-profile", ({ params }) => {
+  aghApiMock.get("/api/tasks/{id}/execution-profile", ({ params, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
     return HttpResponse.json({
       profile: { ...taskExecutionProfileFixture, task_id: id },
     });
   }),
-  http.put("/api/tasks/:id/execution-profile", async ({ params, request }) => {
+  aghApiMock.put("/api/tasks/{id}/execution-profile", async ({ params, request, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
     const body = (await request.json()) as TaskExecutionProfileSetRequest;
     return HttpResponse.json({
       profile: buildTaskExecutionProfileFixture({ ...body, task_id: id }),
     });
   }),
-  http.delete("/api/tasks/:id/execution-profile", ({ params }) => {
+  aghApiMock.delete("/api/tasks/{id}/execution-profile", ({ params, response }) => {
     const id = String(params.id);
     if (!resolveTask(id)) {
-      return notFound("Task", id);
+      return response(404).json(notFound("Task", id));
     }
-    return new HttpResponse(null, { status: 204 });
+    return response(204).empty();
   }),
 
   // Run reviews
-  http.get("/api/task-runs/:id/reviews", ({ params, request }) => {
+  aghApiMock.get("/api/task-runs/{id}/reviews", ({ params, request }) => {
     const runId = String(params.id);
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
@@ -635,7 +657,7 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ reviews: filtered });
   }),
-  http.post("/api/task-runs/:id/reviews", async ({ params, request }) => {
+  aghApiMock.post("/api/task-runs/{id}/reviews", async ({ params, request }) => {
     const runId = String(params.id);
     const body = (await request.json()) as TaskRunReviewRequest;
     const review = buildTaskRunReviewFixture({
@@ -650,17 +672,17 @@ export const handlers: HttpHandler[] = [
     });
     return HttpResponse.json({ review, created: true }, { status: 201 });
   }),
-  http.get("/api/task-reviews/:id", ({ params }) => {
+  aghApiMock.get("/api/task-reviews/{id}", ({ params, response }) => {
     const reviewId = String(params.id);
     const review =
       taskRunReviewListFixture.find(item => item.review_id === reviewId) ??
       (reviewId === taskRunReviewFixture.review_id ? taskRunReviewFixture : null);
     if (!review) {
-      return notFound("Task review", reviewId);
+      return response(404).json(notFound("Task review", reviewId));
     }
     return HttpResponse.json({ review });
   }),
-  http.post("/api/task-reviews/:id/verdict", async ({ params, request }) => {
+  aghApiMock.post("/api/task-reviews/{id}/verdict", async ({ params, request }) => {
     const reviewId = String(params.id);
     const body = (await request.json()) as TaskRunReviewVerdictRequest;
     const verdictResult = buildTaskRunReviewVerdictResultFixture({
@@ -680,19 +702,19 @@ export const handlers: HttpHandler[] = [
   }),
 
   // Task-level reviews
-  http.get("/api/tasks/:id/reviews", ({ params }) => {
+  aghApiMock.get("/api/tasks/{id}/reviews", ({ params, response }) => {
     const taskId = String(params.id);
     if (!resolveTask(taskId)) {
-      return notFound("Task", taskId);
+      return response(404).json(notFound("Task", taskId));
     }
     return HttpResponse.json({ reviews: taskRunReviewListFixture });
   }),
 
   // Bridge notification subscriptions
-  http.get("/api/tasks/:id/notifications/bridges", ({ params, request }) => {
+  aghApiMock.get("/api/tasks/{id}/notifications/bridges", ({ params, request, response }) => {
     const taskId = String(params.id);
     if (!resolveTask(taskId)) {
-      return notFound("Task", taskId);
+      return response(404).json(notFound("Task", taskId));
     }
     const url = new URL(request.url);
     const bridgeInstanceId = url.searchParams.get("bridge_instance_id");
@@ -707,56 +729,65 @@ export const handlers: HttpHandler[] = [
       });
     return HttpResponse.json({ subscriptions: filtered });
   }),
-  http.post("/api/tasks/:id/notifications/bridges", async ({ params, request }) => {
-    const taskId = String(params.id);
-    if (!resolveTask(taskId)) {
-      return notFound("Task", taskId);
+  aghApiMock.post(
+    "/api/tasks/{id}/notifications/bridges",
+    async ({ params, request, response }) => {
+      const taskId = String(params.id);
+      if (!resolveTask(taskId)) {
+        return response(404).json(notFound("Task", taskId));
+      }
+      const body = (await request.json()) as TaskBridgeNotificationSubscriptionCreateRequest;
+      const subscriptionId = body.subscription_id ?? "bsub_created";
+      const subscription = buildTaskBridgeNotificationSubscriptionFixture({
+        subscription_id: subscriptionId,
+        task_id: taskId,
+        bridge_instance_id: body.bridge_instance_id,
+        delivery_mode: body.delivery_mode,
+        scope: body.scope,
+        workspace_id: body.workspace_id,
+        peer_id: body.peer_id,
+        group_id: body.group_id,
+        thread_id: body.thread_id,
+        cursor: buildBridgeNotificationCursorFixture({
+          consumer_id: `bridge_task_subscription:${subscriptionId}`,
+          subject_id: taskId,
+          last_sequence: 0,
+          last_delivery_id: undefined,
+          last_delivered_at: null,
+          updated_at: null,
+        }),
+      });
+      return HttpResponse.json({ subscription }, { status: 201 });
     }
-    const body = (await request.json()) as TaskBridgeNotificationSubscriptionCreateRequest;
-    const subscriptionId = body.subscription_id ?? "bsub_created";
-    const subscription = buildTaskBridgeNotificationSubscriptionFixture({
-      subscription_id: subscriptionId,
-      task_id: taskId,
-      bridge_instance_id: body.bridge_instance_id,
-      delivery_mode: body.delivery_mode,
-      scope: body.scope,
-      workspace_id: body.workspace_id,
-      peer_id: body.peer_id,
-      group_id: body.group_id,
-      thread_id: body.thread_id,
-      cursor: buildBridgeNotificationCursorFixture({
-        consumer_id: `bridge_task_subscription:${subscriptionId}`,
-        subject_id: taskId,
-        last_sequence: 0,
-        last_delivery_id: undefined,
-        last_delivered_at: null,
-        updated_at: null,
-      }),
-    });
-    return HttpResponse.json({ subscription }, { status: 201 });
-  }),
-  http.get("/api/tasks/:id/notifications/bridges/:subscriptionId", ({ params }) => {
-    const taskId = String(params.id);
-    const subscriptionId = String(params.subscriptionId);
-    const subscription = taskBridgeNotificationSubscriptionsFixture.find(
-      item => item.subscription_id === subscriptionId
-    );
-    if (!subscription) {
-      return notFound("Bridge notification subscription", subscriptionId);
+  ),
+  aghApiMock.get(
+    "/api/tasks/{id}/notifications/bridges/{subscription_id}",
+    ({ params, response }) => {
+      const taskId = String(params.id);
+      const subscriptionId = String(params.subscription_id);
+      const subscription = taskBridgeNotificationSubscriptionsFixture.find(
+        item => item.subscription_id === subscriptionId
+      );
+      if (!subscription) {
+        return response(404).json(notFound("Bridge notification subscription", subscriptionId));
+      }
+      return HttpResponse.json({ subscription: { ...subscription, task_id: taskId } });
     }
-    return HttpResponse.json({ subscription: { ...subscription, task_id: taskId } });
-  }),
-  http.delete("/api/tasks/:id/notifications/bridges/:subscriptionId", ({ params }) => {
-    const subscriptionId = String(params.subscriptionId);
-    const subscription = taskBridgeNotificationSubscriptionsFixture.find(
-      item => item.subscription_id === subscriptionId
-    );
-    if (!subscription) {
-      return notFound("Bridge notification subscription", subscriptionId);
+  ),
+  aghApiMock.delete(
+    "/api/tasks/{id}/notifications/bridges/{subscription_id}",
+    ({ params, response }) => {
+      const subscriptionId = String(params.subscription_id);
+      const subscription = taskBridgeNotificationSubscriptionsFixture.find(
+        item => item.subscription_id === subscriptionId
+      );
+      if (!subscription) {
+        return response(404).json(notFound("Bridge notification subscription", subscriptionId));
+      }
+      return response(204).empty();
     }
-    return new HttpResponse(null, { status: 204 });
-  }),
+  ),
 
   // Agent context (carries the task context bundle)
-  http.get("/api/agent/context", () => HttpResponse.json({ context: agentContextFixture })),
+  aghApiMock.get("/api/agent/context", () => HttpResponse.json({ context: agentContextFixture })),
 ];

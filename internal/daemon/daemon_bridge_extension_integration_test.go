@@ -312,7 +312,7 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	}
 
 	transcript := mustSessionTranscript(t, ctx, harness, sessionID)
-	transcriptContent := joinTranscriptContent(transcript.Messages)
+	transcriptContent := joinTranscriptContent(sessionTranscriptMessages(transcript))
 	for _, needle := range []string{
 		"Need a runtime bridge summary",
 		"Provide a follow-up runtime bridge summary",

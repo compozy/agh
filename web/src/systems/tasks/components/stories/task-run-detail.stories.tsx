@@ -7,7 +7,7 @@ import { TaskRunDetailHeader } from "../task-run-detail-header";
 import { TaskRunTimelinePanel } from "../task-run-timeline-panel";
 
 const meta: Meta = {
-  title: "systems/tasks/TaskRunDetail",
+  title: "systems/tasks/components/TaskRunDetail",
   parameters: {
     layout: "fullscreen",
   },

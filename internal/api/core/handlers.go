@@ -16,10 +16,8 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -338,7 +336,16 @@ func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
 
 // SessionEvents returns the filtered session event list.
 func (h *BaseHandlers) SessionEvents(c *gin.Context) {
+	if err := rejectTranscriptBackwardCursor(c); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	query, err := ParseSessionEventQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	query, err = applyBoundedSessionReadDefault(query)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -386,7 +393,16 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 
 // SessionHistory returns the grouped turn history for a session.
 func (h *BaseHandlers) SessionHistory(c *gin.Context) {
+	if err := rejectTranscriptBackwardCursor(c); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	query, err := ParseSessionEventQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	query, err = applyBoundedSessionReadDefault(query)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -424,298 +440,23 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 
 // SessionTranscript returns the stored transcript for a session.
 func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
+	query, err := parseSessionTranscriptQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	messages, err := h.Sessions.Transcript(c.Request.Context(), sessionID)
+	entries, err := h.Sessions.Transcript(c.Request.Context(), sessionID, query)
 	if err != nil {
 		h.logSessionReadError("transcript", sessionID, err)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Messages: messages})
-}
-
-// SessionRecap returns a deterministic recap composed from persisted session state.
-func (h *BaseHandlers) SessionRecap(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	limit, err := parseOptionalPositiveIntQuery(c, "limit", defaultSessionRecapLimit, maxSessionRecapLimit)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	eventsList, err := h.Sessions.Events(
-		c.Request.Context(),
-		sessionID,
-		// Over-fetch so transcript/message filtering can still return a full recap window.
-		store.EventQuery{Limit: maxSessionRecapLimit * 5},
-	)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	messages, err := transcript.ToUIMessages(eventsList)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	markers, err := h.recentTranscriptMarkers(c.Request.Context(), sessionID, eventsList, 5)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	queueSummary, err := h.Sessions.InputQueueSummary(c.Request.Context(), sessionID)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	pendingMarkers, err := h.pendingTranscriptMarkerCount(c.Request.Context(), sessionID)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	eventCursor := maxSessionEventSequence(eventsList)
-	payload := contract.RecapPayload{
-		Session:        SessionPayloadFromInfo(info),
-		RecentMarkers:  markers,
-		RecentMessages: recentUIMessages(messages, limit),
-		PendingInputs:  queueSummary.PendingInputs,
-		PendingMarkers: pendingMarkers,
-		Snapshot: contract.RecapSnapshotPayload{
-			GeneratedAt:      h.Now().UTC(),
-			EventCursor:      eventCursor,
-			TranscriptCursor: eventCursor,
-			QueueGeneration:  queueSummary.QueueGeneration,
-			Consistency:      recapConsistencyPersistedReads,
-		},
-	}
-	c.JSON(http.StatusOK, contract.SessionRecapResponse{Recap: payload})
-}
-
-func (h *BaseHandlers) pendingTranscriptMarkerCount(ctx context.Context, sessionID string) (int, error) {
-	allMarkers := make([]markerWithSequence, 0)
-	for _, eventType := range []string{events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted} {
-		eventsList, err := h.Sessions.Events(ctx, sessionID, store.EventQuery{
-			Type:  eventType,
-			Limit: pendingTranscriptMarkerLimit,
-		})
-		if err != nil {
-			return 0, fmt.Errorf("query %s markers: %w", eventType, err)
-		}
-		for _, event := range eventsList {
-			agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
-			if err != nil {
-				logger := h.Logger
-				if logger == nil {
-					logger = slog.Default()
-				}
-				logger.Warn(
-					"api: skip invalid transcript marker event while counting pending markers",
-					"event_id", event.ID,
-					"event_type", eventType,
-					"session_id", sessionID,
-					"error", err,
-				)
-				continue
-			}
-			marker, ok := transcript.ParseMarker(agentEvent.Raw)
-			if !ok {
-				continue
-			}
-			allMarkers = append(allMarkers, markerWithSequence{
-				Sequence:  event.Sequence,
-				EventType: eventType,
-				Marker:    marker.Normalize(),
-			})
-		}
-	}
-	if len(allMarkers) == 0 {
-		return 0, nil
-	}
-	sort.SliceStable(allMarkers, func(i int, j int) bool {
-		return allMarkers[i].Sequence < allMarkers[j].Sequence
-	})
-	var runtimeRecoveredAfter int64
-	redactedAfterByKind := make(map[string]int64)
-	for _, item := range allMarkers {
-		kind := strings.TrimSpace(item.Marker.Kind)
-		if item.EventType == events.TranscriptMarkerCreated &&
-			kind == transcript.MarkerSessionRecovered &&
-			item.Sequence > runtimeRecoveredAfter {
-			runtimeRecoveredAfter = item.Sequence
-			continue
-		}
-		if item.EventType == events.TranscriptMarkerRedacted && item.Sequence > redactedAfterByKind[kind] {
-			redactedAfterByKind[kind] = item.Sequence
-		}
-	}
-	pending := 0
-	for _, item := range allMarkers {
-		if item.EventType != events.TranscriptMarkerCreated {
-			continue
-		}
-		kind := strings.TrimSpace(item.Marker.Kind)
-		if item.Sequence <= redactedAfterByKind[kind] {
-			continue
-		}
-		if transcriptMarkerRuntimeOpenKind(kind) && item.Sequence > runtimeRecoveredAfter {
-			pending++
-			continue
-		}
-		if transcriptMarkerDurableOpenKind(kind) {
-			pending++
-		}
-	}
-	return pending, nil
-}
-
-type markerWithSequence struct {
-	Sequence  int64
-	EventType string
-	Marker    transcript.Marker
-}
-
-func transcriptMarkerRuntimeOpenKind(kind string) bool {
-	switch strings.TrimSpace(kind) {
-	case transcript.MarkerSessionUnhealthy,
-		transcript.MarkerPromptTimeout:
-		return true
-	default:
-		return false
-	}
-}
-
-func transcriptMarkerDurableOpenKind(kind string) bool {
-	switch strings.TrimSpace(kind) {
-	case transcript.MarkerProviderFailure,
-		transcript.MarkerMCPAuthRequired:
-		return true
-	default:
-		return false
-	}
-}
-
-func (h *BaseHandlers) recentTranscriptMarkers(
-	ctx context.Context,
-	sessionID string,
-	eventsList []store.SessionEvent,
-	limit int,
-) ([]contract.TranscriptMarkerPayload, error) {
-	if limit <= 0 {
-		return []contract.TranscriptMarkerPayload{}, nil
-	}
-	if h.Observer != nil {
-		summaries, err := h.queryRecentTranscriptMarkerSummaries(ctx, sessionID, limit)
-		if err != nil {
-			return nil, fmt.Errorf("api: query transcript marker summaries: %w", err)
-		}
-		markers := markerPayloadsFromSummaries(summaries)
-		if len(markers) > 0 {
-			return markers, nil
-		}
-	}
-	return markerPayloadsFromEvents(eventsList, limit), nil
-}
-
-func (h *BaseHandlers) queryRecentTranscriptMarkerSummaries(
-	ctx context.Context,
-	sessionID string,
-	limit int,
-) ([]store.EventSummary, error) {
-	summaries := make([]store.EventSummary, 0, limit*2)
-	seen := make(map[string]struct{}, limit*2)
-	for _, eventType := range []string{events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted} {
-		results, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{
-			SessionID: sessionID,
-			Type:      eventType,
-			Limit:     limit,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("query %s summaries: %w", eventType, err)
-		}
-		for _, summary := range results {
-			if _, ok := seen[summary.ID]; ok {
-				continue
-			}
-			seen[summary.ID] = struct{}{}
-			summaries = append(summaries, summary)
-		}
-	}
-	sort.SliceStable(summaries, func(i int, j int) bool {
-		return summaries[i].Timestamp.After(summaries[j].Timestamp)
-	})
-	if limit > 0 && len(summaries) > limit {
-		summaries = summaries[:limit]
-	}
-	return summaries, nil
-}
-
-func markerPayloadsFromSummaries(summaries []store.EventSummary) []contract.TranscriptMarkerPayload {
-	markers := make([]contract.TranscriptMarkerPayload, 0, len(summaries))
-	for _, summary := range summaries {
-		marker, ok := transcript.ParseMarker(summary.Content)
-		if !ok {
-			continue
-		}
-		markers = append(markers, transcriptMarkerPayload(marker))
-	}
-	return markers
-}
-
-func markerPayloadsFromEvents(eventsList []store.SessionEvent, limit int) []contract.TranscriptMarkerPayload {
-	markers := make([]contract.TranscriptMarkerPayload, 0, limit)
-	for index := len(eventsList) - 1; index >= 0 && len(markers) < limit; index-- {
-		event := eventsList[index]
-		if event.Type != events.TranscriptMarkerCreated && event.Type != events.TranscriptMarkerRedacted {
-			continue
-		}
-		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
-		if err != nil {
-			continue
-		}
-		marker, ok := transcript.ParseMarker(agentEvent.Raw)
-		if !ok {
-			continue
-		}
-		markers = append(markers, transcriptMarkerPayload(marker))
-	}
-	return markers
-}
-
-func transcriptMarkerPayload(marker transcript.Marker) contract.TranscriptMarkerPayload {
-	normalized := marker.Normalize()
-	return contract.TranscriptMarkerPayload{
-		Kind:       normalized.Kind,
-		OccurredAt: normalized.OccurredAt,
-		Summary:    normalized.Summary,
-		Evidence:   normalized.Evidence,
-		Diagnostic: normalized.Diagnostic,
-	}
-}
-
-func recentUIMessages(messages []transcript.UIMessage, limit int) []transcript.UIMessage {
-	if len(messages) == 0 || limit == 0 {
-		return []transcript.UIMessage{}
-	}
-	if limit < 0 || limit >= len(messages) {
-		return append([]transcript.UIMessage(nil), messages...)
-	}
-	return append([]transcript.UIMessage(nil), messages[len(messages)-limit:]...)
-}
-
-func maxSessionEventSequence(eventsList []store.SessionEvent) int64 {
-	var maxSequence int64
-	for _, event := range eventsList {
-		if event.Sequence > maxSequence {
-			maxSequence = event.Sequence
-		}
-	}
-	return maxSequence
+	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Entries: entries})
 }
 
 func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
@@ -760,52 +501,6 @@ func parseOptionalPositiveIntQuery(c *gin.Context, name string, fallback int, ma
 		return 0, fmt.Errorf("invalid %s query: must be <= %d", name, maxValue)
 	}
 	return value, nil
-}
-
-// StreamSession streams session events over SSE.
-func (h *BaseHandlers) StreamSession(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	if !h.IncludeSessionWorkspaceInSSE {
-		info = nil
-	}
-
-	query, err := ParseSessionEventQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	if query.AfterSequence, err = parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName()); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-
-	initial, err := h.Sessions.Events(c.Request.Context(), sessionID, query)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	afterSequence := query.AfterSequence
-	nextSequence, err := h.writeSessionEventBatch(writer, initial, info)
-	if err != nil {
-		return
-	}
-	if nextSequence > afterSequence {
-		afterSequence = nextSequence
-	}
-
-	pollQuery := query
-	pollQuery.Limit = 0
-	h.pollAndStreamSessionEvents(c, writer, sessionID, info, pollQuery, afterSequence)
 }
 
 // ListAgents returns all readable agent definitions in home paths.

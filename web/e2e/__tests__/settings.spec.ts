@@ -247,11 +247,20 @@ test("operator can manage MCP servers across global and workspace scopes with vi
 
   await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionUI);
-  await appPage.goto(runtime.url("/settings/mcp-servers"), { waitUntil: "domcontentloaded" });
+  await appPage.goto(runtime.url("/mcp"), { waitUntil: "domcontentloaded" });
 
   await expect(settingsUI.mcpServers.page).toBeVisible();
+  await expect(settingsUI.mcpServers.scopeWorkspace).toBeVisible();
   await expect(settingsUI.mcpServers.scopeGlobal).toBeVisible();
-  await expect(settingsUI.mcpServers.scopeWorkspace(workspace.id)).toBeVisible();
+
+  await appPage.getByTestId("workspace-switcher").click();
+  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
+  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  await settingsUI.mcpServers.scopeWorkspace.click();
+  await expect(settingsUI.mcpServers.scopeLabel).toContainText(workspace.name);
+
+  await settingsUI.mcpServers.scopeGlobal.click();
+  await expect(settingsUI.mcpServers.scopeLabel).toContainText("global");
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
@@ -267,7 +276,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();
 
-  await settingsUI.mcpServers.scopeWorkspace(workspace.id).click();
+  await settingsUI.mcpServers.scopeWorkspace.click();
   await expect(settingsUI.mcpServers.scopeLabel).toContainText(workspace.name);
 
   await createMCPServerViaUI(settingsUI, {
@@ -292,7 +301,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).not.toBeVisible();
 
-  await settingsUI.mcpServers.scopeWorkspace(workspace.id).click();
+  await settingsUI.mcpServers.scopeWorkspace.click();
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();

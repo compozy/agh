@@ -8,7 +8,7 @@ import { TasksInboxView } from "../tasks-inbox-view";
 import { buildInboxFixture, buildInboxItemFixture } from "../test-fixtures";
 
 const meta: Meta<typeof TasksInboxView> = {
-  title: "systems/tasks/TasksInboxView",
+  title: "systems/tasks/components/TasksInboxView",
   component: TasksInboxView,
   parameters: {
     layout: "fullscreen",
