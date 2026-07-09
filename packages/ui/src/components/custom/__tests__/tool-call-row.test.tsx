@@ -125,7 +125,7 @@ describe("ToolCallRow", () => {
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).not.toBeNull();
   });
 
-  it("Should hover with the neutral glaze and never render a competitor accent class in the row DOM", () => {
+  it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
     const { container } = render(
       <ToolCallRow toolName="Edit" status="success" icon={FileEditIcon}>
         <ToolCallRow.Output>

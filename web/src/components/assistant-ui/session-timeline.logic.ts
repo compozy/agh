@@ -1,14 +1,13 @@
 // Pure derivation of the assistant transcript into a flat `SessionRow` view.
 //
-// Mirrors T3Code's `MessagesTimeline.logic.ts`: `deriveSessionRows` maps message
-// parts to rows without mutating the runtime message array, and
-// `computeStableSessionRows` reuses row references when content is unchanged so
-// the virtualizer stays stable across derive passes. Consecutive tool parts fold
-// into one `work` cluster; settled clusters show only the latest call behind a
-// `+N previous tool calls` toggle, while the active turn keeps up to four visible.
-// Consecutive reasoning parts fold into one `reasoning` row carrying an "N updates"
-// count (mirrors Synara's `flushReasoningEntries`). The settled-turn "Worked for
-// Xs" fold layer lives in `./session-timeline-fold`.
+// `deriveSessionRows` maps message parts to rows without mutating the runtime
+// message array, and `computeStableSessionRows` reuses row references when content
+// is unchanged so the virtualizer stays stable across derive passes. Consecutive
+// tool parts fold into one `work` cluster; settled clusters show only the latest
+// call behind a `+N previous tool calls` toggle, while the active turn keeps up
+// to four visible. Consecutive reasoning parts fold into one `reasoning` row
+// carrying an "N updates" count. The settled-turn "Worked for Xs" fold layer
+// lives in `./session-timeline-fold`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
 
@@ -139,8 +138,7 @@ export interface ChangedFileEntry {
 // Per-turn audit summary of the files an assistant turn modified (Edit/Write).
 // Rendered once at the tail of a settled editing turn as a collapsed
 // "Edited N files +a/-d" card that expands to the per-file list — display-only
-// (AGH exposes no checkpoint/Undo semantics). Mirrors Synara's end-of-turn "Files
-// changed" card and T3Code's `AssistantChangedFilesSection`, minus their actions.
+// (AGH exposes no checkpoint/Undo semantics).
 export interface SessionChangedFilesRow extends SessionBaseRow {
   kind: "changed-files";
   /** Distinct modified files in first-touch order; same path edited twice is one entry. */
@@ -304,9 +302,9 @@ function workRowsFromCluster(
 }
 
 // Folds consecutive reasoning parts (same turn, uninterrupted by other kinds)
-// into one row, mirroring Synara's `flushReasoningEntries`: the grouped text is
-// the parts joined by a blank line so nothing is lost, `updateCount` drives the
-// "N updates" count, and `streaming` stays true while any part is still live.
+// into one row: the grouped text is the parts joined by a blank line so nothing
+// is lost, `updateCount` drives the "N updates" count, and `streaming` stays
+// true while any part is still live.
 function reasoningRowFromCluster(parts: SessionTimelineReasoningPart[]): SessionReasoningRow {
   const first = parts[0];
   const text = parts
@@ -345,9 +343,9 @@ export const EMPTY_STABLE_SESSION_ROWS: StableSessionRowsState = {
 
 /**
  * Reuses row references from `previous` when a freshly derived row is content-
- * equal, mirroring T3's `computeStableMessagesTimelineRows`. This keeps unchanged
- * rows referentially stable across derive passes (append leaves prior rows intact)
- * so the virtualizer and memoized children avoid needless re-renders.
+ * equal. This keeps unchanged rows referentially stable across derive passes
+ * (append leaves prior rows intact) so the virtualizer and memoized children
+ * avoid needless re-renders.
  */
 export function computeStableSessionRows(
   rows: SessionRow[],

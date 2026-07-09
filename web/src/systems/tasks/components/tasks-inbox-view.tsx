@@ -117,7 +117,7 @@ export function TasksInboxView({
       className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas"
       data-testid="tasks-inbox-view"
     >
-      <div className="mx-auto w-full max-w-content-max px-9 pt-7 pb-20">
+      <div className="mx-auto w-full max-w-[1320px] px-9 pt-7 pb-20">
         <TasksInboxPageHead
           archivedCount={archivedTotal}
           inboxUpdatedAt={inboxUpdatedAt}

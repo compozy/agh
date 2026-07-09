@@ -5,6 +5,7 @@ import {
   storyDefaultWorkspaceId,
   storyHeroNetworkChannel,
   storySessionIds,
+  storySkillNames,
 } from "./fintech-scenario";
 
 export type GeneratedRoutePath = FileRouteTypes["fullPaths"];
@@ -28,6 +29,7 @@ const storyLoopName = "software-delivery";
 const storyLoopRunId = "looprun_running";
 const storyThreadId = "thread_launch_command";
 const storyDirectId = "direct_story_launch_corridor";
+const storyBridgeId = "brg_launch_room";
 
 const storyNetworkBasePath = `/network/${storyDefaultWorkspaceId}/${storyHeroNetworkChannel}`;
 
@@ -145,6 +147,20 @@ export const routeStoryRegistry = [
     storybookPath: "/bridges",
     title: "systems/bridges/routes/Bridges",
     storyName: "Default",
+  },
+  {
+    system: "bridges",
+    routePath: "/bridges/$id",
+    storybookPath: `/bridges/${storyBridgeId}`,
+    title: "systems/bridges/routes/Bridges",
+    storyName: "TestDelivery",
+  },
+  {
+    system: "skill",
+    routePath: "/skills/$name",
+    storybookPath: `/skills/${storySkillNames.executiveBrief}`,
+    title: "systems/skill/routes/Skills",
+    storyName: "DetailOpen",
   },
   {
     system: "tasks",

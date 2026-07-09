@@ -81,9 +81,9 @@ export const Cards: Story = {
   args: {},
   render: () => (
     <div className="grid max-w-2xl gap-3">
-      <TaskCard task={TASK_FIXTURES[0]!} selected onSelect={fn()} />
-      <TaskCard task={TASK_FIXTURES[4]!} onSelect={fn()} />
-      <TaskCard task={TASK_FIXTURES[3]!} onSelect={fn()} />
+      <TaskCard task={TASK_FIXTURES[0]!} />
+      <TaskCard task={TASK_FIXTURES[4]!} />
+      <TaskCard task={TASK_FIXTURES[3]!} />
     </div>
   ),
 };

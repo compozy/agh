@@ -1,66 +1,52 @@
 import { useCallback, useMemo } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useChildMatches, useNavigate } from "@tanstack/react-router";
+
+import type { ListingViewMode } from "@agh/ui";
 
 import {
   useDisableSkill,
   useEnableSkill,
   useInstallSkillMarketplace,
   useRemoveSkillMarketplace,
-  useSkill,
-  useSkillContent,
   useSkillMarketplaceSearch,
-  useSkillShadows,
   useSkills,
   useUpdateSkillMarketplace,
 } from "@/systems/skill";
+import {
+  parseSkillEnabledFilter,
+  parseSkillSourceFilter,
+  type SkillEnabledFilter,
+  type SkillSourceFilter,
+} from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 type Tab = "installed" | "marketplace";
 
 export interface SkillsRouteSearch {
   tab?: Tab;
-  skill?: string;
-  content?: string;
   q?: string;
-}
-
-function normalizeSearchValue(value: string | null | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
+  view?: ListingViewMode;
+  source?: SkillSourceFilter;
+  enabled?: SkillEnabledFilter;
 }
 
 function useSkillsPage(search: SkillsRouteSearch = {}) {
   const navigate = useNavigate({ from: "/skills" });
+  const childMatches = useChildMatches();
+  const hasChildMatch = childMatches.length > 0;
 
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
 
   const activeTab = search.tab ?? "installed";
-  const selectedSkillName = search.skill ?? null;
-  const requestedSkillContentName = search.content ?? null;
   const searchQuery = search.q ?? "";
+  const view: ListingViewMode = search.view ?? "rows";
+  const sourceFilter = search.source ?? null;
+  const enabledFilter = search.enabled ?? null;
 
   const skillsQuery = useSkills(workspaceId);
   const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data]);
-
-  const effectiveSelectedName = useMemo(() => {
-    if (selectedSkillName && skills.some(skill => skill.name === selectedSkillName)) {
-      return selectedSkillName;
-    }
-
-    return skills[0]?.name ?? null;
-  }, [selectedSkillName, skills]);
-
-  const {
-    data: selectedSkill,
-    isLoading: isLoadingDetail,
-    error: detailError,
-  } = useSkill(effectiveSelectedName ?? "", workspaceId);
-  const {
-    data: selectedSkillShadows,
-    error: shadowsError,
-    isLoading: isLoadingShadows,
-  } = useSkillShadows(effectiveSelectedName ?? "", workspaceId);
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
@@ -72,16 +58,6 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     return new Set(skills.map(skill => skill.name));
   }, [skills]);
 
-  const shouldLoadSelectedContent =
-    effectiveSelectedName !== null && requestedSkillContentName === effectiveSelectedName;
-
-  const {
-    data: selectedSkillContent,
-    isLoading: isLoadingContent,
-    error: contentError,
-    refetch: refetchSkillContent,
-  } = useSkillContent(effectiveSelectedName ?? "", workspaceId, shouldLoadSelectedContent);
-
   const marketplaceQueryActive = activeTab === "marketplace" && searchQuery.trim() !== "";
   const marketplaceSearchQuery = useSkillMarketplaceSearch(
     marketplaceQueryActive ? searchQuery : ""
@@ -92,13 +68,19 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   );
   const marketplaceListingCount = marketplaceListings.length;
 
-  const handleDisable = (name: string) => {
-    disableMutation.mutate({ name, workspace: workspaceId });
-  };
+  const handleDisable = useCallback(
+    (name: string) => {
+      disableMutation.mutate({ name, workspace: workspaceId });
+    },
+    [disableMutation, workspaceId]
+  );
 
-  const handleEnable = (name: string) => {
-    enableMutation.mutate({ name, workspace: workspaceId });
-  };
+  const handleEnable = useCallback(
+    (name: string) => {
+      enableMutation.mutate({ name, workspace: workspaceId });
+    },
+    [enableMutation, workspaceId]
+  );
 
   const handleInstallMarketplace = useCallback(
     (slug: string) => {
@@ -136,17 +118,9 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
       updateSearch(current => ({
         ...current,
         tab: nextTab === "installed" ? undefined : nextTab,
-      }));
-    },
-    [updateSearch]
-  );
-
-  const setSelectedSkillName = useCallback(
-    (nextSkillName: string | null) => {
-      updateSearch(current => ({
-        ...current,
-        content: current.content === nextSkillName ? current.content : undefined,
-        skill: normalizeSearchValue(nextSkillName),
+        // Clear installed-only filters when switching to marketplace.
+        source: nextTab === "marketplace" ? undefined : current.source,
+        enabled: nextTab === "marketplace" ? undefined : current.enabled,
       }));
     },
     [updateSearch]
@@ -156,23 +130,61 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     (nextQuery: string) => {
       updateSearch(current => ({
         ...current,
-        q: normalizeSearchValue(nextQuery),
+        q: normalizeListingSearchValue(nextQuery),
       }));
     },
     [updateSearch]
   );
 
-  const handleViewContent = (name: string) => {
+  const setView = useCallback(
+    (nextView: ListingViewMode) => {
+      updateSearch(current => ({
+        ...current,
+        view: nextView === "rows" ? undefined : nextView,
+      }));
+    },
+    [updateSearch]
+  );
+
+  const setSourceFilter = useCallback(
+    (next: SkillSourceFilter | null) => {
+      updateSearch(current => ({
+        ...current,
+        source: next ?? undefined,
+      }));
+    },
+    [updateSearch]
+  );
+
+  const setEnabledFilter = useCallback(
+    (next: SkillEnabledFilter | null) => {
+      updateSearch(current => ({
+        ...current,
+        enabled: next ?? undefined,
+      }));
+    },
+    [updateSearch]
+  );
+
+  const clearFilters = useCallback(() => {
     updateSearch(current => ({
       ...current,
-      skill: normalizeSearchValue(name),
-      content: normalizeSearchValue(name),
+      q: undefined,
+      source: undefined,
+      enabled: undefined,
     }));
-  };
+  }, [updateSearch]);
 
-  const handleRetryContent = () => {
-    void refetchSkillContent();
-  };
+  const handleRefresh = useCallback(() => {
+    void skillsQuery.refetch();
+    if (marketplaceQueryActive) {
+      void marketplaceSearchQuery.refetch();
+    }
+  }, [marketplaceQueryActive, marketplaceSearchQuery, skillsQuery]);
+
+  const browseMarketplace = useCallback(() => {
+    setActiveTab("marketplace");
+  }, [setActiveTab]);
 
   const hasSkills = skills.length > 0;
   const error = skillsQuery.error && !hasSkills ? skillsQuery.error : null;
@@ -181,24 +193,21 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   return {
     activeTab,
     backgroundError,
-    contentError: shouldLoadSelectedContent ? contentError : null,
-    detailError,
-    effectiveSelectedName,
+    browseMarketplace,
+    clearFilters,
+    enabledFilter,
     error,
     handleDisable,
     handleEnable,
     handleInstallMarketplace,
+    handleRefresh,
     handleRemoveMarketplace,
-    handleRetryContent,
     handleUpdateMarketplace,
-    handleViewContent,
+    hasChildMatch,
     installedSkillNames,
     isActionPending: disableMutation.isPending || enableMutation.isPending,
-    isContentLoading: shouldLoadSelectedContent && isLoadingContent,
     isInstalling: installMutation.isPending,
     isLoading: skillsQuery.isLoading && !hasSkills,
-    isLoadingDetail: isLoadingDetail && effectiveSelectedName !== null,
-    isLoadingShadows: isLoadingShadows && effectiveSelectedName !== null,
     isMarketplaceSearchEnabled: marketplaceQueryActive,
     isMarketplaceSearching: marketplaceQueryActive && marketplaceSearchQuery.isFetching,
     isRemoving: removeMutation.isPending,
@@ -207,18 +216,17 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     marketplaceListings,
     marketplaceSearchError: marketplaceQueryActive ? (marketplaceSearchQuery.error ?? null) : null,
     searchQuery,
-    selectedSkill: effectiveSelectedName
-      ? (selectedSkill ?? skills.find(skill => skill.name === effectiveSelectedName))
-      : undefined,
-    selectedSkillContent: shouldLoadSelectedContent ? selectedSkillContent : undefined,
-    selectedSkillShadows,
-    shadowsError,
     setActiveTab,
+    setEnabledFilter,
     setSearchQuery,
-    setSelectedSkillName,
+    setSourceFilter,
+    setView,
     skillCount: skills.length,
     skills,
+    sourceFilter,
+    view,
+    workspaceId,
   };
 }
 
-export { useSkillsPage };
+export { parseSkillEnabledFilter, parseSkillSourceFilter, useSkillsPage };

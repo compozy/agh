@@ -8,7 +8,7 @@ import {
 } from "../sections";
 
 describe("settings sections metadata", () => {
-  it("mirrors the Paper-mapped screen order", () => {
+  it("exposes the Settings screen order", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
       "providers",

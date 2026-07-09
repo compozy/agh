@@ -24,6 +24,7 @@ import {
 import {
   deriveSkillAuthor,
   deriveSkillCapabilities,
+  deriveSkillDisplaySource,
   deriveSkillRecentCalls,
   skillSourceTone,
 } from "../lib/skill-formatters";
@@ -44,6 +45,7 @@ interface SkillDetailPanelProps {
   shadows: SkillShadowsResponse | undefined;
   isShadowsLoading: boolean;
   shadowsError: Error | null;
+  onBack?: () => void;
 }
 
 interface SkillContentSectionProps {
@@ -331,6 +333,7 @@ function SkillDetailPanel({
   shadows,
   isShadowsLoading,
   shadowsError,
+  onBack,
 }: SkillDetailPanelProps) {
   if (isLoading) {
     return (
@@ -389,6 +392,9 @@ function SkillDetailPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="skill-detail-panel">
       <DetailHeader
+        back={onBack}
+        backLabel="Back to skills"
+        crumbs={onBack ? [{ label: "Skills", onSelect: onBack }] : undefined}
         data-testid="skill-detail-header"
         title={<span data-testid="skill-detail-title">{skill.name}</span>}
         pills={
@@ -398,7 +404,7 @@ function SkillDetailPanel({
             ) : null}
             {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
             <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-              {skill.provenance?.precedence_tier ?? skill.source}
+              {deriveSkillDisplaySource(skill)}
             </Pill>
           </>
         }

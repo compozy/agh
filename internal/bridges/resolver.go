@@ -15,7 +15,7 @@ type ResolveBridgeTargetResult struct {
 	Candidates []BridgeTarget `json:"candidates,omitempty"`
 }
 
-// ResolveBridgeTarget resolves a canonical bridge target using the Hermes-style 4-step algorithm.
+// ResolveBridgeTarget resolves a canonical bridge target using a deterministic 4-step algorithm.
 func (s *Service) ResolveBridgeTarget(
 	ctx context.Context,
 	bridgeID string,

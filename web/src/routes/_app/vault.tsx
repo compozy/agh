@@ -9,11 +9,9 @@ import {
   Button,
   ConfirmDialog,
   Empty,
-  Eyebrow,
   Input,
-  PageShell,
-  Section,
-  StatusLineTopbarSlot,
+  ListingPage,
+  ListingToolbar,
   useTopbarSlot,
 } from "@agh/ui";
 
@@ -22,10 +20,9 @@ import {
   type VaultDraft,
   type VaultEditorState,
   type VaultLastAction,
-  type VaultNamespaceFilter,
 } from "@/hooks/routes/use-vault-page";
 import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
-import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
+import { VaultListFilters, VaultSecretsList, type VaultSecret } from "@/systems/vault";
 import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/vault")({
@@ -40,48 +37,24 @@ function VaultPage() {
 
   useTopbarSlot({
     count: page.isLoading ? undefined : page.counts.total,
-    tabs: !page.isLoading ? (
-      <StatusLineTopbarSlot
-        daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
-        status={page.queryError ? "error" : "connected"}
-        data-testid="vault-page-status-line"
-        items={[
-          {
-            key: "total",
-            value: <span data-testid="vault-page-total">{page.counts.total} secrets</span>,
-            tone: "neutral",
-          },
-          {
-            key: "sessions",
-            value: (
-              <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
-            ),
-            tone: "neutral",
-          },
-          {
-            key: "providers",
-            value: (
-              <span data-testid="vault-page-providers">
-                {page.counts.providers} provider-scoped
-              </span>
-            ),
-            tone: "neutral",
-          },
-        ]}
-      />
-    ) : undefined,
     actions: (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => void page.refetch()}
-        disabled={page.isRefetching}
-        data-testid="vault-page-refresh"
-      >
-        <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
-        Refresh
-      </Button>
+      <div className="flex items-center gap-2" data-testid="vault-topbar-actions">
+        <Button
+          data-testid="vault-page-refresh"
+          disabled={page.isRefetching}
+          onClick={() => void page.refetch()}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
+          Refresh
+        </Button>
+        <Button data-testid="vault-page-create" onClick={page.openCreate} size="sm" type="button">
+          <Plus className="size-3" />
+          New secret
+        </Button>
+      </div>
     ),
   });
 
@@ -90,136 +63,97 @@ function VaultPage() {
   }
 
   return (
-    <PageShell density="route" data-testid="vault-shell">
-      {page.lastAction ? (
-        <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
-      ) : null}
-
-      <Section
-        label="Secrets"
-        data-testid="vault-page-header-row"
-        note={<>{page.counts.total} redacted metadata records exposed by the daemon vault</>}
-        right={
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={page.openCreate}
-            data-testid="vault-page-create"
-          >
-            <Plus className="size-3" />
-            New secret
-          </Button>
+    <ListingPage
+      banner={
+        page.lastAction ? (
+          <div className="px-9 pt-4">
+            <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+          </div>
+        ) : null
+      }
+      data-testid="vault-shell"
+    >
+      <ListingPage.Head
+        count={page.counts.total}
+        countTestId="vault-page-count"
+        data-testid="vault-page-head"
+        meta={
+          <>
+            <span>Write-only secrets; the daemon returns redacted metadata only.</span>
+            <ListingPage.MetaDot />
+            <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
+            <ListingPage.MetaDot />
+            <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
+          </>
         }
+        title="Vault"
       />
 
-      <VaultFilterBar
-        namespace={page.namespace}
-        prefix={page.prefix}
-        onNamespaceChange={page.setNamespace}
-        onPrefixChange={page.setPrefix}
-      />
+      <ListingToolbar>
+        <ListingToolbar.Leading>
+          <ListingToolbar.Search
+            aria-label="Filter by vault ref prefix"
+            data-testid="vault-page-prefix"
+            onChange={page.setPrefix}
+            placeholder="vault:sessions/sess_123/"
+            value={page.prefix}
+          />
+          <ListingToolbar.Filters>
+            <VaultListFilters namespace={page.namespace} onNamespaceChange={page.setNamespace} />
+          </ListingToolbar.Filters>
+        </ListingToolbar.Leading>
+      </ListingToolbar>
 
       {page.queryError && page.secrets.length === 0 ? (
         <Empty
-          icon={AlertCircle}
-          title="Unable to load vault metadata"
-          description={page.queryError}
-          data-testid="vault-page-error"
           action={
             <Button
+              data-testid="vault-page-error-retry"
+              disabled={page.isRefetching}
+              onClick={() => void page.refetch()}
+              size="sm"
               type="button"
               variant="ghost"
-              size="sm"
-              onClick={() => void page.refetch()}
-              disabled={page.isRefetching}
-              data-testid="vault-page-error-retry"
             >
               <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
               Retry
             </Button>
           }
+          data-testid="vault-page-error"
+          description={page.queryError}
+          icon={AlertCircle}
+          title="Unable to load vault metadata"
         />
       ) : (
-        <VaultSecretsTable
-          secrets={page.secrets}
-          isLoading={page.isRefetching && page.secrets.length === 0}
-          error={page.queryError ? new Error(page.queryError) : null}
-          onDelete={page.openDelete}
-          emptyTitle="No vault secrets"
+        <VaultSecretsList
+          data-testid="vault-page-list"
           emptyDescription="Vault metadata appears here after a write-only secret is stored."
-          data-testid="vault-page-table"
+          emptyTitle="No vault secrets"
+          error={page.queryError ? new Error(page.queryError) : null}
+          isLoading={page.isRefetching && page.secrets.length === 0}
+          onDelete={page.openDelete}
+          secrets={page.secrets}
         />
       )}
 
       <VaultEditor
-        editor={page.editor}
-        isSaving={page.editorIsSaving}
         canSave={page.editorIsValid}
+        editor={page.editor}
         error={page.editorError}
+        isSaving={page.editorIsSaving}
         onChange={page.updateDraft}
         onClose={page.closeEditor}
         onSave={page.saveEditor}
       />
 
       <VaultDeleteDialog
-        target={page.deleteTarget.mode === "open" ? page.deleteTarget.secret : null}
         error={page.deleteError}
         isDeleting={page.deleteIsPending}
         onClose={page.closeDelete}
         onConfirm={page.confirmDelete}
+        target={page.deleteTarget.mode === "open" ? page.deleteTarget.secret : null}
       />
-    </PageShell>
-  );
-}
-
-interface VaultFilterBarProps {
-  namespace: VaultNamespaceFilter;
-  prefix: string;
-  onNamespaceChange: (namespace: VaultNamespaceFilter) => void;
-  onPrefixChange: (prefix: string) => void;
-}
-
-function VaultFilterBar({
-  namespace,
-  prefix,
-  onNamespaceChange,
-  onPrefixChange,
-}: VaultFilterBarProps) {
-  return (
-    <div
-      className="grid gap-4 rounded-lg border border-line bg-canvas-soft p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
-      data-testid="vault-page-filters"
-    >
-      <label className="flex min-w-0 flex-col gap-2" htmlFor="vault-page-namespace">
-        <Eyebrow className="text-muted">Namespace</Eyebrow>
-        <select
-          id="vault-page-namespace"
-          value={namespace}
-          onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
-          className="h-9 rounded-md border border-line bg-elevated px-3 text-sm text-fg outline-none"
-          data-testid="vault-page-namespace"
-        >
-          <option value="all">All namespaces</option>
-          {VAULT_NAMESPACES.map(item => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex min-w-0 flex-col gap-2" htmlFor="vault-page-prefix">
-        <Eyebrow className="text-muted">Prefix</Eyebrow>
-        <Input
-          id="vault-page-prefix"
-          value={prefix}
-          onChange={event => onPrefixChange(event.target.value)}
-          placeholder="vault:sessions/sess_123/"
-          className="font-mono"
-          data-testid="vault-page-prefix"
-        />
-      </label>
-    </div>
+    </ListingPage>
   );
 }
 

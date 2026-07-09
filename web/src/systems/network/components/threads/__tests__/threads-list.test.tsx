@@ -67,7 +67,7 @@ describe("ThreadsList", () => {
     expect(screen.getByText("Pricing decision pending.")).toBeInTheDocument();
   });
 
-  it("Should mark the active thread row with aria-current", () => {
+  it("Should mark the active thread row with aria-current and data-selected", () => {
     render(
       <ThreadsList
         activeThreadId="thread-1"
@@ -80,6 +80,7 @@ describe("ThreadsList", () => {
 
     const row = screen.getByTestId("network-thread-list-row-thread-1");
     expect(row).toHaveAttribute("aria-current", "page");
+    expect(row).toHaveAttribute("data-selected", "true");
   });
 
   it("Should render the loading skeleton when no threads are available yet", () => {
@@ -152,7 +153,7 @@ describe("ThreadsList", () => {
 
     expect(title).toHaveClass("min-w-0", "truncate");
     expect(title).toHaveAttribute("title", longTitle);
-    expect(preview).toHaveClass("min-w-0", "break-words", "line-clamp-2");
+    expect(preview).toHaveClass("truncate");
     expect(preview).toHaveAttribute("title", longPreview);
 
     const containerEl = container.firstElementChild as HTMLElement;

@@ -42,6 +42,10 @@ export function skillSourceLabel(source: string): string {
   return source;
 }
 
+export function deriveSkillDisplaySource(skill: SkillPayload): string {
+  return skill.provenance?.precedence_tier ?? skill.source;
+}
+
 export function skillStatusTone(enabled: boolean): "success" | "neutral" {
   return enabled ? "success" : "neutral";
 }

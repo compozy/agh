@@ -32,11 +32,11 @@ function renderView(props: Partial<React.ComponentProps<typeof MarketplaceView>>
   const merged: React.ComponentProps<typeof MarketplaceView> = {
     listings: LISTINGS,
     installedSkillNames: new Set<string>(),
-    searchQuery: "alpha",
+    view: "cards",
     isSearchEnabled: true,
     isSearching: false,
     searchError: null,
-    onSearchChange: vi.fn(),
+    onClearSearch: vi.fn(),
     onInstall: vi.fn(),
     onUpdate: vi.fn(),
     onRemove: vi.fn(),
@@ -54,18 +54,24 @@ function renderView(props: Partial<React.ComponentProps<typeof MarketplaceView>>
 
 describe("MarketplaceView", () => {
   it("Should render the search prompt when no query is entered", () => {
-    renderView({ searchQuery: "", isSearchEnabled: false, listings: [] });
+    renderView({ isSearchEnabled: false, listings: [] });
     expect(screen.getByTestId("marketplace-search-prompt")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
   });
 
-  it("Should render the marketplace grid when listings exist", () => {
+  it("Should render the marketplace grid when listings exist in cards view", () => {
     renderView();
     const grid = screen.getByTestId("marketplace-grid");
     expect(grid).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-alpha")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-beta")).toBeInTheDocument();
     expect(screen.getByTestId("marketplace-row-gamma")).toBeInTheDocument();
+  });
+
+  it("Should render listing rows when view is rows", () => {
+    renderView({ view: "rows" });
+    expect(screen.getByTestId("marketplace-rows")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-alpha")).toBeInTheDocument();
   });
 
   it("Should call onInstall with the listing slug when Install is clicked", async () => {
@@ -145,19 +151,17 @@ describe("MarketplaceView", () => {
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
   });
 
+  it("Should call onClearSearch from the empty state action", async () => {
+    const user = userEvent.setup();
+    const onClearSearch = vi.fn();
+    renderView({ listings: [], onClearSearch });
+    await user.click(screen.getByTestId("marketplace-clear-search"));
+    expect(onClearSearch).toHaveBeenCalled();
+  });
+
   it("Should render an inline error message when the search fails", () => {
     renderView({ listings: [], searchError: new Error("clawhub offline") });
     expect(screen.getByTestId("marketplace-error")).toHaveTextContent("clawhub offline");
-  });
-
-  it("Should propagate search input changes to onSearchChange", async () => {
-    const user = userEvent.setup();
-    const onSearchChange = vi.fn();
-    renderView({ onSearchChange });
-
-    const input = screen.getByTestId("marketplace-search-input");
-    await user.type(input, "x");
-    expect(onSearchChange).toHaveBeenCalled();
   });
 
   it("Should not render the deprecated read-only metadata warning", () => {

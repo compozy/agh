@@ -69,59 +69,26 @@ export const Blocked: Story = {
   ),
 };
 
-export const WithLaneAndSelection: Story = {
-  render: () => (
-    <Frame>
-      <TasksListRow
-        lane="approvals"
-        selected
-        task={buildTaskFixture({ status: "ready", title: "Awaiting approval" })}
-      />
-    </Frame>
-  ),
-};
-
-/** Primitive demo: per-row status dots (list view uses group headers instead). */
-export const ShowStatusDot: Story = {
-  render: () => (
-    <Frame>
-      <TasksListRow
-        showStatusDot
-        task={buildTaskFixture({ status: "in_progress", title: "Running with row dot" })}
-      />
-      <TasksListRow
-        showStatusDot
-        task={buildTaskFixture({
-          status: "blocked",
-          title: "Blocked with row dot",
-          active_run: null,
-        })}
-      />
-    </Frame>
-  ),
-};
-
 /** List groups with header dots and flush-left task cards (production list layout). */
 export const ListGroups: Story = {
   render: () => (
     <PanelSurface className="max-w-[520px] p-0">
       <TaskGroup count={1} id="active" label="Active">
-        <TaskCard task={TASK_FIXTURES[0]!} onSelect={() => {}} />
+        <TaskCard task={TASK_FIXTURES[0]!} />
       </TaskGroup>
       <TaskGroup count={1} id="blocked" label="Blocked">
-        <TaskCard task={TASK_FIXTURES[5]!} onSelect={() => {}} />
+        <TaskCard task={TASK_FIXTURES[5]!} />
       </TaskGroup>
       <TaskGroup count={1} id="queued" label="Queued">
-        <TaskCard task={TASK_FIXTURES[2]!} onSelect={() => {}} />
+        <TaskCard task={TASK_FIXTURES[2]!} />
       </TaskGroup>
       <TaskGroup count={1} id="done" label="Done">
         <TaskCard
           task={buildTaskFixture({ status: "completed", title: "Done task", active_run: null })}
-          onSelect={() => {}}
         />
       </TaskGroup>
       <TaskGroup count={1} id="failed" label="Failed">
-        <TaskCard task={TASK_FIXTURES[3]!} onSelect={() => {}} />
+        <TaskCard task={TASK_FIXTURES[3]!} />
       </TaskGroup>
     </PanelSurface>
   ),

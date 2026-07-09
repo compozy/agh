@@ -72,11 +72,11 @@ export const CreateDialog: Story = {
 };
 
 /**
- * Test delivery dialog opened from the selected bridge detail panel.
+ * Test delivery dialog opened from the bridge detail route.
  */
 export const TestDelivery: Story = {
   args: {},
-  parameters: appRouteParameters("/bridges"),
+  parameters: appRouteParameters("/bridges/brg_launch_room"),
   render: () => <StorybookWorkspaceSetup />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

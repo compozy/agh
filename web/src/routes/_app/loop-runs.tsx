@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 
-import { Empty, Spinner } from "@agh/ui";
+import { Empty, ListingPage, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { LoopRunsView, type LoopOutcomeValue, useLoopRuns } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -17,8 +17,9 @@ export const Route = createFileRoute("/_app/loop-runs")({
 function LoopRunsRoute() {
   const childMatches = useChildMatches();
   const hasChildMatch = childMatches.length > 0;
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
+  const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
   const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
   // Skip the runs fetch while the run-detail child route owns the view.
   const runsQuery = useLoopRuns(workspaceId, {}, workspaceId !== "" && !hasChildMatch);
@@ -72,22 +73,21 @@ function LoopRunsRoute() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loop-runs">
-      <div className="mx-auto w-full max-w-[1320px] px-9 py-7">
-        <header className="mb-5">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">Runs</h1>
-            <span className="inline-flex min-h-5 items-center rounded-xs border border-line-soft bg-canvas-soft px-1.5 font-mono text-[11px] tabular-nums text-faint">
-              {runs.length}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-subtle">
-            Every execution of a Loop, across the full outcome spectrum.
-          </p>
-        </header>
-        <LoopRunsView runs={runs} outcome={outcome} onOutcomeChange={setOutcome} />
-      </div>
-    </div>
+    <ListingPage data-testid="loop-runs">
+      <ListingPage.Head
+        count={runs.length}
+        countTestId="loop-runs-page-count"
+        meta={
+          <>
+            <span>Every execution of a Loop, across the full outcome spectrum.</span>
+            <ListingPage.MetaDot />
+            <span>{workspaceLabel}</span>
+          </>
+        }
+        title="Runs"
+      />
+      <LoopRunsView onOutcomeChange={setOutcome} outcome={outcome} runs={runs} />
+    </ListingPage>
   );
 }
 

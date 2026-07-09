@@ -1,9 +1,21 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { BridgeListPanel } from "@/systems/bridges/components/bridge-list-panel";
 import type { BridgeHealthMap, BridgeSummary } from "@/systems/bridges/types";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+    <a
+      data-params={JSON.stringify(params)}
+      href={typeof to === "string" ? to : "#"}
+      {...(props as Record<string, unknown>)}
+    >
+      {children as React.ReactNode}
+    </a>
+  ),
+}));
 
 function makeBridge(overrides: Partial<BridgeSummary> = {}): BridgeSummary {
   return {
@@ -30,8 +42,19 @@ function makeHealthMap(entries: Record<string, BridgeHealthMap[string]>): Bridge
   return entries;
 }
 
+const defaultProps = {
+  activeWorkspaceId: "ws_test" as string | null,
+  bridgeHealth: {} as BridgeHealthMap,
+  onClearFilters: vi.fn(),
+  platformFilter: null,
+  scopeFilter: "all" as const,
+  searchQuery: "",
+  statusFilter: null,
+  view: "rows" as const,
+};
+
 describe("BridgeListPanel", () => {
-  it("groups bridges by provider and renders one row per bridge", () => {
+  it("renders a flat sorted list of bridge rows with detail links", () => {
     const bridges = [
       makeBridge({ id: "brg_support", display_name: "Support", platform: "telegram" }),
       makeBridge({
@@ -45,115 +68,104 @@ describe("BridgeListPanel", () => {
         display_name: "Ops slack",
         extension_name: "ext-slack",
         platform: "slack",
+        scope: "global",
+        workspace_id: undefined,
       }),
     ];
 
-    render(
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={bridges}
-        onSearchChange={vi.fn()}
-        onSelectBridge={vi.fn()}
-        searchQuery=""
-        selectedBridgeId="brg_support"
-        summary="3 bridges visible"
-      />
-    );
+    render(<BridgeListPanel {...defaultProps} bridges={bridges} />);
 
-    expect(screen.getByTestId("bridge-list-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-item-brg_ops_email")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-list-rows")).toBeInTheDocument();
     expect(screen.getByTestId("bridge-item-brg_ops_slack")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-item-brg_ops_email")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
+    expect(screen.queryByTestId(/^bridge-list-group-header-/)).not.toBeInTheDocument();
 
-    const groupHeaders = screen.getAllByTestId(/^bridge-list-group-header-/);
-    expect(groupHeaders).toHaveLength(3);
-    expect(
-      screen.getByTestId("bridge-list-group-header-ext-telegram-telegram")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-list-group-header-ext-email-email")).toBeInTheDocument();
-
-    expect(screen.getByTestId("bridge-item-brg_support")).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen
-        .getByTestId("bridge-item-brg_support")
-        .querySelector('[data-slot="item-selection-indicator"][data-indicator="rail"]')
-    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open Support" });
+    expect(link).toHaveAttribute("href", "/bridges/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "brg_support" }));
   });
 
-  it("renders the filtered-empty state with no-results copy when search has no matches", () => {
+  it("filters by search, platform, and status", () => {
+    const bridges = [
+      makeBridge({ id: "brg_support", display_name: "Support", platform: "telegram" }),
+      makeBridge({
+        id: "brg_ops_slack",
+        display_name: "Ops slack",
+        extension_name: "ext-slack",
+        platform: "slack",
+        status: "disabled",
+      }),
+    ];
+
+    const { rerender } = render(
+      <BridgeListPanel {...defaultProps} bridges={bridges} searchQuery="ops" />
+    );
+    expect(screen.getByTestId("bridge-item-brg_ops_slack")).toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-item-brg_support")).not.toBeInTheDocument();
+
+    rerender(<BridgeListPanel {...defaultProps} bridges={bridges} platformFilter="telegram" />);
+    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-item-brg_ops_slack")).not.toBeInTheDocument();
+
+    rerender(<BridgeListPanel {...defaultProps} bridges={bridges} statusFilter="disabled" />);
+    expect(screen.getByTestId("bridge-item-brg_ops_slack")).toBeInTheDocument();
+    expect(screen.queryByTestId("bridge-item-brg_support")).not.toBeInTheDocument();
+  });
+
+  it("renders cards view", () => {
     render(
       <BridgeListPanel
-        bridgeHealth={{}}
+        {...defaultProps}
+        bridges={[makeBridge({ id: "brg_support" })]}
+        view="cards"
+      />
+    );
+
+    expect(screen.getByTestId("bridge-list-card-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("bridge-card-brg_support")).toBeInTheDocument();
+  });
+
+  it("renders the filtered-empty state with clear filters action", async () => {
+    const user = userEvent.setup();
+    const onClearFilters = vi.fn();
+
+    render(
+      <BridgeListPanel
+        {...defaultProps}
         bridges={[]}
-        onSearchChange={vi.fn()}
-        onSelectBridge={vi.fn()}
+        onClearFilters={onClearFilters}
         searchQuery="zzzz"
-        selectedBridgeId={null}
-        summary="0 bridges visible"
       />
     );
 
     const empty = screen.getByTestId("bridge-list-empty");
-    expect(empty).toBeInTheDocument();
-    expect(within(empty).getByText(/Try a different search term/i)).toBeInTheDocument();
+    expect(within(empty).getByText(/No bridges match/i)).toBeInTheDocument();
+    await user.click(screen.getByTestId("bridge-list-clear-filters"));
+    expect(onClearFilters).toHaveBeenCalled();
   });
 
-  it("renders the default empty state when no bridges and no search term", () => {
-    render(
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        onSearchChange={vi.fn()}
-        onSelectBridge={vi.fn()}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary="0 bridges visible"
-      />
-    );
+  it("renders the default empty state when no bridges and no filters", () => {
+    render(<BridgeListPanel {...defaultProps} bridges={[]} />);
 
     const empty = screen.getByTestId("bridge-list-empty");
-    expect(within(empty).getByText(/No bridges match the current filters/i)).toBeInTheDocument();
+    expect(within(empty).getByText(/No bridges yet/i)).toBeInTheDocument();
   });
 
   it("renders loading and error fallbacks", () => {
-    const { rerender } = render(
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        isLoading
-        onSearchChange={vi.fn()}
-        onSelectBridge={vi.fn()}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary=""
-      />
-    );
+    const { rerender } = render(<BridgeListPanel {...defaultProps} bridges={[]} isLoading />);
 
     expect(screen.getByTestId("bridge-list-loading")).toBeInTheDocument();
 
-    rerender(
-      <BridgeListPanel
-        bridgeHealth={{}}
-        bridges={[]}
-        errorMessage="boom"
-        onSearchChange={vi.fn()}
-        onSelectBridge={vi.fn()}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary=""
-      />
-    );
+    rerender(<BridgeListPanel {...defaultProps} bridges={[]} errorMessage="boom" />);
 
     expect(screen.getByTestId("bridge-list-error")).toHaveTextContent("boom");
   });
 
-  it("calls onSelectBridge when a row is clicked", async () => {
-    const user = userEvent.setup();
-    const onSelectBridge = vi.fn();
-    const onSearchChange = vi.fn();
-
+  it("shows route count and status label from health", () => {
     render(
       <BridgeListPanel
+        {...defaultProps}
         bridgeHealth={makeHealthMap({
           brg_support: {
             auth_failures_total: 0,
@@ -167,22 +179,11 @@ describe("BridgeListPanel", () => {
           },
         })}
         bridges={[makeBridge({ id: "brg_support" })]}
-        onSearchChange={onSearchChange}
-        onSelectBridge={onSelectBridge}
-        searchQuery=""
-        selectedBridgeId={null}
-        summary="1 bridges visible"
       />
     );
 
-    await user.click(screen.getByTestId("bridge-item-brg_support"));
-    expect(onSelectBridge).toHaveBeenCalledWith("brg_support");
-
-    fireEvent.change(screen.getByTestId("bridge-search-input"), {
-      target: { value: "support" },
-    });
-    expect(onSearchChange).toHaveBeenCalledWith("support");
-
     expect(screen.getByText(/2 routes/i)).toBeInTheDocument();
+    expect(screen.getByText("ready")).toBeInTheDocument();
+    expect(screen.getByText("telegram")).toBeInTheDocument();
   });
 });

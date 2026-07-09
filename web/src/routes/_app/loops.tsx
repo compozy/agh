@@ -1,26 +1,81 @@
-import { AlertCircle, Activity, Repeat2 } from "lucide-react";
+import { AlertCircle, Activity, RefreshCw, Repeat2 } from "lucide-react";
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { Empty, Spinner } from "@agh/ui";
+import {
+  Button,
+  Empty,
+  ListingPage,
+  ListingToolbar,
+  Spinner,
+  buttonVariants,
+  useTopbarSlot,
+} from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { LoopCatalog } from "@/systems/loops";
-import { useLoopsCatalog } from "@/hooks/routes/use-loops-catalog";
+import {
+  parseLoopCategoryFilter,
+  parseLoopKindFilter,
+  parseLoopStatusFilter,
+  type LoopsRouteSearch,
+  useLoopsCatalog,
+} from "@/hooks/routes/use-loops-catalog";
+import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { LoopCatalog, LoopCatalogFilters } from "@/systems/loops";
+
+function validateLoopsSearch(search: Record<string, unknown>): LoopsRouteSearch {
+  return {
+    category: parseLoopCategoryFilter(search.category),
+    kind: parseLoopKindFilter(search.kind),
+    q: normalizeListingSearchValue(search.q),
+    status: parseLoopStatusFilter(search.status),
+    view: parseListingView(search.view),
+  };
+}
 
 export const Route = createFileRoute("/_app/loops")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Loops", icon: Repeat2 },
   }),
+  validateSearch: validateLoopsSearch,
   component: LoopsRoute,
 });
 
 function LoopsRoute() {
-  const { hasChildMatch, workspaceId, loopsQuery, bindingIndex, filter, setFilter, handleRun } =
-    useLoopsCatalog();
+  const page = useLoopsCatalog(Route.useSearch());
+  const loops = page.loopsQuery.data ?? [];
+  const loopCount = loops.length;
+  const workspaceLabel = page.activeWorkspace?.name ?? page.activeWorkspace?.id ?? "workspace";
 
-  if (hasChildMatch) {
+  useTopbarSlot({
+    count: page.hasChildMatch || page.workspaceId === "" ? undefined : loopCount,
+    actions:
+      page.hasChildMatch || page.workspaceId === "" ? undefined : (
+        <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
+          <Link
+            className={buttonVariants({ size: "sm", variant: "ghost" })}
+            data-testid="loops-runs-link"
+            to="/loop-runs"
+          >
+            <Activity aria-hidden="true" className="size-3" />
+            Runs
+          </Link>
+          <Button
+            data-testid="loops-refresh"
+            onClick={page.handleRefresh}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <RefreshCw aria-hidden="true" className="size-3" />
+            Refresh
+          </Button>
+        </div>
+      ),
+  });
+
+  if (page.hasChildMatch) {
     return <Outlet />;
   }
-  if (workspaceId === "") {
+  if (page.workspaceId === "") {
     return (
       <CatalogState
         description="Select a workspace to browse its Loops."
@@ -29,17 +84,17 @@ function LoopsRoute() {
       />
     );
   }
-  if (loopsQuery.isLoading) {
+  if (page.loopsQuery.isLoading) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center" data-testid="loops-loading">
         <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
   }
-  if (loopsQuery.error) {
+  if (page.loopsQuery.error) {
     return (
       <CatalogState
-        description={loopsQuery.error.message ?? "Failed to load loops"}
+        description={page.loopsQuery.error.message ?? "Failed to load loops"}
         icon={AlertCircle}
         testId="loops-error"
         title="Unable to load loops"
@@ -47,8 +102,7 @@ function LoopsRoute() {
     );
   }
 
-  const loops = loopsQuery.data ?? [];
-  if (loops.length === 0) {
+  if (loopCount === 0) {
     return (
       <CatalogState
         description="No Loop definitions are available in this workspace yet."
@@ -59,40 +113,57 @@ function LoopsRoute() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loops-catalog">
-      <div className="mx-auto w-full max-w-[1320px] px-9 py-7">
-        <header className="mb-4 flex items-start gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
-                Loops
-              </h1>
-              <span className="inline-flex min-h-5 items-center rounded-xs border border-line-soft bg-canvas-soft px-1.5 font-mono text-eyebrow tabular-nums text-faint">
-                {loops.length}
-              </span>
-            </div>
-            <p className="mt-1.5 text-xs text-subtle">
-              Reusable, guardrailed cycles that pursue a goal until it is verified.
-            </p>
-          </div>
-          <Link
-            to="/loop-runs"
-            className="ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2.5 text-[12.5px] font-medium text-muted transition-colors hover:bg-row-hover hover:text-fg-strong"
-            data-testid="loops-runs-link"
-          >
-            <Activity aria-hidden="true" className="size-3.5" />
-            Runs
-          </Link>
-        </header>
-        <LoopCatalog
-          entries={loops}
-          filter={filter}
-          onFilterChange={setFilter}
-          boundLoops={bindingIndex.byLoop}
-          onRun={handleRun}
-        />
-      </div>
-    </div>
+    <ListingPage data-testid="loops-catalog">
+      <ListingPage.Head
+        count={loopCount}
+        countTestId="loops-page-count"
+        data-testid="loops-page-head"
+        meta={
+          <>
+            <span>Reusable, guardrailed cycles that pursue a goal until it is verified.</span>
+            <ListingPage.MetaDot />
+            <span>{workspaceLabel}</span>
+          </>
+        }
+        title="Loops"
+      />
+
+      <ListingToolbar>
+        <ListingToolbar.Leading>
+          <ListingToolbar.Search
+            aria-label="Search loops"
+            data-testid="loop-search-input"
+            onChange={page.setSearchQuery}
+            placeholder="Search loops"
+            value={page.searchQuery}
+          />
+          <ListingToolbar.Filters>
+            <LoopCatalogFilters
+              categoryFilter={page.filter.category}
+              entries={loops}
+              kindFilter={page.filter.kind}
+              onCategoryFilterChange={page.setCategoryFilter}
+              onKindFilterChange={page.setKindFilter}
+              onStatusFilterChange={page.setStatusFilter}
+              statusFilter={page.filter.status}
+            />
+          </ListingToolbar.Filters>
+        </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+        </ListingToolbar.Trailing>
+      </ListingToolbar>
+
+      <LoopCatalog
+        boundLoops={page.bindingIndex.byLoop}
+        entries={loops}
+        filter={page.filter}
+        onClearFilters={page.clearFilters}
+        onRun={page.handleRun}
+        searchQuery={page.searchQuery}
+        view={page.view}
+      />
+    </ListingPage>
   );
 }
 

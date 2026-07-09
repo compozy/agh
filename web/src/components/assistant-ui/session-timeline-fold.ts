@@ -1,9 +1,8 @@
 // Turn-fold derivation: collapses each settled turn's intra-turn work behind a
 // single "Worked for {duration}" disclosure, keeping the terminal assistant
-// answer visible below it. Mirrors Synara's `collapseSettledTurns` and T3Code's
-// `deriveTurnFolds`: the live turn always stays inline, and an interrupted turn
-// stays expanded with a "You stopped after {duration}" label. This is a pure view
-// over the `SessionRow` list produced by the base derivation.
+// answer visible below it. The live turn always stays inline, and an interrupted
+// turn stays expanded with a "You stopped after {duration}" label. This is a pure
+// view over the `SessionRow` list produced by the base derivation.
 
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {
@@ -44,7 +43,7 @@ export function foldSettledTurns(
 // Edit/Write tool parts and appended once at the very tail of the turn (below the
 // terminal answer / fold), so an editing turn closes with an auditable file
 // summary even while its work is folded away. Live turns never get it (display-
-// only settled). Mirrors where Synara/T3Code render their end-of-turn diff card.
+// only settled).
 function changedFilesRowForTurn(
   turnId: string,
   group: readonly SessionRow[],
@@ -117,9 +116,9 @@ function foldTurnGroup(
   return hasTerminalText ? [foldRow, terminal] : [foldRow];
 }
 
-// Mirrors T3Code's `deriveTurnFolds` label fallbacks: a settled turn folds even
-// when its duration is unknown (both competitors do), and an interrupted turn
-// swaps the "Worked for" verb for the operator-facing "You stopped" language.
+// Label fallbacks: a settled turn folds even when its duration is unknown, and
+// an interrupted turn swaps the "Worked for" verb for the operator-facing
+// "You stopped" language.
 function foldLabel(interrupted: boolean, durationMs: number | null): string {
   const duration = durationMs != null ? formatDuration(durationMs) : null;
   if (interrupted) {

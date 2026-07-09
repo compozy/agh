@@ -1,8 +1,24 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TasksListRow } from "../tasks-list-row";
-import type { TaskListItem } from "../../types";
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
+const { TasksListRow } = await import("../tasks-list-row");
+type TaskListItem = import("../../types").TaskListItem;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -19,82 +35,17 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   } as TaskListItem;
 }
 
-function queryDot(container: HTMLElement): HTMLElement | null {
-  return container.querySelector('[data-slot="status-dot"]');
-}
-
-function queryDotSlot(container: HTMLElement): HTMLElement | null {
-  return container.querySelector('[data-slot="tasks-list-row-dot"]');
-}
-
-function getDot(container: HTMLElement): HTMLElement {
-  const dot = queryDot(container);
-  expect(dot).not.toBeNull();
-  return dot as HTMLElement;
-}
-
 describe("TasksListRow", () => {
   it("omits the status-dot column by default", () => {
     const { container, rerender } = render(
       <TasksListRow task={buildTask({ status: "completed" })} />
     );
-    expect(queryDot(container)).toBeNull();
-    expect(queryDotSlot(container)).toBeNull();
+    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
+    expect(container.querySelector('[data-slot="tasks-list-row-dot"]')).toBeNull();
 
     rerender(<TasksListRow task={buildTask({ status: "in_progress" })} />);
-    expect(queryDot(container)).toBeNull();
-    expect(queryDotSlot(container)).toBeNull();
-  });
-
-  describe("with showStatusDot", () => {
-    it("reserves the dot column without decoration for terminal + normal statuses", () => {
-      const { container, rerender } = render(
-        <TasksListRow showStatusDot task={buildTask({ status: "completed" })} />
-      );
-      expect(queryDot(container)).toBeNull();
-      expect(queryDotSlot(container)).not.toBeNull();
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "ready" })} />);
-      expect(queryDot(container)).toBeNull();
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "pending" })} />);
-      expect(queryDot(container)).toBeNull();
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "done" as never })} />);
-      expect(queryDot(container)).toBeNull();
-    });
-
-    it("renders StatusDot with tone=accent and ring variant when task.status is the running equivalent", () => {
-      const { container, rerender } = render(
-        <TasksListRow showStatusDot task={buildTask({ status: "in_progress" })} />
-      );
-      const dot = getDot(container);
-      expect(dot).toHaveAttribute("data-tone", "accent");
-      expect(dot).toHaveAttribute("data-variant", "ring");
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "running" as never })} />);
-      const dot2 = getDot(container);
-      expect(dot2).toHaveAttribute("data-tone", "accent");
-      expect(dot2).toHaveAttribute("data-variant", "ring");
-    });
-
-    it("renders attention-demanding tones only for statuses that actually demand attention", () => {
-      // Dot tone agrees with the status pill (TASK_STATUS_TONE) and keeps blocked
-      // distinct from the needs_attention escalation — no coercion.
-      const { container, rerender } = render(
-        <TasksListRow showStatusDot task={buildTask({ status: "blocked" })} />
-      );
-      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "needs_attention" })} />);
-      expect(getDot(container)).toHaveAttribute("data-tone", "warning");
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "failed" })} />);
-      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
-
-      rerender(<TasksListRow showStatusDot task={buildTask({ status: "canceled" })} />);
-      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
-    });
+    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
+    expect(container.querySelector('[data-slot="tasks-list-row-dot"]')).toBeNull();
   });
 
   it("renders the identifier as bare mono text (proposal `.task-row__id`, not a Pill)", () => {
@@ -111,23 +62,22 @@ describe("TasksListRow", () => {
     expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");
   });
 
-  it("invokes onSelect(task.id) when the row is clicked", () => {
-    const onSelect = vi.fn();
-    render(<TasksListRow onSelect={onSelect} task={buildTask({ id: "task_xyz" })} />);
-
-    fireEvent.click(screen.getByTestId("task-card-task_xyz"));
-    expect(onSelect).toHaveBeenCalledWith("task_xyz");
+  it("links the main region to /tasks/$id", () => {
+    render(<TasksListRow task={buildTask({ id: "task_xyz" })} />);
+    const link = screen.getByRole("link", { name: "Open Summarize feedback" });
+    expect(link).toHaveAttribute("href", "/tasks/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_xyz" }));
   });
 
-  it("shows a lane pill when lane is provided", () => {
-    render(<TasksListRow lane="approvals" task={buildTask()} />);
-    expect(screen.getByText("Approvals")).toBeInTheDocument();
-  });
-
-  it("reflects selection state via aria-pressed + data-selected", () => {
-    render(<TasksListRow selected task={buildTask()} />);
-    const row = screen.getByTestId("task-card-task_abcdef0_tail");
-    expect(row).toHaveAttribute("aria-pressed", "true");
-    expect(row).toHaveAttribute("data-selected", "true");
+  it("keeps trail content outside the link region", () => {
+    render(
+      <TasksListRow
+        task={buildTask({ id: "task_trail" })}
+        trailing={<span data-testid="trail-pill">High</span>}
+      />
+    );
+    const link = screen.getByRole("link", { name: "Open Summarize feedback" });
+    const trail = screen.getByTestId("trail-pill");
+    expect(link).not.toContainElement(trail);
   });
 });

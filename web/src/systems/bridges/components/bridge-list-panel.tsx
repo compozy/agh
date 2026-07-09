@@ -1,204 +1,273 @@
 import { AlertCircle, Waypoints } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import {
-  BlockLoading,
+  Button,
+  CatalogCard,
   Empty,
-  Eyebrow,
-  Item,
-  ItemFooter,
-  ItemHeader,
-  ItemTitle,
-  KindChip,
-  ListGroup,
+  ListingRow,
   Pill,
-  SearchInput,
+  Spinner,
+  type ListingViewMode,
 } from "@agh/ui";
 
-import { cn } from "@/lib/utils";
-
 import {
+  bridgeStatusLabel,
   bridgeStatusTone,
   formatBridgeRelativeTime,
-} from "@/systems/bridges/lib/bridge-formatters";
-import type { BridgeHealthMap, BridgeSummary } from "@/systems/bridges/types";
+} from "../lib/bridge-formatters";
+import {
+  effectiveBridgeStatus,
+  filterBridges,
+  type BridgeFilterState,
+  type BridgePlatformFilter,
+  type BridgeStatusFilter,
+} from "../lib/bridge-list-filters";
+import type { BridgeHealthMap, BridgeScopeFilter, BridgeSummary } from "../types";
 
-interface BridgeListPanelProps {
+export interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
   bridges: BridgeSummary[];
-  errorMessage?: string | null;
-  isLoading?: boolean;
-  onSearchChange: (query: string) => void;
-  onSelectBridge: (bridgeId: string) => void;
   searchQuery: string;
-  selectedBridgeId: string | null;
-  summary: string;
+  view: ListingViewMode;
+  scopeFilter: BridgeScopeFilter;
+  platformFilter: BridgePlatformFilter | null;
+  statusFilter: BridgeStatusFilter | null;
+  activeWorkspaceId: string | null;
+  onClearFilters: () => void;
+  isLoading?: boolean;
+  errorMessage?: string | null;
 }
 
-interface BridgeListItemProps {
+interface BridgeRowProps {
   bridge: BridgeSummary;
   health?: BridgeHealthMap[string];
-  isSelected: boolean;
-  onSelect: () => void;
 }
 
-function BridgeListItem({ bridge, health, isSelected, onSelect }: BridgeListItemProps) {
-  const tone = bridgeStatusTone(bridge.status);
-  const pulse = bridge.status === "starting";
-  const effectiveStatus = health?.status ?? bridge.status;
+function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
+  const facts: string[] = [];
+  const relative = formatBridgeRelativeTime(health?.last_success_at);
+  if (relative) {
+    facts.push(relative);
+  }
+  facts.push(bridge.scope);
+  if (health?.route_count !== undefined) {
+    facts.push(`${health.route_count} routes`);
+  }
+
+  if (facts.length === 0) {
+    return null;
+  }
 
   return (
-    <Item
-      as="button"
-      className={cn("rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3")}
-      data-testid={`bridge-item-${bridge.id}`}
-      indicator={isSelected ? "rail" : "none"}
-      onClick={onSelect}
-      selected={isSelected}
-      selectable
-    >
-      <ItemHeader>
-        <ItemTitle>
-          <Pill.Dot pulse={pulse} tone={tone} />
-          <span className="truncate text-small-body font-medium text-fg">
-            {bridge.display_name}
-          </span>
-        </ItemTitle>
-        <Eyebrow className="shrink-0">{formatBridgeRelativeTime(health?.last_success_at)}</Eyebrow>
-      </ItemHeader>
+    <ListingRow.Meta>
+      {facts.map((fact, index) => (
+        <span className="inline-flex items-center gap-1.5" key={`${fact}-${index}`}>
+          {index > 0 ? <ListingRow.MetaDot /> : null}
+          <span className="font-mono text-badge text-subtle">{fact}</span>
+        </span>
+      ))}
+    </ListingRow.Meta>
+  );
+}
 
-      <ItemFooter className="flex-wrap justify-start gap-1.5">
-        <KindChip kind={bridge.platform} />
-        <Pill mono tone="neutral">
-          {effectiveStatus}
+function BridgeStatusTrail({ bridge, health }: BridgeRowProps) {
+  const status = effectiveBridgeStatus(bridge, health);
+  return (
+    <>
+      <Pill mono size="sm" tone="neutral">
+        {bridge.platform}
+      </Pill>
+      <Pill mono size="sm" tone={bridgeStatusTone(status)}>
+        {bridgeStatusLabel(status)}
+      </Pill>
+    </>
+  );
+}
+
+function BridgeListingRow({ bridge, health }: BridgeRowProps) {
+  return (
+    <ListingRow data-bridge={bridge.id} data-testid={`bridge-item-${bridge.id}`}>
+      <ListingRow.Link
+        render={
+          <Link
+            aria-label={`Open ${bridge.display_name}`}
+            params={{ id: bridge.id }}
+            to="/bridges/$id"
+          />
+        }
+      >
+        <ListingRow.Icon>
+          <Waypoints aria-hidden="true" className="size-4" />
+        </ListingRow.Icon>
+        <ListingRow.Main>
+          <ListingRow.Name>
+            <ListingRow.Title>{bridge.display_name}</ListingRow.Title>
+            <ListingRow.Slug>{bridge.extension_name}</ListingRow.Slug>
+          </ListingRow.Name>
+          <BridgeMetaFacts bridge={bridge} health={health} />
+        </ListingRow.Main>
+      </ListingRow.Link>
+      <ListingRow.Trail>
+        <BridgeStatusTrail bridge={bridge} health={health} />
+      </ListingRow.Trail>
+    </ListingRow>
+  );
+}
+
+function BridgeCatalogCard({ bridge, health }: BridgeRowProps) {
+  const status = effectiveBridgeStatus(bridge, health);
+  const relative = formatBridgeRelativeTime(health?.last_success_at);
+
+  return (
+    <CatalogCard actionable data-bridge={bridge.id} data-testid={`bridge-card-${bridge.id}`}>
+      <Link
+        aria-label={`Open ${bridge.display_name}`}
+        className="flex min-w-0 flex-col gap-3"
+        params={{ id: bridge.id }}
+        to="/bridges/$id"
+      >
+        <div className="flex items-start gap-3">
+          <CatalogCard.Logo>
+            <Waypoints className="size-4" />
+          </CatalogCard.Logo>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <CatalogCard.Title>{bridge.display_name}</CatalogCard.Title>
+            <CatalogCard.Meta>
+              {relative ? <span>{relative}</span> : null}
+              <span>{bridge.scope}</span>
+              {health?.route_count !== undefined ? <span>{health.route_count} routes</span> : null}
+            </CatalogCard.Meta>
+          </div>
+        </div>
+      </Link>
+      <CatalogCard.Actions className="justify-between">
+        <Pill mono size="sm" tone="neutral">
+          {bridge.platform}
         </Pill>
-        {health?.route_count !== undefined ? (
-          <span className="ml-auto font-mono text-badge text-subtle">
-            {health.route_count} routes
-          </span>
-        ) : null}
-      </ItemFooter>
-    </Item>
+        <Pill mono size="sm" tone={bridgeStatusTone(status)}>
+          {bridgeStatusLabel(status)}
+        </Pill>
+      </CatalogCard.Actions>
+    </CatalogCard>
   );
 }
 
-interface BridgeProviderGroup {
-  extensionName: string;
-  items: BridgeSummary[];
-  label: string;
-  platform: string;
-}
-
-function groupBridgesByProvider(bridges: BridgeSummary[]): BridgeProviderGroup[] {
-  const byKey = new Map<string, BridgeProviderGroup>();
-  for (const bridge of bridges) {
-    const key = `${bridge.extension_name}::${bridge.platform}`;
-    const existing = byKey.get(key);
-    if (existing) {
-      existing.items.push(bridge);
-      continue;
-    }
-    byKey.set(key, {
-      extensionName: bridge.extension_name,
-      items: [bridge],
-      label: bridge.platform,
-      platform: bridge.platform,
-    });
-  }
-  return Array.from(byKey.values()).sort((left, right) =>
-    left.platform.localeCompare(right.platform)
-  );
-}
-
-export function BridgeListPanel({
+function BridgeListPanel({
   bridgeHealth,
   bridges,
-  errorMessage = null,
-  isLoading = false,
-  onSearchChange,
-  onSelectBridge,
   searchQuery,
-  selectedBridgeId,
-  summary,
+  view,
+  scopeFilter,
+  platformFilter,
+  statusFilter,
+  activeWorkspaceId,
+  onClearFilters,
+  isLoading = false,
+  errorMessage = null,
 }: BridgeListPanelProps) {
-  const isEmpty = bridges.length === 0;
-  const groups = groupBridgesByProvider(bridges);
+  const filterState: BridgeFilterState = useMemo(
+    () => ({
+      platform: platformFilter,
+      scope: scopeFilter,
+      status: statusFilter,
+    }),
+    [platformFilter, scopeFilter, statusFilter]
+  );
+  const filtered = useMemo(
+    () => filterBridges(bridges, bridgeHealth, searchQuery, filterState, activeWorkspaceId),
+    [activeWorkspaceId, bridgeHealth, bridges, filterState, searchQuery]
+  );
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    scopeFilter !== "all" ||
+    platformFilter !== null ||
+    statusFilter !== null;
+  const isEmpty = filtered.length === 0;
+
+  if (isLoading && isEmpty) {
+    return (
+      <div
+        className="flex min-h-60 items-center justify-center px-6 py-10"
+        data-testid="bridge-list-loading"
+      >
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+      </div>
+    );
+  }
+
+  if (errorMessage && isEmpty) {
+    return (
+      <div
+        className="flex min-h-60 items-center justify-center p-4"
+        data-testid="bridge-list-error"
+      >
+        <Empty
+          className="max-w-sm"
+          description={errorMessage}
+          icon={AlertCircle}
+          title="Unable to load bridges"
+        />
+      </div>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <div
+        className="flex min-h-60 items-center justify-center p-4"
+        data-testid="bridge-list-empty"
+      >
+        <Empty
+          action={
+            hasActiveFilters ? (
+              <Button
+                data-testid="bridge-list-clear-filters"
+                onClick={onClearFilters}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Clear filters
+              </Button>
+            ) : undefined
+          }
+          className="max-w-sm"
+          description={
+            hasActiveFilters ? "Try clearing search or filters." : "No bridges are configured yet."
+          }
+          icon={Waypoints}
+          title={hasActiveFilters ? "No bridges match" : "No bridges yet"}
+        />
+      </div>
+    );
+  }
+
+  if (view === "cards") {
+    return (
+      <div
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        data-testid="bridge-list-card-grid"
+      >
+        {filtered.map(bridge => (
+          <BridgeCatalogCard bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col" data-testid="bridge-list-panel">
-      <div className="space-y-2 border-b border-line p-3">
-        <SearchInput
-          data-testid="bridge-search-input"
-          onChange={onSearchChange}
-          placeholder="Search bridges..."
-          value={searchQuery}
-        />
-        <p className="text-xs text-muted" data-testid="bridge-list-summary">
-          {summary}
-        </p>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && isEmpty ? (
-          <BlockLoading
-            className="min-h-full rounded-none border-0"
-            data-testid="bridge-list-loading"
-            label="Loading bridges"
-            surface="bare"
-          />
-        ) : errorMessage && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="bridge-list-error"
-          >
-            <Empty
-              className="max-w-sm"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load bridges"
-            />
-          </div>
-        ) : isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="bridge-list-empty"
-          >
-            <Empty
-              className="max-w-sm"
-              description={
-                searchQuery.trim() !== ""
-                  ? "Try a different search term or adjust the scope filter."
-                  : "No bridges match the current filters."
-              }
-              icon={Waypoints}
-              title="No bridges found"
-            />
-          </div>
-        ) : (
-          <div data-testid="bridge-list-groups">
-            {groups.map(group => (
-              <ListGroup
-                count={group.items.length}
-                data-testid={`bridge-list-group-${group.extensionName}-${group.platform}`}
-                headerProps={{
-                  "data-testid": `bridge-list-group-header-${group.extensionName}-${group.platform}`,
-                }}
-                key={`${group.extensionName}::${group.platform}`}
-                label={group.platform}
-              >
-                {group.items.map(bridge => (
-                  <BridgeListItem
-                    bridge={bridge}
-                    health={bridgeHealth[bridge.id]}
-                    isSelected={bridge.id === selectedBridgeId}
-                    key={bridge.id}
-                    onSelect={() => onSelectBridge(bridge.id)}
-                  />
-                ))}
-              </ListGroup>
-            ))}
-          </div>
-        )}
-      </div>
-    </aside>
+    <div
+      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      data-testid="bridge-list-rows"
+    >
+      {filtered.map(bridge => (
+        <BridgeListingRow bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
+      ))}
+    </div>
   );
 }
+
+export { BridgeListPanel };
+export type { BridgeFilterState };

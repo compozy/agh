@@ -42,6 +42,7 @@ import {
 } from "@agh/ui";
 
 import {
+  bridgeStatusLabel,
   bridgeStatusTone,
   bridgeTargetTypeLabel,
   describeBridgeDeliveryDefaults,
@@ -73,6 +74,7 @@ interface BridgeDetailPanelProps {
   emptyMessage?: string;
   error: Error | null;
   health: BridgeHealth | undefined;
+  onBack?: () => void;
   state: {
     isLifecyclePending?: boolean;
     isLoading: boolean;
@@ -864,6 +866,7 @@ interface BridgeDetailHeaderProps {
   bridge: BridgeSummary;
   effectiveStatus: BridgeStatus;
   isLifecyclePending: boolean;
+  onBack?: () => void;
   onDisableBridge?: () => void;
   onEnableBridge?: () => void;
   onOpenEdit?: () => void;
@@ -874,6 +877,7 @@ function BridgeDetailHeader({
   bridge,
   effectiveStatus,
   isLifecyclePending,
+  onBack,
   onDisableBridge,
   onEnableBridge,
   onOpenEdit,
@@ -887,7 +891,7 @@ function BridgeDetailHeader({
       <span className="flex items-center gap-2">
         <Pill.Dot pulse={pulse} tone={statusTone} />
         <Pill mono tone={statusTone}>
-          {effectiveStatus}
+          {bridgeStatusLabel(effectiveStatus)}
         </Pill>
       </span>
       <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
@@ -956,6 +960,9 @@ function BridgeDetailHeader({
   return (
     <DetailHeader
       actions={actions}
+      back={onBack}
+      backLabel="Back to bridges"
+      crumbs={onBack ? [{ label: "Bridges", onSelect: onBack }] : undefined}
       data-testid="bridge-detail-header"
       meta={meta}
       pills={pills}
@@ -969,6 +976,7 @@ export function BridgeDetailPanel({
   emptyMessage = "Select a bridge to inspect configuration, routes, and delivery health.",
   error,
   health,
+  onBack,
   state,
   onDeleteSecretBinding,
   onDisableBridge,
@@ -1034,6 +1042,7 @@ export function BridgeDetailPanel({
         bridge={bridge}
         effectiveStatus={effectiveStatus}
         isLifecyclePending={isLifecyclePending}
+        onBack={onBack}
         onDisableBridge={onDisableBridge}
         onEnableBridge={onEnableBridge}
         onOpenEdit={onOpenEdit}

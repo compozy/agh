@@ -14,7 +14,7 @@ interface MessageActionsState {
   /** Latest real event time across the message's parts, or null when none is recorded. */
   timestampMs: number | null;
   streaming: boolean;
-  /** Copy is offered only for a settled message that carries a text answer (Synara's rule). */
+  /** Copy is offered only for a settled message that carries a text answer. */
   visible: boolean;
 }
 
@@ -48,9 +48,8 @@ function partTimestampMs(part: Record<string, unknown>): number | null {
 
 /**
  * Derives the copy source, turn timestamp, and streaming flag from a thread
- * message. `visible` mirrors Synara's `resolveAssistantMessageCopyState`: copy is
- * offered only for a non-empty, settled answer — never mid-stream, never for a
- * pure tool-work turn with no terminal text.
+ * message. `visible` is true only for a non-empty, settled answer — never
+ * mid-stream, never for a pure tool-work turn with no terminal text.
  */
 export function deriveMessageActions(message: {
   content?: unknown;
@@ -81,10 +80,10 @@ export function deriveMessageActions(message: {
   return { source, timestampMs, streaming, visible: source.length > 0 && !streaming };
 }
 
-// Reveal-on-hover/focus toolbar (Synara/T3 `opacity-0 → group-hover:opacity-100`
-// idiom, mapped to AGH's neutral ramp + `--duration-slow`). `focus-within`
-// reveals it for keyboard users; `pointer-events` gate keeps the hidden row from
-// intercepting clicks over the message body.
+// Reveal-on-hover/focus toolbar (`opacity-0 → group-hover:opacity-100`, mapped
+// to AGH's neutral ramp + `--duration-slow`). `focus-within` reveals it for
+// keyboard users; `pointer-events` gate keeps the hidden row from intercepting
+// clicks over the message body.
 const REVEAL_CLASS_NAME = cn(
   "flex items-center gap-2 text-small-body text-subtle tabular-nums",
   "opacity-0 pointer-events-none transition-opacity duration-slow motion-reduce:transition-none",

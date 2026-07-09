@@ -3,8 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import { TasksListSurface } from "../tasks-list-surface";
-import type { TaskListItem } from "../../types";
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
+const { TasksListSurface } = await import("../tasks-list-surface");
+type TaskListItem = import("../../types").TaskListItem;
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -24,7 +40,6 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 interface RenderOptions {
   tasks?: TaskListItem[];
   totalCount?: number;
-  onSelectTask?: (taskId: string) => void;
   isLoading?: boolean;
   errorMessage?: string | null;
   statusFilter?: TaskListItem["status"] | null;
@@ -42,7 +57,6 @@ function renderSurface(options: RenderOptions = {}) {
         onOwnerChange={() => {}}
         onPriorityChange={() => {}}
         onSearchQueryChange={() => {}}
-        onSelectTask={options.onSelectTask ?? (() => {})}
         onSortChange={() => {}}
         onStatusChange={() => {}}
         ownerFilter={null}
@@ -75,7 +89,6 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("task-group-active-label")).toHaveTextContent(/active/i);
     expect(screen.getByTestId("task-group-active-count")).toHaveTextContent("1");
     expect(screen.getByTestId("task-group-blocked")).toBeInTheDocument();
-    // The escalated task is visible in its own group — never dropped or coerced.
     expect(screen.getByTestId("task-group-needs_attention")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-queued")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-done")).toBeInTheDocument();
@@ -100,16 +113,17 @@ describe("TasksListSurface", () => {
     expect(rowDots).toHaveLength(0);
   });
 
-  it("Should forward row selection to onSelectTask with the task id", () => {
-    const onSelectTask = vi.fn();
+  it("Should link each list row to /tasks/$id", () => {
     renderSurface({
-      tasks: [buildTask({ id: "task_777" })],
+      tasks: [buildTask({ id: "task_777", title: "Linked task" })],
       totalCount: 1,
-      onSelectTask,
     });
 
-    fireEvent.click(screen.getByTestId("task-card-task_777"));
-    expect(onSelectTask).toHaveBeenCalledWith("task_777");
+    const row = screen.getByTestId("task-card-task_777");
+    const link = row.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link).toHaveAttribute("href", "/tasks/$id");
+    expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_777" }));
   });
 
   it("Should render search and forward list query changes", () => {
@@ -120,7 +134,6 @@ describe("TasksListSurface", () => {
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
           onSearchQueryChange={handleSearchQueryChange}
-          onSelectTask={() => {}}
           onSortChange={() => {}}
           onStatusChange={() => {}}
           ownerFilter={null}

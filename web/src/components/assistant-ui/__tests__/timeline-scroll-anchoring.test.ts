@@ -10,9 +10,8 @@ import {
 } from "../timeline-scroll-anchoring";
 
 // Suite: timeline scroll anchoring (scroll)
-// Invariant: the ported T3 math and the three-mode transition table behave
-// identically to the reference so the virtualizer-backed machine follows, anchors,
-// and yields to manual navigation on the same numeric contract.
+// Invariant: the scroll math and the three-mode transition table follow, anchor,
+// and yield to manual navigation on the same numeric contract.
 // Boundary IN: pure scroll math + mode reducer + virtualizer measurement shim.
 // Boundary OUT: DOM listener wiring + pill rendering, covered by session-thread.test.tsx.
 

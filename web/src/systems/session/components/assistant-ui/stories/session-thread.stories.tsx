@@ -633,10 +633,10 @@ export const OnboardingInset: Story = {
 
 /**
  * Scroll-to-bottom pill — the live-follow affordance revealed when the reader
- * scrolls away from the live edge. Synara's `size-8 rounded-full` disc remapped to
- * AGH neutral tokens (`bg-canvas-soft` + `border-line`, no glass/backdrop-blur),
- * floating over the transcript above the composer. Interaction-gated in production;
- * rendered here in its visible state over a transcript-like backdrop.
+ * scrolls away from the live edge. Neutral `size-8 rounded-full` disc
+ * (`bg-canvas-soft` + `border-line`, no glass/backdrop-blur), floating over the
+ * transcript above the composer. Interaction-gated in production; rendered here
+ * in its visible state over a transcript-like backdrop.
  */
 export const ScrollToBottomAffordance: Story = {
   args: baseArgs,

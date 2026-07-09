@@ -64,6 +64,23 @@ describe("DirectsList", () => {
     expect(screen.queryByText("@peer-self")).toBeNull();
   });
 
+  it("Should mark the active direct row with aria-current and data-selected", () => {
+    render(
+      <DirectsList
+        activeDirectId="direct-1"
+        channel="ops"
+        directs={directs}
+        isLoading={false}
+        selfPeerId="peer-self"
+        workspaceId={WORKSPACE_ID}
+      />
+    );
+
+    const row = screen.getByTestId("network-direct-list-row-direct-1");
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(row).toHaveAttribute("data-selected", "true");
+  });
+
   it("Should render the empty state when no directs exist", () => {
     render(
       <DirectsList

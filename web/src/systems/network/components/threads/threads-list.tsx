@@ -1,17 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { MessagesSquare } from "lucide-react";
 
-import {
-  Eyebrow,
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemFooter,
-  ItemHeader,
-  ItemTitle,
-  Pill,
-  Skeleton,
-  SkeletonRows,
-} from "@agh/ui";
+import { ListingRow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -61,63 +51,61 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
   const preview = thread.last_message_preview ?? "No messages yet.";
 
   return (
-    <Item
+    <ListingRow
       aria-current={active ? "page" : undefined}
-      className={cn(
-        "min-w-0 flex-nowrap overflow-hidden rounded-none border-b border-line px-5 py-4",
-        active ? "bg-canvas-soft" : null
-      )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
-      indicator={active ? "rail" : "none"}
-      render={
-        <Link
-          params={{ workspaceId, channel, threadId: thread.thread_id }}
-          to="/network/$workspaceId/$channel/threads/$threadId"
-        />
-      }
-      selectable
       selected={active}
     >
-      <ItemContent className="min-w-0 flex-1 gap-1.5 overflow-hidden">
-        <ItemHeader className="min-w-0">
-          <ItemTitle className="min-w-0 flex-1">
-            <span
-              className="block min-w-0 truncate"
+      <ListingRow.Link
+        render={
+          <Link
+            params={{ workspaceId, channel, threadId: thread.thread_id }}
+            to="/network/$workspaceId/$channel/threads/$threadId"
+            aria-label={`Open ${title}`}
+          />
+        }
+      >
+        <ListingRow.Icon>
+          <MessagesSquare aria-hidden="true" className="size-4" />
+        </ListingRow.Icon>
+        <ListingRow.Main>
+          <ListingRow.Name>
+            <ListingRow.Title
               data-testid={`network-thread-list-row-title-${thread.thread_id}`}
               title={thread.title ?? undefined}
             >
               {title}
-            </span>
-          </ItemTitle>
-          <ThreadWorkPill openWorkCount={openWorkCount} />
-        </ItemHeader>
-
-        <ItemDescription
-          className="line-clamp-2 min-w-0 break-words"
-          data-testid={`network-thread-list-row-preview-${thread.thread_id}`}
-          title={thread.last_message_preview ?? undefined}
-        >
-          {preview}
-        </ItemDescription>
-
-        <ItemFooter className="items-start">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <Eyebrow data-testid="network-thread-list-row-meta-peers">
+            </ListingRow.Title>
+            <ThreadWorkPill openWorkCount={openWorkCount} />
+          </ListingRow.Name>
+          <ListingRow.Description
+            data-testid={`network-thread-list-row-preview-${thread.thread_id}`}
+            title={thread.last_message_preview ?? undefined}
+          >
+            {preview}
+          </ListingRow.Description>
+          <ListingRow.Meta>
+            <span data-testid="network-thread-list-row-meta-peers">
               {peerCount} {peerCount === 1 ? "peer" : "peers"}
-            </Eyebrow>
-            <Eyebrow aria-hidden="true">/</Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-replies">
+            </span>
+            <ListingRow.MetaDot />
+            <span data-testid="network-thread-list-row-meta-replies">
               {replyCount} {replyCount === 1 ? "reply" : "replies"}
-            </Eyebrow>
-            <Eyebrow aria-hidden="true">/</Eyebrow>
-            <Eyebrow data-testid="network-thread-list-row-meta-opener">started by {opener}</Eyebrow>
-          </div>
-          <Eyebrow className="shrink-0" data-testid="network-thread-list-row-meta-time">
-            {lastActivity}
-          </Eyebrow>
-        </ItemFooter>
-      </ItemContent>
-    </Item>
+            </span>
+            <ListingRow.MetaDot />
+            <span data-testid="network-thread-list-row-meta-opener">started by {opener}</span>
+          </ListingRow.Meta>
+        </ListingRow.Main>
+      </ListingRow.Link>
+      <ListingRow.Trail>
+        <span
+          className="shrink-0 text-eyebrow text-faint"
+          data-testid="network-thread-list-row-meta-time"
+        >
+          {lastActivity}
+        </span>
+      </ListingRow.Trail>
+    </ListingRow>
   );
 }
 
@@ -126,11 +114,18 @@ function ThreadsListSkeleton() {
     <SkeletonRows
       count={5}
       data-testid="network-thread-list-skeleton"
-      rowClassName="border-b border-line px-5 py-4"
+      rowClassName="border-b border-line px-4 py-3"
     >
-      <Skeleton className="h-3.5 w-2/3" />
-      <Skeleton className="h-3 w-full" />
-      <Skeleton className="size-3/4" />
+      {/* Mirror the real row's 34px leading icon well so the text column starts at
+          the same offset and the skeleton doesn't shift when content resolves. */}
+      <div className="flex items-start gap-3.5">
+        <Skeleton className="size-[34px] shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Skeleton className="h-3.5 w-2/3" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+      </div>
     </SkeletonRows>
   );
 }

@@ -5,13 +5,17 @@ import type { LoopCatalogEntry } from "../../types";
 import {
   countByKind,
   groupLoopCatalog,
+  hasActiveLoopFilters,
   hasHumanGate,
   isUnboundedCap,
   iterationCapLabel,
+  type LoopCatalogFilter,
   loopCategories,
   loopCategory,
   loopInputCount,
   loopKind,
+  loopSourceLabel,
+  loopStatuses,
   matchesLoopFilter,
   successRateLabel,
 } from "../loop-catalog";
@@ -66,29 +70,84 @@ describe("loop-catalog", () => {
     expect(hasHumanGate(withHuman)).toBe(true);
   });
 
-  it("Should filter by kind and category and count candidates per kind", () => {
-    expect(matchesLoopFilter(delivery, { kind: "workspace", category: null })).toBe(true);
-    expect(matchesLoopFilter(delivery, { kind: "read-only", category: null })).toBe(false);
-    expect(matchesLoopFilter(delivery, { kind: "all", category: "delivery" })).toBe(true);
-    expect(matchesLoopFilter(delivery, { kind: "all", category: "watch" })).toBe(false);
+  it("Should filter by kind, category, and last-run status and count candidates per kind", () => {
+    expect(matchesLoopFilter(delivery, { kind: "workspace", category: null, status: null })).toBe(
+      true
+    );
+    expect(matchesLoopFilter(delivery, { kind: "read-only", category: null, status: null })).toBe(
+      false
+    );
+    expect(matchesLoopFilter(delivery, { kind: "all", category: "delivery", status: null })).toBe(
+      true
+    );
+    expect(matchesLoopFilter(delivery, { kind: "all", category: "watch", status: null })).toBe(
+      false
+    );
+    expect(
+      matchesLoopFilter(delivery, {
+        kind: "all",
+        category: null,
+        status: delivery.last_run!.status,
+      })
+    ).toBe(true);
+    expect(matchesLoopFilter(delivery, { kind: "all", category: null, status: "failed" })).toBe(
+      false
+    );
     expect(countByKind(loopCatalogFixtures, "all")).toBe(2);
     expect(countByKind(loopCatalogFixtures, "read-only")).toBe(1);
     expect(countByKind(loopCatalogFixtures, "workspace")).toBe(1);
   });
 
+  it("Should label the editability source shared by the row and card", () => {
+    expect(loopSourceLabel(delivery)).toBe("Workspace");
+    expect(loopSourceLabel(watch)).toBe("Read-only");
+    expect(loopSourceLabel({ source: "marketplace" })).toBe("Read-only");
+  });
+
+  it("Should derive only last-run statuses actually present, deduped and sorted", () => {
+    expect(loopStatuses(loopCatalogFixtures)).toEqual(["running", "watching"]);
+    expect(loopStatuses([delivery, watch, delivery])).toEqual(["running", "watching"]);
+    expect(loopStatuses([])).toEqual([]);
+    const withoutRun: LoopCatalogEntry = { ...delivery, last_run: undefined };
+    expect(loopStatuses([withoutRun, watch])).toEqual(["watching"]);
+  });
+
+  it("Should report active filters for a query or any chip, ignoring whitespace", () => {
+    const cleared: LoopCatalogFilter = { kind: "all", category: null, status: null };
+    expect(hasActiveLoopFilters("", cleared)).toBe(false);
+    expect(hasActiveLoopFilters("   ", cleared)).toBe(false);
+    expect(hasActiveLoopFilters("watch", cleared)).toBe(true);
+    expect(hasActiveLoopFilters("", { kind: "workspace", category: null, status: null })).toBe(
+      true
+    );
+    expect(hasActiveLoopFilters("", { kind: "all", category: "delivery", status: null })).toBe(
+      true
+    );
+    expect(hasActiveLoopFilters("", { kind: "all", category: null, status: "running" })).toBe(true);
+  });
+
   it("Should group into read-only/workspace and drop empty groups", () => {
-    const all = groupLoopCatalog(loopCatalogFixtures, { kind: "all", category: null });
+    const all = groupLoopCatalog(loopCatalogFixtures, {
+      kind: "all",
+      category: null,
+      status: null,
+    });
     expect(all.map(group => group.kind)).toEqual(["read-only", "workspace"]);
     expect(all[0].entries).toHaveLength(1);
 
     const readOnlyOnly = groupLoopCatalog(loopCatalogFixtures, {
       kind: "read-only",
       category: null,
+      status: null,
     });
     expect(readOnlyOnly).toHaveLength(1);
     expect(readOnlyOnly[0].kind).toBe("read-only");
 
-    const none = groupLoopCatalog(loopCatalogFixtures, { kind: "workspace", category: "watch" });
+    const none = groupLoopCatalog(loopCatalogFixtures, {
+      kind: "workspace",
+      category: "watch",
+      status: null,
+    });
     expect(none).toHaveLength(0);
   });
 });

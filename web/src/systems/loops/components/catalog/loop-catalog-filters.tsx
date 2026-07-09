@@ -1,96 +1,88 @@
-import { PillGroup, type PillGroupItem } from "@agh/ui";
+import { ListFilter } from "lucide-react";
+import { useMemo } from "react";
 
-import type { LoopKindFilter } from "../../lib/loop-catalog";
+import { Button } from "@agh/ui";
+import { Filters, type Filter } from "@agh/ui/components/reui/filters";
 
-interface LoopCatalogFiltersProps {
-  kind: LoopKindFilter;
-  onKindChange: (kind: LoopKindFilter) => void;
-  kindCounts: Record<LoopKindFilter, number>;
-  categories: readonly string[];
-  category: string | null;
-  onCategoryChange: (category: string | null) => void;
+import type { LoopCatalogEntry } from "../../types";
+import type { LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
+import { loopCategories, loopStatuses } from "../../lib/loop-catalog";
+import {
+  applyLoopFilterChips,
+  buildLoopFilterFields,
+  loopFiltersToChips,
+} from "../../lib/loop-list-filters";
+
+export interface LoopCatalogFiltersProps {
+  /** Catalog entries used to derive present category/status options. */
+  entries: readonly LoopCatalogEntry[];
+  kindFilter: LoopKindFilter;
+  categoryFilter: string | null;
+  statusFilter: LoopStatusFilter | null;
+  onKindFilterChange: (next: LoopKindFilter) => void;
+  onCategoryFilterChange: (next: string | null) => void;
+  onStatusFilterChange: (next: LoopStatusFilter | null) => void;
 }
-
-const KIND_LABELS: Record<LoopKindFilter, string> = {
-  all: "All",
-  "read-only": "Read-only",
-  workspace: "Workspace",
-};
-
-const KIND_ORDER: readonly LoopKindFilter[] = ["all", "read-only", "workspace"];
 
 /**
- * Catalog toolbar: a kind segment (All / Read-only / Workspace with counts) and a
- * data-driven category pill row. Categories come from the values actually present
- * in the catalog, so no empty taxonomy renders.
+ * Loops filter chip bar for composition inside ListingToolbar.Filters.
+ * Kind / category / status options are data-driven from the catalog (truthful UI).
  */
-export function LoopCatalogFilters({
-  kind,
-  onKindChange,
-  kindCounts,
-  categories,
-  category,
-  onCategoryChange,
+function LoopCatalogFilters({
+  entries,
+  kindFilter,
+  categoryFilter,
+  statusFilter,
+  onKindFilterChange,
+  onCategoryFilterChange,
+  onStatusFilterChange,
 }: LoopCatalogFiltersProps) {
-  const kindItems: PillGroupItem<LoopKindFilter>[] = KIND_ORDER.map(value => ({
-    value,
-    label: KIND_LABELS[value],
-    badge: kindCounts[value],
-    testId: `loop-kind-${value}`,
-  }));
+  const categoryOptions = useMemo(() => loopCategories(entries), [entries]);
+  const statusOptions = useMemo(() => loopStatuses(entries), [entries]);
+  const fields = useMemo(
+    () => buildLoopFilterFields(categoryOptions, statusOptions),
+    [categoryOptions, statusOptions]
+  );
+  const chips = useMemo(
+    () =>
+      loopFiltersToChips({
+        kind: kindFilter,
+        category: categoryFilter,
+        status: statusFilter,
+      }),
+    [categoryFilter, kindFilter, statusFilter]
+  );
+
+  const handleFiltersChange = (next: Filter<string>[]) => {
+    applyLoopFilterChips(next, {
+      onKindChange: onKindFilterChange,
+      onCategoryChange: onCategoryFilterChange,
+      onStatusChange: onStatusFilterChange,
+    });
+  };
+
   return (
-    <div className="flex flex-wrap items-center gap-2.5" data-testid="loop-catalog-filters">
-      <PillGroup
-        aria-label="Filter by kind"
-        items={kindItems}
-        value={kind}
-        onChange={onKindChange}
-        size="sm"
-      />
-      {categories.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-0.5" aria-label="Filter by category">
-          <CategoryPill
-            active={category === null}
-            label="All categories"
-            onSelect={() => onCategoryChange(null)}
-            testId="loop-category-all"
-          />
-          {categories.map(name => (
-            <CategoryPill
-              key={name}
-              active={category === name}
-              label={name}
-              onSelect={() => onCategoryChange(name)}
-              testId={`loop-category-${name}`}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <Filters<string>
+      allowMultiple={false}
+      data-testid="loop-catalog-filters"
+      fields={fields}
+      filters={chips}
+      onChange={handleFiltersChange}
+      size="sm"
+      trigger={
+        <Button
+          aria-label="Add filter"
+          data-testid="loop-catalog-filters-add"
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <ListFilter aria-hidden="true" className="size-3" />
+          Filter
+        </Button>
+      }
+    />
   );
 }
 
-interface CategoryPillProps {
-  active: boolean;
-  label: string;
-  onSelect: () => void;
-  testId: string;
-}
-
-function CategoryPill({ active, label, onSelect, testId }: CategoryPillProps) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      data-testid={testId}
-      onClick={onSelect}
-      className={`h-6 rounded-md px-2.5 text-xs transition-colors ${
-        active
-          ? "bg-row-hover text-fg-strong"
-          : "text-subtle hover:bg-row-hover hover:text-fg-strong"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
+export { LoopCatalogFilters };

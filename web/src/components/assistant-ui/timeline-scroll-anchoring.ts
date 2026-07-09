@@ -1,12 +1,10 @@
-// Live-follow scroll math + mode machine, ported from T3Code's
-// `timelineScrollAnchoring.ts`. The three-mode machine drives whether the
-// viewport pins to the live edge (`following-end`), anchors a freshly-sent prompt
-// near the top while its answer streams in below (`anchoring-new-turn`), or leaves
-// the reader in control after a manual wheel/touch/pointer gesture
+// Live-follow scroll math + mode machine. The three-mode machine drives whether
+// the viewport pins to the live edge (`following-end`), anchors a freshly-sent
+// prompt near the top while its answer streams in below (`anchoring-new-turn`),
+// or leaves the reader in control after a manual wheel/touch/pointer gesture
 // (`free-scrolling`). `getRowBottom` / `getAnchoredTurnMetrics` are the pure
-// measurement math (identical to T3's, unit-tested against the same cases);
-// `createVirtualizerMeasurementState` adapts the TanStack virtualizer to the
-// `TimelineListMeasurementState` shape the math consumes.
+// measurement math; `createVirtualizerMeasurementState` adapts the TanStack
+// virtualizer to the `TimelineListMeasurementState` shape the math consumes.
 
 export type TimelineScrollMode = "following-end" | "anchoring-new-turn" | "free-scrolling";
 

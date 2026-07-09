@@ -1,202 +1,277 @@
 import { AlertCircle, Wrench } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import {
+  Button,
+  CatalogCard,
   Empty,
-  Eyebrow,
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemHeader,
-  ItemMedia,
-  ItemSelectionIndicator,
-  ItemTitle,
-  ListGroup,
+  ListingRow,
   Pill,
-  SearchInput,
   Spinner,
+  Switch,
+  type ListingViewMode,
 } from "@agh/ui";
 
 import {
-  compareSkillSource,
-  filterSkillsByQuery,
+  filterInstalledSkills,
+  type SkillEnabledFilter,
+  type SkillFilterState,
+  type SkillSourceFilter,
+} from "../lib/skill-list-filters";
+import {
+  deriveSkillDisplaySource,
   skillSourceLabel,
   skillSourceTone,
-  skillStatusTone,
 } from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
 
-interface SkillGroup {
-  source: string;
-  label: string;
+export interface SkillListPanelProps {
   skills: SkillPayload[];
-}
-
-interface SkillListPanelProps {
-  skills: SkillPayload[];
-  selectedSkillName: string | null;
-  onSelectSkill: (name: string) => void;
   searchQuery: string;
-  onSearchChange: (query: string) => void;
+  view: ListingViewMode;
+  sourceFilter: SkillSourceFilter | null;
+  enabledFilter: SkillEnabledFilter | null;
+  onClearFilters: () => void;
+  onDisable: (name: string) => void;
+  onEnable: (name: string) => void;
+  isActionPending?: boolean;
   isLoading?: boolean;
   errorMessage?: string | null;
 }
 
-function groupSkillsBySource(skills: SkillPayload[]): SkillGroup[] {
-  const buckets = new Map<string, SkillPayload[]>();
-  for (const skill of skills) {
-    const list = buckets.get(skill.source);
-    if (list) {
-      list.push(skill);
-    } else {
-      buckets.set(skill.source, [skill]);
-    }
-  }
-  return Array.from(buckets.entries())
-    .sort(([left], [right]) => compareSkillSource(left, right))
-    .map(([source, items]) => ({
-      source,
-      label: skillSourceLabel(source),
-      skills: items.slice().sort((a, b) => a.name.localeCompare(b.name)),
-    }));
-}
-
-interface SkillListItemProps {
+interface SkillRowProps {
   skill: SkillPayload;
-  isSelected: boolean;
-  onSelect: () => void;
+  onDisable: (name: string) => void;
+  onEnable: (name: string) => void;
+  isActionPending: boolean;
 }
 
-function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
+function SkillEnabledSwitch({ skill, onDisable, onEnable, isActionPending }: SkillRowProps) {
   return (
-    <Item
-      as="button"
-      className="rounded-none border-x-0 border-t-0 border-b border-line px-4 py-3"
-      data-state={isSelected ? "selected" : undefined}
-      data-testid={`skill-item-${skill.name}`}
-      onClick={onSelect}
-      selectable
-      selected={isSelected}
-    >
-      {isSelected ? <ItemSelectionIndicator data-testid="skill-active-indicator" /> : null}
-      <ItemHeader>
-        <ItemMedia>
-          <Pill.Dot
-            data-testid={`skill-status-dot-${skill.name}`}
-            tone={skillStatusTone(skill.enabled)}
+    <Switch
+      aria-label={skill.enabled ? `Disable ${skill.name}` : `Enable ${skill.name}`}
+      checked={skill.enabled}
+      data-testid={`skill-enabled-switch-${skill.name}`}
+      disabled={isActionPending}
+      onCheckedChange={checked => {
+        if (checked) {
+          onEnable(skill.name);
+          return;
+        }
+        onDisable(skill.name);
+      }}
+      size="sm"
+    />
+  );
+}
+
+function SkillListingRow({ skill, onDisable, onEnable, isActionPending }: SkillRowProps) {
+  const source = deriveSkillDisplaySource(skill);
+  return (
+    <ListingRow data-skill={skill.name} data-testid={`skill-item-${skill.name}`}>
+      <ListingRow.Link
+        render={
+          <Link
+            aria-label={`Open ${skill.name}`}
+            params={{ name: skill.name }}
+            to="/skills/$name"
           />
-        </ItemMedia>
-        <ItemContent>
-          <ItemTitle className="w-full">
-            <span className="min-w-0 flex-1 truncate">{skill.name}</span>
-            {skill.version ? (
-              <Eyebrow className="text-subtle shrink-0">v{skill.version}</Eyebrow>
-            ) : null}
+        }
+      >
+        <ListingRow.Icon>
+          <Wrench aria-hidden="true" className="size-4" />
+        </ListingRow.Icon>
+        <ListingRow.Main>
+          <ListingRow.Name>
+            <ListingRow.Title>{skill.name}</ListingRow.Title>
             <Pill
-              className="shrink-0"
               data-testid={`skill-tier-badge-${skill.name}`}
-              mono
-              tone={skillSourceTone(skill.provenance?.precedence_tier ?? skill.source)}
+              size="xs"
+              tone={skillSourceTone(source)}
             >
-              {skill.provenance?.precedence_tier ?? skill.source}
+              {skillSourceLabel(source)}
             </Pill>
-          </ItemTitle>
-        </ItemContent>
-      </ItemHeader>
-      {skill.description ? (
-        <ItemDescription className="basis-full truncate text-xs">
-          {skill.description}
-        </ItemDescription>
-      ) : null}
-    </Item>
+            {skill.version ? <ListingRow.Slug>v{skill.version}</ListingRow.Slug> : null}
+          </ListingRow.Name>
+          {skill.description ? (
+            <ListingRow.Description>{skill.description}</ListingRow.Description>
+          ) : null}
+          {skill.dir ? (
+            <ListingRow.Meta>
+              <span className="font-mono text-badge text-subtle">{skill.dir}</span>
+            </ListingRow.Meta>
+          ) : null}
+        </ListingRow.Main>
+      </ListingRow.Link>
+      <ListingRow.Trail>
+        <SkillEnabledSwitch
+          isActionPending={isActionPending}
+          onDisable={onDisable}
+          onEnable={onEnable}
+          skill={skill}
+        />
+      </ListingRow.Trail>
+    </ListingRow>
+  );
+}
+
+function SkillCatalogCard({ skill, onDisable, onEnable, isActionPending }: SkillRowProps) {
+  const source = deriveSkillDisplaySource(skill);
+  return (
+    <CatalogCard actionable data-skill={skill.name} data-testid={`skill-card-${skill.name}`}>
+      <Link
+        aria-label={`Open ${skill.name}`}
+        className="flex min-w-0 flex-col gap-3"
+        params={{ name: skill.name }}
+        to="/skills/$name"
+      >
+        <div className="flex items-start gap-3">
+          <CatalogCard.Logo>
+            <Wrench className="size-4" />
+          </CatalogCard.Logo>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <CatalogCard.Title>{skill.name}</CatalogCard.Title>
+            <CatalogCard.Meta>
+              {skill.version ? <span>{`v${skill.version}`}</span> : null}
+              <span>{skillSourceLabel(source)}</span>
+            </CatalogCard.Meta>
+          </div>
+        </div>
+        {skill.description ? (
+          <CatalogCard.Description>{skill.description}</CatalogCard.Description>
+        ) : null}
+      </Link>
+      <CatalogCard.Actions className="justify-between">
+        <Pill mono size="sm" tone={skillSourceTone(source)}>
+          {skillSourceLabel(source)}
+        </Pill>
+        <SkillEnabledSwitch
+          isActionPending={isActionPending}
+          onDisable={onDisable}
+          onEnable={onEnable}
+          skill={skill}
+        />
+      </CatalogCard.Actions>
+    </CatalogCard>
   );
 }
 
 function SkillListPanel({
   skills,
-  selectedSkillName,
-  onSelectSkill,
   searchQuery,
-  onSearchChange,
+  view,
+  sourceFilter,
+  enabledFilter,
+  onClearFilters,
+  onDisable,
+  onEnable,
+  isActionPending = false,
   isLoading = false,
   errorMessage = null,
 }: SkillListPanelProps) {
-  const filtered = useMemo(() => filterSkillsByQuery(skills, searchQuery), [skills, searchQuery]);
-  const groups = useMemo(() => groupSkillsBySource(filtered), [filtered]);
+  const filterState: SkillFilterState = useMemo(
+    () => ({ source: sourceFilter, enabled: enabledFilter }),
+    [enabledFilter, sourceFilter]
+  );
+  const filtered = useMemo(
+    () => filterInstalledSkills(skills, searchQuery, filterState),
+    [filterState, searchQuery, skills]
+  );
+  const hasActiveFilters =
+    searchQuery.trim() !== "" || sourceFilter !== null || enabledFilter !== null;
   const isEmpty = filtered.length === 0;
 
-  return (
-    <aside className="flex min-h-0 flex-1 flex-col" data-testid="skill-list-panel">
-      <div className="border-b border-line p-3">
-        <SearchInput
-          aria-label="Search installed skills"
-          data-testid="skill-search-input"
-          onChange={onSearchChange}
-          placeholder="Filter skills…"
-          value={searchQuery}
+  if (isLoading && isEmpty) {
+    return (
+      <div
+        className="flex min-h-60 items-center justify-center px-6 py-10"
+        data-testid="skill-list-loading"
+      >
+        <Spinner aria-hidden="true" className="size-5 text-subtle" />
+      </div>
+    );
+  }
+
+  if (errorMessage && isEmpty) {
+    return (
+      <div className="flex min-h-60 items-center justify-center p-4" data-testid="skill-list-error">
+        <Empty
+          className="max-w-sm"
+          description={errorMessage}
+          icon={AlertCircle}
+          title="Unable to load skills"
         />
       </div>
+    );
+  }
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center px-6 py-10"
-            data-testid="skill-list-loading"
-          >
-            <Spinner aria-hidden="true" className="size-5 text-subtle" />
-          </div>
-        ) : errorMessage && isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="skill-list-error"
-          >
-            <Empty
-              className="max-w-sm"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load skills"
-            />
-          </div>
-        ) : isEmpty ? (
-          <div
-            className="flex min-h-full items-center justify-center p-4"
-            data-testid="skill-list-empty"
-          >
-            <Empty
-              className="max-w-sm"
-              description={
-                searchQuery.trim() !== "" ? "Try a different search term." : "No skills found"
-              }
-              icon={Wrench}
-              title="No skills found"
-            />
-          </div>
-        ) : (
-          <div data-testid="skill-list-groups">
-            {groups.map(group => (
-              <ListGroup
-                count={group.skills.length}
-                data-testid={`skill-group-${group.source}`}
-                headerProps={{ "data-testid": `skill-group-header-${group.source}` }}
-                key={group.source}
-                label={group.label}
+  if (isEmpty) {
+    return (
+      <div className="flex min-h-60 items-center justify-center p-4" data-testid="skill-list-empty">
+        <Empty
+          action={
+            hasActiveFilters ? (
+              <Button
+                data-testid="skill-list-clear-filters"
+                onClick={onClearFilters}
+                size="sm"
+                type="button"
+                variant="ghost"
               >
-                {group.skills.map(skill => (
-                  <SkillListItem
-                    isSelected={skill.name === selectedSkillName}
-                    key={skill.name}
-                    onSelect={() => onSelectSkill(skill.name)}
-                    skill={skill}
-                  />
-                ))}
-              </ListGroup>
-            ))}
-          </div>
-        )}
+                Clear filters
+              </Button>
+            ) : undefined
+          }
+          className="max-w-sm"
+          description={
+            hasActiveFilters
+              ? "Try clearing search or filters."
+              : "No skills are installed in this workspace yet."
+          }
+          icon={Wrench}
+          title={hasActiveFilters ? "No skills match" : "No skills yet"}
+        />
       </div>
-    </aside>
+    );
+  }
+
+  if (view === "cards") {
+    return (
+      <div
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        data-testid="skill-list-card-grid"
+      >
+        {filtered.map(skill => (
+          <SkillCatalogCard
+            isActionPending={isActionPending}
+            key={skill.name}
+            onDisable={onDisable}
+            onEnable={onEnable}
+            skill={skill}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      data-testid="skill-list-rows"
+    >
+      {filtered.map(skill => (
+        <SkillListingRow
+          isActionPending={isActionPending}
+          key={skill.name}
+          onDisable={onDisable}
+          onEnable={onEnable}
+          skill={skill}
+        />
+      ))}
+    </div>
   );
 }
 
 export { SkillListPanel };
-export type { SkillListPanelProps };
+export type { SkillFilterState };

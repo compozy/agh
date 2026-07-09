@@ -1,0 +1,54 @@
+import { ListFilter } from "lucide-react";
+import { useMemo } from "react";
+
+import { Button } from "@agh/ui";
+import { Filters, type Filter } from "@agh/ui/components/reui/filters";
+
+import type { VaultNamespaceFilter } from "@/hooks/routes/use-vault-page";
+import {
+  applyVaultFilterChips,
+  buildVaultFilterFields,
+  vaultFiltersToChips,
+} from "../lib/vault-list-filters";
+
+export interface VaultListFiltersProps {
+  namespace: VaultNamespaceFilter;
+  onNamespaceChange: (next: VaultNamespaceFilter) => void;
+}
+
+/**
+ * Vault namespace filter chip bar for composition inside ListingToolbar.Filters.
+ * Drives the server-side `namespace` query param (one chip, AND-combined with
+ * the prefix search).
+ */
+export function VaultListFilters({ namespace, onNamespaceChange }: VaultListFiltersProps) {
+  const fields = useMemo(() => buildVaultFilterFields(), []);
+  const chips = useMemo(() => vaultFiltersToChips({ namespace }), [namespace]);
+
+  const handleFiltersChange = (next: Filter<string>[]) => {
+    applyVaultFilterChips(next, { onNamespaceChange });
+  };
+
+  return (
+    <Filters<string>
+      allowMultiple={false}
+      data-testid="vault-list-filters"
+      fields={fields}
+      filters={chips}
+      onChange={handleFiltersChange}
+      size="sm"
+      trigger={
+        <Button
+          aria-label="Add filter"
+          data-testid="vault-list-filters-add"
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <ListFilter aria-hidden="true" className="size-3" />
+          Filter
+        </Button>
+      }
+    />
+  );
+}

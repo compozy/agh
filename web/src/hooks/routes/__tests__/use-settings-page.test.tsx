@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe("useSettingsPage", () => {
-  it("exposes the Paper-mapped Settings sections and root path", () => {
+  it("exposes the Settings sections and root path", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsPage(), { wrapper });
 

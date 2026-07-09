@@ -9,9 +9,9 @@ const STARTED_AT = Date.now() - 5000;
 /**
  * Streaming indicator shown while an assistant turn is in flight.
  *
- * Motion: T3Code-style typing dots (wiring the `typing-bounce` keyframe on
- * `bg-subtle` dots) beside a self-ticking "Working for Xs" `tabular-nums` timer.
- * Reduced motion degrades to a resting label with no animation classes.
+ * Motion: typing dots (wiring the `typing-bounce` keyframe on `bg-subtle` dots)
+ * beside a self-ticking "Working for Xs" `tabular-nums` timer. Reduced motion
+ * degrades to a resting label with no animation classes.
  */
 const meta: Meta<typeof WorkingIndicator> = {
   title: "systems/session/components/assistant-ui/SessionWorkingRow",

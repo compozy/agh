@@ -10,6 +10,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
+import { primarySkillFixture } from "@/systems/skill/mocks/fixtures";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/skill/routes/Skills",
@@ -71,12 +72,11 @@ export const InstalledEmpty: Story = {
 };
 
 /**
- * Detail panel populated , functionally identical to InstalledPopulated thanks
- * to auto-selection, but retained as a distinct story for the detail state.
+ * Skill detail route (`/skills/$name`) rendered for the primary fixture skill.
  */
 export const DetailOpen: Story = {
   args: {},
-  parameters: appRouteParameters("/skills"),
+  parameters: appRouteParameters(`/skills/${primarySkillFixture.name}`),
   render: () => <StorybookWorkspaceSetup />,
 };
 
