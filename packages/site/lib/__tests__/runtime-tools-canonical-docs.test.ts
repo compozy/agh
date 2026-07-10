@@ -64,7 +64,6 @@ describe("tool-first canonical surface docs", () => {
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
-      "provider model catalog list/refresh/status",
       "extension bundle activation and desired-state resource inspection",
       "MCP server probe/status diagnostics",
     ]);

@@ -23,6 +23,7 @@ def load_bootstrap_module():
         sys.modules["tomllib"] = tomllib_stub
 
     script_path = Path(__file__).with_name("bootstrap-qa-env.py")
+    sys.path.insert(0, str(script_path.parent))
     spec = importlib.util.spec_from_file_location("bootstrap_qa_env", script_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"failed to load module spec for {script_path}")
@@ -54,6 +55,11 @@ def main() -> None:
         got = module.discover_project_contract(repo_root)
         if got != payload:
             raise AssertionError(f"discover_project_contract() = {got!r}, want {payload!r}")
+
+    repo_root = Path(__file__).resolve().parents[5]
+    playbook = module.load_playbook_via_helper(repo_root, "devtool-oss-launch")
+    if playbook.get("playbook_ref") != "devtool-oss-launch":
+        raise AssertionError(f"loaded playbook_ref = {playbook.get('playbook_ref')!r}")
 
 
 if __name__ == "__main__":

@@ -80,6 +80,21 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
           'harness = "acp"',
           'auth_mode = "none"',
           'none_security = "local_transport"',
+          // Apply reasoning via the ACP config option the mock advertises, and expose
+          // ONE curated catalog model that carries selectable efforts (matching the
+          // fixture's `reasoning_effort` values). `qa-browser-model` stays uncurated so
+          // the custom-id flows keep testing an unknown model. The reasoning table is
+          // `[providers.<id>.models.reasoning]` (schema ProviderConfig.Models.Reasoning) —
+          // NOT `[providers.<id>.reasoning]`, which is an unknown table that fails boot.
+          "[providers.acpmock.models.reasoning]",
+          'apply = "acp_option"',
+          "[[providers.acpmock.models.curated]]",
+          'id = "qa-browser-model-alt"',
+          'display_name = "QA Browser Model Alt"',
+          "supports_tools = true",
+          "supports_reasoning = true",
+          'reasoning_efforts = ["low", "medium", "high"]',
+          'default_reasoning_effort = "medium"',
           "",
         ]
       : []),

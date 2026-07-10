@@ -35,8 +35,13 @@ const claudeEntry: SettingsProviderEntry = {
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     models: {
-      default: "claude-sonnet-4-6",
-      curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+      default: "claude-sonnet-5",
+      curated: [
+        { id: "claude-fable-5" },
+        { id: "claude-opus-4-8" },
+        { id: "claude-sonnet-5" },
+        { id: "claude-haiku-4-5-20251001" },
+      ],
     },
     auth_mode: "native_cli",
     env_policy: "filtered",
@@ -71,16 +76,25 @@ const builtinEntry: SettingsProviderEntry = {
   default: false,
   command_available: true,
   settings: {
-    command: "npx -y @zed-industries/codex-acp@latest",
+    command: "npx -y @agentclientprotocol/codex-acp@latest",
     models: {
-      default: "gpt-5.4",
+      default: "gpt-5.6-sol",
       curated: [
         {
-          id: "gpt-5.4",
+          id: "gpt-5.6-sol",
           supports_reasoning: true,
-          reasoning_efforts: ["low", "medium", "high"],
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
         },
-        { id: "gpt-5.4-mini" },
+        {
+          id: "gpt-5.6-terra",
+          supports_reasoning: true,
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+        },
+        {
+          id: "gpt-5.6-luna",
+          supports_reasoning: true,
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+        },
       ],
     },
     auth_mode: "bound_secret",
@@ -280,7 +294,6 @@ const draftFor = (entry: SettingsProviderEntry): ProviderDraft => ({
     .map(model => model.id)
     .filter(Boolean)
     .join("\n"),
-  curated_snapshot: (entry.settings.models?.curated ?? []).map(model => ({ ...model })),
   target_env: entry.settings.credential_slots?.[0]?.target_env ?? "",
   harness: entry.settings.harness ?? "acp",
   runtime_provider: entry.settings.runtime_provider ?? "",
@@ -352,7 +365,7 @@ describe("ProvidersSettingsPage", () => {
       "claude"
     );
     expect(screen.getByTestId("settings-page-providers-card-claude-model")).toHaveTextContent(
-      "claude-sonnet-4-6"
+      "claude-sonnet-5"
     );
     expect(screen.getByTestId("settings-page-providers-card-claude-auth-state")).toHaveTextContent(
       "unknown"

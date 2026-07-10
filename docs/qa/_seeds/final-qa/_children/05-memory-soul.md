@@ -106,8 +106,8 @@ not pytest-style assertions. Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` for the writer/asker,
-  `claude-sonnet-4-6` for fanout where indicated) as the subprocess agent
+- Uses real Claude Code (`claude-opus-4-8` for the writer/asker,
+  `claude-sonnet-5` for fanout where indicated) as the subprocess agent
   driver. Real LLM responses are the load-bearing assertion target — SQL
   probes alone are insufficient.
 - Emits four artifacts under `.artifacts/qa/<run-id>/mem-XX/`:
@@ -150,7 +150,7 @@ before the run ships:
 
 | Mode                | When                                                                                              | Driver                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code`  | Default for all scenarios that exercise multi-turn recall, agent-driven write, or soul refresh    | `claude-opus-4-7[1m]` for the writer; `claude-sonnet-4-6` for the cross-workspace asker in MEM-12.                                |
+| `real-claude-code`  | Default for all scenarios that exercise multi-turn recall, agent-driven write, or soul refresh    | `claude-opus-4-8` for the writer; `claude-sonnet-5` for the cross-workspace asker in MEM-12.                                |
 | `real-openclaw`     | Cross-driver sanity (MEM-04 only) so we know consolidation isn't Claude-Code-specific             | OpenClaw bundled-plugin runtime via the AGH ACP client.                                                                            |
 | `mock-acp` (gate)   | Determinism gate for the consolidation-tick race in MEM-05 only                                   | `internal/e2elane` mock ACP server used to make scheduler tick races deterministic; the daemon, lock, and SQLite are real code paths. |
 

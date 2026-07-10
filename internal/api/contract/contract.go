@@ -34,14 +34,14 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName       string `json:"agent_name,omitempty"`
-	Provider        string `json:"provider,omitempty"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Workspace       string `json:"workspace,omitempty"`
-	WorkspacePath   string `json:"workspace_path,omitempty"`
-	Channel         string `json:"channel,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	Provider        string          `json:"provider,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Name            string          `json:"name,omitempty"`
+	Workspace       string          `json:"workspace,omitempty"`
+	WorkspacePath   string          `json:"workspace_path,omitempty"`
+	Channel         string          `json:"channel,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -104,22 +104,22 @@ type SendPromptResultPayload struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID              string        `json:"id"`
-	Name            string        `json:"name,omitempty"`
-	AgentName       string        `json:"agent_name"`
-	Provider        string        `json:"provider"`
-	Model           string        `json:"model,omitempty"`
-	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
-	WorkspaceID     string        `json:"workspace_id,omitempty"`
-	WorkspacePath   string        `json:"workspace_path,omitempty"`
-	Channel         string        `json:"channel,omitempty"`
-	Type            session.Type  `json:"type,omitempty"`
-	State           session.State `json:"state"`
-	Badge           session.Badge `json:"badge"`
-	Attachable      bool          `json:"attachable"`
-	AttachedTo      string        `json:"attached_to,omitempty"`
-	AttachExpiresAt *time.Time    `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch int64         `json:"transcript_epoch,omitempty"`
+	ID              string          `json:"id"`
+	Name            string          `json:"name,omitempty"`
+	AgentName       string          `json:"agent_name"`
+	Provider        string          `json:"provider"`
+	Model           string          `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	WorkspacePath   string          `json:"workspace_path,omitempty"`
+	Channel         string          `json:"channel,omitempty"`
+	Type            session.Type    `json:"type,omitempty"`
+	State           session.State   `json:"state"`
+	Badge           session.Badge   `json:"badge"`
+	Attachable      bool            `json:"attachable"`
+	AttachedTo      string          `json:"attached_to,omitempty"`
+	AttachExpiresAt *time.Time      `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch int64           `json:"transcript_epoch,omitempty"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
@@ -273,81 +273,6 @@ type SessionConfigOptionValuePayload struct {
 	Description string `json:"description,omitempty"`
 }
 
-// ProviderModelListResponse is the native provider model catalog list payload.
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
-}
-
-// ProviderModelRefreshRequest captures one provider model catalog refresh request.
-type ProviderModelRefreshRequest struct {
-	SourceID  string `json:"source_id,omitempty"`
-	Force     bool   `json:"force,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
-}
-
-// ProviderModelRefreshResponse reports provider model catalog refresh source status.
-type ProviderModelRefreshResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-	Error   string                            `json:"error,omitempty"`
-}
-
-// ProviderModelStatusResponse reports provider model catalog source status.
-type ProviderModelStatusResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-}
-
-// ProviderModelPayload is one merged provider model catalog projection.
-type ProviderModelPayload struct {
-	ProviderID             string                         `json:"provider_id"`
-	ModelID                string                         `json:"model_id"`
-	DisplayName            string                         `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
-	Available              *bool                          `json:"available"`
-	AvailabilityState      string                         `json:"availability_state"`
-	Stale                  bool                           `json:"stale"`
-	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                         `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []string                       `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *string                        `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
-	LastError              string                         `json:"last_error,omitempty"`
-}
-
-// ModelCatalogSourceRefPayload identifies one source used by a merged model.
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
-}
-
-// ModelCatalogSourceStatusPayload reports provider-scoped catalog source health.
-type ModelCatalogSourceStatusPayload struct {
-	SourceID     string `json:"source_id"`
-	SourceKind   string `json:"source_kind"`
-	ProviderID   string `json:"provider_id"`
-	Priority     int    `json:"priority"`
-	LastRefresh  string `json:"last_refresh,omitempty"`
-	NextRefresh  string `json:"next_refresh,omitempty"`
-	LastSuccess  string `json:"last_success,omitempty"`
-	LastError    string `json:"last_error,omitempty"`
-	RefreshState string `json:"refresh_state"`
-	RowCount     int    `json:"row_count"`
-	Stale        bool   `json:"stale"`
-}
-
-// ModelCatalogCostPayload reports normalized model price hints.
-type ModelCatalogCostPayload struct {
-	InputPerMillion  *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion *float64 `json:"output_per_million,omitempty"`
-}
-
 // OpenAIModelListResponse is the OpenAI-compatible model list projection.
 type OpenAIModelListResponse struct {
 	Object string               `json:"object"`
@@ -378,8 +303,8 @@ type OpenAIModelAGHPayload struct {
 	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitempty"`
 	SupportsTools          *bool                    `json:"supports_tools,omitempty"`
 	SupportsReasoning      *bool                    `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []string                 `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *string                  `json:"default_reasoning_effort,omitempty"`
+	ReasoningEfforts       []ReasoningEffort        `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *ReasoningEffort         `json:"default_reasoning_effort,omitempty"`
 	Cost                   *ModelCatalogCostPayload `json:"cost,omitempty"`
 	LastError              string                   `json:"last_error,omitempty"`
 }
@@ -470,17 +395,18 @@ type CreateAgentRequest struct {
 
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
-	Name         string                   `json:"name"`
-	Provider     string                   `json:"provider"`
-	Command      string                   `json:"command,omitempty"`
-	Model        string                   `json:"model,omitempty"`
-	Tools        []string                 `json:"tools,omitempty"`
-	Toolsets     []string                 `json:"toolsets,omitempty"`
-	DenyTools    []string                 `json:"deny_tools,omitempty"`
-	Permissions  SettingsPermissionMode   `json:"permissions,omitempty"`
-	CategoryPath []string                 `json:"category_path,omitempty"`
-	Skills       *CreateAgentSkillsConfig `json:"skills,omitempty"`
-	Prompt       string                   `json:"prompt"`
+	Name            string                   `json:"name"`
+	Provider        string                   `json:"provider"`
+	Command         string                   `json:"command,omitempty"`
+	Model           string                   `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort          `json:"reasoning_effort,omitempty"`
+	Tools           []string                 `json:"tools,omitempty"`
+	Toolsets        []string                 `json:"toolsets,omitempty"`
+	DenyTools       []string                 `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode   `json:"permissions,omitempty"`
+	CategoryPath    []string                 `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig `json:"skills,omitempty"`
+	Prompt          string                   `json:"prompt"`
 }
 
 // CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
@@ -490,18 +416,19 @@ type CreateAgentSkillsConfig struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name         string                   `json:"name"`
-	Provider     string                   `json:"provider"`
-	Command      string                   `json:"command,omitempty"`
-	Model        string                   `json:"model,omitempty"`
-	Tools        []string                 `json:"tools,omitempty"`
-	Toolsets     []string                 `json:"toolsets,omitempty"`
-	DenyTools    []string                 `json:"deny_tools,omitempty"`
-	Permissions  string                   `json:"permissions,omitempty"`
-	CategoryPath []string                 `json:"category_path,omitempty"`
-	MCPServers   []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
-	Prompt       string                   `json:"prompt"`
-	Diagnostics  []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
+	Name            string                   `json:"name"`
+	Provider        string                   `json:"provider"`
+	Command         string                   `json:"command,omitempty"`
+	Model           string                   `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort          `json:"reasoning_effort,omitempty"`
+	Tools           []string                 `json:"tools,omitempty"`
+	Toolsets        []string                 `json:"toolsets,omitempty"`
+	DenyTools       []string                 `json:"deny_tools,omitempty"`
+	Permissions     string                   `json:"permissions,omitempty"`
+	CategoryPath    []string                 `json:"category_path,omitempty"`
+	MCPServers      []AgentMCPServerJSON     `json:"mcp_servers,omitempty"`
+	Prompt          string                   `json:"prompt"`
+	Diagnostics     []AgentDiagnosticPayload `json:"diagnostics,omitempty"`
 }
 
 // AgentDiagnosticPayload reports one malformed agent definition encountered during discovery.

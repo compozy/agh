@@ -12,6 +12,73 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 )
 
+type recordingTaskEventCommitObserver struct {
+	db      *GlobalDB
+	records []taskpkg.EventRecord
+	tasks   []taskpkg.Task
+	err     error
+}
+
+func (o *recordingTaskEventCommitObserver) OnTaskEvent(ctx context.Context, record taskpkg.EventRecord) {
+	o.records = append(o.records, record)
+	if o.db == nil || o.err != nil {
+		return
+	}
+	taskRecord, err := o.db.GetTask(ctx, record.Event.TaskID)
+	if err != nil {
+		o.err = err
+		return
+	}
+	o.tasks = append(o.tasks, taskRecord)
+}
+
+func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	taskRecord := taskRecordForTest("task-recovered-commit-observer")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	markedAt := taskRecord.UpdatedAt.Add(time.Minute)
+	if _, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+		Origin:   coordinatorActorContextForTest().Origin,
+		TaskID:   taskRecord.ID,
+		Reason:   "operator input required",
+		Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+		MarkedAt: markedAt,
+	}); err != nil {
+		t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
+	}
+
+	observer := &recordingTaskEventCommitObserver{db: globalDB}
+	globalDB.SetTaskEventCommitObserver(observer)
+	if _, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+		Origin:    operatorActorContextForTest("operator").Origin,
+		TaskID:    taskRecord.ID,
+		ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+		ClearedAt: markedAt.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("ClearTaskNeedsAttention() error = %v", err)
+	}
+	if observer.err != nil {
+		t.Fatalf("observer GetTask() error = %v", observer.err)
+	}
+	if got, want := len(observer.records), 1; got != want {
+		t.Fatalf("len(observer.records) = %d, want %d", got, want)
+	}
+	if got, want := observer.records[0].Event.EventType, string(hookspkg.HookTaskRecovered); got != want {
+		t.Fatalf("observer event type = %q, want %q", got, want)
+	}
+	if got, want := len(observer.tasks), 1; got != want {
+		t.Fatalf("len(observer.tasks) = %d, want %d", got, want)
+	}
+	if observer.tasks[0].NeedsAttention != nil {
+		t.Fatalf("observer task NeedsAttention = %#v, want committed nil", observer.tasks[0].NeedsAttention)
+	}
+}
+
 func TestGlobalDBUpdateTaskStatusShouldAppendStatusChangedEvent(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +327,8 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("MarkTaskNeedsAttention() error = %v", err)
 		}
+		observer := &recordingTaskEventCommitObserver{db: globalDB}
+		globalDB.SetTaskEventCommitObserver(observer)
 		installTaskEventInsertFailureTriggerForType(t, globalDB, string(hookspkg.HookTaskRecovered))
 
 		_, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
@@ -275,6 +344,9 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 		if stored.NeedsAttention == nil {
 			t.Fatal("NeedsAttention = nil, want rollback to keep escalation metadata")
+		}
+		if got := len(observer.records); got != 0 {
+			t.Fatalf("len(observer.records) after rollback = %d, want 0", got)
 		}
 	})
 

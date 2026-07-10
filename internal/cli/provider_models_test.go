@@ -25,6 +25,9 @@ func TestProviderModelsCommands(t *testing.T) {
 				if got, want := query.SourceID, "config"; got != want {
 					t.Fatalf("SourceID = %q, want %q", got, want)
 				}
+				if got, want := query.View, providerModelViewCurated; got != want {
+					t.Fatalf("View = %q, want %q", got, want)
+				}
 				if !query.Refresh || !query.IncludeStale {
 					t.Fatalf("query = %#v, want refresh and include-stale", query)
 				}
@@ -68,6 +71,153 @@ func TestProviderModelsCommands(t *testing.T) {
 		}
 		if len(record.Models) != 1 || record.Models[0].Sources[0].SourceID != "config" || !record.Models[0].Stale {
 			t.Fatalf("record = %#v, want model with source and stale fields", record)
+		}
+	})
+
+	t.Run("Should request the complete view with list all", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProviderModelsFn: func(
+				_ context.Context,
+				query ProviderModelListQuery,
+			) (ProviderModelListRecord, error) {
+				if got, want := query.View, providerModelViewAll; got != want {
+					t.Fatalf("View = %q, want %q", got, want)
+				}
+				return ProviderModelListRecord{Models: []ProviderModelRecord{
+					{ProviderID: "codex", ModelID: "gpt-5.6-sol", Curated: true},
+					{ProviderID: "codex", ModelID: "gpt-5.6-legacy", Deprecated: true},
+				}}, nil
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"provider",
+			"models",
+			"list",
+			"codex",
+			"--all",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("provider models list --all error = %v", err)
+		}
+		var record ProviderModelListRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(list all) error = %v", err)
+		}
+		if got, want := len(record.Models), 2; got != want {
+			t.Fatalf("model count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should curate a model with explicit true and false flags", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			curateProviderModelFn: func(
+				_ context.Context,
+				providerID string,
+				request ProviderModelCurationRequest,
+			) (ProviderModelCurationRecord, error) {
+				if providerID != "codex" || request.ModelID != "gpt-5.6-sol" {
+					t.Fatalf("curation identity = %q/%q", providerID, request.ModelID)
+				}
+				if request.Hidden == nil || *request.Hidden || request.Featured == nil || !*request.Featured ||
+					request.Deprecated == nil || *request.Deprecated || request.DefaultReasoningEffort == nil ||
+					*request.DefaultReasoningEffort != "max" {
+					t.Fatalf("curation request = %#v, want hidden=false featured=true deprecated=false max", request)
+				}
+				maxEffort := contract.ReasoningEffort("max")
+				return ProviderModelCurationRecord{
+					Model: contract.ProviderModelPayload{
+						ProviderID:             "codex",
+						ModelID:                "gpt-5.6-sol",
+						Curated:                true,
+						Featured:               true,
+						DefaultReasoningEffort: &maxEffort,
+					},
+					Apply: contract.SettingsApplyResponse{
+						Applied:          true,
+						Lifecycle:        contract.SettingsApplyLifecycle("live"),
+						ActiveGeneration: 2,
+					},
+				}, nil
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"provider",
+			"models",
+			"set",
+			"codex",
+			"gpt-5.6-sol",
+			"--hidden=false",
+			"--featured=true",
+			"--deprecated=false",
+			"--default-effort=max",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("provider models set error = %v", err)
+		}
+		var record ProviderModelCurationRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(curation) error = %v", err)
+		}
+		if !record.Model.Curated || !record.Model.Featured || !record.Apply.Applied {
+			t.Fatalf("curation record = %#v, want featured curated applied model", record)
+		}
+	})
+
+	t.Run("Should render active_generation in curation toon output", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			curateProviderModelFn: func(
+				_ context.Context,
+				_ string,
+				_ ProviderModelCurationRequest,
+			) (ProviderModelCurationRecord, error) {
+				return ProviderModelCurationRecord{
+					Model: contract.ProviderModelPayload{
+						ProviderID: "codex",
+						ModelID:    "gpt-5.6-sol",
+						Curated:    true,
+					},
+					Apply: contract.SettingsApplyResponse{
+						Applied:          true,
+						Lifecycle:        contract.SettingsApplyLifecycle("live"),
+						ActiveGeneration: 2,
+					},
+				}, nil
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"provider",
+			"models",
+			"set",
+			"codex",
+			"gpt-5.6-sol",
+			"--featured=true",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("provider models set toon error = %v", err)
+		}
+		if !strings.Contains(stdout, "active_generation") || !strings.Contains(stdout, "2") {
+			t.Fatalf("curation toon = %q, want active_generation field with value 2", stdout)
 		}
 	})
 

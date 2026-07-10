@@ -84,6 +84,8 @@ const (
 	ToolIDProviderModelsRefresh ToolID = "agh__provider_models_refresh"
 	// ToolIDProviderModelsStatus reads provider model catalog source status.
 	ToolIDProviderModelsStatus ToolID = "agh__provider_models_status"
+	// ToolIDProviderModelsCurate mutates one provider model's global curation metadata.
+	ToolIDProviderModelsCurate ToolID = "agh__provider_models_curate"
 	// ToolIDMemoryList lists memory headers visible for a scope.
 	ToolIDMemoryList ToolID = "agh__memory_list"
 	// ToolIDMemoryShow reads one memory document through the current memory store.

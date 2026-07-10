@@ -16,7 +16,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
-
+from qa_skill_paths import real_scenario_script
 
 ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
 MAX_UNIX_SOCKET_PATH_BYTES = 103
@@ -72,7 +72,7 @@ def short_runtime_root(scenario_slug: str) -> Path:
 
 
 def run_init_workspace(repo_root: Path, scenario: str, workspace_root: str) -> dict[str, str]:
-    init_script = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "init-scenario-workspace.sh"
+    init_script = real_scenario_script(repo_root, "init-scenario-workspace.sh")
     proc = subprocess.run(
         [str(init_script), scenario, workspace_root],
         cwd=repo_root,
@@ -355,7 +355,7 @@ def build_scenario_contract(repo_root: Path, scenario_slug: str, playbook: dict 
                 "channels": 3,
             },
         },
-        "audit_command": str(repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "audit-qa-evidence.py"),
+        "audit_command": str(real_scenario_script(repo_root, "audit-qa-evidence.py")),
         "enforcement": "block",
     }
 
@@ -473,7 +473,7 @@ def build_charter_from_playbook(scenario_slug: str, playbook: dict) -> dict:
 
 
 def load_playbook_via_helper(repo_root: Path, playbook_ref: str) -> dict:
-    helper = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "playbook_loader.py"
+    helper = real_scenario_script(repo_root, "playbook_loader.py")
     if not helper.is_file():
         raise RuntimeError(f"playbook loader not found at {helper}")
     proc = subprocess.run(
@@ -495,7 +495,7 @@ def load_playbook_via_helper(repo_root: Path, playbook_ref: str) -> dict:
 
 
 def seed_playbook_workspace(repo_root: Path, workspace_path: Path, playbook_ref: str) -> dict:
-    helper = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "seed-playbook-workspace.py"
+    helper = real_scenario_script(repo_root, "seed-playbook-workspace.py")
     if not helper.is_file():
         raise RuntimeError(f"seed-playbook-workspace.py not found at {helper}")
     proc = subprocess.run(
@@ -547,7 +547,7 @@ def seed_qa_evidence_contracts(
     charter_path = qa_root / "behavioral-scenario-charter.yaml"
     journey_log_path = qa_root / "journey-log.jsonl"
     provider_attempt_path = qa_root / "provider-attempt.json"
-    audit_command = repo_root / ".agents" / "skills" / "real-scenario-qa" / "scripts" / "audit-qa-evidence.py"
+    audit_command = real_scenario_script(repo_root, "audit-qa-evidence.py")
 
     scenario_contract = build_scenario_contract(repo_root, scenario_slug, playbook)
     if playbook is not None and scenario_contract_path.exists():
@@ -602,7 +602,7 @@ def main() -> int:
         "--playbook",
         default="",
         help="Real-scenario QA playbook ref (e.g., northstar-pay). When set, charter and workspace "
-        "are materialized from .agents/skills/real-scenario-qa/references/playbooks/<ref>.md.",
+        "are materialized from .agents/skills/agh/real-scenario-qa/references/playbooks/<ref>.md.",
     )
     args = parser.parse_args()
 

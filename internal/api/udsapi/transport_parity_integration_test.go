@@ -580,7 +580,15 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(httpValue, udsValue) {
-				t.Fatalf("%s HTTP payload = %#v, want UDS parity %#v", tc.path, httpValue, udsValue)
+				httpPayload, err := json.Marshal(httpValue)
+				if err != nil {
+					t.Fatalf("json.Marshal(%s HTTP payload) error = %v", tc.path, err)
+				}
+				udsPayload, err := json.Marshal(udsValue)
+				if err != nil {
+					t.Fatalf("json.Marshal(%s UDS payload) error = %v", tc.path, err)
+				}
+				t.Fatalf("%s HTTP payload = %s, want UDS parity %s", tc.path, httpPayload, udsPayload)
 			}
 		})
 	}

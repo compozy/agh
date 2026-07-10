@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +38,10 @@ const (
 )
 
 const (
-	agentModelKey = "model"
+	agentModelKey             = "model"
+	agentReasoningEffortKey   = "reasoning-effort"
+	agentReasoningEffortValue = "Reasoning Effort"
+	agentReasoningEffortField = "reasoning_effort"
 )
 
 const (
@@ -64,18 +69,19 @@ func newAgentCommand(deps commandDeps) *cobra.Command {
 }
 
 type agentCreateFlags struct {
-	workspace    string
-	provider     string
-	command      string
-	model        string
-	prompt       string
-	promptFile   string
-	tools        []string
-	toolsets     []string
-	denyTools    []string
-	permissions  string
-	categoryPath []string
-	force        bool
+	workspace       string
+	provider        string
+	command         string
+	model           string
+	reasoningEffort string
+	prompt          string
+	promptFile      string
+	tools           []string
+	toolsets        []string
+	denyTools       []string
+	permissions     string
+	categoryPath    []string
+	force           bool
 }
 
 func newAgentCreateCommand(deps commandDeps) *cobra.Command {
@@ -87,7 +93,8 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
   agh agent create pricing_strategist \
     --workspace ~/dev/ad8 \
     --provider claude \
-    --model claude-sonnet-4-6 \
+    --model claude-sonnet-5 \
+	--reasoning-effort max \
     --prompt "You own pricing strategy." \
     -o json`,
 		Args: exactOneNonBlankArg(),
@@ -108,6 +115,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.provider, cliProviderKey, "", "Provider name for sessions using this agent")
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
+	cmd.Flags().StringVar(&flags.reasoningEffort, agentReasoningEffortKey, "", "Optional default reasoning effort")
 	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "Agent system prompt body")
 	cmd.Flags().StringVar(&flags.promptFile, "prompt-file", "", "Read the agent system prompt body from a file")
 	cmd.Flags().StringArrayVar(&flags.tools, "tool", nil, "Allowed tool pattern (repeatable)")
@@ -133,22 +141,26 @@ func createAgentDefinition(
 	if err != nil {
 		return aghconfig.AgentDef{}, err
 	}
+	if err := session.ValidateReasoningEffort(flags.reasoningEffort); err != nil {
+		return aghconfig.AgentDef{}, fmt.Errorf("cli: invalid agent reasoning effort: %w", err)
+	}
 	agentsDir, err := resolveAgentCreateDirectory(cmd, deps, flags.workspace)
 	if err != nil {
 		return aghconfig.AgentDef{}, err
 	}
 	path := filepath.Join(agentsDir, agentName, aghconfig.AgentDefinitionFileName)
 	agent, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
-		Name:         agentName,
-		Provider:     flags.provider,
-		Command:      flags.command,
-		Model:        flags.model,
-		Tools:        flags.tools,
-		Toolsets:     flags.toolsets,
-		DenyTools:    flags.denyTools,
-		Permissions:  flags.permissions,
-		CategoryPath: flags.categoryPath,
-		Prompt:       prompt,
+		Name:            agentName,
+		Provider:        flags.provider,
+		Command:         flags.command,
+		Model:           flags.model,
+		ReasoningEffort: flags.reasoningEffort,
+		Tools:           flags.tools,
+		Toolsets:        flags.toolsets,
+		DenyTools:       flags.denyTools,
+		Permissions:     flags.permissions,
+		CategoryPath:    flags.categoryPath,
+		Prompt:          prompt,
 	}, flags.force)
 	if err != nil {
 		if errors.Is(err, aghconfig.ErrAgentDefinitionExists) {
@@ -213,16 +225,17 @@ func resolveAgentCreateDirectory(cmd *cobra.Command, deps commandDeps, workspace
 
 func agentRecordFromDefinition(agent aghconfig.AgentDef) AgentRecord {
 	return AgentRecord{
-		Name:         agent.Name,
-		Provider:     agent.Provider,
-		Command:      agent.Command,
-		Model:        agent.Model,
-		Tools:        agent.Tools,
-		Toolsets:     agent.Toolsets,
-		DenyTools:    agent.DenyTools,
-		Permissions:  agent.Permissions,
-		CategoryPath: agent.CategoryPath,
-		Prompt:       agent.Prompt,
+		Name:            agent.Name,
+		Provider:        agent.Provider,
+		Command:         agent.Command,
+		Model:           agent.Model,
+		ReasoningEffort: contract.ReasoningEffort(agent.ReasoningEffort),
+		Tools:           agent.Tools,
+		Toolsets:        agent.Toolsets,
+		DenyTools:       agent.DenyTools,
+		Permissions:     agent.Permissions,
+		CategoryPath:    agent.CategoryPath,
+		Prompt:          agent.Prompt,
 	}
 }
 
@@ -355,6 +368,7 @@ func agentBundle(item AgentRecord) outputBundle {
 				{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
 				{Label: cliCommandValue, Value: stringOrDash(item.Command)},
 				{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
+				{Label: agentReasoningEffortValue, Value: stringOrDash(string(item.ReasoningEffort))},
 				{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
 				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 				{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
@@ -382,6 +396,7 @@ func agentBundle(item AgentRecord) outputBundle {
 				cliProviderKey,
 				agentCommandKey,
 				agentModelKey,
+				agentReasoningEffortField,
 				agentCategoryKey,
 				"tools",
 				configPermissionsKey,
@@ -391,6 +406,7 @@ func agentBundle(item AgentRecord) outputBundle {
 				item.Provider,
 				item.Command,
 				item.Model,
+				string(item.ReasoningEffort),
 				agentCategoryLabel(item.CategoryPath),
 				strings.Join(item.Tools, "|"),
 				item.Permissions,

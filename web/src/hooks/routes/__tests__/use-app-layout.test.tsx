@@ -83,6 +83,7 @@ vi.mock("@/systems/agent", () => ({
     providersError: null,
     modelOptions: [],
     modelCatalogLoading: false,
+    modelCatalogLoaded: true,
     modelCatalogError: null,
     submitError: null,
     isSubmitting: false,
@@ -129,6 +130,16 @@ vi.mock("@/systems/model-catalog", async () => {
       mutateAsync: vi.fn(),
       isPending: false,
       error: null,
+    }),
+    useRuntimeModelCatalog: () => ({
+      models: [],
+      payloadsByProvider: {},
+      loading: false,
+      error: null,
+      stale: false,
+      refresh: vi.fn(),
+      refreshing: false,
+      refreshError: null,
     }),
   };
 });
@@ -249,8 +260,8 @@ describe("useAppLayout", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(result.current.sessionCreate.open).toBe(true);
     expect(result.current.sessionCreate.selectedAgentName).toBe("claude-agent");
-    expect(result.current.sessionCreate.selectedProvider).toBe("claude");
-    expect(result.current.sessionCreate.providerOptions.map(option => option.name)).toEqual([
+    expect(result.current.sessionCreate.runtimeValue.provider).toBe("claude");
+    expect(result.current.sessionCreate.runtimeProviders.map(option => option.id)).toEqual([
       "claude",
       "codex",
       "gemini",
@@ -265,7 +276,7 @@ describe("useAppLayout", () => {
     });
 
     expect(result.current.sessionCreate.selectedAgentName).toBe("codex-agent");
-    expect(result.current.sessionCreate.selectedProvider).toBe("codex");
+    expect(result.current.sessionCreate.runtimeValue.provider).toBe("codex");
   });
 
   it("uses the active workspace when querying agents and sessions", () => {
@@ -289,7 +300,7 @@ describe("useAppLayout", () => {
     });
 
     expect(result.current.sessionCreate.selectedAgentName).toBe("workspace-review");
-    expect(result.current.sessionCreate.selectedProvider).toBe("gemini");
+    expect(result.current.sessionCreate.runtimeValue.provider).toBe("gemini");
   });
 
   it("refreshes the exposed agents when the active workspace changes", () => {
@@ -353,7 +364,11 @@ describe("useAppLayout", () => {
     });
 
     act(() => {
-      result.current.sessionCreate.onProviderChange("gemini");
+      result.current.sessionCreate.onRuntimeChange({
+        provider: "gemini",
+        model: "",
+        reasoning_effort: "",
+      });
     });
 
     await act(async () => {

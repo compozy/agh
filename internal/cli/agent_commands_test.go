@@ -18,14 +18,15 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:         "coder",
-			Provider:     "fake",
-			Command:      "codex",
-			Model:        "gpt-5.4",
-			Tools:        []string{"shell", "git"},
-			Permissions:  "standard",
-			CategoryPath: []string{"Marketing", "Sales"},
-			Prompt:       "You are coder.",
+			Name:            "coder",
+			Provider:        "fake",
+			Command:         "codex",
+			Model:           "gpt-5.4",
+			ReasoningEffort: "max",
+			Tools:           []string{"shell", "git"},
+			Permissions:     "standard",
+			CategoryPath:    []string{"Marketing", "Sales"},
+			Prompt:          "You are coder.",
 			MCPServers: []AgentMCPServer{{
 				Name:    "github",
 				Command: "agh-github",
@@ -90,7 +91,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		}
 		if !strings.Contains(human, "Agent") || !strings.Contains(human, agent.Name) ||
 			!strings.Contains(human, "MCP Servers") ||
-			!strings.Contains(human, "Marketing / Sales") {
+			!strings.Contains(human, "Marketing / Sales") ||
+			!strings.Contains(human, "Reasoning Effort") ||
+			!strings.Contains(human, "max") {
 			t.Fatalf("agent info human output = %q, want agent details", human)
 		}
 
@@ -98,8 +101,12 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent info toon error = %v", err)
 		}
-		if !strings.Contains(toon, "agent{name,provider,command,model,category,tools,permissions,prompt}:") ||
-			!strings.Contains(toon, agent.Name) {
+		if !strings.Contains(
+			toon,
+			"agent{name,provider,command,model,reasoning_effort,category,tools,permissions,prompt}:",
+		) ||
+			!strings.Contains(toon, agent.Name) ||
+			!strings.Contains(toon, "max") {
 			t.Fatalf("agent info toon output = %q, want TOON agent object", toon)
 		}
 	})
@@ -193,7 +200,9 @@ func TestAgentCreateCommand(t *testing.T) {
 			"--provider",
 			"claude",
 			"--model",
-			"claude-sonnet-4-6",
+			"claude-sonnet-5",
+			"--reasoning-effort",
+			"max",
 			"--prompt",
 			"You own Ad8 pricing strategy.",
 			"--tool",
@@ -211,7 +220,8 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Fatalf("json.Unmarshal(agent create) error = %v", err)
 		}
 		if created.Name != "pricing_strategist" || created.Provider != "claude" ||
-			created.Model != "claude-sonnet-4-6" || created.Prompt != "You own Ad8 pricing strategy." {
+			created.Model != "claude-sonnet-5" || created.ReasoningEffort != "max" ||
+			created.Prompt != "You own Ad8 pricing strategy." {
 			t.Fatalf("created agent = %#v, want pricing strategist metadata", created)
 		}
 
@@ -234,7 +244,7 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
 		if len(loaded.Tools) != 1 || loaded.Name != created.Name || loaded.Provider != created.Provider ||
-			loaded.Tools[0] != "builtin__shell" {
+			loaded.ReasoningEffort != "max" || loaded.Tools[0] != "builtin__shell" {
 			t.Fatalf("loaded agent = %#v, want created agent definition", loaded)
 		}
 	})

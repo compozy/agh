@@ -197,6 +197,12 @@ type EventSequenceStore interface {
 	ListTaskEventRecords(ctx context.Context, query EventRecordQuery) ([]EventRecord, error)
 }
 
+// EventCommitObserverStore publishes immutable task events only after the
+// transaction that owns them has committed.
+type EventCommitObserverStore interface {
+	SetTaskEventCommitObserver(observer EventObserver)
+}
+
 // IdempotencyStore is the persistence surface for non-human run idempotency tracking.
 type IdempotencyStore interface {
 	GetTaskRunByIdempotencyKey(ctx context.Context, key string, origin Origin) (Run, error)

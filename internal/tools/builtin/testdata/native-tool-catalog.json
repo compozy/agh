@@ -7,7 +7,7 @@
         "read_only": false,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "c2c9d3250e8649d8fd71991d2d6ca8aa48e88ef93a0a7a74b8e278b2dc87d2fe",
+        "input_schema_digest": "c98588e234b30a629b673a3bb26a6dbc5c2e9f663b8e801aeff51d7d6972b788",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1370,6 +1370,18 @@
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
+        "tool_id": "agh__provider_models_curate",
+        "native_name": "provider_models_curate",
+        "toolsets": ["agh__provider_models"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "a4691b273ff24b936aad410578168bfa55cfaa879274a125f89513e44511dc32",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+        "required_capabilities": ["providers.models.write"]
+    },
+    {
         "tool_id": "agh__provider_models_list",
         "native_name": "provider_models_list",
         "toolsets": ["agh__provider_models"],
@@ -1377,7 +1389,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "b220f3dc9489e0a46259f42cb2d48077e1d0344a1985720844dd0d94fa0c1e3a",
+        "input_schema_digest": "6e8cd10a0d6310340b63ba8a2e3ce71a70b34f8fad09ee26416ec95cd8cdd580",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

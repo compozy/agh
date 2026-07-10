@@ -266,26 +266,6 @@ func providerProbeEnvForStart(
 	}
 }
 
-func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
-		Command:         resolved.Command,
-		DisplayName:     resolved.DisplayName,
-		Harness:         resolved.Harness,
-		RuntimeProvider: resolved.RuntimeProvider,
-		Transport:       resolved.Transport,
-		BaseURL:         resolved.BaseURL,
-		AuthMode:        resolved.AuthMode,
-		EnvPolicy:       resolved.EnvPolicy,
-		HomePolicy:      resolved.HomePolicy,
-		NoneSecurity:    resolved.NoneSecurity,
-		AuthStatusCmd:   resolved.AuthStatusCmd,
-		AuthLoginCmd:    resolved.AuthLoginCmd,
-		CredentialSlots: append(
-			[]aghconfig.ProviderCredentialSlot(nil),
-			resolved.CredentialSlots...),
-	}
-}
-
 func providerLookupEnv(env []string) func(string) (string, bool) {
 	values := make(map[string]string, len(env))
 	for _, entry := range env {

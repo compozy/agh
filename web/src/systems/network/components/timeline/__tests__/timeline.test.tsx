@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Timeline } from "../timeline";
+import { MessageTimeline } from "../timeline";
 import type { NetworkConversationMessage } from "../../../types";
 
 function makeMessage(overrides: Partial<NetworkConversationMessage>): NetworkConversationMessage {
@@ -25,10 +25,10 @@ function makeMessage(overrides: Partial<NetworkConversationMessage>): NetworkCon
   } as NetworkConversationMessage;
 }
 
-describe("Timeline", () => {
+describe("MessageTimeline", () => {
   it("Should render a full message row with avatar (announcing role + name) and body", () => {
     render(
-      <Timeline
+      <MessageTimeline
         messages={[
           makeMessage({
             message_id: "m1",
@@ -48,7 +48,7 @@ describe("Timeline", () => {
   });
 
   it("Should NOT render the role pill on message rows", () => {
-    render(<Timeline messages={[makeMessage({ message_id: "m1", text: "Sample" })]} />);
+    render(<MessageTimeline messages={[makeMessage({ message_id: "m1", text: "Sample" })]} />);
 
     expect(screen.queryByTestId("network-message-role-chip")).toBeNull();
     expect(screen.queryByText("agent")).toBeNull();
@@ -56,7 +56,7 @@ describe("Timeline", () => {
 
   it("Should render a collapsed continuation row", () => {
     render(
-      <Timeline
+      <MessageTimeline
         messages={[
           makeMessage({ message_id: "m1", timestamp: "2026-04-17T14:32:00Z" }),
           makeMessage({
@@ -75,13 +75,17 @@ describe("Timeline", () => {
   });
 
   it("Should never render a kind chip for kind say", () => {
-    render(<Timeline messages={[makeMessage({ message_id: "m1", text: "default kind" })]} />);
+    render(
+      <MessageTimeline messages={[makeMessage({ message_id: "m1", text: "default kind" })]} />
+    );
     expect(screen.queryByTestId("network-message-kind-chip")).toBeNull();
   });
 
   it("Should render system kinds as a single-line system row", () => {
     render(
-      <Timeline messages={[makeMessage({ kind: "trace", message_id: "m1", text: "tracing" })]} />
+      <MessageTimeline
+        messages={[makeMessage({ kind: "trace", message_id: "m1", text: "tracing" })]}
+      />
     );
 
     expect(screen.getByTestId("network-message-row-system")).toBeInTheDocument();
@@ -89,7 +93,7 @@ describe("Timeline", () => {
 
   it("Should render a date pill across midnight boundaries", () => {
     render(
-      <Timeline
+      <MessageTimeline
         messages={[
           makeMessage({ message_id: "m1", timestamp: "2026-04-17T23:50:00Z" }),
           makeMessage({ message_id: "m2", timestamp: "2026-04-18T00:10:00Z" }),
@@ -104,7 +108,7 @@ describe("Timeline", () => {
 
   it("Should render the New divider at the boundary of the last-read timestamp", () => {
     render(
-      <Timeline
+      <MessageTimeline
         lastReadAt="2026-04-17T14:32:30Z"
         messages={[
           makeMessage({ message_id: "m1", timestamp: "2026-04-17T14:32:00Z" }),
@@ -119,7 +123,7 @@ describe("Timeline", () => {
   it("Should reveal the timestamp on collapsed gutter hover", async () => {
     const user = userEvent.setup();
     render(
-      <Timeline
+      <MessageTimeline
         messages={[
           makeMessage({ message_id: "m1", timestamp: "2026-04-17T14:32:00Z" }),
           makeMessage({
@@ -139,14 +143,14 @@ describe("Timeline", () => {
   });
 
   it("Should NOT render the hover-toolbar reactions button", () => {
-    render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
+    render(<MessageTimeline messages={[makeMessage({ message_id: "m1" })]} />);
 
     expect(screen.queryByRole("button", { name: /add reaction/i })).toBeNull();
     expect(screen.queryByTestId("network-message-toolbar-react-m1")).toBeNull();
   });
 
   it("Should not render a message toolbar when no toolbar handlers are wired", () => {
-    render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
+    render(<MessageTimeline messages={[makeMessage({ message_id: "m1" })]} />);
 
     expect(screen.queryByTestId("network-message-toolbar-m1")).toBeNull();
     expect(screen.queryByRole("button", { name: /copy link/i })).toBeNull();
@@ -158,7 +162,7 @@ describe("Timeline", () => {
     const onCopyLink = vi.fn();
     const onCopyText = vi.fn();
     render(
-      <Timeline
+      <MessageTimeline
         messages={[makeMessage({ message_id: "m1", text: "Body" })]}
         toolbarHandlers={() => ({ onCopyLink, onCopyText })}
       />
@@ -180,7 +184,7 @@ describe("Timeline", () => {
 
   it("Should omit the Copy text action when only a link handler is wired", () => {
     render(
-      <Timeline
+      <MessageTimeline
         messages={[makeMessage({ message_id: "m1", text: "Body" })]}
         toolbarHandlers={() => ({ onCopyLink: vi.fn() })}
       />
@@ -192,7 +196,7 @@ describe("Timeline", () => {
 
   it("Should not declare any box-shadow on the timeline subtree", () => {
     render(
-      <Timeline
+      <MessageTimeline
         messages={[
           makeMessage({ message_id: "m1" }),
           makeMessage({ message_id: "m2", text: "next", timestamp: "2026-04-17T14:32:20Z" }),

@@ -18,10 +18,11 @@ import (
 const defaultModelCatalogRefreshTimeout = 10 * time.Second
 
 type modelCatalogRuntime struct {
-	service modelcatalog.Service
-	logger  *slog.Logger
-	now     func() time.Time
-	timeout time.Duration
+	service      modelcatalog.Service
+	logger       *slog.Logger
+	now          func() time.Time
+	timeout      time.Duration
+	configSource *modelcatalog.ProviderConfigSource
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -238,13 +239,29 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 	if err != nil {
 		return err
 	}
-	service, err := modelcatalog.NewService(store, sources)
+	reasoningApply, err := effectiveCatalogReasoningApply(&state.cfg)
+	if err != nil {
+		return err
+	}
+	service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{
+		ReasoningApply: reasoningApply,
+	})
 	if err != nil {
 		return fmt.Errorf("daemon: create model catalog service: %w", err)
+	}
+	if err := rehydrateStaticModelCatalogSources(ctx, service, d.now); err != nil {
+		return err
 	}
 	runtime, err := newModelCatalogRuntime(ctx, service, state.logger, d.now, sourceTimeout)
 	if err != nil {
 		return err
+	}
+	for _, source := range sources {
+		configSource, ok := source.(*modelcatalog.ProviderConfigSource)
+		if ok && configSource.ID() == modelcatalog.SourceIDConfig {
+			runtime.configSource = configSource
+			break
+		}
 	}
 	state.modelCatalog = runtime
 	if cleanup != nil {

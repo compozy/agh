@@ -63,7 +63,6 @@ function draftFor(entry: SettingsProviderEntry): ProviderDraft {
       .map(model => model.id)
       .filter(Boolean)
       .join("\n"),
-    curated_snapshot: (entry.settings.models?.curated ?? []).map(model => ({ ...model })),
     target_env: entry.settings.credential_slots?.[0]?.target_env ?? "",
     harness: entry.settings.harness ?? "acp",
     runtime_provider: entry.settings.runtime_provider ?? "",

@@ -6,6 +6,10 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  AllModelsListResponse,
+  AllModelsQuery,
+  AllModelsRefreshInput,
+  AllModelsRefreshResponse,
   ProviderModelsListResponse,
   ProviderModelsQuery,
   ProviderModelsRefreshInput,
@@ -46,6 +50,42 @@ export async function listProviderModels(
     );
   }
   return requireResponseData(data, response, `Failed to load models for "${providerId}"`);
+}
+
+export async function listAllModels(
+  input: AllModelsQuery,
+  signal?: AbortSignal
+): Promise<AllModelsListResponse> {
+  const query = buildAllModelsQuery(input);
+  const { data, error, response } = await apiClient.GET("/api/model-catalog/models", {
+    params: { query },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new ModelCatalogApiError(
+      defaultApiErrorMessage("Failed to load the model catalog", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to load the model catalog");
+}
+
+export async function refreshAllModels(
+  input: AllModelsRefreshInput,
+  signal?: AbortSignal
+): Promise<AllModelsRefreshResponse> {
+  const body = buildAllModelsRefreshBody(input);
+  const { data, error, response } = await apiClient.POST("/api/model-catalog/models/refresh", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new ModelCatalogApiError(
+      defaultApiErrorMessage("Failed to refresh the model catalog", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to refresh the model catalog");
 }
 
 export async function getProviderModelStatus(
@@ -105,8 +145,9 @@ export async function refreshProviderModels(
 function buildListQuery(input: ProviderModelsQuery): {
   source_id?: string;
   include_stale?: boolean;
+  view?: "curated" | "all";
 } {
-  const query: { source_id?: string; include_stale?: boolean } = {};
+  const query: { source_id?: string; include_stale?: boolean; view?: "curated" | "all" } = {};
   const sourceId = input.sourceId?.trim();
   if (sourceId) {
     query.source_id = sourceId;
@@ -114,7 +155,64 @@ function buildListQuery(input: ProviderModelsQuery): {
   if (input.includeStale) {
     query.include_stale = true;
   }
+  if (input.view) {
+    query.view = input.view;
+  }
   return query;
+}
+
+function buildAllModelsQuery(input: AllModelsQuery): {
+  provider_id?: string;
+  source_id?: string;
+  include_stale?: boolean;
+  refresh?: boolean;
+  view?: "curated" | "all";
+} {
+  const query: {
+    provider_id?: string;
+    source_id?: string;
+    include_stale?: boolean;
+    refresh?: boolean;
+    view?: "curated" | "all";
+  } = {};
+  const providerId = input.providerId?.trim();
+  if (providerId) {
+    query.provider_id = providerId;
+  }
+  const sourceId = input.sourceId?.trim();
+  if (sourceId) {
+    query.source_id = sourceId;
+  }
+  if (input.includeStale) {
+    query.include_stale = true;
+  }
+  if (input.refresh) {
+    query.refresh = true;
+  }
+  if (input.view) {
+    query.view = input.view;
+  }
+  return query;
+}
+
+function buildAllModelsRefreshBody(input: AllModelsRefreshInput): {
+  force?: boolean;
+  request_id?: string;
+  source_id?: string;
+} {
+  const body: { force?: boolean; request_id?: string; source_id?: string } = {};
+  const sourceId = input.sourceId?.trim();
+  if (sourceId) {
+    body.source_id = sourceId;
+  }
+  const requestId = input.requestId?.trim();
+  if (requestId) {
+    body.request_id = requestId;
+  }
+  if (input.force) {
+    body.force = true;
+  }
+  return body;
 }
 
 function buildRefreshBody(input: ProviderModelsRefreshInput): {

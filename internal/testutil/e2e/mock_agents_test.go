@@ -58,6 +58,41 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 			t.Fatalf("loaded.Command = %q, want no dist/index.js dependency", loaded.Command)
 		}
 	})
+
+	t.Run("Should preserve a real provider configuration with the fixture command", func(t *testing.T) {
+		t.Parallel()
+
+		fixturePath, err := filepath.Abs(filepath.Join("..", "acpmock", "testdata", "multi_agent_fixture.json"))
+		if err != nil {
+			t.Fatalf("filepath.Abs(fixture) error = %v", err)
+		}
+		homePaths := NewHomePaths(t)
+		harness := &RuntimeHarness{HomePaths: homePaths, Artifacts: NewArtifactCollector(t)}
+		registration := harness.RegisterMockAgent(t, MockAgentSpec{
+			FixturePath:  fixturePath,
+			FixtureAgent: "alpha",
+			AgentName:    "mock-codex",
+			ProviderName: "codex",
+		})
+		loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
+		}
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		resolved, err := cfg.ResolveAgent(loaded)
+		if err != nil {
+			t.Fatalf("ResolveAgent(mock-codex) error = %v", err)
+		}
+		if got, want := resolved.Provider, "codex"; got != want {
+			t.Fatalf("resolved.Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.Command, registration.Command; got != want {
+			t.Fatalf("resolved.Command = %q, want fixture command %q", got, want)
+		}
+		if got, want := resolved.Reasoning.Apply, aghconfig.ReasoningApplyACPOption; got != want {
+			t.Fatalf("resolved.Reasoning.Apply = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRuntimeHarnessMockAgentProviderConfig(t *testing.T) {

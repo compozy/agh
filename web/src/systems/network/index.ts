@@ -294,8 +294,8 @@ export {
   MessageRow,
   MessageRowCollapsed,
   MessageRowSystem,
+  MessageTimeline,
   NewDivider,
-  Timeline,
   readMessageBody,
 } from "./components/timeline";
 export type {
@@ -308,8 +308,8 @@ export type {
   MessageRowOptimisticHandlers,
   MessageRowProps,
   MessageRowSystemProps,
+  MessageTimelineProps,
   NewDividerProps,
-  TimelineProps,
 } from "./components/timeline";
 
 // Components — thread overlay subtree

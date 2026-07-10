@@ -4,14 +4,20 @@ import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
-import type {
-  ProviderModelsListResponse,
-  ProviderModelsRefreshResponse,
-} from "@/systems/model-catalog";
+import type { AllModelsListResponse, AllModelsRefreshResponse } from "@/systems/model-catalog";
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
 import { useSessionCreateDialog } from "../use-session-create-dialog";
+
+type ProviderModelPayload = AllModelsListResponse["models"][number];
+
+const visibleCatalogFlags = {
+  curated: true,
+  deprecated: false,
+  featured: false,
+  hidden: false,
+} satisfies Pick<ProviderModelPayload, "curated" | "deprecated" | "featured" | "hidden">;
 
 const {
   mockNavigate,
@@ -19,16 +25,16 @@ const {
   mockToastError,
   mockUseCreateSessionPending,
   mockWorkspaceQuery,
-  mockListProviderModels,
-  mockRefreshProviderModels,
+  mockListAllModels,
+  mockRefreshAllModels,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
   mockToastError: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
   mockWorkspaceQuery: vi.fn(),
-  mockListProviderModels: vi.fn<(input: unknown) => Promise<ProviderModelsListResponse>>(),
-  mockRefreshProviderModels: vi.fn<(input: unknown) => Promise<ProviderModelsRefreshResponse>>(),
+  mockListAllModels: vi.fn<(input: unknown) => Promise<AllModelsListResponse>>(),
+  mockRefreshAllModels: vi.fn<(input: unknown) => Promise<AllModelsRefreshResponse>>(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -57,8 +63,8 @@ vi.mock("@/systems/model-catalog/adapters/model-catalog-api", async () => {
   >("@/systems/model-catalog/adapters/model-catalog-api");
   return {
     ...actual,
-    listProviderModels: (...args: unknown[]) => mockListProviderModels(args[0]),
-    refreshProviderModels: (...args: unknown[]) => mockRefreshProviderModels(args[0]),
+    listAllModels: (...args: unknown[]) => mockListAllModels(args[0]),
+    refreshAllModels: (...args: unknown[]) => mockRefreshAllModels(args[0]),
   };
 });
 
@@ -107,9 +113,10 @@ let workspaceQueryResult: {
   error: Error | null;
 };
 
-const codexCatalog: ProviderModelsListResponse = {
+const codexCatalog: AllModelsListResponse = {
   models: [
     {
+      ...visibleCatalogFlags,
       provider_id: "codex",
       model_id: "gpt-5.4",
       display_name: "GPT-5.4",
@@ -131,6 +138,7 @@ const codexCatalog: ProviderModelsListResponse = {
       default_reasoning_effort: "medium",
     },
     {
+      ...visibleCatalogFlags,
       provider_id: "codex",
       model_id: "gpt-5.4-mini",
       display_name: "GPT-5.4 Mini",
@@ -183,10 +191,10 @@ describe("useSessionCreateDialog", () => {
     };
 
     mockWorkspaceQuery.mockImplementation(() => workspaceQueryResult);
-    mockListProviderModels.mockReset();
-    mockListProviderModels.mockResolvedValue(codexCatalog);
-    mockRefreshProviderModels.mockReset();
-    mockRefreshProviderModels.mockResolvedValue({
+    mockListAllModels.mockReset();
+    mockListAllModels.mockResolvedValue(codexCatalog);
+    mockRefreshAllModels.mockReset();
+    mockRefreshAllModels.mockResolvedValue({
       sources: [
         {
           source_id: "models_dev",
@@ -222,7 +230,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     expect(result.current.selectedAgentName).toBe("codex-agent");
-    expect(result.current.selectedProvider).toBe("");
+    expect(result.current.runtimeValue.provider).toBe("");
 
     workspaceQueryResult = {
       data: {
@@ -235,7 +243,7 @@ describe("useSessionCreateDialog", () => {
 
     rerender();
 
-    expect(result.current.selectedProvider).toBe("codex");
+    expect(result.current.runtimeValue.provider).toBe("codex");
 
     await act(async () => {
       await result.current.submit();
@@ -252,6 +260,24 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
+  it("Should map workspace providers onto the runtime rail options", () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    expect(result.current.hasProviderOptions).toBe(true);
+    expect(result.current.runtimeProviders.map(option => option.id)).toEqual([
+      "claude",
+      "codex",
+      "gemini",
+    ]);
+  });
+
   it("Should clear an explicit provider override when the operator changes agents", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -262,29 +288,29 @@ describe("useSessionCreateDialog", () => {
       result.current.openForAgent("claude-agent");
     });
 
-    expect(result.current.selectedProvider).toBe("claude");
+    expect(result.current.runtimeValue.provider).toBe("claude");
 
     act(() => {
-      result.current.onProviderChange("gemini");
+      result.current.onRuntimeChange({ provider: "gemini", model: "", reasoning_effort: "" });
     });
 
-    expect(result.current.selectedProvider).toBe("gemini");
+    expect(result.current.runtimeValue.provider).toBe("gemini");
 
     act(() => {
       result.current.onAgentChange("codex-agent");
     });
 
     expect(result.current.selectedAgentName).toBe("codex-agent");
-    expect(result.current.selectedProvider).toBe("codex");
+    expect(result.current.runtimeValue.provider).toBe("codex");
   });
 
-  it("Should expose deduped catalog models for the selected provider", async () => {
-    mockListProviderModels.mockResolvedValueOnce({
+  it("Should expose deduped runtime models for the selected provider using the all view", async () => {
+    mockListAllModels.mockResolvedValueOnce({
       models: [
         codexCatalog.models[0],
         codexCatalog.models[1],
         codexCatalog.models[0],
-      ] as ProviderModelsListResponse["models"],
+      ] as AllModelsListResponse["models"],
     });
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -296,16 +322,20 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.modelOptions).toHaveLength(2);
+      expect(result.current.runtimeModels).toHaveLength(2);
     });
-    expect(result.current.modelOptions.map(option => option.id)).toEqual([
+    expect(result.current.runtimeModels.map(option => option.id)).toEqual([
       "gpt-5.4",
       "gpt-5.4-mini",
     ]);
+    // Single aggregate `view=all` request across providers — never per-provider.
+    expect(mockListAllModels).toHaveBeenCalledWith(
+      expect.objectContaining({ includeStale: true, view: "all" })
+    );
   });
 
   it("Should keep manual model entry available when the catalog is empty", async () => {
-    mockListProviderModels.mockResolvedValueOnce({ models: [] });
+    mockListAllModels.mockResolvedValueOnce({ models: [] });
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -319,10 +349,14 @@ describe("useSessionCreateDialog", () => {
     await waitFor(() => {
       expect(result.current.catalogLoading).toBe(false);
     });
-    expect(result.current.modelOptions).toEqual([]);
+    expect(result.current.runtimeModels).toEqual([]);
 
     act(() => {
-      result.current.onModelChange("custom-experimental");
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "custom-experimental",
+        reasoning_effort: "",
+      });
     });
 
     await act(async () => {
@@ -348,17 +382,21 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.modelOptions).toHaveLength(2);
+      expect(result.current.runtimeModels).toHaveLength(2);
     });
 
     expect(result.current.catalogStale).toBe(true);
-    const staleOption = result.current.modelOptions.find(option => option.id === "gpt-5.4-mini");
-    expect(staleOption?.availabilityState).toBe("available_stale");
-    const liveOption = result.current.modelOptions.find(option => option.id === "gpt-5.4");
-    expect(liveOption?.availabilityState).toBe("available_live");
+    const staleOption = result.current.runtimeModels.find(option => option.id === "gpt-5.4-mini");
+    expect(staleOption?.availability).toBe("stale");
+    const liveOption = result.current.runtimeModels.find(option => option.id === "gpt-5.4");
+    expect(liveOption?.availability).toBe("live");
 
     act(() => {
-      result.current.onModelChange("gpt-5.4-mini");
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.4-mini",
+        reasoning_effort: "",
+      });
     });
 
     await act(async () => {
@@ -374,8 +412,8 @@ describe("useSessionCreateDialog", () => {
   });
 
   it("Should surface catalog source errors without blocking manual entry", async () => {
-    mockListProviderModels.mockReset();
-    mockListProviderModels.mockRejectedValue(new Error("catalog upstream failed"));
+    mockListAllModels.mockReset();
+    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -392,10 +430,14 @@ describe("useSessionCreateDialog", () => {
       },
       { timeout: 5000 }
     );
-    expect(result.current.modelOptions).toEqual([]);
+    expect(result.current.runtimeModels).toEqual([]);
 
     act(() => {
-      result.current.onModelChange("manual-fallback");
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "manual-fallback",
+        reasoning_effort: "",
+      });
     });
 
     await act(async () => {
@@ -423,7 +465,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.modelOptions).toHaveLength(2);
+      expect(result.current.runtimeModels).toHaveLength(2);
     });
 
     act(() => {
@@ -431,17 +473,15 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(mockRefreshProviderModels).toHaveBeenCalledWith({
-        providerId: "codex",
-        force: true,
-      });
+      // The refresh affordance truthfully refreshes the whole catalog.
+      expect(mockRefreshAllModels).toHaveBeenCalledWith({});
     });
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalled();
     });
   });
 
-  it("Should submit selected model and reasoning overrides only when populated", async () => {
+  it("Should thread the model and reasoning override when the model supports reasoning", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
@@ -452,28 +492,22 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.modelOptions.length).toBeGreaterThan(0);
+      expect(result.current.runtimeModels.length).toBeGreaterThan(0);
     });
 
     act(() => {
-      result.current.onModelChange("gpt-5.4-mini");
-    });
-    expect(result.current.reasoningSupported).toBe(false);
-
-    act(() => {
-      result.current.onModelChange("gpt-5.4");
-    });
-    expect(result.current.reasoningSupported).toBe(true);
-
-    act(() => {
-      result.current.onReasoningChange("high");
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoning_effort: "high",
+      });
     });
 
     await act(async () => {
       await result.current.submit();
     });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
+    expect(mockMutateAsync).toHaveBeenLastCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
       provider: "codex",
@@ -482,11 +516,46 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
+  it("Should omit the reasoning override when the selected model lacks reasoning support", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.runtimeModels.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.4-mini",
+        reasoning_effort: "high",
+      });
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenLastCalledWith({
+      agent_name: "codex-agent",
+      workspace: "ws_alpha",
+      provider: "codex",
+      model: "gpt-5.4-mini",
+    });
+  });
+
   it("Should submit reasoning for an agent default model without sending a model override", async () => {
-    mockListProviderModels.mockResolvedValueOnce({
+    mockListAllModels.mockResolvedValueOnce({
       models: [
         ...codexCatalog.models,
         {
+          ...visibleCatalogFlags,
           provider_id: "codex",
           model_id: "gpt-5.5",
           display_name: "GPT-5.5",
@@ -520,24 +589,98 @@ describe("useSessionCreateDialog", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.reasoningSupported).toBe(true);
+      expect(result.current.runtimeModels.some(option => option.id === "gpt-5.5")).toBe(true);
     });
-    expect(result.current.selectedModel).toBe("");
-    expect(result.current.defaultReasoning).toBe("medium");
+    // The inherited agent-default model is RENDERED so its reasoning is reachable…
+    expect(result.current.runtimeValue.model).toBe("gpt-5.5");
 
     act(() => {
-      result.current.onReasoningChange("high");
+      // …and the selector emits the effective model with the chosen effort.
+      result.current.onRuntimeChange({
+        provider: "codex",
+        model: "gpt-5.5",
+        reasoning_effort: "high",
+      });
     });
 
     await act(async () => {
       await result.current.submit();
     });
 
+    // …but the POST omits `model` (still inherited) while sending reasoning_effort.
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
       provider: "codex",
       reasoning_effort: "high",
+    });
+  });
+
+  it("Should send the model when the same model id is chosen under a different provider", async () => {
+    // The same canonical id exists under BOTH codex and claude. The agent default
+    // is codex/gpt-5.5; picking gpt-5.5 under CLAUDE must ship the model with the
+    // chosen provider (compound identity), never silently inherit the codex default.
+    const sharedModel = {
+      ...visibleCatalogFlags,
+      model_id: "gpt-5.5",
+      display_name: "GPT-5.5",
+      availability_state: "available_live",
+      available: true,
+      stale: false,
+      refreshed_at: "2026-05-07T10:00:00Z",
+      sources: [
+        {
+          source_id: "config",
+          source_kind: "config",
+          priority: 120,
+          refreshed_at: "2026-05-07T10:00:00Z",
+          stale: false,
+        },
+      ],
+      supports_reasoning: false,
+    };
+    mockListAllModels.mockResolvedValueOnce({
+      models: [
+        ...codexCatalog.models,
+        { ...sharedModel, provider_id: "codex" },
+        { ...sharedModel, provider_id: "claude" },
+      ],
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialog({ agents: agentsWithDefaultModel, activeWorkspace }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(() => {
+      expect(
+        result.current.runtimeModels.some(
+          option => option.id === "gpt-5.5" && option.provider === "claude"
+        )
+      ).toBe(true);
+    });
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "claude",
+        model: "gpt-5.5",
+        reasoning_effort: "",
+      });
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenLastCalledWith({
+      agent_name: "codex-agent",
+      workspace: "ws_alpha",
+      provider: "claude",
+      model: "gpt-5.5",
     });
   });
 });

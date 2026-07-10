@@ -83,7 +83,7 @@ QA), not pytest-style assertions. Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` or `claude-sonnet-4-6` per
+- Uses real Claude Code (`claude-opus-4-8` or `claude-sonnet-5` per
   scenario) as the subprocess agent driver, not mocks. OpenClaw and Hermes
   are referenced where their behavior differs.
 - Emits four artifacts under `.artifacts/qa/<run-id>/aut-XX/`:
@@ -102,7 +102,7 @@ parallel under unique worktree isolation.
 
 | Mode                | When                                                                                              | Driver                                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code`  | Default for all scenarios that exercise real subagent behavior, lineage, hook dispatch, spawn cap | `claude-opus-4-7[1m]` for the parent coordinator; `claude-sonnet-4-6` for the spawned children where indicated.                                 |
+| `real-claude-code`  | Default for all scenarios that exercise real subagent behavior, lineage, hook dispatch, spawn cap | `claude-opus-4-8` for the parent coordinator; `claude-sonnet-5` for the spawned children where indicated.                                 |
 | `real-openclaw`     | Cross-driver sanity (AUT-09 only) to prove the autonomy kernel is driver-agnostic                 | OpenClaw bundled-plugin runtime via the AGH ACP client.                                                                                         |
 | `real-hermes`       | Reference comparison only (AUT-09 only)                                                           | Hermes via ACP.                                                                                                                                 |
 | `mock-acp` (gate)   | Determinism gate for race-sensitive scenarios where real models add nondeterminism (AUT-01 only). | `internal/e2elane` mock ACP server used only to make a 5-way race deterministic; the surrounding daemon runs real code paths.                    |

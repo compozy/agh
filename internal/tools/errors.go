@@ -56,6 +56,10 @@ const (
 	ErrorCodeCanceled ErrorCode = "tool_canceled"
 	// ErrorCodeTimedOut maps to ErrToolTimedOut.
 	ErrorCodeTimedOut ErrorCode = "tool_timed_out"
+	// ErrorCodeModelNotFound reports an unknown provider-model curation target.
+	ErrorCodeModelNotFound ErrorCode = "model_not_found"
+	// ErrorCodeReasoningEffortUnsupported reports an unavailable model effort.
+	ErrorCodeReasoningEffortUnsupported ErrorCode = "reasoning_effort_unsupported"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

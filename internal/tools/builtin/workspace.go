@@ -91,6 +91,7 @@ const agentCreateInputSchema = `{
 		"name":{"type":"string"},
 		"provider":{"type":"string"},
 		"model":{"type":"string"},
+		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
 		"command":{"type":"string"},
 		"prompt":{"type":"string"},
 		"permissions":{"type":"string","enum":["deny-all","approve-reads","approve-all"]},

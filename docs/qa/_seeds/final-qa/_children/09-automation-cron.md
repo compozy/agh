@@ -89,7 +89,7 @@ QA), not pytest-style assertions. Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` or `claude-sonnet-4-6` per
+- Uses real Claude Code (`claude-opus-4-8` or `claude-sonnet-5` per
   scenario) as the subprocess agent driver. Cron-driven prompts hit the real
   driver, and the transcript proves the prompt fired on the cadence the
   scheduler claims it did.
@@ -112,7 +112,7 @@ worktree isolation.
 
 | Mode                | When                                                                                                                | Driver                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code`  | Default for every scenario where the cron-fired prompt must reach a real LLM and the transcript is the proof.      | `claude-opus-4-7[1m]` (parent automation prompts); `claude-sonnet-4-6` for cheap cron-loop scenarios (CRN-01).                  |
+| `real-claude-code`  | Default for every scenario where the cron-fired prompt must reach a real LLM and the transcript is the proof.      | `claude-opus-4-8` (parent automation prompts); `claude-sonnet-5` for cheap cron-loop scenarios (CRN-01).                  |
 | `mock-acp` (gate)   | Determinism gate for race-sensitive scenarios where real models add nondeterminism (CRN-12, CRN-15).               | `internal/e2elane` mock ACP server used only to stabilize a race; the surrounding daemon, scheduler, and dispatcher are real.   |
 
 `mock-acp` is the AGH equivalent of openclaw `mock-openai`; `real-claude-code`
@@ -182,7 +182,7 @@ live: true
 provider: real-claude-code
 preconditions:
   - Fresh AGH_HOME with `automation.enabled = true`, timezone UTC.
-  - One agent definition that points at Claude Code (`claude-sonnet-4-6` is fine; we just need a transcript).
+  - One agent definition that points at Claude Code (`claude-sonnet-5` is fine; we just need a transcript).
   - Host wall clock NTP-synchronized within ±1s.
 docs_refs:
   - /Users/pedronauck/Dev/compozy/agh/internal/CLAUDE.md

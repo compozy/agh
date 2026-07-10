@@ -21,7 +21,8 @@ Runtime configuration starts from $AGH_HOME/config.toml, then workspace configur
     ---
     name: general
     provider: claude
-    model: claude-sonnet-4-6
+    model: claude-sonnet-5
+    reasoning_effort: max
     permissions: approve-all
     ---
     You are a reliable software engineering agent.
@@ -31,7 +32,8 @@ The prompt body is required. AGH rejects an agent definition with no prompt.
 ## Fields
 
 - name is required and must match the directory name for filesystem-loaded agents.
-- provider, model, and command can be omitted when provider defaults supply them.
+- provider, model, reasoning_effort, and command can be omitted when defaults supply them.
+- reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; session override wins over AGENT.md, and empty keeps the provider/adapter default.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as agh\_\_catalog.
 - deny_tools narrows grants.
@@ -65,7 +67,7 @@ Public authoring surfaces reject attempts to create an agent named `onboarding`.
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
 
-Agent `model` values are launch-time preferences. After a session starts, AGH can change model or reasoning controls only through active ACP `configOptions` advertised by the provider. If no model override is requested and the agent does not advertise a model config option, the session keeps its launch/default model. If a model override is requested without an advertised model config option, session start or resume fails with an explicit error; AGH does not call a legacy model-switch RPC.
+Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. AGH applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. AGH never aliases an unknown model or falls back to the provider default.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
@@ -84,4 +86,4 @@ If AGH rejects the agent, inspect missing name, invalid permissions, empty promp
 
 Provider aliases are small built-in conveniences, not user-configured compatibility keys. `claude-code` resolves to the canonical `claude` provider; aliases such as `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen` resolve before launch. Config files must still reference canonical provider IDs, and the removed `providers.<id>.aliases` key is rejected.
 
-Settings writes are governed by the config apply lifecycle. After changing provider defaults, MCP sidecars, sandboxes, hooks, or skills config, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `agh config apply-history -o json`. New-session or restart-required changes are not active for already-running sessions unless the lifecycle says they are.
+Settings writes are governed by the config apply lifecycle. Provider model-only changes are live; provider command/auth changes remain restart-required. After config edits, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `agh config apply-history -o json`.

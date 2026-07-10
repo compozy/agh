@@ -7,7 +7,7 @@ import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { PermissionDataPart } from "@/systems/session/components/permission-prompt";
 import { RuntimeActivityNotice } from "@/systems/session/components/runtime-activity-notice";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
-import { ToolCallRow } from "@/systems/session/components/tool-call-card";
+import { SessionToolCallRow } from "@/systems/session/components/tool-call-card";
 import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
 import { isAgentEventPayload, resolveToolResult } from "@/systems/session/lib/message-parts";
 import type { AghPermissionData } from "@/systems/session/types";
@@ -199,7 +199,11 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
         <Eyebrow className="mb-0.5 px-1 text-subtle">{row.entries.length} tool calls</Eyebrow>
       ) : null}
       {tools.map(tool => (
-        <ToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled={!row.active} />
+        <SessionToolCallRow
+          key={tool.id}
+          message={toolMessageFromPart(tool)}
+          turnSettled={!row.active}
+        />
       ))}
     </div>
   );

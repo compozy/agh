@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -261,15 +260,22 @@ func (a *mockAgent) SetSessionConfigOption(
 			"acpmock-driver: only value-id session config options are supported",
 		)
 	}
-	if err := a.setConfigOptionValue(
-		string(request.ValueId.SessionId),
-		string(request.ValueId.ConfigId),
-		string(request.ValueId.Value),
+	sessionID := string(request.ValueId.SessionId)
+	configID := string(request.ValueId.ConfigId)
+	value := string(request.ValueId.Value)
+	if err := a.setConfigOptionValue(sessionID, configID, value); err != nil {
+		return acpsdk.SetSessionConfigOptionResponse{}, err
+	}
+	if err := a.writeProtocolDiagnostics(
+		acpsdk.AgentMethodSessionSetConfigOption,
+		sessionID,
+		configID,
+		value,
 	); err != nil {
 		return acpsdk.SetSessionConfigOptionResponse{}, err
 	}
 	return acpsdk.SetSessionConfigOptionResponse{
-		ConfigOptions: a.sessionConfigOptions(string(request.ValueId.SessionId)),
+		ConfigOptions: a.sessionConfigOptions(sessionID),
 	}, nil
 }
 
@@ -403,6 +409,9 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 		return acpsdk.PromptResponse{}, errors.New("sessionId is required")
 	}
 	a.ensurePromptSession(sessionID)
+	if err := a.writeProtocolDiagnostics(acpsdk.AgentMethodSessionPrompt, sessionID, "", ""); err != nil {
+		return acpsdk.PromptResponse{}, err
+	}
 
 	promptMeta, err := decodePromptMeta(params.Meta)
 	if err != nil {
@@ -826,29 +835,6 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 	default:
 		return fmt.Errorf("unsupported driver_control action %s", control.Action)
 	}
-}
-
-func (a *mockAgent) writeDiagnostics(record acpmock.DiagnosticsRecord) error {
-	if strings.TrimSpace(a.diagnosticsPath) == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(a.diagnosticsPath), 0o755); err != nil {
-		return fmt.Errorf("create diagnostics directory %q: %w", filepath.Dir(a.diagnosticsPath), err)
-	}
-	file, err := os.OpenFile(a.diagnosticsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return fmt.Errorf("open diagnostics %q: %w", a.diagnosticsPath, err)
-	}
-	defer func() { _ = file.Close() }()
-
-	data, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("encode diagnostics: %w", err)
-	}
-	if _, err := file.Write(append(data, '\n')); err != nil {
-		return fmt.Errorf("write diagnostics %q: %w", a.diagnosticsPath, err)
-	}
-	return nil
 }
 
 func sandboxDescriptor(step acpmock.Step) (string, string) {

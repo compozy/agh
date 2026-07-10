@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
@@ -27,6 +28,7 @@ type MockAgentSpec struct {
 	FixturePath     string
 	FixtureAgent    string
 	AgentName       string
+	ProviderName    string
 	DiagnosticsPath string
 }
 
@@ -286,11 +288,15 @@ func registerMockAgent(
 		return acpmock.Registration{}, err
 	}
 
+	providerName := strings.TrimSpace(spec.ProviderName)
+	if providerName == "" {
+		providerName = acpmock.ProviderName
+	}
 	return acpmock.Register(homePaths, acpmock.RegisterOptions{
 		FixturePath:     spec.FixturePath,
 		FixtureAgent:    spec.FixtureAgent,
 		AgentName:       spec.AgentName,
-		ProviderName:    acpmock.ProviderName,
+		ProviderName:    providerName,
 		DiagnosticsPath: diagnosticsPath,
 	})
 }

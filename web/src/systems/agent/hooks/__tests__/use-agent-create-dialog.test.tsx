@@ -1,46 +1,56 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockCreateAgent, mockNavigate, mockSettingsProviders, mockToastError, mockProviderModels } =
-  vi.hoisted(() => ({
-    mockCreateAgent: vi.fn(),
-    mockNavigate: vi.fn(),
-    mockSettingsProviders: {
-      data: {
-        providers: [
-          {
-            name: "claude",
-            settings: {
-              display_name: "Claude Code",
-              harness: "acp",
-              runtime_provider: "claude",
-            },
+const {
+  mockCreateAgent,
+  mockNavigate,
+  mockSettingsProviders,
+  mockToastError,
+  mockRuntimeCatalog,
+  mockRefreshCatalog,
+} = vi.hoisted(() => ({
+  mockCreateAgent: vi.fn(),
+  mockNavigate: vi.fn(),
+  mockSettingsProviders: {
+    data: {
+      providers: [
+        {
+          name: "claude",
+          settings: {
+            display_name: "Claude Code",
+            harness: "acp",
+            runtime_provider: "claude",
           },
-        ],
-      } as
-        | {
-            providers: Array<{
-              name: string;
-              settings: {
-                display_name?: string;
-                harness?: string;
-                runtime_provider?: string;
-              };
-            }>;
-          }
-        | undefined,
-      isLoading: false,
-      isFetching: false,
-      error: null as Error | null,
-    },
-    mockToastError: vi.fn(),
-    mockProviderModels: {
-      data: { models: [{ model_id: "gpt-5.4" }, { model_id: "gpt-5.4-mini" }] },
-      isLoading: false,
-      isFetching: false,
-      error: null as Error | null,
-    },
-  }));
+        },
+      ],
+    } as
+      | {
+          providers: Array<{
+            name: string;
+            settings: {
+              display_name?: string;
+              harness?: string;
+              runtime_provider?: string;
+            };
+          }>;
+        }
+      | undefined,
+    isLoading: false,
+    isFetching: false,
+    error: null as Error | null,
+  },
+  mockToastError: vi.fn(),
+  mockRefreshCatalog: vi.fn(),
+  mockRuntimeCatalog: {
+    models: [] as unknown[],
+    payloadsByProvider: {} as Record<string, unknown[]>,
+    loading: false,
+    error: null as string | null,
+    stale: false,
+    refreshing: false,
+    refreshError: null as string | null,
+  },
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -57,7 +67,8 @@ vi.mock("@/systems/settings", () => ({
 }));
 
 vi.mock("@/systems/model-catalog", () => ({
-  useProviderModels: () => mockProviderModels,
+  providerNeedsAuth: () => false,
+  useRuntimeModelCatalog: () => ({ ...mockRuntimeCatalog, refresh: mockRefreshCatalog }),
 }));
 
 vi.mock("../use-agents", () => ({
@@ -131,12 +142,14 @@ describe("useAgentCreateDialog", () => {
     mockSettingsProviders.isLoading = false;
     mockSettingsProviders.isFetching = false;
     mockSettingsProviders.error = null;
-    mockProviderModels.data = {
-      models: [{ model_id: "gpt-5.4" }, { model_id: "gpt-5.4-mini" }],
-    };
-    mockProviderModels.isLoading = false;
-    mockProviderModels.isFetching = false;
-    mockProviderModels.error = null;
+    mockRefreshCatalog.mockReset();
+    mockRuntimeCatalog.models = [];
+    mockRuntimeCatalog.payloadsByProvider = {};
+    mockRuntimeCatalog.loading = false;
+    mockRuntimeCatalog.error = null;
+    mockRuntimeCatalog.stale = false;
+    mockRuntimeCatalog.refreshing = false;
+    mockRuntimeCatalog.refreshError = null;
   });
 
   it("defaults creation to the active workspace", () => {
@@ -148,7 +161,9 @@ describe("useAgentCreateDialog", () => {
 
     expect(result.current.open).toBe(true);
     expect(result.current.draft.scope).toBe("workspace");
-    expect(result.current.providerOptions.map(option => option.name)).toEqual(["codex"]);
+    // Identity is the provider id; name now surfaces the workspace display name.
+    expect(result.current.providerOptions.map(option => option.id)).toEqual(["codex"]);
+    expect(result.current.providerOptions[0]?.name).toBe("Codex");
   });
 
   it("uses global settings-backed providers after switching scope", () => {
@@ -159,8 +174,10 @@ describe("useAgentCreateDialog", () => {
       result.current.onDraftChange({ ...result.current.draft, scope: "global", provider: "" });
     });
 
-    expect(result.current.providerOptions.map(option => option.name)).toEqual(["claude"]);
-    expect(result.current.providerOptions[0]?.display_name).toBe("Claude Code");
+    // The runtime provider option surfaces the settings display name (display_name → name).
+    expect(result.current.providerOptions[0]?.name).toBe("Claude Code");
+    expect(result.current.providerOptions[0]?.harness).toBe("acp");
+    expect(result.current.providerOptions[0]?.runtime_provider).toBe("claude");
   });
 
   it("submits a workspace create request and navigates to the created agent", async () => {
@@ -174,6 +191,7 @@ describe("useAgentCreateDialog", () => {
         categoryPath: "Engineering/Release",
         provider: "codex",
         model: "gpt-5.4",
+        reasoningEffort: "high",
         prompt: "Own release readiness.",
         tools: ["agh__skill_view"],
         toolsets: ["agh__catalog"],
@@ -195,6 +213,7 @@ describe("useAgentCreateDialog", () => {
         provider: "codex",
         prompt: "Own release readiness.",
         model: "gpt-5.4",
+        reasoning_effort: "high",
         tools: ["agh__skill_view"],
         toolsets: ["agh__catalog"],
         deny_tools: ["agh__task_*"],
@@ -208,6 +227,33 @@ describe("useAgentCreateDialog", () => {
       params: { name: "release-captain" },
     });
     expect(result.current.open).toBe(false);
+  });
+
+  it("fails closed and keeps the dialog open when a corrupt draft carries an off-contract reasoning effort", async () => {
+    const { result } = renderAgentCreateDialog();
+
+    // Simulate a corrupt/foreign draft carrying an off-contract effort. It must
+    // fail closed BEFORE any wire call — never silently stripped and submitted. A
+    // compile-time type alone can't protect the wire from untrusted persisted state.
+    const corruptDraft = {
+      ...result.current.draft,
+      name: "release-captain",
+      provider: "codex",
+      prompt: "Own release readiness.",
+      reasoningEffort: "ultra",
+    };
+    act(() => {
+      result.current.openDialog();
+      result.current.onDraftChange(corruptDraft as typeof result.current.draft);
+    });
+
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+
+    expect(mockCreateAgent).not.toHaveBeenCalled();
+    expect(result.current.open).toBe(true);
+    expect(result.current.submitError).toBe("Choose a valid reasoning effort.");
   });
 
   it("keeps the dialog open and reports submit failures", async () => {

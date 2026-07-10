@@ -19,6 +19,18 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify provider model changes as live",
+			path:          "providers.codex.models",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should classify provider model descendants as live",
+			path:          "providers.codex.models.curated",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify provider descendants as restart required",
 			path:          "providers.codex.command",
 			wantLifecycle: RestartRequired,
@@ -92,7 +104,7 @@ func TestClassifyPaths(t *testing.T) {
 		t.Parallel()
 
 		gotLifecycle, gotDiffClass, err := ClassifyPaths([]string{
-			"daemon.reload_timeouts.providers",
+			"providers.codex.models",
 			"providers.codex.command",
 		})
 		if err != nil {

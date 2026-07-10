@@ -32,19 +32,20 @@ type networkChannelUpdateInput struct {
 }
 
 type agentCreateInput struct {
-	Scope          string   `json:"scope"`
-	Workspace      string   `json:"workspace,omitempty"`
-	Name           string   `json:"name"`
-	Provider       string   `json:"provider"`
-	Model          string   `json:"model,omitempty"`
-	Command        string   `json:"command,omitempty"`
-	Prompt         string   `json:"prompt"`
-	Permissions    string   `json:"permissions,omitempty"`
-	Tools          []string `json:"tools,omitempty"`
-	Toolsets       []string `json:"toolsets,omitempty"`
-	DenyTools      []string `json:"deny_tools,omitempty"`
-	CategoryPath   []string `json:"category_path,omitempty"`
-	DisabledSkills []string `json:"disabled_skills,omitempty"`
+	Scope           string   `json:"scope"`
+	Workspace       string   `json:"workspace,omitempty"`
+	Name            string   `json:"name"`
+	Provider        string   `json:"provider"`
+	Model           string   `json:"model,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	Command         string   `json:"command,omitempty"`
+	Prompt          string   `json:"prompt"`
+	Permissions     string   `json:"permissions,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	Toolsets        []string `json:"toolsets,omitempty"`
+	DenyTools       []string `json:"deny_tools,omitempty"`
+	CategoryPath    []string `json:"category_path,omitempty"`
+	DisabledSkills  []string `json:"disabled_skills,omitempty"`
 }
 
 func (n *daemonNativeTools) networkChannelCreate(
@@ -184,16 +185,17 @@ func (n *daemonNativeTools) agentCreateRequest(
 		Scope:     contract.AgentCreateScope(strings.TrimSpace(input.Scope)),
 		Workspace: strings.TrimSpace(input.Workspace),
 		Agent: contract.CreateAgentPayload{
-			Name:         strings.TrimSpace(input.Name),
-			Provider:     strings.TrimSpace(input.Provider),
-			Command:      strings.TrimSpace(input.Command),
-			Model:        strings.TrimSpace(input.Model),
-			Prompt:       input.Prompt,
-			Permissions:  contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
-			Tools:        trimNativeStrings(input.Tools),
-			Toolsets:     trimNativeStrings(input.Toolsets),
-			DenyTools:    trimNativeStrings(input.DenyTools),
-			CategoryPath: trimNativeStrings(input.CategoryPath),
+			Name:            strings.TrimSpace(input.Name),
+			Provider:        strings.TrimSpace(input.Provider),
+			Command:         strings.TrimSpace(input.Command),
+			Model:           strings.TrimSpace(input.Model),
+			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(input.ReasoningEffort)),
+			Prompt:          input.Prompt,
+			Permissions:     contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
+			Tools:           trimNativeStrings(input.Tools),
+			Toolsets:        trimNativeStrings(input.Toolsets),
+			DenyTools:       trimNativeStrings(input.DenyTools),
+			CategoryPath:    trimNativeStrings(input.CategoryPath),
 		},
 	}
 	if len(input.DisabledSkills) > 0 {

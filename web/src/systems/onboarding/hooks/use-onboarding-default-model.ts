@@ -1,15 +1,17 @@
 import { useCallback, useMemo } from "react";
 
+import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import {
-  deriveActiveSessionOptions,
-  modelAvailabilityLabel,
-  modelAvailabilityTone,
-  useProviderModels,
-  type ProviderModelPayload,
-  type ReasoningOption,
+  providerNeedsAuth,
+  useRuntimeModelCatalog,
+  type RuntimeCatalogProvider,
 } from "@/systems/model-catalog";
-import { useProviders, type ProviderSummary } from "@/systems/providers";
-import type { ModelSelectOption } from "@/systems/runtime";
+import { useProviders } from "@/systems/providers";
+import type {
+  RuntimeModelOption,
+  RuntimeProviderOption,
+  RuntimeSelectorValue,
+} from "@/systems/runtime";
 import {
   useSettingsGeneral,
   useSettingsProvider,
@@ -24,27 +26,23 @@ import {
 } from "../stores/use-onboarding-draft-store";
 
 export interface OnboardingDefaultModelApi {
-  providers: ProviderSummary[];
   providersLoading: boolean;
   providersError: string | null;
-  provider: string;
-  model: string;
-  reasoning: string;
+  runtimeValue: RuntimeSelectorValue;
+  runtimeProviders: RuntimeProviderOption[];
+  runtimeModels: RuntimeModelOption[];
   authMode: OnboardingAuthMode;
   envVar: string;
   apiKey: string;
-  modelOptions: ModelSelectOption[];
-  reasoningOptions: ReasoningOption[];
-  reasoningSupported: boolean;
-  defaultReasoning: string | null;
   catalogLoading: boolean;
+  catalogLoaded: boolean;
+  catalogRefreshing: boolean;
   catalogError: string | null;
   configurationError: string | null;
   isValid: boolean;
   isCommitting: boolean;
-  onProviderChange: (provider: string) => void;
-  onModelChange: (model: string) => void;
-  onReasoningChange: (reasoning: string) => void;
+  onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onRefreshCatalog: () => void;
   onAuthModeChange: (mode: OnboardingAuthMode) => void;
   onEnvVarChange: (envVar: string) => void;
   onApiKeyChange: (apiKey: string) => void;
@@ -56,6 +54,10 @@ function describeError(fallback: string, error: unknown): string {
     return error.message;
   }
   return fallback;
+}
+
+function normalizeEffort(effort: string): ReasoningEffort | "" {
+  return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
 }
 
 export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
@@ -70,15 +72,6 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   const updateGeneral = useUpdateSettingsGeneral();
   const putProvider = usePutSettingsProvider();
 
-  const catalogQuery = useProviderModels({
-    providerId: provider,
-    includeStale: true,
-    enabled: provider.length > 0,
-  });
-  const catalogModels = useMemo<ProviderModelPayload[]>(
-    () => catalogQuery.data?.models ?? [],
-    [catalogQuery.data]
-  );
   const existingApiKeyTargetEnv = useMemo(
     () =>
       providerDetailQuery.data?.settings.credential_slots
@@ -87,46 +80,43 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     [providerDetailQuery.data]
   );
 
-  const derived = useMemo(
+  const runtimeProviders = useMemo<RuntimeProviderOption[]>(
     () =>
-      deriveActiveSessionOptions({
-        catalog: catalogModels,
-        selectedModel: draft.model.length > 0 ? draft.model : null,
-      }),
-    [catalogModels, draft.model]
-  );
-
-  const modelOptions = useMemo<ModelSelectOption[]>(
-    () =>
-      derived.modelOptions.map(option => ({
-        id: option.id,
-        label: option.displayName,
-        availability: {
-          label: modelAvailabilityLabel(option.availabilityState),
-          tone: modelAvailabilityTone(option.availabilityState),
-          state: option.availabilityState,
-        },
+      providers.map(entry => ({
+        id: entry.name,
+        name: entry.display_name?.trim() || entry.name,
+        runtime_provider: entry.name,
+        needs_auth: providerNeedsAuth(entry.auth_status?.state),
       })),
-    [derived.modelOptions]
+    [providers]
   );
 
-  const onProviderChange = useCallback((next: string) => {
-    useOnboardingDraftStore.getState().patch({
-      provider: next,
-      model: "",
-      reasoning: "",
-      envVar: "",
-      apiKey: "",
+  // Onboarding lets the operator browse every configured provider's catalog via
+  // the single aggregate query, filtered to the configured providers.
+  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
+    () => runtimeProviders.map(entry => ({ id: entry.id, needsAuth: entry.needs_auth })),
+    [runtimeProviders]
+  );
+  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: true });
+  const runtimeModels = catalog.models;
+
+  const runtimeValue = useMemo<RuntimeSelectorValue>(
+    () => ({ provider: draft.provider, model: draft.model, reasoning_effort: draft.reasoning }),
+    [draft.provider, draft.model, draft.reasoning]
+  );
+
+  const onRuntimeChange = useCallback((next: RuntimeSelectorValue) => {
+    const store = useOnboardingDraftStore.getState();
+    const providerChanged = next.provider !== store.provider;
+    store.patch({
+      provider: next.provider,
+      model: next.model,
+      reasoning: normalizeEffort(next.reasoning_effort),
+      ...(providerChanged ? { envVar: "", apiKey: "" } : {}),
     });
   }, []);
 
-  const onModelChange = useCallback((model: string) => {
-    useOnboardingDraftStore.getState().patch({ model, reasoning: "" });
-  }, []);
-
-  const onReasoningChange = useCallback((reasoning: string) => {
-    useOnboardingDraftStore.getState().patch({ reasoning });
-  }, []);
+  const onRefreshCatalog = catalog.refresh;
 
   const onAuthModeChange = useCallback((authMode: OnboardingAuthMode) => {
     useOnboardingDraftStore
@@ -165,7 +155,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     }
     const body = buildOnboardingProviderRequest(detail.settings, {
       model: draft.model.trim(),
-      reasoning: draft.reasoning.trim(),
+      reasoning: draft.reasoning,
       authMode: draft.authMode,
       envVar: draft.envVar.trim(),
       apiKey: draft.apiKey.trim(),
@@ -209,31 +199,25 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     !missingBoundSecretTarget;
 
   return {
-    providers,
     providersLoading: providersQuery.isLoading,
     providersError: providersQuery.error
       ? describeError("Failed to load providers.", providersQuery.error)
       : null,
-    provider,
-    model: draft.model,
-    reasoning: draft.reasoning,
+    runtimeValue,
+    runtimeProviders,
+    runtimeModels,
     authMode: draft.authMode,
     envVar: draft.envVar,
     apiKey: draft.apiKey,
-    modelOptions,
-    reasoningOptions: derived.reasoningOptions,
-    reasoningSupported: derived.reasoningSupported,
-    defaultReasoning: derived.defaultReasoning,
-    catalogLoading: catalogQuery.isLoading || catalogQuery.isFetching,
-    catalogError: catalogQuery.error
-      ? describeError("Failed to load provider models.", catalogQuery.error)
-      : null,
+    catalogLoading: catalog.loading,
+    catalogLoaded: catalog.loaded,
+    catalogRefreshing: catalog.refreshing,
+    catalogError: catalog.error,
     configurationError,
     isValid: canCommit,
     isCommitting: putProvider.isPending || updateGeneral.isPending,
-    onProviderChange,
-    onModelChange,
-    onReasoningChange,
+    onRuntimeChange,
+    onRefreshCatalog,
     onAuthModeChange,
     onEnvVarChange,
     onApiKeyChange,

@@ -11,11 +11,11 @@ import {
 } from "@/systems/session/mocks";
 import type { UIMessage } from "@/systems/session/types";
 
-import { ToolCallRow } from "../tool-call-card";
+import { SessionToolCallRow } from "../tool-call-card";
 
-const meta: Meta<typeof ToolCallRow> = {
-  title: "systems/session/components/ToolCallRow",
-  component: ToolCallRow,
+const meta: Meta<typeof SessionToolCallRow> = {
+  title: "systems/session/components/SessionToolCallRow",
+  component: SessionToolCallRow,
   parameters: {
     layout: "centered",
   },
@@ -101,7 +101,7 @@ const emptyToolMessageFixture: UIMessage = {
   timestamp: Date.parse("2026-04-17T16:09:30Z"),
 };
 
-function ToolCallRowFrame({ children }: { children: React.ReactNode }) {
+function SessionToolCallRowFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
       <div className="w-full max-w-3xl">{children}</div>
@@ -115,9 +115,9 @@ function ToolCallRowFrame({ children }: { children: React.ReactNode }) {
 export const Running: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
-      <ToolCallRow message={runningBashToolMessageFixture} />
-    </ToolCallRowFrame>
+    <SessionToolCallRowFrame>
+      <SessionToolCallRow message={runningBashToolMessageFixture} />
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -127,9 +127,9 @@ export const Running: Story = {
 export const Done: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
-      <ToolCallRow message={bashToolMessageFixture} />
-    </ToolCallRowFrame>
+    <SessionToolCallRowFrame>
+      <SessionToolCallRow message={bashToolMessageFixture} />
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -139,13 +139,13 @@ export const Done: Story = {
 export const ExpandedOutputs: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
+    <SessionToolCallRowFrame>
       <div className="flex min-w-0 flex-col gap-2">
-        <ToolCallRow message={bashToolMessageFixture} defaultExpanded />
-        <ToolCallRow message={multiHunkEditToolMessageFixture} defaultExpanded />
-        <ToolCallRow message={mcpToolMessageFixture} defaultExpanded />
+        <SessionToolCallRow message={bashToolMessageFixture} defaultExpanded />
+        <SessionToolCallRow message={multiHunkEditToolMessageFixture} defaultExpanded />
+        <SessionToolCallRow message={mcpToolMessageFixture} defaultExpanded />
       </div>
-    </ToolCallRowFrame>
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -155,9 +155,9 @@ export const ExpandedOutputs: Story = {
 export const DoneRead: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
-      <ToolCallRow message={readToolMessageFixture} />
-    </ToolCallRowFrame>
+    <SessionToolCallRowFrame>
+      <SessionToolCallRow message={readToolMessageFixture} />
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -167,9 +167,9 @@ export const DoneRead: Story = {
 export const Error: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
-      <ToolCallRow message={errorToolMessageFixture} />
-    </ToolCallRowFrame>
+    <SessionToolCallRowFrame>
+      <SessionToolCallRow message={errorToolMessageFixture} />
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -182,15 +182,15 @@ export const Error: Story = {
 export const StatusMatrix: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
+    <SessionToolCallRowFrame>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <ToolCallRow message={pendingToolMessageFixture} />
-        <ToolCallRow message={runningBashToolMessageFixture} />
-        <ToolCallRow message={errorToolMessageFixture} />
-        <ToolCallRow message={readToolMessageFixture} turnSettled />
-        <ToolCallRow message={emptyToolMessageFixture} turnSettled={false} />
+        <SessionToolCallRow message={pendingToolMessageFixture} />
+        <SessionToolCallRow message={runningBashToolMessageFixture} />
+        <SessionToolCallRow message={errorToolMessageFixture} />
+        <SessionToolCallRow message={readToolMessageFixture} turnSettled />
+        <SessionToolCallRow message={emptyToolMessageFixture} turnSettled={false} />
       </div>
-    </ToolCallRowFrame>
+    </SessionToolCallRowFrame>
   ),
 };
 
@@ -203,18 +203,18 @@ export const StatusMatrix: Story = {
 export const MixedToolBatch: Story = {
   args: {},
   render: () => (
-    <ToolCallRowFrame>
+    <SessionToolCallRowFrame>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <ToolCallRow message={runningBashToolMessageFixture} />
-        <ToolCallRow message={readToolMessageFixture} />
-        <ToolCallRow message={multiHunkEditToolMessageFixture} />
-        <ToolCallRow message={searchToolMessageFixture} />
-        <ToolCallRow message={globToolMessageFixture} />
-        <ToolCallRow message={webSearchToolMessageFixture} />
-        <ToolCallRow message={aghMemoryToolMessageFixture} />
-        <ToolCallRow message={mcpToolMessageFixture} />
-        <ToolCallRow message={errorToolMessageFixture} />
+        <SessionToolCallRow message={runningBashToolMessageFixture} />
+        <SessionToolCallRow message={readToolMessageFixture} />
+        <SessionToolCallRow message={multiHunkEditToolMessageFixture} />
+        <SessionToolCallRow message={searchToolMessageFixture} />
+        <SessionToolCallRow message={globToolMessageFixture} />
+        <SessionToolCallRow message={webSearchToolMessageFixture} />
+        <SessionToolCallRow message={aghMemoryToolMessageFixture} />
+        <SessionToolCallRow message={mcpToolMessageFixture} />
+        <SessionToolCallRow message={errorToolMessageFixture} />
       </div>
-    </ToolCallRowFrame>
+    </SessionToolCallRowFrame>
   ),
 };

@@ -9,12 +9,18 @@ import (
 )
 
 const (
-	providerModelsErrorValue   = "Error"
-	providerModelsModelValue   = "Model"
-	providerModelsAvailableKey = "available"
+	providerModelsErrorValue    = "Error"
+	providerModelsModelValue    = "Model"
+	providerModelsAvailableKey  = "available"
+	providerModelsProviderIDKey = "provider_id"
 )
 
 const providerModelAvailabilityUnknown = "unknown"
+
+const (
+	providerModelViewAll     = "all"
+	providerModelViewCurated = "curated"
+)
 
 func newProviderModelsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -22,6 +28,7 @@ func newProviderModelsCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect and refresh the provider model catalog",
 	}
 	cmd.AddCommand(newProviderModelsListCommand(deps))
+	cmd.AddCommand(newProviderModelsSetCommand(deps))
 	cmd.AddCommand(newProviderModelsRefreshCommand(deps))
 	cmd.AddCommand(newProviderModelsStatusCommand(deps))
 	return cmd
@@ -31,12 +38,17 @@ func newProviderModelsListCommand(deps commandDeps) *cobra.Command {
 	var sourceID string
 	var refresh bool
 	var includeStale bool
+	var all bool
 	cmd := &cobra.Command{
 		Use:   "list [provider]",
 		Short: "List provider model catalog entries",
 		Args:  optionalProviderArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			providerID := providerArgValue(args)
+			view := providerModelViewCurated
+			if all {
+				view = providerModelViewAll
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -44,6 +56,7 @@ func newProviderModelsListCommand(deps commandDeps) *cobra.Command {
 			record, err := client.ListProviderModels(cmd.Context(), ProviderModelListQuery{
 				ProviderID:   providerID,
 				SourceID:     sourceID,
+				View:         view,
 				Refresh:      refresh,
 				IncludeStale: includeStale,
 			})
@@ -54,8 +67,56 @@ func newProviderModelsListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sourceID, "source", "", "Filter by catalog source id")
+	cmd.Flags().BoolVar(&all, "all", false, "Include hidden and deprecated catalog models")
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Refresh sources before listing models")
 	cmd.Flags().BoolVar(&includeStale, "include-stale", false, "Include stale source rows")
+	return cmd
+}
+
+func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
+	var hidden bool
+	var featured bool
+	var deprecated bool
+	var defaultEffort string
+	cmd := &cobra.Command{
+		Use:   "set <provider> <model>",
+		Short: "Curate one provider model",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			providerID := strings.TrimSpace(args[0])
+			modelID := strings.TrimSpace(args[1])
+			if providerID == "" || modelID == "" {
+				return fmt.Errorf("provider and model ids cannot be blank")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request := ProviderModelCurationRequest{ModelID: modelID}
+			if cmd.Flags().Changed("hidden") {
+				request.Hidden = &hidden
+			}
+			if cmd.Flags().Changed("featured") {
+				request.Featured = &featured
+			}
+			if cmd.Flags().Changed("deprecated") {
+				request.Deprecated = &deprecated
+			}
+			if cmd.Flags().Changed("default-effort") {
+				effort := contract.ReasoningEffort(strings.TrimSpace(defaultEffort))
+				request.DefaultReasoningEffort = &effort
+			}
+			record, err := client.CurateProviderModel(cmd.Context(), providerID, request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, providerModelCurationBundle(&record))
+		},
+	}
+	cmd.Flags().BoolVar(&hidden, "hidden", false, "Set whether the model is hidden")
+	cmd.Flags().BoolVar(&featured, "featured", false, "Set whether the model is featured")
+	cmd.Flags().BoolVar(&deprecated, "deprecated", false, "Set whether the model is deprecated")
+	cmd.Flags().StringVar(&defaultEffort, "default-effort", "", "Set the model's default reasoning effort")
 	return cmd
 }
 
@@ -121,6 +182,11 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 		[]string{
 			agentKernelProviderValue,
 			providerModelsModelValue,
+			"Curated",
+			"Hidden",
+			"Deprecated",
+			"Featured",
+			"Default Effort",
 			"Available",
 			authoredContextStateValue,
 			"Stale",
@@ -129,8 +195,13 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 		},
 		"provider_models",
 		[]string{
-			"provider_id",
+			providerModelsProviderIDKey,
 			"model_id",
+			"curated",
+			"hidden",
+			"deprecated",
+			"featured",
+			"default_reasoning_effort",
 			providerModelsAvailableKey,
 			"availability_state",
 			"stale",
@@ -141,6 +212,11 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 			return []string{
 				model.ProviderID,
 				model.ModelID,
+				providerModelBoolString(model.Curated),
+				providerModelBoolString(model.Hidden),
+				providerModelBoolString(model.Deprecated),
+				providerModelBoolString(model.Featured),
+				providerModelEffortString(model.DefaultReasoningEffort),
 				providerModelNullableBoolString(model.Available),
 				model.AvailabilityState,
 				providerModelBoolString(model.Stale),
@@ -152,6 +228,11 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 			return []string{
 				model.ProviderID,
 				model.ModelID,
+				providerModelBoolString(model.Curated),
+				providerModelBoolString(model.Hidden),
+				providerModelBoolString(model.Deprecated),
+				providerModelBoolString(model.Featured),
+				providerModelEffortString(model.DefaultReasoningEffort),
 				providerModelNullableBoolString(model.Available),
 				model.AvailabilityState,
 				providerModelBoolString(model.Stale),
@@ -160,6 +241,57 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 			}
 		},
 	)
+}
+
+func providerModelCurationBundle(record *ProviderModelCurationRecord) outputBundle {
+	model := record.Model
+	rows := []keyValue{
+		{Label: agentKernelProviderValue, Value: model.ProviderID},
+		{Label: providerModelsModelValue, Value: model.ModelID},
+		{Label: "Curated", Value: providerModelBoolString(model.Curated)},
+		{Label: "Hidden", Value: providerModelBoolString(model.Hidden)},
+		{Label: "Deprecated", Value: providerModelBoolString(model.Deprecated)},
+		{Label: "Featured", Value: providerModelBoolString(model.Featured)},
+		{Label: "Default Effort", Value: providerModelEffortString(model.DefaultReasoningEffort)},
+		{Label: "Applied", Value: providerModelBoolString(record.Apply.Applied)},
+		{Label: cliLifecycleValue, Value: string(record.Apply.Lifecycle)},
+		{Label: "Active Generation", Value: fmt.Sprintf("%d", record.Apply.ActiveGeneration)},
+	}
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSection("Provider Model Curation", rows), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"provider_model_curation",
+				[]string{
+					providerModelsProviderIDKey,
+					"model_id",
+					"curated",
+					"hidden",
+					"deprecated",
+					"featured",
+					"default_reasoning_effort",
+					"applied",
+					"lifecycle",
+					"active_generation",
+				},
+				[]string{
+					model.ProviderID,
+					model.ModelID,
+					providerModelBoolString(model.Curated),
+					providerModelBoolString(model.Hidden),
+					providerModelBoolString(model.Deprecated),
+					providerModelBoolString(model.Featured),
+					providerModelEffortString(model.DefaultReasoningEffort),
+					providerModelBoolString(record.Apply.Applied),
+					string(record.Apply.Lifecycle),
+					fmt.Sprintf("%d", record.Apply.ActiveGeneration),
+				},
+			), nil
+		},
+	}
 }
 
 func providerModelRefreshBundle(record ProviderModelRefreshRecord) outputBundle {
@@ -190,7 +322,15 @@ func providerModelSourceStatusBundle(
 			providerModelsErrorValue,
 		},
 		toonName,
-		[]string{"provider_id", "source_id", "source_kind", "refresh_state", "row_count", "stale", "last_error"},
+		[]string{
+			providerModelsProviderIDKey,
+			"source_id",
+			"source_kind",
+			"refresh_state",
+			"row_count",
+			"stale",
+			"last_error",
+		},
 		providerModelSourceStatusRow,
 		providerModelSourceStatusRow,
 	)
@@ -243,6 +383,13 @@ func providerModelNullableBoolString(value *bool) string {
 		return providerModelAvailabilityUnknown
 	}
 	return providerModelBoolString(*value)
+}
+
+func providerModelEffortString(value *contract.ReasoningEffort) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(string(*value))
 }
 
 func providerModelBoolString(value bool) string {

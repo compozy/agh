@@ -45,7 +45,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 				},
 			},
 		})
-		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source})
+		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -60,13 +60,37 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(codex) error = %v", err)
 		}
-		if got, want := len(models), 2; got != want {
-			t.Fatalf("len(models) = %d, want %d: %#v", got, want, models)
+		if got, want := len(models), 1; got != want {
+			t.Fatalf("len(curated models) = %d, want %d: %#v", got, want, models)
 		}
-		for _, model := range models {
-			if model.ProviderID != "codex" {
-				t.Fatalf("model.ProviderID = %q, want codex", model.ProviderID)
-			}
+		if models[0].ProviderID != "codex" || models[0].ModelID != "gpt-5.4" ||
+			!models[0].ExplicitlyCurated || !models[0].Curated {
+			t.Fatalf("curated models = %#v, want explicit codex/gpt-5.4", models)
+		}
+		allModels, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: "codex",
+			View:       modelcatalog.CatalogViewAll,
+			Now:        integrationTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(codex all) error = %v", err)
+		}
+		if got, want := integrationModelIDs(allModels), []string{"gpt-5.4", "manual-model"}; !slices.Equal(got, want) {
+			t.Fatalf("all model ids = %#v, want %#v", got, want)
+		}
+		if allModels[1].ExplicitlyCurated || allModels[1].Curated {
+			t.Fatalf("manual default curation = %#v, want default-only outside curated view", allModels[1])
+		}
+		claudeModels, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: "claude",
+			Now:        integrationTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(claude) error = %v", err)
+		}
+		if len(claudeModels) != 1 || claudeModels[0].ModelID != "claude-sonnet-4-6" ||
+			!claudeModels[0].Curated || claudeModels[0].ExplicitlyCurated {
+			t.Fatalf("claude fallback models = %#v, want visible default-only fallback", claudeModels)
 		}
 	})
 
@@ -101,7 +125,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewModelsDevSource() error = %v", err)
 		}
-		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source})
+		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -156,7 +180,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 				integrationRow("codex", "gpt-5.4", integrationTime(20)),
 			},
 		})
-		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source})
+		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -204,7 +228,7 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 				integrationRow("codex", "gpt-5.4", integrationTime(30)),
 			},
 		})
-		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source})
+		service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
 		}
@@ -403,4 +427,12 @@ func integrationModelKeys(models []modelcatalog.Model) []string {
 		keys = append(keys, model.ProviderID+"/"+model.ModelID)
 	}
 	return keys
+}
+
+func integrationModelIDs(models []modelcatalog.Model) []string {
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		ids = append(ids, model.ModelID)
+	}
+	return ids
 }

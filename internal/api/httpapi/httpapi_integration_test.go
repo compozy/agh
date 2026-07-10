@@ -3236,6 +3236,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		session.WithDriver(driver),
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
+		session.WithSessionCatalog(registry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

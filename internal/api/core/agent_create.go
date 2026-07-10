@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -31,6 +32,61 @@ func CreateAgentFromRequest(
 		return aghconfig.AgentDef{}, err
 	}
 	return aghconfig.CreateAgentDefFile(path, draft, false)
+}
+
+func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
+	agent := req.Agent
+	agentName := aghconfig.NormalizeAgentName(agent.Name)
+	if agentName == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.name is required"),
+		)
+	}
+	if err := aghconfig.ValidatePublicAgentName(agentName); err != nil {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			aghconfig.ErrInvalidAgentDefinition,
+			err,
+		)
+	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.provider is required"),
+		)
+	}
+	if strings.TrimSpace(agent.Prompt) == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.prompt is required"),
+		)
+	}
+	if err := session.ValidateReasoningEffort(string(agent.ReasoningEffort)); err != nil {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			aghconfig.ErrInvalidAgentDefinition,
+			err,
+		)
+	}
+	disabledSkills := []string(nil)
+	if agent.Skills != nil {
+		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
+	}
+	return aghconfig.AgentDefinitionDraft{
+		Name:            agentName,
+		Provider:        agent.Provider,
+		Command:         agent.Command,
+		Model:           agent.Model,
+		ReasoningEffort: string(agent.ReasoningEffort),
+		Tools:           append([]string(nil), agent.Tools...),
+		Toolsets:        append([]string(nil), agent.Toolsets...),
+		DenyTools:       append([]string(nil), agent.DenyTools...),
+		Permissions:     string(agent.Permissions),
+		Skills:          aghconfig.AgentSkillsConfig{Disabled: disabledSkills},
+		CategoryPath:    append([]string(nil), agent.CategoryPath...),
+		Prompt:          agent.Prompt,
+	}, nil
 }
 
 func createAgentDefinitionPathFor(

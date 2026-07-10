@@ -17,8 +17,9 @@ warm-dark, operator-first, and intentionally restrained.
 
 1. `packages/ui/src/tokens.css`: canonical token source consumed by Tailwind v4.
 2. `DESIGN.md`: rationale, generated token tables, anti-patterns, and semantic component contracts.
-3. `packages/ui/src/components/**/*.tsx`: canonical production recipes.
-4. `COPY.md`: product voice, terms, and public claim rules.
+3. `packages/ui/src/index.ts`: the `@agh/ui` surface contract — the canonical primitive inventory.
+4. `packages/ui/src/components/**/*.tsx`: canonical production recipes.
+5. `COPY.md`: product voice, terms, and public claim rules.
 
 ## Top-of-mind invariants
 
@@ -36,6 +37,14 @@ Keep artifacts dark, flat, and functional. Use literal CSS only to represent
 exported token values; do not invent a parallel palette.
 
 ## Production code
+
+Reuse gate — before authoring any component, map every generic UI need against
+`packages/ui/src/index.ts` and import the primitive from `@agh/ui` instead of
+re-implementing it. Redefining an exported name in `web/` or `packages/site/`
+fails lint (`compozy-ui-reuse/no-shadow-ui-primitive`); genuinely
+domain-specific variants take a domain-prefixed name. New generic primitives
+land in `packages/ui` with story + test; domain composites in
+`web/src/systems/<domain>/`.
 
 Edit the owning surface: `web/`, `packages/ui/`, or `packages/site/`. Consume
 CSS variables and bare Tailwind v4 token utilities. If `tokens.css` or

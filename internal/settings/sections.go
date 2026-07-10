@@ -37,6 +37,7 @@ const (
 	sectionsHTTPKey                   = "http"
 	sectionsLlmKey                    = "llm"
 	sectionsMarketplaceKey            = "marketplace"
+	sectionsMaxKey                    = "max"
 	sectionsModeKey                   = "mode"
 	sectionsNoChangesValue            = "no changes"
 	sectionsOperatorWriteRateLimitKey = "operator_write_rate_limit"
@@ -1424,7 +1425,10 @@ func applyAutomationSettings(editor *aghconfig.OverlayEditor, settings Automatio
 		{path: []string{string(SectionAutomation), sectionsEnabledKey}, value: settings.Enabled},
 		{path: []string{string(SectionAutomation), "timezone"}, value: settings.Timezone},
 		{path: []string{string(SectionAutomation), "max_concurrent_jobs"}, value: settings.MaxConcurrentJobs},
-		{path: []string{string(SectionAutomation), "default_fire_limit", "max"}, value: settings.DefaultFireLimit.Max},
+		{
+			path:  []string{string(SectionAutomation), "default_fire_limit", sectionsMaxKey},
+			value: settings.DefaultFireLimit.Max,
+		},
 		{
 			path:  []string{string(SectionAutomation), "default_fire_limit", sectionsWindowKey},
 			value: settings.DefaultFireLimit.Window,

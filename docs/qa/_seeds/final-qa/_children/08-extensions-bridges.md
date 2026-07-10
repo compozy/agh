@@ -93,8 +93,8 @@ QA). Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` for parent coordinator;
-  `claude-sonnet-4-6` for spawned children where indicated) as the
+- Uses real Claude Code (`claude-opus-4-8` for parent coordinator;
+  `claude-sonnet-5` for spawned children where indicated) as the
   subprocess agent. Bridges call out to real Slack / Telegram only on the
   `live: conditional` lanes guarded by a credential broker (openclaw
   pattern, see §4).
@@ -115,7 +115,7 @@ block plus a flow narrative.
 
 | Mode                         | When                                                                                              | Driver                                                                                                                                                  |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code`           | Default for all scenarios that exercise real subagent behavior, tool round-trip, transcript flow. | `claude-opus-4-7[1m]` for parent coordinator; `claude-sonnet-4-6` for spawned children where indicated.                                                  |
+| `real-claude-code`           | Default for all scenarios that exercise real subagent behavior, tool round-trip, transcript flow. | `claude-opus-4-8` for parent coordinator; `claude-sonnet-5` for spawned children where indicated.                                                  |
 | `mock-acp`                   | Determinism gate for race-sensitive scenarios (only EXT-08 and EXT-15 backpressure ordering).     | `internal/e2elane` mock ACP server; the surrounding daemon, extension manager, bridge SDK, and SQLite are all real code paths.                          |
 | `live: conditional` Slack    | EXT-06 (real Slack ↔ Claude Code round-trip).                                                     | Real Slack workspace pair leased through a credential broker (openclaw `convex-credential-broker` shape, but local SQLite-backed; see §11).             |
 | `live: conditional` Telegram | EXT-07 (real Telegram bot bidi flow).                                                             | Real Telegram bot pair (driver bot + SUT bot) leased through the same credential broker; pool kind = `telegram`.                                        |

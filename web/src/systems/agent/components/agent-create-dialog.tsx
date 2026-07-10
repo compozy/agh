@@ -1,16 +1,5 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  Check,
-  ChevronRight,
-  NotebookText,
-  Plus,
-  Settings2,
-  ShieldCheck,
-  X,
-} from "lucide-react";
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { ArrowLeft, ArrowRight, Bot, Check, ChevronRight, NotebookText } from "lucide-react";
+import { useId } from "react";
 
 import {
   Button,
@@ -24,43 +13,23 @@ import {
   FieldLabel,
   FormSection,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  Pill,
   PillGroup,
-  RadioCard,
   Spinner,
   Textarea,
   type PillGroupItem,
 } from "@agh/ui";
 
-import {
-  ModelCommandSelect,
-  ProviderCommandSelect,
-  type ModelSelectOption,
-  type ProviderSelectOption,
-} from "@/systems/runtime";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 
 import {
-  AGENT_CREATE_PERMISSION_OPTIONS,
-  appendAgentCreateTokens,
-  removeAgentCreateToken,
   updateAgentCreateScope,
   type AgentCreateDialogDraft,
-  type AgentCreatePermissionChoice,
   type AgentCreateScope,
   type AgentCreateStep,
 } from "../lib/agent-create-draft";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
-
-const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
-  "": "Use the runtime's default approval mode.",
-  "deny-all": "Ask before every tool call.",
-  "approve-reads": "Auto-approve read-only tools; ask for the rest.",
-  "approve-all": "Auto-approve every allowed tool call.",
-};
+import { AgentCreateAccessStep } from "./agent-create-access-step";
+import { AgentCreateRuntimeStep } from "./agent-create-runtime-step";
 
 interface AgentCreateDialogProps {
   open: boolean;
@@ -68,11 +37,15 @@ interface AgentCreateDialogProps {
   draft: AgentCreateDialogDraft;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onSubmit: () => void;
-  providerOptions: ProviderSelectOption[];
+  onRefreshCatalog: () => void;
+  onOpenProviderSettings: () => void;
+  providerOptions: RuntimeProviderOption[];
   providersLoading: boolean;
   providersError: string | null;
-  modelOptions: string[];
+  runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
+  modelCatalogLoaded: boolean;
+  modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   submitError: string | null;
   isSubmitting: boolean;
@@ -100,11 +73,15 @@ function AgentCreateDialog({
   draft,
   onDraftChange,
   onSubmit,
+  onRefreshCatalog,
+  onOpenProviderSettings,
   providerOptions,
   providersLoading,
   providersError,
-  modelOptions,
+  runtimeModels,
   modelCatalogLoading,
+  modelCatalogLoaded,
+  modelCatalogRefreshing,
   modelCatalogError,
   submitError,
   isSubmitting,
@@ -220,22 +197,30 @@ function AgentCreateDialog({
             />
           ) : null}
           {step === "runtime" ? (
-            <RuntimeStep
+            <AgentCreateRuntimeStep
               draft={draft}
               errors={visibleErrors}
               modelCatalogError={modelCatalogError}
               modelCatalogLoading={modelCatalogLoading}
-              modelOptions={modelOptions}
+              modelCatalogLoaded={modelCatalogLoaded}
+              modelCatalogRefreshing={modelCatalogRefreshing}
               onDraftChange={onDraftChange}
+              onRefreshCatalog={onRefreshCatalog}
+              onOpenProviderSettings={onOpenProviderSettings}
               providerOptions={providerOptions}
               providersLoading={providersLoading}
+              runtimeModels={runtimeModels}
             />
           ) : null}
           {step === "instructions" ? (
             <InstructionsStep draft={draft} errors={visibleErrors} onDraftChange={onDraftChange} />
           ) : null}
           {step === "access" ? (
-            <AccessStep draft={draft} errors={visibleErrors} onDraftChange={onDraftChange} />
+            <AgentCreateAccessStep
+              draft={draft}
+              errors={visibleErrors}
+              onDraftChange={onDraftChange}
+            />
           ) : null}
         </div>
 
@@ -396,91 +381,6 @@ function BasicsStep({
   );
 }
 
-function RuntimeStep({
-  draft,
-  errors,
-  modelCatalogError,
-  modelCatalogLoading,
-  modelOptions,
-  onDraftChange,
-  providerOptions,
-  providersLoading,
-}: {
-  draft: AgentCreateDialogDraft;
-  errors: Record<string, string | undefined>;
-  modelCatalogError: string | null;
-  modelCatalogLoading: boolean;
-  modelOptions: string[];
-  onDraftChange: (draft: AgentCreateDialogDraft) => void;
-  providerOptions: ProviderSelectOption[];
-  providersLoading: boolean;
-}) {
-  const providerSelected = draft.provider.trim().length > 0;
-  const modelSelectOptions = useMemo<ModelSelectOption[]>(
-    () => modelOptions.map(id => ({ id, label: id })),
-    [modelOptions]
-  );
-  return (
-    <FormSection
-      data-testid="agent-create-runtime"
-      icon={Settings2}
-      size="compact"
-      title="Runtime"
-      description="Choose the provider and optional runtime overrides for new sessions."
-    >
-      <Field data-invalid={Boolean(errors.provider)}>
-        <FieldLabel id="agent-create-provider-label">Provider</FieldLabel>
-        <FieldDescription>Provider options come from the selected scope.</FieldDescription>
-        <ProviderCommandSelect
-          options={providerOptions}
-          value={draft.provider || null}
-          onChange={next => onDraftChange({ ...draft, provider: next ?? "", model: "" })}
-          disabled={providersLoading || providerOptions.length === 0}
-          placeholder={providersLoading ? "Loading providers..." : "Select a provider"}
-          triggerId="agent-create-provider"
-          triggerTestId="agent-create-provider"
-          testIdPrefix="agent-create-provider"
-        />
-        <FieldError data-testid="agent-create-provider-error">{errors.provider}</FieldError>
-      </Field>
-
-      <Field>
-        <FieldLabel id="agent-create-model-label">Model</FieldLabel>
-        <FieldDescription>
-          Pick a catalog model when available, or type a custom model id.
-        </FieldDescription>
-        <ModelCommandSelect
-          options={modelSelectOptions}
-          value={draft.model}
-          onChange={model => onDraftChange({ ...draft, model })}
-          disabled={!providerSelected}
-          loading={modelCatalogLoading}
-          triggerId="agent-create-model"
-          triggerTestId="agent-create-model"
-          testIdPrefix="agent-create-model"
-        />
-        {modelCatalogError ? (
-          <p className="text-small-body text-warning" data-testid="agent-create-model-error">
-            {modelCatalogError}
-          </p>
-        ) : null}
-      </Field>
-
-      <Field>
-        <FieldLabel htmlFor="agent-create-command">Command</FieldLabel>
-        <FieldDescription>Optional provider command override for this agent.</FieldDescription>
-        <Input
-          data-testid="agent-create-command"
-          id="agent-create-command"
-          onChange={event => onDraftChange({ ...draft, command: event.target.value })}
-          placeholder="codex --model gpt-5.4"
-          value={draft.command}
-        />
-      </Field>
-    </FormSection>
-  );
-}
-
 function InstructionsStep({
   draft,
   errors,
@@ -516,178 +416,8 @@ function InstructionsStep({
   );
 }
 
-function AccessStep({
-  draft,
-  errors,
-  onDraftChange,
-}: {
-  draft: AgentCreateDialogDraft;
-  errors: Record<string, string | undefined>;
-  onDraftChange: (draft: AgentCreateDialogDraft) => void;
-}) {
-  return (
-    <FormSection
-      data-testid="agent-create-access"
-      icon={ShieldCheck}
-      size="compact"
-      title="Access"
-      description="Constrain the tools and skills available to sessions started from this agent."
-    >
-      <Field>
-        <FieldLabel id="agent-create-permissions-label">Permissions</FieldLabel>
-        <FieldDescription>Optional default approval posture for this agent.</FieldDescription>
-        <div
-          aria-labelledby="agent-create-permissions-label"
-          className="grid gap-2 sm:grid-cols-2"
-          data-testid="agent-create-permissions"
-          role="radiogroup"
-        >
-          {AGENT_CREATE_PERMISSION_OPTIONS.map(option => (
-            <RadioCard
-              key={option.value || "inherit"}
-              data-testid={"agent-create-permissions-" + (option.value || "inherit")}
-              description={PERMISSION_DESCRIPTIONS[option.value]}
-              onSelect={() => onDraftChange({ ...draft, permissions: option.value })}
-              selected={draft.permissions === option.value}
-              title={option.label}
-            />
-          ))}
-        </div>
-      </Field>
-
-      <div className="grid gap-3.5 md:grid-cols-2">
-        <TokenListField
-          description="Canonical tool IDs or namespace wildcards."
-          error={errors.tools}
-          label="Tools"
-          onChange={tools => onDraftChange({ ...draft, tools })}
-          placeholder="agh__skill_view, mcp__github__*"
-          testId="agent-create-tools"
-          values={draft.tools}
-        />
-        <TokenListField
-          description="Tool groups enabled for the agent."
-          error={errors.toolsets}
-          label="Toolsets"
-          onChange={toolsets => onDraftChange({ ...draft, toolsets })}
-          placeholder="agh__catalog"
-          testId="agent-create-toolsets"
-          values={draft.toolsets}
-        />
-        <TokenListField
-          description="Canonical tools to deny after allow rules."
-          error={errors.denyTools}
-          label="Denied tools"
-          onChange={denyTools => onDraftChange({ ...draft, denyTools })}
-          placeholder="agh__task_*"
-          testId="agent-create-deny-tools"
-          values={draft.denyTools}
-        />
-        <TokenListField
-          description="Skill names disabled only for this agent."
-          label="Disabled skills"
-          onChange={disabledSkills => onDraftChange({ ...draft, disabledSkills })}
-          placeholder="code-review, release-notes"
-          testId="agent-create-disabled-skills"
-          values={draft.disabledSkills}
-        />
-      </div>
-    </FormSection>
-  );
-}
-
-function TokenListField({
-  description,
-  error,
-  label,
-  onChange,
-  placeholder,
-  testId,
-  values,
-}: {
-  description: string;
-  error?: string;
-  label: string;
-  onChange: (values: string[]) => void;
-  placeholder: string;
-  testId: string;
-  values: string[];
-}) {
-  const inputId = useId();
-  const [inputValue, setInputValue] = useState("");
-
-  const commit = () => {
-    if (inputValue.trim().length === 0) return;
-    onChange(appendAgentCreateTokens(values, inputValue));
-    setInputValue("");
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      commit();
-    }
-  };
-
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-      <FieldDescription>{description}</FieldDescription>
-      <InputGroup>
-        <InputGroupInput
-          aria-invalid={Boolean(error)}
-          data-testid={testId + "-input"}
-          id={inputId}
-          onBlur={commit}
-          onChange={event => {
-            const next = event.target.value;
-            if (/[,\n]/.test(next)) {
-              onChange(appendAgentCreateTokens(values, next));
-              setInputValue("");
-              return;
-            }
-            setInputValue(next);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          value={inputValue}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            aria-label={"Add " + label.toLowerCase()}
-            data-testid={testId + "-add"}
-            disabled={inputValue.trim().length === 0}
-            onClick={commit}
-            size="icon-xs"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
-      {values.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5" data-testid={testId + "-tokens"}>
-          {values.map(value => (
-            <Pill key={value} className="gap-1 pr-1" size="sm">
-              <span className="max-w-44 truncate">{value}</span>
-              <button
-                aria-label={"Remove " + value}
-                className="inline-flex size-4 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-                onClick={() => onChange(removeAgentCreateToken(values, value))}
-                type="button"
-              >
-                <X aria-hidden="true" className="size-3" />
-              </button>
-            </Pill>
-          ))}
-        </div>
-      ) : null}
-      <FieldError data-testid={testId + "-error"}>{error}</FieldError>
-    </Field>
-  );
-}
-
-function providerDisplayName(provider: ProviderSelectOption): string {
-  return provider.display_name?.trim() || provider.name;
+function providerDisplayName(provider: RuntimeProviderOption): string {
+  return provider.name.trim() || provider.id;
 }
 
 function stepStatus(index: number, currentIndex: number): "complete" | "current" | "pending" {

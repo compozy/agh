@@ -17,8 +17,6 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
-	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
-	"github.com/compozy/agh/internal/diagnostics"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -34,7 +32,6 @@ import (
 	"github.com/compozy/agh/internal/notifications"
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/observe"
-	"github.com/compozy/agh/internal/providers"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/sandbox/daytona"
@@ -2019,6 +2016,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		TransportParity:            surface,
 		MCPAuth:                    surface,
 		MCPRuntime:                 surface,
+		ModelCatalog:               state.modelCatalog,
 		RuntimeApplier:             daemonSettingsRuntimeApplier{daemon: d, state: state},
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		EventSummaries:             state.registry,
@@ -2130,57 +2128,6 @@ func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandl
 		StartedAt:           state.startedAt,
 		Now:                 d.now,
 	})
-}
-
-type daemonSettingsRuntimeApplier struct {
-	daemon *Daemon
-	state  *bootState
-}
-
-func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
-	ctx context.Context,
-	snap *aghconfig.Config,
-) []settingspkg.ApplyFailure {
-	if a.daemon == nil || a.state == nil || snap == nil {
-		return nil
-	}
-	next := *snap
-
-	a.daemon.mu.Lock()
-	previous := a.state.cfg
-	a.state.cfg = next
-	a.daemon.config = next
-	a.daemon.mu.Unlock()
-
-	var failures []settingspkg.ApplyFailure
-	if a.state.toolMCPResources != nil {
-		if err := a.state.toolMCPResources.Sync(ctx); err != nil {
-			failures = append(failures, settingspkg.ApplyFailure{
-				Subsystem: "mcp",
-				Diagnostic: diagnostics.NewItem(
-					"config.apply.mcp_sync_failed",
-					diagnosticcontract.CodeConfigPartialFailure,
-					diagnosticcontract.CategoryMCP,
-					"MCP runtime sync failed",
-					diagnostics.RedactAndBound(err.Error(), 1024),
-					diagnosticcontract.SeverityError,
-					diagnosticcontract.FreshnessLive,
-					diagnostics.WithSuggestedCommand("agh config reload"),
-				),
-			})
-		}
-	}
-	if len(failures) > 0 {
-		a.daemon.mu.Lock()
-		a.state.cfg = previous
-		a.daemon.config = previous
-		a.daemon.mu.Unlock()
-		return failures
-	}
-
-	providers.InvalidatePreStartCache()
-
-	return failures
 }
 
 func daemonNetworkInfo(

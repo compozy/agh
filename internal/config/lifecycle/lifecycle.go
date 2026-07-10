@@ -75,6 +75,8 @@ var Matrix = []Rule{
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "providers.*.models", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "providers.*.models.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},
@@ -188,6 +190,9 @@ func pathMatches(pattern string, path string) bool {
 	pathParts := strings.Split(normalizePath(path), ".")
 	if len(patternParts) > 0 && patternParts[len(patternParts)-1] == "*" && len(pathParts) >= len(patternParts) {
 		for i := range patternParts[:len(patternParts)-1] {
+			if patternParts[i] == "*" {
+				continue
+			}
 			if patternParts[i] != pathParts[i] {
 				return false
 			}

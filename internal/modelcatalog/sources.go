@@ -2,22 +2,28 @@ package modelcatalog
 
 import (
 	"context"
-	"maps"
+	"fmt"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
-type providerConfigSource struct {
+const defaultReasoningEffortField = "default_reasoning_effort"
+
+// ProviderConfigSource projects one replaceable provider-config snapshot.
+type ProviderConfigSource struct {
 	id        string
 	kind      SourceKind
 	priority  int
+	mu        sync.RWMutex
 	providers map[string]aghconfig.ProviderConfig
 }
 
-var _ Source = (*providerConfigSource)(nil)
+var _ Source = (*ProviderConfigSource)(nil)
 
 // NewBuiltinSource creates the offline bootstrap source from AGH built-ins.
 func NewBuiltinSource() Source {
@@ -30,7 +36,7 @@ func NewBuiltinSource() Source {
 }
 
 // NewConfigSource creates the operator config model source.
-func NewConfigSource(providers map[string]aghconfig.ProviderConfig) Source {
+func NewConfigSource(providers map[string]aghconfig.ProviderConfig) *ProviderConfigSource {
 	return newProviderConfigSource(SourceIDConfig, SourceKindConfig, PriorityConfig, providers)
 }
 
@@ -39,51 +45,75 @@ func newProviderConfigSource(
 	kind SourceKind,
 	priority int,
 	providers map[string]aghconfig.ProviderConfig,
-) Source {
-	return &providerConfigSource{
+) *ProviderConfigSource {
+	return &ProviderConfigSource{
 		id:        id,
 		kind:      kind,
 		priority:  priority,
-		providers: cloneConfigProviders(providers),
+		providers: aghconfig.CloneProviderConfigs(providers),
 	}
 }
 
-func (s *providerConfigSource) ID() string {
+func (s *ProviderConfigSource) ID() string {
 	return s.id
 }
 
-func (s *providerConfigSource) Kind() SourceKind {
+func (s *ProviderConfigSource) Kind() SourceKind {
 	return s.kind
 }
 
-func (s *providerConfigSource) Priority() int {
+func (s *ProviderConfigSource) Priority() int {
 	return s.priority
 }
 
-func (s *providerConfigSource) ProviderIDs() []string {
-	providers := make([]string, 0, len(s.providers))
-	for providerID := range s.providers {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
+func (s *ProviderConfigSource) ProviderIDs() []string {
+	s.mu.RLock()
+	providers := providerConfigIDs(s.providers)
+	s.mu.RUnlock()
 	return providers
 }
 
-func (s *providerConfigSource) ListModels(
+func (s *ProviderConfigSource) ListModels(
 	_ context.Context,
 	opts ListOptions,
 ) ([]ModelRow, error) {
 	now := defaultNow(opts.Now)
-	providers := s.ProviderIDs()
+	s.mu.RLock()
+	providersSnapshot := aghconfig.CloneProviderConfigs(s.providers)
+	s.mu.RUnlock()
+	providers := providerConfigIDs(providersSnapshot)
 	rows := make([]ModelRow, 0)
 	for _, providerID := range providers {
 		if opts.ProviderID != "" && opts.ProviderID != providerID {
 			continue
 		}
-		provider := s.providers[providerID]
-		rows = append(rows, providerModelRows(providerID, provider.Models, s.id, s.kind, s.priority, now)...)
+		provider := providersSnapshot[providerID]
+		providerRows, err := providerModelRows(providerID, provider.Models, s.id, s.kind, s.priority, now)
+		if err != nil {
+			return nil, fmt.Errorf("model catalog: project provider config %q: %w", providerID, err)
+		}
+		rows = append(rows, providerRows...)
 	}
 	return rows, nil
+}
+
+func providerConfigIDs(providers map[string]aghconfig.ProviderConfig) []string {
+	ids := make([]string, 0, len(providers))
+	for providerID := range providers {
+		ids = append(ids, providerID)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// ReplaceProviders atomically replaces the source snapshot used by subsequent refreshes.
+func (s *ProviderConfigSource) ReplaceProviders(providers map[string]aghconfig.ProviderConfig) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.providers = aghconfig.CloneProviderConfigs(providers)
+	s.mu.Unlock()
 }
 
 func providerModelRows(
@@ -93,7 +123,7 @@ func providerModelRows(
 	kind SourceKind,
 	priority int,
 	now time.Time,
-) []ModelRow {
+) ([]ModelRow, error) {
 	byID := make(map[string]ModelRow)
 	order := make([]string, 0, len(models.Curated)+1)
 	addModel := func(modelID string) ModelRow {
@@ -115,11 +145,7 @@ func providerModelRows(
 		return row
 	}
 	if defaultModel := strings.TrimSpace(models.Default); defaultModel != "" {
-		if providerConfigHasCuratedModel(models, defaultModel) {
-			addModel(defaultModel)
-		} else {
-			addModel(aghconfig.CanonicalProviderModelName(providerID, defaultModel))
-		}
+		addModel(defaultModel)
 	}
 	for _, curated := range models.Curated {
 		modelID := strings.TrimSpace(curated.ID)
@@ -127,26 +153,20 @@ func providerModelRows(
 			continue
 		}
 		row := addModel(modelID)
-		enrichRowFromProviderModel(&row, curated)
+		row.ExplicitlyCurated = true
+		if err := enrichRowFromProviderModel(&row, curated); err != nil {
+			return nil, err
+		}
 		byID[modelID] = row
 	}
 	rows := make([]ModelRow, 0, len(order))
 	for _, modelID := range order {
 		rows = append(rows, byID[modelID])
 	}
-	return rows
+	return rows, nil
 }
 
-func providerConfigHasCuratedModel(models aghconfig.ProviderModelsConfig, modelID string) bool {
-	for _, curated := range models.Curated {
-		if strings.TrimSpace(curated.ID) == modelID {
-			return true
-		}
-	}
-	return false
-}
-
-func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConfig) {
+func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConfig) error {
 	row.DisplayName = strings.TrimSpace(model.DisplayName)
 	row.ContextWindow = model.ContextWindow
 	row.MaxInputTokens = model.MaxInputTokens
@@ -155,108 +175,48 @@ func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConf
 	row.SupportsReasoning = model.SupportsReasoning
 	row.CostInputPerMillion = model.CostInputPerMillion
 	row.CostOutputPerMillion = model.CostOutputPerMillion
+	row.Deprecated = cloneBoolPtr(model.Deprecated)
+	row.Hidden = cloneBoolPtr(model.Hidden)
+	row.Featured = cloneBoolPtr(model.Featured)
+	if releaseDate, err := NormalizeReleaseDate(model.ReleaseDate); err == nil {
+		row.ReleaseDate = releaseDate
+	} else {
+		row.LastError = RedactString(err.Error())
+	}
 	if len(model.ReasoningEfforts) > 0 {
 		row.ReasoningEfforts = make([]ReasoningEffort, 0, len(model.ReasoningEfforts))
-		for _, effort := range model.ReasoningEfforts {
+		for index, effort := range model.ReasoningEfforts {
 			trimmed := strings.TrimSpace(effort)
-			if trimmed != "" {
-				row.ReasoningEfforts = append(row.ReasoningEfforts, ReasoningEffort(trimmed))
+			if !IsValidEffort(trimmed) {
+				return &InvalidReasoningEffortError{
+					ProviderID: row.ProviderID,
+					ModelID:    row.ModelID,
+					Field:      fmt.Sprintf("reasoning_efforts[%d]", index),
+					Effort:     trimmed,
+				}
 			}
+			row.ReasoningEfforts = append(row.ReasoningEfforts, ReasoningEffort(trimmed))
 		}
 	}
 	if effort := strings.TrimSpace(model.DefaultReasoningEffort); effort != "" {
+		if !IsValidEffort(effort) {
+			return &InvalidReasoningEffortError{
+				ProviderID: row.ProviderID,
+				ModelID:    row.ModelID,
+				Field:      defaultReasoningEffortField,
+				Effort:     effort,
+			}
+		}
 		defaultEffort := ReasoningEffort(effort)
+		if len(row.ReasoningEfforts) > 0 && !slices.Contains(row.ReasoningEfforts, defaultEffort) {
+			return &InvalidReasoningEffortError{
+				ProviderID: row.ProviderID,
+				ModelID:    row.ModelID,
+				Field:      defaultReasoningEffortField,
+				Effort:     effort,
+			}
+		}
 		row.DefaultReasoningEffort = &defaultEffort
 	}
-}
-
-func cloneConfigProviders(src map[string]aghconfig.ProviderConfig) map[string]aghconfig.ProviderConfig {
-	if src == nil {
-		return map[string]aghconfig.ProviderConfig{}
-	}
-	cloned := make(map[string]aghconfig.ProviderConfig, len(src))
-	for providerID, cfg := range src {
-		cloned[providerID] = cloneProviderConfig(cfg)
-	}
-	return cloned
-}
-
-func cloneProviderConfig(src aghconfig.ProviderConfig) aghconfig.ProviderConfig {
-	cloned := src
-	cloned.Models = cloneProviderModelsConfig(src.Models)
-	cloned.SessionMCP = clonePtr(src.SessionMCP)
-	cloned.CredentialSlots = cloneProviderCredentialSlots(src.CredentialSlots)
-	cloned.MCPServers = cloneMCPServers(src.MCPServers)
-	return cloned
-}
-
-func cloneProviderModelsConfig(src aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
-	cloned := src
-	cloned.Curated = cloneProviderModelConfigs(src.Curated)
-	return cloned
-}
-
-func cloneProviderModelConfigs(src []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
-	if src == nil {
-		return nil
-	}
-	cloned := make([]aghconfig.ProviderModelConfig, len(src))
-	for index, cfg := range src {
-		cloned[index] = cfg
-		cloned[index].ContextWindow = clonePtr(cfg.ContextWindow)
-		cloned[index].MaxInputTokens = clonePtr(cfg.MaxInputTokens)
-		cloned[index].MaxOutputTokens = clonePtr(cfg.MaxOutputTokens)
-		cloned[index].SupportsTools = clonePtr(cfg.SupportsTools)
-		cloned[index].SupportsReasoning = clonePtr(cfg.SupportsReasoning)
-		cloned[index].ReasoningEfforts = cloneStrings(cfg.ReasoningEfforts)
-		cloned[index].CostInputPerMillion = clonePtr(cfg.CostInputPerMillion)
-		cloned[index].CostOutputPerMillion = clonePtr(cfg.CostOutputPerMillion)
-	}
-	return cloned
-}
-
-func cloneProviderCredentialSlots(src []aghconfig.ProviderCredentialSlot) []aghconfig.ProviderCredentialSlot {
-	if src == nil {
-		return nil
-	}
-	return append([]aghconfig.ProviderCredentialSlot(nil), src...)
-}
-
-func cloneMCPServers(src []aghconfig.MCPServer) []aghconfig.MCPServer {
-	if src == nil {
-		return nil
-	}
-	cloned := make([]aghconfig.MCPServer, len(src))
-	for index, server := range src {
-		cloned[index] = server
-		cloned[index].Args = cloneStrings(server.Args)
-		cloned[index].Env = cloneStringMap(server.Env)
-		cloned[index].SecretEnv = cloneStringMap(server.SecretEnv)
-		cloned[index].Auth.Scopes = cloneStrings(server.Auth.Scopes)
-	}
-	return cloned
-}
-
-func cloneStrings(src []string) []string {
-	if src == nil {
-		return nil
-	}
-	return append([]string(nil), src...)
-}
-
-func cloneStringMap(src map[string]string) map[string]string {
-	if src == nil {
-		return nil
-	}
-	cloned := make(map[string]string, len(src))
-	maps.Copy(cloned, src)
-	return cloned
-}
-
-func clonePtr[T any](value *T) *T {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
+	return nil
 }

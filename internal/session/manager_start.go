@@ -386,6 +386,9 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
+		return sessionStartRuntime{}, err
+	}
 	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
 		return sessionStartRuntime{}, err
 	}
@@ -642,7 +645,7 @@ func (m *Manager) sessionStartOpts(
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
-		PreferredModel:  preferredACPModel(resolved),
+		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
 		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session),
@@ -654,25 +657,6 @@ func startSpecPermissions(s *sessionStartSpec, fallback string) string {
 		return fallback
 	}
 	return string(s.permissions)
-}
-
-func preferredACPModel(resolved aghconfig.ResolvedAgent) string {
-	if resolved.Harness != aghconfig.ProviderHarnessPiACP ||
-		resolved.AuthMode != aghconfig.ProviderAuthModeNativeCLI {
-		return ""
-	}
-	model := strings.TrimSpace(resolved.Model)
-	if model == "" {
-		return ""
-	}
-	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
-	if runtimeProvider == "" {
-		runtimeProvider = strings.TrimSpace(resolved.Provider)
-	}
-	if runtimeProvider == "" || strings.HasPrefix(model, runtimeProvider+"/") {
-		return model
-	}
-	return runtimeProvider + "/" + model
 }
 
 func sessionStartEnv(base []string, session *Session) []string {

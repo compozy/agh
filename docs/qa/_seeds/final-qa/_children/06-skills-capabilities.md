@@ -93,8 +93,8 @@ QA), not unit-test assertions. Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` for activation/transcript
-  scenarios; `claude-sonnet-4-6` for hot-reload spot checks) as the
+- Uses real Claude Code (`claude-opus-4-8` for activation/transcript
+  scenarios; `claude-sonnet-5` for hot-reload spot checks) as the
   subprocess agent driver, not mocks. OpenClaw is referenced once
   (SKL-12) where cross-driver parity matters.
 - Emits four artifacts under `.artifacts/qa/<run-id>/skl-XX/`:
@@ -116,7 +116,7 @@ is safe when AGH_HOMEs are distinct).
 
 | Mode               | When                                                                                           | Driver                                                                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code` | Default for all scenarios that exercise real subagent activation, transcript citation, and skill body injection. | `claude-opus-4-7[1m]` for transcript-fidelity scenarios; `claude-sonnet-4-6` acceptable for hot-install / collision smoke (SKL-09, SKL-11).      |
+| `real-claude-code` | Default for all scenarios that exercise real subagent activation, transcript citation, and skill body injection. | `claude-opus-4-8` for transcript-fidelity scenarios; `claude-sonnet-5` acceptable for hot-install / collision smoke (SKL-09, SKL-11).      |
 | `real-openclaw`    | Cross-driver sanity (SKL-12 only) to prove skills are driver-agnostic.                         | OpenClaw bundled-plugin runtime via the AGH ACP client.                                                                                         |
 | `mock-acp` (gate)  | Determinism gate for the workspace-cache TTL scenario where wall-clock simulation is needed (SKL-15). | `internal/e2elane` mock ACP server. The surrounding daemon, registry, and projector run real code paths.                                        |
 

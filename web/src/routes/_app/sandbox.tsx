@@ -109,7 +109,7 @@ function SandboxPage() {
       }
     >
       {page.lastAction ? (
-        <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+        <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
       <Section
@@ -567,7 +567,7 @@ function SandboxDeleteDialog({
   );
 }
 
-function ActionResultBanner({
+function LastActionAlert({
   action,
   onDismiss,
 }: {

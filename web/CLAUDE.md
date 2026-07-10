@@ -82,7 +82,7 @@ web/src/
 │   ├── contexts/ stores/    # React contexts / Zustand|XState (optional)
 │   ├── components/          # domain UI
 │   └── guards/              # route guards (optional)
-├── components/          # Shared components (ui/ for shadcn)
+├── components/          # App-shell shared components (generic primitives come from @agh/ui — see packages/ui/CLAUDE.md)
 ├── lib/ integrations/   # Shared utils / third-party (tanstack-query/)
 ├── styles.css           # Tailwind v4 theme + shadcn
 └── routeTree.gen.ts     # Auto-generated (never edit)

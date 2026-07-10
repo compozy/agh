@@ -84,7 +84,7 @@ export function ProviderEditForm({ mode, draft, onChange }: ProviderEditFormProp
             className="w-56 font-mono"
             data-testid="settings-providers-editor-model-input"
             value={draft.model_default}
-            placeholder="gpt-5-turbo"
+            placeholder="Leave blank to use the provider default"
             onChange={event =>
               onChange(current => ({ ...current, model_default: event.target.value }))
             }
@@ -102,7 +102,7 @@ export function ProviderEditForm({ mode, draft, onChange }: ProviderEditFormProp
             className="min-h-24 w-72 font-mono text-xs"
             data-testid="settings-providers-editor-curated-models-input"
             value={draft.curated_models}
-            placeholder={"gpt-5.4\ngpt-5.4-mini"}
+            placeholder="One model ID per line"
             onChange={event =>
               onChange(current => ({ ...current, curated_models: event.target.value }))
             }

@@ -20,6 +20,32 @@ import (
 func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should deep copy curation flags at the extension boundary", func(t *testing.T) {
+		t.Parallel()
+
+		deprecated := false
+		hidden := true
+		featured := false
+		rows := []extensioncontract.ModelSourceRow{{
+			SourceID:   "extension:ext-models",
+			ProviderID: "codex",
+			ModelID:    "gpt-5.6-sol",
+			Deprecated: &deprecated,
+			Hidden:     &hidden,
+			Featured:   &featured,
+		}}
+		cloned := cloneModelSourceRows(rows)
+		deprecated = true
+		hidden = false
+		featured = true
+
+		row := cloned[0]
+		if row.Deprecated == nil || *row.Deprecated || row.Hidden == nil || !*row.Hidden ||
+			row.Featured == nil || *row.Featured {
+			t.Fatalf("cloned curation flags = %#v, want false/true/false snapshot", row)
+		}
+	})
+
 	t.Run("Should persist validated rows through catalog service", func(t *testing.T) {
 		t.Parallel()
 
@@ -30,6 +56,7 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		source := newTestModelSource(t, "ext-models", runtime)
 		available := true
 		cost := 1.25
+		releaseDate := "2026-06-26"
 		runtime.rows = []extensioncontract.ModelSourceRow{
 			{
 				SourceID:          source.ID(),
@@ -37,10 +64,14 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 				ModelID:           "gpt-5.4-extension",
 				DisplayName:       "GPT 5.4 Extension",
 				Available:         &available,
-				ReasoningEfforts:  []string{"high"},
+				ReasoningEfforts:  []apicontract.ReasoningEffort{"high"},
 				ContextWindow:     new(int64(200000)),
 				SupportsTools:     new(true),
 				SupportsReasoning: new(true),
+				Deprecated:        new(true),
+				Hidden:            new(true),
+				Featured:          new(true),
+				ReleaseDate:       &releaseDate,
 				Cost: &apicontract.ModelCatalogCostPayload{
 					InputPerMillion:  &cost,
 					OutputPerMillion: &cost,
@@ -65,6 +96,7 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		models, err := service.ListModels(ctx, modelcatalog.ListOptions{
 			ProviderID:   "codex",
 			IncludeStale: true,
+			View:         modelcatalog.CatalogViewAll,
 			Now:          now,
 		})
 		if err != nil {
@@ -75,6 +107,10 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		}
 		if len(models[0].Sources) != 1 || models[0].Sources[0].SourceID != source.ID() {
 			t.Fatalf("ListModels()[0].Sources = %#v, want extension source ref", models[0].Sources)
+		}
+		if !models[0].Deprecated || !models[0].Hidden || !models[0].Featured ||
+			models[0].ReleaseDate == nil || *models[0].ReleaseDate != releaseDate {
+			t.Fatalf("ListModels()[0] curation = %#v, want all flags and release %q", models[0], releaseDate)
 		}
 	})
 }
@@ -247,7 +283,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 	sourceID := baseSource.ID()
 	negativeInt := int64(-1)
 	negativeCost := float64(-1)
-	defaultEffort := "medium"
+	defaultEffort := apicontract.ReasoningEffort("medium")
 	tests := []struct {
 		name    string
 		row     extensioncontract.ModelSourceRow
@@ -309,12 +345,22 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 			wantErr: "cost.output_per_million must be non-negative",
 		},
 		{
+			name: "Should reject invalid release date metadata",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:    sourceID,
+				ProviderID:  "codex",
+				ModelID:     "model",
+				ReleaseDate: new("June 2026"),
+			},
+			wantErr: "release_date",
+		},
+		{
 			name: "Should reject unsupported reasoning effort",
 			row: extensioncontract.ModelSourceRow{
 				SourceID:         sourceID,
 				ProviderID:       "codex",
 				ModelID:          "model",
-				ReasoningEfforts: []string{"turbo"},
+				ReasoningEfforts: []apicontract.ReasoningEffort{"turbo"},
 			},
 			wantErr: `reasoning effort "turbo" is not supported`,
 		},
@@ -324,7 +370,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				SourceID:         sourceID,
 				ProviderID:       "codex",
 				ModelID:          "model",
-				ReasoningEfforts: []string{"high", "high"},
+				ReasoningEfforts: []apicontract.ReasoningEffort{"high", "high"},
 			},
 			wantErr: `reasoning_efforts contains duplicate "high"`,
 		},
@@ -334,7 +380,7 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 				SourceID:               sourceID,
 				ProviderID:             "codex",
 				ModelID:                "model",
-				ReasoningEfforts:       []string{"high"},
+				ReasoningEfforts:       []apicontract.ReasoningEffort{"high"},
 				DefaultReasoningEffort: &defaultEffort,
 			},
 			wantErr: `default_reasoning_effort "medium" is not in reasoning_efforts`,
@@ -628,7 +674,7 @@ func newTestModelCatalogService(
 ) modelcatalog.Service {
 	t.Helper()
 
-	service, err := modelcatalog.NewService(store, sources)
+	service, err := modelcatalog.NewService(store, sources, modelcatalog.MergeOptions{})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}

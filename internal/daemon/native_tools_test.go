@@ -20,6 +20,9 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -32,6 +35,7 @@ import (
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -651,6 +655,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatWake)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDProviderModelsList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDProviderModelsCurate)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMemoryList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDListLogs)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
@@ -675,6 +681,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDWorkspaceDescribe,
+			toolspkg.ToolIDProviderModelsList,
+			toolspkg.ToolIDProviderModelsCurate,
 			toolspkg.ToolIDMemoryList,
 			toolspkg.ToolIDListLogs,
 			toolspkg.ToolIDBridgesList,
@@ -746,17 +754,21 @@ func TestDaemonNativeTools(t *testing.T) {
 			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), store.GlobalDatabaseName)),
 		)
 		catalog := &nativeModelCatalogService{}
+		settingsService := &nativeProviderModelSettingsService{}
 		extractor := &nativeMemoryExtractorService{}
 		providers := &nativeMemoryProviderService{}
 		ledger := &nativeMemorySessionLedgerService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills:              newLoadedNativeSkillRegistry(t),
-			Network:             networkService,
-			NetworkStore:        apitest.StubNetworkStore{},
-			Tasks:               tasks,
-			Bridges:             apitest.StubBridgeService{},
-			Automation:          apitest.StubAutomationManager{},
-			ModelCatalog:        catalog,
+			Skills:       newLoadedNativeSkillRegistry(t),
+			Network:      networkService,
+			NetworkStore: apitest.StubNetworkStore{},
+			Tasks:        tasks,
+			Bridges:      apitest.StubBridgeService{},
+			Automation:   apitest.StubAutomationManager{},
+			ModelCatalog: catalog,
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
 			MemoryStore:         memoryStore,
 			MemoryExtractor:     extractor,
 			MemoryProviders:     providers,
@@ -832,6 +844,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDProviderModelsList, json.RawMessage("{\"provider_id\":7}")},
 			{toolspkg.ToolIDProviderModelsRefresh, json.RawMessage("{\"source_id\":7}")},
 			{toolspkg.ToolIDProviderModelsStatus, json.RawMessage("{\"provider_id\":7}")},
+			{toolspkg.ToolIDProviderModelsCurate, json.RawMessage("{\"provider_id\":7,\"model_id\":true}")},
 			{toolspkg.ToolIDMemoryHealth, json.RawMessage("{\"workspace_id\":7}")},
 			{toolspkg.ToolIDMemoryScopeShow, json.RawMessage("{\"scope\":7}")},
 			{toolspkg.ToolIDMemoryAdminHistory, json.RawMessage("{\"limit\":\"bad\"}")},
@@ -880,6 +893,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if got := catalog.totalCalls(); got != 0 {
 			t.Fatalf("model catalog calls = %d, want 0", got)
 		}
+		if got := settingsService.calls; got != 0 {
+			t.Fatalf("provider model curation calls = %d, want 0", got)
+		}
 		if got := extractor.totalCalls(); got != 0 {
 			t.Fatalf("memory extractor calls = %d, want 0", got)
 		}
@@ -922,8 +938,29 @@ func TestDaemonNativeTools(t *testing.T) {
 				RowCount:     1,
 			}},
 		}
+		settingsService := &nativeProviderModelSettingsService{
+			result: settingspkg.ProviderModelCurationResult{
+				Model: modelcatalog.Model{
+					ProviderID:             "codex",
+					ModelID:                "gpt-5.6-sol",
+					Hidden:                 true,
+					DefaultReasoningEffort: new(modelcatalog.ReasoningEffortMax),
+				},
+				Apply: settingspkg.ApplyResult{
+					Applied: true,
+					Record: settingspkg.ApplyRecord{
+						ID:         "cfgapp-native-curate",
+						Lifecycle:  lifecycle.Live,
+						Generation: 3,
+					},
+				},
+			},
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			ModelCatalog: catalog,
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -931,7 +968,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
-				Input:  json.RawMessage(`{"provider_id":"codex","source_id":"config","include_stale":true}`),
+				Input: json.RawMessage(
+					`{"provider_id":"codex","source_id":"config","view":"all","include_stale":true}`,
+				),
 			},
 		)
 		if err != nil {
@@ -942,6 +981,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if catalog.listCalls != 1 ||
 			catalog.lastList.ProviderID != "codex" ||
 			catalog.lastList.SourceID != modelcatalog.SourceIDConfig ||
+			catalog.lastList.View != modelcatalog.CatalogViewAll ||
 			catalog.lastList.Refresh ||
 			!catalog.lastList.IncludeStale {
 			t.Fatalf("ListModels options = %#v after %d calls", catalog.lastList, catalog.listCalls)
@@ -1000,6 +1040,31 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("ListSourceStatus provider = %q after %d calls", catalog.lastStatusProviderID, catalog.statusCalls)
 		}
 
+		curateResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsCurate,
+				Input: json.RawMessage(
+					`{"provider_id":"codex","model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(provider_models_curate) error = %v", err)
+		}
+		requireNativeStructuredContains(t, curateResult, []byte(`"model_id":"gpt-5.6-sol"`))
+		requireNativeStructuredContains(t, curateResult, []byte(`"hidden":true`))
+		if settingsService.calls != 1 ||
+			settingsService.lastRequest.ProviderID != "codex" ||
+			settingsService.lastRequest.ModelID != "gpt-5.6-sol" ||
+			settingsService.lastRequest.Hidden == nil ||
+			!*settingsService.lastRequest.Hidden ||
+			settingsService.lastRequest.DefaultReasoningEffort == nil ||
+			*settingsService.lastRequest.DefaultReasoningEffort != "max" {
+			t.Fatalf("curation request = %#v after %d calls", settingsService.lastRequest, settingsService.calls)
+		}
+
 		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
@@ -1013,6 +1078,20 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if catalog.listCalls != 1 {
 			t.Fatalf("ListModels calls = %d, want unchanged after invalid provider", catalog.listCalls)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsList,
+				Input:  json.RawMessage(`{"view":"recent"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_list invalid view) error = %v, want ErrToolInvalidInput", err)
+		}
+		if catalog.listCalls != 1 {
+			t.Fatalf("ListModels calls = %d, want unchanged after invalid view", catalog.listCalls)
 		}
 		_, err = registry.Call(
 			t.Context(),
@@ -1097,14 +1176,55 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve model_not_found from provider model curation", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("provider model codex/missing was not found")
+		item := diagnostics.NewItem(
+			"provider.models.model_not_found",
+			diagnosticcontract.CodeModelNotFound,
+			diagnosticcontract.CategoryProvider,
+			"Provider model not found",
+			cause.Error(),
+			diagnosticcontract.SeverityError,
+			diagnosticcontract.FreshnessLive,
+		)
+		settingsService := &nativeProviderModelSettingsService{
+			err: diagnostics.NewStructuredError(item, cause),
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			ModelCatalog: &nativeModelCatalogService{},
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsCurate,
+				Input:  json.RawMessage(`{"provider_id":"codex","model_id":"missing"}`),
+			},
+		)
+		requireToolCode(t, err, toolspkg.ErrorCodeModelNotFound)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_curate missing) error = %v, want ErrToolInvalidInput", err)
+		}
+	})
+
 	t.Run("Should require approval for mutating tools under approve-reads policy", func(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{}
 		catalog := &nativeModelCatalogService{}
+		settingsService := &nativeProviderModelSettingsService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Tasks:        tasks,
 			ModelCatalog: catalog,
+			Settings: func() core.SettingsService {
+				return settingsService
+			},
 		}, toolspkg.PolicyInputs{
 			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
 			ApprovalAvailable:    false,
@@ -1141,6 +1261,24 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if catalog.refreshCalls != 0 {
 			t.Fatalf("Refresh calls = %d, want 0", catalog.refreshCalls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsCurate,
+				Input:  json.RawMessage(`{"provider_id":"codex","model_id":"gpt-5.6-sol"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf(
+				"Registry.Call(provider_models_curate approve-reads) error = %v, want ErrToolApprovalRequired",
+				err,
+			)
+		}
+		if settingsService.calls != 0 {
+			t.Fatalf("ApplyProviderModelCuration calls = %d, want 0", settingsService.calls)
 		}
 	})
 
@@ -6129,6 +6267,26 @@ type nativeModelCatalogService struct {
 	listErr              error
 	refreshErr           error
 	statusErr            error
+}
+
+type nativeProviderModelSettingsService struct {
+	core.SettingsService
+	result      settingspkg.ProviderModelCurationResult
+	err         error
+	calls       int
+	lastRequest settingspkg.ProviderModelCurationRequest
+}
+
+func (s *nativeProviderModelSettingsService) ApplyProviderModelCuration(
+	_ context.Context,
+	req settingspkg.ProviderModelCurationRequest,
+) (settingspkg.ProviderModelCurationResult, error) {
+	s.calls++
+	s.lastRequest = req
+	if s.err != nil {
+		return settingspkg.ProviderModelCurationResult{}, s.err
+	}
+	return s.result, nil
 }
 
 func (s *nativeModelCatalogService) ListModels(

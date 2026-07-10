@@ -17,6 +17,7 @@ coverage.html
 .codex/CONTINUITY*
 .codex/security-reports/*
 .codex/prompts
+.codex/artifacts
 .resources/
 .old_project/
 node_modules/
@@ -35,6 +36,7 @@ ai-docs/
 .clawpatch
 .claude/analysis
 .claude/ledger
+.impeccable
 
 # Python
 __pycache__/

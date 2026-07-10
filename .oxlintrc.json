@@ -5,7 +5,8 @@
         "./lint-plugins/react-component-complexity.mjs",
         "./lint-plugins/react-hooks-separation.mjs",
         "./lint-plugins/test-file-location.mjs",
-        "./lint-plugins/compozy-design-system.mjs"
+        "./lint-plugins/compozy-design-system.mjs",
+        "./lint-plugins/ui-primitive-reuse.mjs"
     ],
     "categories": {},
     "rules": {
@@ -103,7 +104,8 @@
         "compozy-design-system/no-design-glaze-rgba": "error",
         "compozy-design-system/no-banned-imports": "error",
         "compozy-design-system/no-inline-design-tuples": "error",
-        "compozy-design-system/prefer-bare-token-utility": "error"
+        "compozy-design-system/prefer-bare-token-utility": "error",
+        "compozy-ui-reuse/no-shadow-ui-primitive": "error"
     },
     "overrides": [
         {

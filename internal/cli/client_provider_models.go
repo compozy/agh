@@ -14,8 +14,25 @@ import (
 type ProviderModelListQuery struct {
 	ProviderID   string
 	SourceID     string
+	View         string
 	Refresh      bool
 	IncludeStale bool
+}
+
+// ProviderModelClient exposes provider-model catalog reads and mutations over the daemon API.
+type ProviderModelClient interface {
+	ListProviderModels(ctx context.Context, query ProviderModelListQuery) (ProviderModelListRecord, error)
+	RefreshProviderModels(
+		ctx context.Context,
+		providerID string,
+		request ProviderModelRefreshRequest,
+	) (ProviderModelRefreshRecord, error)
+	ProviderModelStatus(ctx context.Context, providerID string) (ProviderModelStatusRecord, error)
+	CurateProviderModel(
+		ctx context.Context,
+		providerID string,
+		request ProviderModelCurationRequest,
+	) (ProviderModelCurationRecord, error)
 }
 
 // ProviderModelListRecord is the native provider model catalog list response.
@@ -29,6 +46,12 @@ type ProviderModelRefreshRequest = contract.ProviderModelRefreshRequest
 
 // ProviderModelRefreshRecord is the native provider model catalog refresh response.
 type ProviderModelRefreshRecord = contract.ProviderModelRefreshResponse
+
+// ProviderModelCurationRequest captures one provider-model curation mutation.
+type ProviderModelCurationRequest = contract.ProviderModelCurationRequest
+
+// ProviderModelCurationRecord is the applied provider-model curation response.
+type ProviderModelCurationRecord = contract.ProviderModelCurationResponse
 
 // ProviderModelStatusRecord is the native provider model catalog source status response.
 type ProviderModelStatusRecord = contract.ProviderModelStatusResponse
@@ -44,11 +67,29 @@ func (c *unixSocketClient) ListProviderModels(
 	var response ProviderModelListRecord
 	values := providerModelListValues(ProviderModelListQuery{
 		SourceID:     query.SourceID,
+		View:         query.View,
 		Refresh:      query.Refresh,
 		IncludeStale: query.IncludeStale,
 	})
 	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
 		return ProviderModelListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) CurateProviderModel(
+	ctx context.Context,
+	providerID string,
+	request ProviderModelCurationRequest,
+) (ProviderModelCurationRecord, error) {
+	trimmedProvider := strings.TrimSpace(providerID)
+	if trimmedProvider == "" {
+		return ProviderModelCurationRecord{}, fmt.Errorf("provider model provider_id is required")
+	}
+	path := providerModelsPath(trimmedProvider, "curate")
+	var response ProviderModelCurationRecord
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return ProviderModelCurationRecord{}, err
 	}
 	return response, nil
 }
@@ -59,9 +100,6 @@ func (c *unixSocketClient) RefreshProviderModels(
 	request ProviderModelRefreshRequest,
 ) (ProviderModelRefreshRecord, error) {
 	trimmedProvider := strings.TrimSpace(providerID)
-	if trimmedProvider == "" {
-		return ProviderModelRefreshRecord{}, fmt.Errorf("provider model provider_id is required")
-	}
 	path := providerModelsPath(trimmedProvider, "refresh")
 	var response ProviderModelRefreshRecord
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
@@ -75,9 +113,6 @@ func (c *unixSocketClient) ProviderModelStatus(
 	providerID string,
 ) (ProviderModelStatusRecord, error) {
 	trimmedProvider := strings.TrimSpace(providerID)
-	if trimmedProvider == "" {
-		return ProviderModelStatusRecord{}, fmt.Errorf("provider model provider_id is required")
-	}
 	path := providerModelsPath(trimmedProvider, "status")
 	var response ProviderModelStatusRecord
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -89,10 +124,13 @@ func (c *unixSocketClient) ProviderModelStatus(
 func providerModelListValues(query ProviderModelListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.ProviderID); trimmed != "" {
-		values.Set("provider_id", trimmed)
+		values.Set(providerModelsProviderIDKey, trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.SourceID); trimmed != "" {
 		values.Set("source_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.View); trimmed != "" {
+		values.Set("view", trimmed)
 	}
 	if query.Refresh {
 		values.Set("refresh", "true")

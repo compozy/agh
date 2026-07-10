@@ -77,7 +77,10 @@ test("registers the MSW worker and fails unknown local API requests in web Story
       }
     });
 
-    expect(unknownRequest).toMatchObject({ rejected: true });
+    expect(unknownRequest).toMatchObject({
+      message: expect.stringMatching(/fetch|network/i),
+      rejected: true,
+    });
     expect(browserConsole.some(entry => entry.includes("without a matching request handler"))).toBe(
       true
     );

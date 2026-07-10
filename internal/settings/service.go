@@ -11,6 +11,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/modelcatalog"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/vault"
@@ -91,6 +92,7 @@ type MCPRuntimeProvider interface {
 
 // ConfigRuntimeApplier reconciles a validated config snapshot with daemon-owned runtime state.
 type ConfigRuntimeApplier interface {
+	// ApplyActiveConfig installs a fully projected next-active snapshot, not the persisted desired config.
 	ApplyActiveConfig(ctx context.Context, snap *aghconfig.Config) []ApplyFailure
 }
 
@@ -113,6 +115,7 @@ type Dependencies struct {
 	TransportParity            TransportParityProvider
 	MCPAuth                    MCPAuthRuntimeProvider
 	MCPRuntime                 MCPRuntimeProvider
+	ModelCatalog               modelcatalog.Service
 	RuntimeApplier             ConfigRuntimeApplier
 	ProviderSecrets            ProviderSecretStore
 	EventSummaries             store.EventSummaryStore
@@ -137,6 +140,7 @@ type service struct {
 	transportParity            TransportParityProvider
 	mcpAuth                    MCPAuthRuntimeProvider
 	mcpRuntime                 MCPRuntimeProvider
+	modelCatalog               modelcatalog.Service
 	runtimeApplier             ConfigRuntimeApplier
 	providerSecrets            ProviderSecretStore
 	eventSummaries             store.EventSummaryStore
@@ -180,6 +184,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		transportParity:            deps.TransportParity,
 		mcpAuth:                    deps.MCPAuth,
 		mcpRuntime:                 deps.MCPRuntime,
+		modelCatalog:               deps.ModelCatalog,
 		runtimeApplier:             deps.RuntimeApplier,
 		providerSecrets:            deps.ProviderSecrets,
 		eventSummaries:             deps.EventSummaries,

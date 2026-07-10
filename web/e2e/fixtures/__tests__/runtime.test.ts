@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { closeSkillMarketplaceServer, startSkillMarketplaceServer } from "../runtime";
+import { stopBrowserDaemonProcess, stopRegisteredDaemon } from "../runtime-process";
 import {
   assertDaemonServedHTML,
   buildResolveWorkspaceRequest,
@@ -14,6 +15,53 @@ import {
 } from "../runtime-helpers";
 
 describe("runtime helpers", () => {
+  it("stops the registered restart replacement before the originally spawned daemon", async () => {
+    const calls: string[] = [];
+    const child = {} as Parameters<typeof stopBrowserDaemonProcess>[0];
+
+    await stopBrowserDaemonProcess(
+      child,
+      {
+        cliShim: "/tmp/agh-home/bin/agh",
+        homeDir: "/tmp/agh-home",
+        repoRoot: "/tmp/repo",
+      },
+      {
+        executeFile: async (file, args, options) => {
+          calls.push("registered");
+          expect(file).toBe("/tmp/agh-home/bin/agh");
+          expect(args).toEqual(["daemon", "stop", "-o", "json"]);
+          expect(options).toMatchObject({
+            cwd: "/tmp/repo",
+            env: { AGH_HOME: "/tmp/agh-home", HOME: "/tmp/agh-home" },
+          });
+          return { stderr: "", stdout: "{}" };
+        },
+        stopSpawned: async receivedChild => {
+          expect(receivedChild).toBe(child);
+          calls.push("spawned");
+        },
+      }
+    );
+
+    expect(calls).toEqual(["registered", "spawned"]);
+  });
+
+  it("treats an already stopped registered daemon as idempotent cleanup", async () => {
+    await expect(
+      stopRegisteredDaemon(
+        {
+          cliShim: "/tmp/agh-home/bin/agh",
+          homeDir: "/tmp/agh-home",
+          repoRoot: "/tmp/repo",
+        },
+        async () => {
+          throw new Error("cli: daemon is not running");
+        }
+      )
+    ).resolves.toBeUndefined();
+  });
+
   it("defaults to launch mode when no attach URL is configured", () => {
     expect(resolveRuntimeMode({})).toEqual({ kind: "launch" });
   });
@@ -142,14 +190,14 @@ describe("runtime helpers", () => {
   });
 
   it("renders the auth-free acpmock provider when browser E2E seeds mock agents", () => {
-    expect(
-      renderRuntimeConfig({
-        host: "127.0.0.1",
-        includeMockAgentProvider: true,
-        port: 4321,
-        socketPath: "/tmp/agh.sock",
-      })
-    ).toContain(
+    const config = renderRuntimeConfig({
+      host: "127.0.0.1",
+      includeMockAgentProvider: true,
+      port: 4321,
+      socketPath: "/tmp/agh.sock",
+    });
+
+    expect(config).toContain(
       [
         "[providers.acpmock]",
         'command = "acpmock-driver"',
@@ -160,6 +208,21 @@ describe("runtime helpers", () => {
         "",
       ].join("\n")
     );
+    expect(config).toContain(
+      [
+        "[providers.acpmock.models.reasoning]",
+        'apply = "acp_option"',
+        "[[providers.acpmock.models.curated]]",
+        'id = "qa-browser-model-alt"',
+        'display_name = "QA Browser Model Alt"',
+        "supports_tools = true",
+        "supports_reasoning = true",
+        'reasoning_efforts = ["low", "medium", "high"]',
+        'default_reasoning_effort = "medium"',
+        "",
+      ].join("\n")
+    );
+    expect(config).not.toContain("[providers.acpmock.reasoning]");
   });
 
   it("requires API readiness probes only for loopback HTTP bindings", () => {

@@ -261,6 +261,17 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"workspace",
 					"workspace_path",
 				)
+				assertEnumValues(
+					t,
+					propertySchema(t, createSessionSchema, "reasoning_effort"),
+					"none",
+					"minimal",
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				)
 			},
 		},
 		{
@@ -314,6 +325,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listModels := operationFor(t, doc, "/api/model-catalog/providers/{provider_id}/models", "GET")
 				assertTagsContain(t, listModels, "providers")
 				assertParameter(t, listModels, "provider_id", openapi3.ParameterInPath, true)
+				assertParameter(t, listModels, "view", openapi3.ParameterInQuery, false)
 				assertParameter(t, listModels, "source_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listModels, "refresh", openapi3.ParameterInQuery, false)
 				assertParameter(t, listModels, "include_stale", openapi3.ParameterInQuery, false)
@@ -326,6 +338,28 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t.Fatalf("refresh request body required = %#v, want optional body", refresh.RequestBody)
 				}
 				assertResponseStatus(t, refresh, 503)
+
+				curate := operationFor(
+					t,
+					doc,
+					"/api/model-catalog/providers/{provider_id}/models/curate",
+					"POST",
+				)
+				assertParameter(t, curate, "provider_id", openapi3.ParameterInPath, true)
+				assertRequired(t, jsonRequestSchema(t, curate), "model_id")
+				assertEnumValues(
+					t,
+					propertySchema(t, jsonRequestSchema(t, curate), "default_effort"),
+					"none",
+					"minimal",
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				)
+				assertResponseStatus(t, curate, 422)
+				assertResponseStatus(t, curate, 503)
 
 				status := operationFor(t, doc, "/api/model-catalog/sources/status", "GET")
 				statusSchema := jsonResponseSchema(t, status, 200)
@@ -788,6 +822,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					propertySchema(t, errorPayload, "code"),
+					"model_not_found",
+					"reasoning_effort_unsupported",
 					"tool_approval_required",
 					"tool_backend_failed",
 					"tool_canceled",

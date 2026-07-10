@@ -12,6 +12,7 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 
 		description := "Choose active model"
 		booleanDescription := "Enable verbose output"
+		modelCategory := acpsdk.SessionConfigOptionCategoryModel
 		grouped := acpsdk.SessionConfigSelectOptionsGrouped{
 			{
 				Group: "frontier",
@@ -28,6 +29,7 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 					Id:           "model",
 					Name:         "Model",
 					Description:  &description,
+					Category:     &modelCategory,
 					CurrentValue: "model-a",
 					Options: acpsdk.SessionConfigSelectOptions{
 						Grouped: &grouped,
@@ -58,7 +60,9 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 		}
 		model := options[0]
 		if model.ID != "model" || model.Label != "Model" || model.Description != description ||
-			model.Kind != SessionConfigOptionKindSelect || model.Current != "model-a" {
+			model.Category != string(
+				modelCategory,
+			) || model.Kind != SessionConfigOptionKindSelect || model.Current != "model-a" {
 			t.Fatalf("model option = %#v", model)
 		}
 		if len(model.Values) != 1 || model.Values[0].Value != "model-a" ||
@@ -77,6 +81,31 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 
 		if got := sessionConfigOptionsFromSDK(nil); got != nil {
 			t.Fatalf("sessionConfigOptionsFromSDK(nil) = %#v, want nil", got)
+		}
+	})
+
+	t.Run("Should find model and reasoning options by standard categories", func(t *testing.T) {
+		t.Parallel()
+
+		categoryOptions := []SessionConfigOption{
+			{
+				ID:       "active_model",
+				Category: string(acpsdk.SessionConfigOptionCategoryModel),
+				Kind:     SessionConfigOptionKindSelect,
+			},
+			{
+				ID:       "thinking",
+				Category: string(acpsdk.SessionConfigOptionCategoryThoughtLevel),
+				Kind:     SessionConfigOptionKindSelect,
+			},
+		}
+		model, modelOK := findModelConfigOption(categoryOptions)
+		if !modelOK || model.ID != "active_model" {
+			t.Fatalf("findModelConfigOption(category) = %#v, %t", model, modelOK)
+		}
+		reasoning, reasoningOK := findReasoningConfigOption(categoryOptions)
+		if !reasoningOK || reasoning.ID != "thinking" {
+			t.Fatalf("findReasoningConfigOption(category) = %#v, %t", reasoning, reasoningOK)
 		}
 	})
 }

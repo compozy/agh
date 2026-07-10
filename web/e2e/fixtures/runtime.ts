@@ -26,6 +26,7 @@ import {
   runtimeURL,
   type RuntimeMode,
 } from "./runtime-helpers";
+import { stopBrowserDaemonProcess, stopSpawnedDaemonProcess } from "./runtime-process";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
@@ -277,7 +278,15 @@ class ActiveBrowserRuntime implements BrowserRuntime {
     }
 
     try {
-      await stopDaemonProcess(this.launchState.process);
+      if (this.paths === undefined) {
+        await stopSpawnedDaemonProcess(this.launchState.process);
+      } else {
+        await stopBrowserDaemonProcess(this.launchState.process, {
+          cliShim: this.paths.cliShim,
+          homeDir: this.paths.homeDir,
+          repoRoot: this.launchState.repoRoot,
+        });
+      }
     } finally {
       await closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer);
     }
@@ -425,7 +434,7 @@ async function cleanupFailedRuntimeLaunch(
   const cleanupErrors: Error[] = [];
   if (runtime !== undefined) {
     try {
-      await stopDaemonProcess(runtime.process);
+      await stopSpawnedDaemonProcess(runtime.process);
     } catch (error) {
       cleanupErrors.push(errorFromUnknown(error));
     }
@@ -592,21 +601,6 @@ function startDaemonProcess(
   };
 }
 
-async function stopDaemonProcess(child: ChildProcessWithoutNullStreams): Promise<void> {
-  if (child.exitCode !== null) {
-    return;
-  }
-
-  child.kill("SIGINT");
-  const closed = await waitForClose(child, 10_000);
-  if (closed) {
-    return;
-  }
-
-  child.kill("SIGKILL");
-  await waitForClose(child, 5_000);
-}
-
 async function requestJSONOverUnixSocket<T>(
   socketPath: string,
   pathname: string,
@@ -688,27 +682,6 @@ async function normalizeRequestBody(body: RequestInit["body"]): Promise<string |
   }
 
   throw new Error("unsupported request body for unix-socket JSON request");
-}
-
-function waitForClose(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve(false);
-    }, timeoutMs);
-
-    const handleClose = () => {
-      cleanup();
-      resolve(true);
-    };
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      child.off("close", handleClose);
-    };
-
-    child.once("close", handleClose);
-  });
 }
 
 async function reserveFreePort(): Promise<number> {

@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	aghconfig "github.com/compozy/agh/internal/config"
 	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/memory"
@@ -21,12 +18,9 @@ import (
 	"github.com/compozy/agh/internal/network"
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/resources"
-	"github.com/compozy/agh/internal/session"
-	settingspkg "github.com/compozy/agh/internal/settings"
 	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
-	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/compozy/agh/internal/vault"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -139,78 +133,6 @@ func NewMemoryValidationError(err error) error {
 	return fmt.Errorf("%w: %w", memory.ErrValidation, err)
 }
 
-// ErrSettingsValidation is the sentinel for settings request validation failures.
-var ErrSettingsValidation = errors.New("settings validation error")
-
-// ErrSettingsNotFound is the sentinel for missing settings resources.
-var ErrSettingsNotFound = errors.New("settings not found")
-
-// ErrSettingsConflict is the sentinel for conflicting settings mutations or scope combinations.
-var ErrSettingsConflict = errors.New("settings conflict")
-
-// ErrSettingsForbidden is the sentinel for settings operations rejected by transport policy.
-var ErrSettingsForbidden = errors.New("settings forbidden")
-
-// NewSettingsValidationError wraps a settings validation failure with the shared sentinel.
-func NewSettingsValidationError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrSettingsValidation, err)
-}
-
-// NewSettingsNotFoundError wraps a missing settings resource failure with the shared sentinel.
-func NewSettingsNotFoundError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrSettingsNotFound, err)
-}
-
-// NewSettingsConflictError wraps a settings conflict with the shared sentinel.
-func NewSettingsConflictError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrSettingsConflict, err)
-}
-
-// NewSettingsForbiddenError wraps a settings forbidden failure with the shared sentinel.
-func NewSettingsForbiddenError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrSettingsForbidden, err)
-}
-
-// StatusForSettingsError maps settings-domain failures to transport statuses.
-func StatusForSettingsError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, ErrSettingsForbidden),
-		errors.Is(err, settingspkg.ErrForbidden):
-		return http.StatusForbidden
-	case errors.Is(err, ErrSettingsValidation),
-		errors.Is(err, settingspkg.ErrValidation):
-		return http.StatusBadRequest
-	case errors.Is(err, settingspkg.ErrUnprocessable):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, ErrSettingsNotFound),
-		errors.Is(err, settingspkg.ErrNotFound),
-		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
-		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
-		errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, ErrSettingsConflict),
-		errors.Is(err, settingspkg.ErrConflict),
-		errors.Is(err, aghconfig.ErrUnsupportedTOMLMutation):
-		return http.StatusConflict
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
 // StatusForVaultError maps vault-domain failures to transport statuses.
 func StatusForVaultError(err error) int {
 	switch {
@@ -267,146 +189,6 @@ func StatusForResourceError(err error) int {
 		errors.Is(err, resources.ErrCodecNotFound),
 		errors.Is(err, resources.ErrCodecTypeMismatch):
 		return http.StatusUnprocessableEntity
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// StatusForToolError maps registry failures to stable transport statuses.
-func StatusForToolError(err error) int {
-	var toolErr *toolspkg.ToolError
-	var validation *toolspkg.ValidationError
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.As(err, &validation):
-		return http.StatusBadRequest
-	case errors.As(err, &toolErr):
-		return statusForToolCode(toolErr.Code, toolErr.ReasonCodes)
-	case errors.Is(err, toolspkg.ErrToolInvalidInput):
-		return http.StatusBadRequest
-	case errors.Is(err, toolspkg.ErrToolNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, toolspkg.ErrToolDenied):
-		return http.StatusForbidden
-	case errors.Is(err, toolspkg.ErrToolApprovalRequired):
-		return http.StatusAccepted
-	case errors.Is(err, toolspkg.ErrToolConflict):
-		return http.StatusConflict
-	case errors.Is(err, toolspkg.ErrToolUnavailable),
-		errors.Is(err, toolspkg.ErrToolResultTooLarge):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, toolspkg.ErrToolBackendFailed),
-		errors.Is(err, toolspkg.ErrToolCanceled),
-		errors.Is(err, toolspkg.ErrToolTimedOut):
-		return http.StatusBadGateway
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) int {
-	switch code {
-	case toolspkg.ErrorCodeInvalidInput:
-		return http.StatusBadRequest
-	case toolspkg.ErrorCodeNotFound:
-		return http.StatusNotFound
-	case toolspkg.ErrorCodeDenied:
-		return http.StatusForbidden
-	case toolspkg.ErrorCodeApprovalRequired:
-		if hasToolReason(reasons, toolspkg.ReasonApprovalTokenExpired, toolspkg.ReasonApprovalTokenMismatch,
-			toolspkg.ReasonApprovalTokenReplayed) {
-			return http.StatusForbidden
-		}
-		return http.StatusAccepted
-	case toolspkg.ErrorCodeConflict:
-		return http.StatusConflict
-	case toolspkg.ErrorCodeUnavailable, toolspkg.ErrorCodeResultTooLarge:
-		return http.StatusUnprocessableEntity
-	case toolspkg.ErrorCodeBackendFailed, toolspkg.ErrorCodeCanceled, toolspkg.ErrorCodeTimedOut:
-		return http.StatusBadGateway
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-func hasToolReason(reasons []toolspkg.ReasonCode, want ...toolspkg.ReasonCode) bool {
-	for _, reason := range reasons {
-		if slices.Contains(want, reason) {
-			return true
-		}
-	}
-	return false
-}
-
-// NewTaskValidationError wraps a task validation failure with the shared sentinel.
-func NewTaskValidationError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", taskpkg.ErrValidation, err)
-}
-
-// StatusForTaskError maps task-domain, workspace, and session failures to transport statuses.
-func StatusForTaskError(err error) int {
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.Is(err, taskpkg.ErrValidation),
-		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
-		errors.Is(err, taskpkg.ErrImmutableField):
-		return http.StatusBadRequest
-	case errors.Is(err, taskpkg.ErrPayloadTooLarge):
-		return http.StatusRequestEntityTooLarge
-	case errors.Is(err, taskpkg.ErrPermissionDenied):
-		return http.StatusForbidden
-	case errors.Is(err, taskpkg.ErrForbiddenOperatorAction):
-		return http.StatusForbidden
-	case errors.Is(err, taskpkg.ErrForceOpRateLimited):
-		return http.StatusTooManyRequests
-	case errors.Is(err, taskpkg.ErrForceOpRequiresReason),
-		errors.Is(err, taskpkg.ErrRetryChainTooDeep),
-		errors.Is(err, taskpkg.ErrBulkTooLarge):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, errAgentIdentityUnavailable),
-		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
-		return http.StatusForbidden
-	case errors.Is(err, agentidentity.ErrIdentityRequired),
-		errors.Is(err, agentidentity.ErrIdentityMismatch),
-		errors.Is(err, agentidentity.ErrIdentityStale):
-		return http.StatusUnauthorized
-	case errors.Is(err, taskpkg.ErrTaskNotFound),
-		errors.Is(err, taskpkg.ErrTaskRunNotFound),
-		errors.Is(err, taskpkg.ErrTaskDependencyNotFound),
-		errors.Is(err, taskpkg.ErrTaskBlockNotFound),
-		errors.Is(err, taskpkg.ErrTaskEventNotFound),
-		errors.Is(err, taskpkg.ErrTaskRunIdempotencyNotFound),
-		errors.Is(err, taskpkg.ErrExecutionProfileNotFound),
-		errors.Is(err, taskpkg.ErrRunReviewNotFound),
-		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
-		errors.Is(err, session.ErrSessionNotFound),
-		errors.Is(err, store.ErrSessionNotFound),
-		errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
-		return http.StatusGone
-	case errors.Is(err, taskpkg.ErrInvalidStatusTransition),
-		errors.Is(err, taskpkg.ErrConflict),
-		errors.Is(err, taskpkg.ErrHallucinatedTaskRefs),
-		errors.Is(err, taskpkg.ErrGraphLimitExceeded),
-		errors.Is(err, taskpkg.ErrCycleDetected),
-		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
-		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
-		errors.Is(err, store.ErrSessionAttachLocked),
-		errors.Is(err, store.ErrSessionNotAttachable),
-		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
-		errors.Is(err, taskpkg.ErrNoClaimableRun),
-		errors.Is(err, taskpkg.ErrInvalidClaimToken),
-		errors.Is(err, taskpkg.ErrLeaseExpired),
-		errors.Is(err, taskpkg.ErrActiveRunLease):
-		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}

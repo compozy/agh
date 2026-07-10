@@ -928,7 +928,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 		AgentName:       strings.TrimSpace(params.Agent),
 		Provider:        strings.TrimSpace(params.Provider),
 		Model:           strings.TrimSpace(params.Model),
-		ReasoningEffort: strings.TrimSpace(params.ReasoningEffort),
+		ReasoningEffort: strings.TrimSpace(string(params.ReasoningEffort)),
 		Workspace:       strings.TrimSpace(params.Workspace),
 		Type:            session.SessionTypeSystem,
 	})

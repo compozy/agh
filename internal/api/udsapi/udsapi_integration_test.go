@@ -2841,6 +2841,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithDriver(newIntegrationDriver()),
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
+		session.WithSessionCatalog(registry),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)

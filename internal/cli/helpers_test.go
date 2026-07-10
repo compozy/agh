@@ -39,6 +39,7 @@ type stubClient struct {
 	listProviderModelsFn         func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
 	refreshProviderModelsFn      func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
 	providerModelStatusFn        func(context.Context, string) (ProviderModelStatusRecord, error)
+	curateProviderModelFn        func(context.Context, string, ProviderModelCurationRequest) (ProviderModelCurationRecord, error)
 	listVaultSecretsFn           func(context.Context, VaultListQuery) ([]VaultRecord, error)
 	getVaultSecretFn             func(context.Context, string) (VaultRecord, error)
 	putVaultSecretFn             func(context.Context, PutVaultSecretRequest) (VaultRecord, error)
@@ -539,6 +540,17 @@ func (s *stubClient) ProviderModelStatus(
 		return s.providerModelStatusFn(ctx, providerID)
 	}
 	return ProviderModelStatusRecord{}, errors.New("unexpected ProviderModelStatus call")
+}
+
+func (s *stubClient) CurateProviderModel(
+	ctx context.Context,
+	providerID string,
+	request ProviderModelCurationRequest,
+) (ProviderModelCurationRecord, error) {
+	if s.curateProviderModelFn != nil {
+		return s.curateProviderModelFn(ctx, providerID, request)
+	}
+	return ProviderModelCurationRecord{}, errors.New("unexpected CurateProviderModel call")
 }
 
 func (s *stubClient) ListVaultSecrets(

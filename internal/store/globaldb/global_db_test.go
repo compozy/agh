@@ -303,7 +303,7 @@ func TestGlobalDBWatchEventReplayProjectionMigration(t *testing.T) {
 				}
 			}
 		})
-		preReplay := globalSchemaMigrations[:len(globalSchemaMigrations)-1]
+		preReplay := globalSchemaMigrations[:migrationIndexByName(t, "add_watch_event_replay_projections")]
 		if err := store.RunMigrations(ctx, db, preReplay); err != nil {
 			t.Fatalf("RunMigrations(v62) error = %v", err)
 		}
@@ -946,6 +946,21 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			version:  63,
 			name:     "add_watch_event_replay_projections",
 			checksum: "2026-07-09-add-watch-event-replay-projections",
+		},
+		{
+			version:  64,
+			name:     "add_model_catalog_curation",
+			checksum: "2026-07-09-add-model-catalog-curation",
+		},
+		{
+			version:  65,
+			name:     "add_model_catalog_explicit_curation",
+			checksum: "2026-07-10-add-model-catalog-explicit-curation",
+		},
+		{
+			version:  66,
+			name:     "add_model_catalog_curation_presence",
+			checksum: "2026-07-10-add-model-catalog-curation-presence",
 		},
 	}
 }

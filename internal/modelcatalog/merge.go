@@ -7,7 +7,7 @@ import (
 )
 
 // MergeRows computes deterministic model projections from source rows.
-func MergeRows(rows []ModelRow) []Model {
+func MergeRows(rows []ModelRow, opts MergeOptions) []Model {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -22,7 +22,7 @@ func MergeRows(rows []ModelRow) []Model {
 	models := make([]Model, 0, len(grouped))
 	for _, group := range grouped {
 		sortModelRows(group)
-		models = append(models, mergeModelGroup(group))
+		models = append(models, mergeModelGroup(group, opts))
 	}
 	sort.SliceStable(models, func(i, j int) bool {
 		if models[i].ProviderID != models[j].ProviderID {
@@ -33,7 +33,7 @@ func MergeRows(rows []ModelRow) []Model {
 	return models
 }
 
-func mergeModelGroup(rows []ModelRow) Model {
+func mergeModelGroup(rows []ModelRow, opts MergeOptions) Model {
 	first := rows[0]
 	model := Model{
 		ProviderID:        first.ProviderID,
@@ -85,6 +85,9 @@ func mergeModelGroup(rows []ModelRow) Model {
 		if model.CostOutputPerMillion == nil {
 			model.CostOutputPerMillion = row.CostOutputPerMillion
 		}
+		if model.ReleaseDate == nil {
+			model.ReleaseDate = cloneStringPtr(row.ReleaseDate)
+		}
 		if model.LastError == "" {
 			model.LastError = RedactString(row.LastError)
 		}
@@ -92,60 +95,10 @@ func mergeModelGroup(rows []ModelRow) Model {
 			model.Stale = true
 		}
 	}
+	applyCurationMetadata(&model, rows)
 	applyAvailability(&model, rows)
-	applyEffectiveReasoningProfile(&model)
+	applyEffectiveReasoningProfile(&model, rows, opts)
 	return model
-}
-
-func applyEffectiveReasoningProfile(model *Model) {
-	if model.SupportsReasoning != nil && !*model.SupportsReasoning {
-		model.ReasoningEfforts = nil
-		model.DefaultReasoningEffort = nil
-		return
-	}
-	if len(model.ReasoningEfforts) > 0 {
-		if model.SupportsReasoning == nil {
-			value := true
-			model.SupportsReasoning = &value
-		}
-		return
-	}
-	if model.SupportsReasoning != nil && *model.SupportsReasoning {
-		applyCanonicalReasoningProfile(model)
-		return
-	}
-	if knownReasoningFamily(model.ModelID) {
-		value := true
-		model.SupportsReasoning = &value
-		applyCanonicalReasoningProfile(model)
-	}
-}
-
-func applyCanonicalReasoningProfile(model *Model) {
-	model.ReasoningEfforts = []ReasoningEffort{
-		ReasoningEffortMinimal,
-		ReasoningEffortLow,
-		ReasoningEffortMedium,
-		ReasoningEffortHigh,
-		ReasoningEffortXHigh,
-	}
-	if model.DefaultReasoningEffort == nil {
-		effort := ReasoningEffortMedium
-		model.DefaultReasoningEffort = &effort
-	}
-}
-
-func knownReasoningFamily(modelID string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(modelID))
-	if trimmed == "" {
-		return false
-	}
-	segments := strings.Split(trimmed, "/")
-	leaf := strings.TrimSpace(segments[len(segments)-1])
-	return strings.HasPrefix(leaf, "gpt-") ||
-		strings.HasPrefix(leaf, "claude-") ||
-		strings.HasPrefix(leaf, "anthropic.claude-") ||
-		strings.Contains(leaf, ".anthropic.claude-")
 }
 
 func applyAvailability(model *Model, rows []ModelRow) {

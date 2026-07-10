@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/compozy/agh/internal/resources"
@@ -1034,7 +1033,7 @@ func taskRunClaimLeaseAuxiliarySchemaStatements() []string {
 
 const migrationNameHealSchedulerPause = "heal_scheduler_pause_updated_at"
 
-var globalSchemaMigrations = []store.Migration{
+var globalSchemaMigrations = append([]store.Migration{
 	{
 		Version:    1,
 		Name:       "create_global_schema",
@@ -1403,7 +1402,7 @@ var globalSchemaMigrations = []store.Migration{
 	},
 	taskEventsTypeSeqMigration,
 	watchEventReplayProjectionsMigration,
-}
+}, globalSchemaTailMigrations...)
 
 func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) {
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
@@ -2693,14 +2692,6 @@ func migrateAutomationSchedulerState(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
-}
-
-// GlobalDB owns the global session index and observability database.
-type GlobalDB struct {
-	db     *sql.DB
-	path   string
-	now    func() time.Time
-	closed atomic.Int32
 }
 
 var _ store.SessionRegistry = (*GlobalDB)(nil)

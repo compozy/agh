@@ -13,13 +13,13 @@ const dotClass: Record<WireKind, string> = {
   trace: "bg-kind-trace",
 };
 
-export interface KindChipProps {
+export interface BlogKindChipProps {
   kind: WireKind;
   label?: string;
   className?: string;
 }
 
-export function KindChip({ kind, label, className }: KindChipProps) {
+export function BlogKindChip({ kind, label, className }: BlogKindChipProps) {
   return (
     <span
       className={cn(

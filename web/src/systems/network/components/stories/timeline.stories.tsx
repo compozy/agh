@@ -2,11 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import { networkThreadMessagesFixture } from "@/systems/network/mocks";
-import { Timeline } from "@/systems/network/components/timeline";
+import { MessageTimeline } from "@/systems/network/components/timeline";
 
-const meta: Meta<typeof Timeline> = {
-  title: "systems/network/components/Timeline",
-  component: Timeline,
+const meta: Meta<typeof MessageTimeline> = {
+  title: "systems/network/components/MessageTimeline",
+  component: MessageTimeline,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px] p-0">
-      <Timeline messages={networkThreadMessagesFixture} />
+      <MessageTimeline messages={networkThreadMessagesFixture} />
     </PanelSurface>
   ),
 };
@@ -32,7 +32,7 @@ export const Default: Story = {
 export const Loading: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px] p-0">
-      <Timeline isLoading messages={[]} />
+      <MessageTimeline isLoading messages={[]} />
     </PanelSurface>
   ),
 };
@@ -40,7 +40,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px] p-0">
-      <Timeline
+      <MessageTimeline
         emptyState={<p className="text-xs text-subtle">Thread has no replies.</p>}
         messages={[]}
       />
@@ -52,7 +52,7 @@ export const NewDividerStory: Story = {
   name: "With New Divider",
   render: () => (
     <PanelSurface className="min-h-[640px] p-0">
-      <Timeline lastReadAt="2026-04-17T18:01:00Z" messages={networkThreadMessagesFixture} />
+      <MessageTimeline lastReadAt="2026-04-17T18:01:00Z" messages={networkThreadMessagesFixture} />
     </PanelSurface>
   ),
 };

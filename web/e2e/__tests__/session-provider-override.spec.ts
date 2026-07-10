@@ -26,6 +26,8 @@ const browserLifecycleFixture = path.resolve(
 
 const browserLifecycleAgent = "browser-lifecycle-agent";
 const mockAgentProvider = "acpmock";
+const catalogModel = "qa-browser-model-alt";
+const catalogModelLabel = "QA Browser Model Alt";
 const overrideProvider = "qa-browser-override";
 const driftedDefaultProvider = "gemini";
 
@@ -37,6 +39,8 @@ interface SessionPayload {
   id: string;
   agent_name: string;
   provider: string;
+  model?: string | null;
+  reasoning_effort?: string | null;
   state: string;
   workspace_id: string;
 }
@@ -107,49 +111,52 @@ test("operator can create a provider/model override session and attach without l
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
     browserLifecycleAgent
   );
-  const providerSelect = appPage.getByTestId("session-create-provider-select");
-  await expect(providerSelect).toContainText("ACP Mock");
-  await expect(appPage.getByTestId("session-create-provider-runtime")).toContainText(
-    mockAgentProvider
-  );
+  // The unified runtime selector trigger shows the agent's default provider truth.
+  const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
+  await expect(runtimeTrigger).toContainText("ACP Mock");
 
-  await providerSelect.click();
-  const dialogOptions = await appPage
-    .locator('[data-testid^="provider-command-item-"]')
+  // Open the popup; the provider rail is a LOCAL filter listing every workspace provider.
+  await runtimeTrigger.locator('button[data-focus="provider"]').first().click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+  const railProviders = await appPage
+    .locator('[role="radiogroup"] [data-rail]')
     .evaluateAll(items =>
       items
-        .map(item => item.getAttribute("data-testid")?.replace("provider-command-item-", ""))
-        .filter((value): value is string => Boolean(value))
+        .map(item => item.getAttribute("data-rail"))
+        .filter((value): value is string => Boolean(value) && value !== "all" && value !== "fav")
         .sort()
     );
-  expect(dialogOptions).toEqual(workspaceDetail.providers.map(provider => provider.name).sort());
+  expect(railProviders).toEqual(workspaceDetail.providers.map(provider => provider.name).sort());
 
   await browserArtifacts.captureScreenshot("session-provider-dialog-desktop", appPage);
   await appPage.setViewportSize({ width: 375, height: 812 });
-  await expect(providerSelect).toBeVisible();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
   await browserArtifacts.captureScreenshot("session-provider-dialog-mobile", appPage);
   await appPage.setViewportSize({ width: 1280, height: 800 });
 
-  await appPage.getByTestId(`provider-command-item-${overrideProvider}`).click();
+  // Filter the list to the override provider, then refresh the AGGREGATE catalog
+  // (the selector owns one truthful global refresh, not a per-provider fan-out).
+  await appPage.locator(`[data-rail="${overrideProvider}"]`).click();
   const catalogRefreshResponse = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/model-catalog/providers/${overrideProvider}/models/refresh`)
+      response.url().endsWith(`/api/model-catalog/models/refresh`)
   );
-  const refreshCatalog = appPage.getByTestId("session-create-catalog-refresh");
+  const refreshCatalog = appPage.getByTestId("runtime-selector-refresh");
   await expect(refreshCatalog).toBeEnabled();
   await refreshCatalog.click();
   expect((await catalogRefreshResponse).ok()).toBe(true);
-  await expect(appPage.getByTestId("session-create-catalog-empty")).toBeVisible();
 
-  await appPage.getByTestId("session-create-model-select").click();
-  await appPage.getByTestId("model-command-input").fill("qa-browser-model");
-  await expect(appPage.getByTestId("model-command-item-custom")).toBeVisible();
-  await appPage.getByTestId("model-command-item-custom").click();
-  await expect(appPage.getByTestId("session-create-model-select")).toContainText(
-    "qa-browser-model"
-  );
-  await expect(appPage.getByTestId("session-create-reasoning-select")).toBeDisabled();
+  // The workspace override provider has no global-catalog rows → enter a custom id
+  // scoped to the active (override) provider tuple, then close the popup.
+  await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
+  await expect(appPage.getByTestId("runtime-selector-custom")).toBeVisible();
+  await appPage.getByTestId("runtime-selector-custom").click();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
+  await expect(runtimeTrigger).toContainText("qa-browser-model");
+  // The custom id is unknown to the catalog, so no reasoning segment is offered.
+  await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toHaveCount(0);
 
   const createRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
@@ -226,6 +233,80 @@ test("operator can create a provider/model override session and attach without l
 
   await ui.stopButton.click();
   await expect(ui.resumeButton).not.toBeVisible();
+});
+
+test("operator persists an advertised model and non-empty reasoning effort on the created session", async ({
+  appPage,
+  runtime,
+}) => {
+  const ui = sessionLifecycleSelectors(appPage);
+
+  await useGlobalWorkspaceIfPrompted(ui);
+  await expect(ui.appSidebar).toBeVisible();
+  await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
+
+  await ui.agentRow(browserLifecycleAgent).click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${browserLifecycleAgent}`);
+  await ui.agentPageNewSession.click();
+  await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
+
+  const runtimeTrigger = appPage.getByTestId("session-create-runtime-select");
+  await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+
+  const catalogRow = appPage.locator(
+    `[data-provider="${mockAgentProvider}"][data-model="${catalogModel}"]`
+  );
+  await expect(catalogRow).toBeVisible();
+  await catalogRow.click();
+
+  const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
+  await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
+  await reasoningStrip.locator('button[data-rz="high"]').click();
+  await expect(reasoningStrip.locator('button[data-rz="high"]')).toHaveAttribute("data-on", "true");
+
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
+  await expect(runtimeTrigger).toContainText(catalogModelLabel);
+  await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toContainText("High");
+
+  const createRequestPromise = appPage.waitForRequest(
+    request => request.method() === "POST" && request.url().endsWith("/api/sessions")
+  );
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+  );
+  await appPage.getByTestId("session-create-dialog-submit").click();
+
+  const createRequest = await createRequestPromise;
+  const createResponse = await createResponsePromise;
+  expect(createRequest.postDataJSON()).toMatchObject({
+    agent_name: browserLifecycleAgent,
+    provider: mockAgentProvider,
+    model: catalogModel,
+    reasoning_effort: "high",
+  });
+  expect(createResponse.ok()).toBe(true);
+
+  const created = (await createResponse.json()) as SessionEnvelope;
+  expect(created.session).toMatchObject({
+    provider: mockAgentProvider,
+    model: catalogModel,
+    reasoning_effort: "high",
+  });
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe(browserLifecycleSessionPath(created.session.id));
+  await expect(ui.chatHeader).toBeVisible();
+
+  const rehydrated = await runtime.requestJSON<SessionEnvelope>(
+    sessionAPIPath(created.session.workspace_id, created.session.id)
+  );
+  expect(rehydrated.session).toMatchObject({
+    provider: mockAgentProvider,
+    model: catalogModel,
+    reasoning_effort: "high",
+  });
 });
 
 async function assertSessionParity(

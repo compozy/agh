@@ -452,33 +452,6 @@ type Caps struct {
 	ConfigOptions       []SessionConfigOption
 }
 
-// SessionConfigOptionKind identifies the ACP config option shape AGH exposes.
-type SessionConfigOptionKind string
-
-const (
-	// SessionConfigOptionKindSelect is a single-value ACP config selector.
-	SessionConfigOptionKindSelect SessionConfigOptionKind = "select"
-	// SessionConfigOptionKindBoolean is an ACP boolean config toggle.
-	SessionConfigOptionKindBoolean SessionConfigOptionKind = "boolean"
-)
-
-// SessionConfigOption captures one active ACP session config option.
-type SessionConfigOption struct {
-	ID          string
-	Label       string
-	Description string
-	Kind        SessionConfigOptionKind
-	Current     string
-	Values      []SessionConfigOptionValue
-}
-
-// SessionConfigOptionValue captures one selectable value for an ACP config option.
-type SessionConfigOptionValue struct {
-	Value       string
-	Label       string
-	Description string
-}
-
 // CloneCaps returns a deep copy of ACP caps.
 func CloneCaps(caps Caps) Caps {
 	return Caps{
@@ -486,20 +459,6 @@ func CloneCaps(caps Caps) Caps {
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
 		ConfigOptions:       CloneSessionConfigOptions(caps.ConfigOptions),
 	}
-}
-
-// CloneSessionConfigOptions returns a deep copy of session config options.
-func CloneSessionConfigOptions(options []SessionConfigOption) []SessionConfigOption {
-	if len(options) == 0 {
-		return nil
-	}
-	cloned := make([]SessionConfigOption, 0, len(options))
-	for _, option := range options {
-		copyOption := option
-		copyOption.Values = append([]SessionConfigOptionValue(nil), option.Values...)
-		cloned = append(cloned, copyOption)
-	}
-	return cloned
 }
 
 // TokenUsage captures per-turn usage reported by the agent.

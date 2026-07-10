@@ -19,17 +19,18 @@ var (
 
 // AgentDefinitionDraft captures the simple AGENT.md fields supported by authoring surfaces.
 type AgentDefinitionDraft struct {
-	Name         string
-	Provider     string
-	Command      string
-	Model        string
-	Tools        []string
-	Toolsets     []string
-	DenyTools    []string
-	Permissions  string
-	Skills       AgentSkillsConfig
-	CategoryPath []string
-	Prompt       string
+	Name            string
+	Provider        string
+	Command         string
+	Model           string
+	ReasoningEffort string
+	Tools           []string
+	Toolsets        []string
+	DenyTools       []string
+	Permissions     string
+	Skills          AgentSkillsConfig
+	CategoryPath    []string
+	Prompt          string
 }
 
 // CreateAgentDefFile renders, validates, and persists one AGENT.md definition.
@@ -61,17 +62,18 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
 	}
 	agent := AgentDef{
-		Name:         agentName,
-		Provider:     strings.TrimSpace(draft.Provider),
-		Command:      strings.TrimSpace(draft.Command),
-		Model:        strings.TrimSpace(draft.Model),
-		Tools:        trimAgentDefinitionAtoms(draft.Tools),
-		Toolsets:     trimAgentDefinitionAtoms(draft.Toolsets),
-		DenyTools:    trimAgentDefinitionAtoms(draft.DenyTools),
-		Permissions:  strings.TrimSpace(draft.Permissions),
-		Skills:       AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
-		CategoryPath: trimAgentDefinitionAtoms(draft.CategoryPath),
-		Prompt:       strings.TrimSpace(draft.Prompt),
+		Name:            agentName,
+		Provider:        strings.TrimSpace(draft.Provider),
+		Command:         strings.TrimSpace(draft.Command),
+		Model:           strings.TrimSpace(draft.Model),
+		ReasoningEffort: strings.TrimSpace(draft.ReasoningEffort),
+		Tools:           trimAgentDefinitionAtoms(draft.Tools),
+		Toolsets:        trimAgentDefinitionAtoms(draft.Toolsets),
+		DenyTools:       trimAgentDefinitionAtoms(draft.DenyTools),
+		Permissions:     strings.TrimSpace(draft.Permissions),
+		Skills:          AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
+		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
+		Prompt:          strings.TrimSpace(draft.Prompt),
 	}
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	agent.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)

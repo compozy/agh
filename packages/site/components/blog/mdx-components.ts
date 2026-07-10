@@ -1,8 +1,9 @@
 import type { ComponentType } from "react";
-import { CodeBlock } from "./code-block";
-import { KindChip } from "./kind-chip";
+import { BlogCodeBlock } from "./code-block";
+import { BlogKindChip } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import {
+  BlogWireCard,
   Callout,
   Mono,
   ProseH2,
@@ -11,7 +12,6 @@ import {
   ProseOrderedList,
   ProseParagraph,
   PullQuote,
-  WireCard,
 } from "./prose";
 
 export type MdxComponents = Record<string, ComponentType<Record<string, unknown>>>;
@@ -24,9 +24,9 @@ export const mdxComponents = {
   ol: ProseOrderedList,
   blockquote: PullQuote,
   code: Mono,
-  pre: CodeBlock,
+  pre: BlogCodeBlock,
   Callout,
-  WireCard,
-  KindChip,
+  WireCard: BlogWireCard,
+  KindChip: BlogKindChip,
   MonoBadge,
 } as unknown as MdxComponents;

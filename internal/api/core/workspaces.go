@@ -337,7 +337,12 @@ func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRe
 	if err := validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath); err != nil {
 		return err
 	}
-	return validateCreateSessionRuntimeOverrides(h.transportName(), req.Provider, req.Model, req.ReasoningEffort)
+	return validateCreateSessionRuntimeOverrides(
+		h.transportName(),
+		req.Provider,
+		req.Model,
+		string(req.ReasoningEffort),
+	)
 }
 
 func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (string, error) {

@@ -702,6 +702,58 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 	)
 }
 
+func TestPreferredACPModelUsesProviderTransportValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		provider string
+		model    string
+		want     string
+	}{
+		{
+			name:     "Should translate canonical Claude Sonnet ID at the ACP boundary",
+			provider: runtimeProviderClaude,
+			model:    "claude-sonnet-5",
+			want:     "sonnet",
+		},
+		{
+			name:     "Should translate canonical Claude Opus ID at the ACP boundary",
+			provider: runtimeProviderClaude,
+			model:    "claude-opus-4-8",
+			want:     "opus[1m]",
+		},
+		{
+			name:     "Should preserve an unknown Claude model for live validation",
+			provider: runtimeProviderClaude,
+			model:    "custom-claude-model",
+			want:     "custom-claude-model",
+		},
+		{
+			name:     "Should preserve the canonical Codex model value",
+			provider: runtimeProviderCodex,
+			model:    "gpt-5.6-sol",
+			want:     "gpt-5.6-sol",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := preferredACPModel(aghconfig.ResolvedAgent{
+				Provider:        test.provider,
+				RuntimeProvider: test.provider,
+				Harness:         aghconfig.ProviderHarnessACP,
+				Model:           test.model,
+			}, true)
+			if got != test.want {
+				t.Fatalf("preferredACPModel() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestShouldSkipMissingProviderSecret(t *testing.T) {
 	t.Parallel()
 

@@ -95,6 +95,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 			RequestBodyOptional: true,
 			Responses:           modelCatalogRefreshResponses(),
 		},
+		modelCatalogCurationOperation(),
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/model-catalog/sources/status",
@@ -117,6 +118,28 @@ func nativeModelCatalogOperations() []OperationSpec {
 	}
 }
 
+func modelCatalogCurationOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/model-catalog/providers/{provider_id}/models/curate",
+		OperationID: "curateProviderModel",
+		Summary:     "Curate one provider model through the live settings lifecycle",
+		Tags:        []string{modelCatalogProvidersKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("provider_id", "AGH provider id"),
+		},
+		RequestBody: contract.ProviderModelCurationRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ProviderModelCurationResponse{}},
+			{Status: 400, Description: "Invalid curation payload", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Unknown model or unsupported effort", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: modelCatalogModelCatalogUnavailableDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: modelCatalogInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
 func modelCatalogListParameters(providerPath bool) []ParameterSpec {
 	parameters := make([]ParameterSpec, 0, 5)
 	if providerPath {
@@ -126,6 +149,7 @@ func modelCatalogListParameters(providerPath bool) []ParameterSpec {
 	}
 	parameters = append(
 		parameters,
+		enumQueryParam("view", "Catalog view; defaults to curated", []string{"curated", specAllKey}),
 		queryParam("source_id", "Filter by catalog source id", false),
 		boolQueryParam("refresh", "Refresh sources before listing models"),
 		boolQueryParam("include_stale", "Include stale source rows in the merged projection"),

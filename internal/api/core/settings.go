@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/agh/internal/config/lifecycle"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/gin-gonic/gin"
@@ -909,11 +910,37 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		CredentialSlots: providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
 	}
 	return settingspkg.CollectionItemPutRequest{
-		CollectionRequest: req,
-		Name:              name,
-		Provider:          &settings,
-		ProviderSecrets:   providerSecretWritesFromPayload(body.Secrets),
+		CollectionRequest:     req,
+		Name:                  name,
+		Provider:              &settings,
+		ProviderModelCuration: providerModelCurationFromPayload(name, body.ModelCuration),
+		ProviderSecrets:       providerSecretWritesFromPayload(body.Secrets),
 	}, nil
+}
+
+func providerModelCurationFromPayload(
+	providerID string,
+	payload *contract.ProviderModelCurationRequest,
+) *settingspkg.ProviderModelCurationRequest {
+	if payload == nil {
+		return nil
+	}
+	return &settingspkg.ProviderModelCurationRequest{
+		ProviderID:             strings.TrimSpace(providerID),
+		ModelID:                strings.TrimSpace(payload.ModelID),
+		Hidden:                 cloneBoolPtr(payload.Hidden),
+		Featured:               cloneBoolPtr(payload.Featured),
+		Deprecated:             cloneBoolPtr(payload.Deprecated),
+		DefaultReasoningEffort: cloneReasoningEffortPtr(payload.DefaultReasoningEffort),
+	}
+}
+
+func cloneReasoningEffortPtr(value *modelcatalog.ReasoningEffort) *modelcatalog.ReasoningEffort {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func providerSettingsPayloadEmpty(payload contract.SettingsProviderSettingsPayload) bool {
@@ -949,64 +976,6 @@ func providerCredentialSlotsFromPayload(
 		})
 	}
 	return slots
-}
-
-func providerModelsFromPayload(payload *contract.SettingsProviderModelsPayload) aghconfig.ProviderModelsConfig {
-	if payload == nil {
-		return aghconfig.ProviderModelsConfig{}
-	}
-	return aghconfig.ProviderModelsConfig{
-		Default:   strings.TrimSpace(payload.Default),
-		Curated:   providerModelConfigsFromPayload(payload.Curated),
-		Discovery: providerModelsDiscoveryFromPayload(payload.Discovery),
-	}
-}
-
-func providerModelsDiscoveryFromPayload(
-	payload *contract.SettingsProviderModelsDiscoveryPayload,
-) aghconfig.ProviderModelsDiscoveryConfig {
-	if payload == nil {
-		return aghconfig.ProviderModelsDiscoveryConfig{}
-	}
-	return aghconfig.ProviderModelsDiscoveryConfig{
-		Enabled:  cloneBoolPtr(payload.Enabled),
-		Command:  strings.TrimSpace(payload.Command),
-		Endpoint: strings.TrimSpace(payload.Endpoint),
-		Timeout:  strings.TrimSpace(payload.Timeout),
-	}
-}
-
-func providerModelConfigsFromPayload(
-	payloads []contract.SettingsProviderModelPayload,
-) []aghconfig.ProviderModelConfig {
-	if payloads == nil {
-		return nil
-	}
-	models := make([]aghconfig.ProviderModelConfig, 0, len(payloads))
-	for _, payload := range payloads {
-		models = append(models, aghconfig.ProviderModelConfig{
-			ID:                     strings.TrimSpace(payload.ID),
-			DisplayName:            strings.TrimSpace(payload.DisplayName),
-			ContextWindow:          cloneInt64Ptr(payload.ContextWindow),
-			MaxInputTokens:         cloneInt64Ptr(payload.MaxInputTokens),
-			MaxOutputTokens:        cloneInt64Ptr(payload.MaxOutputTokens),
-			SupportsTools:          cloneBoolPtr(payload.SupportsTools),
-			SupportsReasoning:      cloneBoolPtr(payload.SupportsReasoning),
-			ReasoningEfforts:       trimStringSliceInternal(payload.ReasoningEfforts),
-			DefaultReasoningEffort: strings.TrimSpace(payload.DefaultReasoningEffort),
-			CostInputPerMillion:    cloneFloat64Ptr(payload.CostInputPerMillion),
-			CostOutputPerMillion:   cloneFloat64Ptr(payload.CostOutputPerMillion),
-		})
-	}
-	return models
-}
-
-func cloneFloat64Ptr(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 func providerSecretWritesFromPayload(

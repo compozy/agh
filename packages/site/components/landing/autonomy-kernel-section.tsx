@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { CodeBlock } from "./primitives/code-block";
+import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 import { Eyebrow } from "@agh/ui";
@@ -56,7 +56,7 @@ export function AutonomyKernelSection() {
               event ledger; raw values never leave the daemon.
             </p>
           </div>
-          <CodeBlock code={AUTONOMY_CODE} caption="agh task" shell />
+          <LandingCodeBlock code={AUTONOMY_CODE} caption="agh task" shell />
         </div>
 
         <ul className="flex min-w-0 flex-col divide-y divide-line border-y border-line">

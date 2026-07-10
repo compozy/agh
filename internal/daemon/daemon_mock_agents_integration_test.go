@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,291 @@ func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *
 	}
 	if !strings.Contains(string(providerCalls), "alpha-hello") {
 		t.Fatalf("provider_calls artifact = %s, want alpha diagnostics", string(providerCalls))
+	}
+}
+
+func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	fixturePath := mockFixturePath(t, "reasoning_negotiation_fixture.json")
+	agents := []struct {
+		name         string
+		fixtureAgent string
+		provider     string
+	}{
+		{name: "reasoning-claude-max", provider: "claude"},
+		{name: "reasoning-claude-agent-default", fixtureAgent: "reasoning-claude-max", provider: "claude"},
+		{name: "reasoning-codex-max", provider: "codex"},
+		{name: "reasoning-codex-unavailable", fixtureAgent: "reasoning-codex-max", provider: "codex"},
+		{name: "reasoning-codex-unsupported", fixtureAgent: "reasoning-codex-max", provider: "codex"},
+		{name: "reasoning-codex-none", provider: "codex"},
+		{name: "reasoning-codex-missing", provider: "codex"},
+	}
+	specs := make([]e2etest.MockAgentSpec, 0, len(agents))
+	for _, agent := range agents {
+		fixtureAgent := agent.fixtureAgent
+		if fixtureAgent == "" {
+			fixtureAgent = agent.name
+		}
+		specs = append(specs, e2etest.MockAgentSpec{
+			FixturePath:  fixturePath,
+			FixtureAgent: fixtureAgent,
+			AgentName:    agent.name,
+			ProviderName: agent.provider,
+		})
+	}
+
+	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{MockAgents: specs})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	t.Run("Should resolve the AGENT reasoning default before the first prompt", func(t *testing.T) {
+		registration, ok := harness.MockAgentRegistration("reasoning-claude-agent-default")
+		if !ok {
+			t.Fatal("MockAgentRegistration(reasoning-claude-agent-default) = missing")
+		}
+		sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+			AgentName:     "reasoning-claude-agent-default",
+			WorkspacePath: harness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession(agent default) error = %v", err)
+		}
+		if sessionPayload.Provider != "claude" || sessionPayload.Model != "claude-sonnet-5" ||
+			sessionPayload.ReasoningEffort != aghcontract.ReasoningEffort("max") {
+			t.Fatalf("session runtime = %#v, want claude/claude-sonnet-5/max", sessionPayload)
+		}
+		if _, err := harness.PromptSession(ctx, sessionPayload.ID, "claude max"); err != nil {
+			t.Fatalf("PromptSession(agent default) error = %v", err)
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(agent default) error = %v", err)
+		}
+		assertReasoningProtocolSequence(
+			t,
+			acpmock.ProtocolDiagnostics(records),
+			"sonnet",
+			"effort",
+			"max",
+		)
+	})
+
+	positiveCases := []struct {
+		name              string
+		agentName         string
+		provider          string
+		model             string
+		transportModel    string
+		effort            aghcontract.ReasoningEffort
+		prompt            string
+		reasoningOptionID string
+	}{
+		{
+			name:              "Should apply Claude max after the model and before the first prompt",
+			agentName:         "reasoning-claude-max",
+			provider:          "claude",
+			model:             "claude-sonnet-5",
+			transportModel:    "sonnet",
+			effort:            "max",
+			prompt:            "claude max",
+			reasoningOptionID: "effort",
+		},
+		{
+			name:              "Should apply Codex max after the model and before the first prompt",
+			agentName:         "reasoning-codex-max",
+			provider:          "codex",
+			model:             "gpt-5.6-sol",
+			transportModel:    "gpt-5.6-sol",
+			effort:            "max",
+			prompt:            "codex max",
+			reasoningOptionID: "reasoning_effort",
+		},
+		{
+			name:              "Should send explicit Codex none instead of treating it as provider default",
+			agentName:         "reasoning-codex-none",
+			provider:          "codex",
+			model:             "gpt-5.6-sol",
+			transportModel:    "gpt-5.6-sol",
+			effort:            "none",
+			prompt:            "codex none",
+			reasoningOptionID: "reasoning_effort",
+		},
+	}
+	for _, tt := range positiveCases {
+		t.Run(tt.name, func(t *testing.T) {
+			registration, ok := harness.MockAgentRegistration(tt.agentName)
+			if !ok {
+				t.Fatalf("MockAgentRegistration(%q) = missing", tt.agentName)
+			}
+			sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+				AgentName:       tt.agentName,
+				Provider:        tt.provider,
+				Model:           tt.model,
+				ReasoningEffort: tt.effort,
+				WorkspacePath:   harness.WorkspaceRoot,
+			})
+			if err != nil {
+				t.Fatalf("CreateSession(%q) error = %v", tt.agentName, err)
+			}
+			if sessionPayload.Provider != tt.provider || sessionPayload.Model != tt.model ||
+				sessionPayload.ReasoningEffort != tt.effort {
+				t.Fatalf("session runtime = %#v, want %s/%s/%s", sessionPayload, tt.provider, tt.model, tt.effort)
+			}
+			if _, err := harness.PromptSession(ctx, sessionPayload.ID, tt.prompt); err != nil {
+				t.Fatalf("PromptSession(%q) error = %v", tt.agentName, err)
+			}
+			records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+			if err != nil {
+				t.Fatalf("ReadDiagnostics(%q) error = %v", tt.agentName, err)
+			}
+			assertReasoningProtocolSequence(
+				t,
+				acpmock.ProtocolDiagnostics(records),
+				tt.transportModel,
+				tt.reasoningOptionID,
+				string(tt.effort),
+			)
+		})
+	}
+
+	t.Run("Should return reasoning_option_missing before the first prompt", func(t *testing.T) {
+		registration, ok := harness.MockAgentRegistration("reasoning-codex-missing")
+		if !ok {
+			t.Fatal("MockAgentRegistration(reasoning-codex-missing) = missing")
+		}
+		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+			AgentName:       "reasoning-codex-missing",
+			Provider:        "codex",
+			Model:           "gpt-5.6-sol",
+			ReasoningEffort: "max",
+			WorkspacePath:   harness.WorkspaceRoot,
+		})
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeReasoningOptionMissing {
+			t.Fatalf("HTTP create session diagnostic = %#v, want reasoning_option_missing", payload.Diagnostic)
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(reasoning-codex-missing) error = %v", err)
+		}
+		protocol := acpmock.ProtocolDiagnostics(records)
+		if len(protocol) != 1 ||
+			protocol[0].ProtocolMethod != acpsdk.AgentMethodSessionSetConfigOption ||
+			protocol[0].ConfigOptionID != "model" ||
+			protocol[0].ConfigOptionValue != "gpt-5.6-sol" {
+			t.Fatalf("protocol diagnostics = %#v, want only model set_config_option", protocol)
+		}
+		if promptRecords := acpmock.PromptDiagnostics(records); len(promptRecords) != 0 {
+			t.Fatalf("prompt diagnostics = %#v, want no prompt after negotiation failure", promptRecords)
+		}
+	})
+
+	t.Run("Should return model_unavailable before the first prompt", func(t *testing.T) {
+		registration, ok := harness.MockAgentRegistration("reasoning-codex-unavailable")
+		if !ok {
+			t.Fatal("MockAgentRegistration(reasoning-codex-unavailable) = missing")
+		}
+		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+			AgentName:       "reasoning-codex-unavailable",
+			Provider:        "codex",
+			Model:           "gpt-5.6-terra",
+			ReasoningEffort: "max",
+			WorkspacePath:   harness.WorkspaceRoot,
+		})
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeModelUnavailable {
+			t.Fatalf("HTTP create session diagnostic = %#v, want model_unavailable", payload.Diagnostic)
+		}
+		if got := payload.Diagnostic.Evidence["requested"]; got != "gpt-5.6-terra" {
+			t.Fatalf("model_unavailable requested evidence = %#v, want gpt-5.6-terra", got)
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(reasoning-codex-unavailable) error = %v", err)
+		}
+		if protocol := acpmock.ProtocolDiagnostics(records); len(protocol) != 0 {
+			t.Fatalf("protocol diagnostics = %#v, want no config RPC for unavailable model", protocol)
+		}
+		if promptRecords := acpmock.PromptDiagnostics(records); len(promptRecords) != 0 {
+			t.Fatalf("prompt diagnostics = %#v, want no prompt after unavailable model", promptRecords)
+		}
+	})
+
+	t.Run("Should return reasoning_effort_unsupported before the first prompt", func(t *testing.T) {
+		registration, ok := harness.MockAgentRegistration("reasoning-codex-unsupported")
+		if !ok {
+			t.Fatal("MockAgentRegistration(reasoning-codex-unsupported) = missing")
+		}
+		status, payload := createSessionHTTPFailure(t, ctx, harness, aghcontract.CreateSessionRequest{
+			AgentName:       "reasoning-codex-unsupported",
+			Provider:        "codex",
+			Model:           "gpt-5.6-sol",
+			ReasoningEffort: "minimal",
+			WorkspacePath:   harness.WorkspaceRoot,
+		})
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("HTTP create session status = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload.Diagnostic == nil || payload.Diagnostic.Code != aghcontract.CodeReasoningEffortUnsupported {
+			t.Fatalf("HTTP create session diagnostic = %#v, want reasoning_effort_unsupported", payload.Diagnostic)
+		}
+		if got := payload.Diagnostic.Evidence["requested"]; got != "minimal" {
+			t.Fatalf("unsupported effort requested evidence = %#v, want minimal", got)
+		}
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(reasoning-codex-unsupported) error = %v", err)
+		}
+		protocol := acpmock.ProtocolDiagnostics(records)
+		if len(protocol) != 1 ||
+			protocol[0].ProtocolMethod != acpsdk.AgentMethodSessionSetConfigOption ||
+			protocol[0].ConfigOptionID != "model" ||
+			protocol[0].ConfigOptionValue != "gpt-5.6-sol" {
+			t.Fatalf("protocol diagnostics = %#v, want only model set_config_option", protocol)
+		}
+		if promptRecords := acpmock.PromptDiagnostics(records); len(promptRecords) != 0 {
+			t.Fatalf("prompt diagnostics = %#v, want no prompt after unsupported effort", promptRecords)
+		}
+	})
+}
+
+func assertReasoningProtocolSequence(
+	t testing.TB,
+	records []acpmock.DiagnosticsRecord,
+	model string,
+	reasoningOptionID string,
+	effort string,
+) {
+	t.Helper()
+
+	if len(records) != 3 {
+		t.Fatalf("protocol diagnostics = %#v, want model, reasoning, prompt", records)
+	}
+	want := []acpmock.DiagnosticsRecord{
+		{
+			ProtocolMethod:    acpsdk.AgentMethodSessionSetConfigOption,
+			ConfigOptionID:    "model",
+			ConfigOptionValue: model,
+		},
+		{
+			ProtocolMethod:    acpsdk.AgentMethodSessionSetConfigOption,
+			ConfigOptionID:    reasoningOptionID,
+			ConfigOptionValue: effort,
+		},
+		{ProtocolMethod: acpsdk.AgentMethodSessionPrompt},
+	}
+	for index := range want {
+		if records[index].ProtocolMethod != want[index].ProtocolMethod ||
+			records[index].ConfigOptionID != want[index].ConfigOptionID ||
+			records[index].ConfigOptionValue != want[index].ConfigOptionValue {
+			t.Fatalf("protocol diagnostics[%d] = %#v, want %#v", index, records[index], want[index])
+		}
 	}
 }
 
@@ -343,6 +629,172 @@ func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) 
 			t.Fatalf("CaptureNetworkArtifacts(%q) error = %v", channelName, err)
 		}
 	})
+
+	t.Run("Should round trip provider model curation across CLI HTTP and hosted native tools", func(t *testing.T) {
+		t.Parallel()
+
+		harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+				FixtureAgent: "hosted-native",
+				AgentName:    "mock-provider-models",
+			}},
+		})
+		registration, ok := harness.MockAgentRegistration("mock-provider-models")
+		if !ok {
+			t.Fatal("MockAgentRegistration(mock-provider-models) = missing, want present")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+
+		createFixtureBackedSession(t, ctx, harness, "mock-provider-models", "provider-models-session")
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(provider-models) error = %v", err)
+		}
+		client := startHostedMCPClient(t, requireHostedMCPStdioServer(t, diagnostics))
+		defer func() {
+			if closeErr := client.Close(); closeErr != nil {
+				t.Fatalf("Close(hosted provider-models MCP client) error = %v", closeErr)
+			}
+		}()
+
+		var init sdkmcp.InitializeRequest
+		init.Params.ProtocolVersion = sdkmcp.LATEST_PROTOCOL_VERSION
+		init.Params.ClientInfo = sdkmcp.Implementation{Name: "agh-provider-models-e2e", Version: "1.0.0"}
+		if _, err := client.Initialize(ctx, init); err != nil {
+			t.Fatalf("Initialize(hosted provider-models MCP client) error = %v", err)
+		}
+		tools, err := client.ListTools(ctx, sdkmcp.ListToolsRequest{})
+		if err != nil {
+			t.Fatalf("ListTools(hosted provider-models MCP) error = %v", err)
+		}
+		for _, toolID := range []toolspkg.ToolID{
+			toolspkg.ToolIDProviderModelsList,
+			toolspkg.ToolIDProviderModelsRefresh,
+			toolspkg.ToolIDProviderModelsCurate,
+		} {
+			if !sdkToolListContains(tools.Tools, toolID.String()) {
+				t.Fatalf("hosted MCP tools = %#v, want %s", sdkToolNames(tools.Tools), toolID)
+			}
+		}
+
+		var refresh aghcontract.ProviderModelRefreshResponse
+		if err := harness.CLI.RunJSON(
+			ctx,
+			&refresh,
+			"provider",
+			"models",
+			"refresh",
+			"codex",
+			"--source",
+			"builtin",
+			"--force",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI provider models refresh error = %v", err)
+		}
+		if len(refresh.Sources) != 1 || refresh.Sources[0].SourceID != "builtin" {
+			t.Fatalf("CLI provider models refresh = %#v, want builtin status", refresh)
+		}
+
+		var hidden aghcontract.ProviderModelCurationResponse
+		if err := harness.CLI.RunJSON(
+			ctx,
+			&hidden,
+			"provider",
+			"models",
+			"set",
+			"codex",
+			"gpt-5.6-sol",
+			"--hidden=true",
+			"--default-effort=max",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI provider models set error = %v", err)
+		}
+		if !hidden.Apply.Applied || !hidden.Model.Hidden || hidden.Model.DefaultReasoningEffort == nil ||
+			*hidden.Model.DefaultReasoningEffort != aghcontract.ReasoningEffort("max") {
+			t.Fatalf("CLI provider models set = %#v, want applied hidden max", hidden)
+		}
+
+		status, curatedHTTP := providerModelListHTTP(t, ctx, harness, "codex", "")
+		if status != http.StatusOK {
+			t.Fatalf("HTTP curated provider models status = %d, want %d", status, http.StatusOK)
+		}
+		if providerModelPayloadExists(curatedHTTP.Models, "gpt-5.6-sol") {
+			t.Fatalf("HTTP curated provider models = %#v, want hidden Sol absent", curatedHTTP.Models)
+		}
+		status, allHTTP := providerModelListHTTP(t, ctx, harness, "codex", "all")
+		if status != http.StatusOK {
+			t.Fatalf("HTTP all provider models status = %d, want %d", status, http.StatusOK)
+		}
+		solHTTP := requireProviderModelPayload(t, allHTTP.Models, "gpt-5.6-sol")
+		assertCanonicalHiddenSolPayload(t, solHTTP)
+
+		var nativeAll aghcontract.ProviderModelListResponse
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			toolspkg.ToolIDProviderModelsList.String(),
+			map[string]any{"provider_id": "codex", "view": "all"},
+			&nativeAll,
+		)
+		solNative := requireProviderModelPayload(t, nativeAll.Models, "gpt-5.6-sol")
+		if !reflect.DeepEqual(solNative, solHTTP) {
+			t.Fatalf("native Sol = %#v, want HTTP payload %#v", solNative, solHTTP)
+		}
+
+		var unhidden aghcontract.ProviderModelCurationResponse
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			toolspkg.ToolIDProviderModelsCurate.String(),
+			map[string]any{
+				"provider_id": "codex",
+				"model_id":    "gpt-5.6-sol",
+				"hidden":      false,
+			},
+			&unhidden,
+		)
+		if !unhidden.Apply.Applied || unhidden.Model.Hidden || !unhidden.Model.Curated {
+			t.Fatalf("native provider model curation = %#v, want visible curated Sol", unhidden)
+		}
+
+		var nativeCurated aghcontract.ProviderModelListResponse
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			toolspkg.ToolIDProviderModelsList.String(),
+			map[string]any{"provider_id": "codex"},
+			&nativeCurated,
+		)
+		solCuratedNative := requireProviderModelPayload(t, nativeCurated.Models, "gpt-5.6-sol")
+
+		var cliCurated aghcontract.ProviderModelListResponse
+		if err := harness.CLI.RunJSON(
+			ctx,
+			&cliCurated,
+			"provider",
+			"models",
+			"list",
+			"codex",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("CLI provider models list error = %v", err)
+		}
+		solCLI := requireProviderModelPayload(t, cliCurated.Models, "gpt-5.6-sol")
+		if !reflect.DeepEqual(solCLI, solCuratedNative) {
+			t.Fatalf("CLI Sol = %#v, want native payload %#v", solCLI, solCuratedNative)
+		}
+	})
 }
 
 func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWakes(t *testing.T) {
@@ -565,6 +1017,91 @@ func sdkToolNames(tools []sdkmcp.Tool) []string {
 		names = append(names, tool.Name)
 	}
 	return names
+}
+
+func callHostedMCPToolJSON(
+	t testing.TB,
+	ctx context.Context,
+	client *mcpclient.Client,
+	toolID string,
+	arguments map[string]any,
+	destination any,
+) {
+	t.Helper()
+
+	var call sdkmcp.CallToolRequest
+	call.Params.Name = toolID
+	call.Params.Arguments = arguments
+	result, err := client.CallTool(ctx, call)
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", toolID, err)
+	}
+	if result == nil || result.IsError {
+		t.Fatalf("CallTool(%s) result = %#v, want successful result", toolID, result)
+	}
+	payload, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatalf("Marshal(CallTool(%s) structured content) error = %v", toolID, err)
+	}
+	if err := json.Unmarshal(payload, destination); err != nil {
+		t.Fatalf("Unmarshal(CallTool(%s) structured content) error = %v; payload=%s", toolID, err, payload)
+	}
+}
+
+func providerModelPayloadExists(models []aghcontract.ProviderModelPayload, modelID string) bool {
+	for _, model := range models {
+		if model.ModelID == modelID {
+			return true
+		}
+	}
+	return false
+}
+
+func requireProviderModelPayload(
+	t testing.TB,
+	models []aghcontract.ProviderModelPayload,
+	modelID string,
+) aghcontract.ProviderModelPayload {
+	t.Helper()
+	for _, model := range models {
+		if model.ModelID == modelID {
+			return model
+		}
+	}
+	t.Fatalf("provider model %q not found in %#v", modelID, models)
+	return aghcontract.ProviderModelPayload{}
+}
+
+func assertCanonicalHiddenSolPayload(t testing.TB, model aghcontract.ProviderModelPayload) {
+	t.Helper()
+
+	wantEfforts := []aghcontract.ReasoningEffort{
+		aghcontract.ReasoningEffort("none"),
+		aghcontract.ReasoningEffort("low"),
+		aghcontract.ReasoningEffort("medium"),
+		aghcontract.ReasoningEffort("high"),
+		aghcontract.ReasoningEffort("xhigh"),
+		aghcontract.ReasoningEffort("max"),
+	}
+	if model.ProviderID != "codex" || model.ModelID != "gpt-5.6-sol" || model.Curated ||
+		!model.Hidden || model.Deprecated || !model.Featured || model.ReleaseDate != "2026-06-26" ||
+		model.ReasoningSource != aghcontract.ReasoningSource("catalog") {
+		t.Fatalf("Sol identity/curation payload = %#v", model)
+	}
+	if model.ContextWindow == nil || *model.ContextWindow != 1_050_000 ||
+		model.MaxOutputTokens == nil || *model.MaxOutputTokens != 128_000 ||
+		model.SupportsTools == nil || !*model.SupportsTools ||
+		model.SupportsReasoning == nil || !*model.SupportsReasoning {
+		t.Fatalf("Sol capability payload = %#v", model)
+	}
+	if !reflect.DeepEqual(model.ReasoningEfforts, wantEfforts) ||
+		model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != aghcontract.ReasoningEffort("max") {
+		t.Fatalf("Sol reasoning payload = %#v, want efforts %#v and default max", model, wantEfforts)
+	}
+	if model.Cost == nil || model.Cost.InputPerMillion == nil || *model.Cost.InputPerMillion != 5 ||
+		model.Cost.OutputPerMillion == nil || *model.Cost.OutputPerMillion != 30 {
+		t.Fatalf("Sol cost payload = %#v, want 5/30", model.Cost)
+	}
 }
 
 func createHostedTaskForWakeE2E(

@@ -1306,6 +1306,51 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 func TestCloneConfigProducesDeepCopy(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve provider model reasoning and curation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		deprecated := false
+		hidden := true
+		featured := false
+		original := aghconfig.Config{
+			Providers: map[string]aghconfig.ProviderConfig{
+				"claude": {
+					Models: aghconfig.ProviderModelsConfig{
+						Reasoning: aghconfig.ProviderReasoningConfig{
+							Apply: aghconfig.ReasoningApplyNone,
+						},
+						Curated: []aghconfig.ProviderModelConfig{{
+							ID:          "claude-sonnet-5",
+							Deprecated:  &deprecated,
+							Hidden:      &hidden,
+							Featured:    &featured,
+							ReleaseDate: "2026-07-10",
+						}},
+					},
+				},
+			},
+		}
+
+		cloned := cloneConfig(&original)
+		provider := cloned.Providers["claude"]
+		if got, want := provider.Models.Reasoning.Apply, aghconfig.ReasoningApplyNone; got != want {
+			t.Fatalf("cloned reasoning apply = %q, want %q", got, want)
+		}
+		model := provider.Models.Curated[0]
+		if model.Deprecated == nil || *model.Deprecated || model.Hidden == nil || !*model.Hidden ||
+			model.Featured == nil || *model.Featured || model.ReleaseDate != "2026-07-10" {
+			t.Fatalf("cloned provider model metadata = %#v", model)
+		}
+
+		*model.Deprecated = true
+		*model.Hidden = false
+		*model.Featured = true
+		originalModel := original.Providers["claude"].Models.Curated[0]
+		if *originalModel.Deprecated || !*originalModel.Hidden || *originalModel.Featured {
+			t.Fatalf("original provider model pointers changed through clone: %#v", originalModel)
+		}
+	})
+
 	t.Run("Should produce an independent deep copy", func(t *testing.T) {
 		t.Parallel()
 

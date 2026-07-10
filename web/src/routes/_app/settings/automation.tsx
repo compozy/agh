@@ -128,7 +128,7 @@ function AutomationSettingsPage() {
         />
       }
     >
-      <OperationalLinksRow />
+      <OperationalLinksSection />
       {!runtime.available ? <AutomationRuntimeUnavailable runtime={runtime} /> : null}
       <ManagerSummarySection runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
@@ -168,7 +168,7 @@ function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime 
   );
 }
 
-function OperationalLinksRow() {
+function OperationalLinksSection() {
   return (
     <Section divided label="Operational" note="manage jobs, triggers, and run history">
       <div

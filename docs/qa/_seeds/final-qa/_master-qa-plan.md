@@ -92,7 +92,7 @@ The "Does NOT own" column is enforceable by `mage Boundaries` on the Go side and
 
 All 283 scenarios are categorized below by their `provider:` declaration. Operator MUST run each lane with the matching driver.
 
-### 3.1 Live Claude Code (real `claude-opus-4-7[1m]` / `claude-sonnet-4-6` via ACP)
+### 3.1 Live Claude Code (real `claude-opus-4-8` / `claude-sonnet-5` via ACP)
 
 Approximately 180 scenarios. Examples (read each child for the complete list):
 

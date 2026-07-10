@@ -276,9 +276,12 @@ Capability areas align with the Host API authorization layer:
 | `models/status`  | `model.read`  | Allowed (read-oriented grant).             |
 | `models/refresh` | `model.write` | Requires explicit grant; marketplace gate. |
 
-Extensions return validated rows. Invalid rows produce a recorded source status (with redacted
-`last_error`) instead of corrupting the merged projection. Refresh runs under a daemon-enforced
-deadline using the provider's auth/env/home policy, and refresh work for the same provider is
+Extensions can attach `deprecated`, `hidden`, `featured`, and nullable `release_date` curation
+metadata to their rows. The daemon validates those fields through the same
+[catalog merge and curation policy](/runtime/core/agents/model-catalog); invalid rows produce a
+recorded source status (with redacted `last_error`) instead of corrupting the merged projection.
+Refresh runs under a daemon-enforced deadline using the provider's auth/env/home policy, and refresh
+work for the same provider is
 coalesced — concurrent refreshes return identical source statuses when the in-flight refresh
 finishes.
 

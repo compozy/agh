@@ -113,7 +113,13 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 		if req.Provider == nil {
 			return MutationResult{}, validationError(errors.New("settings: provider payload is required"))
 		}
-		return finalize(s.putProvider(ctx, name, *req.Provider, req.ProviderSecrets))
+		return finalize(s.putProvider(
+			ctx,
+			name,
+			*req.Provider,
+			req.ProviderModelCuration,
+			req.ProviderSecrets,
+		))
 	case CollectionMCPServers:
 		if req.MCPServer == nil {
 			return MutationResult{}, validationError(errors.New("settings: MCP server payload is required"))
@@ -215,7 +221,10 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 			return nil, fmt.Errorf("settings: resolve provider %q: %w", name, err)
 		}
 
-		settings := providerSettingsFromConfig(name, resolved)
+		settings, err := s.providerSettingsFromConfig(ctx, name, resolved)
+		if err != nil {
+			return nil, err
+		}
 		credentials, err := s.providerCredentialStatuses(ctx, resolved)
 		if err != nil {
 			return nil, fmt.Errorf("settings: provider %q credential status: %w", name, err)
@@ -255,24 +264,6 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 		items = append(items, cloneProviderItem(&item))
 	}
 	return items, nil
-}
-
-func providerSettingsFromConfig(name string, provider aghconfig.ProviderConfig) ProviderSettings {
-	return ProviderSettings{
-		Command:         provider.Command,
-		DisplayName:     provider.DisplayName,
-		Models:          cloneProviderModelsConfig(provider.Models),
-		Harness:         provider.EffectiveHarness(),
-		RuntimeProvider: provider.RuntimeProviderName(name),
-		Transport:       strings.TrimSpace(provider.Transport),
-		BaseURL:         strings.TrimSpace(provider.BaseURL),
-		AuthMode:        provider.EffectiveAuthMode(),
-		EnvPolicy:       provider.EffectiveEnvPolicy(),
-		HomePolicy:      provider.EffectiveHomePolicy(),
-		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
-		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
-		CredentialSlots: provider.EffectiveCredentialSlots(),
-	}
 }
 
 func providerAuthStatus(
@@ -358,13 +349,6 @@ func (v providerAuthStatusCredentialVault) GetMetadata(_ context.Context, ref st
 		return vault.Metadata{Ref: normalized, Present: true, Kind: strings.TrimSpace(credential.Kind)}, nil
 	}
 	return vault.Metadata{}, vault.ErrSecretNotFound
-}
-
-func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
-	return &ProviderFallback{
-		Source:   builtinProviderSource(),
-		Settings: providerSettingsFromConfig(name, builtin),
-	}
 }
 
 func (s *service) providerCredentialStatuses(
@@ -550,8 +534,14 @@ func (s *service) putProvider(
 	ctx context.Context,
 	name string,
 	settings ProviderSettings,
+	modelCuration *ProviderModelCurationRequest,
 	secrets []ProviderSecretWrite,
 ) (MutationResult, error) {
+	reconciledSettings, err := s.reconcileProviderCuratedWrite(ctx, name, settings, modelCuration)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	settings = reconciledSettings
 	values := providerSettingsMap(settings)
 	if len(values) == 0 && len(secrets) == 0 {
 		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
@@ -561,12 +551,14 @@ func (s *service) putProvider(
 		return MutationResult{}, err
 	}
 	var target aghconfig.WriteTarget
+	modelOnly := false
 	if len(values) != 0 {
 		target, err = aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
 		if err != nil {
 			return MutationResult{}, err
 		}
-		if err := s.validateProviderWrite(ctx, name, settings); err != nil {
+		modelOnly, err = s.validateProviderWrite(ctx, name, settings)
+		if err != nil {
 			return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 		}
 	}
@@ -587,7 +579,7 @@ func (s *service) putProvider(
 		return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target.Kind()), nil
+	return mutationResultForProvider(target.Kind(), modelOnly && len(secretWrites) == 0), nil
 }
 
 type preparedSecretWrite struct {
@@ -642,18 +634,6 @@ func (s *service) prepareProviderSecretWrites(
 	return writes, nil
 }
 
-func (s *service) validateProviderWrite(ctx context.Context, name string, settings ProviderSettings) error {
-	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
-	if err != nil {
-		return err
-	}
-	if cfg.Providers == nil {
-		cfg.Providers = make(map[string]aghconfig.ProviderConfig)
-	}
-	cfg.Providers[name] = providerConfigFromSettings(settings)
-	return cfg.Validate()
-}
-
 func providerConfigFromSettings(settings ProviderSettings) aghconfig.ProviderConfig {
 	return aghconfig.ProviderConfig{
 		Command:         strings.TrimSpace(settings.Command),
@@ -677,6 +657,7 @@ func providerModelsConfigFromSettings(models aghconfig.ProviderModelsConfig) agh
 		Default:   strings.TrimSpace(models.Default),
 		Curated:   providerModelConfigsFromSettings(models.Curated),
 		Discovery: providerModelsDiscoveryConfigFromSettings(models.Discovery),
+		Reasoning: aghconfig.ProviderReasoningConfig{Apply: models.Reasoning.Apply},
 	}
 }
 
@@ -704,6 +685,10 @@ func providerModelConfigsFromSettings(
 			DefaultReasoningEffort: strings.TrimSpace(model.DefaultReasoningEffort),
 			CostInputPerMillion:    cloneFloat64Ptr(model.CostInputPerMillion),
 			CostOutputPerMillion:   cloneFloat64Ptr(model.CostOutputPerMillion),
+			Deprecated:             cloneBoolPtr(model.Deprecated),
+			Hidden:                 cloneBoolPtr(model.Hidden),
+			Featured:               cloneBoolPtr(model.Featured),
+			ReleaseDate:            strings.TrimSpace(model.ReleaseDate),
 		})
 	}
 	return values
@@ -1437,6 +1422,9 @@ func providerModelsSettingsMap(models aghconfig.ProviderModelsConfig) map[string
 	if discovery := providerModelsDiscoveryMap(models.Discovery); len(discovery) > 0 {
 		values["discovery"] = discovery
 	}
+	if models.Reasoning.Apply != "" {
+		values["reasoning"] = map[string]any{"apply": string(models.Reasoning.Apply)}
+	}
 	return values
 }
 
@@ -1478,6 +1466,18 @@ func providerModelConfigMaps(models []aghconfig.ProviderModelConfig) []map[strin
 		}
 		if model.CostOutputPerMillion != nil {
 			entry["cost_output_per_million"] = *model.CostOutputPerMillion
+		}
+		if model.Deprecated != nil {
+			entry["deprecated"] = *model.Deprecated
+		}
+		if model.Hidden != nil {
+			entry["hidden"] = *model.Hidden
+		}
+		if model.Featured != nil {
+			entry["featured"] = *model.Featured
+		}
+		if strings.TrimSpace(model.ReleaseDate) != "" {
+			entry["release_date"] = strings.TrimSpace(model.ReleaseDate)
 		}
 		values = append(values, entry)
 	}

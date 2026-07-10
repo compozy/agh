@@ -6,7 +6,7 @@ import { AuthorMeta } from "./author-meta";
 import { DateStamp } from "./date-stamp";
 import { BulletDivider } from "./divider";
 import { categoryLabel, formatReadingTime } from "./format";
-import { KindChip, type WireKind } from "./kind-chip";
+import { BlogKindChip, type WireKind } from "./kind-chip";
 import { MonoBadge } from "./mono-badge";
 import { blogPostCover } from "@/lib/blog";
 import { Eyebrow } from "@agh/ui";
@@ -39,7 +39,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
         {post.kinds.length > 0 && (
           <div className="mt-7 flex flex-wrap items-center gap-2">
             {post.kinds.map(kind => (
-              <KindChip key={kind} kind={kind as WireKind} />
+              <BlogKindChip key={kind} kind={kind as WireKind} />
             ))}
           </div>
         )}
@@ -154,7 +154,7 @@ function FeaturedVisual({ kinds }: FeaturedVisualProps) {
           {trace.map(row => (
             <li key={`${row.t}-${row.kind}`} className="flex items-center gap-3">
               <span className="w-16 font-mono text-badge text-subtle">{row.t}</span>
-              <KindChip kind={row.kind} />
+              <BlogKindChip kind={row.kind} />
               <span className="font-mono text-eyebrow text-muted">
                 {row.from} <span className="text-accent">→</span> {row.to}
               </span>

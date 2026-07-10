@@ -262,54 +262,59 @@ func TestDriverDiagnosticsCaptureSessionMCPServers(t *testing.T) {
 func TestDriverDiagnosticsIncludePromptMetadataAndMatch(t *testing.T) {
 	t.Parallel()
 
-	driverPath, err := DefaultDriverPath()
-	if err != nil {
-		t.Fatalf("DefaultDriverPath() error = %v", err)
-	}
-	fixturePath, err := filepath.Abs(filepath.Join("testdata", "multi_agent_fixture.json"))
-	if err != nil {
-		t.Fatalf("filepath.Abs(fixture) error = %v", err)
-	}
-	diagnosticsPath := filepath.Join(t.TempDir(), "alpha-diagnostics.jsonl")
-	command := BuildCommand(driverPath, fixturePath, "alpha", diagnosticsPath)
+	t.Run("Should include prompt metadata and match in PromptDiagnostics", func(t *testing.T) {
+		t.Parallel()
 
-	driver := acp.New()
-	proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
-		AgentName:   "alpha",
-		Command:     command,
-		Cwd:         t.TempDir(),
-		Permissions: aghconfig.PermissionModeApproveAll,
+		driverPath, err := DefaultDriverPath()
+		if err != nil {
+			t.Fatalf("DefaultDriverPath() error = %v", err)
+		}
+		fixturePath, err := filepath.Abs(filepath.Join("testdata", "multi_agent_fixture.json"))
+		if err != nil {
+			t.Fatalf("filepath.Abs(fixture) error = %v", err)
+		}
+		diagnosticsPath := filepath.Join(t.TempDir(), "alpha-diagnostics.jsonl")
+		command := BuildCommand(driverPath, fixturePath, "alpha", diagnosticsPath)
+
+		driver := acp.New()
+		proc, err := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName:   "alpha",
+			Command:     command,
+			Cwd:         t.TempDir(),
+			Permissions: aghconfig.PermissionModeApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("driver.Start() error = %v", err)
+		}
+		defer stopDriverProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+			TurnID:  "turn-alpha",
+			Message: "hello alpha",
+			Meta: acp.PromptMeta{
+				TurnSource: acp.PromptTurnSourceUser,
+			},
+		})
+		if err != nil {
+			t.Fatalf("driver.Prompt() error = %v", err)
+		}
+		_ = collectPromptEvents(t, eventsCh, nil)
+
+		records, err := ReadDiagnostics(diagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics() error = %v", err)
+		}
+		records = PromptDiagnostics(records)
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("len(records) = %d, want %d", got, want)
+		}
+		if got, want := records[0].PromptMeta.TurnSource, acp.PromptTurnSourceUser; got != want {
+			t.Fatalf("records[0].PromptMeta.TurnSource = %q, want %q", got, want)
+		}
+		if got, want := records[0].Match.UserText, "hello alpha"; got != want {
+			t.Fatalf("records[0].Match.UserText = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("driver.Start() error = %v", err)
-	}
-	defer stopDriverProcess(t, driver, proc)
-
-	eventsCh, err := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
-		TurnID:  "turn-alpha",
-		Message: "hello alpha",
-		Meta: acp.PromptMeta{
-			TurnSource: acp.PromptTurnSourceUser,
-		},
-	})
-	if err != nil {
-		t.Fatalf("driver.Prompt() error = %v", err)
-	}
-	_ = collectPromptEvents(t, eventsCh, nil)
-
-	records, err := ReadDiagnostics(diagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics() error = %v", err)
-	}
-	if got, want := len(records), 1; got != want {
-		t.Fatalf("len(records) = %d, want %d", got, want)
-	}
-	if got, want := records[0].PromptMeta.TurnSource, acp.PromptTurnSourceUser; got != want {
-		t.Fatalf("records[0].PromptMeta.TurnSource = %q, want %q", got, want)
-	}
-	if got, want := records[0].Match.UserText, "hello alpha"; got != want {
-		t.Fatalf("records[0].Match.UserText = %q, want %q", got, want)
-	}
 }
 
 func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {

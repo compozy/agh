@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import type { ReasoningEffort } from "@/lib/api-contract";
+
 export type OnboardingAuthMode = "native_cli" | "bound_secret";
 
 export interface OnboardingWorkspaceDraft {
@@ -14,7 +16,7 @@ export interface OnboardingDraftState {
   maxStep: number;
   provider: string;
   model: string;
-  reasoning: string;
+  reasoning: ReasoningEffort | "";
   authMode: OnboardingAuthMode;
   envVar: string;
   apiKey: string;

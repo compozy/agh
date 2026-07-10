@@ -14,18 +14,12 @@ export {
 } from "./components/connection-indicator";
 export { AppSidebar, type AppSidebarProps } from "./components/app-sidebar";
 export { computeAgentsCount, type AgentsCount } from "./components/app-sidebar-counts";
-export type { ModelSelectOption, ProviderSelectOption, ReasoningSelectOption } from "./types";
 export {
-  ProviderCommandSelect,
-  type ProviderCommandSelectProps,
-} from "./components/provider-command-select";
-export {
-  ModelCommandSelect,
-  type ModelCommandSelectProps,
-} from "./components/model-command-select";
-export {
-  REASONING_EFFORTS,
-  ReasoningCommandSelect,
-  type ReasoningCommandSelectProps,
-  type ReasoningEffort,
-} from "./components/reasoning-command-select";
+  runtimeModelKey,
+  RuntimeSelector,
+  type RuntimeAvailability,
+  type RuntimeModelOption,
+  type RuntimeProviderOption,
+  type RuntimeSelectorProps,
+  type RuntimeSelectorValue,
+} from "./components/runtime-selector";

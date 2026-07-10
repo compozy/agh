@@ -1761,6 +1761,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/model-catalog/providers/{provider_id}/models/curate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Curate one provider model through the live settings lifecycle */
+    post: operations["curateProviderModel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/model-catalog/providers/{provider_id}/models/refresh": {
     parameters: {
       query?: never;
@@ -7520,7 +7537,8 @@ export interface operations {
                 model?: string;
                 name?: string;
                 provider: string;
-                reasoning_effort?: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -9198,6 +9216,8 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               tools?: string[];
               toolsets?: string[];
             }[];
@@ -9252,6 +9272,8 @@ export interface operations {
             permissions?: "deny-all" | "approve-reads" | "approve-all";
             prompt: string;
             provider: string;
+            /** @enum {string} */
+            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
             skills?: {
               disabled?: string[];
             } | null;
@@ -9310,6 +9332,8 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               tools?: string[];
               toolsets?: string[];
             };
@@ -13505,6 +13529,8 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               tools?: string[];
               toolsets?: string[];
             };
@@ -26542,6 +26568,8 @@ export interface operations {
       query?: {
         /** @description Filter by AGH provider id */
         provider_id?: string;
+        /** @description Catalog view; defaults to curated */
+        view?: "curated" | "all";
         /** @description Filter by catalog source id */
         source_id?: string;
         /** @description Refresh sources before listing models */
@@ -26573,8 +26601,20 @@ export interface operations {
                 /** Format: double */
                 output_per_million?: number | null;
               } | null;
-              default_reasoning_effort?: string | null;
+              curated: boolean;
+              /** @enum {string} */
+              default_reasoning_effort?:
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max";
+              deprecated: boolean;
               display_name?: string;
+              featured: boolean;
+              hidden: boolean;
               last_error?: string;
               /** Format: int64 */
               max_input_tokens?: number | null;
@@ -26582,8 +26622,19 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
-              reasoning_efforts?: string[];
+              reasoning_efforts?: (
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max"
+              )[];
+              /** @enum {string} */
+              reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
+              release_date?: string;
               sources: {
                 last_error?: string;
                 priority: number;
@@ -26847,6 +26898,8 @@ export interface operations {
   listProviderModelsByProvider: {
     parameters: {
       query?: {
+        /** @description Catalog view; defaults to curated */
+        view?: "curated" | "all";
         /** @description Filter by catalog source id */
         source_id?: string;
         /** @description Refresh sources before listing models */
@@ -26881,8 +26934,20 @@ export interface operations {
                 /** Format: double */
                 output_per_million?: number | null;
               } | null;
-              default_reasoning_effort?: string | null;
+              curated: boolean;
+              /** @enum {string} */
+              default_reasoning_effort?:
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max";
+              deprecated: boolean;
               display_name?: string;
+              featured: boolean;
+              hidden: boolean;
               last_error?: string;
               /** Format: int64 */
               max_input_tokens?: number | null;
@@ -26890,8 +26955,19 @@ export interface operations {
               max_output_tokens?: number | null;
               model_id: string;
               provider_id: string;
-              reasoning_efforts?: string[];
+              reasoning_efforts?: (
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max"
+              )[];
+              /** @enum {string} */
+              reasoning_source?: "acp" | "catalog";
               refreshed_at?: string;
+              release_date?: string;
               sources: {
                 last_error?: string;
                 priority: number;
@@ -26934,6 +27010,250 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  curateProviderModel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description AGH provider id */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          default_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+          deprecated?: boolean | null;
+          featured?: boolean | null;
+          hidden?: boolean | null;
+          model_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            apply: {
+              active_config_hash: string;
+              /** Format: int64 */
+              active_generation: number;
+              agent_name?: string;
+              applied: boolean;
+              apply_record_id: string;
+              /** @enum {string} */
+              lifecycle:
+                | "live"
+                | "live-add"
+                | "live-remove-if-unused"
+                | "restart-required"
+                | "session-rebind";
+              /** @enum {string} */
+              next_action: "none" | "restart-daemon" | "new-session" | "retry";
+              partial_failures?: {
+                diagnostic: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                };
+                subsystem: string;
+              }[];
+              restart_required?: boolean;
+              restart_scope?: string;
+              /** @enum {string} */
+              scope?: "global" | "workspace" | "agent";
+              section?: string;
+              skipped?: boolean;
+              skipped_reason?: string;
+              warnings?: string[];
+              workspace_id?: string;
+              /** @enum {string} */
+              write_target?:
+                | "global-config"
+                | "workspace-config"
+                | "global-mcp-sidecar"
+                | "workspace-mcp-sidecar"
+                | "global-agent-file"
+                | "workspace-agent-file";
+            };
+            model: {
+              availability_state: string;
+              available: boolean | null;
+              /** Format: int64 */
+              context_window?: number | null;
+              cost?: {
+                /** Format: double */
+                input_per_million?: number | null;
+                /** Format: double */
+                output_per_million?: number | null;
+              } | null;
+              curated: boolean;
+              /** @enum {string} */
+              default_reasoning_effort?:
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max";
+              deprecated: boolean;
+              display_name?: string;
+              featured: boolean;
+              hidden: boolean;
+              last_error?: string;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              model_id: string;
+              provider_id: string;
+              reasoning_efforts?: (
+                | "none"
+                | "minimal"
+                | "low"
+                | "medium"
+                | "high"
+                | "xhigh"
+                | "max"
+              )[];
+              /** @enum {string} */
+              reasoning_source?: "acp" | "catalog";
+              refreshed_at?: string;
+              release_date?: string;
+              sources: {
+                last_error?: string;
+                priority: number;
+                refreshed_at?: string;
+                source_id: string;
+                source_kind: string;
+                stale: boolean;
+              }[];
+              stale: boolean;
+              supports_reasoning?: boolean | null;
+              supports_tools?: boolean | null;
+            };
+          };
+        };
+      };
+      /** @description Invalid curation payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Unknown model or unsupported effort */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -29102,7 +29422,15 @@ export interface operations {
                   /** Format: double */
                   output_per_million?: number | null;
                 } | null;
-                default_reasoning_effort?: string | null;
+                /** @enum {string} */
+                default_reasoning_effort?:
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max";
                 display_name?: string;
                 last_error?: string;
                 /** Format: int64 */
@@ -29111,7 +29439,15 @@ export interface operations {
                 max_output_tokens?: number | null;
                 model_id: string;
                 provider_id: string;
-                reasoning_efforts?: string[];
+                reasoning_efforts?: (
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max"
+                )[];
                 refreshed_at?: string;
                 sources: string[];
                 stale: boolean;
@@ -33823,7 +34159,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -33928,7 +34265,8 @@ export interface operations {
           model?: string;
           name?: string;
           provider?: string;
-          reasoning_effort?: string;
+          /** @enum {string} */
+          reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
           workspace?: string;
           workspace_path?: string;
         };
@@ -34054,7 +34392,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -34327,7 +34666,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -38336,14 +38676,34 @@ export interface operations {
                       cost_input_per_million?: number | null;
                       /** Format: double */
                       cost_output_per_million?: number | null;
-                      default_reasoning_effort?: string;
+                      /** @enum {string} */
+                      default_reasoning_effort?:
+                        | "none"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh"
+                        | "max";
+                      deprecated?: boolean | null;
                       display_name?: string;
+                      featured?: boolean | null;
+                      hidden?: boolean | null;
                       id: string;
                       /** Format: int64 */
                       max_input_tokens?: number | null;
                       /** Format: int64 */
                       max_output_tokens?: number | null;
-                      reasoning_efforts?: string[];
+                      reasoning_efforts?: (
+                        | "none"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh"
+                        | "max"
+                      )[];
+                      release_date?: string;
                       supports_reasoning?: boolean | null;
                       supports_tools?: boolean | null;
                     }[];
@@ -38353,6 +38713,9 @@ export interface operations {
                       enabled?: boolean | null;
                       endpoint?: string;
                       timeout?: string;
+                    } | null;
+                    reasoning?: {
+                      apply: string;
                     } | null;
                   } | null;
                   runtime_provider?: string;
@@ -38400,14 +38763,34 @@ export interface operations {
                     cost_input_per_million?: number | null;
                     /** Format: double */
                     cost_output_per_million?: number | null;
-                    default_reasoning_effort?: string;
+                    /** @enum {string} */
+                    default_reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    deprecated?: boolean | null;
                     display_name?: string;
+                    featured?: boolean | null;
+                    hidden?: boolean | null;
                     id: string;
                     /** Format: int64 */
                     max_input_tokens?: number | null;
                     /** Format: int64 */
                     max_output_tokens?: number | null;
-                    reasoning_efforts?: string[];
+                    reasoning_efforts?: (
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max"
+                    )[];
+                    release_date?: string;
                     supports_reasoning?: boolean | null;
                     supports_tools?: boolean | null;
                   }[];
@@ -38417,6 +38800,9 @@ export interface operations {
                     enabled?: boolean | null;
                     endpoint?: string;
                     timeout?: string;
+                  } | null;
+                  reasoning?: {
+                    apply: string;
                   } | null;
                 } | null;
                 runtime_provider?: string;
@@ -38570,14 +38956,34 @@ export interface operations {
                       cost_input_per_million?: number | null;
                       /** Format: double */
                       cost_output_per_million?: number | null;
-                      default_reasoning_effort?: string;
+                      /** @enum {string} */
+                      default_reasoning_effort?:
+                        | "none"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh"
+                        | "max";
+                      deprecated?: boolean | null;
                       display_name?: string;
+                      featured?: boolean | null;
+                      hidden?: boolean | null;
                       id: string;
                       /** Format: int64 */
                       max_input_tokens?: number | null;
                       /** Format: int64 */
                       max_output_tokens?: number | null;
-                      reasoning_efforts?: string[];
+                      reasoning_efforts?: (
+                        | "none"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh"
+                        | "max"
+                      )[];
+                      release_date?: string;
                       supports_reasoning?: boolean | null;
                       supports_tools?: boolean | null;
                     }[];
@@ -38587,6 +38993,9 @@ export interface operations {
                       enabled?: boolean | null;
                       endpoint?: string;
                       timeout?: string;
+                    } | null;
+                    reasoning?: {
+                      apply: string;
                     } | null;
                   } | null;
                   runtime_provider?: string;
@@ -38634,14 +39043,34 @@ export interface operations {
                     cost_input_per_million?: number | null;
                     /** Format: double */
                     cost_output_per_million?: number | null;
-                    default_reasoning_effort?: string;
+                    /** @enum {string} */
+                    default_reasoning_effort?:
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max";
+                    deprecated?: boolean | null;
                     display_name?: string;
+                    featured?: boolean | null;
+                    hidden?: boolean | null;
                     id: string;
                     /** Format: int64 */
                     max_input_tokens?: number | null;
                     /** Format: int64 */
                     max_output_tokens?: number | null;
-                    reasoning_efforts?: string[];
+                    reasoning_efforts?: (
+                      | "none"
+                      | "minimal"
+                      | "low"
+                      | "medium"
+                      | "high"
+                      | "xhigh"
+                      | "max"
+                    )[];
+                    release_date?: string;
                     supports_reasoning?: boolean | null;
                     supports_tools?: boolean | null;
                   }[];
@@ -38651,6 +39080,9 @@ export interface operations {
                     enabled?: boolean | null;
                     endpoint?: string;
                     timeout?: string;
+                  } | null;
+                  reasoning?: {
+                    apply: string;
                   } | null;
                 } | null;
                 runtime_provider?: string;
@@ -38766,6 +39198,14 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          model_curation?: {
+            /** @enum {string} */
+            default_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            deprecated?: boolean | null;
+            featured?: boolean | null;
+            hidden?: boolean | null;
+            model_id: string;
+          } | null;
           secrets?: {
             kind?: string;
             name?: string;
@@ -38797,14 +39237,34 @@ export interface operations {
                 cost_input_per_million?: number | null;
                 /** Format: double */
                 cost_output_per_million?: number | null;
-                default_reasoning_effort?: string;
+                /** @enum {string} */
+                default_reasoning_effort?:
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max";
+                deprecated?: boolean | null;
                 display_name?: string;
+                featured?: boolean | null;
+                hidden?: boolean | null;
                 id: string;
                 /** Format: int64 */
                 max_input_tokens?: number | null;
                 /** Format: int64 */
                 max_output_tokens?: number | null;
-                reasoning_efforts?: string[];
+                reasoning_efforts?: (
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max"
+                )[];
+                release_date?: string;
                 supports_reasoning?: boolean | null;
                 supports_tools?: boolean | null;
               }[];
@@ -38814,6 +39274,9 @@ export interface operations {
                 enabled?: boolean | null;
                 endpoint?: string;
                 timeout?: string;
+              } | null;
+              reasoning?: {
+                apply: string;
               } | null;
             } | null;
             runtime_provider?: string;
@@ -56966,6 +57429,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57258,6 +57723,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57334,6 +57801,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57627,6 +58096,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57703,6 +58174,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57779,6 +58252,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57922,6 +58397,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -57998,6 +58475,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58074,6 +58553,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58150,6 +58631,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58290,6 +58773,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58466,6 +58951,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58542,6 +59029,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58618,6 +59107,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58694,6 +59185,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58770,6 +59263,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58846,6 +59341,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58922,6 +59419,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -58998,6 +59497,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -59182,6 +59683,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -59369,6 +59872,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -59445,6 +59950,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -59521,6 +60028,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -60920,6 +61429,8 @@ export interface operations {
               permissions?: string;
               prompt: string;
               provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               tools?: string[];
               toolsets?: string[];
             }[];
@@ -61044,7 +61555,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -66314,7 +66826,8 @@ export interface operations {
                 model?: string;
                 name?: string;
                 provider: string;
-                reasoning_effort?: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -66643,7 +67156,8 @@ export interface operations {
                 model?: string;
                 name?: string;
                 provider: string;
-                reasoning_effort?: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -66981,7 +67495,8 @@ export interface operations {
                 model?: string;
                 name?: string;
                 provider: string;
-                reasoning_effort?: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -69726,7 +70241,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -70148,7 +70664,8 @@ export interface operations {
               model?: string;
               name?: string;
               provider: string;
-              reasoning_effort?: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -71611,7 +72128,8 @@ export interface operations {
                 model?: string;
                 name?: string;
                 provider: string;
-                reasoning_effort?: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -72970,6 +73488,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -73267,6 +73787,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"
@@ -73343,6 +73865,8 @@ export interface operations {
                 | "tool_denied"
                 | "tool_approval_required"
                 | "tool_invalid_input"
+                | "model_not_found"
+                | "reasoning_effort_unsupported"
                 | "tool_result_too_large"
                 | "tool_backend_failed"
                 | "tool_canceled"

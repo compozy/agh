@@ -9,6 +9,7 @@ import {
   type ProviderDraft,
   type SettingsMutationResult,
   type SettingsProviderEntry,
+  type SettingsProviderModelRequest,
   type SettingsProviderRequest,
   type SettingsSourceKind,
 } from "@/systems/settings";
@@ -24,7 +25,6 @@ import {
 import type { ProviderStateLabel } from "@/systems/settings/lib/provider-state";
 
 type ProviderCredentialSlotDraft = ProviderDraft["credential_slots"][number];
-type ProviderModelPayload = ProviderDraft["curated_snapshot"][number];
 
 function emptyDraft(): ProviderDraft {
   return {
@@ -33,7 +33,6 @@ function emptyDraft(): ProviderDraft {
     display_name: "",
     model_default: "",
     curated_models: "",
-    curated_snapshot: [],
     target_env: "",
     harness: "acp",
     runtime_provider: "",
@@ -54,14 +53,12 @@ function emptyDraft(): ProviderDraft {
 function toDraft(entry: SettingsProviderEntry): ProviderDraft {
   const credentialSlots = credentialSlotsForDraft(entry.settings.credential_slots ?? []);
   const credentialSlot = credentialSlots[0];
-  const curatedSnapshot = (entry.settings.models?.curated ?? []).map(model => ({ ...model }));
   return {
     name: entry.name,
     command: entry.settings.command ?? "",
     display_name: entry.settings.display_name ?? "",
     model_default: entry.settings.models?.default ?? "",
-    curated_models: joinCuratedModels(curatedSnapshot),
-    curated_snapshot: curatedSnapshot,
+    curated_models: joinCuratedModels(entry.settings.models?.curated ?? []),
     target_env: credentialSlot?.target_env ?? "",
     harness: entry.settings.harness ?? "acp",
     runtime_provider: entry.settings.runtime_provider ?? "",
@@ -85,7 +82,7 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   if (draft.display_name.trim()) settings.display_name = draft.display_name.trim();
   settings.models = {
     ...(draft.model_default.trim() ? { default: draft.model_default.trim() } : {}),
-    curated: parseCuratedModels(draft.curated_models, draft.curated_snapshot),
+    curated: parseCuratedModels(draft.curated_models),
   };
   if (draft.harness.trim()) settings.harness = draft.harness.trim();
   if (draft.runtime_provider.trim()) settings.runtime_provider = draft.runtime_provider.trim();
@@ -127,29 +124,21 @@ function envSecretRef(apiKeyEnv?: string): string {
   return envName ? `env:${envName}` : "";
 }
 
-function joinCuratedModels(models: ProviderModelPayload[]): string {
+function joinCuratedModels(models: SettingsProviderModelRequest[]): string {
   return models
     .map(model => model.id.trim())
     .filter(Boolean)
     .join("\n");
 }
 
-function parseCuratedModels(raw: string, snapshot: ProviderModelPayload[]): ProviderModelPayload[] {
+function parseCuratedModels(raw: string): SettingsProviderModelRequest[] {
   const seen = new Set<string>();
-  const models: ProviderModelPayload[] = [];
-  const snapshotById = new Map(
-    snapshot.filter(entry => entry.id.trim().length > 0).map(entry => [entry.id.trim(), entry])
-  );
+  const models: SettingsProviderModelRequest[] = [];
   for (const part of raw.split(/[\n,]/u)) {
     const id = part.trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    const enrichment = snapshotById.get(id);
-    if (enrichment) {
-      models.push({ ...enrichment, id });
-    } else {
-      models.push({ id });
-    }
+    models.push({ id });
   }
   return models;
 }

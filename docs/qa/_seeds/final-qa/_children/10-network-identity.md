@@ -117,8 +117,8 @@ QA). Every scenario:
   that exercise real Claude Code peers are gated `live: conditional` — they
   require the credential broker / pooled Claude Code login described in
   `openclaw-qa-patterns.md` §4.
-- Uses real Claude Code (`claude-opus-4-7[1m]` for "agent A" and
-  `claude-sonnet-4-6` for "agent B" by default) as subprocess agents. The
+- Uses real Claude Code (`claude-opus-4-8` for "agent A" and
+  `claude-sonnet-5` for "agent B" by default) as subprocess agents. The
   network protocol itself is exercised with daemon-driven CLI commands; the
   agent driver is plugged in only when the scenario needs the agent to send
   / receive on its own.
@@ -149,7 +149,7 @@ can be parallelized under unique worktree isolation.
 
 | Mode               | When                                                                                                | Driver                                                                                                                                          |
 | ------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code` | Default. Required for NET-12 (real agent-to-agent roundtrip) and any scenario that drives an agent. | `claude-opus-4-7[1m]` for the originating agent; `claude-sonnet-4-6` for the responder.                                                         |
+| `real-claude-code` | Default. Required for NET-12 (real agent-to-agent roundtrip) and any scenario that drives an agent. | `claude-opus-4-8` for the originating agent; `claude-sonnet-5` for the responder.                                                         |
 | `daemon-driver`    | Default for scenarios that exercise only the network protocol surface (no agent prompt needed).     | `agh network send` / `agh network inbox` / `agh network channels` / `agh network peers` driven from the QA harness.                              |
 | `mock-acp` (gate)  | Determinism gate for race-sensitive scenarios where real-LLM nondeterminism would obscure the test. | `internal/e2elane` mock ACP server. Used only as a deterministic agent placeholder; the network code paths remain real.                          |
 

@@ -21,7 +21,7 @@ func TestMergeRows(t *testing.T) {
 
 		contextWindowConfig := int64(100)
 		contextWindowCatalog := int64(200)
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"models_dev",
 				SourceKindModelsDev,
@@ -54,7 +54,7 @@ func TestMergeRows(t *testing.T) {
 
 		liveAvailable := true
 		extensionAvailable := false
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"extension:alpha",
 				SourceKindExtension,
@@ -96,7 +96,7 @@ func TestMergeRows(t *testing.T) {
 	t.Run("Should resolve equal priority and freshness by ascending source id", func(t *testing.T) {
 		t.Parallel()
 
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"extension:b",
 				SourceKindExtension,
@@ -135,7 +135,7 @@ func TestMergeRows(t *testing.T) {
 
 		contextWindow := int64(256000)
 		costInput := 1.25
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow("config", SourceKindConfig, PriorityConfig, "codex", "gpt-5.4", testTime(0), nil),
 			testRow(
 				"models_dev",
@@ -169,7 +169,7 @@ func TestMergeRows(t *testing.T) {
 
 		available := true
 		contextWindow := int64(256000)
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"provider_live:codex",
 				SourceKindProviderLive,
@@ -224,7 +224,7 @@ func TestMergeRows(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				models := MergeRows([]ModelRow{
+				models := mergeTestRows([]ModelRow{
 					testRow(
 						"provider_live:codex",
 						SourceKindProviderLive,
@@ -252,7 +252,7 @@ func TestMergeRows(t *testing.T) {
 	t.Run("Should keep catalog only models at unknown availability", func(t *testing.T) {
 		t.Parallel()
 
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow("models_dev", SourceKindModelsDev, PriorityModelsDev, "codex", "gpt-5.4", testTime(0), nil),
 		})
 		model := requireSingleModel(t, models)
@@ -267,7 +267,7 @@ func TestMergeRows(t *testing.T) {
 	t.Run("Should sort merged projection and source refs deterministically", func(t *testing.T) {
 		t.Parallel()
 
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow("extension:b", SourceKindExtension, PriorityExtension, "claude", "claude-4", testTime(1), nil),
 			testRow(
 				"provider_live:codex",
@@ -296,11 +296,11 @@ func TestMergeRows(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fill canonical reasoning efforts when support is explicit without levels", func(t *testing.T) {
+	t.Run("Should preserve support without fabricating selectable efforts", func(t *testing.T) {
 		t.Parallel()
 
 		supportsReasoning := true
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"models_dev",
 				SourceKindModelsDev,
@@ -315,22 +315,18 @@ func TestMergeRows(t *testing.T) {
 		})
 
 		model := requireSingleModel(t, models)
-		requireReasoningProfile(
-			t,
-			model,
-			true,
-			[]ReasoningEffort{
-				ReasoningEffortMinimal,
-				ReasoningEffortLow,
-				ReasoningEffortMedium,
-				ReasoningEffortHigh,
-				ReasoningEffortXHigh,
-			},
-			ReasoningEffortMedium,
-		)
+		if model.SupportsReasoning == nil || !*model.SupportsReasoning {
+			t.Fatalf("SupportsReasoning = %v, want true", model.SupportsReasoning)
+		}
+		if len(model.ReasoningEfforts) != 0 {
+			t.Fatalf("ReasoningEfforts = %#v, want no fabricated levels", model.ReasoningEfforts)
+		}
+		if model.DefaultReasoningEffort != nil {
+			t.Fatalf("DefaultReasoningEffort = %v, want nil", model.DefaultReasoningEffort)
+		}
 	})
 
-	t.Run("Should infer canonical reasoning efforts for known families without support metadata", func(t *testing.T) {
+	t.Run("Should not infer reasoning from model name families", func(t *testing.T) {
 		t.Parallel()
 
 		for _, tc := range []struct {
@@ -338,18 +334,15 @@ func TestMergeRows(t *testing.T) {
 			provider string
 			model    string
 		}{
-			{name: "Should infer GPT leaf model", provider: "codex", model: "gpt-5.5"},
-			{name: "Should infer namespaced GPT model", provider: "openrouter", model: "openai/gpt-5.5"},
-			{name: "Should infer Claude model", provider: "claude", model: "claude-sonnet-4-6"},
-			{name: "Should infer Anthropic namespaced Claude model", provider: "openrouter", model: "anthropic/claude-opus-4-7"},
-			{name: "Should infer deeply namespaced Claude model", provider: "router", model: "vendor/anthropic/claude-opus-4-7"},
-			{name: "Should infer Bedrock Anthropic Claude model", provider: "bedrock", model: "anthropic.claude-sonnet-4-6"},
-			{name: "Should infer region-prefixed Bedrock Anthropic Claude model", provider: "bedrock", model: "us.anthropic.claude-sonnet-4-6"},
+			{name: "Should keep GPT leaf model unknown", provider: "codex", model: "gpt-5.6-sol"},
+			{name: "Should keep namespaced GPT model unknown", provider: "openrouter", model: "openai/gpt-5.6-sol"},
+			{name: "Should keep Claude model unknown", provider: "claude", model: "claude-sonnet-5"},
+			{name: "Should keep namespaced Claude model unknown", provider: "openrouter", model: "anthropic/claude-opus-4-8"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				models := MergeRows([]ModelRow{
+				models := mergeTestRows([]ModelRow{
 					testRow(
 						"models_dev",
 						SourceKindModelsDev,
@@ -362,19 +355,12 @@ func TestMergeRows(t *testing.T) {
 				})
 
 				model := requireSingleModel(t, models)
-				requireReasoningProfile(
-					t,
-					model,
-					true,
-					[]ReasoningEffort{
-						ReasoningEffortMinimal,
-						ReasoningEffortLow,
-						ReasoningEffortMedium,
-						ReasoningEffortHigh,
-						ReasoningEffortXHigh,
-					},
-					ReasoningEffortMedium,
-				)
+				if model.SupportsReasoning != nil {
+					t.Fatalf("SupportsReasoning = %v, want nil", model.SupportsReasoning)
+				}
+				if len(model.ReasoningEfforts) != 0 {
+					t.Fatalf("ReasoningEfforts = %#v, want empty", model.ReasoningEfforts)
+				}
 			})
 		}
 	})
@@ -384,7 +370,7 @@ func TestMergeRows(t *testing.T) {
 
 		supportsReasoning := false
 		defaultEffort := ReasoningEffortHigh
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"config",
 				SourceKindConfig,
@@ -427,7 +413,7 @@ func TestMergeRows(t *testing.T) {
 
 		supportsReasoning := false
 		defaultEffort := ReasoningEffortHigh
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"config",
 				SourceKindConfig,
@@ -468,7 +454,7 @@ func TestMergeRows(t *testing.T) {
 
 		supportsReasoning := true
 		defaultEffort := ReasoningEffortHigh
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"config",
 				SourceKindConfig,
@@ -494,10 +480,57 @@ func TestMergeRows(t *testing.T) {
 		)
 	})
 
+	t.Run("Should overlay a config default without freezing the lower reasoning profile", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := true
+		builtinDefault := ReasoningEffortHigh
+		configDefault := ReasoningEffortMax
+		models := mergeTestRows([]ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(1),
+				func(row *ModelRow) {
+					row.DefaultReasoningEffort = &configDefault
+				},
+			),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+					row.ReasoningEfforts = []ReasoningEffort{
+						ReasoningEffortNone,
+						ReasoningEffortHigh,
+						ReasoningEffortMax,
+					}
+					row.DefaultReasoningEffort = &builtinDefault
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		requireReasoningProfile(
+			t,
+			model,
+			true,
+			[]ReasoningEffort{ReasoningEffortNone, ReasoningEffortHigh, ReasoningEffortMax},
+			ReasoningEffortMax,
+		)
+	})
+
 	t.Run("Should leave unknown models without support signal disabled", func(t *testing.T) {
 		t.Parallel()
 
-		models := MergeRows([]ModelRow{
+		models := mergeTestRows([]ModelRow{
 			testRow(
 				"models_dev",
 				SourceKindModelsDev,
@@ -518,6 +551,512 @@ func TestMergeRows(t *testing.T) {
 		}
 		if model.DefaultReasoningEffort != nil {
 			t.Fatalf("DefaultReasoningEffort = %v, want nil", *model.DefaultReasoningEffort)
+		}
+	})
+
+	t.Run("Should let an observed empty live profile override builtin efforts", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := true
+		defaultEffort := ReasoningEffortMedium
+		models := mergeTestRows([]ModelRow{
+			testRow(
+				"provider_live:claude",
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"claude",
+				"claude-haiku-4-5-20251001",
+				testTime(1),
+				func(row *ModelRow) { row.SupportsReasoning = &supportsReasoning },
+			),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"claude",
+				"claude-haiku-4-5-20251001",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+					row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortLow, ReasoningEffortMedium}
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		if model.SupportsReasoning == nil || !*model.SupportsReasoning {
+			t.Fatalf("SupportsReasoning = %v, want true", model.SupportsReasoning)
+		}
+		if len(model.ReasoningEfforts) != 0 || model.DefaultReasoningEffort != nil {
+			t.Fatalf(
+				"reasoning profile = %#v/%v, want observed empty profile",
+				model.ReasoningEfforts,
+				model.DefaultReasoningEffort,
+			)
+		}
+	})
+
+	t.Run("Should suppress selectable efforts when provider strategy is none", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := true
+		defaultEffort := ReasoningEffortMax
+		models := MergeRows([]ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"custom",
+				"reasoner",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+					row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortNone, ReasoningEffortMax}
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+		}, MergeOptions{ReasoningApply: map[string]bool{"custom": false}})
+
+		model := requireSingleModel(t, models)
+		if model.SupportsReasoning == nil || !*model.SupportsReasoning {
+			t.Fatalf("SupportsReasoning = %v, want true", model.SupportsReasoning)
+		}
+		if len(model.ReasoningEfforts) != 0 || model.DefaultReasoningEffort != nil {
+			t.Fatalf(
+				"reasoning profile = %#v/%v, want no selectable efforts",
+				model.ReasoningEfforts,
+				model.DefaultReasoningEffort,
+			)
+		}
+	})
+}
+
+func TestCatalogViews(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should curate candidates and preserve hidden deprecated rows in all view", func(t *testing.T) {
+		t.Parallel()
+
+		available := true
+		rows := []ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"curated",
+				"configured",
+				testTime(0),
+				func(row *ModelRow) { row.ExplicitlyCurated = true },
+			),
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"curated",
+				"hidden",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Hidden = new(true)
+				},
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"curated",
+				"deprecated",
+				testTime(0),
+				func(row *ModelRow) { row.Deprecated = new(true) },
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"curated",
+				"featured",
+				testTime(0),
+				func(row *ModelRow) { row.Featured = new(true) },
+			),
+			testRow(
+				"provider_live:curated",
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"curated",
+				"live",
+				testTime(0),
+				func(row *ModelRow) { row.Available = &available },
+			),
+			testRow(SourceIDModelsDev, SourceKindModelsDev, PriorityModelsDev, "curated", "other", testTime(0), nil),
+			testRow(SourceIDModelsDev, SourceKindModelsDev, PriorityModelsDev, "fallback", "visible", testTime(0), nil),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"fallback",
+				"hidden",
+				testTime(0),
+				func(row *ModelRow) { row.Hidden = new(true) },
+			),
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"all-hidden",
+				"explicit",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Hidden = new(true)
+				},
+			),
+			testRow(
+				"provider_live:all-hidden",
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"all-hidden",
+				"live",
+				testTime(0),
+				func(row *ModelRow) { row.Available = &available },
+			),
+		}
+		merged := MergeRows(rows, MergeOptions{})
+		all, err := applyCatalogView(append([]Model(nil), merged...), CatalogViewAll)
+		if err != nil {
+			t.Fatalf("applyCatalogView(all) error = %v", err)
+		}
+		if got, want := len(all), len(rows); got != want {
+			t.Fatalf("len(all) = %d, want %d", got, want)
+		}
+		wantMembership := map[string]bool{
+			"all-hidden/explicit": false,
+			"all-hidden/live":     false,
+			"curated/configured":  true,
+			"curated/deprecated":  false,
+			"curated/featured":    true,
+			"curated/hidden":      false,
+			"curated/live":        false,
+			"curated/other":       false,
+			"fallback/hidden":     false,
+			"fallback/visible":    true,
+		}
+		for _, model := range all {
+			key := model.ProviderID + "/" + model.ModelID
+			if model.Curated != wantMembership[key] {
+				t.Fatalf("all view model %q Curated = %v, want %v", key, model.Curated, wantMembership[key])
+			}
+		}
+		curated, err := applyCatalogView(append([]Model(nil), merged...), CatalogViewCurated)
+		if err != nil {
+			t.Fatalf("applyCatalogView(curated) error = %v", err)
+		}
+		if got, want := modelKeys(curated), []string{
+			"curated/featured",
+			"curated/configured",
+			"fallback/visible",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("curated models = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject an unknown view", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := applyCatalogView(nil, CatalogView("recent"))
+		var invalid *InvalidViewError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("applyCatalogView() error = %v, want InvalidViewError", err)
+		}
+	})
+
+	t.Run("Should rank curated models before newer or excluded featured models", func(t *testing.T) {
+		t.Parallel()
+
+		rows := []ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"ranked",
+				"curated-featured",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Featured = new(true)
+					row.ReleaseDate = new("2024-01-01")
+				},
+			),
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"ranked",
+				"curated-old",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.ReleaseDate = new("2025-01-01")
+				},
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"ranked",
+				"hidden-featured",
+				testTime(0),
+				func(row *ModelRow) {
+					row.Featured = new(true)
+					row.Hidden = new(true)
+					row.ReleaseDate = new("2027-01-01")
+				},
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"ranked",
+				"non-curated-new",
+				testTime(0),
+				func(row *ModelRow) { row.ReleaseDate = new("2028-01-01") },
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"ranked",
+				"deprecated-featured",
+				testTime(0),
+				func(row *ModelRow) {
+					row.Deprecated = new(true)
+					row.Featured = new(true)
+					row.ReleaseDate = new("2029-01-01")
+				},
+			),
+		}
+		all, err := applyCatalogView(MergeRows(rows, MergeOptions{}), CatalogViewAll)
+		if err != nil {
+			t.Fatalf("applyCatalogView(all) error = %v", err)
+		}
+		if got, want := modelKeys(all), []string{
+			"ranked/curated-featured",
+			"ranked/curated-old",
+			"ranked/hidden-featured",
+			"ranked/non-curated-new",
+			"ranked/deprecated-featured",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("ranked all-view models = %#v, want %#v", got, want)
+		}
+		if all[2].Curated || !all[2].Hidden || !all[2].Featured {
+			t.Fatalf("excluded featured model = %#v, want non-curated hidden featured", all[2])
+		}
+	})
+
+	t.Run("Should let explicit config override lower-priority curation flags", func(t *testing.T) {
+		t.Parallel()
+
+		explicitFalse := false
+		models := MergeRows([]ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Deprecated = &explicitFalse
+					row.Hidden = &explicitFalse
+					row.Featured = &explicitFalse
+				},
+			),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Deprecated = new(true)
+					row.Hidden = new(true)
+					row.Featured = new(true)
+				},
+			),
+		}, MergeOptions{})
+
+		model := requireSingleModel(t, models)
+		if model.Deprecated || model.Hidden || model.Featured {
+			t.Fatalf(
+				"curation flags = deprecated:%v hidden:%v featured:%v, want explicit false overrides",
+				model.Deprecated,
+				model.Hidden,
+				model.Featured,
+			)
+		}
+	})
+
+	t.Run("Should let a higher non-config source explicitly clear lower curation flags", func(t *testing.T) {
+		t.Parallel()
+
+		explicitFalse := false
+		models := MergeRows([]ModelRow{
+			testRow(
+				"extension:current",
+				SourceKindExtension,
+				PriorityExtension,
+				"custom",
+				"model",
+				testTime(1),
+				func(row *ModelRow) {
+					row.Deprecated = &explicitFalse
+					row.Hidden = &explicitFalse
+					row.Featured = &explicitFalse
+				},
+			),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"custom",
+				"model",
+				testTime(0),
+				func(row *ModelRow) {
+					row.Deprecated = new(true)
+					row.Hidden = new(true)
+					row.Featured = new(true)
+				},
+			),
+		}, MergeOptions{})
+
+		model := requireSingleModel(t, models)
+		if model.Deprecated || model.Hidden || model.Featured {
+			t.Fatalf("curation flags = %#v, want higher extension false values", model)
+		}
+	})
+
+	t.Run("Should preserve omitted flags while applying selective config curation", func(t *testing.T) {
+		t.Parallel()
+
+		defaultEffort := ReasoningEffortMax
+		model := requireSingleModel(t, MergeRows([]ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Hidden = new(true)
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+			testRow(
+				SourceIDModelsDev,
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) { row.Deprecated = new(true) },
+			),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Featured = new(true)
+				},
+			),
+		}, MergeOptions{}))
+		if !model.Deprecated || !model.Hidden || !model.Featured {
+			t.Fatalf("merged curation metadata = %#v, want upstream deprecated/featured plus config hidden", model)
+		}
+	})
+
+	t.Run("Should preserve lower curation metadata for a config default outside curated", func(t *testing.T) {
+		t.Parallel()
+
+		model := requireSingleModel(t, MergeRows([]ModelRow{
+			testRow(SourceIDConfig, SourceKindConfig, PriorityConfig, "codex", "gpt-5.6-sol", testTime(0), nil),
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"codex",
+				"gpt-5.6-sol",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ExplicitlyCurated = true
+					row.Deprecated = new(true)
+					row.Hidden = new(true)
+					row.Featured = new(true)
+				},
+			),
+		}, MergeOptions{}))
+		if !model.ExplicitlyCurated || !model.Deprecated || !model.Hidden || !model.Featured {
+			t.Fatalf("merged curation metadata = %#v, want builtin metadata preserved", model)
+		}
+	})
+
+	t.Run("Should preserve explicit membership while filtering by a live source", func(t *testing.T) {
+		t.Parallel()
+
+		available := true
+		store := newMemoryStore()
+		store.rows[sourceProviderKey(SourceIDConfig, "codex")] = []ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"codex",
+				"alpha",
+				testTime(0),
+				func(row *ModelRow) { row.ExplicitlyCurated = true },
+			),
+		}
+		liveSourceID := "provider_live:codex"
+		store.rows[sourceProviderKey(liveSourceID, "codex")] = []ModelRow{
+			testRow(
+				liveSourceID,
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"codex",
+				"alpha",
+				testTime(0),
+				func(row *ModelRow) { row.Available = &available },
+			),
+			testRow(
+				liveSourceID,
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"codex",
+				"beta",
+				testTime(0),
+				func(row *ModelRow) { row.Available = &available },
+			),
+		}
+		service := newTestService(t, store, nil)
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "codex",
+			SourceID:   liveSourceID,
+			View:       CatalogViewCurated,
+			Now:        testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(curated live source) error = %v", err)
+		}
+		if got, want := modelKeys(models), []string{"codex/alpha"}; !slices.Equal(got, want) {
+			t.Fatalf("curated live-source models = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -637,6 +1176,153 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh only sources that own the requested provider", func(t *testing.T) {
+		t.Parallel()
+
+		claudeSource := &fakeSource{
+			id:        "provider_live:claude",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"claude"},
+			rows: []ModelRow{
+				testRow(
+					"provider_live:claude",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"claude-sonnet-5",
+					testTime(0),
+					nil,
+				),
+			},
+		}
+		codexSource := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{claudeSource, codexSource})
+
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "claude",
+			Force:      true,
+			Now:        testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("Refresh(claude) error = %v", err)
+		}
+		if got, want := claudeSource.calls, 1; got != want {
+			t.Fatalf("claude source calls = %d, want %d", got, want)
+		}
+		if got := codexSource.calls; got != 0 {
+			t.Fatalf("codex source calls = %d, want 0", got)
+		}
+		if got, want := len(statuses), 1; got != want {
+			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
+		}
+		if got, want := statuses[0].SourceID, "provider_live:claude"; got != want {
+			t.Fatalf("status source = %q, want %q", got, want)
+		}
+		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), "claude")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(claude) error = %v", err)
+		}
+		if got, want := len(storedStatuses), 1; got != want {
+			t.Fatalf("len(stored statuses) = %d, want %d: %#v", got, want, storedStatuses)
+		}
+	})
+
+	t.Run("Should clear stale stored ownership for a provider no longer declared by a source", func(t *testing.T) {
+		t.Parallel()
+
+		claudeSource := &fakeSource{
+			id:        "provider_live:claude",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"claude"},
+			rows: []ModelRow{
+				testRow(
+					"provider_live:claude",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"claude",
+					"claude-sonnet-5",
+					testTime(0),
+					nil,
+				),
+			},
+		}
+		codexSource := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+		}
+		store := newMemoryStore()
+		store.statuses[sourceProviderKey(codexSource.ID(), "claude")] = SourceStatus{
+			SourceID:     codexSource.ID(),
+			SourceKind:   codexSource.Kind(),
+			ProviderID:   "claude",
+			RefreshState: RefreshStateSucceeded,
+			RowCount:     1,
+		}
+		store.rows[sourceProviderKey(codexSource.ID(), "claude")] = []ModelRow{
+			testRow(
+				codexSource.ID(),
+				codexSource.Kind(),
+				codexSource.Priority(),
+				"claude",
+				"stale-claude-model",
+				testTime(0),
+				nil,
+			),
+		}
+		service := newTestService(t, store, []Source{claudeSource, codexSource})
+
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "claude",
+			Force:      true,
+			Now:        testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("Refresh(claude) error = %v", err)
+		}
+		if got, want := claudeSource.calls, 1; got != want {
+			t.Fatalf("claude source calls = %d, want %d", got, want)
+		}
+		if got, want := codexSource.calls, 1; got != want {
+			t.Fatalf("codex source calls = %d, want %d to clear stored ownership", got, want)
+		}
+		if got, want := len(statuses), 2; got != want {
+			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
+		}
+		staleRows, err := store.ListRows(testutil.Context(t), ListOptions{
+			ProviderID:   "claude",
+			SourceID:     codexSource.ID(),
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListRows(codex/claude) error = %v", err)
+		}
+		if len(staleRows) != 0 {
+			t.Fatalf("ListRows(codex/claude) = %#v, want cleared", staleRows)
+		}
+		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), "claude")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(claude) error = %v", err)
+		}
+		if got, want := len(storedStatuses), 1; got != want {
+			t.Fatalf("len(stored statuses) = %d, want %d: %#v", got, want, storedStatuses)
+		}
+		if got, want := storedStatuses[0].SourceID, "provider_live:claude"; got != want {
+			t.Fatalf("stored status source = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should return stale rows when refresh fails after prior success", func(t *testing.T) {
 		t.Parallel()
 
@@ -715,7 +1401,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		store := newMemoryStore()
 		_, err := NewService(store, []Source{
 			&fakeSource{id: "extension:BadSlug", kind: SourceKindExtension, priority: PriorityExtension},
-		})
+		}, MergeOptions{})
 		if err == nil {
 			t.Fatal("NewService(invalid extension source) error = nil, want validation error")
 		}
@@ -780,6 +1466,158 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 		if got, want := len(statuses), 2; got != want {
 			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
+		}
+	})
+
+	t.Run("Should clear providers removed from an authoritative source during global refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "config",
+			kind:      SourceKindConfig,
+			priority:  PriorityConfig,
+			providers: []string{"alpha", "beta"},
+			rows: []ModelRow{
+				testRow("config", SourceKindConfig, PriorityConfig, "alpha", "alpha-model", testTime(42), nil),
+				testRow("config", SourceKindConfig, PriorityConfig, "beta", "beta-model", testTime(42), nil),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(42)}); err != nil {
+			t.Fatalf("Refresh(initial global) error = %v", err)
+		}
+
+		source.providers = []string{"beta"}
+		source.rows = []ModelRow{
+			testRow("config", SourceKindConfig, PriorityConfig, "beta", "beta-model", testTime(43), nil),
+		}
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(43)}); err != nil {
+			t.Fatalf("Refresh(after provider removal) error = %v", err)
+		}
+
+		alphaRows, err := store.ListRows(testutil.Context(t), ListOptions{
+			ProviderID:   "alpha",
+			SourceID:     "config",
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(43),
+		})
+		if err != nil {
+			t.Fatalf("ListRows(alpha) error = %v", err)
+		}
+		if len(alphaRows) != 0 {
+			t.Fatalf("ListRows(alpha) = %#v, want removed provider rows cleared", alphaRows)
+		}
+		betaRows, err := store.ListRows(testutil.Context(t), ListOptions{
+			ProviderID:   "beta",
+			SourceID:     "config",
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(43),
+		})
+		if err != nil {
+			t.Fatalf("ListRows(beta) error = %v", err)
+		}
+		if got, want := len(betaRows), 1; got != want {
+			t.Fatalf("len(ListRows(beta)) = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should clear a removed provider during provider-scoped refresh", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "config",
+			kind:      SourceKindConfig,
+			priority:  PriorityConfig,
+			providers: []string{"alpha", "beta"},
+			rows: []ModelRow{
+				testRow("config", SourceKindConfig, PriorityConfig, "alpha", "alpha-model", testTime(44), nil),
+				testRow("config", SourceKindConfig, PriorityConfig, "beta", "beta-model", testTime(44), nil),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(44)}); err != nil {
+			t.Fatalf("Refresh(initial global) error = %v", err)
+		}
+
+		source.providers = []string{"beta"}
+		source.rows = []ModelRow{
+			testRow("config", SourceKindConfig, PriorityConfig, "beta", "beta-model", testTime(45), nil),
+		}
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "alpha",
+			Force:      true,
+			Now:        testTime(45),
+		}); err != nil {
+			t.Fatalf("Refresh(alpha after removal) error = %v", err)
+		}
+
+		alphaRows, err := store.ListRows(testutil.Context(t), ListOptions{
+			ProviderID:   "alpha",
+			SourceID:     "config",
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(45),
+		})
+		if err != nil {
+			t.Fatalf("ListRows(alpha) error = %v", err)
+		}
+		if len(alphaRows) != 0 {
+			t.Fatalf("ListRows(alpha) = %#v, want removed provider rows cleared by scoped refresh", alphaRows)
+		}
+		betaRows, err := store.ListRows(testutil.Context(t), ListOptions{
+			ProviderID:   "beta",
+			SourceID:     "config",
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(45),
+		})
+		if err != nil {
+			t.Fatalf("ListRows(beta) error = %v", err)
+		}
+		if got, want := len(betaRows), 1; got != want {
+			t.Fatalf("len(ListRows(beta)) = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should retain all source statuses when ListSourceStatus provider filter is empty", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+			rows: []ModelRow{
+				testRow(
+					"provider_live:codex",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(46),
+					nil,
+				),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(46)}); err != nil {
+			t.Fatalf("Refresh(initial) error = %v", err)
+		}
+
+		statuses, err := service.ListSourceStatus(testutil.Context(t), "   ")
+		if err != nil {
+			t.Fatalf("ListSourceStatus(blank) error = %v", err)
+		}
+		if got, want := len(statuses), 1; got != want {
+			t.Fatalf("len(ListSourceStatus(blank)) = %d, want %d: %#v", got, want, statuses)
+		}
+		if got, want := statuses[0].ProviderID, "codex"; got != want {
+			t.Fatalf("ProviderID = %q, want %q", got, want)
 		}
 	})
 
@@ -1414,11 +2252,19 @@ func sourceProviderKey(sourceID string, providerID string) string {
 func newTestService(t *testing.T, store Store, sources []Source) *CatalogService {
 	t.Helper()
 
-	service, err := NewService(store, sources)
+	service, err := NewService(store, sources, MergeOptions{})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return service
+}
+
+func mergeTestRows(rows []ModelRow) []Model {
+	reasoningApply := make(map[string]bool)
+	for _, row := range rows {
+		reasoningApply[row.ProviderID] = true
+	}
+	return MergeRows(rows, MergeOptions{ReasoningApply: reasoningApply})
 }
 
 func testRow(

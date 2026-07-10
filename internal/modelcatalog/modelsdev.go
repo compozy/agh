@@ -271,6 +271,8 @@ type modelsDevProvider struct {
 type modelsDevRawModel struct {
 	ID                      string         `json:"id"`
 	Name                    string         `json:"name"`
+	ReleaseDate             string         `json:"release_date"`
+	Status                  string         `json:"status"`
 	Reasoning               *bool          `json:"reasoning"`
 	SupportsReasoning       *bool          `json:"supportsReasoning"`
 	SupportsReasoningLegacy *bool          `json:"supports_reasoning"`
@@ -304,6 +306,10 @@ func modelsDevRow(providerID string, modelKey string, raw modelsDevRawModel, now
 	if modelID == "" {
 		return ModelRow{}, false
 	}
+	releaseDate, releaseDateErr := NormalizeReleaseDate(raw.ReleaseDate)
+	if releaseDateErr != nil {
+		releaseDate = nil
+	}
 	row := ModelRow{
 		ProviderID:           providerID,
 		ModelID:              modelID,
@@ -319,8 +325,18 @@ func modelsDevRow(providerID string, modelKey string, raw modelsDevRawModel, now
 		SupportsReasoning:    firstBool(raw.Reasoning, raw.SupportsReasoning, raw.SupportsReasoningLegacy),
 		CostInputPerMillion:  firstFloat64(raw.Cost.Input, raw.Pricing.Input),
 		CostOutputPerMillion: firstFloat64(raw.Cost.Output, raw.Pricing.Output),
+		Deprecated:           modelsDevDeprecated(raw.Status),
+		ReleaseDate:          releaseDate,
 	}
 	return row, true
+}
+
+func modelsDevDeprecated(status string) *bool {
+	trimmed := strings.TrimSpace(status)
+	if trimmed == "" {
+		return nil
+	}
+	return new(strings.EqualFold(trimmed, "deprecated"))
 }
 
 func firstBool(values ...*bool) *bool {
@@ -385,7 +401,28 @@ func cloneModelRows(rows []ModelRow) []ModelRow {
 	cloned := make([]ModelRow, len(rows))
 	for index, row := range rows {
 		cloned[index] = row
+		cloned[index].Available = cloneModelRowPointer(row.Available)
+		cloned[index].ContextWindow = cloneModelRowPointer(row.ContextWindow)
+		cloned[index].MaxInputTokens = cloneModelRowPointer(row.MaxInputTokens)
+		cloned[index].MaxOutputTokens = cloneModelRowPointer(row.MaxOutputTokens)
+		cloned[index].SupportsTools = cloneModelRowPointer(row.SupportsTools)
+		cloned[index].SupportsReasoning = cloneModelRowPointer(row.SupportsReasoning)
 		cloned[index].ReasoningEfforts = append([]ReasoningEffort(nil), row.ReasoningEfforts...)
+		cloned[index].DefaultReasoningEffort = cloneModelRowPointer(row.DefaultReasoningEffort)
+		cloned[index].CostInputPerMillion = cloneModelRowPointer(row.CostInputPerMillion)
+		cloned[index].CostOutputPerMillion = cloneModelRowPointer(row.CostOutputPerMillion)
+		cloned[index].Deprecated = cloneModelRowPointer(row.Deprecated)
+		cloned[index].Hidden = cloneModelRowPointer(row.Hidden)
+		cloned[index].Featured = cloneModelRowPointer(row.Featured)
+		cloned[index].ReleaseDate = cloneStringPtr(row.ReleaseDate)
 	}
 	return cloned
+}
+
+func cloneModelRowPointer[T any](value *T) *T {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

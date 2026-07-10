@@ -1,4 +1,4 @@
-import type { HttpHandler } from "msw";
+import { HttpResponse, http, type HttpHandler } from "msw";
 
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
@@ -23,6 +23,7 @@ export type StorybookHandlerGroupName =
   | "bridges"
   | "daemon"
   | "design-system"
+  | "guard"
   | "knowledge"
   | "loops"
   | "network"
@@ -57,6 +58,14 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   tasks: tasksHandlers,
   vault: vaultHandlers,
   workspace: workspaceHandlers,
+  guard: [
+    http.all("/api/*", () => {
+      console.error(
+        "[MSW] Error: intercepted a local API request without a matching request handler."
+      );
+      return HttpResponse.error();
+    }),
+  ],
 };
 
 export function flattenStorybookHandlerGroups(

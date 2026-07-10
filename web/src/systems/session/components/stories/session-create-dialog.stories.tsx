@@ -2,41 +2,65 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { agentFixtures } from "@/systems/agent/mocks";
-import type { ModelOption, ReasoningOption } from "@/systems/model-catalog";
+import type {
+  RuntimeModelOption,
+  RuntimeProviderOption,
+  RuntimeSelectorValue,
+} from "@/systems/runtime";
 import { workspaceDetailFixture } from "@/systems/workspace/mocks";
 
 import { SessionCreateDialog } from "../session-create-dialog";
 
 const workspace = workspaceDetailFixture.workspace;
-const providers = workspaceDetailFixture.providers ?? [];
-const selectedProvider = providers.find(provider => provider.name === "codex") ?? providers[0];
 
-const modelOptions: ModelOption[] = [
+// Truthful post-migration args: the dialog now hosts one unified RuntimeSelector
+// (provider · model · reasoning) fed by aggregate catalog rows, not the deleted
+// provider/model/reasoning leaf selects.
+const runtimeProviders: RuntimeProviderOption[] = [
+  { id: "codex", name: "Codex", runtime_provider: "codex", harness: "acp" },
+  { id: "claude", name: "Claude", runtime_provider: "claude", harness: "acp" },
+];
+
+const runtimeModels: RuntimeModelOption[] = [
   {
-    id: "gpt-5.4",
-    displayName: "GPT-5.4",
-    availabilityState: "available",
-    available: true,
-    stale: false,
-    refreshedAt: "2026-04-17T18:10:00Z",
-    source: "catalog",
+    id: "gpt-5.6-sol",
+    provider: "codex",
+    name: "GPT-5.6 Sol",
+    context_window: 1_050_000,
+    cost_input: 5,
+    cost_output: 30,
+    supports_tools: true,
+    supports_reasoning: true,
+    efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    default_effort: "",
+    reasoning_source: "acp",
+    availability: "live",
+    curated: true,
+    featured: true,
   },
   {
-    id: "gpt-5.4-mini",
-    displayName: "GPT-5.4 Mini",
-    availabilityState: "available",
-    available: true,
-    stale: false,
-    refreshedAt: "2026-04-17T18:10:00Z",
-    source: "catalog",
+    id: "claude-fable-5",
+    provider: "claude",
+    name: "Claude Fable 5",
+    context_window: 1_000_000,
+    cost_input: 10,
+    cost_output: 50,
+    supports_tools: true,
+    supports_reasoning: true,
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+    default_effort: "",
+    reasoning_source: "acp",
+    availability: "live",
+    curated: true,
+    featured: true,
   },
 ];
 
-const reasoningOptions: ReasoningOption[] = [
-  { value: "medium", label: "Medium", source: "catalog" },
-  { value: "high", label: "High", source: "catalog" },
-  { value: "xhigh", label: "Extra high", source: "catalog" },
-];
+const runtimeValue = {
+  provider: "codex",
+  model: "gpt-5.6-sol",
+  reasoning_effort: "high",
+} satisfies RuntimeSelectorValue;
 
 const baseArgs = {
   open: true,
@@ -44,27 +68,22 @@ const baseArgs = {
   agents: agentFixtures,
   workspace,
   selectedAgentName: agentFixtures[0]?.name ?? "",
-  selectedProvider: selectedProvider?.name ?? "",
-  selectedProviderOption: selectedProvider,
-  selectedModel: "gpt-5.4",
-  selectedReasoning: "high",
-  modelOptions,
-  reasoningOptions,
-  reasoningSupported: true,
+  runtimeValue,
+  runtimeProviders,
+  runtimeModels,
   catalogStale: false,
   catalogLoading: false,
+  catalogLoaded: true,
   catalogError: null,
   catalogRefreshing: false,
   catalogRefreshError: null,
-  defaultReasoning: "medium",
-  providerOptions: providers,
   providersLoading: false,
   providersError: null,
+  hasProviderOptions: true,
   onAgentChange: fn(),
-  onProviderChange: fn(),
-  onModelChange: fn(),
-  onReasoningChange: fn(),
+  onRuntimeChange: fn(),
   onCatalogRefresh: fn(),
+  onOpenProviderSettings: fn(),
   onSubmit: fn(),
   isSubmitting: false,
   submitError: null,
@@ -77,7 +96,8 @@ const meta: Meta<typeof SessionCreateDialog> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Session creation dialog with agent, provider, model, and reasoning selectors.",
+        component:
+          "Session-create dialog hosting the unified RuntimeSelector (provider · model · reasoning) plus the agent picker.",
       },
     },
   },
@@ -94,7 +114,7 @@ export const Default: Story = {
 };
 
 /**
- * Catalog stale state keeps the refresh affordance visible.
+ * Catalog stale state keeps the refresh affordance + status line visible.
  */
 export const CatalogStale: Story = {
   args: {

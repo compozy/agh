@@ -3,8 +3,10 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -13,7 +15,10 @@ import (
 	automationmodel "github.com/compozy/agh/internal/automation/model"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -741,6 +746,12 @@ command = "/bin/ship"
 `)
 
 	service := testService(t, homePaths, Dependencies{
+		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"codex": {
+				{ProviderID: "codex", ModelID: "gpt-5", DisplayName: "GPT-5", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5-mini", DisplayName: "GPT-5 Mini", Curated: true},
+			},
+		}},
 		CommandLookPath: func(command string) (string, error) {
 			if strings.HasPrefix(command, "custom-acp") {
 				return "", os.ErrNotExist
@@ -837,13 +848,26 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	ctx := context.Background()
 	homePaths := testHomePaths(t)
 	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	service := testService(t, homePaths, Dependencies{})
+	service := testService(t, homePaths, Dependencies{
+		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"codex": {
+				{ProviderID: "codex", ModelID: "gpt-5.6-sol", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5.6-terra", Curated: true},
+				{ProviderID: "codex", ModelID: "gpt-5.6-luna", Curated: true},
+			},
+			"custom": {
+				{ProviderID: "custom", ModelID: "custom-model", Curated: true},
+				{ProviderID: "custom", ModelID: "custom-fast", Curated: true},
+			},
+		}},
+	})
 
 	providerResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 		Name:              "custom",
 		Provider: &ProviderSettings{
-			Command: "custom-acp --stdio",
+			Command:   "custom-acp --stdio",
+			ModelsSet: true,
 			Models: aghconfig.ProviderModelsConfig{
 				Default: "custom-model",
 				Curated: []aghconfig.ProviderModelConfig{
@@ -903,14 +927,18 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := emptyCuratedResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("empty curated write target = %q, want %q", got, want)
 	}
-	reloadedService := testService(t, homePaths, Dependencies{})
-	providers, err := reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	loadedConfig, err := aghconfig.LoadForHome(homePaths)
 	if err != nil {
-		t.Fatalf("ListCollection(providers after empty curated) error = %v", err)
+		t.Fatalf("LoadForHome(after empty curated) error = %v", err)
 	}
-	codex := mustFindProviderItem(t, providers.Providers, "codex")
-	if got, want := len(codex.Settings.Models.Curated), 0; got != want {
-		t.Fatalf("codex curated model count after explicit empty override = %d, want %d", got, want)
+	codexOverlay := loadedConfig.Providers["codex"]
+	if got, want := len(codexOverlay.Models.Curated), 3; got != want {
+		t.Fatalf("codex curation row count after explicit empty membership = %d, want %d", got, want)
+	}
+	for _, model := range codexOverlay.Models.Curated {
+		if model.Hidden == nil || !*model.Hidden {
+			t.Fatalf("codex curation row %q hidden = %v, want true", model.ID, model.Hidden)
+		}
 	}
 	emptyEffortsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -934,21 +962,22 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := emptyEffortsResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("empty reasoning efforts write target = %q, want %q", got, want)
 	}
-	reloadedService = testService(t, homePaths, Dependencies{})
-	providers, err = reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	loadedConfig, err = aghconfig.LoadForHome(homePaths)
 	if err != nil {
-		t.Fatalf("ListCollection(providers after empty reasoning efforts) error = %v", err)
+		t.Fatalf("LoadForHome(after empty reasoning efforts) error = %v", err)
 	}
-	custom := mustFindProviderItem(t, providers.Providers, "custom")
-	if got, want := len(custom.Settings.Models.Curated), 1; got != want {
-		t.Fatalf("custom curated model count after empty reasoning efforts = %d, want %d", got, want)
-	}
-	if got, want := len(custom.Settings.Models.Curated[0].ReasoningEfforts), 0; got != want {
+	custom := loadedConfig.Providers["custom"]
+	customModel := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-model")
+	if got, want := len(customModel.ReasoningEfforts), 2; got != want {
 		t.Fatalf(
-			"custom reasoning effort count after explicit empty override = %d, want %d",
+			"custom reasoning effort count after membership-only write = %d, want preserved %d",
 			got,
 			want,
 		)
+	}
+	customFast := requireConfiguredProviderModel(t, custom.Models.Curated, "custom-fast")
+	if customFast.Hidden == nil || !*customFast.Hidden {
+		t.Fatalf("custom-fast hidden = %v, want true after removal from membership", customFast.Hidden)
 	}
 	blankIDResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -970,17 +999,22 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	if got, want := blankIDResult.WriteTarget, WriteTargetGlobalConfig; got != want {
 		t.Fatalf("blank curated id write target = %q, want %q", got, want)
 	}
-	reloadedService = testService(t, homePaths, Dependencies{})
-	providers, err = reloadedService.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+	loadedConfig, err = aghconfig.LoadForHome(homePaths)
 	if err != nil {
-		t.Fatalf("ListCollection(providers after blank curated id) error = %v", err)
+		t.Fatalf("LoadForHome(after blank curated id) error = %v", err)
 	}
-	custom = mustFindProviderItem(t, providers.Providers, "custom")
-	if got, want := len(custom.Settings.Models.Curated), 1; got != want {
-		t.Fatalf("custom curated model count after blank curated id = %d, want %d", got, want)
+	custom = loadedConfig.Providers["custom"]
+	visible := make([]string, 0, len(custom.Models.Curated))
+	for _, model := range custom.Models.Curated {
+		if model.Hidden == nil || !*model.Hidden {
+			visible = append(visible, model.ID)
+		}
 	}
-	if got, want := custom.Settings.Models.Curated[0].ID, "custom-valid"; got != want {
-		t.Fatalf("custom curated[0].ID after blank curated id = %q, want %q", got, want)
+	if got, want := len(visible), 1; got != want {
+		t.Fatalf("visible custom curation rows after blank id filtering = %#v, want %d", visible, want)
+	}
+	if got, want := visible[0], "custom-valid"; got != want {
+		t.Fatalf("visible custom model after blank curated id = %q, want %q", got, want)
 	}
 	clearModelsResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionProviders},
@@ -1105,6 +1139,582 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	}
 }
 
+func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace raw curated config rows with the curated catalog view", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "merged-model"
+
+[providers.custom.models.reasoning]
+apply = "acp_option"
+
+[[providers.custom.models.curated]]
+id = "raw-only"
+display_name = "Raw config row"
+`)
+		releaseDate := "2026-07-09"
+		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"custom": {
+				{
+					ProviderID:        "custom",
+					ModelID:           "merged-model",
+					DisplayName:       "Merged model",
+					SupportsTools:     new(true),
+					SupportsReasoning: new(true),
+					ReasoningEfforts: []modelcatalog.ReasoningEffort{
+						modelcatalog.ReasoningEffortHigh,
+						modelcatalog.ReasoningEffortMax,
+					},
+					Curated:         true,
+					Featured:        true,
+					ReleaseDate:     &releaseDate,
+					ReasoningSource: modelcatalog.ReasoningSourceACP,
+				},
+			},
+		}}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		custom := mustFindProviderItem(t, envelope.Providers, "custom")
+		if got, want := len(custom.Settings.Models.Curated), 1; got != want {
+			t.Fatalf("merged curated model count = %d, want %d", got, want)
+		}
+		model := custom.Settings.Models.Curated[0]
+		if got, want := model.ID, "merged-model"; got != want {
+			t.Fatalf("merged model id = %q, want %q", got, want)
+		}
+		if model.ID == "raw-only" {
+			t.Fatal("settings exposed the raw curated config row")
+		}
+		if model.Featured == nil || !*model.Featured || model.ReleaseDate != releaseDate {
+			t.Fatalf("merged model metadata = %#v, want featured release metadata", model)
+		}
+		if got, want := custom.Settings.Models.Reasoning.Apply, aghconfig.ReasoningApplyACPOption; got != want {
+			t.Fatalf("reasoning apply = %q, want %q", got, want)
+		}
+		if !catalog.sawCuratedView("custom") {
+			t.Fatal("settings did not request the curated model catalog view")
+		}
+
+		settings := custom.Settings
+		settings.ModelsSet = true
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(unchanged merged projection) error = %v", err)
+		}
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after unchanged merged projection) error = %v", err)
+		}
+		rawRows := cfg.Providers["custom"].Models.Curated
+		if got, want := len(rawRows), 1; got != want {
+			t.Fatalf("raw curated row count after unchanged round trip = %d, want %d", got, want)
+		}
+		if got, want := rawRows[0].ID, "raw-only"; got != want {
+			t.Fatalf("raw curated model after unchanged round trip = %q, want %q", got, want)
+		}
+		if got, want := rawRows[0].DisplayName, "Raw config row"; got != want {
+			t.Fatalf("raw display name after unchanged round trip = %q, want %q", got, want)
+		}
+
+		defaultEffort := modelcatalog.ReasoningEffortMax
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+			ProviderModelCuration: &ProviderModelCurationRequest{
+				ModelID:                "merged-model",
+				DefaultReasoningEffort: &defaultEffort,
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(explicit default effort intent) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after explicit default effort intent) error = %v", err)
+		}
+		curated := requireConfiguredProviderModel(t, cfg.Providers["custom"].Models.Curated, "merged-model")
+		if got, want := curated.DefaultReasoningEffort, string(modelcatalog.ReasoningEffortMax); got != want {
+			t.Fatalf("explicit default reasoning effort = %q, want %q", got, want)
+		}
+		if curated.DisplayName != "" || curated.ReleaseDate != "" || curated.Featured != nil ||
+			curated.SupportsReasoning != nil || curated.ReasoningEfforts != nil {
+			t.Fatalf("explicit curation materialized merged enrichment: %#v", curated)
+		}
+		envelope, err = service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers after explicit curation) error = %v", err)
+		}
+		custom = mustFindProviderItem(t, envelope.Providers, "custom")
+		model = custom.Settings.Models.Curated[0]
+		if got, want := model.DefaultReasoningEffort, string(modelcatalog.ReasoningEffortMax); got != want {
+			t.Fatalf("projected desired default reasoning effort = %q, want %q", got, want)
+		}
+		if got, want := model.DisplayName, "Merged model"; got != want {
+			t.Fatalf("projected catalog display name = %q, want %q", got, want)
+		}
+
+		updatedReleaseDate := "2026-07-10"
+		catalog.mu.Lock()
+		updated := catalog.models["custom"][0]
+		updated.DisplayName = "Merged model refreshed"
+		updated.ReleaseDate = &updatedReleaseDate
+		catalog.models["custom"] = []modelcatalog.Model{updated}
+		catalog.mu.Unlock()
+		envelope, err = service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers after catalog refresh) error = %v", err)
+		}
+		custom = mustFindProviderItem(t, envelope.Providers, "custom")
+		model = custom.Settings.Models.Curated[0]
+		if got, want := model.DisplayName, "Merged model refreshed"; got != want {
+			t.Fatalf("refreshed merged display name = %q, want %q", got, want)
+		}
+		if got, want := model.ReleaseDate, updatedReleaseDate; got != want {
+			t.Fatalf("refreshed merged release date = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve the raw models overlay when a partial provider PUT omits models", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "raw-model"
+
+[providers.custom.models.discovery]
+enabled = true
+command = "custom-models --json"
+
+[providers.custom.models.reasoning]
+apply = "acp_option"
+
+[[providers.custom.models.curated]]
+id = "raw-model"
+display_name = "Raw model"
+featured = true
+`)
+		beforeConfig, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(before partial provider PUT) error = %v", err)
+		}
+		beforeModels := cloneProviderModelsConfig(beforeConfig.Providers["custom"].Models)
+		service := testService(t, homePaths, Dependencies{})
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &ProviderSettings{Command: "custom-acp-v2"},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(partial provider PUT) error = %v", err)
+		}
+
+		afterConfig, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after partial provider PUT) error = %v", err)
+		}
+		afterProvider := afterConfig.Providers["custom"]
+		if got, want := afterProvider.Command, "custom-acp-v2"; got != want {
+			t.Fatalf("provider command after partial PUT = %q, want %q", got, want)
+		}
+		if !reflect.DeepEqual(afterProvider.Models, beforeModels) {
+			t.Fatalf(
+				"provider models after partial PUT = %#v, want preserved %#v",
+				afterProvider.Models,
+				beforeModels,
+			)
+		}
+	})
+
+	t.Run("Should materialize exact membership when fallback curation receives its first edit", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+`)
+		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"custom": {
+				{ProviderID: "custom", ModelID: "alpha", Curated: true},
+				{ProviderID: "custom", ModelID: "beta", Curated: true},
+				{ProviderID: "custom", ModelID: "gamma", Curated: true},
+			},
+		}}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		custom := mustFindProviderItem(t, envelope.Providers, "custom")
+		settings := custom.Settings
+		settings.ModelsSet = true
+		settings.Models.Curated = settings.Models.Curated[1:]
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(first explicit membership edit) error = %v", err)
+		}
+
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after first explicit membership edit) error = %v", err)
+		}
+		rows := cfg.Providers["custom"].Models.Curated
+		if got, want := len(rows), 3; got != want {
+			t.Fatalf("materialized curation row count = %d, want %d", got, want)
+		}
+		alpha := requireConfiguredProviderModel(t, rows, "alpha")
+		if alpha.Hidden == nil || !*alpha.Hidden {
+			t.Fatalf("alpha hidden = %v, want true", alpha.Hidden)
+		}
+		for _, modelID := range []string{"beta", "gamma"} {
+			row := requireConfiguredProviderModel(t, rows, modelID)
+			if row.Hidden != nil && *row.Hidden {
+				t.Fatalf("%s hidden = %v, want visible explicit membership", modelID, row.Hidden)
+			}
+		}
+	})
+
+	t.Run("Should explicitly clear lower-source exclusion when adding a model to membership", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[[providers.custom.models.curated]]
+id = "excluded"
+hidden = true
+deprecated = true
+`)
+		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"custom": {{ProviderID: "custom", ModelID: "visible", Curated: true}},
+		}}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		custom := mustFindProviderItem(t, envelope.Providers, "custom")
+		settings := custom.Settings
+		settings.ModelsSet = true
+		settings.Models.Curated = append(
+			settings.Models.Curated,
+			aghconfig.ProviderModelConfig{ID: "excluded"},
+		)
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(add excluded model) error = %v", err)
+		}
+
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after adding excluded model) error = %v", err)
+		}
+		excluded := requireConfiguredProviderModel(t, cfg.Providers["custom"].Models.Curated, "excluded")
+		if excluded.Hidden == nil || *excluded.Hidden || excluded.Deprecated == nil || *excluded.Deprecated {
+			t.Fatalf("excluded model overrides = %#v, want explicit hidden=false deprecated=false", excluded)
+		}
+	})
+
+	t.Run("Should reject curation intent for an unresolved provider without writing config", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		before := readFile(t, homePaths.ConfigFile)
+		defaultEffort := modelcatalog.ReasoningEffortMax
+		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "missing",
+			Provider: &ProviderSettings{
+				Command:   "missing-acp",
+				ModelsSet: true,
+				Models: aghconfig.ProviderModelsConfig{
+					Curated: []aghconfig.ProviderModelConfig{{ID: "missing-model"}},
+				},
+			},
+			ProviderModelCuration: &ProviderModelCurationRequest{
+				ModelID:                "missing-model",
+				DefaultReasoningEffort: &defaultEffort,
+			},
+		})
+		if err == nil {
+			t.Fatal("PutCollectionItem(unresolved provider curation) error = nil")
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeModelNotFound {
+			t.Fatalf("curation diagnostic = %#v, want model_not_found; err=%v", item, err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after rejected curation intent:\n%s", after)
+		}
+	})
+
+	t.Run("Should reject curation intent without a model catalog before writing config", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "custom-model"
+
+[[providers.custom.models.curated]]
+id = "custom-model"
+`)
+		service := testService(t, homePaths, Dependencies{})
+		before := readFile(t, homePaths.ConfigFile)
+		defaultEffort := modelcatalog.ReasoningEffortMax
+		settings := ProviderSettings{
+			Command:   "custom-acp",
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Default: "custom-model",
+			},
+		}
+		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+			ProviderModelCuration: &ProviderModelCurationRequest{
+				ModelID:                "custom-model",
+				DefaultReasoningEffort: &defaultEffort,
+			},
+		})
+		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
+			t.Fatalf("PutCollectionItem(curation without catalog) error = %v, want ErrAllSourcesFailed", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after unavailable curation intent:\n%s", after)
+		}
+	})
+
+	t.Run("Should keep providers readable when optional catalog sources have no usable rows", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		catalog := &settingsModelCatalogStub{
+			models: map[string][]modelcatalog.Model{},
+			errs: map[string]error{
+				"blackbox": modelcatalog.ErrAllSourcesFailed,
+			},
+		}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
+		if blackbox.Settings.Models.Curated != nil {
+			t.Fatalf("blackbox curated models = %#v, want nil fallback", blackbox.Settings.Models.Curated)
+		}
+	})
+
+	t.Run("Should preserve raw membership when a degraded projection is round-tripped", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "raw-model"
+
+[[providers.custom.models.curated]]
+id = "raw-model"
+display_name = "Raw model"
+featured = true
+`)
+		catalog := &settingsModelCatalogStub{
+			models: map[string][]modelcatalog.Model{},
+			errs: map[string]error{
+				"custom": modelcatalog.ErrAllSourcesFailed,
+			},
+		}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		custom := mustFindProviderItem(t, envelope.Providers, "custom")
+		if custom.Settings.Models.Curated != nil {
+			t.Fatalf("degraded projection curated = %#v, want omitted membership", custom.Settings.Models.Curated)
+		}
+		settings := custom.Settings
+		settings.ModelsSet = true
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(degraded catalog round trip) error = %v", err)
+		}
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after degraded round trip) error = %v", err)
+		}
+		raw := requireConfiguredProviderModel(t, cfg.Providers["custom"].Models.Curated, "raw-model")
+		if raw.DisplayName != "Raw model" || raw.Featured == nil || !*raw.Featured {
+			t.Fatalf("raw model after degraded round trip = %#v, want original metadata", raw)
+		}
+		if raw.Hidden != nil && *raw.Hidden {
+			t.Fatalf("raw model hidden = %v, want membership preserved", raw.Hidden)
+		}
+	})
+
+	t.Run("Should reject an explicit membership clear when the catalog is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "raw-model"
+
+[[providers.custom.models.curated]]
+id = "raw-model"
+`)
+		catalog := &settingsModelCatalogStub{
+			models: map[string][]modelcatalog.Model{},
+			errs: map[string]error{
+				"custom": modelcatalog.ErrAllSourcesFailed,
+			},
+		}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		settings := ProviderSettings{
+			Command:   "custom-acp",
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Default: "raw-model",
+				Curated: []aghconfig.ProviderModelConfig{},
+			},
+		}
+		before := readFile(t, homePaths.ConfigFile)
+		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		})
+		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
+			t.Fatalf("PutCollectionItem(explicit clear during outage) error = %v, want ErrAllSourcesFailed", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after rejected explicit clear:\n%s", after)
+		}
+	})
+
+	t.Run("Should reject an explicit membership clear when the catalog dependency is absent", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+
+[providers.custom.models]
+default = "raw-model"
+
+[[providers.custom.models.curated]]
+id = "raw-model"
+`)
+		service := testService(t, homePaths, Dependencies{})
+		settings := ProviderSettings{
+			Command:   "custom-acp",
+			ModelsSet: true,
+			Models: aghconfig.ProviderModelsConfig{
+				Default: "raw-model",
+				Curated: []aghconfig.ProviderModelConfig{},
+			},
+		}
+		before := readFile(t, homePaths.ConfigFile)
+		_, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "custom",
+			Provider:          &settings,
+		})
+		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
+			t.Fatalf("PutCollectionItem(explicit clear without catalog) error = %v, want ErrAllSourcesFailed", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after rejected explicit clear without catalog:\n%s", after)
+		}
+	})
+
+	t.Run("Should omit models when the curated catalog view has no candidates", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"blackbox": {},
+		}}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		blackbox := mustFindProviderItem(t, envelope.Providers, "blackbox")
+		if blackbox.Settings.Models.Curated != nil {
+			t.Fatalf("blackbox curated models = %#v, want nil projection", blackbox.Settings.Models.Curated)
+		}
+	})
+}
+
 // TestCollectionMutationsCodexNativeProviderOverlay verifies Codex onboarding persistence.
 func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 	t.Parallel()
@@ -1125,7 +1735,7 @@ func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
 			Name:              "codex",
 			Provider: &ProviderSettings{
-				Command:         "npx -y @zed-industries/codex-acp@latest",
+				Command:         "npx -y @agentclientprotocol/codex-acp@latest",
 				DisplayName:     "Codex",
 				Harness:         aghconfig.ProviderHarnessACP,
 				RuntimeProvider: "codex",
@@ -2248,6 +2858,66 @@ func testService(t *testing.T, homePaths aghconfig.HomePaths, deps Dependencies)
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return service
+}
+
+type settingsModelCatalogStub struct {
+	mu     sync.Mutex
+	models map[string][]modelcatalog.Model
+	errs   map[string]error
+	opts   []modelcatalog.ListOptions
+}
+
+func (s *settingsModelCatalogStub) ListModels(
+	_ context.Context,
+	opts modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.opts = append(s.opts, opts)
+	if err := s.errs[opts.ProviderID]; err != nil {
+		return nil, err
+	}
+	return append([]modelcatalog.Model(nil), s.models[opts.ProviderID]...), nil
+}
+
+func (s *settingsModelCatalogStub) Refresh(
+	context.Context,
+	modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (s *settingsModelCatalogStub) ListSourceStatus(
+	context.Context,
+	string,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (s *settingsModelCatalogStub) sawCuratedView(providerID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, opts := range s.opts {
+		if opts.ProviderID == providerID && opts.View == modelcatalog.CatalogViewCurated {
+			return true
+		}
+	}
+	return false
+}
+
+func requireConfiguredProviderModel(
+	t *testing.T,
+	models []aghconfig.ProviderModelConfig,
+	modelID string,
+) aghconfig.ProviderModelConfig {
+	t.Helper()
+	for _, model := range models {
+		if model.ID == modelID {
+			return model
+		}
+	}
+	t.Fatalf("configured provider model %q not found in %#v", modelID, models)
+	return aghconfig.ProviderModelConfig{}
 }
 
 func testHomePaths(t *testing.T) aghconfig.HomePaths {

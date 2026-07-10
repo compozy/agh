@@ -8,13 +8,17 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/modelcatalog"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 
 const (
 	modelCatalogModelsSegment    = "models"
 	modelCatalogProvidersSegment = "providers"
+	modelCatalogCurateSegment    = "curate"
 	modelCatalogRefreshSegment   = "refresh"
 	modelCatalogSourcesSegment   = "sources"
 	modelCatalogStatusSegment    = "status"
@@ -97,9 +101,62 @@ func (h *BaseHandlers) dispatchModelCatalogPOST(c *gin.Context, parts []string) 
 		parts[2] == modelCatalogModelsSegment &&
 		parts[3] == modelCatalogRefreshSegment:
 		h.refreshProviderModels(c, parts[1])
+	case len(parts) == 4 &&
+		parts[0] == modelCatalogProvidersSegment &&
+		parts[2] == modelCatalogModelsSegment &&
+		parts[3] == modelCatalogCurateSegment:
+		h.curateProviderModel(c, parts[1])
 	default:
 		RespondError(c, http.StatusNotFound, errModelCatalogRouteNotFound, h.MaskInternalErrors)
 	}
+}
+
+func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string) {
+	if h == nil || h.Settings == nil {
+		RespondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable, false)
+		return
+	}
+	providerID, err := validateModelCatalogProviderID(providerParam)
+	if err != nil {
+		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
+	var request contract.ProviderModelCurationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		validationErr := NewModelCatalogValidationError(fmt.Errorf("invalid curation request body: %w", err))
+		RespondError(c, StatusForModelCatalogError(validationErr), validationErr, h.MaskInternalErrors)
+		return
+	}
+	result, err := h.Settings.ApplyProviderModelCuration(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		settingspkg.ProviderModelCurationRequest{
+			ProviderID:             providerID,
+			ModelID:                request.ModelID,
+			Hidden:                 request.Hidden,
+			Featured:               request.Featured,
+			Deprecated:             request.Deprecated,
+			DefaultReasoningEffort: request.DefaultReasoningEffort,
+		},
+	)
+	if err != nil {
+		RespondError(c, statusForProviderModelCurationError(err), err, h.MaskInternalErrors)
+		return
+	}
+	c.JSON(http.StatusOK, contract.ProviderModelCurationResponse{
+		Model: ProviderModelPayloadFromModel(result.Model),
+		Apply: SettingsApplyResponseFromResult(result.Apply),
+	})
+}
+
+func statusForProviderModelCurationError(err error) int {
+	if item, ok := diagnostics.ItemFromError(err); ok {
+		switch item.Code {
+		case diagnosticcontract.CodeModelNotFound,
+			diagnosticcontract.CodeReasoningEffortUnsupported:
+			return http.StatusUnprocessableEntity
+		}
+	}
+	return StatusForSettingsError(err)
 }
 
 func (h *BaseHandlers) listProviderModels(c *gin.Context, providerParam string) {
@@ -194,9 +251,19 @@ func (h *BaseHandlers) modelCatalogListOptions(
 	if err != nil {
 		return modelcatalog.ListOptions{}, NewModelCatalogValidationError(err)
 	}
+	view := modelcatalog.CatalogView(strings.TrimSpace(c.Query("view")))
+	if view == "" {
+		view = modelcatalog.CatalogViewCurated
+	}
+	if view != modelcatalog.CatalogViewCurated && view != modelcatalog.CatalogViewAll {
+		return modelcatalog.ListOptions{}, NewModelCatalogValidationError(&modelcatalog.InvalidViewError{
+			View: string(view),
+		})
+	}
 	return modelcatalog.ListOptions{
 		ProviderID:   trimmedProvider,
 		SourceID:     sourceID,
+		View:         view,
 		Refresh:      refresh,
 		IncludeStale: includeStale,
 		Now:          h.nowUTC(),

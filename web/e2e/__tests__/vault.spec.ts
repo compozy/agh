@@ -38,7 +38,7 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
     await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
     await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
-    await expect(appPage.getByTestId("vault-page-table")).toBeVisible();
+    await expect(appPage.getByTestId("vault-page-list")).toBeVisible();
     await expect(appPage.getByTestId(`vault-secrets-delete-${ref}`)).toBeVisible();
 
     await appPage.getByTestId(`vault-secrets-delete-${ref}`).click();
@@ -97,7 +97,11 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   await expect(appPage.getByTestId("vault-page-action-result")).toContainText(secretRef);
   await expect(appPage.locator("body")).not.toContainText(secretValue);
 
-  await appPage.getByTestId("vault-page-namespace").selectOption("providers");
+  await appPage.getByTestId("vault-list-filters-add").click();
+  const namespaceFilter = appPage.getByRole("option", { name: "Namespace" });
+  await expect(namespaceFilter).toBeVisible();
+  await namespaceFilter.hover();
+  await appPage.getByRole("option", { name: "providers", exact: true }).click();
   await appPage.getByTestId("vault-page-prefix").fill(secretRef);
   await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(1);
   await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretRef);

@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"context"
+	"errors"
 	"os/exec"
 	"testing"
 
@@ -45,6 +47,82 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		assertMissingCLIReport(t, "after apply", providers.PreStart(t.Context(), provider, env))
 		if calls != 2 {
 			t.Fatalf("PreStart LookPath calls after apply = %d, want 2", calls)
+		}
+	})
+
+	t.Run("Should rollback MCP after runtime apply failure", func(t *testing.T) {
+		t.Parallel()
+
+		previous := aghconfig.Config{
+			Providers: map[string]aghconfig.ProviderConfig{
+				"codex": {Command: "codex acp", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+			},
+		}
+		next := aghconfig.Config{
+			Providers: map[string]aghconfig.ProviderConfig{
+				"codex": {Command: "codex acp --next", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+			},
+		}
+		syncCalls := 0
+		daemonInstance := &Daemon{}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state: &bootState{
+				cfg: previous,
+				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+					syncCalls++
+					if syncCalls == 1 {
+						return errors.New("mcp sync boom")
+					}
+					return nil
+				}),
+			},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if syncCalls != 2 {
+			t.Fatalf("MCP Sync calls = %d, want 2 (apply + rollback)", syncCalls)
+		}
+		if len(failures) != 1 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want one mcp failure", failures)
+		}
+		if failures[0].Subsystem != "mcp" {
+			t.Fatalf("failure subsystem = %q, want mcp", failures[0].Subsystem)
+		}
+		if got := daemonInstance.config.Providers["codex"].Command; got != "codex acp" {
+			t.Fatalf("restored daemon config command = %q, want previous", got)
+		}
+	})
+
+	t.Run("Should record mcp_rollback when MCP rollback sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := aghconfig.Config{}
+		next := aghconfig.Config{
+			Providers: map[string]aghconfig.ProviderConfig{
+				"codex": {Command: "codex acp", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
+			},
+		}
+		syncCalls := 0
+		failures := daemonSettingsRuntimeApplier{
+			daemon: &Daemon{},
+			state: &bootState{
+				cfg: previous,
+				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+					syncCalls++
+					return errors.New("mcp sync boom")
+				}),
+			},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if syncCalls != 2 {
+			t.Fatalf("MCP Sync calls = %d, want 2 (apply + rollback)", syncCalls)
+		}
+		if len(failures) != 2 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want mcp + mcp_rollback", failures)
+		}
+		if failures[0].Subsystem != "mcp" {
+			t.Fatalf("first failure subsystem = %q, want mcp", failures[0].Subsystem)
+		}
+		if failures[1].Subsystem != "mcp_rollback" {
+			t.Fatalf("second failure subsystem = %q, want mcp_rollback", failures[1].Subsystem)
 		}
 	})
 }

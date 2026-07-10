@@ -274,7 +274,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-7","prompt":"You scout the codebase."}`,
+				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","prompt":"You scout the codebase."}`,
 			),
 		})
 		if err != nil {
@@ -284,6 +284,13 @@ func TestNativeAgentCreate(t *testing.T) {
 		path := filepath.Join(homePaths.AgentsDir, "scout", "AGENT.md")
 		if _, statErr := os.Stat(path); statErr != nil {
 			t.Fatalf("agent definition not written at %q: %v", path, statErr)
+		}
+		agent, loadErr := aghconfig.LoadAgentDefFile(path)
+		if loadErr != nil {
+			t.Fatalf("LoadAgentDefFile() error = %v", loadErr)
+		}
+		if got, want := agent.ReasoningEffort, "max"; got != want {
+			t.Fatalf("agent.ReasoningEffort = %q, want %q", got, want)
 		}
 	})
 

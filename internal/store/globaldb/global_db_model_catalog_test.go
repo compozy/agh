@@ -17,6 +17,9 @@ import (
 const (
 	modelCatalogMigrationVersion                 = 23
 	modelCatalogSourceConstraintMigrationVersion = 24
+	modelCatalogCurationMigrationVersion         = 64
+	modelCatalogExplicitCurationMigrationVersion = 65
+	modelCatalogCurationPresenceMigrationVersion = 66
 )
 
 func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
@@ -28,7 +31,260 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 		globalDB := openFreshTestGlobalDB(t)
 
 		assertModelCatalogSchema(t, globalDB.db)
-		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogSourceConstraintMigrationVersion)
+		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogCurationPresenceMigrationVersion)
+	})
+
+	t.Run("Should upgrade populated v63 catalog rows with curation defaults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v63) error = %v", err)
+		}
+		if err := store.RunMigrations(
+			ctx,
+			db,
+			globalSchemaMigrations[:modelCatalogCurationMigrationVersion-1],
+		); err != nil {
+			t.Fatalf("RunMigrations(v63) error = %v", err)
+		}
+		beforeRecords, err := store.AppliedMigrations(ctx, db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v63) error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
+			(source_id, provider_id, source_kind, priority, refresh_state)
+			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
+			t.Fatalf("insert model_catalog_sources error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
+			(source_id, provider_id, model_id, source_kind, priority)
+			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120)`); err != nil {
+			t.Fatalf("insert model_catalog_rows error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(v63) error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v64 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(v64 upgrade) error = %v", closeErr)
+			}
+		})
+
+		var deprecated, hidden, featured int
+		var releaseDate sql.NullString
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT deprecated, hidden, featured, release_date
+			FROM model_catalog_rows WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
+			Scan(&deprecated, &hidden, &featured, &releaseDate); err != nil {
+			t.Fatalf("query upgraded curation fields error = %v", err)
+		}
+		if deprecated != 0 || hidden != 0 || featured != 0 || releaseDate.Valid {
+			t.Fatalf("curation defaults = %d/%d/%d/%#v, want 0/0/0/NULL", deprecated, hidden, featured, releaseDate)
+		}
+		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v64) error = %v", err)
+		}
+		for index, before := range beforeRecords {
+			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
+				t.Fatalf(
+					"migration %d applied_at changed from %s to %s",
+					before.Version,
+					before.AppliedAt,
+					afterRecords[index].AppliedAt,
+				)
+			}
+		}
+	})
+
+	t.Run("Should upgrade populated v64 rows with explicit curation disabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v64) error = %v", err)
+		}
+		if err := store.RunMigrations(
+			ctx,
+			db,
+			globalSchemaMigrations[:modelCatalogExplicitCurationMigrationVersion-1],
+		); err != nil {
+			t.Fatalf("RunMigrations(v64) error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
+			(source_id, provider_id, source_kind, priority, refresh_state)
+			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
+			t.Fatalf("insert v64 model_catalog_sources error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
+			(source_id, provider_id, model_id, source_kind, priority, featured)
+			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120, 1)`); err != nil {
+			t.Fatalf("insert v64 model_catalog_rows error = %v", err)
+		}
+		beforeRecords, err := store.AppliedMigrations(ctx, db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v64) error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(v64) error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v65 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(v65 upgrade) error = %v", closeErr)
+			}
+		})
+		var explicitlyCurated, featured, deprecatedSet, hiddenSet, featuredSet int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT
+			explicitly_curated, featured, deprecated_set, hidden_set, featured_set
+			FROM model_catalog_rows
+			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
+			Scan(&explicitlyCurated, &featured, &deprecatedSet, &hiddenSet, &featuredSet); err != nil {
+			t.Fatalf("query upgraded explicit curation error = %v", err)
+		}
+		if explicitlyCurated != 0 || featured != 1 || deprecatedSet != 0 || hiddenSet != 0 || featuredSet != 1 {
+			t.Fatalf(
+				"explicit/featured/presence after v66 = %d/%d/%d/%d/%d, want 0/1/0/0/1",
+				explicitlyCurated,
+				featured,
+				deprecatedSet,
+				hiddenSet,
+				featuredSet,
+			)
+		}
+		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v65) error = %v", err)
+		}
+		for index, before := range beforeRecords {
+			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
+				t.Fatalf(
+					"migration %d applied_at changed from %s to %s",
+					before.Version,
+					before.AppliedAt,
+					afterRecords[index].AppliedAt,
+				)
+			}
+		}
+	})
+
+	t.Run("Should backfill curated-false presence flags on v65 upgrade", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v65) error = %v", err)
+		}
+		if err := store.RunMigrations(
+			ctx,
+			db,
+			globalSchemaMigrations[:modelCatalogCurationPresenceMigrationVersion-1],
+		); err != nil {
+			t.Fatalf("RunMigrations(v65) error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
+			(source_id, provider_id, source_kind, priority, refresh_state)
+			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
+			t.Fatalf("insert v65 model_catalog_sources error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
+			(source_id, provider_id, model_id, source_kind, priority,
+			 explicitly_curated, deprecated, hidden, featured)
+			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120, 1, 0, 0, 0)`); err != nil {
+			t.Fatalf("insert v65 curated-false model_catalog_rows error = %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
+			(source_id, provider_id, model_id, source_kind, priority,
+			 explicitly_curated, deprecated, hidden, featured)
+			VALUES ('config', 'codex', 'gpt-unmanaged', 'config', 120, 0, 0, 0, 0)`); err != nil {
+			t.Fatalf("insert v65 non-curated model_catalog_rows error = %v", err)
+		}
+		beforeRecords, err := store.AppliedMigrations(ctx, db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v65) error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(v65) error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v66 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(v66 upgrade) error = %v", closeErr)
+			}
+		})
+
+		var deprecated, hidden, featured, deprecatedSet, hiddenSet, featuredSet int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT
+			deprecated, hidden, featured, deprecated_set, hidden_set, featured_set
+			FROM model_catalog_rows
+			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
+			Scan(&deprecated, &hidden, &featured, &deprecatedSet, &hiddenSet, &featuredSet); err != nil {
+			t.Fatalf("query curated-false presence error = %v", err)
+		}
+		if deprecated != 0 || hidden != 0 || featured != 0 ||
+			deprecatedSet != 1 || hiddenSet != 1 || featuredSet != 1 {
+			t.Fatalf(
+				"curated-false presence = %d/%d/%d set=%d/%d/%d, want 0/0/0 set=1/1/1",
+				deprecated,
+				hidden,
+				featured,
+				deprecatedSet,
+				hiddenSet,
+				featuredSet,
+			)
+		}
+
+		var nonCuratedDeprecatedSet, nonCuratedHiddenSet, nonCuratedFeaturedSet int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT
+			deprecated_set, hidden_set, featured_set
+			FROM model_catalog_rows
+			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-unmanaged'`).
+			Scan(&nonCuratedDeprecatedSet, &nonCuratedHiddenSet, &nonCuratedFeaturedSet); err != nil {
+			t.Fatalf("query non-curated presence error = %v", err)
+		}
+		if nonCuratedDeprecatedSet != 0 || nonCuratedHiddenSet != 0 || nonCuratedFeaturedSet != 0 {
+			t.Fatalf(
+				"non-curated presence = %d/%d/%d, want 0/0/0",
+				nonCuratedDeprecatedSet,
+				nonCuratedHiddenSet,
+				nonCuratedFeaturedSet,
+			)
+		}
+
+		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
+		if err != nil {
+			t.Fatalf("AppliedMigrations(v66) error = %v", err)
+		}
+		for index, before := range beforeRecords {
+			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
+				t.Fatalf(
+					"migration %d applied_at changed from %s to %s",
+					before.Version,
+					before.AppliedAt,
+					afterRecords[index].AppliedAt,
+				)
+			}
+		}
+		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogCurationPresenceMigrationVersion)
 	})
 
 	t.Run("Should upgrade previous global schema by appending model catalog migrations", func(t *testing.T) {
@@ -273,6 +529,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		)
 
 		second := modelCatalogRow("config", "codex", "gpt-5.5", modelcatalog.SourceKindConfig, 120)
+		second.ExplicitlyCurated = true
 		second.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortMinimal}
 		replaceModelCatalogRows(
 			t,
@@ -294,7 +551,8 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if got, want := len(rows), 1; got != want {
 			t.Fatalf("len(rows) = %d, want %d: %#v", got, want, rows)
 		}
-		if rows[0].ModelID != "gpt-5.5" || !slices.Equal(rows[0].ReasoningEfforts, second.ReasoningEfforts) {
+		if rows[0].ModelID != "gpt-5.5" || !rows[0].ExplicitlyCurated ||
+			!slices.Equal(rows[0].ReasoningEfforts, second.ReasoningEfforts) {
 			t.Fatalf("rows[0] = %#v, want replacement row with minimal effort", rows[0])
 		}
 
@@ -632,6 +890,13 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		row.SupportsTools = nil
 		row.SupportsReasoning = &supportsReasoning
 		row.DefaultReasoningEffort = &defaultEffort
+		deprecated := true
+		hidden := false
+		row.Deprecated = &deprecated
+		row.Hidden = &hidden
+		row.Featured = nil
+		releaseDate := "2026-06-26"
+		row.ReleaseDate = &releaseDate
 		row.ReasoningEfforts = []modelcatalog.ReasoningEffort{
 			modelcatalog.ReasoningEffortLow,
 			modelcatalog.ReasoningEffortHigh,
@@ -667,6 +932,11 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			got.SupportsReasoning == nil || *got.SupportsReasoning ||
 			got.DefaultReasoningEffort == nil || *got.DefaultReasoningEffort != modelcatalog.ReasoningEffortHigh {
 			t.Fatalf("row nullable values = %#v, want false/nil/false/high", got)
+		}
+		if got.Deprecated == nil || !*got.Deprecated || got.Hidden == nil || *got.Hidden ||
+			got.Featured != nil || got.ReleaseDate == nil ||
+			*got.ReleaseDate != releaseDate {
+			t.Fatalf("row curation values = %#v, want true/false/nil/%q", got, releaseDate)
 		}
 	})
 
@@ -972,6 +1242,14 @@ func assertModelCatalogSchema(t *testing.T, db *sql.DB) {
 		"cost_input_per_million",
 		"cost_output_per_million",
 		"last_error",
+		"deprecated",
+		"hidden",
+		"featured",
+		"release_date",
+		"explicitly_curated",
+		"deprecated_set",
+		"hidden_set",
+		"featured_set",
 	})
 	assertTableColumns(t, db, "model_catalog_reasoning_efforts", []string{
 		"source_id",

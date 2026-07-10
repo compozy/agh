@@ -89,6 +89,7 @@ func appendTaskEventWithExecutor(
 	); err != nil {
 		return fmt.Errorf("store: create task event %q: %w", event.ID, err)
 	}
+	collectTaskEvent(exec, taskpkg.EventRecord{Sequence: nextSequence, Event: event})
 
 	return nil
 }

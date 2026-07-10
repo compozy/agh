@@ -5,24 +5,35 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+
 import { AgentCreateDialog, type AgentCreateDialogProps } from "../agent-create-dialog";
 import {
   createDefaultAgentCreateDraft,
   type AgentCreateDialogDraft,
 } from "../../lib/agent-create-draft";
 
-const providers = [
+const providers: RuntimeProviderOption[] = [
+  { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
+  { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
+];
+
+const runtimeModels: RuntimeModelOption[] = [
   {
-    name: "codex",
-    display_name: "Codex",
-    harness: "acp",
-    runtime_provider: "codex",
+    id: "gpt-5.6-sol",
+    provider: "codex",
+    name: "GPT-5.6 Sol",
+    efforts: ["low", "high"],
+    availability: "live",
+    curated: true,
   },
   {
-    name: "claude",
-    display_name: "Claude Code",
-    harness: "acp",
-    runtime_provider: "claude",
+    id: "claude-sonnet-5",
+    provider: "claude",
+    name: "Claude Sonnet 5",
+    efforts: ["low", "high"],
+    availability: "live",
+    curated: true,
   },
 ];
 
@@ -43,11 +54,15 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     draft: createDefaultAgentCreateDraft(true),
     onDraftChange: vi.fn(),
     onSubmit: vi.fn(),
+    onRefreshCatalog: vi.fn(),
+    onOpenProviderSettings: vi.fn(),
     providerOptions: providers,
     providersLoading: false,
     providersError: null,
-    modelOptions: ["gpt-5.4", "gpt-5.4-mini"],
+    runtimeModels,
     modelCatalogLoading: false,
+    modelCatalogLoaded: true,
+    modelCatalogRefreshing: false,
     modelCatalogError: null,
     submitError: null,
     isSubmitting: false,
@@ -81,8 +96,17 @@ async function reachRuntimeStep() {
 
 async function reachAccessStep() {
   const user = await reachRuntimeStep();
-  await user.click(screen.getByTestId("agent-create-provider"));
-  await user.click(screen.getByTestId("agent-create-provider-item-codex"));
+  // Open the unified selector and pick a Codex model; selecting the row adopts
+  // codex as the runtime provider (the rail is filter-only). The selector trigger
+  // group carries id="agent-create-runtime-trigger" (distinct from the step's
+  // data-testid="agent-create-runtime"); scope the query to it.
+  await user.click(
+    document.querySelector<HTMLElement>('#agent-create-runtime-trigger button[data-focus="model"]')!
+  );
+  await screen.findByTestId("runtime-selector-popup");
+  await user.click(
+    document.querySelector<HTMLElement>('[data-provider="codex"][data-model="gpt-5.6-sol"]')!
+  );
   await user.click(screen.getByTestId("agent-create-next"));
   await user.type(screen.getByTestId("agent-create-prompt"), "Own release readiness.");
   await user.click(screen.getByTestId("agent-create-next"));
@@ -133,6 +157,24 @@ describe("AgentCreateDialog", () => {
 
     expect(screen.getByTestId("agent-create-provider-error")).toHaveTextContent(
       "Unable to load global provider settings."
+    );
+    expect(screen.getByTestId("agent-create-next")).toBeDisabled();
+  });
+
+  it("Should surface invalid reasoning effort errors on the runtime step", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({
+      draft: validDraft({
+        provider: "codex",
+        model: "gpt-5.6-sol",
+        reasoningEffort: "ultra" as AgentCreateDialogDraft["reasoningEffort"],
+      }),
+    });
+
+    await user.click(screen.getByTestId("agent-create-next"));
+
+    expect(screen.getByTestId("agent-create-provider-error")).toHaveTextContent(
+      "Choose a valid reasoning effort."
     );
     expect(screen.getByTestId("agent-create-next")).toBeDisabled();
   });

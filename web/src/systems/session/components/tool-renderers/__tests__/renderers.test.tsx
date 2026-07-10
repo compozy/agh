@@ -13,7 +13,7 @@ import { WriteContent } from "../write-content";
 import { EditContent } from "../edit-content";
 import { SearchContent } from "../search-content";
 import { GenericContent } from "../generic-content";
-import { ToolCallRow } from "../../tool-call-card";
+import { SessionToolCallRow } from "../../tool-call-card";
 
 function makeMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
@@ -248,7 +248,7 @@ describe("GenericContent", () => {
   });
 });
 
-describe("Per-tool renderers inside the ToolCallRow inline body (task 25 — no regression)", () => {
+describe("Per-tool renderers inside the SessionToolCallRow inline body (task 25 — no regression)", () => {
   const cases: Array<{ name: string; message: UIMessage; expected: string }> = [
     {
       name: "Bash",
@@ -308,7 +308,7 @@ describe("Per-tool renderers inside the ToolCallRow inline body (task 25 — no 
 
   for (const { name, message, expected } of cases) {
     it(`Should mount the ${name} renderer unchanged inside the row's expanded body`, () => {
-      const { container } = render(<ToolCallRow message={message} defaultExpanded />);
+      const { container } = render(<SessionToolCallRow message={message} defaultExpanded />);
       const body = container.querySelector<HTMLElement>('[data-slot="tool-call-row-body"]');
       expect(body).not.toBeNull();
       expect(body).toHaveTextContent(expected);

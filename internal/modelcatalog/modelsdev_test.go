@@ -28,6 +28,8 @@ func TestModelsDevSource(t *testing.T) {
 					"gpt-5.4": {
 						"id": "gpt-5.4",
 						"name": "GPT-5.4",
+						"release_date": "2026-03-05",
+						"status": "deprecated",
 						"reasoning": true,
 						"tool_call": true,
 						"limit": {"context": 256000, "input": 200000, "output": 32000},
@@ -47,6 +49,24 @@ func TestModelsDevSource(t *testing.T) {
 		}
 		row := requireSingleRow(t, rows)
 		assertModelsDevCurrentRow(t, row)
+		*row.SupportsReasoning = false
+		*row.SupportsTools = false
+		*row.ContextWindow = 1
+		*row.MaxInputTokens = 1
+		*row.MaxOutputTokens = 1
+		*row.CostInputPerMillion = 0
+		*row.CostOutputPerMillion = 0
+		*row.ReleaseDate = "mutated"
+		*row.Deprecated = false
+
+		cached, err := source.ListModels(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", Now: testTime(1)},
+		)
+		if err != nil {
+			t.Fatalf("ListModels(cached) error = %v", err)
+		}
+		assertModelsDevCurrentRow(t, requireSingleRow(t, cached))
 	})
 
 	t.Run("Should parse legacy models dev aliases", func(t *testing.T) {
@@ -100,6 +120,12 @@ func TestModelsDevSource(t *testing.T) {
 		}
 		if row.CostOutputPerMillion == nil || *row.CostOutputPerMillion != 15 {
 			t.Fatalf("CostOutputPerMillion = %v, want 15", row.CostOutputPerMillion)
+		}
+		if row.ReleaseDate != nil {
+			t.Fatalf("ReleaseDate = %v, want nil when upstream omits it", row.ReleaseDate)
+		}
+		if row.Deprecated != nil {
+			t.Fatalf("Deprecated = %v, want nil when upstream omits status", row.Deprecated)
 		}
 	})
 
@@ -377,5 +403,11 @@ func assertModelsDevCurrentRow(t *testing.T, row ModelRow) {
 	}
 	if row.CostOutputPerMillion == nil || *row.CostOutputPerMillion != 10.5 {
 		t.Fatalf("CostOutputPerMillion = %v, want 10.5", row.CostOutputPerMillion)
+	}
+	if row.ReleaseDate == nil || *row.ReleaseDate != "2026-03-05" {
+		t.Fatalf("ReleaseDate = %v, want 2026-03-05", row.ReleaseDate)
+	}
+	if row.Deprecated == nil || !*row.Deprecated {
+		t.Fatal("Deprecated = false, want true")
 	}
 }

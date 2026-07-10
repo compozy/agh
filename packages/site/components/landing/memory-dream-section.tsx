@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
-import { CodeBlock } from "./primitives/code-block";
+import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { Eyebrow } from "@agh/ui";
 
@@ -101,7 +101,7 @@ export function MemoryDreamSection() {
           </ol>
 
           <div className="mt-10">
-            <CodeBlock code={MEMORY_CODE} caption="agh memory" shell />
+            <LandingCodeBlock code={MEMORY_CODE} caption="agh memory" shell />
           </div>
         </div>
       </div>

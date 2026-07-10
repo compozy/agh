@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { useProviderModels } from "@/systems/model-catalog";
-import type { ProviderSelectOption } from "@/systems/runtime";
+import {
+  providerNeedsAuth,
+  useRuntimeModelCatalog,
+  type RuntimeCatalogProvider,
+} from "@/systems/model-catalog";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
@@ -27,11 +31,13 @@ interface AgentCreateDialogContext {
 export interface AgentCreateDialogState {
   open: boolean;
   draft: AgentCreateDialogDraft;
-  providerOptions: ProviderSelectOption[];
+  providerOptions: RuntimeProviderOption[];
   providersLoading: boolean;
   providersError: string | null;
-  modelOptions: string[];
+  runtimeModels: RuntimeModelOption[];
   modelCatalogLoading: boolean;
+  modelCatalogLoaded: boolean;
+  modelCatalogRefreshing: boolean;
   modelCatalogError: string | null;
   submitError: string | null;
   isSubmitting: boolean;
@@ -43,6 +49,8 @@ export interface AgentCreateDialogApi extends AgentCreateDialogState {
   openDialog: () => void;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onOpenChange: (open: boolean) => void;
+  onRefreshCatalog: () => void;
+  onOpenProviderSettings: () => void;
   onSubmit: () => Promise<void>;
 }
 
@@ -53,21 +61,29 @@ function describeError(fallback: string, error: unknown): string {
   return fallback;
 }
 
-function settingsProviderToOption(provider: SettingsProviderEntry): ProviderSelectOption {
+function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
   const displayName = provider.settings.display_name?.trim();
   const harness = provider.settings.harness?.trim();
   const runtimeProvider = provider.settings.runtime_provider?.trim();
   return {
-    name: provider.name,
-    ...(displayName ? { display_name: displayName } : {}),
+    id: provider.name,
+    name: displayName || provider.name,
     ...(harness ? { harness } : {}),
     ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
+    needs_auth: providerNeedsAuth(provider.auth_status?.state),
   };
 }
 
-function modelCatalogErrorMessage(error: unknown): string | null {
-  if (!error) return null;
-  return describeError("Unable to load provider models.", error);
+function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProviderOption {
+  const displayName = provider.display_name?.trim();
+  const harness = provider.harness?.trim();
+  const runtimeProvider = provider.runtime_provider?.trim();
+  return {
+    id: provider.name,
+    name: displayName || provider.name,
+    ...(harness ? { harness } : {}),
+    runtime_provider: runtimeProvider || provider.name,
+  };
 }
 
 export function useAgentCreateDialog({
@@ -85,14 +101,19 @@ export function useAgentCreateDialog({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const globalProviders = useMemo<ProviderSelectOption[]>(
+  const globalProviders = useMemo<RuntimeProviderOption[]>(
     () => settingsProviders.data?.providers.map(settingsProviderToOption) ?? [],
     [settingsProviders.data?.providers]
   );
 
-  const providerOptions = useMemo<ProviderSelectOption[]>(
-    () => (draft.scope === "workspace" ? workspaceProviders : globalProviders),
-    [draft.scope, globalProviders, workspaceProviders]
+  const workspaceProviderOptions = useMemo<RuntimeProviderOption[]>(
+    () => workspaceProviders.map(workspaceProviderToOption),
+    [workspaceProviders]
+  );
+
+  const providerOptions = useMemo<RuntimeProviderOption[]>(
+    () => (draft.scope === "workspace" ? workspaceProviderOptions : globalProviders),
+    [draft.scope, globalProviders, workspaceProviderOptions]
   );
 
   const providersLoading =
@@ -116,21 +137,19 @@ export function useAgentCreateDialog({
   useEffect(() => {
     setDraft(current => {
       if (current.provider.length === 0) return current;
-      if (providerOptions.some(option => option.name === current.provider)) return current;
-      return { ...current, provider: "", model: "" };
+      if (providerOptions.some(option => option.id === current.provider)) return current;
+      return { ...current, provider: "", model: "", reasoningEffort: "" };
     });
   }, [providerOptions]);
 
-  const modelCatalog = useProviderModels({
-    providerId: draft.provider,
-    includeStale: true,
-    enabled: open && draft.provider.trim().length > 0,
-  });
-
-  const modelOptions = useMemo(
-    () => modelCatalog.data?.models.map(model => model.model_id) ?? [],
-    [modelCatalog.data?.models]
+  // Browse/search span every provider available to the current scope via one
+  // aggregate catalog query filtered to those providers.
+  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
+    () => providerOptions.map(option => ({ id: option.id, needsAuth: option.needs_auth })),
+    [providerOptions]
   );
+  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
+  const runtimeModels = catalog.models;
 
   const validationContext = useMemo(
     () => ({
@@ -163,6 +182,13 @@ export function useAgentCreateDialog({
     setDraft(nextDraft);
     setSubmitError(null);
   }, []);
+
+  const onRefreshCatalog = catalog.refresh;
+
+  const onOpenProviderSettings = useCallback(() => {
+    setOpenState(false);
+    void navigate({ to: "/settings/providers" });
+  }, [navigate]);
 
   const onSubmit = useCallback(async () => {
     const request = buildCreateAgentParams(draft, activeWorkspace?.id, validationContext);
@@ -197,9 +223,11 @@ export function useAgentCreateDialog({
     providerOptions,
     providersLoading,
     providersError,
-    modelOptions,
-    modelCatalogLoading: modelCatalog.isLoading || modelCatalog.isFetching,
-    modelCatalogError: modelCatalogErrorMessage(modelCatalog.error),
+    runtimeModels,
+    modelCatalogLoading: catalog.loading,
+    modelCatalogLoaded: catalog.loaded,
+    modelCatalogRefreshing: catalog.refreshing,
+    modelCatalogError: catalog.error,
     submitError,
     isSubmitting: createAgent.isPending,
     hasActiveWorkspace: Boolean(activeWorkspace),
@@ -207,6 +235,8 @@ export function useAgentCreateDialog({
     openDialog,
     onDraftChange,
     onOpenChange,
+    onRefreshCatalog,
+    onOpenProviderSettings,
     onSubmit,
   };
 }

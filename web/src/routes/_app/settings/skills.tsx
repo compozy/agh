@@ -139,7 +139,7 @@ function SkillsSettingsPage() {
         onSelectAgent={page.selectAgent}
         onSelectWorkspaceContext={page.selectWorkspaceContext}
       />
-      <OperationalLinksRow />
+      <OperationalLinksSection />
       <DisabledSkillsSection
         envelope={envelope}
         selection={page.selection}
@@ -283,7 +283,7 @@ function ScopeSelector({
   );
 }
 
-function OperationalLinksRow() {
+function OperationalLinksSection() {
   return (
     <Section divided label="Operational" note="manage runtime state outside of settings">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-skills-operational-links">
