@@ -35,11 +35,11 @@ Activate skills **before** writing code. Match task domain → activate all requ
 | Schema / Validation           | `zod`                                                           | `typescript-advanced`           |
 | Web testing                   | `consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                 |
 | TypeScript (types)            | `typescript-advanced`                                           | `context7`                      |
-| UI / UX Design (any surface)  | `agh-design` + `ui-craft`                                       | `shadcn` + `agh-ui-screenshot`  |
+| UI / UX Design (any surface)  | `agh-design` + `ui-craft` + `impeccable`                        | `shadcn` + `agh-ui-screenshot`  |
 | UI verification / visual diff | `agh-ui-screenshot`                                             |                                 |
 | UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`             |                                 |
 | Storybook / component stories | `storybook-stories`                                             | `shadcn`                        |
-| Animation / motion            | `motion-react` + `ui-craft`                                     | `motion`                        |
+| Animation / motion            | `ui-craft` + `impeccable`                                       |                                 |
 | Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`   | `ui-craft`                      |
 | AI / Streaming                | `ai-sdk`                                                        | `tanstack-query-best-practices` |
 | Bug fix                       | `systematic-debugging` + `no-workarounds`                       | `testing-boss`                  |

@@ -96,9 +96,9 @@ AGH Impact Audit:
 | AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                |
 | Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                       |
 | Security review                       | `security-review`                                                                        | `ubs`                                 |
-| Creative / new features               | `cy-idea-factory`                                                                        | `council`                             |
-| Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                     |
-| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                     |
+| Creative / new features               | `council`                                                                                | `grill-me`                            |
+| Council debate (high-impact)          | `council`                                                                                |                                       |
+| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `grill-me`                            |
 | TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review`                 |
 | Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
 | Research → executable issue backlog   | `cy-research-issues`                                                                     | `consolidate-test-suites`             |
@@ -112,7 +112,7 @@ AGH Impact Audit:
 | Documentation (internal)              | `documentation-writer`                                                                   |                                       |
 | Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
 | Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                       |
-| UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                   |
+| UI / Design (any surface)             | `agh-design` + `ui-craft` + `impeccable`                                                 | `agh-ui-screenshot`                   |
 | UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                       |
 
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.

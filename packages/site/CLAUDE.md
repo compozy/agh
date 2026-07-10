@@ -33,7 +33,7 @@ make cli-docs                                        # regenerate CLI reference 
 | ----------------------------- | --------------------------------------------- | ----------------------------- |
 | Fumadocs page authoring       | `documentation-writer`                        | `context7`                    |
 | Marketing / landing copy      | `copywriting` + `documentation-writer`        | `seo-audit` + `ui-craft`      |
-| Site UI / components          | `agh-design` + `ui-craft`                     | `agh-ui-screenshot`           |
+| Site UI / components          | `agh-design` + `ui-craft` + `impeccable`      | `agh-ui-screenshot`           |
 | Diagrams (architecture, flow) | `mermaid-diagrams` + `architecture-diagram`   |                               |
 | Next.js / SSR / app router    | `next-best-practices`                         | `vercel-react-best-practices` |
 | Tailwind v4 styling           | `tailwindcss`                                 |                               |
