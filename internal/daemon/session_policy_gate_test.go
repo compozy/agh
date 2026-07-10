@@ -120,24 +120,37 @@ func TestSessionPolicyGateAppliesAllowedToolsNarrowing(t *testing.T) {
 	})
 }
 
-func TestSessionPolicyGateKeepsTaskRoleCreateOptsParity(t *testing.T) {
+func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve task-role create options through the shared gate", func(t *testing.T) {
+	t.Run("Should map a workspace evidence profile to the expected session options", func(t *testing.T) {
 		t.Parallel()
 
 		activation := taskRoleActivation{
-			TaskID:        "task-parity",
-			RunID:         "run-parity",
-			Scope:         taskpkg.ScopeWorkspace,
-			WorkspaceID:   "ws-parity",
-			AgentName:     "frontend-engineer",
-			Provider:      "claude",
-			Model:         "sonnet",
-			Channel:       "design-review",
-			Title:         "Parity task",
-			Capabilities:  []string{"frontend"},
-			Profile:       legacyTaskRoleParityProfile(),
+			TaskID:       "task-parity",
+			RunID:        "run-parity",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-parity",
+			AgentName:    "frontend-engineer",
+			Provider:     "claude",
+			Model:        "sonnet",
+			Channel:      "design-review",
+			Title:        "Parity task",
+			Capabilities: []string{"frontend"},
+			Profile: &taskpkg.ExecutionProfile{
+				TaskID: "task-parity",
+				Worker: taskpkg.WorkerProfile{
+					Mode:      taskpkg.WorkerModeSelect,
+					AgentName: "frontend-engineer",
+					Provider:  "claude",
+					Model:     "sonnet",
+				},
+				Sandbox: taskpkg.SandboxPolicy{
+					Mode:       taskpkg.SandboxModeRef,
+					SandboxRef: "evidence-lab",
+				},
+				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+			},
 			WorkspacePath: "/unused",
 		}
 
@@ -145,93 +158,22 @@ func TestSessionPolicyGateKeepsTaskRoleCreateOptsParity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("taskRoleCreateOpts() error = %v", err)
 		}
-		want, err := legacyTaskRoleCreateOptsForTest(activation)
-		if err != nil {
-			t.Fatalf("legacyTaskRoleCreateOptsForTest() error = %v", err)
+		want := session.CreateOpts{
+			AgentName:      "frontend-engineer",
+			Provider:       "claude",
+			Model:          "sonnet",
+			SandboxRef:     "evidence-lab",
+			DisableSandbox: false,
+			Permissions:    aghconfig.PermissionModeApproveAll,
+			Name:           "task-role:frontend-engineer:design-review:63e604975a4c215d",
+			Workspace:      "ws-parity",
+			WorkspacePath:  "",
+			Channel:        "design-review",
+			PromptOverlay:  "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `agh task next --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `agh task run claim` for autonomous work.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			Type:           session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("taskRoleCreateOpts() = %#v, want legacy parity %#v", got, want)
+			t.Fatalf("taskRoleCreateOpts() = %#v, want concrete options %#v", got, want)
 		}
 	})
-}
-
-func legacyTaskRoleParityProfile() *taskpkg.ExecutionProfile {
-	return &taskpkg.ExecutionProfile{
-		TaskID: "task-parity",
-		Worker: taskpkg.WorkerProfile{
-			Mode:      taskpkg.WorkerModeSelect,
-			AgentName: "frontend-engineer",
-			Provider:  "claude",
-			Model:     "sonnet",
-		},
-		Sandbox: taskpkg.SandboxPolicy{
-			Mode:       taskpkg.SandboxModeRef,
-			SandboxRef: "evidence-lab",
-		},
-		Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
-	}
-}
-
-func legacyTaskRoleCreateOptsForTest(activation taskRoleActivation) (session.CreateOpts, error) {
-	opts := session.CreateOpts{
-		AgentName:     activation.AgentName,
-		Provider:      activation.Provider,
-		Model:         activation.Model,
-		Name:          taskRoleSessionName(activation),
-		Channel:       activation.Channel,
-		PromptOverlay: taskRolePromptOverlay(activation),
-		Type:          session.SessionTypeSystem,
-	}
-	legacyApplyTaskSessionSandboxProfileForTest(&opts, activation.Profile)
-	legacyApplyTaskSessionRuntimeProfileForTest(&opts, activation.Profile)
-	switch activation.Scope {
-	case taskpkg.ScopeWorkspace:
-		opts.Workspace = activation.WorkspaceID
-	case taskpkg.ScopeGlobal:
-		opts.WorkspacePath = activation.WorkspacePath
-	default:
-		return session.CreateOpts{}, taskpkg.ErrValidation
-	}
-	return opts, nil
-}
-
-func legacyApplyTaskSessionSandboxProfileForTest(opts *session.CreateOpts, profile *taskpkg.ExecutionProfile) {
-	if opts == nil || profile == nil {
-		return
-	}
-	switch profile.Sandbox.Mode.Normalize() {
-	case taskpkg.SandboxModeNone:
-		opts.DisableSandbox = true
-		opts.SandboxRef = ""
-	case taskpkg.SandboxModeRef:
-		opts.DisableSandbox = false
-		opts.SandboxRef = strings.TrimSpace(profile.Sandbox.SandboxRef)
-	default:
-		return
-	}
-}
-
-func legacyApplyTaskSessionRuntimeProfileForTest(opts *session.CreateOpts, profile *taskpkg.ExecutionProfile) {
-	if opts == nil || profile == nil {
-		return
-	}
-	if profile.Runtime.Mode.Normalize() != taskpkg.RuntimeModeEvidence {
-		return
-	}
-	guidance := "Runtime evidence mode is enabled for this task. You may boot local app runtimes, " +
-		"run browser or simulator validation, and capture runtime evidence artifacts required by the task."
-	if legacyTaskRuntimeEvidenceCanAutoApproveForTest(profile) {
-		opts.Permissions = aghconfig.PermissionModeApproveAll
-	} else {
-		guidance += " AGH keeps the configured permission mode because the task profile did not select a sandbox."
-	}
-	opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, guidance)
-}
-
-func legacyTaskRuntimeEvidenceCanAutoApproveForTest(profile *taskpkg.ExecutionProfile) bool {
-	if profile == nil {
-		return false
-	}
-	return profile.Sandbox.Mode.Normalize() == taskpkg.SandboxModeRef &&
-		strings.TrimSpace(profile.Sandbox.SandboxRef) != ""
 }

@@ -55,6 +55,27 @@ func TestToolsetCatalogExpansion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop after a matching toolset before resolving later invalid IDs", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := NewToolsetCatalog(
+			Toolset{ID: "agh__alpha_match", Tools: []string{"agh__task_read"}},
+		)
+		if err != nil {
+			t.Fatalf("NewToolsetCatalog() error = %v", err)
+		}
+		matched, err := catalog.Contains(
+			"agh__task_read",
+			[]ToolsetID{"agh__z_missing", "agh__alpha_match"},
+		)
+		if err != nil {
+			t.Fatalf("ToolsetCatalog.Contains() error = %v", err)
+		}
+		if !matched {
+			t.Fatal("ToolsetCatalog.Contains() = false, want true")
+		}
+	})
+
 	t.Run("Should reject recursive toolset cycles", func(t *testing.T) {
 		t.Parallel()
 

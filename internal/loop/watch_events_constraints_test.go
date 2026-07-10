@@ -1,7 +1,9 @@
 package loop
 
 import (
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
@@ -16,7 +18,7 @@ func TestWatchEventsSessionConstraintsShouldResolveStreamKeys(t *testing.T) {
 		filter     string
 		inputs     map[string]any
 		want       []string
-		wantErr    bool
+		wantErr    string
 		wantHasIDs bool
 	}{
 		{
@@ -42,12 +44,12 @@ func TestWatchEventsSessionConstraintsShouldResolveStreamKeys(t *testing.T) {
 		{
 			name:    "Should reject a missing session input",
 			filter:  `event.session_id == inputs.missing`,
-			wantErr: true,
+			wantErr: `watch-events session_id input "missing" is required`,
 		},
 		{
 			name:    "Should reject a non-equality session predicate",
 			filter:  `event.session_id != "sess-wide"`,
-			wantErr: true,
+			wantErr: `watch-events kind "event.post_record" requires a session_id filter`,
 		},
 	}
 
@@ -60,9 +62,15 @@ func TestWatchEventsSessionConstraintsShouldResolveStreamKeys(t *testing.T) {
 				sessionContract,
 				tt.inputs,
 			)
-			if tt.wantErr {
+			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("watchEventsStreamsForSubscription() error = nil, want non-nil")
+				}
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("watchEventsStreamsForSubscription() error = %v, want ErrValidation", err)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("watchEventsStreamsForSubscription() error = %q, want %q", err, tt.wantErr)
 				}
 				return
 			}
@@ -82,24 +90,28 @@ func TestWatchEventsSessionConstraintsShouldResolveStreamKeys(t *testing.T) {
 func TestWatchEventsSessionStreamsShouldNormalizeDynamicKeys(t *testing.T) {
 	t.Parallel()
 
-	stream := WatchEventsSessionStreamForSession(" sess-1 ")
-	if got, want := stream, "session_events:sess-1"; got != want {
-		t.Fatalf("WatchEventsSessionStreamForSession() = %q, want %q", got, want)
-	}
-	sessionID, ok := WatchEventsSessionIDFromStream(stream)
-	if !ok || sessionID != "sess-1" {
-		t.Fatalf("WatchEventsSessionIDFromStream() = (%q, %v), want (%q, true)", sessionID, ok, "sess-1")
-	}
-	if got, want := WatchEventsBaseStream(stream), watchEventsSessionStream; got != want {
-		t.Fatalf("WatchEventsBaseStream(dynamic) = %q, want %q", got, want)
-	}
-	if got, want := WatchEventsBaseStream(watchEventsObserveStream), watchEventsObserveStream; got != want {
-		t.Fatalf("WatchEventsBaseStream(static) = %q, want %q", got, want)
-	}
-	if empty := WatchEventsSessionStreamForSession(" "); empty != "" {
-		t.Fatalf("WatchEventsSessionStreamForSession(empty) = %q, want empty", empty)
-	}
-	if sessionID, ok := WatchEventsSessionIDFromStream("session_events: "); ok || sessionID != "" {
-		t.Fatalf("WatchEventsSessionIDFromStream(empty) = (%q, %v), want empty false", sessionID, ok)
-	}
+	t.Run("Should normalize dynamic session stream keys and preserve static streams", func(t *testing.T) {
+		t.Parallel()
+
+		stream := WatchEventsSessionStreamForSession(" sess-1 ")
+		if got, want := stream, "session_events:sess-1"; got != want {
+			t.Fatalf("WatchEventsSessionStreamForSession() = %q, want %q", got, want)
+		}
+		sessionID, ok := WatchEventsSessionIDFromStream(stream)
+		if !ok || sessionID != "sess-1" {
+			t.Fatalf("WatchEventsSessionIDFromStream() = (%q, %v), want (%q, true)", sessionID, ok, "sess-1")
+		}
+		if got, want := WatchEventsBaseStream(stream), watchEventsSessionStream; got != want {
+			t.Fatalf("WatchEventsBaseStream(dynamic) = %q, want %q", got, want)
+		}
+		if got, want := WatchEventsBaseStream(watchEventsObserveStream), watchEventsObserveStream; got != want {
+			t.Fatalf("WatchEventsBaseStream(static) = %q, want %q", got, want)
+		}
+		if empty := WatchEventsSessionStreamForSession(" "); empty != "" {
+			t.Fatalf("WatchEventsSessionStreamForSession(empty) = %q, want empty", empty)
+		}
+		if sessionID, ok := WatchEventsSessionIDFromStream("session_events: "); ok || sessionID != "" {
+			t.Fatalf("WatchEventsSessionIDFromStream(empty) = (%q, %v), want empty false", sessionID, ok)
+		}
+	})
 }

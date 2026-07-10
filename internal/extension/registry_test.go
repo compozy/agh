@@ -281,6 +281,83 @@ func TestRegistryListReturnsEmptySlice(t *testing.T) {
 	}
 }
 
+func TestRegistryEnabledBundledNamesCache(t *testing.T) {
+	// withDaemonVersion mutates the package-level build version, so this suite is intentionally serial.
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should return cloned snapshots and invalidate every registry mutation", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		bundledDir, bundledManifest, bundledChecksum := createRegistryTestExtension(
+			t,
+			"bundled-cache",
+			registryManifestOptions{},
+		)
+		userDir, userManifest, userChecksum := createRegistryTestExtension(
+			t,
+			"user-cache",
+			registryManifestOptions{},
+		)
+		if err := env.registry.Install(
+			bundledManifest,
+			bundledDir,
+			bundledChecksum,
+			WithInstallSource(SourceBundled),
+		); err != nil {
+			t.Fatalf("Install(bundled) error = %v", err)
+		}
+		if err := env.registry.Install(userManifest, userDir, userChecksum); err != nil {
+			t.Fatalf("Install(user) error = %v", err)
+		}
+
+		names, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames() error = %v", err)
+		}
+		if !slices.Equal(names, []string{bundledManifest.Name}) {
+			t.Fatalf("EnabledBundledNames() = %#v, want bundled name", names)
+		}
+		names[0] = "mutated-by-caller"
+		cached, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames(cached) error = %v", err)
+		}
+		if !slices.Equal(cached, []string{bundledManifest.Name}) {
+			t.Fatalf("cached bundled names = %#v, want immutable snapshot", cached)
+		}
+
+		if err := env.registry.Disable(bundledManifest.Name); err != nil {
+			t.Fatalf("Disable(bundled) error = %v", err)
+		}
+		disabled, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames(disabled) error = %v", err)
+		}
+		if len(disabled) != 0 {
+			t.Fatalf("disabled bundled names = %#v, want empty", disabled)
+		}
+		if err := env.registry.Enable(bundledManifest.Name); err != nil {
+			t.Fatalf("Enable(bundled) error = %v", err)
+		}
+		enabled, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames(enabled) error = %v", err)
+		}
+		if !slices.Equal(enabled, []string{bundledManifest.Name}) {
+			t.Fatalf("enabled bundled names = %#v, want bundled name", enabled)
+		}
+		if err := env.registry.Uninstall(bundledManifest.Name); err != nil {
+			t.Fatalf("Uninstall(bundled) error = %v", err)
+		}
+		uninstalled, err := env.registry.EnabledBundledNames()
+		if err != nil {
+			t.Fatalf("EnabledBundledNames(uninstalled) error = %v", err)
+		}
+		if len(uninstalled) != 0 {
+			t.Fatalf("uninstalled bundled names = %#v, want empty", uninstalled)
+		}
+	})
+}
+
 func TestRegistryEnableAndDisable(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
 

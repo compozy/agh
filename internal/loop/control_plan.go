@@ -14,6 +14,20 @@ const branchSkippedOutputRef = "branch_skipped"
 const branchTrueOutputRef = "branch:true"
 const subLoopEnteredOutputRef = "sub_loop_entered"
 
+type controlEvalContext struct {
+	ctx                context.Context
+	run                Run
+	generation         int
+	resolved           *ResolvedDefinition
+	topology           controlTopology
+	effective          EffectiveConfig
+	gateEvaluator      gate.GateEvaluator
+	gateDecisions      GateDecisionReader
+	fanOutWidth        int
+	watchRuntime       coordinatorWatchRuntime
+	watchEventsRuntime coordinatorWatchEventsRuntime
+}
+
 func buildInitialControlAwareCoordinatorPlan(
 	ctx context.Context,
 	run Run,
@@ -42,18 +56,20 @@ func buildInitialControlAwareCoordinatorPlan(
 	}
 	outputBlobs := []GenerationOutputBlob{}
 	terminal, err := advanceControlNodes(
-		ctx,
+		&controlEvalContext{
+			ctx:                ctx,
+			run:                run,
+			generation:         generation,
+			resolved:           resolved,
+			topology:           topology,
+			effective:          effective,
+			gateEvaluator:      gateEvaluator,
+			gateDecisions:      gateDecisions,
+			fanOutWidth:        fanOutWidth,
+			watchRuntime:       watchRuntime,
+			watchEventsRuntime: watchEventsRuntime,
+		},
 		&plan,
-		run,
-		generation,
-		resolved,
-		topology,
-		effective,
-		gateEvaluator,
-		gateDecisions,
-		fanOutWidth,
-		watchRuntime,
-		watchEventsRuntime,
 		&outputs,
 		&outputBlobs,
 	)
@@ -100,18 +116,8 @@ func initialGenerationOutputs(
 }
 
 func advanceControlNodes(
-	ctx context.Context,
+	eval *controlEvalContext,
 	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	effective EffectiveConfig,
-	gateEvaluator gate.GateEvaluator,
-	gateDecisions GateDecisionReader,
-	fanOutWidth int,
-	watchRuntime coordinatorWatchRuntime,
-	watchEventsRuntime coordinatorWatchEventsRuntime,
 	outputs *[]GenerationOutput,
 	outputBlobs *[]GenerationOutputBlob,
 ) (*task.CoordinatorTerminal, error) {
@@ -122,26 +128,16 @@ func advanceControlNodes(
 			if output.Status != generationOutputPending {
 				continue
 			}
-			node, ok := graphNode(resolved.Definition.Graph, dsl.NodeID(output.NodeID))
-			if !ok || !isCoordinatorOwnedNodeWithGates(node, gateEvaluator != nil) {
+			node, ok := graphNode(eval.resolved.Definition.Graph, dsl.NodeID(output.NodeID))
+			if !ok || !isCoordinatorOwnedNodeWithGates(node, eval.gateEvaluator != nil) {
 				continue
 			}
-			if !dependenciesSucceededForOutput(resolved.Definition.Graph, topology, *outputs, output) {
+			if !dependenciesSucceededForOutput(eval.resolved.Definition.Graph, eval.topology, *outputs, output) {
 				continue
 			}
 			updated, terminal, err := evaluateControlNode(
-				ctx,
+				eval,
 				plan,
-				run,
-				generation,
-				resolved,
-				topology,
-				effective,
-				gateEvaluator,
-				gateDecisions,
-				fanOutWidth,
-				watchRuntime,
-				watchEventsRuntime,
 				output,
 				node,
 				outputs,
@@ -169,32 +165,22 @@ func advanceControlNodes(
 }
 
 func evaluateControlNode(
-	ctx context.Context,
+	eval *controlEvalContext,
 	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	resolved *ResolvedDefinition,
-	topology controlTopology,
-	effective EffectiveConfig,
-	gateEvaluator gate.GateEvaluator,
-	gateDecisions GateDecisionReader,
-	fanOutWidth int,
-	watchRuntime coordinatorWatchRuntime,
-	watchEventsRuntime coordinatorWatchEventsRuntime,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,
 	outputBlobs *[]GenerationOutputBlob,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if evaluated, terminal, handled, err := evaluateSourceControlNode(
-		ctx,
+		eval.ctx,
 		plan,
-		run,
-		generation,
-		resolved,
-		topology,
-		watchRuntime,
-		watchEventsRuntime,
+		eval.run,
+		eval.generation,
+		eval.resolved,
+		eval.topology,
+		eval.watchRuntime,
+		eval.watchEventsRuntime,
 		output,
 		node,
 		*outputs,
@@ -206,12 +192,12 @@ func evaluateControlNode(
 	case dsl.ControlFanOut:
 		return evaluateFanOutNode(
 			plan,
-			run,
-			generation,
-			resolved,
-			topology,
-			gateEvaluator != nil,
-			fanOutWidth,
+			eval.run,
+			eval.generation,
+			eval.resolved,
+			eval.topology,
+			eval.gateEvaluator != nil,
+			eval.fanOutWidth,
 			output,
 			node,
 			outputs,
@@ -220,17 +206,25 @@ func evaluateControlNode(
 		output.Status = generationOutputSucceeded
 		return output, nil, nil
 	case dsl.ControlBranch:
-		return evaluateBranchNode(run, generation, resolved, topology, output, node, outputs)
+		return evaluateBranchNode(
+			eval.run,
+			eval.generation,
+			eval.resolved,
+			eval.topology,
+			output,
+			node,
+			outputs,
+		)
 	case dsl.ControlGate:
 		return evaluateGateNode(
-			ctx,
-			run,
-			generation,
-			resolved,
-			topology,
-			effective,
-			gateEvaluator,
-			gateDecisions,
+			eval.ctx,
+			eval.run,
+			eval.generation,
+			eval.resolved,
+			eval.topology,
+			eval.effective,
+			eval.gateEvaluator,
+			eval.gateDecisions,
 			output,
 			node,
 			*outputs,

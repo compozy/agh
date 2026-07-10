@@ -72,7 +72,11 @@ func acquireVerifyLockAt(lockPath string) func() {
 	for {
 		locked, err := fileLock.TryLock()
 		if err != nil {
-			fmt.Printf("Warning: verify lock %q failed (%v); continuing without machine-wide serialization\n", lockPath, err)
+			fmt.Printf(
+				"Warning: verify lock %q failed (%v); continuing without machine-wide serialization\n",
+				lockPath,
+				err,
+			)
 			return func() {}
 		}
 		if locked {

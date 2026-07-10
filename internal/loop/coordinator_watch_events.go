@@ -133,6 +133,22 @@ func filterWatchEventsRows(
 	state watchpkg.EventsPendingState,
 	rows []WatchEvent,
 ) ([]WatchEvent, map[string]int64, map[string]int, error) {
+	var namespace map[string]any
+	if watchEventsSubscriptionsHaveFilters(state.Subscriptions) && len(rows) > 0 {
+		var err error
+		namespace, err = runtimeNamespace(
+			run,
+			generation,
+			resolved.Definition.Graph,
+			topology,
+			outputs,
+			node.ID,
+			output.ItemIndex,
+		)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
 	nextCursors := cloneInt64Map(state.Cursors)
 	readCounts := map[string]int{}
 	matches := make([]WatchEvent, 0, len(rows))
@@ -143,13 +159,9 @@ func filterWatchEventsRows(
 			nextCursors[stream] = row.Seq
 		}
 		matched, event, err := rowMatchesWatchEventsSubscriptions(
-			run,
-			generation,
 			resolved,
-			topology,
-			output,
 			node,
-			outputs,
+			namespace,
 			state.Subscriptions,
 			row,
 		)
@@ -163,14 +175,19 @@ func filterWatchEventsRows(
 	return matches, nextCursors, readCounts, nil
 }
 
+func watchEventsSubscriptionsHaveFilters(subscriptions []watchpkg.EventSubscriptionRef) bool {
+	for _, subscription := range subscriptions {
+		if strings.TrimSpace(subscription.Filter) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func rowMatchesWatchEventsSubscriptions(
-	run Run,
-	generation int,
 	resolved *ResolvedDefinition,
-	topology controlTopology,
-	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
+	namespace map[string]any,
 	subscriptions []watchpkg.EventSubscriptionRef,
 	row WatchEvent,
 ) (bool, WatchEvent, error) {
@@ -193,13 +210,9 @@ func rowMatchesWatchEventsSubscriptions(
 			return true, event, nil
 		}
 		matched, err := evaluateWatchEventsFilter(
-			run,
-			generation,
 			resolved,
-			topology,
-			output,
 			node,
-			outputs,
+			namespace,
 			idx,
 			event,
 		)
@@ -218,13 +231,9 @@ func watchEventsContractStreamMatches(contractStream string, rowStream string) b
 }
 
 func evaluateWatchEventsFilter(
-	run Run,
-	generation int,
 	resolved *ResolvedDefinition,
-	topology controlTopology,
-	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
+	namespace map[string]any,
 	subscriptionIndex int,
 	event WatchEvent,
 ) (bool, error) {
@@ -232,18 +241,6 @@ func evaluateWatchEventsFilter(
 	condition := resolved.Conditions[key]
 	if condition == nil {
 		return false, fmt.Errorf("%w: compiled watch-events filter %q is missing", ErrValidation, key)
-	}
-	namespace, err := runtimeNamespace(
-		run,
-		generation,
-		resolved.Definition.Graph,
-		topology,
-		outputs,
-		node.ID,
-		output.ItemIndex,
-	)
-	if err != nil {
-		return false, err
 	}
 	namespace["event"] = event.eventMap()
 	value, _, err := condition.Program.Eval(namespace)

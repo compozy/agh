@@ -159,7 +159,7 @@ func watchSpecRaw(node dsl.Node, namespace map[string]any) (json.RawMessage, *ta
 	}
 	specMap, ok := rendered.(map[string]any)
 	if !ok {
-		return nil, nil, fmt.Errorf("%w: watch spec for node %q must normalize to an object", ErrValidation, node.ID)
+		return nil, watchBlockedTerminal(watchSourceSpecInvalidReason), nil
 	}
 	kindValue, ok := specMap["kind"]
 	if !ok {

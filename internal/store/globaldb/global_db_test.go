@@ -284,6 +284,163 @@ func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testin
 	}
 }
 
+func TestGlobalDBWatchEventReplayProjectionMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should backfill replay history and preserve it after reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v62) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if db != nil {
+				if closeErr := db.Close(); closeErr != nil {
+					t.Errorf("db.Close(cleanup) error = %v", closeErr)
+				}
+			}
+		})
+		preReplay := globalSchemaMigrations[:len(globalSchemaMigrations)-1]
+		if err := store.RunMigrations(ctx, db, preReplay); err != nil {
+			t.Fatalf("RunMigrations(v62) error = %v", err)
+		}
+		now := time.Date(2026, 7, 9, 18, 0, 0, 0, time.UTC)
+		nowRaw := store.FormatTimestamp(now)
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('ws-replay-upgrade', '/tmp/ws-replay-upgrade', 'Replay upgrade', ?, ?)`,
+			nowRaw,
+			nowRaw,
+		); err != nil {
+			t.Fatalf("insert v62 workspace error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO automation_jobs (
+				id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+				enabled, retry, fire_limit, source, target_kind, loop_inputs,
+				loop_input_mapping, created_at, updated_at
+			) VALUES (
+				'job-replay-upgrade', 'workspace', 'Replay upgrade', 'coder',
+				'ws-replay-upgrade', 'Run upgrade', '{}', '{}', 1,
+				'{"strategy":"none","max_retries":0,"base_delay":""}', '{}',
+				'dynamic', 'agent', '{}', '{}', ?, ?
+			)`,
+			nowRaw,
+			nowRaw,
+		); err != nil {
+			t.Fatalf("insert v62 automation job error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO automation_runs (
+				id, job_id, status, attempt, started_at, ended_at, metadata_json
+			) VALUES ('run-replay-upgrade', 'job-replay-upgrade', 'completed', 1, ?, ?, '{}')`,
+			nowRaw,
+			store.FormatTimestamp(now.Add(time.Minute)),
+		); err != nil {
+			t.Fatalf("insert v62 automation run error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO network_timeline_log (
+				message_id, session_id, workspace_id, channel, surface, thread_id,
+				direction, peer_from, peer_to, kind, work_id, body_json, timestamp
+			) VALUES
+				('msg-replay-open', 'sess-replay', 'ws-replay-upgrade', 'builders', 'thread',
+				 'thread-replay', 'sent', 'coder.peer', 'reviewer.peer', 'say', 'work-replay', '{}', ?),
+				('msg-replay-working', 'sess-replay', 'ws-replay-upgrade', 'builders', 'thread',
+				 'thread-replay', 'received', 'reviewer.peer', NULL, 'trace', 'work-replay',
+				 '{"state":"working"}', ?)`,
+			nowRaw,
+			store.FormatTimestamp(now.Add(time.Minute)),
+		); err != nil {
+			t.Fatalf("insert v62 network timeline error = %v", err)
+		}
+
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
+			t.Fatalf("RunMigrations(v63) error = %v", err)
+		}
+		assertWatchEventReplayProjectionMigrationState(t, db)
+		if err := db.Close(); err != nil {
+			t.Fatalf("db.Close(v63) error = %v", err)
+		}
+		db = nil
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v63) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened v63) error = %v", closeErr)
+			}
+		})
+		assertWatchEventReplayProjectionMigrationState(t, reopened.db)
+	})
+}
+
+func assertWatchEventReplayProjectionMigrationState(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	var runID, workspaceID string
+	if err := db.QueryRowContext(
+		ctx,
+		`SELECT run_id, workspace_id FROM automation_watch_events ORDER BY seq ASC LIMIT 1`,
+	).Scan(&runID, &workspaceID); err != nil {
+		t.Fatalf("read migrated automation watch event error = %v", err)
+	}
+	if runID != "run-replay-upgrade" || workspaceID != "ws-replay-upgrade" {
+		t.Fatalf("migrated automation watch event = %q/%q", workspaceID, runID)
+	}
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT work_opened, work_transitioned, work_state
+		 FROM network_timeline_log
+		 WHERE workspace_id = 'ws-replay-upgrade'
+		 ORDER BY rowid ASC`,
+	)
+	if err != nil {
+		t.Fatalf("read migrated network projections error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("close migrated network projection rows cleanup error = %v", closeErr)
+		}
+	})
+	type projection struct {
+		opened       int
+		transitioned int
+		state        string
+	}
+	got := make([]projection, 0, 2)
+	for rows.Next() {
+		var value projection
+		if err := rows.Scan(&value.opened, &value.transitioned, &value.state); err != nil {
+			t.Fatalf("scan migrated network projection error = %v", err)
+		}
+		got = append(got, value)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate migrated network projections error = %v", err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatalf("close migrated network projection rows error = %v", err)
+	}
+	want := []projection{
+		{opened: 1, state: store.NetworkWorkStateSubmitted},
+		{transitioned: 1, state: store.NetworkWorkStateWorking},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("migrated network projections = %#v, want %#v", got, want)
+	}
+}
+
 func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -784,6 +941,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			version:  62,
 			name:     "add_task_events_type_seq_index",
 			checksum: "2026-07-08-add-task-events-type-seq-index",
+		},
+		{
+			version:  63,
+			name:     "add_watch_event_replay_projections",
+			checksum: "2026-07-09-add-watch-event-replay-projections",
 		},
 	}
 }

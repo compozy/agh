@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
@@ -129,28 +128,11 @@ func upsertLoopOutputBlobWithExecutor(
 	payload json.RawMessage,
 	now time.Time,
 ) error {
-	ref := strings.TrimSpace(outputRef)
-	if !looppkg.OutputRefLooksContentAddressed(ref) {
+	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
 		return fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
 	}
 	if len(payload) == 0 {
 		return fmt.Errorf("%w: loop output payload is required", looppkg.ErrValidation)
 	}
-	timestamp := store.FormatTimestamp(now)
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_output_blobs (output_ref, payload_json, byte_size, created_at, last_used_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(output_ref) DO UPDATE SET
-		   last_used_at = excluded.last_used_at`,
-		ref,
-		string(payload),
-		len(payload),
-		timestamp,
-		timestamp,
-	)
-	if err != nil {
-		return fmt.Errorf("store: upsert loop output blob %q: %w", ref, err)
-	}
-	return nil
+	return store.UpsertLoopOutputBlob(ctx, exec, outputRef, payload, now)
 }

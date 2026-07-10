@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"strconv"
@@ -221,6 +222,32 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t
 			}
 		},
 	)
+}
+
+func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail when the scheduler store cannot enqueue watch-events gap wakes", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		source := schedulerTaskSource{
+			store:              taskStoreWithoutWatchEventsGapWake{taskStore: db},
+			watchEventsGapScan: newLoopWatchEventsGapScanState(),
+		}
+		err := source.enqueueWatchEventsGapWakes(
+			testutil.Context(t),
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler-test"},
+			time.Now().UTC(),
+		)
+		if !errors.Is(err, errLoopWatchEventsGapWakeStoreRequired) {
+			t.Fatalf("enqueueWatchEventsGapWakes() error = %v, want %v", err, errLoopWatchEventsGapWakeStoreRequired)
+		}
+	})
+}
+
+type taskStoreWithoutWatchEventsGapWake struct {
+	taskStore
 }
 
 func seedCoordinatorBackstopRun(

@@ -146,36 +146,16 @@ func (n *hooksNotifier) notifyTaskStatusChangedObservers(
 	payload hookspkg.TaskStatusChangedPayload,
 ) {
 	for _, observer := range n.taskStatusChangedObservers() {
-		n.notifyTaskStatusChangedObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyTaskStatusChangedObserver(
-	ctx context.Context,
-	observer taskStatusChangedObserver,
-	payload hookspkg.TaskStatusChangedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: task status observer panic",
-				"task_id", payload.TaskID,
-				"workspace_id", payload.WorkspaceID,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := observer.OnTaskStatusChanged(notifyCtx, payload); err != nil {
-		n.logger.Warn(
-			"daemon: task status observer failed",
-			"task_id", payload.TaskID,
-			"workspace_id", payload.WorkspaceID,
-			"error", err,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"task status",
+			[]any{daemonTaskIDKey, payload.TaskID, daemonWorkspaceIDKey, payload.WorkspaceID},
+			func(ctx context.Context, observer taskStatusChangedObserver, payload hookspkg.TaskStatusChangedPayload) error {
+				return observer.OnTaskStatusChanged(ctx, payload)
+			},
 		)
 	}
 }
@@ -240,13 +220,33 @@ func dispatchTaskRecoveredWithWatchObservers(
 
 func (n *hooksNotifier) notifyTaskBlockedObservers(ctx context.Context, payload hookspkg.TaskBlockedPayload) {
 	for _, observer := range n.taskLifecycleWatchObservers() {
-		n.notifyTaskBlockedObserver(ctx, observer, payload)
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"task lifecycle",
+			taskLifecycleObserverAttributes(hookspkg.HookTaskBlocked, payload.TaskID, payload.WorkspaceID),
+			func(ctx context.Context, observer taskLifecycleWatchObserver, payload hookspkg.TaskBlockedPayload) error {
+				return observer.OnTaskBlocked(ctx, payload)
+			},
+		)
 	}
 }
 
 func (n *hooksNotifier) notifyTaskUnblockedObservers(ctx context.Context, payload hookspkg.TaskUnblockedPayload) {
 	for _, observer := range n.taskLifecycleWatchObservers() {
-		n.notifyTaskUnblockedObserver(ctx, observer, payload)
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"task lifecycle",
+			taskLifecycleObserverAttributes(hookspkg.HookTaskUnblocked, payload.TaskID, payload.WorkspaceID),
+			func(ctx context.Context, observer taskLifecycleWatchObserver, payload hookspkg.TaskUnblockedPayload) error {
+				return observer.OnTaskUnblocked(ctx, payload)
+			},
+		)
 	}
 }
 
@@ -255,109 +255,50 @@ func (n *hooksNotifier) notifyTaskNeedsAttentionObservers(
 	payload hookspkg.TaskNeedsAttentionPayload,
 ) {
 	for _, observer := range n.taskLifecycleWatchObservers() {
-		n.notifyTaskNeedsAttentionObserver(ctx, observer, payload)
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"task lifecycle",
+			taskLifecycleObserverAttributes(hookspkg.HookTaskNeedsAttention, payload.TaskID, payload.WorkspaceID),
+			func(
+				ctx context.Context,
+				observer taskLifecycleWatchObserver,
+				payload hookspkg.TaskNeedsAttentionPayload,
+			) error {
+				return observer.OnTaskNeedsAttention(ctx, payload)
+			},
+		)
 	}
 }
 
 func (n *hooksNotifier) notifyTaskRecoveredObservers(ctx context.Context, payload hookspkg.TaskRecoveredPayload) {
 	for _, observer := range n.taskLifecycleWatchObservers() {
-		n.notifyTaskRecoveredObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyTaskBlockedObserver(
-	ctx context.Context,
-	observer taskLifecycleWatchObserver,
-	payload hookspkg.TaskBlockedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverTaskLifecycleObserverPanic(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskBlocked)
-	if err := observer.OnTaskBlocked(notifyCtx, payload); err != nil {
-		n.logTaskLifecycleObserverError(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskBlocked, err)
-	}
-}
-
-func (n *hooksNotifier) notifyTaskUnblockedObserver(
-	ctx context.Context,
-	observer taskLifecycleWatchObserver,
-	payload hookspkg.TaskUnblockedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverTaskLifecycleObserverPanic(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskUnblocked)
-	if err := observer.OnTaskUnblocked(notifyCtx, payload); err != nil {
-		n.logTaskLifecycleObserverError(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskUnblocked, err)
-	}
-}
-
-func (n *hooksNotifier) notifyTaskNeedsAttentionObserver(
-	ctx context.Context,
-	observer taskLifecycleWatchObserver,
-	payload hookspkg.TaskNeedsAttentionPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverTaskLifecycleObserverPanic(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskNeedsAttention)
-	if err := observer.OnTaskNeedsAttention(notifyCtx, payload); err != nil {
-		n.logTaskLifecycleObserverError(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskNeedsAttention, err)
-	}
-}
-
-func (n *hooksNotifier) notifyTaskRecoveredObserver(
-	ctx context.Context,
-	observer taskLifecycleWatchObserver,
-	payload hookspkg.TaskRecoveredPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverTaskLifecycleObserverPanic(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskRecovered)
-	if err := observer.OnTaskRecovered(notifyCtx, payload); err != nil {
-		n.logTaskLifecycleObserverError(payload.TaskID, payload.WorkspaceID, hookspkg.HookTaskRecovered, err)
-	}
-}
-
-func (n *hooksNotifier) recoverTaskLifecycleObserverPanic(
-	taskID string,
-	workspaceID string,
-	event hookspkg.HookEvent,
-) {
-	if recovered := recover(); recovered != nil {
-		n.logger.Warn(
-			"daemon: task lifecycle observer panic",
-			"hook_event", event,
-			"task_id", taskID,
-			"workspace_id", workspaceID,
-			"panic", recovered,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"task lifecycle",
+			taskLifecycleObserverAttributes(hookspkg.HookTaskRecovered, payload.TaskID, payload.WorkspaceID),
+			func(ctx context.Context, observer taskLifecycleWatchObserver, payload hookspkg.TaskRecoveredPayload) error {
+				return observer.OnTaskRecovered(ctx, payload)
+			},
 		)
 	}
 }
 
-func (n *hooksNotifier) logTaskLifecycleObserverError(
+func taskLifecycleObserverAttributes(
+	event hookspkg.HookEvent,
 	taskID string,
 	workspaceID string,
-	event hookspkg.HookEvent,
-	err error,
-) {
-	n.logger.Warn(
-		"daemon: task lifecycle observer failed",
-		"hook_event", event,
-		"task_id", taskID,
-		"workspace_id", workspaceID,
-		"error", err,
-	)
+) []any {
+	return []any{
+		daemonHookEventKey, event,
+		daemonTaskIDKey, taskID,
+		daemonWorkspaceIDKey, workspaceID,
+	}
 }
 
 func dispatchLoopNodeTerminalWithWatchObservers(
@@ -381,36 +322,16 @@ func (n *hooksNotifier) notifyLoopNodeTerminalObservers(
 	payload hookspkg.LoopNodeTerminalPayload,
 ) {
 	for _, observer := range n.loopNodeTerminalObservers() {
-		n.notifyLoopNodeTerminalObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyLoopNodeTerminalObserver(
-	ctx context.Context,
-	observer loopNodeTerminalObserver,
-	payload hookspkg.LoopNodeTerminalPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: loop node terminal observer panic",
-				"loop_run_id", payload.LoopRunID,
-				"node_id", payload.NodeID,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := observer.OnLoopNodeTerminal(notifyCtx, payload); err != nil {
-		n.logger.Warn(
-			"daemon: loop node terminal observer failed",
-			"loop_run_id", payload.LoopRunID,
-			"node_id", payload.NodeID,
-			"error", err,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"loop node terminal",
+			[]any{daemonLoopRunIDKey, payload.LoopRunID, "node_id", payload.NodeID},
+			func(ctx context.Context, observer loopNodeTerminalObserver, payload hookspkg.LoopNodeTerminalPayload) error {
+				return observer.OnLoopNodeTerminal(ctx, payload)
+			},
 		)
 	}
 }

@@ -20,19 +20,20 @@ import (
 )
 
 type inMemoryManagerStore struct {
-	tasks             map[string]Task
-	blocks            map[string]map[string]TaskBlock
-	blockRecurrences  map[string]BlockRecurrence
-	dependencies      map[string]map[string]Dependency
-	runs              map[string]Run
-	claimTokens       map[string]string
-	triageStates      map[string]TriageState
-	profiles          map[string]ExecutionProfile
-	reviews           map[string]RunReview
-	events            []Event
-	eventSequenceByID map[string]int64
-	nextEventSequence int64
-	idempotencyByKey  map[string]RunIdempotency
+	tasks                    map[string]Task
+	blocks                   map[string]map[string]TaskBlock
+	blockRecurrences         map[string]BlockRecurrence
+	dependencies             map[string]map[string]Dependency
+	runs                     map[string]Run
+	claimTokens              map[string]string
+	triageStates             map[string]TriageState
+	profiles                 map[string]ExecutionProfile
+	reviews                  map[string]RunReview
+	events                   []Event
+	eventSequenceByID        map[string]int64
+	nextEventSequence        int64
+	idempotencyByKey         map[string]RunIdempotency
+	coordinatorCompletionErr error
 }
 
 type forceInputStore struct {
@@ -1572,7 +1573,7 @@ func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
-	return CoordinatorCompletionResult{Run: cloneTaskRun(run), LoopRunID: run.LoopRunID}, nil
+	return CoordinatorCompletionResult{Run: cloneTaskRun(run), LoopRunID: run.LoopRunID}, s.coordinatorCompletionErr
 }
 
 func (s *inMemoryManagerStore) ForceReleaseTaskRun(
@@ -7575,7 +7576,15 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 
 	t.Run("Should execute coordinator in daemon without session", func(t *testing.T) {
 		t.Parallel()
-		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t)
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil)
+	})
+
+	t.Run("Should return the committed coordinator run with a post-commit wake error", func(t *testing.T) {
+		t.Parallel()
+		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
+			t,
+			errors.New("forced post-commit wake failure"),
+		)
 	})
 }
 
@@ -7652,10 +7661,14 @@ func TestManagerCoordinatorTerminalValidatorShouldUseInjectedVocabulary(t *testi
 	}
 }
 
-func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
+func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
+	t *testing.T,
+	postCommitErr error,
+) {
 	t.Helper()
 
 	store := newInMemoryManagerStore()
+	store.coordinatorCompletionErr = postCommitErr
 	now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	taskRecord := Task{
 		ID:             "task-loop-coordinator",
@@ -7727,8 +7740,14 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 		ClaimToken:     claim.ClaimToken,
 		IdempotencyKey: claim.Run.IdempotencyKey,
 	}, actor)
-	if err != nil {
+	if postCommitErr == nil && err != nil {
 		t.Fatalf("StartRun(coordinator) error = %v", err)
+	}
+	if postCommitErr != nil && !errors.Is(err, postCommitErr) {
+		t.Fatalf("StartRun(coordinator) error = %v, want %v", err, postCommitErr)
+	}
+	if started == nil {
+		t.Fatal("StartRun(coordinator) run = nil, want committed run")
 	}
 	if started.Status != TaskRunStatusCompleted {
 		t.Fatalf("StartRun(coordinator).Status = %q, want %q", started.Status, TaskRunStatusCompleted)

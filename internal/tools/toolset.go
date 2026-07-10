@@ -96,15 +96,16 @@ func (c ToolsetCatalog) Contains(id ToolID, toolsetIDs []ToolsetID) (bool, error
 	}
 	selected := append([]ToolsetID(nil), toolsetIDs...)
 	slices.Sort(selected)
-	matched := false
 	for _, toolsetID := range selected {
 		contains, err := c.contains(toolsetID, id, nil, make(map[ToolsetID]struct{}))
 		if err != nil {
 			return false, err
 		}
-		matched = matched || contains
+		if contains {
+			return true, nil
+		}
 	}
-	return matched, nil
+	return false, nil
 }
 
 // Expand resolves one toolset into concrete ToolID atoms.

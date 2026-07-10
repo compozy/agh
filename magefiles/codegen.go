@@ -47,17 +47,11 @@ func CodegenCheck() error {
 }
 
 // SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.
-
-// SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.
 func SyncDesignMD() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", designSyncScriptPath, "--write")
 }
 
 // SyncDesignMDCheck verifies generated DESIGN.md token frontmatter and tables.
-
-// SyncDesignMDCheck verifies generated DESIGN.md token frontmatter and tables.
 func SyncDesignMDCheck() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", designSyncScriptPath, "--check")
 }
-
-// BunLint runs the monorepo-wide lint script (oxfmt + oxlint over every workspace).

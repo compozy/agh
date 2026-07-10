@@ -184,7 +184,8 @@ are subscribable — sync-eligible `pre_*` hooks are rejected. Supported familie
 `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`
 (`task_events`); `task.run.completed`, `task.run.failed` (`task_events`); `loop.terminal`,
 `loop.node.terminal` (`loop_run_events`); `automation.run.completed`, `automation.run.failed`
-(`automation_runs`); `network.message.persisted`, `network.thread.opened`,
+(`automation_watch_events`, whose terminal snapshots outlive `automation_runs` deletion);
+`network.message.persisted`, `network.thread.opened`,
 `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`,
 `network.work.closed` (`network_timeline_log`); `coordinator.spawned`, `coordinator.decision`,
 `coordinator.stopped`, `coordinator.failed` (`event_summaries`); `event.post_record`

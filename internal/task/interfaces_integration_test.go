@@ -73,7 +73,10 @@ func (fakeStore) ClearTaskNeedsAttention(context.Context, taskpkg.NeedsAttention
 	return taskpkg.Task{}, nil
 }
 
-func (fakeStore) ExpireTaskBlocks(context.Context, taskpkg.ExpireTaskBlocksMutation) (taskpkg.ExpireTaskBlocksResult, error) {
+func (fakeStore) ExpireTaskBlocks(
+	context.Context,
+	taskpkg.ExpireTaskBlocksMutation,
+) (taskpkg.ExpireTaskBlocksResult, error) {
 	return taskpkg.ExpireTaskBlocksResult{}, nil
 }
 
@@ -153,7 +156,10 @@ func (fakeStore) RecoverExpiredRunLeases(
 	return nil, nil
 }
 
-func (fakeStore) ReserveQueuedRun(context.Context, taskpkg.QueueRunReservation) (taskpkg.Task, taskpkg.Run, bool, error) {
+func (fakeStore) ReserveQueuedRun(
+	context.Context,
+	taskpkg.QueueRunReservation,
+) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{
 			ID:             "task-1",
 			Scope:          taskpkg.ScopeGlobal,

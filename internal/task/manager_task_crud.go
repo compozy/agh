@@ -1,0 +1,354 @@
+package task
+
+import (
+	"context"
+	"fmt"
+	"strings"
+)
+
+// CreateTask derives one canonical task record from trusted actor context and
+// persists the corresponding immutable audit event.
+func (m *Service) CreateTask(
+	ctx context.Context,
+	spec CreateTask,
+	actor ActorContext,
+) (*Task, error) {
+	if err := requireCreateAuthority(actor, spec.Scope); err != nil {
+		return nil, err
+	}
+
+	normalizedSpec, err := normalizeCreateTaskSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
+		return nil, err
+	}
+	if err := m.validateNetworkChannel("create_task.network_channel", normalizedSpec.NetworkChannel); err != nil {
+		return nil, err
+	}
+
+	now := m.now().UTC()
+	record := Task{
+		ID:                 normalizedSpec.ID,
+		Identifier:         normalizedSpec.Identifier,
+		Scope:              normalizedSpec.Scope,
+		WorkspaceID:        normalizedSpec.WorkspaceID,
+		ParentTaskID:       normalizedSpec.ParentTaskID,
+		NetworkChannel:     normalizedSpec.NetworkChannel,
+		Title:              normalizedSpec.Title,
+		Description:        normalizedSpec.Description,
+		Priority:           normalizedSpec.Priority,
+		MaxAttempts:        createTaskMaxAttempts(normalizedSpec),
+		AutoEnqueueOnReady: normalizedSpec.AutoEnqueueOnReady,
+		Status:             createdTaskStatus(normalizedSpec),
+		ApprovalPolicy:     normalizedSpec.ApprovalPolicy,
+		ApprovalState:      defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
+		Owner:              cloneOwnership(normalizedSpec.Owner),
+		WakeCreator:        createTaskWakeCreator(normalizedSpec),
+		CreatedBy:          actor.Actor,
+		Origin:             actor.Origin,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		Metadata:           cloneRawJSON(normalizedSpec.Metadata),
+	}
+	if strings.TrimSpace(record.ID) == "" {
+		record.ID = m.newID("task")
+	}
+	if err := record.Validate(); err != nil {
+		return nil, err
+	}
+	if err := m.store.CreateTask(ctx, record); err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCreated, actor, createdTaskPayload{
+		Scope:          record.Scope,
+		WorkspaceID:    record.WorkspaceID,
+		ParentTaskID:   record.ParentTaskID,
+		Status:         record.Status,
+		NetworkChannel: record.NetworkChannel,
+		Owner:          cloneOwnership(record.Owner),
+	}); err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
+// CreateChildTask creates one child task beneath the supplied parent and emits
+// an additional parent-scoped audit event.
+func (m *Service) CreateChildTask(
+	ctx context.Context,
+	parentTaskID string,
+	spec CreateTask,
+	actor ActorContext,
+) (*Task, error) {
+	trimmedParentID := strings.TrimSpace(parentTaskID)
+	if trimmedParentID == "" {
+		return nil, fmt.Errorf("%w: child parent task id is required", ErrValidation)
+	}
+	if strings.TrimSpace(spec.ParentTaskID) != "" &&
+		strings.TrimSpace(spec.ParentTaskID) != trimmedParentID {
+		return nil, fmt.Errorf(
+			"%w: create_task.parent_task_id must match child parent task id",
+			ErrValidation,
+		)
+	}
+
+	spec.ParentTaskID = trimmedParentID
+	child, err := m.CreateTask(ctx, spec, actor)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, trimmedParentID, "", taskEventChildCreated, actor, childCreatedTaskPayload{
+		ChildTaskID:      child.ID,
+		ChildScope:       child.Scope,
+		ChildWorkspaceID: child.WorkspaceID,
+	}); err != nil {
+		return nil, err
+	}
+	return child, nil
+}
+
+// DeleteTask removes one task after verifying it is not still in use by child
+// tasks or non-terminal runs, then reconciles any dependents unblocked by the
+// cascade-deleted dependency edges.
+func (m *Service) DeleteTask(ctx context.Context, id string, actor ActorContext) error {
+	if err := requireWriteAuthority(actor); err != nil {
+		return err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+
+	if txStore, ok := m.store.(DeleteTaskTransactionStore); ok {
+		return txStore.WithDeleteTaskTransaction(ctx, func(store DeleteTaskMutationStore) error {
+			return m.deleteTaskWithStore(ctx, store, trimmedID, actor)
+		})
+	}
+
+	return m.deleteTaskWithStore(ctx, m.store, trimmedID, actor)
+}
+
+func (m *Service) deleteTaskWithStore(
+	ctx context.Context,
+	store DeleteTaskMutationStore,
+	trimmedID string,
+	actor ActorContext,
+) error {
+	record, err := store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return fmt.Errorf("task: load task %q for delete: %w", trimmedID, err)
+	}
+	if err := m.ensureTaskDeleteAllowedWithStore(ctx, store, record); err != nil {
+		return err
+	}
+
+	dependents, err := store.ListDependents(ctx, trimmedID)
+	if err != nil {
+		return fmt.Errorf("task: list dependents for task %q delete: %w", trimmedID, err)
+	}
+	dependentIDs := uniqueDependentTaskIDs(dependents)
+
+	if err := store.DeleteTask(ctx, trimmedID); err != nil {
+		return fmt.Errorf("task: delete task %q: %w", trimmedID, err)
+	}
+
+	for _, dependentID := range dependentIDs {
+		if _, err := m.reconcileTaskCascadeWithStore(ctx, store, dependentID, actor); err != nil {
+			return fmt.Errorf(
+				"task: reconcile dependent task %q after deleting %q: %w",
+				dependentID,
+				trimmedID,
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+// UpdateTask applies one mutable patch while preserving immutable identity and
+// structural fields under manager control.
+func (m *Service) UpdateTask(
+	ctx context.Context,
+	id string,
+	patch Patch,
+	actor ActorContext,
+) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+	normalizedPatch, err := normalizeTaskPatch(patch)
+	if err != nil {
+		return nil, err
+	}
+	if normalizedPatch.NetworkChannel != nil {
+		if err := m.validateNetworkChannel("task_patch.network_channel", *normalizedPatch.NetworkChannel); err != nil {
+			return nil, err
+		}
+	}
+
+	current, err := m.store.GetTask(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, changedFields := applyTaskPatch(current, normalizedPatch)
+	if len(changedFields) == 0 {
+		return &current, nil
+	}
+
+	dependencies, err := m.store.ListDependencies(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
+	if err != nil {
+		return nil, err
+	}
+
+	canonicalStatus, err := m.canonicalTaskStatus(ctx, updated, dependencies, runs)
+	if err != nil {
+		return nil, err
+	}
+	updated.Status = canonicalStatus
+	updated.UpdatedAt = m.now().UTC()
+	if err := m.store.UpdateTask(ctx, updated, actor); err != nil {
+		return nil, err
+	}
+	if current.Status.Normalize() != updated.Status.Normalize() {
+		m.dispatchTaskStatusChanged(ctx, updated, current.Status, updated.Status, actor)
+	}
+	if err := m.recordTaskEvent(ctx, updated.ID, "", taskEventUpdated, actor, updatedTaskPayload{
+		ChangedFields: append([]string(nil), changedFields...),
+		Status:        updated.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	return &updated, nil
+}
+
+// CancelTask propagates manager-owned cancellation through the target task,
+// affected runs, and all non-terminal descendants.
+func (m *Service) CancelTask(
+	ctx context.Context,
+	id string,
+	req CancelTask,
+	actor ActorContext,
+) (*Task, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("%w: task id is required", ErrValidation)
+	}
+	normalizedReq, err := normalizeCancelTask(req)
+	if err != nil {
+		return nil, err
+	}
+
+	tree, root, err := m.loadCancellationTree(ctx, trimmedID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.ensureTaskCancelable(ctx, root); err != nil {
+		return nil, err
+	}
+
+	cancelledRoot := root
+	for idx, record := range tree {
+		record, err = m.cancelTaskTreeRecord(ctx, trimmedID, idx, record, normalizedReq, actor)
+		if err != nil {
+			return nil, err
+		}
+		if record.ID == trimmedID {
+			cancelledRoot = record
+		}
+	}
+
+	return &cancelledRoot, nil
+}
+
+func applyTaskPatch(current Task, patch Patch) (Task, []string) {
+	updated := current
+	changedFields := make([]string, 0, len(MutableTaskFields()))
+
+	if patch.Title != nil && updated.Title != *patch.Title {
+		updated.Title = *patch.Title
+		changedFields = append(changedFields, TaskFieldTitle)
+	}
+	if patch.Description != nil && updated.Description != *patch.Description {
+		updated.Description = *patch.Description
+		changedFields = append(changedFields, TaskFieldDescription)
+	}
+	if patch.Priority != nil && updated.Priority != *patch.Priority {
+		updated.Priority = *patch.Priority
+		changedFields = append(changedFields, TaskFieldPriority)
+	}
+	if patch.MaxAttempts != nil && updated.MaxAttempts != *patch.MaxAttempts {
+		updated.MaxAttempts = *patch.MaxAttempts
+		changedFields = append(changedFields, TaskFieldMaxAttempts)
+	}
+	if patch.AutoEnqueueOnReady != nil && updated.AutoEnqueueOnReady != *patch.AutoEnqueueOnReady {
+		updated.AutoEnqueueOnReady = *patch.AutoEnqueueOnReady
+		changedFields = append(changedFields, TaskFieldAutoEnqueueOnReady)
+	}
+	if patch.ApprovalPolicy != nil && updated.ApprovalPolicy != *patch.ApprovalPolicy {
+		updated.ApprovalPolicy = *patch.ApprovalPolicy
+		updated.ApprovalState = defaultApprovalStateForPolicy(*patch.ApprovalPolicy)
+		changedFields = append(changedFields, TaskFieldApprovalPolicy)
+	}
+	return applyTaskPatchReferences(updated, patch, changedFields)
+}
+
+func applyTaskPatchReferences(updated Task, patch Patch, changedFields []string) (Task, []string) {
+	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
+		updated.Metadata = cloneRawJSON(*patch.Metadata)
+		changedFields = append(changedFields, TaskFieldMetadata)
+	}
+	if patch.NetworkChannel != nil && updated.NetworkChannel != *patch.NetworkChannel {
+		updated.NetworkChannel = *patch.NetworkChannel
+		changedFields = append(changedFields, TaskFieldNetworkChannel)
+	}
+	if patch.Owner != nil && !sameOwnership(updated.Owner, patch.Owner) {
+		updated.Owner = cloneOwnership(patch.Owner)
+		changedFields = append(changedFields, TaskFieldOwner)
+	}
+	if patch.ClearOwner && updated.Owner != nil {
+		updated.Owner = nil
+		changedFields = append(changedFields, TaskFieldOwner)
+	}
+
+	return updated, changedFields
+}
+
+func createTaskMaxAttempts(spec CreateTask) int {
+	if spec.MaxAttempts == nil {
+		return DefaultTaskMaxAttempts
+	}
+	return normalizeTaskMaxAttemptsOrDefault(*spec.MaxAttempts)
+}
+
+func createdTaskStatus(spec CreateTask) Status {
+	if spec.Draft {
+		return TaskStatusDraft
+	}
+	if approvalStateBlocksExecution(
+		normalizeApprovalPolicyOrDefault(spec.ApprovalPolicy),
+		defaultApprovalStateForPolicy(spec.ApprovalPolicy),
+	) {
+		return TaskStatusBlocked
+	}
+	return TaskStatusReady
+}

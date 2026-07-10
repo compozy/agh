@@ -3003,6 +3003,11 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 		t.Parallel()
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t)
 	})
+
+	t.Run("Should preserve the committed result when a post-commit wake fails", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFailure(t)
+	})
 }
 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t *testing.T) {
@@ -3071,6 +3076,69 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 	}
 	if got, want := wakeRun.IdempotencyKey, wakeKey; got != want {
 		t.Fatalf("wake idempotency_key = %q, want %q", got, want)
+	}
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFailure(t *testing.T) {
+	t.Helper()
+
+	globalDB := openFreshLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 8, 16, 35, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-failed-post-commit-wake", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-failed-post-commit-wake",
+		now,
+	)
+	actor := coordinatorActorContextForTest()
+	wakeKey := "loop.coordinator.watch_events." + string(loopRun.ID) + ".failed_wake"
+	if _, err := globalDB.db.ExecContext(ctx, `
+		CREATE TRIGGER fail_coordinator_post_commit_wake
+		BEFORE INSERT ON task_runs
+		WHEN NEW.idempotency_key = 'loop.coordinator.watch_events.looprun-coordinator-failed-post-commit-wake.failed_wake'
+		BEGIN
+			SELECT RAISE(ABORT, 'forced coordinator post-commit wake failure');
+		END;
+	`); err != nil {
+		t.Fatalf("create post-commit wake failure trigger error = %v", err)
+	}
+
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Actor:      actor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Yield: true,
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+			},
+			PostCommitWakes: []taskpkg.CoordinatorWakeSpec{{
+				LoopRunID:      string(loopRun.ID),
+				IdempotencyKey: wakeKey,
+			}},
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err == nil || !strings.Contains(err.Error(), "forced coordinator post-commit wake failure") {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want forced wake failure", err)
+	}
+	if got, want := result.Run.ID, claim.Run.ID; got != want {
+		t.Fatalf("result.Run.ID = %q, want committed run %q", got, want)
+	}
+	if got, want := result.Run.Status, taskpkg.TaskRunStatusCompleted; got != want {
+		t.Fatalf("result.Run.Status = %q, want %q", got, want)
 	}
 }
 

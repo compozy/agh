@@ -3,10 +3,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
-	"os/exec"
-	"strings"
+	"path/filepath"
+	"sort"
+	"strconv"
 )
 
 // Boundaries verifies that package import rules are not violated.
@@ -121,19 +126,21 @@ func Boundaries() error {
 	violations := 0
 	for _, rule := range forbidden {
 		importerDir := rule.importer
-		if _, err := os.Stat(importerDir); os.IsNotExist(err) {
-			continue
+		if _, err := os.Stat(importerDir); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("inspect boundary importer %q: %w", importerDir, err)
 		}
 		importPath := "github.com/compozy/agh/" + rule.imported
-		cmd := exec.Command("grep", "-r", "--include=*.go", "-l", importPath, importerDir)
-		out, err := cmd.Output()
+		files, err := filesImporting(importerDir, importPath)
 		if err != nil {
-			continue // grep returns exit 1 when no match — that's good
+			return fmt.Errorf("check whether %q imports %q: %w", importerDir, importPath, err)
 		}
-		if len(strings.TrimSpace(string(out))) > 0 {
+		if len(files) > 0 {
 			fmt.Printf("VIOLATION: %s imports %s\n", rule.importer, rule.imported)
-			for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-				fmt.Printf("  %s\n", f)
+			for _, file := range files {
+				fmt.Printf("  %s\n", file)
 			}
 			violations++
 		}
@@ -144,4 +151,37 @@ func Boundaries() error {
 	}
 	fmt.Println("OK: all package boundaries respected")
 	return nil
+}
+
+func filesImporting(root string, target string) ([]string, error) {
+	fset := token.NewFileSet()
+	files := make([]string, 0)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" {
+			return nil
+		}
+		parsed, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse Go imports in %q: %w", path, err)
+		}
+		for _, spec := range parsed.Imports {
+			importPath, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				return fmt.Errorf("decode Go import in %q: %w", path, err)
+			}
+			if importPath == target {
+				files = append(files, path)
+				break
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	return files, nil
 }

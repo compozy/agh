@@ -97,9 +97,21 @@ cmd_new() {
   local branch="$slug" base="main" dir="" pass_through=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      --branch) branch="$2"; shift ;;
-      --base) base="$2"; shift ;;
-      --dir) dir="$2"; shift ;;
+      --branch)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--branch requires a value"
+        branch="$2"
+        shift
+        ;;
+      --base)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--base requires a value"
+        base="$2"
+        shift
+        ;;
+      --dir)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--dir requires a value"
+        dir="$2"
+        shift
+        ;;
       --build | --e2e | --skip-install) pass_through+=("$1") ;;
       *) die "unknown new option: $1" ;;
     esac

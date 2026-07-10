@@ -65,12 +65,11 @@ func gitTags(dir string) ([]string, error) {
 	return tags, nil
 }
 
-func gitOutput(args ...string) string {
+func gitOutput(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
-
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(string(out)), nil
 }

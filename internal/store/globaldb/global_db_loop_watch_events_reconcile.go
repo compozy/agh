@@ -75,6 +75,7 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
 	}
 
 	enqueued := make([]taskpkg.Run, 0)
+	var scanErr error
 	for _, subscription := range parked {
 		runs, enqueueErr := g.enqueueWatchEventsGapWakesForSubscriptions(
 			ctx,
@@ -83,12 +84,20 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
 			now,
 		)
 		enqueued = append(enqueued, runs...)
-		if enqueueErr != nil {
-			return enqueued, after, enqueueErr
-		}
 		after = parkedWatchEventScanCursor(subscription)
+		if enqueueErr != nil {
+			scanErr = errors.Join(
+				scanErr,
+				fmt.Errorf(
+					"store: recover parked watch-events subscription %q/%q: %w",
+					subscription.LoopRunID,
+					subscription.NodeID,
+					enqueueErr,
+				),
+			)
+		}
 	}
-	return enqueued, after, nil
+	return enqueued, after, scanErr
 }
 
 func (g *GlobalDB) normalizeWatchEventsGapScan(
@@ -293,7 +302,7 @@ func (g *GlobalDB) writeWatchEventsGapEvent(
 			RunID:           strings.TrimSpace(run.ID),
 			SchedulerReason: watchEventsGapReason,
 			ActorKind:       string(taskpkg.ActorKindDaemon),
-			ActorID:         "loop-watch-events-recovery",
+			ActorID:         watchEventsRecoverySessionID,
 		},
 		Summary:   watchEventsGapSummary(eventType, subscription),
 		Timestamp: now.UTC(),

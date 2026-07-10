@@ -46,6 +46,13 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeUnreachableNode},
 		},
 		{
+			name: "Should reject zero-edge nodes that are unreachable from an explicit source",
+			mutate: func(def *dsl.Definition) {
+				def.Graph.Edges = nil
+			},
+			wantCodes: []string{loop.CodeUnreachableNode},
+		},
+		{
 			name: "Should reject empty non terminating graph",
 			mutate: func(def *dsl.Definition) {
 				def.Graph.Nodes = nil

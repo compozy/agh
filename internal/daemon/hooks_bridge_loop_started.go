@@ -33,36 +33,16 @@ func (n *hooksNotifier) notifyLoopStartedObservers(
 	payload hookspkg.LoopStartedPayload,
 ) {
 	for _, observer := range n.loopStartedObservers() {
-		n.notifyLoopStartedObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyLoopStartedObserver(
-	ctx context.Context,
-	observer loopStartedObserver,
-	payload hookspkg.LoopStartedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: loop started observer panic",
-				"loop_run_id", payload.LoopRunID,
-				"loop_name", payload.LoopName,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := observer.OnLoopStarted(notifyCtx, payload); err != nil {
-		n.logger.Warn(
-			"daemon: loop started observer failed",
-			"loop_run_id", payload.LoopRunID,
-			"loop_name", payload.LoopName,
-			"error", err,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"loop started",
+			[]any{daemonLoopRunIDKey, payload.LoopRunID, "loop_name", payload.LoopName},
+			func(ctx context.Context, observer loopStartedObserver, payload hookspkg.LoopStartedPayload) error {
+				return observer.OnLoopStarted(ctx, payload)
+			},
 		)
 	}
 }

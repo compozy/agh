@@ -68,8 +68,6 @@ func hasPinnedTool(name string, wantVersion string) bool {
 }
 
 // Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.
-
-// Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.
 func Modernize() error {
 	return sh.RunWithV(
 		map[string]string{"CGO_ENABLED": "0"},
@@ -79,8 +77,6 @@ func Modernize() error {
 		"./...",
 	)
 }
-
-// Test runs unit tests only (no integration tag).
 
 func goFiles(root string) ([]string, error) {
 	var files []string

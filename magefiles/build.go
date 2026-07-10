@@ -34,18 +34,8 @@ func buildGo() error {
 	return sh.RunV("go", "build", "-ldflags", ldflags, "-o", out, "./cmd/"+cliBinary)
 }
 
-// SourceInstallCheck verifies the public root go install path from source-visible files.
-
 func buildLDFlags() string {
-	version := gitOutput("describe", "--tags", "--always", "--dirty")
-	if version == "" {
-		version = "dev"
-	}
-
-	commit := gitOutput("rev-parse", "--short", "HEAD")
-	if commit == "" {
-		commit = "unknown"
-	}
+	version, commit := buildGitMetadata(gitOutput)
 
 	buildDate := time.Now().UTC().Format(time.RFC3339)
 
@@ -54,4 +44,17 @@ func buildLDFlags() string {
 		"-X " + versionPackage + ".Commit=" + commit,
 		"-X " + versionPackage + ".BuildDate=" + buildDate,
 	}, " ")
+}
+
+func buildGitMetadata(readGit func(...string) (string, error)) (string, string) {
+	version, err := readGit("describe", "--tags", "--always", "--dirty")
+	if err != nil || strings.TrimSpace(version) == "" {
+		version = "dev"
+	}
+
+	commit, err := readGit("rev-parse", "--short", "HEAD")
+	if err != nil || strings.TrimSpace(commit) == "" {
+		commit = "unknown"
+	}
+	return version, commit
 }

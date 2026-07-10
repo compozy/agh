@@ -18,16 +18,12 @@ func Test() error {
 }
 
 // TestIntegration runs all tests including integration tests.
-
-// TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
 	return runRaceEnabledGoCommand(context.Background(), nil,
 		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
 		"--format", "pkgname", "--", "-race", "-p", goIntegrationPackageLimit, "-parallel=4",
 		"-timeout", goIntegrationTestTimeout, "-tags", "integration", "./...")
 }
-
-// TestE2ERuntime runs the PR-required daemon/runtime E2E lane without sweeping every integration package.
 
 func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{

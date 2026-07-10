@@ -38,6 +38,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_jobs",
 		"automation_triggers",
 		"automation_runs",
+		"automation_watch_events",
 		"automation_scheduler_state",
 		"automation_job_overlays",
 		"automation_trigger_overlays",
@@ -141,6 +142,12 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"idx_automation_runs_status",
 		"idx_automation_runs_started",
 		"uq_automation_runs_fire_id",
+	)
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"automation_watch_events",
+		"idx_automation_watch_events_workspace_status_seq",
 	)
 	assertIndexesPresent(t, globalDB.db, "automation_scheduler_state",
 		"idx_automation_scheduler_next_run",

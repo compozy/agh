@@ -13,6 +13,8 @@ import (
 
 const taskRunActivationTimeout = 30 * time.Second
 
+var _ taskRunEnqueuedObserver = (*taskRunActivationDispatcher)(nil)
+
 type taskRunActivationDispatcher struct {
 	store       taskRunActivationStore
 	taskRoles   taskRunEnqueuedObserver
@@ -97,6 +99,14 @@ func (d *taskRunActivationDispatcher) dispatch(
 ) {
 	target := d.targetForRun(run)
 	if target == nil {
+		if run.RunKind.Normalize() == taskpkg.RunKindWorker && d.logger != nil {
+			d.logger.Warn(
+				"daemon: task run activation target is unavailable",
+				daemonLogRunIDKey, strings.TrimSpace(run.ID),
+				"run_kind", run.RunKind.Normalize().String(),
+				"loop_worker", run.IsLoopWorker(),
+			)
+		}
 		return
 	}
 	target.OnTaskRunEnqueued(ctx, payload)
@@ -115,7 +125,7 @@ func (d *taskRunActivationDispatcher) targetForRun(run taskpkg.Run) taskRunEnque
 }
 
 func activationDispatchPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload {
-	kind := string(run.RunKind.Normalize())
+	kind := run.RunKind.Normalize().String()
 	return hookspkg.TaskRunEnqueuedPayload{
 		TaskRunContext: hookspkg.TaskRunContext{
 			TaskID:                strings.TrimSpace(run.TaskID),

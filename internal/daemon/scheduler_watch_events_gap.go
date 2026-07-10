@@ -2,14 +2,22 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const defaultWatchEventsGapScanPageSize = 100
+
+var errLoopWatchEventsGapWakeStoreRequired = errors.New(
+	"daemon: scheduler task store must support watch-events gap recovery",
+)
+
+var _ loopWatchEventsGapWakeStore = (*globaldb.GlobalDB)(nil)
 
 type loopWatchEventsGapWakeStore interface {
 	EnqueueWatchEventsGapWakesPage(
@@ -40,7 +48,7 @@ func (s schedulerTaskSource) enqueueWatchEventsGapWakes(
 	}
 	gapWakes, ok := s.store.(loopWatchEventsGapWakeStore)
 	if !ok {
-		return nil
+		return errLoopWatchEventsGapWakeStoreRequired
 	}
 	s.watchEventsGapScan.mu.Lock()
 	defer s.watchEventsGapScan.mu.Unlock()

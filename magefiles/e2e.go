@@ -20,20 +20,14 @@ func TestE2ERuntime() error {
 }
 
 // TestE2EWeb runs the daemon-served Playwright E2E lane for shipped browser workflows.
-
-// TestE2EWeb runs the daemon-served Playwright E2E lane for shipped browser workflows.
 func TestE2EWeb() error {
 	return runE2ELane(e2elane.LaneWeb)
 }
 
 // TestE2E runs the default PR-required runtime and browser E2E lanes.
-
-// TestE2E runs the default PR-required runtime and browser E2E lanes.
 func TestE2E() error {
 	return runE2ELane(e2elane.LaneCombined)
 }
-
-// TestE2ENightly runs the combined E2E lane plus credentialed nightly coverage.
 
 // TestE2ENightly runs the combined E2E lane plus credentialed nightly coverage.
 func TestE2ENightly() error {

@@ -14,9 +14,10 @@ import (
 )
 
 type networkWatchEventRow struct {
-	seq     int64
-	message store.NetworkConversationMessage
-	at      time.Time
+	seq         int64
+	message     store.NetworkConversationMessage
+	at          time.Time
+	workOutcome networkWorkOutcome
 }
 
 type networkWorkOutcome struct {
@@ -48,7 +49,8 @@ func (g *GlobalDB) readProjectedNetworkWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
-	rows, ok, err := g.readNetworkWatchEventRows(ctx, query, 0)
+	after := query.streams[looppkg.WatchEventsNetworkStream]
+	rows, ok, err := g.readNetworkWatchEventRows(ctx, query, after)
 	if err != nil {
 		return 0, err
 	}
@@ -57,7 +59,7 @@ func (g *GlobalDB) readProjectedNetworkWatchEventsCursor(
 	}
 	defer rows.Close()
 
-	var cursor int64
+	cursor := after
 	for rows.Next() {
 		row, scanErr := scanNetworkWatchEventRow(rows)
 		if scanErr != nil {
@@ -160,7 +162,10 @@ func (g *GlobalDB) readNetworkWatchEventRows(
 			COALESCE(ntl.intent, ''),
 			COALESCE(ntl.text, ''),
 			ntl.body_json,
-			ntl.timestamp
+			ntl.timestamp,
+			ntl.work_opened,
+			ntl.work_transitioned,
+			ntl.work_state
 		   FROM network_timeline_log ntl
 		  WHERE ntl.workspace_id = ?
 		    AND ntl.rowid > ?
@@ -177,9 +182,11 @@ func (g *GlobalDB) readNetworkWatchEventRows(
 
 func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
 	var (
-		event networkWatchEventRow
-		body  string
-		atRaw string
+		event            networkWatchEventRow
+		body             string
+		atRaw            string
+		workOpened       int
+		workTransitioned int
 	)
 	if err := row.Scan(
 		&event.seq,
@@ -202,6 +209,9 @@ func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
 		&event.message.Text,
 		&body,
 		&atRaw,
+		&workOpened,
+		&workTransitioned,
+		&event.workOutcome.state,
 	); err != nil {
 		return networkWatchEventRow{}, fmt.Errorf("store: scan network watch-event: %w", err)
 	}
@@ -212,6 +222,8 @@ func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
 	event.message.Body = json.RawMessage(body)
 	event.message.Timestamp = at
 	event.at = at
+	event.workOutcome.opened = workOpened != 0
+	event.workOutcome.transitioned = workTransitioned != 0
 	return event, nil
 }
 
@@ -244,24 +256,9 @@ func (g *GlobalDB) networkWatchEventsForRow(
 	kindSet := stringSet(kinds)
 	events := make([]looppkg.WatchEvent, 0, 5)
 	workState := ""
-	var workOutcome networkWorkOutcome
-	var workOutcomeLoaded bool
-	loadWorkOutcome := func() (networkWorkOutcome, error) {
-		if workOutcomeLoaded {
-			return workOutcome, nil
-		}
-		var err error
-		workOutcome, err = g.networkWorkOutcomeAtTimelineRow(ctx, row)
-		workOutcomeLoaded = true
-		return workOutcome, err
-	}
 	if _, ok := kindSet[string(hookspkg.HookNetworkMessagePersisted)]; ok {
 		if strings.TrimSpace(row.message.WorkID) != "" {
-			outcome, err := loadWorkOutcome()
-			if err != nil {
-				return nil, err
-			}
-			workState = outcome.state
+			workState = row.workOutcome.state
 		}
 		events = append(events, networkWatchEventFromRow(row, hookspkg.HookNetworkMessagePersisted, workState))
 	}
@@ -284,10 +281,7 @@ func (g *GlobalDB) networkWatchEventsForRow(
 		}
 	}
 	if networkWorkKindRequested(kindSet) {
-		outcome, err := loadWorkOutcome()
-		if err != nil {
-			return nil, err
-		}
+		outcome := row.workOutcome
 		if outcome.opened {
 			appendRequestedNetworkWorkEvent(&events, row, kindSet, hookspkg.HookNetworkWorkOpened, outcome.state)
 		}

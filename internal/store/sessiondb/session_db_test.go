@@ -376,6 +376,56 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply identical cursor bounds to full and metadata projections", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, "sess-read-only-projections", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		for _, turnID := range []string{"turn-1", "turn-2", "turn-3"} {
+			if err := writer.Record(ctx, SessionEvent{
+				TurnID:    turnID,
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"text":"persisted"}`,
+			}); err != nil {
+				t.Fatalf("Record(%s) error = %v", turnID, err)
+			}
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(writer) error = %v", err)
+		}
+
+		reader, err := OpenSessionDBReadOnly(ctx, "sess-read-only-projections", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reader.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("Close(reader) error = %v", closeErr)
+			}
+		})
+
+		query := EventQuery{BeforeSequence: 3, Limit: 1}
+		fullEvents, err := reader.Query(ctx, query)
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		metadata, err := reader.QueryEventMetadata(ctx, query)
+		if err != nil {
+			t.Fatalf("QueryEventMetadata() error = %v", err)
+		}
+		if got, want := eventSequences(fullEvents), []int64{2}; !equalInt64Slices(got, want) {
+			t.Fatalf("Query() sequences = %#v, want %#v", got, want)
+		}
+		if got, want := metadataEventSequences(metadata), []int64{2}; !equalInt64Slices(got, want) {
+			t.Fatalf("QueryEventMetadata() sequences = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should retry transient SQLite locks while opening", func(t *testing.T) {
 		t.Parallel()
 
@@ -1303,6 +1353,14 @@ func assertWALAutoCheckpoint(t *testing.T, db *sql.DB, want int) {
 }
 
 func eventSequences(events []SessionEvent) []int64 {
+	out := make([]int64, 0, len(events))
+	for _, event := range events {
+		out = append(out, event.Sequence)
+	}
+	return out
+}
+
+func metadataEventSequences(events []EventMetadata) []int64 {
 	out := make([]int64, 0, len(events))
 	for _, event := range events {
 		out = append(out, event.Sequence)

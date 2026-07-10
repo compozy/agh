@@ -275,7 +275,11 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 }
 
 func TestHookBindingResourceReconcileFiresTaskStatusChangedHookThroughDaemonBridge(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should deliver async config task status payload through daemon bridge", func(t *testing.T) {
+		t.Parallel()
+
 		capturePath := filepath.Join(t.TempDir(), "task-status-payload.json")
 		h := newHookBindingIntegrationHarness(t, nil)
 

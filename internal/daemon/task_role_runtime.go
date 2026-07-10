@@ -25,8 +25,8 @@ const (
 )
 
 const (
-	taskRoleRuntimeTaskIDKey      = "task_id"
-	taskRoleRuntimeWorkspaceIDKey = "workspace_id"
+	taskRoleRuntimeTaskIDKey      = daemonTaskIDKey
+	taskRoleRuntimeWorkspaceIDKey = daemonWorkspaceIDKey
 )
 
 const taskRoleActivationReasonRunEnqueued = "task_run_enqueued"

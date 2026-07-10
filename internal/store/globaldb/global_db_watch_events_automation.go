@@ -13,15 +13,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-const automationWatchEventsWorkspaceExpr = `COALESCE(
-	NULLIF(aj.workspace_id, ''),
-	NULLIF(at.workspace_id, ''),
-	NULLIF(lr.workspace_id, ''),
-	NULLIF(aj.loop_workspace_id, ''),
-	NULLIF(at.loop_workspace_id, ''),
-	''
-)`
-
 type automationWatchEventRow struct {
 	seq         int64
 	runID       string
@@ -52,13 +43,10 @@ func (g *GlobalDB) readAutomationWatchEventsCursor(
 	return scanWatchEventCursor(
 		g.db.QueryRowContext(
 			ctx,
-			`SELECT COALESCE(MAX(ar.rowid), 0)
-			   FROM automation_runs ar
-			   LEFT JOIN automation_jobs aj ON aj.id = ar.job_id
-			   LEFT JOIN automation_triggers at ON at.id = ar.trigger_id
-			   LEFT JOIN loop_runs lr ON lr.id = ar.loop_run_id
-			  WHERE `+automationWatchEventsWorkspaceExpr+` = ?
-			    AND ar.status IN (`+placeholders+`)`,
+			`SELECT COALESCE(MAX(awe.seq), 0)
+			   FROM automation_watch_events awe
+			  WHERE awe.workspace_id = ?
+			    AND awe.status IN (`+placeholders+`)`,
 			args...,
 		),
 		looppkg.WatchEventsAutomationStream,
@@ -83,27 +71,24 @@ func (g *GlobalDB) readAutomationWatchEvents(
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
-			ar.rowid,
-			ar.id,
-			COALESCE(ar.job_id, ''),
-			COALESCE(ar.trigger_id, ''),
-			COALESCE(ar.session_id, ''),
-			ar.status,
-			ar.attempt,
-			ar.started_at,
-			ar.ended_at,
-			COALESCE(ar.error, ''),
-			COALESCE(aj.agent_name, at.agent_name, ''),
-			`+automationWatchEventsWorkspaceExpr+`,
-			COALESCE(aj.retry, at.retry, '')
-		   FROM automation_runs ar
-		   LEFT JOIN automation_jobs aj ON aj.id = ar.job_id
-		   LEFT JOIN automation_triggers at ON at.id = ar.trigger_id
-		   LEFT JOIN loop_runs lr ON lr.id = ar.loop_run_id
-		  WHERE `+automationWatchEventsWorkspaceExpr+` = ?
-		    AND ar.rowid > ?
-		    AND ar.status IN (`+placeholders+`)
-		  ORDER BY ar.rowid ASC
+			awe.seq,
+			awe.run_id,
+			awe.job_id,
+			awe.trigger_id,
+			awe.session_id,
+			awe.status,
+			awe.attempt,
+			awe.started_at,
+			awe.ended_at,
+			awe.error,
+			awe.agent_name,
+			awe.workspace_id,
+			awe.retry_json
+		   FROM automation_watch_events awe
+		  WHERE awe.workspace_id = ?
+		    AND awe.seq > ?
+		    AND awe.status IN (`+placeholders+`)
+		  ORDER BY awe.seq ASC
 		  LIMIT ?`,
 		args...,
 	)
@@ -183,7 +168,11 @@ func automationWatchEventFromRow(row automationWatchEventRow) (looppkg.WatchEven
 		payload[watchEventsPayloadDurationMSKey] = durationMS
 	} else {
 		payload[watchEventsPayloadErrorKey] = strings.TrimSpace(row.errorText)
-		payload[watchEventsPayloadWillRetryKey] = automationWatchEventWillRetry(row)
+		willRetry, retryErr := automationWatchEventWillRetry(row)
+		if retryErr != nil {
+			return looppkg.WatchEvent{}, retryErr
+		}
+		payload[watchEventsPayloadWillRetryKey] = willRetry
 	}
 	return looppkg.WatchEvent{
 		Kind:        string(kind),
@@ -253,10 +242,10 @@ func automationWatchEventDurationMS(row automationWatchEventRow) (int64, error) 
 	return ended.UTC().Sub(started.UTC()).Milliseconds(), nil
 }
 
-func automationWatchEventWillRetry(row automationWatchEventRow) bool {
+func automationWatchEventWillRetry(row automationWatchEventRow) (bool, error) {
 	var retry modelpkg.RetryConfig
 	if err := decodeAutomationJSON(row.retryRaw, &retry, "automation.watch_events.retry"); err != nil {
-		return false
+		return false, err
 	}
-	return retry.Strategy == modelpkg.RetryStrategyBackoff && row.attempt <= retry.MaxRetries
+	return retry.Strategy == modelpkg.RetryStrategyBackoff && row.attempt <= retry.MaxRetries, nil
 }

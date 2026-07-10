@@ -367,34 +367,14 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 	if ctx == nil {
 		return nil, errors.New("store: query events context is required")
 	}
-	if err := query.Validate(); err != nil {
+	sqlQuery, args, err := buildEventQuerySQL(sessionEventColumns, query)
+	if err != nil {
 		return nil, err
 	}
 	s.acceptMu.RLock()
 	defer s.acceptMu.RUnlock()
 	if s.state.Load() != sessionStateOpen {
 		return nil, store.ErrClosed
-	}
-
-	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, content, timestamp FROM events`
-	where, args := store.BuildClauses(
-		store.StringClause("type", query.Type),
-		store.StringClause("agent_name", query.AgentName),
-		store.StringClause("turn_id", query.TurnID),
-		store.TimeClause("timestamp", ">=", query.Since),
-		store.Int64Clause("sequence", ">", query.AfterSequence),
-		store.Int64Clause("sequence", "<", query.BeforeSequence),
-	)
-	baseQuery = store.AppendWhere(baseQuery, where)
-
-	sqlQuery := baseQuery
-	if query.Limit > 0 {
-		sqlQuery = `SELECT id, sequence, turn_id, type, agent_name, content, timestamp
-			FROM (` + baseQuery + ` ORDER BY sequence DESC LIMIT ?) AS recent_events
-			ORDER BY sequence ASC`
-		args = append(args, query.Limit)
-	} else {
-		sqlQuery += sessionEventsOrderASCClause
 	}
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)

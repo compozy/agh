@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -94,6 +97,41 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 		if got, want := roles.runIDs(), []string{"run-plain-worker"}; !slices.Equal(got, want) {
 			t.Fatalf("role observer run IDs = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should report a missing activation target for an eligible worker", func(t *testing.T) {
+		t.Parallel()
+
+		store := newActivationDispatchStore(
+			activationDispatchRun("run-loop-worker", taskpkg.RunKindWorker, "loop-run-1"),
+		)
+		roles := &activationDispatchObserver{}
+		var logs bytes.Buffer
+		dispatcher, err := newTaskRunActivationDispatcher(
+			store,
+			roles,
+			nil,
+			slog.New(slog.NewTextHandler(&logs, nil)),
+		)
+		if err != nil {
+			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
+		}
+
+		dispatcher.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{RunID: "run-loop-worker"},
+		})
+
+		output := logs.String()
+		for _, want := range []string{
+			"daemon: task run activation target is unavailable",
+			"run_id=run-loop-worker",
+			"run_kind=worker",
+			"loop_worker=true",
+		} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("activation log = %q, want substring %q", output, want)
+			}
 		}
 	})
 }
