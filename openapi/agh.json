@@ -46349,6 +46349,7 @@
                                 "task.unblocked",
                                 "task.needs_attention",
                                 "task.recovered",
+                                "task.status_changed",
                                 "task.run.enqueued",
                                 "task.run.pre_claim",
                                 "task.run.post_claim",
@@ -77030,6 +77031,7 @@
                                                                     "task.unblocked",
                                                                     "task.needs_attention",
                                                                     "task.recovered",
+                                                                    "task.status_changed",
                                                                     "task.run.enqueued",
                                                                     "task.run.pre_claim",
                                                                     "task.run.post_claim",
@@ -77583,6 +77585,7 @@
                                                                     "task.unblocked",
                                                                     "task.needs_attention",
                                                                     "task.recovered",
+                                                                    "task.status_changed",
                                                                     "task.run.enqueued",
                                                                     "task.run.pre_claim",
                                                                     "task.run.post_claim",
@@ -78987,6 +78990,7 @@
                                                     "task.unblocked",
                                                     "task.needs_attention",
                                                     "task.recovered",
+                                                    "task.status_changed",
                                                     "task.run.enqueued",
                                                     "task.run.pre_claim",
                                                     "task.run.post_claim",
@@ -138328,6 +138332,7 @@
                                 "task.unblocked",
                                 "task.needs_attention",
                                 "task.recovered",
+                                "task.status_changed",
                                 "task.run.enqueued",
                                 "task.run.pre_claim",
                                 "task.run.post_claim",
@@ -139642,6 +139647,64 @@
                                                 "tokens_used",
                                                 "workspace_id"
                                             ],
+                                            "type": "object"
+                                        },
+                                        "watch_events": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "cursors": {
+                                                    "additionalProperties": {
+                                                        "format": "int64",
+                                                        "type": "integer"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "last_wake_at": {
+                                                    "format": "date-time",
+                                                    "nullable": true,
+                                                    "type": "string"
+                                                },
+                                                "subscriptions": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "filter": {
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "enum": [
+                                                                    "task.status_changed",
+                                                                    "task.blocked",
+                                                                    "task.unblocked",
+                                                                    "task.needs_attention",
+                                                                    "task.recovered",
+                                                                    "task.run.completed",
+                                                                    "task.run.failed",
+                                                                    "loop.terminal",
+                                                                    "loop.node.terminal",
+                                                                    "automation.run.completed",
+                                                                    "automation.run.failed",
+                                                                    "network.message.persisted",
+                                                                    "network.thread.opened",
+                                                                    "network.direct_room.opened",
+                                                                    "network.work.opened",
+                                                                    "network.work.transitioned",
+                                                                    "network.work.closed",
+                                                                    "coordinator.spawned",
+                                                                    "coordinator.decision",
+                                                                    "coordinator.stopped",
+                                                                    "coordinator.failed",
+                                                                    "event.post_record"
+                                                                ],
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["kind"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["subscriptions"],
                                             "type": "object"
                                         }
                                     },

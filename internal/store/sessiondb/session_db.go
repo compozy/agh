@@ -24,6 +24,7 @@ const (
 	sessionVacuumMinRatio          = 4
 	sessionWALAutoCheckpointPragma = "wal_autocheckpoint(0)"
 	sessionPassiveCheckpointEvery  = 128
+	sessionEventsOrderASCClause    = " ORDER BY sequence ASC"
 )
 
 var sessionSchemaStatements = []string{
@@ -393,7 +394,7 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 			ORDER BY sequence ASC`
 		args = append(args, query.Limit)
 	} else {
-		sqlQuery += " ORDER BY sequence ASC"
+		sqlQuery += sessionEventsOrderASCClause
 	}
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)

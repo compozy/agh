@@ -780,6 +780,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_sessions_workspace_state_index",
 			checksum: "2026-07-07-add-sessions-workspace-state-index",
 		},
+		{
+			version:  62,
+			name:     "add_task_events_type_seq_index",
+			checksum: "2026-07-08-add-task-events-type-seq-index",
+		},
 	}
 }
 

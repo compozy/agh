@@ -7,6 +7,8 @@ export default defineConfig({
     name: "ui",
     environment: "jsdom",
     globals: true,
+    // Bounded pool: turbo runs workspace test tasks concurrently (L-030).
+    maxWorkers: "50%",
     include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/dist/**", "tests/visual/*.spec.ts"],
     setupFiles: ["./src/test-setup.ts"],

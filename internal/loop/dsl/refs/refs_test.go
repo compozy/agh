@@ -24,6 +24,11 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 			namespace: namespace(false),
 		},
 		{
+			name:      "Should accept toJson as a curated JSON alias",
+			template:  `{{ toJson .nodes.load.output.tasks }}`,
+			namespace: namespace(false),
+		},
+		{
 			name:      "Should reject unknown input references",
 			template:  `{{ .inputs.missing }}`,
 			namespace: namespace(false),
@@ -137,6 +142,17 @@ func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {
 			namespace: namespace(false),
 		},
 		{
+			name:      "Should accept event paths when event is allowed",
+			expr:      `event.task_id == inputs.slug && event.payload.to_status == "blocked"`,
+			namespace: namespaceWithEvent(false),
+		},
+		{
+			name:      "Should reject event paths outside watch-events filters",
+			expr:      `event.task_id == "task-1"`,
+			namespace: namespace(false),
+			wantCode:  refs.CodeUnknownReference,
+		},
+		{
 			name:      "Should reject CEL indexed output fields that do not resolve",
 			expr:      `nodes.gate.output.blocking_issues[0].missing == "issue-1"`,
 			namespace: namespace(false),
@@ -207,7 +223,7 @@ func TestTemplateShouldExecuteCuratedFunctionsAndStructuredActions(t *testing.T)
 
 		compiled, err := refs.CompileTemplate(
 			"exec",
-			`{{ if .inputs.slug }}{{ default "fallback" .inputs.empty }}{{ end }}|{{ join "," .inputs.tags }}|{{ range .nodes.load.output.tasks }}{{ .title }}{{ end }}|{{ with .nodes.load.output.tasks }}{{ json . }}{{ end }}`,
+			`{{ if .inputs.slug }}{{ default "fallback" .inputs.empty }}{{ end }}|{{ join "," .inputs.tags }}|{{ range .nodes.load.output.tasks }}{{ .title }}{{ end }}|{{ with .nodes.load.output.tasks }}{{ json . }}|{{ toJson . }}{{ end }}`,
 			namespace(false),
 		)
 		if err != nil {
@@ -232,7 +248,7 @@ func TestTemplateShouldExecuteCuratedFunctionsAndStructuredActions(t *testing.T)
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
 		}
-		want := `fallback|one,two|Task A|[{"title":"Task A"}]`
+		want := `fallback|one,two|Task A|[{"title":"Task A"}]|[{"title":"Task A"}]`
 		if out.String() != want {
 			t.Fatalf("Execute() = %q, want %q", out.String(), want)
 		}
@@ -311,6 +327,17 @@ func TestNamespaceShouldValidateRootsAndSchemaShapes(t *testing.T) {
 				Nodes:        namespace(false).Nodes,
 				AllowTrigger: true,
 			},
+		},
+		{
+			name:      "Should reject event outside watch-events filters",
+			path:      []string{"event", "payload", "to_status"},
+			namespace: namespace(false),
+			wantCode:  refs.CodeUnknownReference,
+		},
+		{
+			name:      "Should accept event when allowed",
+			path:      []string{"event", "payload", "to_status"},
+			namespace: namespaceWithEvent(false),
 		},
 		{
 			name:      "Should reject generation children",
@@ -413,6 +440,12 @@ func namespace(allowFanout bool) refs.Namespace {
 		},
 		AllowFanout: allowFanout,
 	}
+}
+
+func namespaceWithEvent(allowFanout bool) refs.Namespace {
+	ns := namespace(allowFanout)
+	ns.AllowEvent = true
+	return ns
 }
 
 func requireRefCode(t *testing.T, err error, code string) {

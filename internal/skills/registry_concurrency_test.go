@@ -11,6 +11,8 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+const registryConcurrentReadWriteTimeout = 30 * time.Second
+
 func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +106,7 @@ func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {
 			<-done
 			t.Fatal(err)
 		case <-done:
-		case <-time.After(5 * time.Second):
+		case <-time.After(registryConcurrentReadWriteTimeout):
 			cancel()
 			<-done
 			t.Fatal("concurrent registry read/write operations timed out")

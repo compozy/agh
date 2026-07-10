@@ -72,6 +72,11 @@ export interface CriteriaFieldSpec extends FieldCommon {
   path: FieldPath;
 }
 
+export interface EventsFieldSpec extends FieldCommon {
+  type: "events";
+  path: FieldPath;
+}
+
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
@@ -86,4 +91,5 @@ export type FieldSpec =
   | StaticFieldSpec
   | HintFieldSpec
   | CriteriaFieldSpec
+  | EventsFieldSpec
   | FoldFieldSpec;

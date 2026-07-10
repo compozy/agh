@@ -60,6 +60,13 @@ Seed material: `_seeds/qa-e2e-playbook.md` §10 (first-automation backlog) and `
 - Spec sketch: cold-open + deep-link sessions of increasing size asserting one loading phase and a first-paint budget; separately, hold an idle stream behind a buffering proxy and assert keep-alive comment frames arrive ≤ heartbeat with no drop. True end state: open feels instant at every size and idle streams survive proxy buffering.
 - Status: proposed
 
+## AB-009: Watch-events real-daemon browser seed harness
+- Source: J-16 / LP-040, LP-043, LP-044 / task-11 E2E-runtime + task-12 E2E-web
+- Why automate: high-value new source class blocked from live-daemon browser E2E — the same gap class as AB-001. Task-11 ships the runtime lane (park → matching event → wake → downstream) and task-12 ships codec/component fixtures + `agh-ui-screenshot`, but `web/e2e/fixtures/*` has no seed that parks a real watch-events run and commits a matching durable event so Playwright can drive editor → park read-model → wake.
+- Suggested layer: E2E browser (`make test-e2e-web`) + a daemon-side seed that arms a `task.status_changed`/`task.run.completed` subscription and commits a matching event.
+- Spec sketch: seed a loop with an `events:` node parked in `watching`; drive catalog → editor (author the subscription) → run → run-detail (assert the park read-model: subscriptions/cursors/last_wake_at, absent block renders nothing); commit a matching event → assert the wake and downstream round render; commit a non-matching/cross-workspace event → assert no wake. True end state: the browser view matches the seeded park/wake without an optimistic-UI lie.
+- Status: proposed
+
 ## AB-004: All-11-status observation seeds
 - Source: J-03, J-07, J-08 / LP-012, LP-026, LP-030, LP-038 / `_tests.md` E2E-runtime-10, E2E-web-9, Web-unit-5/8
 - Why automate: the truthful-outcome guarantee (no coercion) needs seeds that actually produce each of the 11 states — incl. `no-op`, `blocked` (ADR-022), `queued` (ADR-021), and `paused` — which today's daemon rarely emits richly. Pins the "never render a terminal coercion" invariant.

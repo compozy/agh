@@ -5,19 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/session/inputqueue"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const (
@@ -38,130 +32,9 @@ var (
 	ErrInvalidPermissionDecision = errors.New("session: invalid permission decision")
 	// ErrInvalidRuntimeOverride reports that a session runtime override is invalid.
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
+	// ErrValidation reports structurally invalid session creation input.
+	ErrValidation = errors.New("session: validation failed")
 )
-
-// CreateOpts defines the inputs required to create a new session.
-type CreateOpts struct {
-	AgentName        string
-	Provider         string
-	Model            string
-	ReasoningEffort  string
-	SandboxRef       string
-	DisableSandbox   bool
-	Permissions      aghconfig.PermissionMode
-	Name             string
-	Workspace        string
-	WorkspacePath    string
-	Channel          string
-	PromptOverlay    string
-	Type             Type
-	Lineage          *store.SessionLineage
-	ParentSoulDigest string
-}
-
-// StoreOpener opens the per-session events store for a session directory.
-type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
-
-// IDGenerator returns unique identifiers for sessions and prompt turns.
-type IDGenerator func() string
-
-// HostedMCPLauncher mints and releases session-bound hosted MCP launch records.
-type HostedMCPLauncher interface {
-	Launch(ctx context.Context, req HostedMCPLaunchRequest) (aghconfig.MCPServer, error)
-	CancelLaunch(sessionID string)
-	ReleaseSession(sessionID string)
-}
-
-// HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
-type HostedMCPLaunchRequest struct {
-	SessionID   string
-	WorkspaceID string
-	AgentName   string
-}
-
-// ProviderSecretResolver resolves provider-bound secret refs at launch time.
-type ProviderSecretResolver interface {
-	ResolveRef(ctx context.Context, ref string) (string, error)
-}
-
-// Option customizes the session manager.
-type Option func(*Manager)
-
-// Manager owns active session lifecycle and runtime orchestration.
-type Manager struct {
-	mu           sync.RWMutex
-	sessions     map[string]*Session
-	pending      map[string]struct{}
-	finalizing   map[string]chan struct{}
-	promptDrains map[chan struct{}]struct{}
-	spawnMu      sync.Mutex
-
-	syntheticMu           sync.Mutex
-	syntheticQueues       map[string][]queuedSyntheticPrompt
-	syntheticDispatching  map[string]bool
-	soulLocksMu           sync.Mutex
-	soulLocks             map[string]chan struct{}
-	sessionHealthHookMu   sync.Mutex
-	sessionHealthHookLast map[string]time.Time
-	transcriptCacheMu     sync.Mutex
-	transcriptCache       map[string]*transcriptCacheEntry
-	streamEventsMu        sync.Mutex
-	streamEvents          *sessionEventBroadcaster
-
-	logger                       *slog.Logger
-	driver                       AgentDriver
-	notifier                     Notifier
-	networkPeers                 NetworkPeerLifecycle
-	turnEndNotifier              TurnEndNotifier
-	inputAugmenter               PromptInputAugmenter
-	inputQueue                   *inputqueue.Service
-	inputQueueStore              store.SessionInputQueueStore
-	startupOverlay               StartupPromptOverlay
-	hooks                        HookSet
-	sandbox                      *sandbox.Registry
-	agentResolver                AgentResolver
-	providerSecrets              ProviderSecretResolver
-	skillRegistry                SkillRegistry
-	mcpResolver                  MCPResolver
-	hostedMCP                    HostedMCPLauncher
-	soulStore                    SoulSnapshotStore
-	soulRunChecker               SoulRunActivityChecker
-	sessionHealthStore           HealthStore
-	sessionCatalog               store.SessionCatalog
-	transcriptEpochStore         store.SessionTranscriptEpochStore
-	ledgerMaterializer           LedgerMaterializer
-	homePaths                    aghconfig.HomePaths
-	workspace                    workspacepkg.RuntimeResolver
-	openStore, openQueryStore    StoreOpener
-	queryStoreExplicit           bool
-	queryStoreRuntime            *queryStoreRuntime
-	assembler                    PromptAssembler
-	supervision                  aghconfig.SessionSupervisionConfig
-	busyInput                    aghconfig.SessionBusyInputConfig
-	sessionHealthStaleAfter      time.Duration
-	lifecycleCtx                 context.Context
-	now                          func() time.Time
-	newSessionID                 IDGenerator
-	newSandboxID                 IDGenerator
-	newTurnID                    IDGenerator
-	promptBufSize                int
-	soulRefreshTimeout           time.Duration
-	sessionHealthHookMinInterval time.Duration
-}
-
-// WithSessionSupervision overrides runtime activity supervision settings.
-func WithSessionSupervision(config aghconfig.SessionSupervisionConfig) Option {
-	return func(manager *Manager) {
-		manager.supervision = config
-	}
-}
-
-// WithSessionBusyInputConfig overrides busy-input queue behavior.
-func WithSessionBusyInputConfig(config aghconfig.SessionBusyInputConfig) Option {
-	return func(manager *Manager) {
-		manager.busyInput = config.Normalize()
-	}
-}
 
 // NewManager constructs a session manager with sensible defaults.
 func NewManager(opts ...Option) (*Manager, error) {
@@ -221,97 +94,6 @@ func NewManager(opts ...Option) (*Manager, error) {
 	}
 
 	return manager, nil
-}
-
-func (m *Manager) applyRuntimeDefaults() error {
-	if m.logger == nil {
-		m.logger = slog.Default()
-	}
-	if m.driver == nil {
-		return errors.New("session: agent driver is required")
-	}
-	if m.openStore == nil {
-		return errors.New("session: store opener is required")
-	}
-	m.ensureQueryStoreRuntime()
-	if m.providerSecrets == nil {
-		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
-	}
-	if m.lifecycleCtx == nil {
-		m.lifecycleCtx = context.Background()
-	}
-	if m.now == nil {
-		m.now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	if m.newSessionID == nil {
-		m.newSessionID = func() string {
-			return newID("sess")
-		}
-	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = func() string {
-			return newID("env")
-		}
-	}
-	if m.newTurnID == nil {
-		m.newTurnID = func() string {
-			return newID("turn")
-		}
-	}
-	if m.promptBufSize <= 0 {
-		m.promptBufSize = defaultPromptBufferSize
-	}
-	if m.soulLocks == nil {
-		m.soulLocks = make(map[string]chan struct{})
-	}
-	if m.sessionHealthHookLast == nil {
-		m.sessionHealthHookLast = make(map[string]time.Time)
-	}
-	if m.soulRefreshTimeout <= 0 {
-		m.soulRefreshTimeout = defaultLifecycleTimeout
-	}
-	if m.supervision == (aghconfig.SessionSupervisionConfig{}) {
-		m.supervision = aghconfig.DefaultSessionSupervisionConfig()
-	}
-	if err := m.supervision.Validate(); err != nil {
-		return fmt.Errorf("session: %w", err)
-	}
-	if err := m.applyInputQueueDefaults(); err != nil {
-		return err
-	}
-	if m.sessionHealthStaleAfter <= 0 {
-		m.sessionHealthStaleAfter = aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
-	}
-	if m.sessionHealthHookMinInterval <= 0 {
-		m.sessionHealthHookMinInterval = aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
-	}
-	return nil
-}
-
-func (m *Manager) applyInputQueueDefaults() error {
-	m.busyInput = m.busyInput.Normalize()
-	if err := m.busyInput.Validate(); err != nil {
-		return fmt.Errorf("session: %w", err)
-	}
-	if m.inputQueueStore == nil {
-		return nil
-	}
-	queue, err := inputqueue.New(
-		m.inputQueueStore,
-		inputqueue.Config{
-			QueueCap:     m.busyInput.QueueCap,
-			MaxTextBytes: m.busyInput.MaxTextBytes,
-		},
-		inputqueue.WithClock(m.now),
-		inputqueue.WithIDGenerator(func() string { return newID("inq") }),
-	)
-	if err != nil {
-		return fmt.Errorf("session: input queue: %w", err)
-	}
-	m.inputQueue = queue
-	return nil
 }
 
 // Get returns the active in-memory session by id.

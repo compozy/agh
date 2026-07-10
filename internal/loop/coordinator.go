@@ -61,6 +61,7 @@ type CoordinatorRunner struct {
 	logger             *slog.Logger
 	now                func() time.Time
 	watchPoller        WatchPoller
+	watchEventsLedger  WatchEventsLedger
 	watchSilenceWindow time.Duration
 }
 
@@ -228,6 +229,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		r.store,
 		fanOutWidth,
 		r.watchRuntime(),
+		r.watchEventsRuntime(),
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err

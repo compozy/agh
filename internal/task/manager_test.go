@@ -579,7 +579,7 @@ func (s *inMemoryManagerStore) DeleteTask(_ context.Context, id string) error {
 	return nil
 }
 
-func (s *inMemoryManagerStore) UpdateTask(_ context.Context, taskRecord Task) error {
+func (s *inMemoryManagerStore) UpdateTask(_ context.Context, taskRecord Task, _ ActorContext) error {
 	if _, exists := s.tasks[taskRecord.ID]; !exists {
 		return ErrTaskNotFound
 	}
@@ -777,6 +777,31 @@ func (s *inMemoryManagerStore) CreateTaskBlock(
 	if err != nil {
 		return BlockMutationResult{}, err
 	}
+	if err := s.appendTaskEventForTest(
+		result.Block.TaskID,
+		"",
+		string(hookspkg.HookTaskBlocked),
+		mutation.Actor,
+		map[string]any{"block_id": result.Block.ID},
+		result.Block.CreatedAt,
+	); err != nil {
+		return BlockMutationResult{}, err
+	}
+	if result.EscalatedTask != nil {
+		needsAttention := result.EscalatedTask.NeedsAttention
+		if needsAttention != nil {
+			if err := s.appendTaskEventForTest(
+				result.EscalatedTask.ID,
+				"",
+				taskWatchEventNeedsAttention,
+				mutation.Actor,
+				map[string]any{"reason": needsAttention.Reason, "block_id": result.Block.ID},
+				needsAttention.At,
+			); err != nil {
+				return BlockMutationResult{}, err
+			}
+		}
+	}
 	return result, nil
 }
 
@@ -886,6 +911,16 @@ func (s *inMemoryManagerStore) ClearTaskBlock(
 	}
 	block.ClearNote = strings.TrimSpace(mutation.ClearNote)
 	taskBlocks[blockID] = cloneTaskBlock(block)
+	if err := s.appendTaskEventForTest(
+		block.TaskID,
+		"",
+		string(hookspkg.HookTaskUnblocked),
+		mutation.Actor,
+		map[string]any{"block_id": block.ID},
+		block.ClearedAt,
+	); err != nil {
+		return TaskBlock{}, err
+	}
 	return cloneTaskBlock(block), nil
 }
 
@@ -908,6 +943,20 @@ func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 	taskRecord.NeedsAttention = nil
 	taskRecord.UpdatedAt = mutation.ClearedAt.UTC()
 	s.tasks[trimmedTaskID] = cloneTask(taskRecord)
+	if err := s.appendTaskEventForTest(
+		taskRecord.ID,
+		"",
+		taskWatchEventRecovered,
+		ActorContext{
+			Actor:     mutation.ClearedBy,
+			Origin:    mutation.Origin,
+			Authority: Authority{Write: true},
+		},
+		map[string]any{"at": mutation.ClearedAt.UTC()},
+		mutation.ClearedAt.UTC(),
+	); err != nil {
+		return Task{}, err
+	}
 	return cloneTask(taskRecord), nil
 }
 
@@ -972,6 +1021,31 @@ func (s *inMemoryManagerStore) BlockTaskAndReleaseRun(
 	if strings.TrimSpace(taskRecord.CurrentRunID) == updated.ID {
 		taskRecord.CurrentRunID = ""
 		s.tasks[taskRecord.ID] = cloneTask(taskRecord)
+	}
+	if err := s.appendTaskEventForTest(
+		blockResult.Block.TaskID,
+		updated.ID,
+		string(hookspkg.HookTaskBlocked),
+		mutation.Actor,
+		map[string]any{"block_id": blockResult.Block.ID},
+		blockResult.Block.CreatedAt,
+	); err != nil {
+		return BlockTaskAndReleaseRunResult{}, err
+	}
+	if blockResult.EscalatedTask != nil {
+		needsAttention := blockResult.EscalatedTask.NeedsAttention
+		if needsAttention != nil {
+			if err := s.appendTaskEventForTest(
+				blockResult.EscalatedTask.ID,
+				"",
+				taskWatchEventNeedsAttention,
+				mutation.Actor,
+				map[string]any{"reason": needsAttention.Reason, "block_id": blockResult.Block.ID},
+				needsAttention.At,
+			); err != nil {
+				return BlockTaskAndReleaseRunResult{}, err
+			}
+		}
 	}
 	return BlockTaskAndReleaseRunResult{
 		Block:          cloneTaskBlock(blockResult.Block),
@@ -1406,6 +1480,16 @@ func (s *inMemoryManagerStore) CompleteRunLease(
 			delete(s.blockRecurrences, key)
 		}
 	}
+	if err := s.appendTaskEventForTest(
+		run.TaskID,
+		run.ID,
+		taskWatchEventRunCompleted,
+		normalized.Actor,
+		map[string]any{"status": run.Status},
+		normalized.Now,
+	); err != nil {
+		return Run{}, err
+	}
 	return cloneTaskRun(run), nil
 }
 
@@ -1456,6 +1540,16 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
+	if err := s.appendTaskEventForTest(
+		run.TaskID,
+		run.ID,
+		taskWatchEventRunFailed,
+		normalized.Actor,
+		map[string]any{"status": run.Status, "error": run.Error},
+		normalized.Now,
+	); err != nil {
+		return Run{}, err
+	}
 	return cloneTaskRun(run), nil
 }
 
@@ -1882,6 +1976,33 @@ func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) e
 		return s.events[i].Timestamp.After(s.events[j].Timestamp)
 	})
 	return nil
+}
+
+func (s *inMemoryManagerStore) appendTaskEventForTest(
+	taskID string,
+	runID string,
+	eventType string,
+	actor ActorContext,
+	payload any,
+	timestamp time.Time,
+) error {
+	rawPayload, err := marshalTaskEventPayload(payload)
+	if err != nil {
+		return err
+	}
+	if timestamp.IsZero() {
+		timestamp = time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+	}
+	return s.CreateTaskEvent(context.Background(), Event{
+		ID:        fmt.Sprintf("evt-%d", s.nextEventSequence+1),
+		TaskID:    strings.TrimSpace(taskID),
+		RunID:     strings.TrimSpace(runID),
+		EventType: strings.TrimSpace(eventType),
+		Actor:     actor.Actor,
+		Origin:    actor.Origin,
+		Payload:   rawPayload,
+		Timestamp: timestamp.UTC(),
+	})
 }
 
 func (s *inMemoryManagerStore) ListTaskEvents(
@@ -2908,6 +3029,48 @@ func TestManagerTaskStreamUsesLatestEventSequenceSeed(t *testing.T) {
 			t.Fatalf("event.Sequence = %d, want %d", event.Sequence, view.Task.LatestEventSeq+1)
 		}
 	})
+}
+
+func TestManagerRecordTaskEventRejectsTransactionalWatchKinds(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+	taskRecord, err := manager.CreateTask(ctx, CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Watch kind guard",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	for _, eventType := range []string{
+		taskWatchEventBlocked,
+		taskWatchEventUnblocked,
+		taskWatchEventNeedsAttention,
+		taskWatchEventRecovered,
+		taskWatchEventStatusChanged,
+		taskWatchEventRunCompleted,
+		taskWatchEventRunFailed,
+	} {
+		t.Run("Should reject "+eventType, func(t *testing.T) {
+			t.Parallel()
+
+			err := manager.recordTaskEvent(
+				ctx,
+				taskRecord.ID,
+				"",
+				eventType,
+				actor,
+				map[string]string{"source": eventType},
+			)
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("recordTaskEvent(%q) error = %v, want ErrValidation", eventType, err)
+			}
+		})
+	}
 }
 
 func TestManagerDeleteTask(t *testing.T) {
@@ -4463,7 +4626,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			},
 		}
 
-		reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID)
+		reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID, actor)
 		if err != nil {
 			t.Fatalf("reconcileTaskCascade() error = %v", err)
 		}
@@ -4504,7 +4667,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 				},
 			}
 
-			reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID)
+			reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID, actor)
 			if err != nil {
 				t.Fatalf("reconcileTaskCascade() error = %v", err)
 			}
@@ -4573,7 +4736,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			blockedRecord.PausedReason = "operator hold"
 			store.tasks[target.ID] = blockedRecord
 
-			first, err := manager.reconcileTaskCascade(context.Background(), target.ID)
+			first, err := manager.reconcileTaskCascade(context.Background(), target.ID, actor)
 			if err != nil {
 				t.Fatalf("reconcileTaskCascade(first) error = %v", err)
 			}
@@ -4585,7 +4748,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			inputBlock.ClearedAt = time.Date(2026, 4, 14, 14, 53, 0, 0, time.UTC)
 			inputBlock.ClearedBy = ActorIdentity{Kind: ActorKindHuman, Ref: "operator"}
 			store.blocks[target.ID]["block-input"] = inputBlock
-			partiallyCleared, err := manager.reconcileTaskCascade(context.Background(), target.ID)
+			partiallyCleared, err := manager.reconcileTaskCascade(context.Background(), target.ID, actor)
 			if err != nil {
 				t.Fatalf("reconcileTaskCascade(partial) error = %v", err)
 			}
@@ -4606,7 +4769,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			readyRecord.PausedReason = ""
 			store.tasks[target.ID] = readyRecord
 
-			ready, err := manager.reconcileTaskCascade(context.Background(), target.ID)
+			ready, err := manager.reconcileTaskCascade(context.Background(), target.ID, actor)
 			if err != nil {
 				t.Fatalf("reconcileTaskCascade(ready) error = %v", err)
 			}
@@ -5075,7 +5238,7 @@ func TestManagerTaskBlockBreakerEscalatesAtLimit(t *testing.T) {
 			if needsAttentionHooks != 1 {
 				t.Fatalf("needs_attention hooks = %d, want 1", needsAttentionHooks)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events = %d, want %d", got, want)
 			}
 
@@ -5101,7 +5264,7 @@ func TestManagerTaskBlockBreakerEscalatesAtLimit(t *testing.T) {
 					needsAttentionHooks,
 				)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events after fourth block = %d, want %d", got, want)
 			}
 		},
@@ -5162,7 +5325,7 @@ func TestManagerTaskBlockBreakerReEscalatesAfterRecover(t *testing.T) {
 			if needsAttentionHooks != 1 {
 				t.Fatalf("needs_attention hooks before recover = %d, want 1", needsAttentionHooks)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 1; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 1; got != want {
 				t.Fatalf("task.needs_attention events before recover = %d, want %d", got, want)
 			}
 
@@ -5198,7 +5361,7 @@ func TestManagerTaskBlockBreakerReEscalatesAfterRecover(t *testing.T) {
 					needsAttentionHooks,
 				)
 			}
-			if got, want := countTaskEventsByType(store.events, taskEventNeedsAttention), 2; got != want {
+			if got, want := countTaskEventsByType(store.events, taskWatchEventNeedsAttention), 2; got != want {
 				t.Fatalf(
 					"task.needs_attention events after recover re-block = %d, want %d",
 					got,
@@ -5412,7 +5575,7 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 		if recoveredHooks != 1 {
 			t.Fatalf("task.recovered hooks = %d, want 1", recoveredHooks)
 		}
-		if got, want := countTaskEventsByType(store.events, taskEventRecovered), 1; got != want {
+		if got, want := countTaskEventsByType(store.events, taskWatchEventRecovered), 1; got != want {
 			t.Fatalf("task.recovered events = %d, want %d", got, want)
 		}
 		if got, want := len(store.runs), 1; got != want {
@@ -5465,7 +5628,7 @@ func TestManagerStickyTaskBlockNeverAutoClears(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BlockTask() error = %v", err)
 	}
-	reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID)
+	reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID, actor)
 	if err != nil {
 		t.Fatalf("reconcileTaskCascade() error = %v", err)
 	}
@@ -5691,7 +5854,7 @@ func TestManagerReconcilePersistsNeedsAttentionStatus(t *testing.T) {
 	}
 	store.tasks[taskRecord.ID] = escalated
 
-	reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID)
+	reconciled, err := manager.reconcileTaskCascade(context.Background(), taskRecord.ID, actor)
 	if err != nil {
 		t.Fatalf("reconcileTaskCascade() error = %v", err)
 	}
@@ -7416,6 +7579,79 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 	})
 }
 
+func TestManagerCoordinatorTerminalValidatorShouldFailClosed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject terminal status when validator is unset", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithStore(newInMemoryManagerStore()))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		plan := CoordinatorCompletionPlan{
+			Terminal: &CoordinatorTerminal{Status: "done"},
+		}
+
+		err = manager.validateCoordinatorPlan(plan, "coordinator_completion.plan")
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("validateCoordinatorPlan() error = %v, want ErrValidation", err)
+		}
+		if !strings.Contains(err.Error(), "must be accepted by the coordinator owner") {
+			t.Fatalf("validateCoordinatorPlan() error = %v, want owner validator message", err)
+		}
+	})
+}
+
+func TestManagerCoordinatorTerminalValidatorShouldUseInjectedVocabulary(t *testing.T) {
+	t.Parallel()
+
+	manager, err := NewManager(
+		WithStore(newInMemoryManagerStore()),
+		WithCoordinatorTerminalStatusValidator(func(status string) bool {
+			switch strings.TrimSpace(status) {
+			case "watching", "needs-approval":
+				return true
+			default:
+				return false
+			}
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		status  string
+		wantErr bool
+	}{
+		{name: "Should accept watching", status: "watching"},
+		{name: "Should accept needs approval", status: "needs-approval"},
+		{name: "Should reject status outside injected set", status: "done", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			plan := CoordinatorCompletionPlan{
+				Terminal: &CoordinatorTerminal{Status: tc.status},
+			}
+			err := manager.validateCoordinatorPlan(plan, "coordinator_completion.plan")
+			if tc.wantErr {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("validateCoordinatorPlan() error = %v, want ErrValidation", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateCoordinatorPlan() error = %v", err)
+			}
+		})
+	}
+}
+
 func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testing.T) {
 	t.Helper()
 
@@ -7465,6 +7701,8 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 		WithSessionExecutor(sessionExecutor),
 		WithCoordinatorRunner(runner),
 		WithGenerationStateFinalizer(noopLoopFinalizer{}),
+		WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
+		WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
 		WithManagerNow(func() time.Time { return now }),
 	)
 	if err != nil {
@@ -7557,6 +7795,8 @@ func TestManagerStartRunShouldRejectCoordinatorClaimTokenMismatch(t *testing.T) 
 			WithSessionExecutor(&forbiddenSessionExecutor{}),
 			WithCoordinatorRunner(runner),
 			WithGenerationStateFinalizer(noopLoopFinalizer{}),
+			WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
+			WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
 			WithManagerNow(func() time.Time { return now }),
 		)
 		if err != nil {
@@ -9966,6 +10206,8 @@ func newTaskManagerForTestWithOptions(t *testing.T, store Store, extraOpts ...Op
 	counter := 0
 	options := []Option{
 		WithStore(store),
+		WithCoordinatorTerminalStatusValidator(testCoordinatorTerminalStatusValidator),
+		WithCoordinatorTerminalHookStatusValidator(testCoordinatorTerminalHookStatusValidator),
 		WithManagerNow(func() time.Time { return now }),
 		WithIDGenerator(func(prefix string) string {
 			counter++
@@ -9978,6 +10220,39 @@ func newTaskManagerForTestWithOptions(t *testing.T, store Store, extraOpts ...Op
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager
+}
+
+func testCoordinatorTerminalStatusValidator(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "queued",
+		"running",
+		"watching",
+		"needs-approval",
+		"paused",
+		"done",
+		"no-op",
+		"blocked",
+		"failed",
+		"exhausted",
+		"stalled":
+		return true
+	default:
+		return false
+	}
+}
+
+func testCoordinatorTerminalHookStatusValidator(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "done",
+		"no-op",
+		"blocked",
+		"failed",
+		"exhausted",
+		"stalled":
+		return true
+	default:
+		return false
+	}
 }
 
 func setupStaleDependencyReadScenario(

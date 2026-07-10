@@ -29,6 +29,32 @@ func TestToolsetCatalogExpansion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should match concrete tools through nested wildcard toolsets", func(t *testing.T) {
+		t.Parallel()
+
+		catalog, err := NewToolsetCatalog(
+			Toolset{ID: "agh__tasks", Tools: []string{"agh__task_*"}},
+			Toolset{ID: "agh__worker", Toolsets: []ToolsetID{"agh__tasks"}},
+		)
+		if err != nil {
+			t.Fatalf("NewToolsetCatalog() error = %v", err)
+		}
+		matched, err := catalog.Contains("agh__task_read", []ToolsetID{"agh__worker"})
+		if err != nil {
+			t.Fatalf("ToolsetCatalog.Contains(task) error = %v", err)
+		}
+		if !matched {
+			t.Fatal("ToolsetCatalog.Contains(task) = false, want true")
+		}
+		matched, err = catalog.Contains("agh__session_list", []ToolsetID{"agh__worker"})
+		if err != nil {
+			t.Fatalf("ToolsetCatalog.Contains(session) error = %v", err)
+		}
+		if matched {
+			t.Fatal("ToolsetCatalog.Contains(session) = true, want false")
+		}
+	})
+
 	t.Run("Should reject recursive toolset cycles", func(t *testing.T) {
 		t.Parallel()
 
@@ -44,6 +70,8 @@ func TestToolsetCatalogExpansion(t *testing.T) {
 		if !strings.Contains(err.Error(), "agh__alpha -> agh__beta -> agh__alpha") {
 			t.Fatalf("ToolsetCatalog.Expand() error = %v, want deterministic cycle path", err)
 		}
+		_, err = catalog.Contains("agh__task_read", []ToolsetID{"agh__alpha"})
+		requireReason(t, err, ReasonToolsetCycle)
 	})
 
 	t.Run("Should reject unknown nested toolsets", func(t *testing.T) {

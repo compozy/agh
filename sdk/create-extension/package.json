@@ -12,7 +12,7 @@
     ],
     "scripts": {
         "build": "rm -rf dist && tsc -p tsconfig.json",
-        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "typecheck": "node ../../node_modules/@typescript/native/bin/tsc -p tsconfig.json --noEmit",
         "test": "vitest run --config vitest.config.ts"
     },
     "engines": {

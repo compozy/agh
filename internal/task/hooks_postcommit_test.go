@@ -98,7 +98,7 @@ func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) 
 		if got, want := completed.Status, TaskRunStatusCompleted; got != want {
 			t.Fatalf("completed.Status = %q, want %q", got, want)
 		}
-		assertTaskRunEventExists(t, store, taskRecord.ID, claimed.Run.ID, taskEventRunCompleted)
+		assertTaskRunEventExists(t, store, taskRecord.ID, claimed.Run.ID, taskWatchEventRunCompleted)
 	})
 }
 

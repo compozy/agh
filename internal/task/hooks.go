@@ -24,6 +24,10 @@ type RunHookDispatcher interface {
 		context.Context,
 		hookspkg.TaskRecoveredPayload,
 	) (hookspkg.TaskRecoveredPayload, error)
+	DispatchTaskStatusChanged(
+		context.Context,
+		hookspkg.TaskStatusChangedPayload,
+	) (hookspkg.TaskStatusChangedPayload, error)
 	DispatchTaskRunEnqueued(
 		context.Context,
 		hookspkg.TaskRunEnqueuedPayload,
@@ -98,6 +102,13 @@ func (noopTaskRunHooks) DispatchTaskRecovered(
 	_ context.Context,
 	payload hookspkg.TaskRecoveredPayload,
 ) (hookspkg.TaskRecoveredPayload, error) {
+	return payload, nil
+}
+
+func (noopTaskRunHooks) DispatchTaskStatusChanged(
+	_ context.Context,
+	payload hookspkg.TaskStatusChangedPayload,
+) (hookspkg.TaskStatusChangedPayload, error) {
 	return payload, nil
 }
 

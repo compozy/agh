@@ -137,7 +137,7 @@ func (s *settingsRuntimeSurface) GeneralRuntimeStatus(
 ) (settingspkg.DaemonRuntimeStatus, error) {
 	status := settingspkg.DaemonRuntimeStatus{
 		Available: s.sessions != nil && s.observer != nil,
-		Status:    "running",
+		Status:    daemonRuntimeStatusRunning,
 		Socket:    strings.TrimSpace(s.config.Daemon.Socket),
 		HTTPHost:  strings.TrimSpace(s.config.HTTP.Host),
 		HTTPPort:  s.config.HTTP.Port,

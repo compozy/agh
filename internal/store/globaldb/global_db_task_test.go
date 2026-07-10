@@ -257,6 +257,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_events_type",
 		"uq_task_events_event_seq",
 		"idx_task_events_task_seq",
+		"idx_task_events_type_seq",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_idempotency",
 		"idx_task_run_idempotency_run",
@@ -556,7 +557,7 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	child.Owner = ownershipForTest(taskpkg.OwnerKindAgentSession, "sess-1")
 	child.Metadata = json.RawMessage(`{"kind":"updated"}`)
 	child.UpdatedAt = child.UpdatedAt.Add(2 * time.Minute)
-	if err := globalDB.UpdateTask(testutil.Context(t), child); err != nil {
+	if err := globalDB.UpdateTask(testutil.Context(t), child, coordinatorActorContextForTest()); err != nil {
 		t.Fatalf("UpdateTask(child) error = %v", err)
 	}
 	gotChild, err = globalDB.GetTask(testutil.Context(t), child.ID)
@@ -650,7 +651,7 @@ func TestDeleteTaskTransactionStoreDelegatesTaskStateReadsAndMutations(t *testin
 
 	child.Title = "Updated by transaction store"
 	child.UpdatedAt = child.UpdatedAt.Add(2 * time.Minute)
-	if err := txStore.UpdateTask(ctx, child); err != nil {
+	if err := txStore.UpdateTask(ctx, child, coordinatorActorContextForTest()); err != nil {
 		t.Fatalf("txStore.UpdateTask() error = %v", err)
 	}
 	updatedChild, err := globalDB.GetTask(ctx, child.ID)
@@ -742,7 +743,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 
 		record.WorkspaceID = workspaceID
 		record.UpdatedAt = record.UpdatedAt.Add(time.Minute)
-		err := globalDB.UpdateTask(testutil.Context(t), record)
+		err := globalDB.UpdateTask(testutil.Context(t), record, coordinatorActorContextForTest())
 		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
 			t.Fatalf("UpdateTask(global with workspace) error = %v, want ErrInvalidScopeBinding", err)
 		}
@@ -760,7 +761,7 @@ func TestGlobalDBCreateAndUpdateTaskRejectInvalidScopeBindings(t *testing.T) {
 
 		record.WorkspaceID = ""
 		record.UpdatedAt = record.UpdatedAt.Add(time.Minute)
-		err := globalDB.UpdateTask(testutil.Context(t), record)
+		err := globalDB.UpdateTask(testutil.Context(t), record, coordinatorActorContextForTest())
 		if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
 			t.Fatalf("UpdateTask(workspace without workspace_id) error = %v, want ErrInvalidScopeBinding", err)
 		}
@@ -990,6 +991,7 @@ func TestGlobalDBTaskBlocksCRUD(t *testing.T) {
 		openBlock := taskBlockRecordForTest("block-open", taskRecord.ID, taskpkg.BlockKindNeedsInput, now)
 		openBlock.WorkspaceID = "caller-supplied-workspace-is-ignored"
 		createdOpenResult, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor:           coordinatorActorContextForTest(),
 			Block:           openBlock,
 			RecurrenceLimit: 2,
 		})
@@ -1011,6 +1013,7 @@ func TestGlobalDBTaskBlocksCRUD(t *testing.T) {
 			now.Add(time.Minute),
 		)
 		createdClearResult, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor:           coordinatorActorContextForTest(),
 			Block:           blockToClear,
 			RecurrenceLimit: 2,
 		})
@@ -1025,6 +1028,7 @@ func TestGlobalDBTaskBlocksCRUD(t *testing.T) {
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:resolver"},
 			ClearedAt: clearAt,
 			ClearNote: "resolved by operator",
+			Actor:     operatorActorContextForTest("user:resolver"),
 		})
 		if err != nil {
 			t.Fatalf("ClearTaskBlock(first) error = %v", err)
@@ -1044,6 +1048,7 @@ func TestGlobalDBTaskBlocksCRUD(t *testing.T) {
 			BlockID:   createdClear.ID,
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:resolver"},
 			ClearedAt: clearAt.Add(time.Minute),
+			Actor:     operatorActorContextForTest("user:resolver"),
 		}); !errors.Is(err, taskpkg.ErrConflict) {
 			t.Fatalf("ClearTaskBlock(second) error = %v, want %v", err, taskpkg.ErrConflict)
 		}
@@ -1216,6 +1221,7 @@ func TestGlobalDBTaskNeedsAttentionAndWakeCreator(t *testing.T) {
 
 		markedAt := time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
 		marked, err := globalDB.MarkTaskNeedsAttention(ctx, taskpkg.NeedsAttentionMutation{
+			Origin:   coordinatorActorContextForTest().Origin,
 			TaskID:   taskRecord.ID,
 			Reason:   "creator input required",
 			Actor:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
@@ -1258,6 +1264,7 @@ func TestGlobalDBTaskNeedsAttentionAndWakeCreator(t *testing.T) {
 
 		clearedAt := markedAt.Add(2 * time.Minute)
 		cleared, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			Origin:    operatorActorContextForTest("operator").Origin,
 			TaskID:    taskRecord.ID,
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
 			ClearedAt: clearedAt,
@@ -1275,6 +1282,7 @@ func TestGlobalDBTaskNeedsAttentionAndWakeCreator(t *testing.T) {
 			t.Fatalf("UpdatedAt after attention clear = %v, want %v", cleared.UpdatedAt, clearedAt)
 		}
 		_, err = globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
+			Origin:    operatorActorContextForTest("operator").Origin,
 			TaskID:    taskRecord.ID,
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
 			ClearedAt: clearedAt.Add(time.Minute),
@@ -1318,6 +1326,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 		)
 
 		result, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+			Actor: coordinatorActorContextForTest(),
 			Block: taskpkg.TaskBlock{
 				ID:      "block-release-success",
 				TaskID:  taskRecord.ID,
@@ -1401,6 +1410,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 		)
 
 		result, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+			Actor: coordinatorActorContextForTest(),
 			Block: taskpkg.TaskBlock{
 				ID:     "block-global-release",
 				TaskID: taskRecord.ID,
@@ -1446,6 +1456,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 			BlockID:   result.Block.ID,
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:operator"},
 			ClearedAt: now.Add(time.Minute),
+			Actor:     operatorActorContextForTest("user:operator"),
 		})
 		if err != nil {
 			t.Fatalf("ClearTaskBlock(global) error = %v", err)
@@ -1509,6 +1520,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 				defer wg.Done()
 				<-start
 				blockResult, blockErr = globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+					Actor: coordinatorActorContextForTest(),
 					Block: taskpkg.TaskBlock{
 						ID:      blockID,
 						TaskID:  taskRecord.ID,
@@ -1613,6 +1625,7 @@ func TestGlobalDBBlockTaskAndReleaseRun(t *testing.T) {
 		)
 
 		_, err := globalDB.BlockTaskAndReleaseRun(ctx, taskpkg.BlockTaskAndReleaseRunMutation{
+			Actor: coordinatorActorContextForTest(),
 			Block: taskpkg.TaskBlock{
 				ID:     "block-token-mismatch",
 				TaskID: taskRecord.ID,
@@ -3231,7 +3244,14 @@ func assertTaskBlockingSchema(t *testing.T, db *sql.DB) {
 	assertTableSQLContains(t, db, "task_block_recurrences", "PRIMARY KEY (task_id, kind)")
 	assertTableHasColumn(t, db, "task_runs", "metadata_json")
 	assertTableHasColumn(t, db, "task_events", "event_seq")
-	assertIndexesPresent(t, db, "task_events", "uq_task_events_event_seq", "idx_task_events_task_seq")
+	assertIndexesPresent(
+		t,
+		db,
+		"task_events",
+		"uq_task_events_event_seq",
+		"idx_task_events_task_seq",
+		"idx_task_events_type_seq",
+	)
 }
 
 func assertTaskBlockingMigrationCarriedRawColumns(

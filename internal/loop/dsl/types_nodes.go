@@ -76,12 +76,14 @@ const (
 	SourceFileImport SourceKind = "file-import"
 	// SourceWatchSource polls an extension watch source.
 	SourceWatchSource SourceKind = "watch-source"
+	// SourceWatchEvents subscribes to committed internal AGH events.
+	SourceWatchEvents SourceKind = "watch-events"
 )
 
 // IsKnownSourceKind validates the closed source enum.
 func IsKnownSourceKind(kind string) bool {
 	switch SourceKind(kind) {
-	case SourceInput, SourceFileImport, SourceWatchSource:
+	case SourceInput, SourceFileImport, SourceWatchSource, SourceWatchEvents:
 		return true
 	default:
 		return false

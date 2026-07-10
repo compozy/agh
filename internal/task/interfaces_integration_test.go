@@ -16,7 +16,7 @@ func (fakeStore) CreateTask(context.Context, taskpkg.Task) error { return nil }
 
 func (fakeStore) DeleteTask(context.Context, string) error { return nil }
 
-func (fakeStore) UpdateTask(context.Context, taskpkg.Task) error { return nil }
+func (fakeStore) UpdateTask(context.Context, taskpkg.Task, taskpkg.ActorContext) error { return nil }
 
 func (fakeStore) GetTask(context.Context, string) (taskpkg.Task, error) { return taskpkg.Task{}, nil }
 

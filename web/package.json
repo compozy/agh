@@ -7,8 +7,8 @@
         "codegen-check": "bun run --cwd .. codegen-check",
         "dev": "bun run codegen && bun run dev:raw",
         "dev:raw": "vite --port 3000",
-        "build": "bun run build:raw",
-        "build:raw": "vite build && tsc --noEmit",
+        "build": "bun run typecheck:raw && bun run build:raw",
+        "build:raw": "vite build",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
         "preview": "vite preview",
@@ -26,7 +26,7 @@
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",
         "typecheck": "bun run typecheck:raw",
-        "typecheck:raw": "tsc --noEmit"
+        "typecheck:raw": "node ../node_modules/@typescript/native/bin/tsc --noEmit"
     },
     "dependencies": {
         "@agh/ui": "workspace:*",

@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 83
+const expectedHookEventCount = 84
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -57,6 +57,7 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookNetworkWorkTransitioned:      {},
 		HookNetworkWorkClosed:            {},
 		HookSessionMessagePersisted:      {},
+		HookTaskStatusChanged:            {},
 		HookLoopStarted:                  {},
 		HookLoopGenerationPost:           {},
 		HookLoopGatePost:                 {},
@@ -161,44 +162,48 @@ func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
 func TestAutonomyHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
 	t.Parallel()
 
-	expected := map[HookEvent]HookEventFamily{
-		HookCoordinatorPreSpawn:   HookEventFamilyCoordinator,
-		HookCoordinatorSpawned:    HookEventFamilyCoordinator,
-		HookCoordinatorDecision:   HookEventFamilyCoordinator,
-		HookCoordinatorStopped:    HookEventFamilyCoordinator,
-		HookCoordinatorFailed:     HookEventFamilyCoordinator,
-		HookTaskBlocked:           HookEventFamilyTask,
-		HookTaskUnblocked:         HookEventFamilyTask,
-		HookTaskNeedsAttention:    HookEventFamilyTask,
-		HookTaskRecovered:         HookEventFamilyTask,
-		HookTaskRunEnqueued:       HookEventFamilyTaskRun,
-		HookTaskRunPreClaim:       HookEventFamilyTaskRun,
-		HookTaskRunPostClaim:      HookEventFamilyTaskRun,
-		HookTaskRunLeaseExtended:  HookEventFamilyTaskRun,
-		HookTaskRunLeaseExpired:   HookEventFamilyTaskRun,
-		HookTaskRunLeaseRecovered: HookEventFamilyTaskRun,
-		HookTaskRunReleased:       HookEventFamilyTaskRun,
-		HookTaskRunCompleted:      HookEventFamilyTaskRun,
-		HookTaskRunFailed:         HookEventFamilyTaskRun,
-		HookSpawnPreCreate:        HookEventFamilySpawn,
-		HookSpawnCreated:          HookEventFamilySpawn,
-		HookSpawnParentStopped:    HookEventFamilySpawn,
-		HookSpawnTTLExpired:       HookEventFamilySpawn,
-		HookSpawnReaped:           HookEventFamilySpawn,
+	expected := map[HookEvent]struct {
+		family       HookEventFamily
+		syncEligible bool
+	}{
+		HookCoordinatorPreSpawn:   {HookEventFamilyCoordinator, true},
+		HookCoordinatorSpawned:    {HookEventFamilyCoordinator, true},
+		HookCoordinatorDecision:   {HookEventFamilyCoordinator, true},
+		HookCoordinatorStopped:    {HookEventFamilyCoordinator, true},
+		HookCoordinatorFailed:     {HookEventFamilyCoordinator, true},
+		HookTaskBlocked:           {HookEventFamilyTask, true},
+		HookTaskUnblocked:         {HookEventFamilyTask, true},
+		HookTaskNeedsAttention:    {HookEventFamilyTask, true},
+		HookTaskRecovered:         {HookEventFamilyTask, true},
+		HookTaskStatusChanged:     {HookEventFamilyTask, false},
+		HookTaskRunEnqueued:       {HookEventFamilyTaskRun, true},
+		HookTaskRunPreClaim:       {HookEventFamilyTaskRun, true},
+		HookTaskRunPostClaim:      {HookEventFamilyTaskRun, true},
+		HookTaskRunLeaseExtended:  {HookEventFamilyTaskRun, true},
+		HookTaskRunLeaseExpired:   {HookEventFamilyTaskRun, true},
+		HookTaskRunLeaseRecovered: {HookEventFamilyTaskRun, true},
+		HookTaskRunReleased:       {HookEventFamilyTaskRun, true},
+		HookTaskRunCompleted:      {HookEventFamilyTaskRun, true},
+		HookTaskRunFailed:         {HookEventFamilyTaskRun, true},
+		HookSpawnPreCreate:        {HookEventFamilySpawn, true},
+		HookSpawnCreated:          {HookEventFamilySpawn, true},
+		HookSpawnParentStopped:    {HookEventFamilySpawn, true},
+		HookSpawnTTLExpired:       {HookEventFamilySpawn, true},
+		HookSpawnReaped:           {HookEventFamilySpawn, true},
 	}
 	seen := make(map[HookEvent]struct{}, len(AllHookEvents()))
 	for _, event := range AllHookEvents() {
 		seen[event] = struct{}{}
 	}
-	for event, family := range expected {
+	for event, want := range expected {
 		if _, ok := seen[event]; !ok {
 			t.Fatalf("AllHookEvents() missing %q", event)
 		}
-		if got := event.Family(); got != family {
-			t.Fatalf("%s.Family() = %q, want %q", event, got, family)
+		if got := event.Family(); got != want.family {
+			t.Fatalf("%s.Family() = %q, want %q", event, got, want.family)
 		}
-		if !event.SyncEligible() {
-			t.Fatalf("%s.SyncEligible() = false, want true", event)
+		if got := event.SyncEligible(); got != want.syncEligible {
+			t.Fatalf("%s.SyncEligible() = %v, want %v", event, got, want.syncEligible)
 		}
 	}
 }

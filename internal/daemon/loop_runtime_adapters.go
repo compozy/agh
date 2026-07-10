@@ -29,6 +29,7 @@ type loopPromptSessionManager interface {
 type loopActionSessionBinder struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
+	policyGate          *loopSessionPolicyGate
 }
 
 var _ looppkg.ActionSessionBinder = (*loopActionSessionBinder)(nil)
@@ -58,6 +59,9 @@ func (b *loopActionSessionBinder) BindActionSession(
 		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
 	} else {
 		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action workspace is required")
+	}
+	if err := b.policyGate.apply(ctx, &opts, agent, req.AllowedTools); err != nil {
+		return looppkg.ActionSessionBinding{}, err
 	}
 	created, err := b.sessions.Create(ctx, opts)
 	if err != nil {
@@ -106,6 +110,7 @@ func (b *loopActionSessionBinder) CancelActionSession(
 type loopGateJudgeRunner struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
+	policyGate          *loopSessionPolicyGate
 }
 
 var _ gate.JudgeRunner = (*loopGateJudgeRunner)(nil)
@@ -132,6 +137,9 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 		opts.WorkspacePath = strings.TrimSpace(r.globalWorkspacePath)
 	} else {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge workspace is required")
+	}
+	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
+		return gate.JudgeResponse{}, err
 	}
 	created, err := r.sessions.Create(ctx, opts)
 	if err != nil {

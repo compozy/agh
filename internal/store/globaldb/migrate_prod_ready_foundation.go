@@ -10,7 +10,10 @@ import (
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 )
 
-const eventSummaryProviderColumn = "provider"
+const (
+	eventSummaryProviderColumn = "provider"
+	taskPausedColumn           = "paused"
+)
 
 const eventSummaryProviderBackfillSQL = "UPDATE event_summaries SET provider = COALESCE(" +
 	"(SELECT provider FROM sessions WHERE sessions.id = event_summaries.session_id), '') " +
@@ -181,7 +184,7 @@ func migratePauseState(ctx context.Context, tx *sql.Tx) error {
 	}
 	if err := addMissingMigrationColumns(ctx, tx, "tasks", []migrationColumnSpec{
 		{
-			name: "paused",
+			name: taskPausedColumn,
 			sql:  `ALTER TABLE tasks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1))`,
 		},
 		{

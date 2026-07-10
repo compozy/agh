@@ -18,8 +18,9 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - <critical>NEVER discard errors with `_` in production or tests — handle every error or write a justification.</critical>
 - <critical>NEVER commit `ai-docs/` or `.tmp/` — they are local tracking artifacts.</critical>
 - <critical>**No god files — one responsibility per file, hard cap 500 lines for production source (tests excluded).** Never mix domain types + registry/wiring + multiple implementations + generic helpers in a single file: `internal/loop/action.go` landing at 1380 lines (4 executors + registry + schema validation + JSON extraction + template rendering) is the canonical violation. Decide the file split BEFORE writing: contract/types, registry/options, one implementation per file, cross-cutting helpers in their own named file. Creating a file over the cap — or growing one past it — is a blocking architecture failure: split it in the same change; "it's all related" is never a justification. Files already over the cap must not grow — extract into a new file instead of appending.</critical>
+- <critical>**Context-budget docs stay lean.** `CLAUDE.md` files, `SKILL.md`s, and agent docs load into system prompts — every line costs context on every turn. Before writing or editing one, apply `.agents/skills/writing-great-skills/SKILL.md`: one source of truth per meaning, no no-op lines the model already obeys, prune sediment in the same edit. Growing one of these files with restated or redundant prose is a blocking failure — concision is correctness here.</critical>
 - **Test placement before test creation** (skill: `consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
-- **Subagents for exploration** (keeps your context clean): single-file lookup → `Explore`; multi-area research needing written artifacts → `agent-exploration`; competitor/`.resources/` research → `cy-research-competitors`.
+- **Subagents for exploration** (keeps your context clean): single-file lookup → `Explore`; multi-area research needing written artifacts → `agent-exploration`.
 - **Subagents are read-only by default.** The paired agent authors every code change; subagent output is evidence. A subagent writes/edits/commits only when the parent prompt explicitly delegates it.
 
 ## Workflow Rules
@@ -31,7 +32,8 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
 - **Worktree isolation is mandatory for parallel QA** — unique `AGH_HOME`, daemon ports, and `tmux-bridge` sockets. Default home/port is forbidden when concurrency is signaled.
 - **Deterministic QA bootstrap for local release/scenario QA** — start with `agh-qa-bootstrap`; fresh lab per pass; reuse a `bootstrap-manifest.json` only when continuing the same active QA loop. QA state lives in the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, dated reports); the lab holds only run-scratch evidence indexed by path.
-- **QA tracker impact flag before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/state.csv`: new behavior → add `untested` rows; changed behavior → reset the affected rows' `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, don't retest** — retests belong to the next QA cycle (`untested` rows ARE its scope).
+- <critical>**QA process teardown is mandatory (L-029).** Every QA lab or isolated runtime envelope ends with `eval "$TEARDOWN_COMMAND"` (from the bootstrap manifest) or `make qa-reap` — on every terminal path (pass/fail/blocked/abort). Files may stay for forensics; processes never do. Completing a task while lab daemons, tmux servers, dev servers, browsers, or watchers are still alive is a blocking failure; cite `teardown.json` (`"clean": true`) as evidence. Register long-lived lab processes at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` on spawn.</critical>
+- **QA tracker impact flag before completing any task** — if the diff changes user-visible behavior (UI, CLI verb, API route, config key, copy), flag it in `docs/qa/state.csv`: new behavior → add `untested` rows; changed behavior → reset the affected rows' `qa_status` to `untested`. Pure refactors declare "no user-visible change". **Flag, don't retest** — retests belong to the next QA cycle (`untested` rows ARE its scope). One worktree owns `docs/qa/` tracker edits and `BUG-NNNN` minting per cycle — parallel branches editing `state.csv` or minting ids collide.
 - **Provider-home policy matches the provider contract in local QA.** Bound-secret/brokered creds use `PROVIDER_HOME`/`PROVIDER_CODEX_HOME` from the bootstrap manifest. Exception: `native_cli` + `home_policy = operator` preserves the operator `HOME`/native login unless a scenario tests isolated provider-home.
 - **Isolated Web QA exports `AGH_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
 - **Never parallelize config writes against one isolated QA home** — `agh config set` and peers run sequentially per provider/runtime home.
@@ -78,44 +80,42 @@ AGH Impact Audit:
 
 <critical>**ALWAYS** activate skills **before** writing code.</critical> Match task domain → activate all required skills. Multiple domains → activate multiple. No skipping "because it's small".
 
-| Domain                                | Required Skills                                                                          | Conditional Skills                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                                                |
-| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                                           |
-| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                                           |
-| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                                            |
-| Writing Go tests                      | `agh-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs)                     |
-| Test placement / consolidation        | `consolidate-test-suites`                                                                | `testing-boss`                                            |
-| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       |                                                           |
-| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                                           |
-| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                                           |
-| Task completion                       | `cy-final-verify`                                                                        |                                                           |
-| Lessons learned                       | `lesson-learned`                                                                         |                                                           |
-| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`                            |
-| Concurrency / races                   | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                                     |
-| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                                    |
-| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                                           |
-| Security review                       | `security-review`                                                                        | `ubs`                                                     |
-| Creative / new features               | `cy-idea-factory`                                                                        | `council`                                                 |
-| Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                                         |
-| Design spec (pre-PRD, UI surfaces)    | `cy-create-design-spec` + `agh-design` + `ui-craft`                                      | `impeccable` + `agh-ui-screenshot`                        |
-| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                                         |
-| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review` + `cy-research-competitors`         |
-| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                                           |
-| Research → executable issue backlog   | `cy-research-issues`                                                                     | `cy-research-competitors` + `consolidate-test-suites`     |
-| Competitor research                   | `cy-research-competitors`                                                                | `context7`                                                |
-| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                                      |
-| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                                           |
-| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`                                  |
-| Git rebase / conflicts                | `git-rebase`                                                                             |                                                           |
-| External docs lookup                  | `context7`                                                                               | `exa-web-search-free`                                     |
-| Parallel multi-area research          | `agent-exploration`                                                                      | `cy-research-competitors` (for `.resources/<repo>/` only) |
-| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                                        |
-| Documentation (internal)              | `documentation-writer`                                                                   |                                                           |
-| Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                                               |
-| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                                           |
-| UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                                       |
-| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                                           |
+| Domain                                | Required Skills                                                                          | Conditional Skills                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| Go / Runtime                          | `agh-code-guidelines` + `golang-pro`                                                     | `context7`                            |
+| Config / Logging                      | `agh-code-guidelines` + `golang-pro`                                                     |                                       |
+| TUI / CLI Bubbletea                   | `bubbletea` + `agh-code-guidelines` + `golang-pro`                                       |                                       |
+| Bug fix                               | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |
+| Writing Go tests                      | `agh-test-conventions` + `testing-boss` + `golang-pro`                                   | `vitest` (only for test tooling docs) |
+| Test placement / consolidation        | `consolidate-test-suites`                                                                | `testing-boss`                        |
+| Cleanup / failure paths               | `agh-cleanup-failure-paths` + `agh-code-guidelines` + `golang-pro`                       |                                       |
+| Schema / migration changes            | `agh-schema-migration` + `golang-pro`                                                    |                                       |
+| Contract / OpenAPI changes            | `agh-contract-codegen-coship`                                                            |                                       |
+| Task completion                       | `deslop` + `cy-final-verify`                                                             |                                       |
+| Lessons learned                       | `lesson-learned`                                                                         |                                       |
+| Architecture audit                    | `architectural-analysis`                                                                 | `refactoring-analysis` + `ubs`        |
+| Concurrency / races                   | `golang-pro` + `systematic-debugging`                                                    | `agh-code-guidelines`                 |
+| AGH Network (`internal/network` only) | `nats` + `agh-code-guidelines` + `golang-pro`                                            | `systematic-debugging`                |
+| Performance / hot paths               | `extreme-software-optimization` + `golang-pro`                                           |                                       |
+| Security review                       | `security-review`                                                                        | `ubs`                                 |
+| Creative / new features               | `cy-idea-factory`                                                                        | `council`                             |
+| Council debate (high-impact)          | `council`                                                                                | `cy-idea-factory`                     |
+| PRD creation                          | `cy-spec-preflight` + `cy-create-prd`                                                    | `cy-idea-factory`                     |
+| TechSpec creation                     | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review`                 |
+| Task generation                       | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
+| Research → executable issue backlog   | `cy-research-issues`                                                                     | `consolidate-test-suites`             |
+| Execute a PRD task                    | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
+| Review round / fixes                  | `cy-review-round` + `cy-fix-reviews`                                                     |                                       |
+| Release / scenario QA                 | `agh-qa-bootstrap` + `real-scenario-qa` + `qa-report` + `qa-execution`                   | `agh-worktree-isolation`              |
+| Git rebase / conflicts                | `git-rebase`                                                                             |                                       |
+| External docs lookup                  | `context7`                                                                               | `exa-web-search-free`                 |
+| Parallel multi-area research          | `agent-exploration`                                                                      |                                       |
+| Diagrams (spec / ADR)                 | `architecture-diagram`                                                                   | `mermaid-diagrams`                    |
+| Documentation (internal)              | `documentation-writer`                                                                   |                                       |
+| Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
+| Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                       |
+| UI / Design (any surface)             | `agh-design` + `ui-craft`                                                                | `agh-ui-screenshot`                   |
+| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                       |
 
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 
@@ -124,6 +124,8 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 `make verify` is the only gate that exercises the entire monorepo — `codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries`.
 
 **Run the full `make verify` once, as the completion/PR gate — not per micro-task, not twice per commit.** A full run fans one `-race` test binary per package across every core and takes minutes; running it on every small change needlessly saturates the machine. During iteration, gate only the lane you touched; reserve `make verify` for when the task is done. This scopes the dev loop _before_ the final gate — `cy-final-verify` still requires the full pipeline (no subset) at completion.
+
+**`make verify` and the E2E lanes self-serialize across worktrees (L-030).** These gates are machine-sized by design; two at once collapse the machine and both stall. They share a machine-wide lock (`~/Library/Caches/agh-dev/verify.lock`): a second concurrent run queues with explicit "waiting for pid N (worktree X)" messages instead of silently thrashing. Never kill a queued run assuming it hung — read its output. `AGH_VERIFY_LOCK=off` bypasses (CI-style single-checkout machines only). Scoped lanes stay lock-free but bounded: unit `go test -p` caps at half the cores (`AGH_GO_TEST_P` overrides) and vitest pools cap at 50%.
 
 - **Go change** → `make lint` + `go test -race ./internal/<pkg>/...` (scoped path, never `./...`).
 - **Web / `packages/ui` / site change** → `bunx turbo run lint typecheck test --filter=./web` (or `./packages/ui`, `./packages/site`).
@@ -136,6 +138,7 @@ make lint                                  # strict golangci-lint (zero issues)
 make test / test-integration               # Go unit (-race) / +integration tag
 make test-e2e-runtime / test-e2e-web       # daemon-side (Go harness) / browser-side (Playwright)
 make build / codegen                       # compile binary / regen openapi + TS types + DESIGN.md tokens
+make worktree-new SLUG=<slug>              # sibling worktree + bootstrap (BRANCH=/BASE=/BUILD=1/E2E=1; rm via scripts/worktree.sh rm)
 ```
 
 Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`.
@@ -144,7 +147,7 @@ Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) ar
 
 - Format `<type>: <description>`; prefixes `feat|fix|refactor|docs|test|build`. Never `chore`/`style`/`ci`. Use `build:` for tooling/CI. PR-merged commits append `(#NN)`.
 - **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
-- Run `make verify` **once** before a commit batch. Don't re-run after committing — the pre-commit hook only runs `lint-staged` + skeeper spec-sync, so a passing pre-commit verify stays valid. Re-run only if the hook modified tracked source.
+- Run `make verify` **once** before a commit batch. Don't re-run after committing — the pre-commit hook only runs `lint-staged` (husky's `core.hooksPath` bypasses skeeper's managed hooks; sidecar sync is manual via `skeeper sync`), so a passing pre-commit verify stays valid. Re-run only if the hook modified tracked source.
 - If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
 
 ## Code Search Hierarchy

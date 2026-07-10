@@ -11,7 +11,8 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-// ReconcileLoopCoordinatorsOnBoot re-enqueues missing coordinators for running loops only.
+// ReconcileLoopCoordinatorsOnBoot re-enqueues missing coordinators and parked
+// watch-events runs with durable cursor gaps.
 func (g *GlobalDB) ReconcileLoopCoordinatorsOnBoot(
 	ctx context.Context,
 	origin taskpkg.Origin,
@@ -50,6 +51,11 @@ func (g *GlobalDB) ReconcileLoopCoordinatorsOnBoot(
 		},
 	); err != nil {
 		return nil, err
+	}
+	watchEventsRuns, err := g.EnqueueWatchEventsGapWakes(ctx, normalizedOrigin, now)
+	enqueued = append(enqueued, watchEventsRuns...)
+	if err != nil {
+		return enqueued, err
 	}
 	return enqueued, nil
 }

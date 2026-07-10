@@ -56,3 +56,30 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "generation_started",
   "needs_approval",
 ] as const;
+
+export const LOOP_WATCH_EVENT_KINDS = [
+  "task.status_changed",
+  "task.blocked",
+  "task.unblocked",
+  "task.needs_attention",
+  "task.recovered",
+  "task.run.completed",
+  "task.run.failed",
+  "loop.terminal",
+  "loop.node.terminal",
+  "automation.run.completed",
+  "automation.run.failed",
+  "network.message.persisted",
+  "network.thread.opened",
+  "network.direct_room.opened",
+  "network.work.opened",
+  "network.work.transitioned",
+  "network.work.closed",
+  "coordinator.spawned",
+  "coordinator.decision",
+  "coordinator.stopped",
+  "coordinator.failed",
+  "event.post_record",
+] as const;
+
+export type LoopWatchEventKindValue = (typeof LOOP_WATCH_EVENT_KINDS)[number];

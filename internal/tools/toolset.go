@@ -89,6 +89,24 @@ func (c ToolsetCatalog) Get(id ToolsetID) (Toolset, bool) {
 	return cloneToolset(toolset), true
 }
 
+// Contains reports whether any selected toolset grants the concrete tool ID.
+func (c ToolsetCatalog) Contains(id ToolID, toolsetIDs []ToolsetID) (bool, error) {
+	if err := id.Validate(); err != nil {
+		return false, err
+	}
+	selected := append([]ToolsetID(nil), toolsetIDs...)
+	slices.Sort(selected)
+	matched := false
+	for _, toolsetID := range selected {
+		contains, err := c.contains(toolsetID, id, nil, make(map[ToolsetID]struct{}))
+		if err != nil {
+			return false, err
+		}
+		matched = matched || contains
+	}
+	return matched, nil
+}
+
 // Expand resolves one toolset into concrete ToolID atoms.
 func (c ToolsetCatalog) Expand(id ToolsetID, universe []ToolID) ([]ToolID, error) {
 	if err := id.Validate(); err != nil {
@@ -160,6 +178,53 @@ func (c ToolsetCatalog) expand(
 		}
 	}
 	return nil
+}
+
+func (c ToolsetCatalog) contains(
+	toolsetID ToolsetID,
+	toolID ToolID,
+	path []ToolsetID,
+	visiting map[ToolsetID]struct{},
+) (bool, error) {
+	toolset, ok := c.sets[toolsetID]
+	if !ok {
+		return false, NewValidationError(
+			"toolset",
+			ReasonToolsetUnknown,
+			fmt.Sprintf("unknown toolset %q", toolsetID),
+		)
+	}
+	if _, ok := visiting[toolsetID]; ok {
+		cycle := append(append([]ToolsetID(nil), path...), toolsetID)
+		return false, NewValidationError(
+			"toolset",
+			ReasonToolsetCycle,
+			"toolset cycle: "+formatToolsetPath(cycle),
+		)
+	}
+
+	visiting[toolsetID] = struct{}{}
+	defer delete(visiting, toolsetID)
+
+	matched := false
+	for _, raw := range toolset.Tools {
+		pattern, err := ParseToolPattern(raw)
+		if err != nil {
+			return false, err
+		}
+		matched = matched || pattern.Match(toolID)
+	}
+	nextPath := append(append([]ToolsetID(nil), path...), toolsetID)
+	nested := append([]ToolsetID(nil), toolset.Toolsets...)
+	slices.Sort(nested)
+	for _, nestedID := range nested {
+		contains, err := c.contains(nestedID, toolID, nextPath, visiting)
+		if err != nil {
+			return false, err
+		}
+		matched = matched || contains
+	}
+	return matched, nil
 }
 
 func collectPatternMatches(pattern ToolPattern, universe []ToolID, collector map[ToolID]struct{}) error {

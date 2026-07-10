@@ -93,7 +93,7 @@ func (d *Daemon) loadSandboxReconcileSessions(
 			}
 			logger.Warn(
 				"daemon: sandbox reconciliation skipped unreadable session metadata",
-				"session_id", strings.TrimSpace(entry.Name()),
+				daemonPayloadSessionIDKey, strings.TrimSpace(entry.Name()),
 				"path", metaPath,
 				"error", err,
 			)
@@ -527,7 +527,7 @@ func sandboxReconcileLogAttrs(
 	err error,
 ) []any {
 	attrs := []any{
-		"session_id", strings.TrimSpace(meta.ID),
+		daemonPayloadSessionIDKey, strings.TrimSpace(meta.ID),
 		sandboxReconcileWorkspaceIDKey, strings.TrimSpace(meta.WorkspaceID),
 		"session_state", strings.TrimSpace(meta.State),
 		"duration_ms", duration.Milliseconds(),

@@ -1,6 +1,6 @@
 # Lessons Learned
 
-Durable engineering lessons distilled from real AGH incidents and decisions across April 2026. Each lesson is a single file with a confirmed root cause, the fix or rule, and the evidence trail.
+Durable engineering lessons distilled from real AGH incidents and decisions since April 2026. Each lesson is a single file with a confirmed root cause, the fix or rule, and the evidence trail.
 
 These are NOT speculative warnings — every lesson here has either an ADR, a commit, a review issue, or a verifiable QA bug behind it.
 
@@ -33,6 +33,11 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-023](L-023-token-utility-canonical-form.md)                | Design tokens belong in `@theme`, not in `:root` aliased through `@theme inline` | Frontend / Design system / Build |
 | [L-024](L-024-design-md-generated-tokens.md)                  | Generated design-token specs prevent documentation drift                         | Frontend / Design system / Docs  |
 | [L-025](L-025-greenfield-hardcut-current-protocol-version.md) | On greenfield, hard-cut the current protocol version — don't bump to a new one   | Project posture / RFC discipline |
+| [L-026](L-026-integration-claims-require-substrate-evidence.md) | Integration claims require substrate evidence, not symbol greps                 | Analysis / Architecture review   |
+| [L-027](L-027-judge-platform-by-premise-not-reference-implementation.md) | Judge a platform against its premise, not its reference implementation | Architecture / Spec authoring    |
+| [L-028](L-028-correction-is-not-license-for-opposite-extreme.md) | A correction is not a license for the opposite extreme                          | Decision process / Spec authoring |
+| [L-029](L-029-qa-labs-must-tear-down-processes.md)            | QA labs must tear down processes, not just isolate them                          | Workflow / QA hygiene            |
+| [L-030](L-030-dual-verify-capacity-collapse.md)               | Two concurrent `make verify` runs collapse the machine; serialize the gate       | Workflow / Build tooling         |
 
 ## How to use
 

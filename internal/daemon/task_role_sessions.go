@@ -52,8 +52,9 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 		PromptOverlay: taskRolePromptOverlay(activation),
 		Type:          session.SessionTypeSystem,
 	}
-	applyTaskSessionSandboxProfile(&opts, activation.Profile)
-	applyTaskSessionRuntimeProfile(&opts, activation.Profile)
+	policy := sessionPolicyFromTaskExecutionProfile(activation.Profile)
+	applySessionSandboxPolicy(&opts, policy)
+	applySessionPermissionPolicy(&opts, policy)
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID

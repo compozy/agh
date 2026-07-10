@@ -925,6 +925,7 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	}
 
 	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor:      coordinatorActorContextForTest(),
 		RunID:      claim.Run.ID,
 		ClaimToken: "stale-token",
 		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":false}`)},
@@ -937,6 +938,7 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 		)
 	}
 	completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor:      coordinatorActorContextForTest(),
 		RunID:      claim.Run.ID,
 		ClaimToken: claim.ClaimToken,
 		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -1004,6 +1006,7 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 		t.Fatalf("ClaimNextRun(for failure) error = %v", err)
 	}
 	failed, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+		Actor:      coordinatorActorContextForTest(),
 		RunID:      failClaim.Run.ID,
 		ClaimToken: failClaim.ClaimToken,
 		Failure:    taskpkg.RunFailure{Error: "worker failed"},
@@ -1055,6 +1058,7 @@ func TestGlobalDBCompleteRunLeaseRejectsHallucinatedCreatedTaskIDsBeforeTerminal
 		}
 
 		_, err = globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:          coordinatorActorContextForTest(),
 			RunID:          claim.Run.ID,
 			ClaimToken:     claim.ClaimToken,
 			Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -1188,6 +1192,7 @@ func TestGlobalDBCompleteRunLeaseVerifiesCreatedTaskIDOwnership(t *testing.T) {
 			}
 
 			completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+				Actor:          coordinatorActorContextForTest(),
 				RunID:          claim.Run.ID,
 				ClaimToken:     claim.ClaimToken,
 				Result:         taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -1383,6 +1388,7 @@ func TestGlobalDBTaskCurrentRunProjection(t *testing.T) {
 				)
 
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
 					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
@@ -1401,6 +1407,7 @@ func TestGlobalDBTaskCurrentRunProjection(t *testing.T) {
 				claim := claimProjectionRunForTest(ctx, t, globalDB, "sess-projection-fail", now)
 
 				if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
 					Failure:    taskpkg.RunFailure{Error: "worker failed"},
@@ -1845,7 +1852,7 @@ func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 		}
 
 		taskRecord.Status = taskpkg.TaskStatusReady
-		if err := globalDB.UpdateTask(ctx, taskRecord); err != nil {
+		if err := globalDB.UpdateTask(ctx, taskRecord, coordinatorActorContextForTest()); err != nil {
 			t.Fatalf("UpdateTask(ready) error = %v", err)
 		}
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
@@ -1884,6 +1891,7 @@ func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 			t.Fatalf("CreateTaskRun() error = %v", err)
 		}
 		blockResult, err := globalDB.CreateTaskBlock(ctx, taskpkg.CreateTaskBlockMutation{
+			Actor: coordinatorActorContextForTest(),
 			Block: taskpkg.TaskBlock{
 				ID:     "block-open-claim",
 				TaskID: taskRecord.ID,
@@ -1917,6 +1925,7 @@ func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 			BlockID:   block.ID,
 			ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
 			ClearedAt: now.Add(2 * time.Second),
+			Actor:     operatorActorContextForTest("operator"),
 		}); err != nil {
 			t.Fatalf("ClearTaskBlock() error = %v", err)
 		}
@@ -2987,6 +2996,84 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 	}
 }
 
+func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should enqueue coordinator wake after boundary commit", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t)
+	})
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t *testing.T) {
+	t.Helper()
+
+	globalDB := openFreshLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 7, 8, 16, 30, 0, 0, time.UTC)
+	loopRun, err := globalDB.CreateLoopRunForStart(
+		ctx,
+		testLoopRun("looprun-coordinator-post-commit-wake", now, looppkg.StatusRunning),
+		dsl.ConcurrencyAllow,
+	)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	claim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		loopRun.ID,
+		"run-coordinator-post-commit-wake",
+		now,
+	)
+	actor := coordinatorActorContextForTest()
+	wakeKey := "loop.coordinator.watch_events." + string(loopRun.ID) + ".watch_task_status"
+
+	result, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Actor:      actor,
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Yield: true,
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+			},
+			PostCommitWakes: []taskpkg.CoordinatorWakeSpec{{
+				LoopRunID:      string(loopRun.ID),
+				IdempotencyKey: wakeKey,
+			}},
+		},
+		Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer())
+	if err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+	}
+	if got, want := coordinatorResultStatus(t, &result), string(looppkg.StatusRunning); got != want {
+		t.Fatalf("result loop status = %q, want %q", got, want)
+	}
+	wakeRun, err := globalDB.GetTaskRunByIdempotencyKey(ctx, wakeKey, actor.Origin)
+	if err != nil {
+		t.Fatalf("GetTaskRunByIdempotencyKey(post-commit wake) error = %v", err)
+	}
+	if wakeRun.ID == claim.Run.ID {
+		t.Fatalf("wake run id = completed coordinator run %q, want new coordinator run", wakeRun.ID)
+	}
+	if got, want := wakeRun.RunKind, taskpkg.RunKindCoordinator; got != want {
+		t.Fatalf("wake run kind = %q, want %q", got, want)
+	}
+	if got, want := wakeRun.LoopRunID, string(loopRun.ID); got != want {
+		t.Fatalf("wake loop_run_id = %q, want %q", got, want)
+	}
+	if got, want := wakeRun.Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("wake status = %q, want %q", got, want)
+	}
+	if got, want := wakeRun.IdempotencyKey, wakeKey; got != want {
+		t.Fatalf("wake idempotency_key = %q, want %q", got, want)
+	}
+}
+
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t *testing.T) {
 	t.Parallel()
 
@@ -3882,6 +3969,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			}
 			if tc.complete {
 				if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
 					Result:     taskpkg.RunResult{Value: tc.result},
@@ -3892,6 +3980,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				}
 			} else {
 				if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
 					Failure: taskpkg.RunFailure{
@@ -4276,6 +4365,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		wantRef := looppkg.OutputRefForPayload(resultPayload)
 
 		updated, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:      coordinatorActorContextForTest(),
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
 			Result:     taskpkg.RunResult{Value: resultPayload},
@@ -4439,6 +4529,14 @@ func coordinatorActorContextForTest() taskpkg.ActorContext {
 		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
 		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.loop"},
 		Authority: taskpkg.Authority{Read: true, Write: true, CreateGlobal: true},
+	}
+}
+
+func operatorActorContextForTest(ref string) taskpkg.ActorContext {
+	return taskpkg.ActorContext{
+		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: ref},
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"},
+		Authority: taskpkg.Authority{Read: true, Write: true},
 	}
 }
 

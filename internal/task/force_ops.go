@@ -109,7 +109,7 @@ func (m *Service) ForceReleaseRun(
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (m *Service) ForceFailRun(
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func (m *Service) RetryRun(
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (m *Service) RecoverRun(
 	if err != nil {
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
 	if err != nil {
 		return nil, err
 	}

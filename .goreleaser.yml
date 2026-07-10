@@ -22,9 +22,9 @@ git:
 
 before:
   hooks:
-    - go run github.com/magefile/mage@v1.17.0 daytonaSidecarsCheck
-    - go run github.com/magefile/mage@v1.17.0 webBuild
-    - go run github.com/magefile/mage@v1.17.0 webAssetsCheck
+    - go run github.com/magefile/mage@v1.17.2 daytonaSidecarsCheck
+    - go run github.com/magefile/mage@v1.17.2 webBuild
+    - go run github.com/magefile/mage@v1.17.2 webAssetsCheck
 
 builds:
   - id: agh

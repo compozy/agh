@@ -9,9 +9,12 @@ import (
 	"testing"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/dsl/refs"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
@@ -51,6 +54,106 @@ func TestEmbeddedLoopsShouldCompileWithDevCycleToolSchemas(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDevCycleRuntimeToolDescriptorsShouldPinImportTasksSchemaDigests(t *testing.T) {
+	t.Run("Should pin import tasks schema digests", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			wantInputDigest  = "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832"
+			wantOutputDigest = "8ebb2e834741f5f5e908adcf0c3b2e251eee9ee37dcf24ba88f461e7eb5ccbc3"
+		)
+		descriptors, err := runtimeToolDescriptors()
+		if err != nil {
+			t.Fatalf("runtimeToolDescriptors() error = %v", err)
+		}
+		var found bool
+		for _, descriptor := range descriptors {
+			if descriptor.Handler != toolImportTasks {
+				continue
+			}
+			found = true
+			if got, want := descriptor.ID.String(), devCycleToolID(t, toolImportTasks); got != want {
+				t.Fatalf("import_tasks id = %q, want %q", got, want)
+			}
+			if !descriptor.ReadOnly {
+				t.Fatalf("import_tasks read_only = false, want true")
+			}
+			if got, want := descriptor.Risk, toolspkg.RiskRead; got != want {
+				t.Fatalf("import_tasks risk = %q, want %q", got, want)
+			}
+			if got := descriptor.InputSchemaDigest; got != wantInputDigest {
+				t.Fatalf("import_tasks input digest = %q, want %q", got, wantInputDigest)
+			}
+			if got := descriptor.OutputSchemaDigest; got != wantOutputDigest {
+				t.Fatalf("import_tasks output digest = %q, want %q", got, wantOutputDigest)
+			}
+		}
+		if !found {
+			t.Fatal("runtimeToolDescriptors() missing import_tasks descriptor")
+		}
+	})
+}
+
+func TestDevCycleManagedInstallShouldPublishImportTasksManifestTool(t *testing.T) {
+	t.Run("Should publish import tasks through the bundled manifest install", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		globalDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(globalDB) error = %v", err)
+			}
+		})
+		registry := extensionpkg.NewRegistry(globalDB.DB())
+
+		if err := EnsureManagedInstall(homePaths, registry); err != nil {
+			t.Fatalf("EnsureManagedInstall() error = %v", err)
+		}
+		installed, err := registry.Get(Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%q) error = %v", Name, err)
+		}
+		if installed.Source != extensionpkg.SourceBundled || !installed.Enabled {
+			t.Fatalf("installed dev-cycle = %#v, want enabled bundled extension", installed)
+		}
+
+		manifest, err := extensionpkg.LoadManifest(filepath.Dir(installed.ManifestPath))
+		if err != nil {
+			t.Fatalf("LoadManifest(%q) error = %v", installed.ManifestPath, err)
+		}
+		tool, ok := manifest.Resources.Tools[toolImportTasks]
+		if !ok {
+			t.Fatalf("manifest tools = %#v, want %q", manifest.Resources.Tools, toolImportTasks)
+		}
+		if tool.Handler != toolImportTasks ||
+			tool.Backend.Kind != "extension_host" ||
+			tool.Backend.Handler != toolImportTasks {
+			t.Fatalf(
+				"import_tasks backend = %#v, handler %q; want extension_host import_tasks",
+				tool.Backend,
+				tool.Handler,
+			)
+		}
+		if !tool.ReadOnly || !tool.ConcurrencySafe || tool.Risk != string(toolspkg.RiskRead) {
+			t.Fatalf("import_tasks tool policy = %#v, want read-only concurrency-safe read risk", tool)
+		}
+		if len(tool.InputSchema) == 0 || len(tool.OutputSchema) == 0 {
+			t.Fatalf(
+				"import_tasks schemas are empty: input=%d output=%d",
+				len(tool.InputSchema),
+				len(tool.OutputSchema),
+			)
+		}
+	})
 }
 
 func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
@@ -204,6 +307,46 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("execute_task prompt missing %q", required)
 			}
+		}
+	})
+
+	t.Run("Should load software-delivery tasks through import_tasks action", func(t *testing.T) {
+		t.Parallel()
+
+		def := parseEmbeddedLoopForTest(t, "loops/software-delivery/loop.yaml")
+		loadTasks := requireDevCycleNode(t, def, "load_tasks")
+		if got, want := loadTasks.Class, dsl.NodeClassAction; got != want {
+			t.Fatalf("load_tasks class = %q, want %q", got, want)
+		}
+		if got, want := loadTasks.Kind, devCycleToolID(t, toolImportTasks); got != want {
+			t.Fatalf("load_tasks kind = %q, want %q", got, want)
+		}
+		if loadTasks.Pattern != "" || loadTasks.Parse != "" {
+			t.Fatalf(
+				"load_tasks legacy file-import fields = pattern %q parse %q, want empty",
+				loadTasks.Pattern,
+				loadTasks.Parse,
+			)
+		}
+		pattern := requireStringParam(t, loadTasks, "pattern")
+		if got, want := pattern, ".compozy/tasks/{{ .inputs.slug }}/task_*.md"; got != want {
+			t.Fatalf("load_tasks params.pattern = %q, want %q", got, want)
+		}
+		if got, want := loadTasks.Produces["tasks"], "array"; got != want {
+			t.Fatalf("load_tasks produces.tasks = %#v, want %q", got, want)
+		}
+		implement := requireDevCycleNode(t, def, "implement")
+		if got, want := implement.Collection, "{{ .nodes.load_tasks.output.tasks }}"; got != want {
+			t.Fatalf("implement collection = %q, want %q", got, want)
+		}
+		resolved, err := loop.NewCompiler(
+			loop.WithCompilerToolSchemaSource(devCycleToolSchemaSource(t)),
+		).Compile(def)
+		if err != nil {
+			t.Fatalf("Compile(software-delivery) error = %v", err)
+		}
+		if resolved.Templates["nodes.implement.collection"] == nil {
+			t.Fatal("Compile(software-delivery) missing implement collection template")
 		}
 	})
 
@@ -549,6 +692,12 @@ func devCycleToolSchemaSource(t *testing.T) devCycleToolSchemas {
 	t.Helper()
 
 	return devCycleToolSchemas{
+		devCycleToolID(t, toolImportTasks): toolSnapshot(
+			t,
+			toolImportTasks,
+			importTasksInputSchema,
+			importTasksOutputSchema,
+		),
 		devCycleToolID(t, toolFetchUnresolved): toolSnapshot(
 			t,
 			toolFetchUnresolved,

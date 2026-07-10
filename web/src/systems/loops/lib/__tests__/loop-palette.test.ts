@@ -14,6 +14,15 @@ describe("loop palette", () => {
     expect(actionKinds).toContain("agh__network_send");
   });
 
+  it("Should offer both source watch kinds with valid-shaped seeds", () => {
+    const source = LOOP_PALETTE.find(group => group.label === "Source")!;
+    const sourceKinds = source.items.map(item => item.kindLabel);
+    expect(sourceKinds).toContain("watch-source");
+    expect(sourceKinds).toContain("watch-events");
+    const watchEvents = source.items.find(item => item.kindLabel === "watch-events")!.buildRaw("w");
+    expect(watchEvents).toEqual({ id: "w", class: "source", kind: "watch-events", events: [] });
+  });
+
   it("Should seed a valid-shaped raw node for each palette item", () => {
     for (const group of LOOP_PALETTE) {
       for (const item of group.items) {

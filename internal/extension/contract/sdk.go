@@ -106,6 +106,7 @@ const (
 	sdkTaskNeedsAttentionPayloadValue           = "TaskNeedsAttentionPayload"
 	sdkTaskObservationPatchValue                = "TaskObservationPatch"
 	sdkTaskRecoveredPayloadValue                = "TaskRecoveredPayload"
+	sdkTaskStatusChangedPayloadValue            = "TaskStatusChangedPayload"
 	sdkTaskRunClaimCriteriaValue                = "TaskRunClaimCriteria"
 	sdkTaskRunContextValue                      = "TaskRunContext"
 	sdkTaskRunEnqueuedPayloadValue              = "TaskRunEnqueuedPayload"
@@ -337,6 +338,7 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkTaskUnblockedPayloadValue, Value: hooks.TaskUnblockedPayload{}},
 	{Name: sdkTaskNeedsAttentionPayloadValue, Value: hooks.TaskNeedsAttentionPayload{}},
 	{Name: sdkTaskRecoveredPayloadValue, Value: hooks.TaskRecoveredPayload{}},
+	{Name: sdkTaskStatusChangedPayloadValue, Value: hooks.TaskStatusChangedPayload{}},
 	{Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
 	{Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
 	{Name: "NetworkMatcher", Value: hooks.NetworkMatcher{}},
@@ -716,13 +718,11 @@ var namedHookTypes = map[string]NamedType{
 		Name:  sdkTaskNeedsAttentionPayloadValue,
 		Value: hooks.TaskNeedsAttentionPayload{},
 	},
-	sdkTaskRecoveredPayloadValue: {
-		Name:  sdkTaskRecoveredPayloadValue,
-		Value: hooks.TaskRecoveredPayload{},
-	},
-	sdkTaskObservationPatchValue: {Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
-	sdkPermissionSetValue:        {Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
-	sdkSpawnContextValue:         {Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
+	sdkTaskRecoveredPayloadValue:     {Name: sdkTaskRecoveredPayloadValue, Value: hooks.TaskRecoveredPayload{}},
+	sdkTaskStatusChangedPayloadValue: {Name: sdkTaskStatusChangedPayloadValue, Value: hooks.TaskStatusChangedPayload{}},
+	sdkTaskObservationPatchValue:     {Name: sdkTaskObservationPatchValue, Value: hooks.TaskObservationPatch{}},
+	sdkPermissionSetValue:            {Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
+	sdkSpawnContextValue:             {Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
 	sdkSpawnPreCreatePayloadValue: {
 		Name:  sdkSpawnPreCreatePayloadValue,
 		Value: hooks.SpawnPreCreatePayload{},

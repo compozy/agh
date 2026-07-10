@@ -60,7 +60,29 @@ func (g *GlobalDB) CompleteCoordinatorAndEnqueueNext(
 	); err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
+	if err := g.enqueueCoordinatorPostCommitWakes(ctx, normalized); err != nil {
+		return taskpkg.CoordinatorCompletionResult{}, err
+	}
 	return result, nil
+}
+
+func (g *GlobalDB) enqueueCoordinatorPostCommitWakes(
+	ctx context.Context,
+	completion taskpkg.CoordinatorCompletion,
+) error {
+	for _, wake := range completion.Plan.PostCommitWakes {
+		normalized := wake.Normalize()
+		if _, _, err := g.EnqueueLoopCoordinatorWake(
+			ctx,
+			normalized.LoopRunID,
+			normalized.IdempotencyKey,
+			completion.Actor.Origin,
+			completion.Now,
+		); err != nil {
+			return fmt.Errorf("store: enqueue coordinator post-commit wake %q: %w", normalized.LoopRunID, err)
+		}
+	}
+	return nil
 }
 
 func (g *GlobalDB) completeCoordinatorAndEnqueueNextWithExecutor(

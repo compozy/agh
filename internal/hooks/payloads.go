@@ -875,6 +875,7 @@ type CoordinatorObservationPatch = AutonomyObservationPatch
 // TaskContext carries task-level identifiers shared across task lifecycle hooks.
 type TaskContext struct {
 	TaskID                string `json:"task_id,omitempty"`
+	ParentTaskID          string `json:"parent_task_id,omitempty"`
 	WorkspaceID           string `json:"workspace_id,omitempty"`
 	WorkflowID            string `json:"workflow_id,omitempty"`
 	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
@@ -888,6 +889,14 @@ type TaskContext struct {
 	RunID                 string `json:"run_id,omitempty"`
 	ReleaseReason         string `json:"release_reason,omitempty"`
 	ClaimTokenHash        string `json:"claim_token_hash,omitempty"`
+}
+
+// TaskStatusChangedPayload is delivered after a task status transition is committed.
+type TaskStatusChangedPayload struct {
+	PayloadBase
+	TaskContext
+	FromStatus string `json:"from_status"`
+	ToStatus   string `json:"to_status"`
 }
 
 // TaskBlockPayload is shared by task block and unblock hooks.
@@ -1197,49 +1206,27 @@ type SpawnCreatePatch struct {
 // SpawnObservationPatch is the observation patch surface for committed spawn lifecycle hooks.
 type SpawnObservationPatch = AutonomyObservationPatch
 
-func (p SessionPreCreatePayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SessionPreCreatePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SessionLifecyclePayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SessionLifecyclePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SessionMessagePersistedPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SessionMessagePersistedPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SandboxPreparePayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SandboxPreparePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SandboxReadyPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SandboxReadyPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SandboxSyncBeforePayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SandboxSyncBeforePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SandboxSyncAfterPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SandboxSyncAfterPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p SandboxStopPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p SandboxStopPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p InputPreSubmitPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p InputPreSubmitPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p PromptPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p PromptPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
-func (p EventRecordPayload) hookSessionContext() SessionContext {
-	return p.SessionContext
-}
+func (p EventRecordPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
 func (p AgentPreStartPayload) hookSessionContext() SessionContext {
 	return p.SessionContext
@@ -1316,6 +1303,10 @@ func (p TaskBlockPayload) hookSessionContext() SessionContext {
 }
 
 func (p TaskAttentionPayload) hookSessionContext() SessionContext {
+	return taskSessionContext(p.TaskContext)
+}
+
+func (p TaskStatusChangedPayload) hookSessionContext() SessionContext {
 	return taskSessionContext(p.TaskContext)
 }
 

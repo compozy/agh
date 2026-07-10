@@ -68,6 +68,7 @@ design_reference:
     - "no-op renders as its own neutral terminal — a clean tick is NEVER shown as done-with-fake-work (ADR-022 inv5)."
     - "stalled (silent source) renders as itself, never as done."
     - "The reviews-watch watch-source is a body-node concept and never gets the catalog start-binding badge (§4.1)."
+    - "loops-refac (2026-07-08): reviews-watch's fix_batch run-agent sessions are now policy-gated (resolved sandbox/permission + subset-only allowed_tools) — the wake/remediate/done behavior is unchanged, but LP-029 is reset to verify the new session posture (CH-005 gating bullet). NOTE this is the ADR-016 extension watch_source; the new daemon-internal watch-events source class is J-11."
 
 e2e_backbone:
   runtime:

@@ -98,11 +98,11 @@ Every node shares an envelope — `id`, `class`, `kind` — plus optional `sessi
 
 ### Node classes
 
-| Class     | Openness | Kinds                                                |
-| --------- | -------- | ---------------------------------------------------- |
-| `action`  | **open** | `run-agent`, `run-loop`, `transform`, or any tool ID |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`   |
-| `source`  | closed   | `input`, `file-import`, `watch-source`               |
+| Class     | Openness | Kinds                                                  |
+| --------- | -------- | ------------------------------------------------------ |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, or any tool ID   |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`     |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events` |
 
 ### Action nodes
 
@@ -122,6 +122,10 @@ A `run-agent` node with an `output_schema` publishes typed output, so the next n
 `params.model` is a per-node override. If it is empty, AGH uses the effective
 `model_defaults.worker`; if that is also empty, the provider/runtime default model remains in
 effect.
+`run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
+permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
+canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
+rejects the node run deterministically before an ungated session can start.
 
 ### Control nodes
 
@@ -138,15 +142,79 @@ array slice above it.
 
 ### Source nodes
 
-| Kind           | Purpose                                    | Key fields                                               |
-| -------------- | ------------------------------------------ | -------------------------------------------------------- |
-| `input`        | Expose a declared input to the graph       | `input_ref`                                              |
-| `file-import`  | Materialize a finite collection from files | `pattern`, `parse: md_tasks \| json \| text`, `produces` |
-| `watch-source` | Wait for an external signal, then tick     | `watch` (spec)                                           |
+| Kind           | Purpose                                    | Key fields                                   |
+| -------------- | ------------------------------------------ | -------------------------------------------- |
+| `input`        | Expose a declared input to the graph       | `input_ref`                                  |
+| `file-import`  | Materialize a finite collection from files | `pattern`, `parse: json \| text`, `produces` |
+| `watch-source` | Wait for an external signal, then tick     | `watch` (spec)                               |
+| `watch-events` | Wake on an internal AGH event, then tick   | `events` (subscription list)                 |
 
 A definition that contains a `watch-source` node is a **watch Loop** — it defaults to
 `iteration_cap: 0` and holds the `watching` state between ticks.
 See [extending Loops](/runtime/core/loops/extensions#watch-sources).
+
+### Watch-events source
+
+A `watch-events` node parks the Loop at zero cost and wakes it when an **internal AGH event**
+commits — a task status transition, a task-run outcome, a loop terminal. It is the event-driven
+sibling of `watch-source`: `watch-source` polls an _external_ signal through an extension, while
+`watch-events` observes AGH's own durable ledgers. Hook dispatch is only the doorbell; the matched
+batch is always re-derived from the append-only ledger at wake, so a subscription survives daemon
+downtime and dropped hooks.
+
+The node carries a typed `events` list. Each subscription names a supported hook `kind` and an
+optional `filter` — a [CEL](/runtime/core/loops/reference-grammar) expression over `event`, `inputs`,
+and `nodes`. Multiple subscriptions OR together; an empty `filter` matches every event of that kind
+in the Loop's workspace.
+
+```yaml
+graph:
+  nodes:
+    - id: on_task_done
+      class: source
+      kind: watch-events
+      events:
+        - kind: task.status_changed
+          filter: "event.payload.to_status == 'completed'"
+        - kind: loop.terminal
+    - id: react
+      class: action
+      kind: run-agent
+      params:
+        { agent: "{{ .inputs.responder }}", prompt: "Handle {{ .nodes.on_task_done.output }}" }
+  edges:
+    - { from: on_task_done, to: react }
+```
+
+The matched batch lands at `nodes.<id>.output` for downstream nodes (fan out over it to process each
+event). A Loop with a `watch-events` node is a **watch Loop**: it defaults to `iteration_cap: 0`, holds
+`watching` between wakes, and — unlike `watch-source` — **never stalls on silence**. A quiet
+subscription is healthy dormancy, not a failure; the Loop parks indefinitely until an event matches.
+
+**Supported kinds.** `events[].kind` validates against the full hook catalog at publish; a
+kind outside the supported set fails lint (`watch_events_kind_unsupported`). Only **post-state
+observation** hooks are subscribable — sync-eligible `pre_*` hooks are rejected (you watch committed
+state, you do not intercept it).
+
+| Family        | Kinds                                                                                                                                                         | Replay ledger                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `task`        | `task.status_changed`, `task.blocked`, `task.unblocked`, `task.needs_attention`, `task.recovered`                                                             | `task_events`                 |
+| `task.run`    | `task.run.completed`, `task.run.failed`                                                                                                                       | `task_events`                 |
+| `loop`        | `loop.terminal`, `loop.node.terminal`                                                                                                                         | `loop_run_events`             |
+| `automation`  | `automation.run.completed`, `automation.run.failed`                                                                                                           | `automation_runs`             |
+| `network`     | `network.message.persisted`, `network.thread.opened`, `network.direct_room.opened`, `network.work.opened`, `network.work.transitioned`, `network.work.closed` | `network_timeline_log`        |
+| `coordinator` | `coordinator.spawned`, `coordinator.decision`, `coordinator.stopped`, `coordinator.failed`                                                                    | `event_summaries`             |
+| `event`       | `event.post_record`                                                                                                                                           | `session_events:<session_id>` |
+
+`event.post_record` subscriptions must constrain `event.session_id` with equality; otherwise lint
+returns `watch_events_filter_too_broad`. Its output includes metadata such as `record_type`,
+`sequence`, `turn_id`, `agent_name`, and `session_id`; record content is never copied into the
+watch-events batch. The kind select and lint error text always name the registry-derived supported
+set, so the grammar never changes as families are added.
+
+The parked read-model — the active subscriptions, per-stream cursors, and last wake — is visible on the
+run detail (`agh loop runs show -o json`, HTTP/UDS, and the web run page) only while the Loop is
+dormant on events.
 
 ## The gate contract
 

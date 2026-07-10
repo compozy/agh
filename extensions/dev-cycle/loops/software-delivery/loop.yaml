@@ -52,10 +52,10 @@ graph:
       input_ref: slug
 
     - id: load_tasks
-      class: source
-      kind: file-import
-      pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
-      parse: md_tasks
+      class: action
+      kind: ext__dev_cycle__import_tasks
+      params:
+        pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
       produces:
         tasks: array
 

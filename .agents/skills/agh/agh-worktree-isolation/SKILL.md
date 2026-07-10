@@ -1,6 +1,6 @@
 ---
 name: agh-worktree-isolation
-description: Configures unique AGH_HOME, daemon ports, and tmux-bridge socket paths for parallel agent worktrees so concurrent QA runs do not deadlock SQLite, ports, or git index locks. Allocates an isolated home via mktemp or a worktree-scoped path, picks a free daemon port, and exports a dedicated tmux socket. Acts as the low-level primitive beneath agh-qa-bootstrap and blocks operations that would write to default home or default ports when concurrency is signaled. Use before any QA execution, real-scenario QA, or test run that may run alongside another agent in another worktree. Do not use for single-worktree development or build-only commands that touch no runtime state.
+description: Configures unique AGH_HOME, daemon ports, and tmux-bridge socket paths for parallel agent worktrees so concurrent QA runs do not deadlock SQLite, ports, or git index locks. Allocates an isolated home via mktemp or a worktree-scoped path, picks a free daemon port, and exports a dedicated tmux socket. Acts as the low-level primitive beneath agh-qa-bootstrap and blocks operations that would write to default home or default ports when concurrency is signaled. Also routes worktree creation/bootstrap itself to `make worktree-new` / `make worktree-bootstrap` (scripts/worktree.sh). Use before any QA execution, real-scenario QA, or test run that may run alongside another agent in another worktree, or when setting up a parallel worktree checkout. Do not use for single-worktree development or build-only commands that touch no runtime state.
 trigger: explicit
 argument-hint: "[scenario-slug]"
 ---
@@ -8,6 +8,8 @@ argument-hint: "[scenario-slug]"
 # Worktree Isolation
 
 Default `~/.agh/` and the default daemon port deadlock when two agents run concurrently in different worktrees. Symmetrically, `git commit` against the same `.git/index` from concurrent processes hits `Unable to create '.git/index.lock'`. This skill provisions a per-scenario isolated runtime envelope and prints the env vars to source.
+
+Creating the parallel checkout itself is a separate step: `make worktree-new SLUG=<slug>` (→ `scripts/worktree.sh`) adds a sibling worktree and bootstraps it (mise pins, `bun install` + skill/AGENTS.md symlinks; `BUILD=1`/`E2E=1` opt-ins); `make worktree-bootstrap` preps an existing checkout; `scripts/worktree.sh rm <slug>` removes. Go caches are shared machine-wide — no per-worktree Go setup. This skill then isolates the RUNTIME state that agents inside that worktree use. `make verify` and the E2E lanes self-queue machine-wide (L-030); scoped lanes are capacity-bounded and need no lock.
 
 ## Required Inputs
 
@@ -50,11 +52,14 @@ Default `~/.agh/` and the default daemon port deadlock when two agents run concu
 2. Prefer `agh-qa-bootstrap` for production-like local QA because it layers provider-home isolation, manifest writing, browser policy, and Web proxy env on top of this primitive.
 3. Inner skills inherit the env via the shell session. Do not re-allocate.
 
-**Step 6: Cleanup**
+**Step 6: Cleanup (processes ALWAYS, files optionally)**
 
-1. After the scenario completes (success OR failure), the AGH_HOME directory is left in place for forensic inspection unless `--purge-after` was specified.
-2. If `--purge-after` was specified, remove the AGH_HOME directory and the tmux socket.
-3. Never auto-purge the worktree-scoped path (`Compozy/_worktrees/<slug>/.agh/`) — it belongs to the user's local worktree.
+1. Process teardown is mandatory on every terminal path (success OR failure). Files may stay for forensics; processes never do — orphaned daemons, tmux servers, and watchers accumulate and freeze the machine. Run:
+   `python3 .agents/skills/agh-qa-bootstrap/scripts/teardown-qa-env.py --all`
+   (or `make qa-reap` from the repo root; it discovers `agh-iso-*` envelopes, `aghqa-*` runtime roots, and bootstrap labs).
+2. Confirm the teardown reports `TEARDOWN_ALL_CLEAN=true`. Survivors (exit 1) are a blocking failure — diagnose them before completing.
+3. The AGH_HOME directory (files only) is left in place for forensic inspection unless `--purge-after` was specified; with `--purge-after`, pass `--purge` to the teardown so the directory and sockets are removed after a clean sweep.
+4. Never auto-purge the worktree-scoped path (`Compozy/_worktrees/<slug>/.agh/`) — it belongs to the user's local worktree. Its processes are still reaped like any other lab.
 
 ## Error Handling
 

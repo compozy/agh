@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -64,6 +65,9 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err := installLoopNativeHookObserver(state, manager, store, d.now); err != nil {
 		return err
 	}
+	if err := installLoopWatchEventsObserver(ctx, state, manager, store, d.now); err != nil {
+		return err
+	}
 	loopActions, err := installLoopActionRuntime(state, manager, store, coordinatorRunner, d.now)
 	if err != nil {
 		return err
@@ -86,7 +90,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		reviewRequests,
 	)
 
-	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry, loopActions)
+	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
 }
 
 func recoverInstalledTaskRuntime(
@@ -95,13 +99,9 @@ func recoverInstalledTaskRuntime(
 	manager *taskpkg.Service,
 	store taskStore,
 	reentry *harnessReentryBridge,
-	loopActions *loopActionRuntime,
 ) error {
 	if err := recoverBootTaskRuns(ctx, state, manager, store); err != nil {
 		return err
-	}
-	if loopActions != nil {
-		loopActions.Recover(ctx)
 	}
 	return recoverDetachedHarnessReentry(ctx, reentry)
 }
@@ -119,9 +119,6 @@ func installLoopActionRuntime(
 	loopActions, err := newLoopActionRuntime(manager, store, coordinatorRunner, state.logger, now)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop action runtime: %w", err)
-	}
-	if state.notifier != nil {
-		state.notifier.AddTaskRunEnqueuedObserver(loopActions)
 	}
 	return loopActions, nil
 }
@@ -154,6 +151,48 @@ func installLoopNativeHookObserver(
 	state.notifier.AddLoopStartedObserver(observer)
 	state.notifier.AddTaskRunTerminalObserver(observer)
 	state.notifier.AddLoopTerminalObserver(observer)
+	return nil
+}
+
+func installLoopWatchEventsObserver(
+	ctx context.Context,
+	state *bootState,
+	manager *taskpkg.Service,
+	store taskStore,
+	now func() time.Time,
+) error {
+	if state == nil || state.notifier == nil || manager == nil {
+		return nil
+	}
+	watchStore, ok := store.(loopWatchEventsStore)
+	if !ok {
+		if state.logger != nil {
+			state.logger.Warn(
+				"daemon: loop watch-events observer skipped because task store lacks watch-events callbacks",
+			)
+		}
+		return nil
+	}
+	observer, err := newLoopWatchEventsObserver(
+		watchStore,
+		schedulerTaskSource{manager: manager, store: store},
+		now,
+	)
+	if err != nil {
+		return err
+	}
+	if err := observer.Hydrate(ctx); err != nil {
+		return err
+	}
+	state.notifier.AddTaskStatusChangedObserver(observer)
+	state.notifier.AddTaskLifecycleWatchObserver(observer)
+	state.notifier.AddTaskRunTerminalObserver(observer)
+	state.notifier.AddLoopTerminalObserver(observer)
+	state.notifier.AddLoopNodeTerminalObserver(observer)
+	state.notifier.AddAutomationRunWatchObserver(observer)
+	state.notifier.AddNetworkWatchObserver(observer)
+	state.notifier.AddCoordinatorWatchObserver(observer)
+	state.notifier.AddEventRecordWatchObserver(observer)
 	return nil
 }
 
@@ -260,6 +299,14 @@ func recoverBootTaskRuns(
 		actor,
 	)
 	if err != nil {
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			state.logger.Warn(
+				"daemon: loop coordinator boot start deferred until loop definitions are reconciled",
+				"error",
+				err,
+			)
+			return nil
+		}
 		return fmt.Errorf("daemon: start loop coordinators on boot: %w", err)
 	}
 	if started > 0 {

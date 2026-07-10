@@ -327,6 +327,8 @@ type LoopRunResponse struct {
 	Run                LoopRunPayload          `json:"run"`
 	ExecutedDefinition *LoopDefinitionDocument `json:"executed_definition,omitempty"`
 	Generations        []LoopGenerationPayload `json:"generations,omitempty"`
+	// WatchEvents is the parked watch-events read-model (present only while dormant).
+	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
 }
 
 // LoopGenerationPayload groups node state by generation.

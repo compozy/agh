@@ -6320,7 +6320,7 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 	return nil
 }
 
-func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task) error {
+func (r *recordingRegistry) UpdateTask(context.Context, taskpkg.Task, taskpkg.ActorContext) error {
 	return nil
 }
 
@@ -7395,6 +7395,13 @@ func (f *fakeHookRuntime) DispatchTaskRecovered(
 	_ context.Context,
 	payload hookspkg.TaskRecoveredPayload,
 ) (hookspkg.TaskRecoveredPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchTaskStatusChanged(
+	_ context.Context,
+	payload hookspkg.TaskStatusChangedPayload,
+) (hookspkg.TaskStatusChangedPayload, error) {
 	return payload, nil
 }
 

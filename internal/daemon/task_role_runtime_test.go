@@ -518,6 +518,7 @@ func taskRoleRuntimeRun(id string, taskID string, channel string) taskpkg.Run {
 		ID:                    id,
 		TaskID:                taskID,
 		Status:                taskpkg.TaskRunStatusQueued,
+		RunKind:               taskpkg.RunKindWorker,
 		Attempt:               1,
 		Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task-role-test"},
 		NetworkChannel:        channel,

@@ -48,14 +48,30 @@ func evaluateWatchSourceNode(
 	ctx context.Context,
 	plan *task.CoordinatorCompletionPlan,
 	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
 	output GenerationOutput,
 	node dsl.Node,
+	outputs []GenerationOutput,
 	runtime coordinatorWatchRuntime,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if runtime.poller == nil {
 		return output, watchBlockedTerminal(watchSourcePollerReason), nil
 	}
-	spec, terminal, err := watchSpecRaw(node)
+	namespace, err := runtimeNamespace(
+		run,
+		generation,
+		resolved.Definition.Graph,
+		topology,
+		outputs,
+		node.ID,
+		output.ItemIndex,
+	)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	spec, terminal, err := watchSpecRaw(node, namespace)
 	if err != nil || terminal != nil {
 		return output, terminal, err
 	}
@@ -133,11 +149,19 @@ func logWatchTransitions(
 	}
 }
 
-func watchSpecRaw(node dsl.Node) (json.RawMessage, *task.CoordinatorTerminal, error) {
+func watchSpecRaw(node dsl.Node, namespace map[string]any) (json.RawMessage, *task.CoordinatorTerminal, error) {
 	if len(node.WatchSpec) == 0 {
 		return nil, watchBlockedTerminal(watchSourceSpecInvalidReason), nil
 	}
-	kindValue, ok := node.WatchSpec["kind"]
+	rendered, err := renderAny(fmt.Sprintf("nodes.%s.watch", node.ID), node.WatchSpec, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+	specMap, ok := rendered.(map[string]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("%w: watch spec for node %q must normalize to an object", ErrValidation, node.ID)
+	}
+	kindValue, ok := specMap["kind"]
 	if !ok {
 		return nil, watchBlockedTerminal(watchSourceSpecInvalidReason), nil
 	}
@@ -145,7 +169,7 @@ func watchSpecRaw(node dsl.Node) (json.RawMessage, *task.CoordinatorTerminal, er
 	if !ok || strings.TrimSpace(kind) == "" {
 		return nil, watchBlockedTerminal(watchSourceSpecInvalidReason), nil
 	}
-	spec, err := json.Marshal(node.WatchSpec)
+	spec, err := json.Marshal(specMap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: marshal watch spec for node %q: %w", ErrValidation, node.ID, err)
 	}

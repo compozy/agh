@@ -12,7 +12,7 @@ chosen by the field, never by the author.
 | Surface        | Syntax                     | Where it is used                                                                                                                                        |
 | -------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Values**     | Go `text/template` `{{ }}` | Every string-valued field: `params.*`, `file-import.pattern`, gate rubrics, `run-loop.inputs`, `transform.map.*.template`, start `input_mapping` values |
-| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`                                                                                              |
+| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`, `watch-events` `events[].filter`                                                            |
 
 Values interpolate; conditions evaluate. A `branch` never uses `{{ }}`, and a prompt never uses raw
 CEL — the field's type decides.
@@ -30,15 +30,16 @@ condition: "nodes.review.output.decision == 'ship'"
 Both surfaces resolve the same roots. Every dotted path is validated at lint and publish time
 against the declared input and output schemas — there is no silent empty-string resolution.
 
-| Root                       | Resolves to                                                     | Available where                     |
-| -------------------------- | --------------------------------------------------------------- | ----------------------------------- |
-| `inputs.<name>`            | A declared typed input                                          | everywhere                          |
-| `nodes.<id>.output.<path>` | A prior node's harvested, typed output                          | everywhere (after the node)         |
-| `nodes.<id>.status`        | A prior node's terminal status                                  | everywhere                          |
-| `item`                     | The fanned unit (element, or array slice when `batch_size > 1`) | inside a `fan-out` branch only      |
-| `index`                    | The fanned index                                                | inside a `fan-out` branch only      |
-| `trigger.<path>`           | The activation payload                                          | `trigger` and `webhook` starts only |
-| `generation`               | The current generation number                                   | everywhere                          |
+| Root                       | Resolves to                                                     | Available where                       |
+| -------------------------- | --------------------------------------------------------------- | ------------------------------------- |
+| `inputs.<name>`            | A declared typed input                                          | everywhere                            |
+| `nodes.<id>.output.<path>` | A prior node's harvested, typed output                          | everywhere (after the node)           |
+| `nodes.<id>.status`        | A prior node's terminal status                                  | everywhere                            |
+| `item`                     | The fanned unit (element, or array slice when `batch_size > 1`) | inside a `fan-out` branch only        |
+| `index`                    | The fanned index                                                | inside a `fan-out` branch only        |
+| `trigger.<path>`           | The activation payload                                          | `trigger` and `webhook` starts only   |
+| `event.<path>`             | The matched internal event (correlation fields + `payload`)     | `watch-events` `events[].filter` only |
+| `generation`               | The current generation number                                   | everywhere                            |
 
 `nodes.<id>.output.*` only validates against a schema the referenced node declares — set
 `produces` (or a `run-agent` `output_schema`) on the source node so its output paths are known.
@@ -71,7 +72,12 @@ and a CEL condition, so there is never a preprocessing or escaping step between 
 ```yaml
 graph:
   nodes:
-    - { id: load_tasks, class: source, kind: file-import, pattern: "tasks/*.md", parse: md_tasks }
+    - {
+        id: load_tasks,
+        class: action,
+        kind: ext__dev_cycle__import_tasks,
+        params: { pattern: "tasks/*.md" },
+      }
     - {
         id: run_task,
         class: action,
@@ -81,6 +87,30 @@ graph:
   edges:
     - { from: load_tasks, to: run_task }
 ```
+
+## Watch-events `events:`
+
+A [`watch-events`](/runtime/core/loops/dsl-reference#watch-events-source) source declares a typed
+`events` list — the subscriptions the Loop parks on. Each entry is `{ kind, filter }`: `kind` is a
+supported hook-event name, and `filter` is a CEL condition (returning `bool`) over `event`, `inputs`,
+and `nodes`. An omitted `filter` matches every event of that kind in the Loop's workspace.
+
+```yaml
+- id: on_task_done
+  class: source
+  kind: watch-events
+  events:
+    - kind: task.status_changed
+      filter: "event.payload.to_status == 'completed' && event.task_id == inputs.task_id"
+    - kind: loop.terminal # no filter → every loop terminal in this workspace
+```
+
+The `event` root exposes the promoted correlation fields — `event.kind`, `event.seq`, `event.at`,
+`event.workspace_id`, `event.task_id`, `event.run_id`, `event.loop_run_id`, `event.loop_name`,
+`event.session_id` — plus `event.payload`, a per-kind map (e.g. `event.payload.to_status` for
+`task.status_changed`). Filters over `event` and `inputs` are exact; a filter that references
+`nodes.*` is intentionally over-inclusive at the doorbell and re-checked exactly at wake, so prefer
+`inputs`-only filters when you want a precise wake.
 
 ## Start binding mappings
 

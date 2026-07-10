@@ -643,7 +643,7 @@ func (n *daemonNativeTools) memoryAdminRecallTrace(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if _, err := requiredNativeString(req.ToolID, "session_id", input.SessionID); err != nil {
+	if _, err := requiredNativeString(req.ToolID, daemonPayloadSessionIDKey, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if input.TurnSeq <= 0 {
@@ -1043,7 +1043,7 @@ func (n *daemonNativeTools) memoryAdminSessionLedger(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	sessionID, err := requiredNativeString(req.ToolID, daemonPayloadSessionIDKey, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1070,7 +1070,7 @@ func (n *daemonNativeTools) memoryAdminSessionReplay(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	sessionID, err := requiredNativeString(req.ToolID, daemonPayloadSessionIDKey, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1409,7 +1409,7 @@ func memoryAdminDreamPayload(record memorypkg.DreamRunRecord) contract.MemoryDre
 
 func memoryAdminDreamState(record memorypkg.DreamRunRecord) contract.MemoryDreamState {
 	switch strings.TrimSpace(record.Status) {
-	case "running":
+	case daemonRuntimeStatusRunning:
 		return contract.MemoryDreamStateRunning
 	case nativeMemoryAdminToolsFailedKey:
 		return contract.MemoryDreamStateFailed

@@ -22,6 +22,8 @@ const { LoopGenerationTimeline } = await import("../run-page/loop-generation-tim
 const { LoopGenerationCard } = await import("../run-page/loop-generation-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
 const { LoopApprovalGate } = await import("../run-page/loop-approval-gate");
+const { LoopWatchEventsPanel } = await import("../run-page/loop-watch-events-panel");
+type LoopWatchEventsState = import("../../types").LoopWatchEventsState;
 const { buildRunTimeline } = await import("../../lib/loop-timeline");
 type LoopTimelineGeneration = import("../../lib/loop-timeline").LoopTimelineGeneration;
 const { loopDetailByName, loopRunDetailByRunId } = await import("../../mocks/fixtures");
@@ -193,5 +195,44 @@ describe("LoopApprovalGate", () => {
     expect(onDecision).toHaveBeenNthCalledWith(1, "approve", "approve");
     expect(onDecision).toHaveBeenNthCalledWith(2, "request_changes", "approve");
     expect(onDecision).toHaveBeenNthCalledWith(3, "reject", "approve");
+  });
+});
+
+describe("LoopWatchEventsPanel", () => {
+  const parked: LoopWatchEventsState = {
+    subscriptions: [
+      { kind: "task.status_changed", filter: "event.payload.to_status == 'completed'" },
+      { kind: "loop.terminal" },
+    ],
+    cursors: { task_events: 42, loop_run_events: 7 },
+    last_wake_at: "2026-07-08T12:00:00Z",
+  };
+
+  it("Should render subscriptions, cursors, and last wake from the parked read-model", () => {
+    render(<LoopWatchEventsPanel state={parked} />);
+    const subscriptions = screen.getAllByTestId("loop-watch-events-subscription");
+    expect(subscriptions).toHaveLength(2);
+    expect(subscriptions[0]).toHaveTextContent("task.status_changed");
+    expect(screen.getByTestId("loop-watch-events-filter")).toHaveTextContent(
+      "event.payload.to_status == 'completed'"
+    );
+    // The unfiltered subscription is truthful about matching every event of its kind.
+    expect(subscriptions[1]).toHaveTextContent("matches every event");
+    expect(screen.getByTestId("loop-watch-events-cursors")).toHaveTextContent("task_events");
+    expect(screen.getByTestId("loop-watch-events-last-wake")).toHaveAttribute(
+      "datetime",
+      "2026-07-08T12:00:00Z"
+    );
+  });
+
+  it("Should render nothing when the run is not parked on events (truthful UI)", () => {
+    const { container } = render(<LoopWatchEventsPanel state={undefined} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("loop-watch-events-panel")).not.toBeInTheDocument();
+  });
+
+  it("Should render nothing when the read-model carries no subscriptions", () => {
+    render(<LoopWatchEventsPanel state={{ subscriptions: [], cursors: {} }} />);
+    expect(screen.queryByTestId("loop-watch-events-panel")).not.toBeInTheDocument();
   });
 });

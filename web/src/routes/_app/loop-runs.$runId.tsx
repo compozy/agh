@@ -13,6 +13,7 @@ import {
   LoopRunFacts,
   LoopRunMeters,
   LoopStatusLegend,
+  LoopWatchEventsPanel,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -124,6 +125,7 @@ function LoopRunDetail({ workspaceId, runId }: LoopRunDetailProps) {
         data-testid="loop-run-detail-rail"
       >
         <LoopRunEventsRail events={page.live.events} isLive={page.isLive} />
+        <LoopWatchEventsPanel state={page.watchEvents} />
         <LoopRunFacts
           run={run}
           loopVersion={page.loopVersion}

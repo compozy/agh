@@ -113,10 +113,19 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return err
 	}
-	if state.notifier != nil {
-		state.notifier.AddTaskRunEnqueuedObserver(runtime)
+	dispatcher, err := newTaskRunActivationDispatcher(
+		state.tasks.store,
+		runtime,
+		state.tasks.loopActions,
+		state.logger,
+	)
+	if err != nil {
+		return err
 	}
-	runtime.Recover(ctx)
+	if state.notifier != nil {
+		state.notifier.AddTaskRunEnqueuedObserver(dispatcher)
+	}
+	dispatcher.Recover(ctx)
 	state.tasks.roles.Store(runtime)
 	return nil
 }
@@ -147,6 +156,12 @@ func taskManagerOptions(
 		}),
 		taskpkg.WithStarvationAge(scheduler.MinQueuedAge),
 		taskpkg.WithBlockRecurrenceLimit(blockRecurrenceLimit),
+		taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+			return looppkg.Status(strings.TrimSpace(status)).Valid()
+		}),
+		taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+			return looppkg.Status(strings.TrimSpace(status)).Terminal()
+		}),
 	}
 	if coordinatorRunner != nil {
 		options = append(options, taskpkg.WithCoordinatorRunner(coordinatorRunner))
@@ -212,6 +227,11 @@ func newLoopCoordinatorRunner(
 	if watchPoller != nil {
 		options = append(options, looppkg.WithCoordinatorWatchPoller(watchPoller))
 	}
+	if watchEventsLedger, ledgerOK := store.(looppkg.WatchEventsLedger); ledgerOK {
+		options = append(options, looppkg.WithCoordinatorWatchEventsLedger(watchEventsLedger))
+	} else if logger != nil {
+		logger.Warn("daemon: loop coordinator watch-events ledger unavailable")
+	}
 	if gateEvaluator != nil {
 		options = append(options, looppkg.WithCoordinatorGateEvaluator(gateEvaluator))
 	}
@@ -247,11 +267,19 @@ func newBootLoopCoordinatorRunner(
 		}
 		return state.deps.ToolRegistry
 	}}
+	policyGate := &loopSessionPolicyGate{
+		workspaceResolver: workspaceResolver,
+		agentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+			soul:      state.soulCatalog,
+			heartbeat: state.heartbeatCatalog,
+		}),
+	}
 	gateEvaluator := gate.NewEvaluator(
 		gate.WithCommandRunner(loopGateCommandRunner{}),
 		gate.WithJudgeRunner(&loopGateJudgeRunner{
 			sessions:            state.sessions,
 			globalWorkspacePath: homePaths.HomeDir,
+			policyGate:          policyGate,
 		}),
 		gate.WithToolCaller(toolRegistry),
 	)
@@ -259,6 +287,7 @@ func newBootLoopCoordinatorRunner(
 		looppkg.WithActionSessionBinder(&loopActionSessionBinder{
 			sessions:            state.sessions,
 			globalWorkspacePath: homePaths.HomeDir,
+			policyGate:          policyGate,
 		}),
 		looppkg.WithActionLoopStarter(lazyLoopStarter{current: func() looppkg.ActionLoopStarter {
 			if state == nil {
@@ -352,7 +381,7 @@ func (r *daemonLoopDefinitionResolver) ResolveLoop(
 		}
 		return r.compilerFactory(ctx).Compile(definition)
 	}
-	return nil, fmt.Errorf("%w: loop definition %q not found", looppkg.ErrValidation, trimmedName)
+	return nil, fmt.Errorf("%w: loop definition %q not found", looppkg.ErrDefinitionNotFound, trimmedName)
 }
 
 func daemonLoopDefinitionFromSpec(spec looppkg.ResourceSpec) (loopdsl.Definition, error) {

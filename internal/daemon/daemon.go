@@ -605,45 +605,6 @@ func (d *Daemon) applyRuntimeFactoryDefaults() {
 	d.applyResourceReconcileDriverFactoryDefault()
 }
 
-func (d *Daemon) applySessionManagerFactoryDefault() {
-	if d.newSessionManager != nil {
-		return
-	}
-	d.newSessionManager = func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error) {
-		return session.NewManager(
-			session.WithHomePaths(deps.HomePaths),
-			session.WithLifecycleContext(ctx),
-			session.WithLogger(deps.Logger),
-			session.WithNotifier(deps.Notifier),
-			session.WithHookSet(deps.Hooks),
-			session.WithPromptAssembler(deps.PromptAssembler),
-			session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
-			session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
-			session.WithAgentResolver(deps.AgentResolver),
-			session.WithSkillRegistry(deps.SkillRegistry),
-			session.WithMCPResolver(deps.MCPResolver),
-			session.WithWorkspaceResolver(deps.WorkspaceResolver),
-			session.WithSandboxRegistry(deps.SandboxRegistry),
-			session.WithSessionSupervision(deps.SessionSupervision),
-			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
-			session.WithSessionInputQueueStore(deps.SessionInputQueue),
-			session.WithSessionHealthConfig(deps.SessionHealthConfig),
-			session.WithSessionHealthStore(deps.SessionHealthStore),
-			session.WithSessionCatalog(deps.SessionCatalog),
-			session.WithHostedMCPLauncher(deps.HostedMCP),
-			session.WithProviderSecretResolver(deps.ProviderSecrets),
-			session.WithSoulSnapshotStore(deps.SoulStore),
-			session.WithSoulRunActivityChecker(deps.SoulRunChecker),
-			session.WithLedgerMaterializer(deps.LedgerMaterializer),
-			session.WithDriver(session.NewACPDriverAdapter(acp.New(
-				acp.WithLogger(deps.Logger),
-				acp.WithProcessRegistry(deps.ProcessRegistry),
-				acp.WithSteerSource(sessionSteerSource{queue: deps.SessionInputQueue, now: d.now}),
-			))),
-		)
-	}
-}
-
 func (d *Daemon) applyObserverFactoryDefault() {
 	if d.newObserver != nil {
 		return

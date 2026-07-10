@@ -30,6 +30,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const runQuery = useLoopRun(workspaceId, runId, enabled);
   const run = runQuery.data?.run;
   const generations = runQuery.data?.generations;
+  const watchEvents = runQuery.data?.watch_events ?? undefined;
   const executedDefinition = runQuery.data?.executed_definition;
   const loopName = run?.loop_name ?? "";
   const loopQuery = useLoop(
@@ -115,6 +116,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   return {
     runQuery,
     run,
+    watchEvents,
     definition,
     contract: definition?.contract,
     loopVersion: run?.definition_version ?? loopQuery.data?.version,

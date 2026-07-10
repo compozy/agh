@@ -42,43 +42,37 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 - **Mandate**: invoke `compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file <prompt>`; capture findings; return blockers, nits, readiness. Resolve blockers before approval.
 - **Evidence**: codex_sessions (every major techspec); codex_ledger ("Opus rounds 1, 2, web/site impact" on autonomous techspec). Pedro never approves a major techspec without this.
 
-#### S-H3. `cy-research-competitors`
-
-- **Trigger**: any techspec or refactor whose `_idea.md` references `.resources/<repo>/` or names Hermes/OpenClaw/OpenFang/Multica/Paperclip/Goclaw/Claude Code/Codex CLI.
-- **Mandate**: dispatch parallel read-only subagents (gpt-5.4-mini-high for breadth, xhigh for depth), each writing `.compozy/tasks/<slug>/analysis/analysis_<competitor>.md` with sections: Overview, Mechanisms/Patterns, Relevant Code Paths, Transferable Patterns, Risks/Mismatches, Open Questions, Evidence (file paths).
-- **Evidence**: codex_sessions (6+ sessions hand-orchestrated this exact shape: 04/13, 04/17, 04/18, 04/24, 04/25); codex_ledger ("Pi/Hermes/Claude Code/GoClaw" comparison rounds).
-
-#### S-H4. `cy-web-docs-impact`
+#### S-H3. `cy-web-docs-impact`
 
 - **Trigger**: any backend task draft or implementation.
 - **Mandate**: produce a "Web/Docs Impact" subitem listing affected `web/` routes/components/hooks AND affected `packages/site` doc pages. Backend-only tasks may declare "no impact" but only after analysis.
 - **Evidence**: codex_sessions (literally every backend session — Pedro asks "não é preciso mudar nada na UI do web/?" almost every time); compozy_tasks (autonomy `_techspec.md` step boundaries spell this out per task).
 
-#### S-H5. `agh-test-conventions` (or extend `testing-anti-patterns`)
+#### S-H4. `agh-test-conventions` (or extend `testing-anti-patterns`)
 
 - **Trigger**: any time a Go test file (`*_test.go`) is being written or modified.
 - **Mandate**: enforce (a) every case in `t.Run("Should ...")` subtest; (b) `t.Parallel()` default, opt-out only with comment for `t.Setenv` or shared state; (c) no `_ = errFn(...)` in tests; (d) status-code-only assertions also assert body or error message; (e) deterministic time/IDs; (f) compile-time interface assertions for new types.
 - **Evidence**: ~40% of ALL review issues across all PRs are this category (compozy_tasks counted ~29 issues in autonomy round 1 alone; global_runs documents 12+ separate quotes; codex_ledger; local_runs; codex_sessions). Reviewers quote CLAUDE.md verbatim and still find violations.
 
-#### S-H6. `agh-cleanup-failure-paths`
+#### S-H5. `agh-cleanup-failure-paths`
 
 - **Trigger**: editing a function with multi-step setup/teardown, subprocess spawn, registry registration, or context creation.
 - **Mandate**: enumerate every error-return; require explicit `cancel()`, `Close()`, `Stop()`, lease-release, or process-stop on each. Forbid `http.DefaultClient` for outbound calls. Test fail-paths.
 - **Evidence**: hermes-001 issue_001 (procCtx leak); hermes-001 issue_015 (`http.DefaultClient` no timeout); hermes round-2 issue_010 (logout silently fails on remote revoke); autonomy expired-lease cleanup issues. (compozy_tasks, global_runs, local_runs)
 
-#### S-H7. `agh-schema-migration`
+#### S-H6. `agh-schema-migration`
 
 - **Trigger**: any change to a SQLite column/index/constraint, any new struct field that round-trips through SQLite.
 - **Mandate**: confirm a numbered migration entry exists; reject `EnsureSchema`-style boot reconcile for column additions; test fresh-DB AND reopen-after-restart paths; record migration in `schema_migrations`.
 - **Evidence**: hermes-001 issue_020 was Critical (memory_operation_log widened without migration). Repeated across hermes/autonomy. Hermes Track 1 was rewritten partly to enforce a single migration primitive. (compozy_tasks, global_runs, codex_ledger, local_runs — 4 analyses)
 
-#### S-H8. `agh-contract-codegen-coship`
+#### S-H7. `agh-contract-codegen-coship`
 
 - **Trigger**: edits in `internal/api/contract/**`, `internal/api/spec/**`, `web/src/generated/**`, or `openapi/**`.
 - **Mandate**: regenerate `openapi/agh.json` and `web/src/generated/agh-openapi.d.ts` in same PR; update `web/src/systems/*/types.ts` consumers + Storybook/MSW fixtures; pass `make codegen-check`, `make web-typecheck`, `make web-test`.
 - **Evidence**: ADR-011 (autonomous) explicitly mandates this; "co-ship" mentioned in compozy_tasks, codex_plans, codex_ledger. Hermes Task 5's first verify failed because settings MCP fixtures didn't carry `transport`. (4 analyses)
 
-#### S-H9. `agh-worktree-isolation`
+#### S-H8. `agh-worktree-isolation`
 
 - **Trigger**: a QA execution or test run is being prepared while user signals (env or task arg) that other agents run in parallel worktrees.
 - **Mandate**: enforce per-worktree unique `AGH_HOME`, unique daemon ports, unique `tmux-bridge` socket paths. Block ops that would write to `~/.agh/` or default ports.
@@ -436,7 +430,7 @@ If Pedro approves, the next steps would be (in order):
 
 1. **Update CLAUDE.md** with the Tier-1 system prompts, fixed package layout table, fixed build commands, fixed phase framing.
 2. **Update `MEMORY.md`** with project-shape facts (autonomy kernel, manual-first contract, two-touch rule, ledger maintenance) and feedback-shape rules (subagents read-only, BR-PT conversation/EN artifacts).
-3. **Create new skills via `/skill-best-practices`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-research-competitors`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
+3. **Create new skills via `/skill-best-practices`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
 4. **Capture lesson-learned candidates** in a `docs/_memory/lessons/` registry — start with the Tier 1 (multi-source) lessons.
 5. **Decide on standing directives doc** (`docs/_memory/standing_directives.md`) for `long-running-sessions` and `remove-legacy-alpha`.
 6. **Decide on AGH glossary** to lock down `capability` vs. `recipe` vs. `skill`, AGENT.md vs. AGENTS.md, AGH-Network Peer Card vs. A2A Agent Card, and the "what AGH is not" list. Belongs on the marketing site.

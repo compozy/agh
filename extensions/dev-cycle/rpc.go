@@ -19,6 +19,12 @@ import (
 const (
 	jsonRPCVersion        = "2.0"
 	devCycleSDKName       = "agh-dev-cycle"
+	rpcMethodInitialize   = "initialize"
+	rpcMethodHealthCheck  = "health_check"
+	rpcMethodProvideTools = "provide_tools"
+	rpcMethodShutdown     = "shutdown"
+	rpcMethodToolsCall    = "tools/call"
+	rpcMethodWatchPoll    = "watch/poll"
 	watchKindCodeRabbitPR = "coderabbit_pr_review"
 )
 
@@ -106,21 +112,21 @@ func (s *rpcServer) run(ctx context.Context, stdin io.Reader) error {
 
 func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error) {
 	switch request.Method {
-	case "initialize":
+	case rpcMethodInitialize:
 		var params subprocess.InitializeRequest
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return false, s.sendError(request.ID, -32602, fmt.Sprintf("decode initialize params: %v", err))
 		}
 		return false, s.sendResult(request.ID, initializeResponse(params))
-	case "health_check":
+	case rpcMethodHealthCheck:
 		return false, s.sendResult(request.ID, subprocess.HealthCheckResponse{Healthy: true})
-	case "provide_tools":
+	case rpcMethodProvideTools:
 		tools, err := s.runtime.ProvideTools()
 		if err != nil {
 			return false, s.sendError(request.ID, -32000, err.Error())
 		}
 		return false, s.sendResult(request.ID, toolspkg.ExtensionProvideToolsResponse{Tools: tools})
-	case "tools/call":
+	case rpcMethodToolsCall:
 		var params toolspkg.ExtensionToolCallRequest
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return false, s.sendError(request.ID, -32602, fmt.Sprintf("decode tools/call params: %v", err))
@@ -130,7 +136,7 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 			return false, s.sendError(request.ID, -32010, err.Error())
 		}
 		return false, s.sendResult(request.ID, toolspkg.ExtensionToolCallResponse{Result: result})
-	case "watch/poll":
+	case rpcMethodWatchPoll:
 		var params watchpkg.PollRequest
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return false, s.sendError(request.ID, -32602, fmt.Sprintf("decode watch/poll params: %v", err))
@@ -140,7 +146,7 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 			return false, s.sendError(request.ID, -32020, err.Error())
 		}
 		return false, s.sendResult(request.ID, response)
-	case "shutdown":
+	case rpcMethodShutdown:
 		if err := s.sendResult(request.ID, subprocess.ShutdownResponse{Acknowledged: true}); err != nil {
 			return false, err
 		}
@@ -151,7 +157,7 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 }
 
 func initializeResponse(req subprocess.InitializeRequest) subprocess.InitializeResponse {
-	methods := []string{"health_check", "shutdown"}
+	methods := []string{rpcMethodHealthCheck, rpcMethodShutdown}
 	methods = append(methods, req.Methods.ExtensionServices...)
 	slices.Sort(methods)
 	methods = slices.Compact(methods)

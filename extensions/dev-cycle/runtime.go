@@ -38,6 +38,16 @@ func (p *runtimeProvider) CallTool(
 	started := time.Now()
 	var payload any
 	switch req.Handler {
+	case toolImportTasks:
+		var input importTasksInput
+		if err := decodeToolInput(req.Input, &input); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		result, err := importTasks(input)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		payload = result
 	case toolFetchUnresolved:
 		var input codeRabbitFetchInput
 		if err := decodeToolInput(req.Input, &input); err != nil {

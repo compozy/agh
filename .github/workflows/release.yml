@@ -171,7 +171,7 @@ jobs:
           setup-qemu: false
 
       - name: Validate release install contract
-        run: go run github.com/magefile/mage@v1.17.0 releaseInstallCheck
+        run: go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
 
       - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
@@ -430,7 +430,7 @@ jobs:
             echo "::error::install.sh must verify checksums against the production release workflow identity"
             exit 1
           fi
-          go run github.com/magefile/mage@v1.17.0 releaseInstallCheck
+          go run github.com/magefile/mage@v1.17.2 releaseInstallCheck
           if ! grep -q 'packages/site/public/install.sh' .goreleaser.yml; then
             echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
             exit 1

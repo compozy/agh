@@ -334,7 +334,7 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 		globalDB.now = fixedTaskReviewStoreTime
 		taskRecord, runRecord := createReviewStoreTaskRun(t, globalDB, taskpkg.TaskRunStatusCompleted)
 		taskRecord.MaxAttempts = 1
-		if err := globalDB.UpdateTask(ctx, taskRecord); err != nil {
+		if err := globalDB.UpdateTask(ctx, taskRecord, coordinatorActorContextForTest()); err != nil {
 			t.Fatalf("UpdateTask() error = %v", err)
 		}
 		review := taskReviewForGlobalDBTest("review-exhausted", taskRecord.ID, runRecord.ID)

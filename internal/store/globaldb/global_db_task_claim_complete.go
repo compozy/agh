@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -23,6 +24,9 @@ func (g *GlobalDB) CompleteRunLease(
 	}
 	normalized, err := completion.Normalize(g.now())
 	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := normalized.Actor.Validate(); err != nil {
 		return taskpkg.Run{}, err
 	}
 
@@ -79,6 +83,22 @@ func (g *GlobalDB) completeRunLeaseWithExecutor(
 	if err := resetTaskBlockRecurrencesWithExecutor(ctx, exec, current.TaskID); err != nil {
 		return taskpkg.Run{}, err
 	}
+	if err := appendTaskEventPayloadWithExecutor(
+		ctx,
+		exec,
+		current.TaskID,
+		current.ID,
+		string(hookspkg.HookTaskRunCompleted),
+		normalized.Actor,
+		normalized.Now,
+		taskRunCompletedWatchEventPayload{
+			Status:         taskpkg.TaskRunStatusCompleted,
+			Result:         resultPayload,
+			ClaimTokenHash: current.ClaimTokenHash,
+		},
+	); err != nil {
+		return taskpkg.Run{}, err
+	}
 	updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {
 		return taskpkg.Run{}, err
@@ -130,10 +150,7 @@ func completeRunLeaseRowWithExecutor(
 }
 
 func loopNodeRunShouldExternalizeResult(run taskpkg.Run, payload json.RawMessage) bool {
-	if strings.TrimSpace(run.LoopRunID) == "" {
-		return false
-	}
-	if run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+	if !run.IsLoopWorker() {
 		return false
 	}
 	return looppkg.OutputPayloadRequiresRef(payload)
@@ -230,7 +247,7 @@ func recordLoopNodeTerminalWithExecutor(
 	terminalAt time.Time,
 ) error {
 	loopRunID := strings.TrimSpace(run.LoopRunID)
-	if loopRunID == "" || run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+	if !run.IsLoopWorker() {
 		return nil
 	}
 	status := loopNodeOutputSucceeded
@@ -283,6 +300,7 @@ func updateLoopNodeOutputTerminalWithExecutor(
 	status string,
 	outputRef string,
 ) error {
+	// Generation advance is atomic with task-run completion here; changing that boundary requires an ADR.
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE loop_generation_outputs

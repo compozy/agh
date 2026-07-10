@@ -154,6 +154,7 @@ export type HookEvent =
   | "task.unblocked"
   | "task.needs_attention"
   | "task.recovered"
+  | "task.status_changed"
   | "task.run.enqueued"
   | "task.run.pre_claim"
   | "task.run.post_claim"
@@ -4409,6 +4410,7 @@ export interface TaskBlockedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   task_id?: string;
+  parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4438,6 +4440,7 @@ export interface TaskCancelParams {
 
 export interface TaskContext {
   task_id?: string;
+  parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4854,6 +4857,7 @@ export interface TaskNeedsAttentionPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   task_id?: string;
+  parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -4880,6 +4884,7 @@ export interface TaskRecoveredPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   task_id?: string;
+  parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -5327,6 +5332,28 @@ export interface TaskRunsParams {
   limit?: number;
 }
 
+export interface TaskStatusChangedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  task_id?: string;
+  parent_task_id?: string;
+  workspace_id?: string;
+  workflow_id?: string;
+  coordination_channel_id?: string;
+  network_channel?: string;
+  agent_name?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  origin_kind?: string;
+  origin_ref?: string;
+  task_status?: string;
+  run_id?: string;
+  release_reason?: string;
+  claim_token_hash?: string;
+  from_status: string;
+  to_status: string;
+}
+
 export interface TaskTargetParams {
   id: string;
 }
@@ -5371,6 +5398,7 @@ export interface TaskUnblockedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   task_id?: string;
+  parent_task_id?: string;
   workspace_id?: string;
   workflow_id?: string;
   coordination_channel_id?: string;
@@ -5738,6 +5766,7 @@ export interface HookPayloadByEvent {
   "task.unblocked": TaskUnblockedPayload;
   "task.needs_attention": TaskNeedsAttentionPayload;
   "task.recovered": TaskRecoveredPayload;
+  "task.status_changed": TaskStatusChangedPayload;
   "task.run.enqueued": TaskRunEnqueuedPayload;
   "task.run.pre_claim": TaskRunPreClaimPayload;
   "task.run.post_claim": TaskRunPostClaimPayload;
@@ -5824,6 +5853,7 @@ export interface HookPatchByEvent {
   "task.unblocked": TaskObservationPatch;
   "task.needs_attention": TaskObservationPatch;
   "task.recovered": TaskObservationPatch;
+  "task.status_changed": TaskObservationPatch;
   "task.run.enqueued": TaskRunObservationPatch;
   "task.run.pre_claim": TaskRunPreClaimPatch;
   "task.run.post_claim": TaskRunObservationPatch;

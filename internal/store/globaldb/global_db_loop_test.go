@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -272,6 +273,98 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 		}
 		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, queuedRun.ID); got != 0 {
 			t.Fatalf("queued loop coordinator task runs = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reserve coordinator wakes beyond the task retry budget", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 7, 9, 10, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-budget", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		actor := coordinatorActorContextForTest()
+		claimCoordinator := func(runID string, at time.Time) taskpkg.ClaimResult {
+			t.Helper()
+			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            runID,
+				Scope:            taskpkg.ScopeWorkspace,
+				WorkspaceID:      string(created.WorkspaceID),
+				RunKind:          taskpkg.RunKindCoordinator,
+				ClaimerSessionID: "daemon-loop-coordinator-budget",
+				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+				LeaseDuration:    time.Minute,
+				Now:              at,
+			})
+			if err != nil {
+				t.Fatalf("ClaimNextRun(%s) error = %v", runID, err)
+			}
+			return claim
+		}
+		completeCoordinator := func(claim taskpkg.ClaimResult, at time.Time) {
+			t.Helper()
+			_, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Actor:      actor,
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID:  string(created.ID),
+						Generation: created.Generation + 1,
+					},
+					Yield: true,
+				},
+				Now: at,
+			}, looppkg.NewStoreFinalizer())
+			if err != nil {
+				t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", claim.Run.ID, err)
+			}
+		}
+
+		initialRunID := loopCoordinatorRunID(created.ID, created.Generation+1)
+		completeCoordinator(claimCoordinator(initialRunID, now.Add(time.Second)), now.Add(2*time.Second))
+		for attempt := 2; attempt <= taskpkg.DefaultTaskMaxAttempts; attempt++ {
+			wakeRun, added, err := globalDB.EnqueueLoopCoordinatorWake(
+				ctx,
+				string(created.ID),
+				fmt.Sprintf("coordinator-budget-wake-%d", attempt),
+				actor.Origin,
+				now.Add(time.Duration(attempt*2+1)*time.Second),
+			)
+			if err != nil {
+				t.Fatalf("EnqueueLoopCoordinatorWake(%d) error = %v", attempt, err)
+			}
+			if !added {
+				t.Fatalf("EnqueueLoopCoordinatorWake(%d) added = false, want true", attempt)
+			}
+			completeCoordinator(
+				claimCoordinator(wakeRun.ID, now.Add(time.Duration(attempt*2+2)*time.Second)),
+				now.Add(time.Duration(attempt*2+3)*time.Second),
+			)
+		}
+
+		afterBudget, added, err := globalDB.EnqueueLoopCoordinatorWake(
+			ctx,
+			string(created.ID),
+			"coordinator-budget-after-default",
+			actor.Origin,
+			now.Add(20*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("EnqueueLoopCoordinatorWake(after budget) error = %v", err)
+		}
+		if !added {
+			t.Fatal("EnqueueLoopCoordinatorWake(after budget) added = false, want true")
+		}
+		if got, want := afterBudget.Attempt, int32(taskpkg.DefaultTaskMaxAttempts+1); got != want {
+			t.Fatalf("after-budget attempt = %d, want %d", got, want)
 		}
 	})
 }

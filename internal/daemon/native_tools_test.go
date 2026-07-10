@@ -13,12 +13,14 @@ import (
 	"testing"
 	"time"
 
+	devcycle "github.com/compozy/agh/extensions/dev-cycle"
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	apitest "github.com/compozy/agh/internal/api/testutil"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	mcppkg "github.com/compozy/agh/internal/mcp"
@@ -5395,6 +5397,73 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should trust bundled extension read only tools in default runtime policy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		deps, extensionRegistry, _, _ := newNativeExtensionToolDeps(t)
+		cfg := testConfig(t, deps.HomePaths)
+		if err := devcycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
+			t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
+		}
+		runtime := &nativeBundledDevCycleToolRuntime{
+			devCycleLoopSchemaRuntime: newDevCycleLoopSchemaRuntime(t, extensionRegistry),
+		}
+		provider, err := extensionpkg.NewExtensionToolProvider(
+			extensionRegistry,
+			func() extensionpkg.ExtensionToolRuntime {
+				return runtime
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			ExtensionRegistry: extensionRegistry,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		toolsets, err := builtintools.ToolsetCatalog()
+		if err != nil {
+			t.Fatalf("ToolsetCatalog() error = %v", err)
+		}
+		registry, err := toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputResolver(resolver, toolsets),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		const importTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"
+
+		views, err := registry.SessionProjection(ctx, toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("SessionProjection(extension tools) error = %v", err)
+		}
+		requireNativeViewContains(t, views, importTasksToolID)
+
+		result, err := registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: importTasksToolID,
+			Input:  json.RawMessage(`{"pattern":"*.md"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(import_tasks) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"count":0`))
+		if len(runtime.calls) != 1 {
+			t.Fatalf("runtime calls = %d, want 1", len(runtime.calls))
+		}
+		if got := runtime.calls[0].extensionID; got != devcycle.Name {
+			t.Fatalf("runtime extension id = %q, want %q", got, devcycle.Name)
+		}
+		if got := runtime.calls[0].request.ToolID; got != importTasksToolID {
+			t.Fatalf("runtime tool id = %q, want %q", got, importTasksToolID)
+		}
+	})
+
 	t.Run("Should return diagnostic status for tools denied by explicit agent policy", func(t *testing.T) {
 		t.Parallel()
 
@@ -5728,6 +5797,36 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryPropose)
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDMemoryNote)
 	})
+}
+
+type nativeBundledDevCycleToolRuntime struct {
+	*devCycleLoopSchemaRuntime
+	calls []nativeBundledDevCycleToolCall
+}
+
+type nativeBundledDevCycleToolCall struct {
+	extensionID string
+	request     toolspkg.ExtensionToolCallRequest
+}
+
+func (r *nativeBundledDevCycleToolRuntime) CallTool(
+	ctx context.Context,
+	extensionID string,
+	req toolspkg.ExtensionToolCallRequest,
+) (toolspkg.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	r.calls = append(r.calls, nativeBundledDevCycleToolCall{
+		extensionID: extensionID,
+		request:     req,
+	})
+	structured := json.RawMessage(`{"tasks":[],"count":0}`)
+	return toolspkg.ToolResult{
+		Structured: structured,
+		Preview:    string(structured),
+		Bytes:      int64(len(structured)),
+	}, nil
 }
 
 func newDaemonNativeRegistry(

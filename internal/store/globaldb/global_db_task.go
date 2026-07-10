@@ -144,18 +144,21 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 }
 
 // UpdateTask replaces the persisted canonical task record.
-func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task) error {
+func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task, actor taskpkg.ActorContext) error {
 	if err := g.checkReady(ctx, "update task"); err != nil {
 		return err
 	}
 
-	return g.updateTaskWithExecutor(ctx, g.db, record)
+	return g.withTaskImmediateTransaction(ctx, "update task", func(exec taskSQLExecutor) error {
+		return g.updateTaskWithExecutor(ctx, exec, record, actor)
+	})
 }
 
 func (g *GlobalDB) updateTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	record taskpkg.Task,
+	actor taskpkg.ActorContext,
 ) error {
 	normalized, err := g.normalizeTaskForUpdate(record)
 	if err != nil {
@@ -171,12 +174,17 @@ func (g *GlobalDB) updateTaskWithExecutor(
 	}
 
 	normalized.CreatedAt = current.CreatedAt
+	statusChanged, err := taskStatusChangedForUpdate(current.Status, normalized.Status, actor)
+	if err != nil {
+		return err
+	}
+
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE tasks
 		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
 		     network_channel = ?, title = ?, description = ?, priority = ?,
-		     max_attempts = ?, auto_enqueue_on_ready = ?, status = ?, approval_policy = ?, approval_state = ?,
+		     max_attempts = ?, auto_enqueue_on_ready = ?, approval_policy = ?, approval_state = ?,
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
 		     created_at = ?, updated_at = ?, closed_at = ?,
@@ -195,7 +203,6 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		string(normalized.Priority),
 		normalized.MaxAttempts,
 		taskBoolToInt(normalized.AutoEnqueueOnReady),
-		string(normalized.Status),
 		string(normalized.ApprovalPolicy),
 		string(normalized.ApprovalState),
 		taskOwnerKindValue(normalized.Owner),
@@ -223,7 +230,10 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		return fmt.Errorf("store: update task %q: %w", normalized.ID, err)
 	}
 
-	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, normalized.ID, "task")
+	if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, normalized.ID, "task"); err != nil {
+		return err
+	}
+	return setTaskStatusIfChangedWithExecutor(ctx, exec, current, normalized, actor, statusChanged)
 }
 
 // GetTask returns one persisted task by primary key.
@@ -601,65 +611,6 @@ func (g *GlobalDB) listTaskRunsWithExecutor(
 	}
 
 	return g.loadTaskRunCapabilitiesForList(ctx, exec, runs)
-}
-
-type deleteTaskTxStore struct {
-	global *GlobalDB
-	exec   taskSQLExecutor
-}
-
-var _ taskpkg.DeleteTaskMutationStore = (*deleteTaskTxStore)(nil)
-
-func (s *deleteTaskTxStore) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
-	return s.global.getTaskWithExecutor(ctx, s.exec, id)
-}
-
-func (s *deleteTaskTxStore) UpdateTask(ctx context.Context, record taskpkg.Task) error {
-	return s.global.updateTaskWithExecutor(ctx, s.exec, record)
-}
-
-func (s *deleteTaskTxStore) DeleteTask(ctx context.Context, id string) error {
-	return s.global.deleteTaskWithExecutor(ctx, s.exec, id)
-}
-
-func (s *deleteTaskTxStore) CountDirectChildren(
-	ctx context.Context,
-	parentTaskID string,
-) (int, error) {
-	return s.global.countDirectChildrenWithExecutor(ctx, s.exec, parentTaskID)
-}
-
-func (s *deleteTaskTxStore) ListDependencies(
-	ctx context.Context,
-	taskID string,
-) ([]taskpkg.Dependency, error) {
-	return s.global.listDependenciesWithExecutor(ctx, s.exec, taskID)
-}
-
-func (s *deleteTaskTxStore) ListTaskBlocks(
-	ctx context.Context,
-	taskID string,
-	includeCleared bool,
-) ([]taskpkg.TaskBlock, error) {
-	return s.global.listTaskBlocksWithExecutor(ctx, s.exec, taskID, includeCleared, s.global.now())
-}
-
-func (s *deleteTaskTxStore) HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error) {
-	return s.global.hasOpenTaskBlocksWithExecutor(ctx, s.exec, taskID, s.global.now())
-}
-
-func (s *deleteTaskTxStore) ListDependents(
-	ctx context.Context,
-	dependsOnTaskID string,
-) ([]taskpkg.Dependency, error) {
-	return s.global.listDependentsWithExecutor(ctx, s.exec, dependsOnTaskID)
-}
-
-func (s *deleteTaskTxStore) ListTaskRuns(
-	ctx context.Context,
-	query taskpkg.RunQuery,
-) ([]taskpkg.Run, error) {
-	return s.global.listTaskRunsWithExecutor(ctx, s.exec, query)
 }
 
 // ListTaskRunsByStatus returns persisted runs that match any of the supplied statuses.

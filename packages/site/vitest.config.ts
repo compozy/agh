@@ -18,6 +18,8 @@ export default defineConfig({
   test: {
     name: "site",
     environment: "jsdom",
+    // Bounded pool: turbo runs workspace test tasks concurrently (L-030).
+    maxWorkers: "50%",
     setupFiles: ["./vitest.setup.tsx"],
     env: {
       AGH_SITE_ROOT: siteRoot,

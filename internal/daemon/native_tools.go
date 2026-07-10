@@ -346,7 +346,7 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 	if !ok || dbSource.DB() == nil {
 		return nil, nil
 	}
-	return extensionpkg.NewExtensionToolProvider(
+	provider, err := extensionpkg.NewExtensionToolProvider(
 		extensionpkg.NewRegistry(dbSource.DB()),
 		func() extensionpkg.ExtensionToolRuntime {
 			runtime := state.currentExtensionRuntime()
@@ -360,6 +360,10 @@ func newDaemonExtensionToolProvider(state *bootState) (toolspkg.Provider, error)
 			return toolRuntime
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	return newDaemonScopedExtensionToolProvider(provider, state.workspaceResolver), nil
 }
 
 func daemonMCPServerConfigs(state *bootState) []aghconfig.MCPServer {

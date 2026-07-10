@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/agh/internal/codegen/jsbin"
 )
 
 // Artifact describes one checked-in OpenAPI document and its generated type output.
@@ -32,8 +34,12 @@ type execRunner struct{}
 
 var _ commandRunner = execRunner{}
 
-func (execRunner) Run(ctx context.Context, name string, args ...string) error {
-	return runCommand(ctx, name, args...)
+// Run resolves the JS tool to the workspace-pinned node_modules/.bin shim
+// (bunx fallback) before executing, so codegen never depends on the global
+// bunx cache when the workspace install is present.
+func (execRunner) Run(ctx context.Context, tool string, args ...string) error {
+	argv := jsbin.Argv(".", tool, args...)
+	return runCommand(ctx, argv[0], argv[1:]...)
 }
 
 func createOSTemporaryOutput(dir string, pattern string) (temporaryOutputFile, error) {
@@ -69,11 +75,11 @@ func generateWithRunner(ctx context.Context, artifact Artifact, runner commandRu
 		artifact.OutputPath,
 		createOSTemporaryOutput,
 		func(tempPath string) error {
-			if err := runner.Run(ctx, "bunx", "openapi-typescript", artifact.SpecPath, "-o", tempPath); err != nil {
+			if err := runner.Run(ctx, "openapi-typescript", artifact.SpecPath, "-o", tempPath); err != nil {
 				return fmt.Errorf("generate %q from %q: %w", artifact.OutputPath, artifact.SpecPath, err)
 			}
 
-			if err := runner.Run(ctx, "bunx", "oxfmt", tempPath); err != nil {
+			if err := runner.Run(ctx, "oxfmt", tempPath); err != nil {
 				return fmt.Errorf("format %q: %w", artifact.OutputPath, err)
 			}
 

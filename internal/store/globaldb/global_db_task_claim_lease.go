@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -19,6 +20,9 @@ func (g *GlobalDB) FailRunLease(
 	}
 	normalized, err := failure.Normalize(g.now())
 	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if err := normalized.Actor.Validate(); err != nil {
 		return taskpkg.Run{}, err
 	}
 
@@ -67,12 +71,38 @@ func (g *GlobalDB) FailRunLease(
 		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
 			return err
 		}
+		if err := appendFailedRunLeaseWatchEvent(ctx, exec, current, normalized); err != nil {
+			return err
+		}
 		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
 		return taskpkg.Run{}, err
 	}
 	return updated, nil
+}
+
+func appendFailedRunLeaseWatchEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current taskpkg.Run,
+	failure taskpkg.LeaseFailure,
+) error {
+	return appendTaskEventPayloadWithExecutor(
+		ctx,
+		exec,
+		current.TaskID,
+		current.ID,
+		string(hookspkg.HookTaskRunFailed),
+		failure.Actor,
+		failure.Now,
+		taskRunFailedWatchEventPayload{
+			Status:         taskpkg.TaskRunStatusFailed,
+			Error:          failure.Failure.Error,
+			Metadata:       failure.Failure.Metadata,
+			ClaimTokenHash: current.ClaimTokenHash,
+		},
+	)
 }
 
 // ListAutonomyLeaseHandles returns internal-only lease handles for one session.

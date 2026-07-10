@@ -60,6 +60,7 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 		r.gateEvaluator,
 		fanOutWidth,
 		r.watchRuntime(),
+		r.watchEventsRuntime(),
 		plan,
 		normalized,
 		live,
@@ -77,12 +78,13 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	gateEvaluator gate.GateEvaluator,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
 	plan task.CoordinatorCompletionPlan,
 	normalized []GenerationOutput,
 	live bool,
 ) (task.CoordinatorCompletionPlan, error) {
-	graph := resolved.Definition.Graph
 	advancedOutputs := cloneGenerationOutputs(normalized)
+	outputBlobs := []GenerationOutputBlob{}
 	terminal, err := advanceControlNodes(
 		ctx,
 		&plan,
@@ -95,19 +97,52 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		r.store,
 		fanOutWidth,
 		watchRuntime,
+		watchEventsRuntime,
 		&advancedOutputs,
+		&outputBlobs,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	plan.Snapshot.Payload = GenerationSnapshotPayload{Outputs: sortedGenerationOutputs(advancedOutputs)}
+	plan.Snapshot.Payload = generationSnapshotPayload(
+		sortedGenerationOutputs(advancedOutputs),
+		outputBlobs,
+	)
 	if terminal != nil {
 		plan.Terminal = terminal
+	}
+	if terminal != nil || plan.Yield {
 		return plan, nil
 	}
-	if plan.Yield {
-		return plan, nil
-	}
+	return r.finishLiveGenerationPlan(
+		ctx,
+		taskRun,
+		run,
+		generation,
+		resolved,
+		effective,
+		topology,
+		gateEvaluator,
+		plan,
+		advancedOutputs,
+		live,
+	)
+}
+
+func (r *CoordinatorRunner) finishLiveGenerationPlan(
+	ctx context.Context,
+	taskRun task.Run,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	topology controlTopology,
+	gateEvaluator gate.GateEvaluator,
+	plan task.CoordinatorCompletionPlan,
+	advancedOutputs []GenerationOutput,
+	live bool,
+) (task.CoordinatorCompletionPlan, error) {
+	graph := resolved.Definition.Graph
 	hasReadyRuns, err := appendReadyNodeRunsToPlan(
 		&plan,
 		run,

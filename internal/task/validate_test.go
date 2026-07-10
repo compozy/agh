@@ -251,22 +251,63 @@ func TestRunKindJSONDecodingShouldRejectUnknownValues(t *testing.T) {
 	})
 }
 
-func TestCoordinatorTerminalShouldValidateStatusVocabulary(t *testing.T) {
+func TestRunIsLoopWorkerShouldIdentifyLoopCorrelatedWorkers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept supported loop run terminal status", func(t *testing.T) {
+	tests := []struct {
+		name string
+		run  Run
+		want bool
+	}{
+		{
+			name: "Should reject empty loop run id",
+			run:  Run{RunKind: RunKindWorker},
+			want: false,
+		},
+		{
+			name: "Should reject coordinator kind",
+			run:  Run{RunKind: RunKindCoordinator, LoopRunID: "loop-run-1"},
+			want: false,
+		},
+		{
+			name: "Should accept worker with loop run id",
+			run:  Run{RunKind: RunKindWorker, LoopRunID: "loop-run-1"},
+			want: true,
+		},
+		{
+			name: "Should reject whitespace loop run id",
+			run:  Run{RunKind: RunKindWorker, LoopRunID: " \t\n "},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.run.IsLoopWorker(); got != tc.want {
+				t.Fatalf("Run.IsLoopWorker() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCoordinatorTerminalShouldValidateShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept non-empty status", func(t *testing.T) {
 		t.Parallel()
 
-		terminal := CoordinatorTerminal{Status: "no-op"}
+		terminal := CoordinatorTerminal{Status: "mystery"}
 		if err := terminal.Validate("coordinator.terminal"); err != nil {
 			t.Fatalf("CoordinatorTerminal.Validate() error = %v", err)
 		}
 	})
 
-	t.Run("Should reject unknown loop run terminal status", func(t *testing.T) {
+	t.Run("Should reject empty status", func(t *testing.T) {
 		t.Parallel()
 
-		terminal := CoordinatorTerminal{Status: "mystery"}
+		terminal := CoordinatorTerminal{Status: " "}
 		err := terminal.Validate("coordinator.terminal")
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("CoordinatorTerminal.Validate() error = %v, want ErrValidation", err)

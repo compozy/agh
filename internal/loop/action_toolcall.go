@@ -67,7 +67,7 @@ func (e *ToolCallActionExecutor) Execute(
 		ToolResult:      result,
 		Structured:      cloneRawMessage(result.Structured),
 		WorkspaceID:     scope.WorkspaceID,
-		SessionID:       firstNonEmpty(metadataString(result.Metadata, "session_id"), scope.SessionID),
+		SessionID:       firstNonEmpty(metadataString(result.Metadata, watchEventsFieldSessionID), scope.SessionID),
 		RenderedParams:  cloneRawMessage(input),
 		RenderedHarvest: harvest,
 	}
@@ -132,10 +132,10 @@ func (e *ToolCallActionExecutor) harvestEventRange(
 		return outputFromRaw(out)
 	}
 	structured, err := json.Marshal(map[string]any{
-		"events":          result.Events,
-		"event_start_seq": raw.EventStartSeq,
-		"event_end_seq":   raw.EventEndSeq,
-		"session_id":      raw.SessionID,
+		"events":                  result.Events,
+		"event_start_seq":         raw.EventStartSeq,
+		"event_end_seq":           raw.EventEndSeq,
+		watchEventsFieldSessionID: raw.SessionID,
 	})
 	if err != nil {
 		return ActionOutput{}, fmt.Errorf("marshal event range harvest: %w", err)

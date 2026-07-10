@@ -78,6 +78,7 @@ design_reference:
     - "Canonical stop-limit defaults render (iteration_cap 50, not the design HTML's 10; unbounded shown as ∞) — §9.5.1."
     - "Terminal banner is truthful: a done shown here must be a genuine verified done, never a coerced exhausted/stalled (ADR-013 inv5)."
     - "Running pulse only while live; gated by reduced-motion."
+    - "loops-refac (2026-07-08): software-delivery's load_tasks resolves via the ext__dev_cycle__import_tasks action node (not source/file-import), and its run-agent sessions are now policy-gated (sandbox/permission/subset-only allowed_tools) — the run reaches the same verified done, but LP-003/LP-046 verify the new session posture (CH-026)."
 
 e2e_backbone:
   runtime:

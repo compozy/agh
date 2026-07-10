@@ -70,7 +70,7 @@ func loopGateVerdictEventPayload(
 		slog.Default().DebugContext(
 			ctx,
 			"store: decode loop gate verdict payload",
-			"node_id",
+			loopRunEventPayloadKeyNodeID,
 			gateID,
 			loopRunEventPayloadKeyGeneration,
 			generation,
@@ -82,7 +82,7 @@ func loopGateVerdictEventPayload(
 			err,
 		)
 		return map[string]any{
-			"node_id":                        gateID,
+			loopRunEventPayloadKeyNodeID:     gateID,
 			loopRunEventPayloadKeyGeneration: generation,
 			"verdict":                        loopRunEventVerdictRevise,
 			loopRunEventPayloadKeyReason:     strings.TrimSpace(terminal.ReasonCode),
@@ -119,7 +119,7 @@ func loopGateVerdictEventPayload(
 		})
 	}
 	payload := map[string]any{
-		"node_id":                        firstNonEmptyString(gateID, "definition_of_done"),
+		loopRunEventPayloadKeyNodeID:     firstNonEmptyString(gateID, "definition_of_done"),
 		loopRunEventPayloadKeyGeneration: generation,
 		"verdict":                        verdictLabel,
 		loopRunEventPayloadKeyReason: firstNonEmptyString(

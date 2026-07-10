@@ -187,7 +187,7 @@ func (m *Service) RecordRunReview(
 		return RunReviewResult{}, err
 	}
 	if result.ContinuationRun != nil {
-		if _, err := m.reconcileTaskCascade(ctx, result.Review.TaskID); err != nil {
+		if _, err := m.reconcileTaskCascade(ctx, result.Review.TaskID, actor); err != nil {
 			return RunReviewResult{}, err
 		}
 	}

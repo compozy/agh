@@ -56,7 +56,7 @@ func (n *daemonNativeTools) taskExecutionProfileSet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	taskID, err := requiredNativeString(req.ToolID, "task_id", input.TaskID)
+	taskID, err := requiredNativeString(req.ToolID, coordinatorRuntimeTaskIDKey, input.TaskID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -91,7 +91,7 @@ func (n *daemonNativeTools) taskExecutionProfileDelete(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(
-		map[string]any{"task_id": taskID, nativeProfileToolsDeletedKey: true},
+		map[string]any{coordinatorRuntimeTaskIDKey: taskID, nativeProfileToolsDeletedKey: true},
 		fmt.Sprintf("deleted profile %s", taskID),
 	)
 }
@@ -104,7 +104,7 @@ func decodeTaskExecutionProfileRef(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return "", taskpkg.ActorContext{}, err
 	}
-	taskID, err := requiredNativeString(req.ToolID, "task_id", input.TaskID)
+	taskID, err := requiredNativeString(req.ToolID, coordinatorRuntimeTaskIDKey, input.TaskID)
 	if err != nil {
 		return "", taskpkg.ActorContext{}, err
 	}

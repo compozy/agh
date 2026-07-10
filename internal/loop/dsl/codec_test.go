@@ -172,6 +172,76 @@ start: [{ kind: manual }]
 	})
 }
 
+func TestCodecShouldRoundTripWatchEventsBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve multi subscription watch-events nodes", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+kind: Loop
+meta: { name: watch-events-codec }
+concurrency: forbid
+inputs:
+  parent_task_id: { type: string, required: true }
+contract:
+  goal: Watch task events
+  definition_of_done: Events are summarized
+  verification: []
+  terminal_states: [done, failed]
+  iteration_cap: 0
+  no_progress: { window: 1, hash_fields: [] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: task_activity
+      class: source
+      kind: watch-events
+      events:
+        - kind: task.status_changed
+          filter: "event.task_id == inputs.parent_task_id && event.payload.to_status == 'blocked'"
+        - kind: task.run.completed
+          filter: "event.task_id == inputs.parent_task_id"
+  edges: []
+start: [{ kind: manual }]
+`))
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+
+		node := def.Graph.Nodes[0]
+		want := []dsl.EventSubscription{
+			{
+				Kind:   "task.status_changed",
+				Filter: "event.task_id == inputs.parent_task_id && event.payload.to_status == 'blocked'",
+			},
+			{
+				Kind:   "task.run.completed",
+				Filter: "event.task_id == inputs.parent_task_id",
+			},
+		}
+		if !reflect.DeepEqual(node.Events, want) {
+			t.Fatalf("Events = %#v, want %#v", node.Events, want)
+		}
+
+		serialized, err := dsl.Serialize(def)
+		if err != nil {
+			t.Fatalf("Serialize() error = %v", err)
+		}
+		if !containsString(string(serialized), "kind: watch-events") ||
+			!containsString(string(serialized), "events:") {
+			t.Fatalf("serialized YAML missing watch-events events block:\n%s", string(serialized))
+		}
+		reparsed, err := dsl.Parse(serialized)
+		if err != nil {
+			t.Fatalf("Parse(serialized) error = %v; yaml=%s", err, string(serialized))
+		}
+		if !reflect.DeepEqual(reparsed.Graph.Nodes[0].Events, want) {
+			t.Fatalf("round-trip Events = %#v, want %#v", reparsed.Graph.Nodes[0].Events, want)
+		}
+	})
+}
+
 func minimalDefinition(contract string) string {
 	return `apiVersion: agh.loop/v1
 kind: Loop

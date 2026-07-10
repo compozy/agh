@@ -46,6 +46,7 @@ The bootstrap helper writes two canonical artifacts under:
     "JOURNEY_LOG": "/abs/path/to/lab/qa-artifacts/qa/journey-log.jsonl",
     "PROVIDER_ATTEMPT": "/abs/path/to/lab/qa-artifacts/qa/provider-attempt.json",
     "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py",
+    "TEARDOWN_COMMAND": "python3 /abs/path/to/repo/.agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest /abs/path/to/lab/qa-artifacts/qa/bootstrap-manifest.json",
     "PLAYBOOK_REF": "northstar-pay",
     "KICKOFF_POSTED": "false",
     "KICKOFF_TIMESTAMP": ""
@@ -93,6 +94,22 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - Web dev server for isolated daemon QA: `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET" make web-dev`
 - Config mutations such as `agh config set` must run sequentially when they target the same isolated home.
 - Before claiming behavior-first QA completion, run `python3 "$AUDIT_COMMAND" --qa-output-path "$QA_OUTPUT_PATH" --strict` and include its result in the verification report.
+- Every long-lived process started against the lab (daemon, `make web-dev`, watchers, browser sessions started outside `agent-browser`'s own lifecycle) must register its PID at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` right after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/<name>.pid"`). The teardown consumes this registry first and falls back to cmdline/lsof/port scans.
+
+## Mandatory teardown (process hygiene)
+
+A QA pass is not complete while lab processes are alive. On every terminal path — pass, fail, blocked, or aborted — run:
+
+```bash
+eval "$TEARDOWN_COMMAND"            # single lab, from the manifest
+# or, to reap every discoverable lab on the machine:
+make qa-reap                         # add PURGE=1 to also delete runtime dirs after a clean sweep
+```
+
+- The teardown stops the daemon gracefully first (`agh daemon stop` under the lab `AGH_HOME`), kills the lab tmux server, then sweeps survivors (registered PIDs, cmdline references, lab-port listeners, open files under the runtime/provider homes).
+- It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.
+- Exception: a lab may stay alive ONLY while the same active session/loop continues using it (reuse policy above). A continuation that ends without reusing the lab inherits the teardown obligation.
+- Exit code `1` (survivors remain) is a blocking failure: diagnose the survivors, do not ignore them.
 
 ## Machine-readable continuation block
 

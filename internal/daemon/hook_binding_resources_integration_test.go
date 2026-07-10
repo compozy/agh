@@ -4,6 +4,9 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -271,6 +274,61 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 	}
 }
 
+func TestHookBindingResourceReconcileFiresTaskStatusChangedHookThroughDaemonBridge(t *testing.T) {
+	t.Run("Should deliver async config task status payload through daemon bridge", func(t *testing.T) {
+		capturePath := filepath.Join(t.TempDir(), "task-status-payload.json")
+		h := newHookBindingIntegrationHarness(t, nil)
+
+		h.putBinding(t, "task-status-hook", 0, resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   "ws-1",
+		}, hookspkg.HookDecl{
+			Name:         "task-status-hook",
+			Event:        hookspkg.HookTaskStatusChanged,
+			Source:       hookspkg.HookSourceConfig,
+			Mode:         hookspkg.HookModeAsync,
+			ExecutorKind: hookspkg.HookExecutorSubprocess,
+			Command:      "/bin/sh",
+			Args:         []string{"-c", `payload=$(cat); printf '%s' "$payload" > "$HOOK_CAPTURE"; printf '{}'`},
+			Env:          map[string]string{"HOOK_CAPTURE": capturePath},
+			Matcher: hookspkg.HookMatcher{
+				WorkspaceID: "ws-1",
+				Autonomy: &hookspkg.AutonomyMatcher{
+					TaskID: "task-1",
+				},
+			},
+		})
+		if err := h.driver.RunBoot(testutil.Context(t)); err != nil {
+			t.Fatalf("driver.RunBoot() error = %v", err)
+		}
+
+		if _, err := h.notifier.DispatchTaskStatusChanged(testutil.Context(t), hookspkg.TaskStatusChangedPayload{
+			PayloadBase: hookspkg.PayloadBase{
+				Event:     hookspkg.HookTaskStatusChanged,
+				Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
+			},
+			TaskContext: hookspkg.TaskContext{
+				TaskID:       "task-1",
+				ParentTaskID: "task-parent",
+				WorkspaceID:  "ws-1",
+			},
+			FromStatus: "ready",
+			ToStatus:   "blocked",
+		}); err != nil {
+			t.Fatalf("DispatchTaskStatusChanged() error = %v", err)
+		}
+
+		payload := waitForCapturedTaskStatusChangedPayload(t, capturePath)
+		if payload.TaskID != "task-1" ||
+			payload.ParentTaskID != "task-parent" ||
+			payload.WorkspaceID != "ws-1" ||
+			payload.FromStatus != "ready" ||
+			payload.ToStatus != "blocked" {
+			t.Fatalf("task status payload = %#v, want status transition and task correlation fields", payload)
+		}
+	})
+}
+
 func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *testing.T) {
 	toolPayloads := make(chan hookspkg.ToolPreCallPayload, 2)
 
@@ -313,7 +371,7 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		t.Fatal("timed out waiting for initial stable hook dispatch")
 	}
 
-	_ = h.putBinding(t, "tool-hook", record.Version, resources.ResourceScope{
+	updated := h.putBinding(t, "tool-hook", record.Version, resources.ResourceScope{
 		Kind: resources.ResourceScopeKindWorkspace,
 		ID:   "ws-1",
 	}, hookspkg.HookDecl{
@@ -327,6 +385,9 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 			ToolID:    "Read",
 		},
 	})
+	if updated.Version <= record.Version {
+		t.Fatalf("updated.Version = %d, want greater than %d", updated.Version, record.Version)
+	}
 	if err := h.driver.RunBoot(testutil.Context(t)); err == nil {
 		t.Fatal("driver.RunBoot() error = nil, want missing executor failure")
 	}
@@ -345,6 +406,31 @@ func TestHookBindingResourceReconcileFailurePreservesAppliedRuntimeState(t *test
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for preserved stable hook after projector failure")
+	}
+}
+
+func waitForCapturedTaskStatusChangedPayload(t *testing.T, capturePath string) hookspkg.TaskStatusChangedPayload {
+	t.Helper()
+
+	deadline := time.After(time.Second)
+	for {
+		data, err := os.ReadFile(capturePath)
+		switch {
+		case err == nil && len(data) > 0:
+			var payload hookspkg.TaskStatusChangedPayload
+			if err := json.Unmarshal(data, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(captured task status payload) error = %v", err)
+			}
+			return payload
+		case err != nil && !os.IsNotExist(err):
+			t.Fatalf("os.ReadFile(%q) error = %v", capturePath, err)
+		}
+
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for resource-backed task.status_changed hook")
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }
 

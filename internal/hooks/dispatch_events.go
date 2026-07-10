@@ -135,6 +135,8 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		return correlationFromTaskContext(typed.TaskContext)
 	case TaskAttentionPayload:
 		return correlationFromTaskContext(typed.TaskContext)
+	case TaskStatusChangedPayload:
+		return correlationFromTaskContext(typed.TaskContext)
 	case TaskRunEnqueuedPayload:
 		return correlationFromTaskRunContext(typed.TaskRunContext)
 	case TaskRunPreClaimPayload:
