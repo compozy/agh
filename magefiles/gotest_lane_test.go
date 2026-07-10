@@ -21,7 +21,11 @@ func TestGoUnitTestPackageLimit(t *testing.T) {
 		value string
 		want  string
 	}{
-		{name: "Should default to half the cores floored at four when unset", value: "", want: strconv.Itoa(defaultLimit)},
+		{
+			name:  "Should default to half the cores floored at four when unset",
+			value: "",
+			want:  strconv.Itoa(defaultLimit),
+		},
 		{name: "Should honor a valid override", value: "2", want: "2"},
 		{name: "Should ignore a non-numeric override", value: "many", want: strconv.Itoa(defaultLimit)},
 		{name: "Should ignore a non-positive override", value: "0", want: strconv.Itoa(defaultLimit)},
@@ -69,7 +73,11 @@ func TestHermeticGoTestEnvFromBase(t *testing.T) {
 	t.Run("Should let explicit lane overrides win over the scrub", func(t *testing.T) {
 		t.Parallel()
 		base := []string{"AGH_WEB_DIST_DIR=/tmp/stale-dist"}
-		got := hermeticGoTestEnvFromBase(base, map[string]string{"AGH_WEB_DIST_DIR": "/lane/dist", "CGO_ENABLED": "1"}, nil)
+		got := hermeticGoTestEnvFromBase(
+			base,
+			map[string]string{"AGH_WEB_DIST_DIR": "/lane/dist", "CGO_ENABLED": "1"},
+			nil,
+		)
 		if !slices.Contains(got, "AGH_WEB_DIST_DIR=/lane/dist") {
 			t.Fatalf("lane override missing; env = %v", got)
 		}

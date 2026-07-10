@@ -63,9 +63,7 @@ func setTaskStatusWithExecutor(
 		return fmt.Errorf("store: inspect task %q status update: %w", trimmedTaskID, err)
 	}
 	if changed == 0 {
-		if err := explainTaskStatusChokepointMiss(ctx, exec, trimmedTaskID, fromStatus, toStatus); err != nil {
-			return err
-		}
+		return explainTaskStatusChokepointMiss(ctx, exec, trimmedTaskID, fromStatus, toStatus)
 	}
 
 	payload, err := json.Marshal(taskStatusChangedEventPayload{

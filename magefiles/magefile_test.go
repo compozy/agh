@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,6 +51,103 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 
 			if got := shouldEnsureWebBundle(tt.plan); got != tt.want {
 				t.Fatalf("shouldEnsureWebBundle() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilesImporting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should match only the exact decoded Go import path", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeTestFile(t, root, "exact.go", "package fixture\nimport _ \"github.com/compozy/agh/internal/session\"\n")
+		writeTestFile(
+			t,
+			root,
+			"prefix.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/internal/sessions/ledger\"\n",
+		)
+		files, err := filesImporting(root, "github.com/compozy/agh/internal/session")
+		if err != nil {
+			t.Fatalf("filesImporting() error = %v", err)
+		}
+		want := []string{filepath.Join(root, "exact.go")}
+		if len(files) != len(want) || files[0] != want[0] {
+			t.Fatalf("filesImporting() = %#v, want %#v", files, want)
+		}
+	})
+
+	t.Run("Should fail closed when the import tree cannot be scanned", func(t *testing.T) {
+		t.Parallel()
+
+		missing := filepath.Join(t.TempDir(), "missing")
+		if _, err := filesImporting(missing, "github.com/compozy/agh/internal/session"); err == nil {
+			t.Fatal("filesImporting(missing) error = nil, want scan failure")
+		}
+	})
+
+	t.Run("Should fail closed when a Go import declaration is malformed", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeTestFile(t, root, "broken.go", "package fixture\nimport (\n")
+		if _, err := filesImporting(root, "github.com/compozy/agh/internal/session"); err == nil {
+			t.Fatal("filesImporting(malformed) error = nil, want parse failure")
+		}
+	})
+}
+
+func TestBuildGitMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should use source-build fallbacks when Git metadata is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		version, commit := buildGitMetadata(func(...string) (string, error) {
+			return "", errors.New("git unavailable")
+		})
+		if version != "dev" || commit != "unknown" {
+			t.Fatalf("buildGitMetadata() = (%q, %q), want (dev, unknown)", version, commit)
+		}
+	})
+
+	t.Run("Should preserve resolved Git metadata", func(t *testing.T) {
+		t.Parallel()
+
+		responses := []string{"v1.2.3", "abc1234"}
+		version, commit := buildGitMetadata(func(...string) (string, error) {
+			value := responses[0]
+			responses = responses[1:]
+			return value, nil
+		})
+		if version != "v1.2.3" || commit != "abc1234" {
+			t.Fatalf("buildGitMetadata() = (%q, %q), want (v1.2.3, abc1234)", version, commit)
+		}
+	})
+}
+
+func TestWorktreeScriptRejectsMissingFlagValues(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{"--branch", "--base", "--dir"} {
+		flag := flag
+		t.Run("Should report a missing value for "+flag, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.Command("bash", "scripts/worktree.sh", "new", "test-worktree", flag)
+			output, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("worktree.sh new %s error = nil, want usage failure", flag)
+			}
+			want := "worktree: " + flag + " requires a value"
+			if !strings.Contains(string(output), want) {
+				t.Fatalf("worktree.sh new %s output = %q, want %q", flag, output, want)
+			}
+			if strings.Contains(string(output), "unbound variable") {
+				t.Fatalf("worktree.sh new %s leaked raw shell failure: %q", flag, output)
 			}
 		})
 	}

@@ -184,36 +184,16 @@ func (n *hooksNotifier) notifyEventPostRecordObservers(
 	payload hookspkg.EventPostRecordPayload,
 ) {
 	for _, observer := range n.eventRecordWatchObservers() {
-		n.notifyEventPostRecordObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyEventPostRecordObserver(
-	ctx context.Context,
-	observer eventRecordWatchObserver,
-	payload hookspkg.EventPostRecordPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: event record observer panic",
-				"session_id", payload.SessionID,
-				"sequence", payload.Sequence,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := observer.OnEventPostRecord(notifyCtx, payload); err != nil {
-		n.logger.Warn(
-			"daemon: event record observer failed",
-			"session_id", payload.SessionID,
-			"sequence", payload.Sequence,
-			"error", err,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"event record",
+			[]any{"session_id", payload.SessionID, "sequence", payload.Sequence},
+			func(ctx context.Context, observer eventRecordWatchObserver, payload hookspkg.EventPostRecordPayload) error {
+				return observer.OnEventPostRecord(ctx, payload)
+			},
 		)
 	}
 }
@@ -225,40 +205,18 @@ func (n *hooksNotifier) notifyCoordinatorWatchObservers(
 	call func(context.Context, coordinatorWatchObserver, hookspkg.CoordinatorLifecyclePayload) error,
 ) {
 	for _, observer := range n.coordinatorWatchObservers() {
-		n.notifyCoordinatorWatchObserver(ctx, event, payload, observer, call)
-	}
-}
-
-func (n *hooksNotifier) notifyCoordinatorWatchObserver(
-	ctx context.Context,
-	event hookspkg.HookEvent,
-	payload hookspkg.CoordinatorLifecyclePayload,
-	observer coordinatorWatchObserver,
-	call func(context.Context, coordinatorWatchObserver, hookspkg.CoordinatorLifecyclePayload) error,
-) {
-	if observer == nil || call == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: coordinator observer panic",
-				"hook_event", event,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"coordinator",
+			[]any{
+				daemonHookEventKey, event,
 				"coordinator_session_id", payload.CoordinatorSessionID,
-				"workspace_id", payload.WorkspaceID,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := call(notifyCtx, observer, payload); err != nil {
-		n.logger.Warn(
-			"daemon: coordinator observer failed",
-			"hook_event", event,
-			"coordinator_session_id", payload.CoordinatorSessionID,
-			"workspace_id", payload.WorkspaceID,
-			"error", err,
+				daemonWorkspaceIDKey, payload.WorkspaceID,
+			},
+			call,
 		)
 	}
 }

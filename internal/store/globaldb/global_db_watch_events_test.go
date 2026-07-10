@@ -18,6 +18,7 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -395,6 +396,130 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 		if got, want := failedEvent.Payload[watchEventsPayloadErrorKey], "agent crashed"; got != want {
 			t.Fatalf("automation error = %v, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve automation terminal events across run deletion and sequence reuse", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		job, err := globalDB.CreateJob(
+			ctx,
+			automationJobForTest(
+				automation.AutomationScopeWorkspace,
+				"watch-auto-durable-sequence",
+				"ws-a",
+				automation.JobSourceDynamic,
+			),
+		)
+		if err != nil {
+			t.Fatalf("CreateJob() error = %v", err)
+		}
+		base := time.Date(2026, 7, 8, 20, 20, 0, 0, time.UTC)
+		first, err := globalDB.CreateRun(
+			ctx,
+			automationRunForJob(job.ID, automation.RunCompleted, 1, base),
+		)
+		if err != nil {
+			t.Fatalf("CreateRun(first terminal) error = %v", err)
+		}
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
+			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(first terminal) error = %v", err)
+		}
+		firstCursor := cursors[looppkg.WatchEventsAutomationStream]
+		if firstCursor == 0 {
+			t.Fatal("first automation cursor = 0, want durable sequence")
+		}
+		if err := globalDB.DeleteRun(ctx, first.ID); err != nil {
+			t.Fatalf("DeleteRun(first terminal) error = %v", err)
+		}
+		preserved, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
+			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after delete) error = %v", err)
+		}
+		if got, want := len(preserved), 1; got != want || preserved[0].RunID != first.ID {
+			t.Fatalf("preserved automation events = %#v, want run %q", preserved, first.ID)
+		}
+
+		second, err := globalDB.CreateRun(
+			ctx,
+			automationRunForJob(job.ID, automation.RunCompleted, 1, base.Add(time.Minute)),
+		)
+		if err != nil {
+			t.Fatalf("CreateRun(second terminal) error = %v", err)
+		}
+		resumed, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: firstCursor},
+			Kinds:       []string{string(hookspkg.HookAutomationRunCompleted)},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after sequence cursor) error = %v", err)
+		}
+		if got, want := len(resumed), 1; got != want || resumed[0].RunID != second.ID {
+			t.Fatalf("resumed automation events = %#v, want run %q", resumed, second.ID)
+		}
+		if resumed[0].Seq <= firstCursor {
+			t.Fatalf("second automation seq = %d, want > %d", resumed[0].Seq, firstCursor)
+		}
+	})
+
+	t.Run("Should surface malformed automation retry metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		job := automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"watch-auto-malformed-retry",
+			"ws-a",
+			automation.JobSourceDynamic,
+		)
+		job.Retry = automation.DefaultBackoffRetryConfig()
+		createdJob, err := globalDB.CreateJob(ctx, job)
+		if err != nil {
+			t.Fatalf("CreateJob() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE automation_jobs SET retry = '{' WHERE id = ?`,
+			createdJob.ID,
+		); err != nil {
+			t.Fatalf("corrupt automation retry error = %v", err)
+		}
+		if _, err := globalDB.CreateRun(
+			ctx,
+			automationRunForJob(
+				createdJob.ID,
+				automation.RunFailed,
+				1,
+				time.Date(2026, 7, 8, 20, 25, 0, 0, time.UTC),
+			),
+		); err != nil {
+			t.Fatalf("CreateRun(failed) error = %v", err)
+		}
+
+		_, err = globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsAutomationStream: 0},
+			Kinds:       []string{string(hookspkg.HookAutomationRunFailed)},
+			Limit:       10,
+		})
+		if err == nil || !strings.Contains(err.Error(), "automation.watch_events.retry") {
+			t.Fatalf("ReadMatches(malformed retry) error = %v, want retry decode context", err)
 		}
 	})
 
@@ -1034,6 +1159,78 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		}
 		if got, want := next.LoopRunID, loopIDs[1]; got != want {
 			t.Fatalf("wrapped next loop run ID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should advance past a malformed subscription and recover later gaps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 8, 18, 40, 0, 0, time.UTC)
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		definition := compileWatchEventsIntegrationDefinitionForTest(t)
+		poisonTask := workspaceTaskRecordForTest("watch-gap-poison-target", "ws-a")
+		if err := globalDB.CreateTask(ctx, poisonTask); err != nil {
+			t.Fatalf("CreateTask(poison target) error = %v", err)
+		}
+		poisonLoop := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now,
+			"watch-gap-a-poison",
+			map[string]any{"target_task_id": poisonTask.ID},
+			definition,
+		)
+		recoveryTask := workspaceTaskRecordForTest("watch-gap-recovery-target", "ws-a")
+		if err := globalDB.CreateTask(ctx, recoveryTask); err != nil {
+			t.Fatalf("CreateTask(recovery target) error = %v", err)
+		}
+		recoveryLoop := parkWatchEventsLoopWithDefinitionForTest(
+			ctx,
+			t,
+			globalDB,
+			now.Add(time.Minute),
+			"watch-gap-b-recovery",
+			map[string]any{"target_task_id": recoveryTask.ID},
+			definition,
+		)
+		poisonRef, err := watchpkg.EventsPendingOutputRef(watchpkg.EventsPendingState{
+			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: "unsupported.watch.event"}},
+			Cursors:       map[string]int64{looppkg.WatchEventsTaskStream: 0},
+		})
+		if err != nil {
+			t.Fatalf("EventsPendingOutputRef(poison) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_generation_outputs SET output_ref = ? WHERE loop_run_id = ? AND node_id = ?`,
+			poisonRef,
+			poisonLoop.ID,
+			"watch_tasks",
+		); err != nil {
+			t.Fatalf("update poisoned watch-events output ref error = %v", err)
+		}
+		appendTaskWatchEventForTest(ctx, t, globalDB, recoveryTask.ID, now.Add(2*time.Minute), "blocked")
+
+		runs, next, err := globalDB.EnqueueWatchEventsGapWakesPage(
+			ctx,
+			coordinatorActorContextForTest().Origin,
+			now.Add(3*time.Minute),
+			looppkg.ParkedWatchEventScanCursor{},
+			2,
+		)
+		if err == nil || !strings.Contains(err.Error(), "watch-events kind is unsupported") {
+			t.Fatalf("EnqueueWatchEventsGapWakesPage() error = %v, want unsupported-kind error", err)
+		}
+		if got, want := next.LoopRunID, string(recoveryLoop.ID); got != want {
+			t.Fatalf("next.LoopRunID = %q, want %q", got, want)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("gap wake runs = %d, want %d", got, want)
+		}
+		if got, want := runs[0].LoopRunID, string(recoveryLoop.ID); got != want {
+			t.Fatalf("gap wake loop_run_id = %q, want %q", got, want)
 		}
 	})
 

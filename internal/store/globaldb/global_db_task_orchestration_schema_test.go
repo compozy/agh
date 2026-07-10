@@ -29,7 +29,6 @@ func TestGlobalDBTaskOrchestrationProfileSchemaMigration(t *testing.T) {
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		legacyDB := openPreviousTaskOrchestrationSchemaDB(t, dbPath)
-		insertPreviousTaskOrchestrationMigrationRecords(t, legacyDB)
 		insertPreviousTaskOrchestrationRows(t, legacyDB)
 		if err := legacyDB.Close(); err != nil {
 			t.Fatalf("legacyDB.Close() error = %v", err)
@@ -55,7 +54,6 @@ func TestGlobalDBTaskOrchestrationProfileSchemaMigration(t *testing.T) {
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		legacyDB := openPreviousTaskOrchestrationSchemaDB(t, dbPath)
-		insertPreviousTaskOrchestrationMigrationRecords(t, legacyDB)
 		insertPreviousTaskOrchestrationRows(t, legacyDB)
 		prefixEnd := migrationIndexByName(t, "add_task_execution_profile_runtime_mode")
 		if err := store.RunMigrations(ctx, legacyDB, globalSchemaMigrations[:prefixEnd]); err != nil {
@@ -249,13 +247,12 @@ func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
 func openPreviousTaskOrchestrationSchemaDB(t *testing.T, dbPath string) *sql.DB {
 	t.Helper()
 
-	ctx := testutil.Context(t)
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
 
-	for _, statement := range []string{
+	previousTaskSchema := []string{
 		`CREATE TABLE tasks (
 			id              TEXT PRIMARY KEY,
 			identifier      TEXT,
@@ -319,21 +316,72 @@ func openPreviousTaskOrchestrationSchemaDB(t *testing.T, dbPath string) *sql.DB 
 			payload_json TEXT,
 			timestamp   TEXT NOT NULL
 		);`,
-	} {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("ExecContext(previous schema) error = %v", err)
-		}
 	}
-	if err := store.RunMigrations(ctx, db, nil); err != nil {
-		t.Fatalf("RunMigrations(empty) error = %v", err)
-	}
+	runPreviousGlobalMigrationsWithTaskSchema(t, db, 16, previousTaskSchema)
 	return db
 }
 
-func insertPreviousTaskOrchestrationMigrationRecords(t *testing.T, legacyDB *sql.DB) {
+func runPreviousGlobalMigrationsWithTaskSchema(
+	t *testing.T,
+	db *sql.DB,
+	maxVersion int,
+	previousTaskSchema []string,
+) {
 	t.Helper()
 
-	insertMigrationRecordsThroughVersion(t, legacyDB, 16)
+	if maxVersion < 1 || maxVersion > len(globalSchemaMigrations) {
+		t.Fatalf("maxVersion = %d, want 1..%d", maxVersion, len(globalSchemaMigrations))
+	}
+	migrations := append([]store.Migration(nil), globalSchemaMigrations[:maxVersion]...)
+	migrations[0].Statements = globalSchemaStatementsWithPreviousTaskSchema(previousTaskSchema)
+	if err := store.RunMigrations(testutil.Context(t), db, migrations); err != nil {
+		t.Fatalf("RunMigrations(previous task schema through v%d) error = %v", maxVersion, err)
+	}
+}
+
+func globalSchemaStatementsWithPreviousTaskSchema(previousTaskSchema []string) []string {
+	statements := append([]string(nil), previousTaskSchema...)
+	statements = append(statements, previousTaskCoreIndexStatements()...)
+
+	excluded := make(map[string]struct{})
+	for _, group := range [][]string{
+		taskOrchestrationProfileSchemaStatements(),
+		taskRunReviewTableSchemaStatements(),
+		taskReviewGateIndexStatements(),
+	} {
+		for _, statement := range group {
+			excluded[statement] = struct{}{}
+		}
+	}
+	for _, statement := range globalSchemaStatements {
+		if _, ok := excluded[statement]; ok || isCurrentTaskCoreSchemaStatement(statement) {
+			continue
+		}
+		statements = append(statements, statement)
+	}
+	return statements
+}
+
+func previousTaskCoreIndexStatements() []string {
+	statements := append([]string(nil), taskTableIndexStatements[:8]...)
+	statements = append(statements,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, queued_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
+	)
+	return append(statements, taskEventIndexStatements...)
+}
+
+func isCurrentTaskCoreSchemaStatement(statement string) bool {
+	compact := strings.Join(strings.Fields(statement), " ")
+	return strings.HasPrefix(compact, "CREATE TABLE IF NOT EXISTS tasks (") ||
+		strings.HasPrefix(compact, "CREATE TABLE IF NOT EXISTS task_runs (") ||
+		strings.HasPrefix(compact, "CREATE TABLE IF NOT EXISTS task_events (") ||
+		strings.Contains(compact, " ON tasks(") ||
+		strings.Contains(compact, " ON task_runs(") ||
+		strings.Contains(compact, " ON task_events(")
 }
 
 func insertMigrationRecordsThroughVersion(t *testing.T, legacyDB *sql.DB, maxVersion int) {

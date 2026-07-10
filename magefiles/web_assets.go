@@ -352,7 +352,11 @@ func webAssetsDeterminismCheck(
 		return fmt.Errorf("digest second web build: %w", err)
 	}
 	if firstDigest != secondDigest {
-		return fmt.Errorf("web build is not deterministic: first digest %s, second digest %s", firstDigest, secondDigest)
+		return fmt.Errorf(
+			"web build is not deterministic: first digest %s, second digest %s",
+			firstDigest,
+			secondDigest,
+		)
 	}
 	return nil
 }
@@ -405,5 +409,3 @@ func webAssetsPublicModuleEnv(tmpDir string) map[string]string {
 	}
 	return env
 }
-
-// DaytonaSidecars regenerates embedded Linux launcher sidecar assets.

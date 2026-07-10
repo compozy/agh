@@ -147,6 +147,64 @@ func TestCompilerShouldCompileWatchEventsFiltersWithEventEnv(t *testing.T) {
 		if resolved.Conditions["nodes.task_activity.events.1.filter"] == nil {
 			t.Fatal("resolved second watch-events filter condition is nil")
 		}
+		filterCases := []struct {
+			name      string
+			condition string
+			event     map[string]any
+			want      bool
+		}{
+			{
+				name:      "Should accept a matching terminal task status event",
+				condition: "nodes.task_activity.events.0.filter",
+				event: map[string]any{
+					"task_id": "task-parent",
+					"payload": map[string]any{"to_status": "completed"},
+				},
+				want: true,
+			},
+			{
+				name:      "Should reject a non-terminal task status event",
+				condition: "nodes.task_activity.events.0.filter",
+				event: map[string]any{
+					"task_id": "task-parent",
+					"payload": map[string]any{"to_status": "ready"},
+				},
+				want: false,
+			},
+			{
+				name:      "Should accept a completed event for the watched task",
+				condition: "nodes.task_activity.events.1.filter",
+				event:     map[string]any{"task_id": "task-parent"},
+				want:      true,
+			},
+			{
+				name:      "Should reject a completed event for another task",
+				condition: "nodes.task_activity.events.1.filter",
+				event:     map[string]any{"task_id": "task-child"},
+				want:      false,
+			},
+		}
+		for _, tt := range filterCases {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				condition := resolved.Conditions[tt.condition]
+				value, _, err := condition.Program.Eval(map[string]any{
+					"inputs": map[string]any{"parent_task_id": "task-parent"},
+					"event":  tt.event,
+				})
+				if err != nil {
+					t.Fatalf("compiled filter Eval() error = %v", err)
+				}
+				got, ok := value.Value().(bool)
+				if !ok {
+					t.Fatalf("compiled filter Eval() value = %T %v, want bool", value.Value(), value.Value())
+				}
+				if got != tt.want {
+					t.Fatalf("compiled filter Eval() = %v, want %v", got, tt.want)
+				}
+			})
+		}
 		if resolved.Templates["nodes.summarize.params.prompt"] == nil {
 			t.Fatal("resolved summarize prompt template is nil")
 		}
@@ -333,6 +391,10 @@ graph:
       params:
         agent: "{{ .inputs.runner }}"
         prompt: "Summarize the watched task activity: {{ toJson .nodes.task_activity.output.events }}"
+
+  edges:
+    - from: task_activity
+      to: summarize
 `
 
 func compilerDefinition(t *testing.T) dsl.Definition {

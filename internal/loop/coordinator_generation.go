@@ -86,18 +86,20 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	advancedOutputs := cloneGenerationOutputs(normalized)
 	outputBlobs := []GenerationOutputBlob{}
 	terminal, err := advanceControlNodes(
-		ctx,
+		&controlEvalContext{
+			ctx:                ctx,
+			run:                run,
+			generation:         generation,
+			resolved:           resolved,
+			topology:           topology,
+			effective:          effective,
+			gateEvaluator:      gateEvaluator,
+			gateDecisions:      r.store,
+			fanOutWidth:        fanOutWidth,
+			watchRuntime:       watchRuntime,
+			watchEventsRuntime: watchEventsRuntime,
+		},
 		&plan,
-		run,
-		generation,
-		resolved,
-		topology,
-		effective,
-		gateEvaluator,
-		r.store,
-		fanOutWidth,
-		watchRuntime,
-		watchEventsRuntime,
 		&advancedOutputs,
 		&outputBlobs,
 	)

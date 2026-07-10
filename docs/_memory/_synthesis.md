@@ -48,7 +48,7 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 - **Mandate**: produce a "Web/Docs Impact" subitem listing affected `web/` routes/components/hooks AND affected `packages/site` doc pages. Backend-only tasks may declare "no impact" but only after analysis.
 - **Evidence**: codex_sessions (literally every backend session — Pedro asks "não é preciso mudar nada na UI do web/?" almost every time); compozy_tasks (autonomy `_techspec.md` step boundaries spell this out per task).
 
-#### S-H4. `agh-test-conventions` (or extend `testing-anti-patterns`)
+#### S-H4. `agh-test-conventions` (or extend `testing-boss`)
 
 - **Trigger**: any time a Go test file (`*_test.go`) is being written or modified.
 - **Mandate**: enforce (a) every case in `t.Run("Should ...")` subtest; (b) `t.Parallel()` default, opt-out only with comment for `t.Setenv` or shared state; (c) no `_ = errFn(...)` in tests; (d) status-code-only assertions also assert body or error message; (e) deterministic time/IDs; (f) compile-time interface assertions for new types.

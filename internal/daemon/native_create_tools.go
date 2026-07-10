@@ -93,7 +93,7 @@ func (n *daemonNativeTools) networkChannelCreate(
 func nativeNetworkChannelPayload(entry store.NetworkChannelEntry) map[string]any {
 	return map[string]any{
 		"channel":             strings.TrimSpace(entry.Channel),
-		"workspace_id":        strings.TrimSpace(entry.WorkspaceID),
+		daemonWorkspaceIDKey:  strings.TrimSpace(entry.WorkspaceID),
 		"purpose":             strings.TrimSpace(entry.Purpose),
 		"fanout_policy":       store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy),
 		"coordinator_peer_id": strings.TrimSpace(entry.CoordinatorPeerID),

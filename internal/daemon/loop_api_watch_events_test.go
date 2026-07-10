@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,6 +187,9 @@ func TestLoopWatchEventsReadModel(t *testing.T) {
 		)
 		if err == nil {
 			t.Fatal("loopWatchEventsReadModel() error = nil, want decode error")
+		}
+		if !strings.Contains(err.Error(), "decode watch-events park state for node watch") {
+			t.Fatalf("loopWatchEventsReadModel() error = %q, want park-state decode context", err)
 		}
 		if state != nil {
 			t.Fatalf("loopWatchEventsReadModel() state = %#v, want nil", state)

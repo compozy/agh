@@ -799,3 +799,55 @@ func watchLargeTaskStatusEventsForTest(firstSeq int64, count int) []WatchEvent {
 	}
 	return events
 }
+
+func BenchmarkFilterWatchEventsRows(b *testing.B) {
+	b.Run("Should evaluate a capped nonmatching batch", func(b *testing.B) {
+		definition := watchEventsDefinitionForTest(`event.task_id == "task-target"`)
+		resolved, err := NewCompiler().Compile(definition)
+		if err != nil {
+			b.Fatalf("Compile() error = %v", err)
+		}
+		node, ok := graphNode(definition.Graph, "watch_tasks")
+		if !ok {
+			b.Fatal("watch_tasks node is missing")
+		}
+		run := watchLoopRun(StatusWatching, 1, time.Now())
+		output := GenerationOutput{
+			Generation: 1,
+			NodeID:     string(node.ID),
+			Status:     generationOutputPending,
+		}
+		outputs := []GenerationOutput{output, {
+			Generation: 1,
+			NodeID:     "summarize",
+			Status:     generationOutputPending,
+		}}
+		state := watchpkg.EventsPendingState{
+			Subscriptions: []watchpkg.EventSubscriptionRef{{
+				Kind:   string(hooks.HookTaskStatusChanged),
+				Filter: `event.task_id == "task-target"`,
+			}},
+			Cursors: map[string]int64{WatchEventsTaskStream: 1},
+		}
+		rows := watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)
+		topology := newControlTopology(definition.Graph)
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			if _, _, _, err := filterWatchEventsRows(
+				run,
+				1,
+				resolved,
+				topology,
+				output,
+				node,
+				outputs,
+				state,
+				rows,
+			); err != nil {
+				b.Fatalf("filterWatchEventsRows() error = %v", err)
+			}
+		}
+	})
+}

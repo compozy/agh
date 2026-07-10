@@ -43,7 +43,10 @@ func daytonaSidecarsCheckStamped() error {
 		return DaytonaSidecarsCheck()
 	}
 	if recorded, readErr := os.ReadFile(stampPath); readErr == nil && strings.TrimSpace(string(recorded)) == digest {
-		fmt.Printf("Daytona sidecar check: inputs unchanged since last passing check — skipped (%s=full to force)\n", daytonaCheckModeEnvVar)
+		fmt.Printf(
+			"Daytona sidecar check: inputs unchanged since last passing check — skipped (%s=full to force)\n",
+			daytonaCheckModeEnvVar,
+		)
 		return nil
 	}
 	if err := DaytonaSidecarsCheck(); err != nil {

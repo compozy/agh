@@ -5462,6 +5462,35 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if got := runtime.calls[0].request.ToolID; got != importTasksToolID {
 			t.Fatalf("runtime tool id = %q, want %q", got, importTasksToolID)
 		}
+
+		inputs, err := resolver.Resolve(ctx, toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Resolve(bundled enabled) error = %v", err)
+		}
+		bundledGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: devcycle.Name}
+		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
+			t.Fatalf("enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
+		}
+		if err := extensionRegistry.Disable(devcycle.Name); err != nil {
+			t.Fatalf("Disable(dev-cycle) error = %v", err)
+		}
+		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Resolve(bundled disabled) error = %v", err)
+		}
+		if sourceGrantExists(inputs.TrustedSources, bundledGrant) {
+			t.Fatalf("disabled trusted sources = %#v, want bundled grant removed", inputs.TrustedSources)
+		}
+		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
+			t.Fatalf("Enable(dev-cycle) error = %v", err)
+		}
+		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Resolve(bundled re-enabled) error = %v", err)
+		}
+		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
+			t.Fatalf("re-enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
+		}
 	})
 
 	t.Run("Should return diagnostic status for tools denied by explicit agent policy", func(t *testing.T) {

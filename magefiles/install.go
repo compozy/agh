@@ -144,6 +144,3 @@ func gitSourceInstallFiles() ([]string, error) {
 	}
 	return files, nil
 }
-
-// Boundaries verifies that package import rules are not violated.
-// Rules: no package may import daemon/, api/httpapi/, api/udsapi/, or cli/.

@@ -231,23 +231,25 @@ func (n *hooksNotifier) notifyAutomationRunCompletedObservers(
 	payload hookspkg.AutomationRunCompletedPayload,
 ) {
 	for _, observer := range n.automationRunWatchObservers() {
-		n.notifyAutomationRunCompletedObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyAutomationRunCompletedObserver(
-	ctx context.Context,
-	observer automationRunWatchObserver,
-	payload hookspkg.AutomationRunCompletedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverAutomationRunObserverPanic(payload.RunID, payload.WorkspaceID, hookspkg.HookAutomationRunCompleted)
-	if err := observer.OnAutomationRunCompleted(notifyCtx, payload); err != nil {
-		n.logAutomationRunObserverError(payload.RunID, payload.WorkspaceID, hookspkg.HookAutomationRunCompleted, err)
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"automation run",
+			[]any{
+				daemonHookEventKey, hookspkg.HookAutomationRunCompleted,
+				daemonLogRunIDKey, payload.RunID,
+				daemonWorkspaceIDKey, payload.WorkspaceID,
+			},
+			func(
+				ctx context.Context,
+				observer automationRunWatchObserver,
+				payload hookspkg.AutomationRunCompletedPayload,
+			) error {
+				return observer.OnAutomationRunCompleted(ctx, payload)
+			},
+		)
 	}
 }
 
@@ -256,51 +258,26 @@ func (n *hooksNotifier) notifyAutomationRunFailedObservers(
 	payload hookspkg.AutomationRunFailedPayload,
 ) {
 	for _, observer := range n.automationRunWatchObservers() {
-		n.notifyAutomationRunFailedObserver(ctx, observer, payload)
-	}
-}
-
-func (n *hooksNotifier) notifyAutomationRunFailedObserver(
-	ctx context.Context,
-	observer automationRunWatchObserver,
-	payload hookspkg.AutomationRunFailedPayload,
-) {
-	if observer == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer n.recoverAutomationRunObserverPanic(payload.RunID, payload.WorkspaceID, hookspkg.HookAutomationRunFailed)
-	if err := observer.OnAutomationRunFailed(notifyCtx, payload); err != nil {
-		n.logAutomationRunObserverError(payload.RunID, payload.WorkspaceID, hookspkg.HookAutomationRunFailed, err)
-	}
-}
-
-func (n *hooksNotifier) recoverAutomationRunObserverPanic(runID string, workspaceID string, event hookspkg.HookEvent) {
-	if recovered := recover(); recovered != nil {
-		n.logger.Warn(
-			"daemon: automation run observer panic",
-			"hook_event", event,
-			"run_id", runID,
-			"workspace_id", workspaceID,
-			"panic", recovered,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"automation run",
+			[]any{
+				daemonHookEventKey, hookspkg.HookAutomationRunFailed,
+				daemonLogRunIDKey, payload.RunID,
+				daemonWorkspaceIDKey, payload.WorkspaceID,
+			},
+			func(
+				ctx context.Context,
+				observer automationRunWatchObserver,
+				payload hookspkg.AutomationRunFailedPayload,
+			) error {
+				return observer.OnAutomationRunFailed(ctx, payload)
+			},
 		)
 	}
-}
-
-func (n *hooksNotifier) logAutomationRunObserverError(
-	runID string,
-	workspaceID string,
-	event hookspkg.HookEvent,
-	err error,
-) {
-	n.logger.Warn(
-		"daemon: automation run observer failed",
-		"hook_event", event,
-		"run_id", runID,
-		"workspace_id", workspaceID,
-		"error", err,
-	)
 }
 
 func (n *hooksNotifier) notifyNetworkWatchObservers(
@@ -310,42 +287,19 @@ func (n *hooksNotifier) notifyNetworkWatchObservers(
 	call func(context.Context, networkWatchObserver, hookspkg.NetworkPayload) error,
 ) {
 	for _, observer := range n.networkWatchObservers() {
-		n.notifyNetworkWatchObserver(ctx, event, payload, observer, call)
-	}
-}
-
-func (n *hooksNotifier) notifyNetworkWatchObserver(
-	ctx context.Context,
-	event hookspkg.HookEvent,
-	payload hookspkg.NetworkPayload,
-	observer networkWatchObserver,
-	call func(context.Context, networkWatchObserver, hookspkg.NetworkPayload) error,
-) {
-	if observer == nil || call == nil {
-		return
-	}
-	notifyCtx, cancel := loopObserverContext(ctx)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			n.logger.Warn(
-				"daemon: network observer panic",
-				"hook_event", event,
+		notifyObserver(
+			ctx,
+			n,
+			observer,
+			payload,
+			"network",
+			[]any{
+				daemonHookEventKey, event,
 				"message_id", payload.MessageID,
 				"work_id", payload.WorkID,
-				"workspace_id", payload.WorkspaceID,
-				"panic", recovered,
-			)
-		}
-	}()
-	if err := call(notifyCtx, observer, payload); err != nil {
-		n.logger.Warn(
-			"daemon: network observer failed",
-			"hook_event", event,
-			"message_id", payload.MessageID,
-			"work_id", payload.WorkID,
-			"workspace_id", payload.WorkspaceID,
-			"error", err,
+				daemonWorkspaceIDKey, payload.WorkspaceID,
+			},
+			call,
 		)
 	}
 }

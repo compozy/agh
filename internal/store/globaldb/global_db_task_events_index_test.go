@@ -12,34 +12,42 @@ import (
 func TestTaskEventsTypeSeqIndexFreshDB(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	assertTaskEventsTypeSeqIndexReady(t, globalDB.db)
+	t.Run("Should install the type-sequence index on a fresh database", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		assertTaskEventsTypeSeqIndexReady(t, globalDB.db)
+	})
 }
 
 func TestTaskEventsTypeSeqIndexReopenAfterRestart(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	first, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	assertTaskEventsTypeSeqIndexReady(t, first.db)
-	if err := first.Close(ctx); err != nil {
-		t.Fatalf("Close(first) error = %v", err)
-	}
+	t.Run("Should retain the type-sequence index after reopening", func(t *testing.T) {
+		t.Parallel()
 
-	second, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
-			t.Errorf("Close(second) error = %v", err)
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
+		assertTaskEventsTypeSeqIndexReady(t, first.db)
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
+
+		second, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := second.Close(ctx); err != nil {
+				t.Errorf("Close(second) error = %v", err)
+			}
+		})
+		assertTaskEventsTypeSeqIndexReady(t, second.db)
 	})
-	assertTaskEventsTypeSeqIndexReady(t, second.db)
 }
 
 func assertTaskEventsTypeSeqIndexReady(t *testing.T, db *sql.DB) {

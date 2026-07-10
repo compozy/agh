@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -27,7 +26,6 @@ func TestGlobalDBReviewGateSchemaMigration(t *testing.T) {
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		legacyDB := openPreviousReviewGateSchemaDB(t, dbPath)
-		insertMigrationRecordsThroughVersion(t, legacyDB, 17)
 		insertPreviousReviewGateRows(t, legacyDB)
 		if err := legacyDB.Close(); err != nil {
 			t.Fatalf("legacyDB.Close() error = %v", err)
@@ -70,13 +68,12 @@ func TestReviewGateSchemaStatements(t *testing.T) {
 func openPreviousReviewGateSchemaDB(t *testing.T, dbPath string) *sql.DB {
 	t.Helper()
 
-	ctx := testutil.Context(t)
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
 
-	for _, statement := range []string{
+	previousTaskSchema := []string{
 		`CREATE TABLE tasks (
 			id              TEXT PRIMARY KEY,
 			identifier      TEXT,
@@ -152,19 +149,8 @@ func openPreviousReviewGateSchemaDB(t *testing.T, dbPath string) *sql.DB {
 			payload_json TEXT,
 			timestamp   TEXT NOT NULL
 		);`,
-	} {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("ExecContext(previous review schema) error = %v", err)
-		}
 	}
-	for _, statement := range taskOrchestrationProfileSchemaStatements() {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("ExecContext(profile schema) error = %v", err)
-		}
-	}
-	if err := store.RunMigrations(ctx, db, nil); err != nil {
-		t.Fatalf("RunMigrations(empty) error = %v", err)
-	}
+	runPreviousGlobalMigrationsWithTaskSchema(t, db, 17, previousTaskSchema)
 	return db
 }
 

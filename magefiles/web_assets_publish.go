@@ -30,7 +30,12 @@ func releaseWebAssetsSync(ctx context.Context) error {
 	}
 	token := webAssetsPublishToken()
 	if token == "" {
-		return fmt.Errorf("%s or %s is required to publish %s", webAssetsTokenEnvVar, releaseTokenEnvVar, webAssetsModulePath)
+		return fmt.Errorf(
+			"%s or %s is required to publish %s",
+			webAssetsTokenEnvVar,
+			releaseTokenEnvVar,
+			webAssetsModulePath,
+		)
 	}
 	gitCredentials, err := newWebAssetsGitCredentials(token)
 	if err != nil {
@@ -112,7 +117,16 @@ func (c *webAssetsGitCredentials) cleanup() {
 }
 
 func cloneWebAssetsRepository(ctx context.Context, destDir string, gitEnv map[string]string) error {
-	if err := runCommandInDirWithEnv(ctx, ".", gitEnv, "git", "clone", "--no-single-branch", webAssetsRemoteURL, destDir); err != nil {
+	if err := runCommandInDirWithEnv(
+		ctx,
+		".",
+		gitEnv,
+		"git",
+		"clone",
+		"--no-single-branch",
+		webAssetsRemoteURL,
+		destDir,
+	); err != nil {
 		return fmt.Errorf("clone %s: %w", webAssetsRemoteURL, err)
 	}
 	return nil
@@ -130,7 +144,14 @@ func publishWebAssetsModule(
 	if err := runCommandInDir(ctx, assetsRepoDir, "git", "config", "user.name", "github-actions[bot]"); err != nil {
 		return "", fmt.Errorf("configure web assets git user name: %w", err)
 	}
-	if err := runCommandInDir(ctx, assetsRepoDir, "git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"); err != nil {
+	if err := runCommandInDir(
+		ctx,
+		assetsRepoDir,
+		"git",
+		"config",
+		"user.email",
+		"github-actions[bot]@users.noreply.github.com",
+	); err != nil {
 		return "", fmt.Errorf("configure web assets git user email: %w", err)
 	}
 
@@ -151,7 +172,14 @@ func publishWebAssetsModule(
 		return "", err
 	}
 	if hasDiff {
-		if err := runCommandInDir(ctx, assetsRepoDir, "git", "add", webAssetsModuleDistDir, webAssetsMetadataFile); err != nil {
+		if err := runCommandInDir(
+			ctx,
+			assetsRepoDir,
+			"git",
+			"add",
+			webAssetsModuleDistDir,
+			webAssetsMetadataFile,
+		); err != nil {
 			return "", fmt.Errorf("stage web assets module update: %w", err)
 		}
 		message := fmt.Sprintf("build: sync AGH web assets %s", shortCommit(metadata.SourceCommit))
@@ -168,11 +196,29 @@ func publishWebAssetsModule(
 	if err != nil {
 		return "", err
 	}
-	if err := runCommandInDir(ctx, assetsRepoDir, "git", "tag", "-a", nextTag, "-m", "AGH web assets "+metadata.SourceCommit); err != nil {
+	if err := runCommandInDir(
+		ctx,
+		assetsRepoDir,
+		"git",
+		"tag",
+		"-a",
+		nextTag,
+		"-m",
+		"AGH web assets "+metadata.SourceCommit,
+	); err != nil {
 		return "", fmt.Errorf("tag web assets module %s: %w", nextTag, err)
 	}
 	if hasDiff {
-		if err := runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, "git", "push", "origin", "HEAD:main", nextTag); err != nil {
+		if err := runCommandInDirWithEnv(
+			ctx,
+			assetsRepoDir,
+			gitEnv,
+			"git",
+			"push",
+			"origin",
+			"HEAD:main",
+			nextTag,
+		); err != nil {
 			return "", fmt.Errorf("push web assets module update %s: %w", nextTag, err)
 		}
 		return nextTag, nil
@@ -245,7 +291,13 @@ func waitForWebAssetsPublic(ctx context.Context, version string) error {
 		case <-timer.C:
 		}
 	}
-	return fmt.Errorf("%s@%s did not resolve publicly after %d attempts: %w", webAssetsModulePath, version, attempts, lastErr)
+	return fmt.Errorf(
+		"%s@%s did not resolve publicly after %d attempts: %w",
+		webAssetsModulePath,
+		version,
+		attempts,
+		lastErr,
+	)
 }
 
 func pinWebAssetsModule(ctx context.Context, version string) error {

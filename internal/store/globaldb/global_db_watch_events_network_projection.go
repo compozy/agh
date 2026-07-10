@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -97,108 +96,6 @@ func (g *GlobalDB) networkConversationOpenedAtTimelineRow(
 		return false, fmt.Errorf("store: read network conversation open anchor: %w", err)
 	}
 	return previous == 0, nil
-}
-
-func (g *GlobalDB) networkWorkOutcomeAtTimelineRow(
-	ctx context.Context,
-	row networkWatchEventRow,
-) (networkWorkOutcome, error) {
-	workID := strings.TrimSpace(row.message.WorkID)
-	if workID == "" {
-		return networkWorkOutcome{}, nil
-	}
-	rows, err := g.readNetworkWorkTimelineRows(ctx, row, workID)
-	if err != nil {
-		return networkWorkOutcome{}, err
-	}
-	defer rows.Close()
-
-	state := ""
-	outcome := networkWorkOutcome{}
-	for rows.Next() {
-		candidate, scanErr := scanNetworkWatchEventRow(rows)
-		if scanErr != nil {
-			return networkWorkOutcome{}, joinRowsCloseError(rows, scanErr, "network work timeline query")
-		}
-		isTarget := candidate.seq == row.seq
-		if state == "" {
-			if networkMessageOpensWork(candidate.message) {
-				state = store.NetworkWorkStateSubmitted
-				if isTarget {
-					outcome.opened = true
-				}
-			}
-			if isTarget {
-				outcome.state = state
-			}
-			continue
-		}
-		next, transitioned, stateErr := nextNetworkWorkState(state, candidate.message)
-		if stateErr != nil {
-			return networkWorkOutcome{}, joinRowsCloseError(rows, stateErr, "network work timeline query")
-		}
-		if transitioned {
-			state = next
-		}
-		if isTarget {
-			outcome.transitioned = transitioned
-			outcome.state = state
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return networkWorkOutcome{}, joinRowsCloseError(
-			rows,
-			fmt.Errorf("store: iterate network work timeline: %w", err),
-			"network work timeline query",
-		)
-	}
-	if err := joinRowsCloseError(rows, nil, "network work timeline query"); err != nil {
-		return networkWorkOutcome{}, err
-	}
-	return outcome, nil
-}
-
-func (g *GlobalDB) readNetworkWorkTimelineRows(
-	ctx context.Context,
-	row networkWatchEventRow,
-	workID string,
-) (*sql.Rows, error) {
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			ntl.rowid,
-			ntl.message_id,
-			COALESCE(ntl.session_id, ''),
-			ntl.workspace_id,
-			ntl.channel,
-			COALESCE(ntl.surface, ''),
-			COALESCE(ntl.thread_id, ''),
-			COALESCE(ntl.direct_id, ''),
-			ntl.direction,
-			ntl.peer_from,
-			COALESCE(ntl.peer_to, ''),
-			ntl.kind,
-			COALESCE(ntl.work_id, ''),
-			COALESCE(ntl.reply_to, ''),
-			COALESCE(ntl.trace_id, ''),
-			COALESCE(ntl.causation_id, ''),
-			COALESCE(ntl.intent, ''),
-			COALESCE(ntl.text, ''),
-			ntl.body_json,
-			ntl.timestamp
-		   FROM network_timeline_log ntl
-		  WHERE ntl.workspace_id = ?
-		    AND ntl.work_id = ?
-		    AND ntl.rowid <= ?
-		  ORDER BY ntl.rowid ASC`,
-		row.message.WorkspaceID,
-		workID,
-		row.seq,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: read network work timeline: %w", err)
-	}
-	return rows, nil
 }
 
 func networkMessageOpensWork(message store.NetworkConversationMessage) bool {

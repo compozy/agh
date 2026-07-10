@@ -15,7 +15,9 @@ func TestParseGoListDepLine(t *testing.T) {
 
 	t.Run("Should parse dir, module path, go files, and embeds", func(t *testing.T) {
 		t.Parallel()
-		dir, modPath, files, ok := parseGoListDepLine("/repo/internal/pkg|github.com/compozy/agh|a.go,b.go|assets/data.json")
+		dir, modPath, files, ok := parseGoListDepLine(
+			"/repo/internal/pkg|github.com/compozy/agh|a.go,b.go|assets/data.json",
+		)
 		if !ok {
 			t.Fatal("parseGoListDepLine() ok = false, want true")
 		}

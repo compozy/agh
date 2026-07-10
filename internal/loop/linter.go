@@ -401,18 +401,18 @@ func (c *lintContext) detectUnreachable() {
 
 func (c *lintContext) sourceRoots() []dsl.NodeID {
 	roots := []dsl.NodeID{}
-	if len(c.def.Graph.Edges) == 0 {
-		for _, node := range c.def.Graph.Nodes {
-			roots = append(roots, node.ID)
-		}
-		return roots
-	}
 	for _, node := range c.def.Graph.Nodes {
 		if node.Class == dsl.NodeClassSource {
 			roots = append(roots, node.ID)
 		}
 	}
 	if len(roots) > 0 {
+		return roots
+	}
+	if len(c.def.Graph.Edges) == 0 {
+		for _, node := range c.def.Graph.Nodes {
+			roots = append(roots, node.ID)
+		}
 		return roots
 	}
 	for id := range c.nodeByID {

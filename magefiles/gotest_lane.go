@@ -67,7 +67,11 @@ func hermeticGoTestEnvFromBase(base []string, overrides map[string]string, log i
 		scrubbed = append(scrubbed, entry)
 	}
 	if len(dropped) > 0 && log != nil {
-		fmt.Fprintf(log, "Note: scrubbed ambient runtime-state env from go test lane: %s\n", strings.Join(dropped, ", "))
+		fmt.Fprintf(
+			log,
+			"Note: scrubbed ambient runtime-state env from go test lane: %s\n",
+			strings.Join(dropped, ", "),
+		)
 	}
 	return mergeEnvOverrides(scrubbed, overrides)
 }

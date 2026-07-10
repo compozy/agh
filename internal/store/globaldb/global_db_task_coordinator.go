@@ -61,7 +61,7 @@ func (g *GlobalDB) CompleteCoordinatorAndEnqueueNext(
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	if err := g.enqueueCoordinatorPostCommitWakes(ctx, normalized); err != nil {
-		return taskpkg.CoordinatorCompletionResult{}, err
+		return result, err
 	}
 	return result, nil
 }

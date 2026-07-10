@@ -54,4 +54,23 @@ describe("LoopEditorWatchEvents", () => {
     fireEvent.click(screen.getByRole("button", { name: /Remove subscription/i }));
     expect(JSON.parse(screen.getByTestId("json").textContent || "x")).toEqual([]);
   });
+
+  it("Should preserve the following editor instance when removing a middle subscription", () => {
+    render(
+      <Harness
+        initial={[
+          { kind: "task.status_changed", filter: "event.task_id == 'first'" },
+          { kind: "task.status_changed", filter: "event.task_id == 'second'" },
+          { kind: "task.status_changed", filter: "event.task_id == 'third'" },
+        ]}
+      />
+    );
+    const thirdEditor = screen.getByTestId("loop-watch-event-filter-2");
+    thirdEditor.focus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove subscription 2" }));
+
+    expect(screen.getByTestId("loop-watch-event-filter-1")).toBe(thirdEditor);
+    expect(document.activeElement).toBe(thirdEditor);
+  });
 });

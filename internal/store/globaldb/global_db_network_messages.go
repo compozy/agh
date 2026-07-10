@@ -47,60 +47,21 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		entry.Timestamp = g.now()
 	}
 
-	if _, err := g.db.ExecContext(
+	return g.withNetworkImmediateTransaction(
 		ctx,
-		`INSERT INTO network_timeline_log (
-				message_id,
-				session_id,
-				workspace_id,
-				channel,
-			surface,
-			thread_id,
-			direct_id,
-			direction,
-			peer_from,
-			peer_to,
-			kind,
-			work_id,
-			reply_to,
-			trace_id,
-			causation_id,
-			intent,
-			text,
-			preview_text,
-			mentions_json,
-			ext_json,
-			body_json,
-			timestamp
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(workspace_id, message_id) DO NOTHING`,
-		entry.MessageID,
-		store.NullableString(entry.SessionID),
-		entry.WorkspaceID,
-		entry.Channel,
-		store.NullableString(entry.Surface),
-		store.NullableString(entry.ThreadID),
-		store.NullableString(entry.DirectID),
-		entry.Direction,
-		entry.PeerFrom,
-		store.NullableString(entry.PeerTo),
-		entry.Kind,
-		store.NullableString(entry.WorkID),
-		store.NullableString(entry.ReplyTo),
-		store.NullableString(entry.TraceID),
-		store.NullableString(entry.CausationID),
-		store.NullableString(entry.Intent),
-		store.NullableString(entry.Text),
-		entry.PreviewText,
-		networkMentionsJSONString(entry.Mentions),
-		networkMessageExtJSONString(entry.ExtJSON),
-		string(entry.Body),
-		store.FormatTimestamp(entry.Timestamp),
-	); err != nil {
-		return fmt.Errorf("store: insert network message entry: %w", err)
-	}
-
-	return nil
+		"write network message",
+		func(exec networkSQLExecutor) error {
+			inserted, err := insertNetworkTimelineMessageWithExecutor(ctx, exec, entry)
+			if err != nil || !inserted {
+				return err
+			}
+			projection, err := deriveNetworkTimelineWorkProjection(ctx, exec, entry)
+			if err != nil {
+				return err
+			}
+			return persistNetworkTimelineWorkProjection(ctx, exec, entry, projection)
+		},
+	)
 }
 
 // ListNetworkMessages returns persisted network timeline rows filtered by the supplied options.

@@ -134,23 +134,7 @@ func (b GenerationOutputBlob) validate() error {
 }
 
 func writeGenerationOutputBlob(ctx context.Context, tx task.Tx, blob GenerationOutputBlob) error {
-	at := blob.At
-	if at.IsZero() {
-		at = time.Now().UTC()
-	}
-	_, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO loop_output_blobs (output_ref, payload_json, byte_size, created_at, last_used_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(output_ref) DO UPDATE SET
-		   last_used_at = excluded.last_used_at`,
-		blob.OutputRef,
-		string(blob.Payload),
-		len(blob.Payload),
-		store.FormatTimestamp(at),
-		store.FormatTimestamp(at),
-	)
-	if err != nil {
+	if err := store.UpsertLoopOutputBlob(ctx, tx, blob.OutputRef, blob.Payload, blob.At); err != nil {
 		return fmt.Errorf("loop: write generation output blob %q: %w", blob.OutputRef, err)
 	}
 	return nil

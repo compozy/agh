@@ -15,13 +15,9 @@ func BunLint() error {
 }
 
 // BunTypecheck runs the monorepo-wide typecheck pipeline (turbo run typecheck across every workspace).
-
-// BunTypecheck runs the monorepo-wide typecheck pipeline (turbo run typecheck across every workspace).
 func BunTypecheck() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:typecheck")
 }
-
-// BunTest runs the monorepo-wide vitest projects suite from the repo root.
 
 // BunTest runs the monorepo-wide vitest projects suite from the repo root.
 func BunTest() error {

@@ -27,15 +27,15 @@ const (
 	loopWatchEventsDoorbellReason    = "watch_events_doorbell"
 
 	loopWatchEventsContentLoopNameField  = "loop_name"
-	loopWatchEventsContentLoopRunIDField = "loop_run_id"
+	loopWatchEventsContentLoopRunIDField = daemonLoopRunIDKey
 	// #nosec G101 -- event-summary field name, not credential material.
 	loopWatchEventsContentIdempotencyField = "idempotency_key"
-	loopWatchEventsContentWorkspaceIDField = hooksBridgeWorkspaceIDKey
+	loopWatchEventsContentWorkspaceIDField = daemonWorkspaceIDKey
 	loopWatchEventsContentWakeRunIDField   = "wake_run_id"
 	loopWatchEventsContentEventRunIDField  = "event_run_id"
 	// #nosec G101 -- event-summary field name, not credential material.
 	loopWatchEventsContentEventTaskIDField = "event_task_id"
-	loopWatchEventsContentHookEventField   = "hook_event"
+	loopWatchEventsContentHookEventField   = daemonHookEventKey
 	loopWatchEventsContentAddedField       = "added"
 )
 

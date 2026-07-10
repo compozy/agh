@@ -3,6 +3,7 @@ import { Plus, X } from "lucide-react";
 import { Button, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
 import { LOOP_WATCH_EVENT_KINDS } from "@/generated/loop-enums";
 
+import { useLocalRowKeys } from "../../hooks/use-local-row-keys";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { MonoTag } from "../mono-tag";
 import { LoopReferenceInput } from "./loop-reference-input";
@@ -44,17 +45,28 @@ export function LoopEditorWatchEvents({
   disabled = false,
 }: LoopEditorWatchEventsProps) {
   const subscriptions = asSubscriptions(value);
+  // Row IDs are component-local: they stabilize editor instances without entering the loop DSL.
+  const rowKeys = useLocalRowKeys(subscriptions.length);
 
   const update = (index: number, patch: Record<string, unknown>) => {
     onChange(subscriptions.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
   };
-  const remove = (index: number) => onChange(subscriptions.filter((_, i) => i !== index));
-  const add = () => onChange([...subscriptions, { kind: DEFAULT_WATCH_EVENT_KIND }]);
+  const remove = (index: number) => {
+    rowKeys.remove(index);
+    onChange(subscriptions.filter((_, i) => i !== index));
+  };
+  const add = () => {
+    rowKeys.append();
+    onChange([...subscriptions, { kind: DEFAULT_WATCH_EVENT_KIND }]);
+  };
 
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-watch-events">
       {subscriptions.map((subscription, index) => (
-        <div key={index} className="rounded-md border border-line-soft bg-canvas-soft p-2.5">
+        <div
+          key={rowKeys.keys[index]}
+          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
+        >
           <div className="mb-2 flex items-center gap-2">
             <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-[8.5px] text-subtle">
               event

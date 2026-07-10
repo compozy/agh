@@ -1401,12 +1401,8 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateSessionsWorkspaceStateIndex,
 		Checksum: "2026-07-07-add-sessions-workspace-state-index",
 	},
-	{
-		Version:  62,
-		Name:     "add_task_events_type_seq_index",
-		Up:       migrateTaskEventsTypeSeqIndex,
-		Checksum: "2026-07-08-add-task-events-type-seq-index",
-	},
+	taskEventsTypeSeqMigration,
+	watchEventReplayProjectionsMigration,
 }
 
 func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) {

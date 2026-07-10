@@ -945,7 +945,7 @@
             "sourceType": "github",
             "computedHash": "6ed54ac26a2a69e5c8338b010d2bac03f5427daa4453bf7f5e66e061356ce603"
         },
-        "testing-anti-patterns": {
+        "testing-boss": {
             "source": "pedronauck/kodebase-go",
             "sourceType": "github",
             "computedHash": "860d67709789aae9b98c6a58a97ff4e3ab7f280e4663e7ee656d8c6370a29ea5"

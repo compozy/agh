@@ -23,8 +23,6 @@ func DaytonaSidecars() error {
 }
 
 // DaytonaSidecarsCheck verifies embedded launcher sidecar assets are current.
-
-// DaytonaSidecarsCheck verifies embedded launcher sidecar assets are current.
 func DaytonaSidecarsCheck() error {
 	tmpDir, err := os.MkdirTemp("", "agh-daytona-sidecar-check-")
 	if err != nil {
