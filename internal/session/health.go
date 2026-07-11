@@ -12,15 +12,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-// HealthStore is the durable store used by metadata-only session health.
-type HealthStore interface {
-	UpsertSessionHealth(ctx context.Context, health heartbeat.SessionHealth) (heartbeat.SessionHealth, error)
-	GetSessionHealth(ctx context.Context, sessionID string) (heartbeat.SessionHealth, error)
-	ListSessionHealth(ctx context.Context, query heartbeat.SessionHealthListQuery) ([]heartbeat.SessionHealth, error)
-	ListSessionHealthRecoveryInputs(ctx context.Context, limit int) ([]heartbeat.SessionHealth, error)
-	MarkSessionHealthStale(ctx context.Context, cutoff time.Time, updatedAt time.Time) (int64, error)
-}
-
 // HealthRecoveryResult summarizes one metadata-only restart recovery pass.
 type HealthRecoveryResult struct {
 	RefreshedActive int
@@ -185,7 +176,7 @@ func (m *Manager) persistSessionPresence(
 	prompting := session != nil && session.IsPrompting()
 	return m.persistSessionHealthForSession(ctx, session, at, sessionHealthInput{
 		activePrompt:  prompting,
-		attachable:    sessionAttachable(session),
+		attachable:    sessionAttachableAt(session, at),
 		touchPresence: !prompting,
 	})
 }
@@ -197,7 +188,7 @@ func (m *Manager) persistSessionIdlePresence(
 ) (heartbeat.SessionHealth, error) {
 	return m.persistSessionHealthForSession(ctx, session, at, sessionHealthInput{
 		activePrompt:  false,
-		attachable:    sessionAttachable(session),
+		attachable:    sessionAttachableAt(session, at),
 		touchPresence: true,
 	})
 }
@@ -212,7 +203,7 @@ func (m *Manager) persistSessionPromptActivity(
 	}
 	return m.persistSessionHealthForSession(ctx, session, activityAt, sessionHealthInput{
 		activePrompt: true,
-		attachable:   sessionAttachable(session),
+		attachable:   sessionAttachableAt(session, activityAt),
 		activityAt:   activityAt,
 	})
 }
@@ -497,12 +488,12 @@ func sessionHealthMatchesQuery(health heartbeat.SessionHealth, query heartbeat.S
 	}
 }
 
-func sessionAttachable(session *Session) bool {
+func sessionAttachableAt(session *Session, now time.Time) bool {
 	if session == nil {
 		return false
 	}
 	info := session.Info()
-	if info == nil || info.State != StateActive {
+	if !AttachableForInfo(info, now) {
 		return false
 	}
 	proc := session.processHandle()

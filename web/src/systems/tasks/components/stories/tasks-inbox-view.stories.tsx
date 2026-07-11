@@ -12,6 +12,12 @@ const meta: Meta<typeof TasksInboxView> = {
   component: TasksInboxView,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Actor-scoped task inbox with exact lane counts, server-owned filters, and cursor continuation.",
+      },
+    },
   },
 };
 
@@ -27,9 +33,18 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 const POPULATED: TaskInboxView = buildInboxFixture({
-  total: 5,
+  archived_total: 0,
+  facets: {
+    priorities: [{ count: 5, priority: "medium" }],
+    statuses: [
+      { count: 1, status: "completed" },
+      { count: 1, status: "failed" },
+      { count: 2, status: "pending" },
+      { count: 1, status: "ready" },
+    ],
+  },
+  page: { has_more: false, limit: 50, total: 5 },
   unread_total: 3,
-  archived_total: 2,
   groups: [
     {
       lane: "approvals",
@@ -186,6 +201,7 @@ function ControlledInbox(props: Partial<Parameters<typeof TasksInboxView>[0]>) {
 }
 
 export const Populated: Story = {
+  args: {},
   render: () => (
     <Frame>
       <ControlledInbox />
@@ -194,6 +210,7 @@ export const Populated: Story = {
 };
 
 export const EmptyInbox: Story = {
+  args: {},
   name: "Empty",
   render: () => (
     <Frame>
@@ -203,6 +220,7 @@ export const EmptyInbox: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <Frame>
       <ControlledInbox inbox={null} isLoading />
@@ -211,6 +229,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   name: "Error",
   render: () => (
     <Frame>

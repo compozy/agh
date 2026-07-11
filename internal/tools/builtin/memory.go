@@ -90,7 +90,11 @@ const memoryListInputSchema = `{
 		"workspace":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"agent_tier":{"type":"string","enum":["workspace","global"]},
-		"limit":{"type":"integer"}
+		"type":{"type":"string","enum":["user","feedback","project","reference"]},
+		"sort":{"type":"string","enum":["recent","name"]},
+		"cursor":{"type":"string"},
+		"limit":{"type":"integer","minimum":1,"maximum":200},
+		"include_system":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

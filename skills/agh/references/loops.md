@@ -5,18 +5,6 @@ owns and runs. Use this reference when you author, configure, run, observe, appr
 from inside AGH. Prefer the native `agh__loop_*` tools; fall back to `agh loop` CLI or HTTP with
 structured output. Never guess a schema — resolve `agh__tool_info` for the exact descriptor first.
 
-## Contents
-
-- The tool set and CLI verbs
-- The authoring loop
-- Terminal outcomes and live states
-- The approve capability gate
-- Reference grammar and reserved action kinds
-- Loop hook events
-- Loop run event stream
-- Watch-source behavior
-- Harvesting a channel decision
-
 ## The Tool Set And CLI Verbs
 
 Toolset `agh__loops` — 13 native tools. Every tool has a matching `agh loop` verb; the CLI adds one
@@ -42,6 +30,16 @@ There is **no `agh__loop_edit` native tool**. Agents edit a definition through t
 (validate → dry-run → `agh__loop_create` with `expected_version`) or by a filesystem write. The CLI
 `agh loop edit` is a `$EDITOR` convenience for operators and publishes through the same
 compare-and-swap path.
+
+## Catalog Reads
+
+Use `agh loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces/{workspace_id}/loops`, or native `agh__loop_list`. Filters are name/contract-goal search (`--query` in CLI, `q` elsewhere), `kind` (`read_only` or `workspace`), exact category, exact latest-run status, name sort, cursor, and limit.
+
+The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `statuses`), and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Self-filtered means each facet omits its own active filter while respecting search and every other filter. Pages default to 50 and cap at 200.
+
+Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. AGH computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
+
+`agh loop runs` / `agh__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 
 ## The Authoring Loop
 

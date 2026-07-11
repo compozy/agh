@@ -103,30 +103,6 @@ func (n *daemonNativeTools) automationToolBindings(
 	}
 }
 
-func (n *daemonNativeTools) automationJobsList(
-	ctx context.Context,
-	_ toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input automationJobsListInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	query, err := input.query(req.ToolID)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	jobs, err := n.automationManager().ListJobs(ctx, query)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
-	}
-	payload, err := n.automationJobPayloads(ctx, jobs)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
-	}
-	return structuredResult(map[string]any{"jobs": payload}, fmt.Sprintf("%d automation jobs", len(payload)))
-}
-
 func (n *daemonNativeTools) automationJobsGet(
 	ctx context.Context,
 	_ toolspkg.Scope,
@@ -312,27 +288,6 @@ func (n *daemonNativeTools) automationJobsHistory(
 	query.JobID = job.ID
 	query.TriggerID = ""
 	return n.automationRunsForQuery(ctx, req.ToolID, query)
-}
-
-func (n *daemonNativeTools) automationTriggersList(
-	ctx context.Context,
-	_ toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input automationTriggersListInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	query, err := input.query(req.ToolID)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	triggers, err := n.automationManager().ListTriggers(ctx, query)
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
-	}
-	payload := core.TriggerPayloadsFromTriggers(triggers)
-	return structuredResult(map[string]any{"triggers": payload}, fmt.Sprintf("%d automation triggers", len(payload)))
 }
 
 func (n *daemonNativeTools) automationTriggersGet(
@@ -637,66 +592,6 @@ func (n *daemonNativeTools) automationSchedulerStateByJobID(
 	return stateByID, nil
 }
 
-type automationJobsListInput struct {
-	Scope       string `json:"scope,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Source      string `json:"source,omitempty"`
-	LoopName    string `json:"loop,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-func (i automationJobsListInput) query(id toolspkg.ToolID) (automationpkg.JobListQuery, error) {
-	query := automationpkg.JobListQuery{
-		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
-		LoopName:    strings.TrimSpace(i.LoopName),
-		Limit:       i.Limit,
-	}
-	if scope := strings.TrimSpace(i.Scope); scope != "" {
-		query.Scope = automationpkg.Scope(scope)
-		if err := query.Scope.Validate("scope"); err != nil {
-			return automationpkg.JobListQuery{}, nativeAutomationValidationError(id, err)
-		}
-	}
-	if source := strings.TrimSpace(i.Source); source != "" {
-		query.Source = automationpkg.JobSource(source)
-		if err := query.Source.Validate("source"); err != nil {
-			return automationpkg.JobListQuery{}, nativeAutomationValidationError(id, err)
-		}
-	}
-	return query, nil
-}
-
-type automationTriggersListInput struct {
-	Scope       string `json:"scope,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Event       string `json:"event,omitempty"`
-	Source      string `json:"source,omitempty"`
-	LoopName    string `json:"loop,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-func (i automationTriggersListInput) query(id toolspkg.ToolID) (automationpkg.TriggerListQuery, error) {
-	query := automationpkg.TriggerListQuery{
-		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
-		Event:       strings.TrimSpace(i.Event),
-		LoopName:    strings.TrimSpace(i.LoopName),
-		Limit:       i.Limit,
-	}
-	if scope := strings.TrimSpace(i.Scope); scope != "" {
-		query.Scope = automationpkg.Scope(scope)
-		if err := query.Scope.Validate("scope"); err != nil {
-			return automationpkg.TriggerListQuery{}, nativeAutomationValidationError(id, err)
-		}
-	}
-	if source := strings.TrimSpace(i.Source); source != "" {
-		query.Source = automationpkg.JobSource(source)
-		if err := query.Source.Validate("source"); err != nil {
-			return automationpkg.TriggerListQuery{}, nativeAutomationValidationError(id, err)
-		}
-	}
-	return query, nil
-}
-
 type automationJobIDInput struct {
 	JobID string `json:"job_id"`
 }
@@ -958,7 +853,8 @@ func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerWebhookIDTaken),
 		errors.Is(err, automationpkg.ErrWebhookSecretRequired),
-		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource):
+		errors.Is(err, automationpkg.ErrOverlayRequiresConfigSource),
+		errors.Is(err, automationpkg.ErrListCursorInvalid):
 		return nativeAutomationValidationError(id, err)
 	default:
 		return err

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   bridgeDetailOptions,
@@ -8,10 +8,27 @@ import {
   bridgeTargetsOptions,
   bridgesListOptions,
 } from "../lib/query-options";
-import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
+import {
+  bridgeHealthFromPages,
+  bridgeListPage,
+  flattenBridgePages,
+} from "../lib/bridge-list-query";
+import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
 
-export function useBridges(filters: BridgeListFilter = {}, options?: { enabled?: boolean }) {
-  return useQuery(bridgesListOptions(filters, options?.enabled ?? true));
+export function useBridges(filters: BridgeCatalogFilter = {}, options?: { enabled?: boolean }) {
+  const query = useInfiniteQuery({
+    ...bridgesListOptions(filters),
+    enabled: options?.enabled ?? true,
+  });
+  const page = bridgeListPage(query.data);
+
+  return {
+    ...query,
+    bridges: flattenBridgePages(query.data),
+    bridgeHealth: bridgeHealthFromPages(query.data),
+    facets: page?.facets,
+    total: page?.page.total ?? 0,
+  };
 }
 
 export function useBridgeProviders() {

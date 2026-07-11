@@ -11,6 +11,7 @@ import {
   SessionApiError,
   SessionLedgerUnavailableError,
   SessionNotFoundError,
+  buildSessionStreamUrl,
   cancelSessionPrompt,
   clearSessionConversation,
   createSession,
@@ -69,65 +70,26 @@ afterEach(() => {
 });
 
 describe("fetchSessions", () => {
-  it("returns parsed SessionPayload array", async () => {
+  it("preserves the counted page envelope", async () => {
     const sessions = [mockSession, { ...mockSession, id: "sess-002", name: "Second" }];
-    mockJsonResponse({ sessions });
+    const response = {
+      sessions,
+      page: { has_more: true, limit: 2, next_cursor: "cursor-2", total: 205 },
+    };
+    mockJsonResponse(response);
 
     const result = await fetchSessions();
 
-    expect(result).toEqual(sessions);
-    expect(result).toHaveLength(2);
-    await expectFetchRequest({ path: "/api/sessions" });
-  });
-
-  it("filters internal memory extraction sessions from list responses", async () => {
-    const visibleSession = { ...mockSession, id: "sess-visible", type: "user" };
-    const legacyDreamSession = {
-      ...mockSession,
-      id: "sess-dream",
-      name: "Memory extractor",
-      type: "dream",
-    };
-    const spawnedMemorySession = {
-      ...mockSession,
-      id: "sess-memory",
-      name: "Memory extractor",
-      type: "spawned",
-      lineage: {
-        parent_session_id: "sess-visible",
-        root_session_id: "sess-visible",
-        spawn_depth: 1,
-        spawn_role: "memory-extractor",
-        ttl_expires_at: "2026-04-17T20:00:00Z",
-        auto_stop_on_parent: true,
-        spawn_budget: {
-          max_children: 4,
-          max_depth: 1,
-          ttl_seconds: 7200,
-        },
-        permission_policy: {
-          tools: [],
-          skills: [],
-          mcp_servers: [],
-          workspace_paths: [],
-          network_channels: [],
-          sandbox_profiles: [],
-        },
-      },
-    };
-    mockJsonResponse({ sessions: [legacyDreamSession, spawnedMemorySession, visibleSession] });
-
-    const result = await fetchSessions();
-
-    expect(result.map(session => session.id)).toEqual(["sess-visible"]);
+    expect(result).toEqual(response);
+    expect(result.page.total).toBe(205);
     await expectFetchRequest({ path: "/api/sessions" });
   });
 
   it("passes abort signal to fetch", async () => {
-    mockJsonResponse({ sessions: [] });
+    mockJsonResponse({ sessions: [], page: { has_more: false, limit: 50, total: 0 } });
 
     const controller = new AbortController();
-    await fetchSessions(undefined, controller.signal);
+    await fetchSessions({}, controller.signal);
 
     await expectFetchRequest({
       path: "/api/sessions",
@@ -135,18 +97,36 @@ describe("fetchSessions", () => {
     });
   });
 
-  it("adds the workspace filter when provided", async () => {
-    mockJsonResponse({ sessions: [] });
+  it("forwards stable filters and the opaque cursor", async () => {
+    mockJsonResponse({ sessions: [], page: { has_more: false, limit: 25, total: 0 } });
 
-    await fetchSessions("ws_alpha");
+    await fetchSessions({
+      workspace: "ws_alpha",
+      agent: "claude-agent",
+      state: "active",
+      resumable: true,
+      sort: "last_activity",
+      cursor: "cursor-1",
+      limit: 25,
+    });
 
-    await expectFetchRequest({ path: "/api/sessions?workspace=ws_alpha" });
+    const url = new URL(fetchRequest().url);
+    expect(url.pathname).toBe("/api/sessions");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      agent: "claude-agent",
+      cursor: "cursor-1",
+      limit: "25",
+      resumable: "true",
+      sort: "last_activity",
+      state: "active",
+      workspace: "ws_alpha",
+    });
   });
 
-  it("treats blank workspace filters as unfiltered requests", async () => {
-    mockJsonResponse({ sessions: [] });
+  it("omits blank and undefined filters", async () => {
+    mockJsonResponse({ sessions: [], page: { has_more: false, limit: 50, total: 0 } });
 
-    await fetchSessions("   ");
+    await fetchSessions({ workspace: "   ", q: undefined });
 
     await expectFetchRequest({ path: "/api/sessions" });
   });
@@ -158,11 +138,31 @@ describe("fetchSessions", () => {
   });
 
   it("returns empty array when server returns empty list", async () => {
-    mockJsonResponse({ sessions: [] });
+    const response = { sessions: [], page: { has_more: false, limit: 50, total: 0 } };
+    mockJsonResponse(response);
 
     const result = await fetchSessions();
 
-    expect(result).toEqual([]);
+    expect(result).toEqual(response);
+  });
+});
+
+describe("buildSessionStreamUrl", () => {
+  it("uses the cache fence for reconnects without the removed replay parameter", () => {
+    const url = new URL(
+      buildSessionStreamUrl(WORKSPACE_ID, "sess-001", {
+        afterSequence: 18,
+        epoch: 3,
+        generation: 7,
+      }),
+      "http://localhost"
+    );
+
+    expect(url.searchParams.get("frames")).toBe("transcript");
+    expect(url.searchParams.get("after_sequence")).toBe("18");
+    expect(url.searchParams.get("epoch")).toBe("3");
+    expect(url.searchParams.get("generation")).toBe("7");
+    expect(url.searchParams.has("replay")).toBe(false);
   });
 });
 
@@ -655,9 +655,16 @@ describe("fetchSessionLedger", () => {
 
 describe("fetchSessionTranscript", () => {
   const mockTranscript = {
+    epoch: 2,
+    generation: 4,
+    max_sequence: 12,
+    has_older: true,
+    next_before_sequence: 8,
+    limit: 2,
     entries: [
       {
         sequence: 1,
+        start_sequence: 1,
         message: {
           id: "evt-1",
           role: "assistant",
@@ -666,6 +673,7 @@ describe("fetchSessionTranscript", () => {
       },
       {
         sequence: 2,
+        start_sequence: 2,
         message: {
           id: "tool-1",
           role: "assistant",
@@ -687,23 +695,38 @@ describe("fetchSessionTranscript", () => {
     ],
   };
 
-  it("returns parsed transcript messages", async () => {
+  it("preserves transcript fences, page metadata, and stable entry sequences", async () => {
     mockJsonResponse(mockTranscript);
 
-    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
+    const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001", {
+      before_sequence: 20,
+      limit: 2,
+    });
 
-    expect(result).toEqual(mockTranscript.entries.map(entry => entry.message));
-    await expectFetchRequest({
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
+    expect(result).toEqual(mockTranscript);
+    expect(result.entries.map(entry => entry.start_sequence)).toEqual([1, 2]);
+    const url = new URL(fetchRequest().url);
+    expect(url.pathname).toBe("/api/workspaces/ws_alpha/sessions/sess-001/transcript");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      before_sequence: "20",
+      limit: "2",
     });
   });
 
   it("returns an empty transcript without treating it as an invalid AI SDK message list", async () => {
-    mockJsonResponse({ entries: [] });
+    const empty = {
+      entries: [],
+      epoch: 1,
+      generation: 1,
+      max_sequence: 0,
+      has_older: false,
+      limit: 200,
+    };
+    mockJsonResponse(empty);
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
-    expect(result).toEqual([]);
+    expect(result).toEqual(empty);
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/transcript",
     });
@@ -711,9 +734,15 @@ describe("fetchSessionTranscript", () => {
 
   it("returns AGH errored tool parts with raw output payloads", async () => {
     const blockedTranscript = {
+      epoch: 1,
+      generation: 1,
+      max_sequence: 1,
+      has_older: false,
+      limit: 200,
       entries: [
         {
           sequence: 1,
+          start_sequence: 1,
           message: {
             id: "blocked-turn",
             role: "assistant",
@@ -744,9 +773,9 @@ describe("fetchSessionTranscript", () => {
 
     const result = await fetchSessionTranscript(WORKSPACE_ID, "sess-001");
 
-    expect(result).toEqual(blockedTranscript.entries.map(entry => entry.message));
-    expect(result[0]?.parts).toHaveLength(2);
-    expect(result[0]?.parts?.[1]).toMatchObject({
+    expect(result).toEqual(blockedTranscript);
+    expect(result.entries[0]?.message.parts).toHaveLength(2);
+    expect(result.entries[0]?.message.parts?.[1]).toMatchObject({
       text: "Sandbox blocked diagnostic: terminal/create denied before writing workspace marker.",
       type: "text",
     });

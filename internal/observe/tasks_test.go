@@ -990,15 +990,19 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 		})
 
 		createObserveTask(t, h, taskpkg.Task{
-			ID:          "task-blocked",
-			Scope:       taskpkg.ScopeWorkspace,
-			WorkspaceID: h.workspaceID,
-			Title:       "Dependency blocked",
-			Status:      taskpkg.TaskStatusBlocked,
-			CreatedBy:   taskActor(taskpkg.ActorKindHuman, "alice"),
-			Origin:      taskOrigin(taskpkg.OriginKindCLI, "agh task"),
-			CreatedAt:   now.Add(-17 * time.Minute),
-			UpdatedAt:   now.Add(-7 * time.Minute),
+			ID:           "task-blocked",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  h.workspaceID,
+			Title:        "Dependency blocked",
+			Status:       taskpkg.TaskStatusBlocked,
+			Paused:       true,
+			PausedBy:     "alice",
+			PausedAt:     now.Add(-8 * time.Minute),
+			PausedReason: "waiting on a dependency decision",
+			CreatedBy:    taskActor(taskpkg.ActorKindHuman, "alice"),
+			Origin:       taskOrigin(taskpkg.OriginKindCLI, "agh task"),
+			CreatedAt:    now.Add(-17 * time.Minute),
+			UpdatedAt:    now.Add(-7 * time.Minute),
 		})
 
 		createObserveTask(t, h, taskpkg.Task{
@@ -1130,7 +1134,8 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			t.Fatalf("approvalsOnly = %#v, want approvals-only lane with total 1", approvalsOnly)
 		}
 
-		unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: true}, alice)
+		unread := true
+		unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: &unread}, alice)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(unread) error = %v", err)
 		}

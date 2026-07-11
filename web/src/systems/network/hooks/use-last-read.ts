@@ -62,8 +62,9 @@ export interface UseLastReadResult {
   markRead(key: NetworkLastReadLookupKey, timestamp: string | null | undefined): void;
 }
 
-export function useLastRead(): UseLastReadResult {
+export function useLastRead(options: { workspaceId?: string | null } = {}): UseLastReadResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? activeWorkspaceId;
   const [state, setState] = useState<LastReadState>(() => readLastReadMap());
 
   useEffect(() => {
@@ -83,20 +84,20 @@ export function useLastRead(): UseLastReadResult {
 
   const lastReadAt = useCallback(
     (key: NetworkLastReadLookupKey) => {
-      if (!activeWorkspaceId) {
+      if (!workspaceId) {
         return null;
       }
-      return state[buildLastReadStorageKey({ ...key, workspaceId: activeWorkspaceId })] ?? null;
+      return state[buildLastReadStorageKey({ ...key, workspaceId })] ?? null;
     },
-    [activeWorkspaceId, state]
+    [state, workspaceId]
   );
 
   const markRead = useCallback(
     (key: NetworkLastReadLookupKey, timestamp: string | null | undefined) => {
-      if (!timestamp || !activeWorkspaceId) {
+      if (!timestamp || !workspaceId) {
         return;
       }
-      const storageKey = buildLastReadStorageKey({ ...key, workspaceId: activeWorkspaceId });
+      const storageKey = buildLastReadStorageKey({ ...key, workspaceId });
       setState(current => {
         if (current[storageKey] === timestamp) {
           return current;
@@ -106,7 +107,7 @@ export function useLastRead(): UseLastReadResult {
         return next;
       });
     },
-    [activeWorkspaceId]
+    [workspaceId]
   );
 
   return { lastReadAt, markRead };

@@ -27,6 +27,7 @@ import {
   readMemory,
   searchMemory,
 } from "@/systems/knowledge/adapters/knowledge-api";
+import type { MemoryHeader } from "@/systems/knowledge/types";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -37,12 +38,12 @@ function createWrapper() {
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-const validHeader = {
+const validHeader: MemoryHeader = {
   filename: "user_role.md",
   mod_time: "2026-04-01T12:00:00Z",
   name: "User Role",
-  scope: "global" as const,
-  type: "user" as const,
+  scope: "global",
+  type: "user",
   recall_count: 0,
   injection: true,
   system_managed: false,
@@ -58,7 +59,10 @@ describe("useMemories", () => {
   });
 
   it("Should pass selector and abort signal to the list adapter", async () => {
-    vi.mocked(listMemories).mockResolvedValue([validHeader]);
+    vi.mocked(listMemories).mockResolvedValue({
+      memories: [validHeader],
+      page: { has_more: false, limit: 50, total: 7 },
+    });
 
     const { result } = renderHook(() => useMemories({ scope: "global", workspaceId: "ws" }), {
       wrapper: createWrapper(),
@@ -70,8 +74,53 @@ describe("useMemories", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
+    expect(result.current.total).toBe(7);
+
     expect(listMemories).toHaveBeenCalledWith(
       { scope: "global", workspaceId: "ws" },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should append catalog pages without reordering backend results", async () => {
+    const firstHeader = {
+      ...validHeader,
+      agent_name: "agent:workspace",
+      workspace_id: "ws",
+    };
+    const secondHeader = {
+      ...validHeader,
+      agent_name: "workspace",
+      workspace_id: "ws:agent",
+      name: "A name that must remain second",
+    };
+    vi.mocked(listMemories)
+      .mockResolvedValueOnce({
+        memories: [firstHeader],
+        page: { has_more: true, limit: 1, next_cursor: "next", total: 2 },
+      })
+      .mockResolvedValueOnce({
+        memories: [secondHeader],
+        page: { has_more: false, limit: 1, total: 2 },
+      });
+
+    const { result } = renderHook(() => useMemories({ scope: "global", limit: 1 }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(1));
+    await result.current.fetchNextPage();
+    await waitFor(() => {
+      expect(result.current.data?.map(memory => memory.filename)).toEqual([
+        "user_role.md",
+        "user_role.md",
+      ]);
+      expect(result.current.data?.map(memory => memory.workspace_id)).toEqual(["ws", "ws:agent"]);
+    });
+    expect(result.current.total).toBe(2);
+    expect(listMemories).toHaveBeenNthCalledWith(
+      2,
+      { scope: "global", cursor: "next", limit: 1 },
       expect.any(AbortSignal)
     );
   });

@@ -169,20 +169,19 @@ function JobScheduleSection({ job }: { job: AutomationJob }) {
 
 function JobStatsSection({ job, runs }: { job: AutomationJob; runs: AutomationRun[] }) {
   const metrics = computeJobMetrics(runs, job);
-
   return (
     <Section label="Stats">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric
           data-testid="automation-job-metric-runs"
-          label="Runs"
-          subtext="lifetime executions"
+          label="Runs shown"
+          subtext="recent window"
           value={metrics.runsValue}
         />
         <Metric
           data-testid="automation-job-metric-success-rate"
-          label="Success rate"
-          subtext="terminal runs only"
+          label="Recent success"
+          subtext="shown terminal runs"
           tone={metrics.successRateTone}
           value={metrics.successRateValue}
         />

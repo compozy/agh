@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   loopAnnotationsOptions,
@@ -8,10 +8,26 @@ import {
   loopRunsOptions,
   loopsCatalogOptions,
 } from "../lib/query-options";
-import type { LoopRunsFilter } from "../types";
+import { flattenLoopCatalogPages, loopCatalogPage } from "../lib/loops-list-query";
+import type { LoopCatalogStableFilter, LoopRunsFilter } from "../types";
 
-export function useLoops(workspaceId: string, enabled = true) {
-  return useQuery(loopsCatalogOptions(workspaceId, enabled));
+export function useLoops(
+  workspaceId: string,
+  filters: LoopCatalogStableFilter = {},
+  enabled = true
+) {
+  const query = useInfiniteQuery({
+    ...loopsCatalogOptions(workspaceId, filters),
+    enabled: Boolean(workspaceId) && enabled,
+  });
+  const page = loopCatalogPage(query.data);
+
+  return {
+    ...query,
+    loops: flattenLoopCatalogPages(query.data),
+    facets: page?.facets,
+    total: page?.page.total ?? 0,
+  };
 }
 
 export function useLoop(workspaceId: string, name: string, enabled = true) {

@@ -16,11 +16,13 @@ import {
   LoopWatchEventsPanel,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadLoopRunDetailRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loop-runs/$runId")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `Run ${params.runId}`, icon: Activity },
   }),
+  loader: ({ context, params }) => preloadLoopRunDetailRoute(context.queryClient, params.runId),
   component: LoopRunDetailRoute,
 });
 

@@ -1246,6 +1246,79 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	}
 }
 
+func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should release a dependent when its stale dependency has a completed latest run", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task list")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+
+		dependency, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Canonical dependency",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(dependency) error = %v", err)
+		}
+		dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Canonical dependent parity target",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(dependent) error = %v", err)
+		}
+		if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+			TaskID:          dependent.ID,
+			DependsOnTaskID: dependency.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+		}, actor); err != nil {
+			t.Fatalf("AddDependency() error = %v", err)
+		}
+		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
+		if err := db.CreateTaskRun(ctx, taskpkg.Run{
+			ID:        "run-canonical-dependency-completed",
+			TaskID:    dependency.ID,
+			Status:    taskpkg.TaskRunStatusCompleted,
+			Attempt:   1,
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			QueuedAt:  now,
+			StartedAt: now.Add(time.Minute),
+			EndedAt:   now.Add(2 * time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateTaskRun(completed) error = %v", err)
+		}
+
+		enriched, err := manager.ListTasks(ctx, taskpkg.Query{Search: dependent.Title}, actor)
+		if err != nil {
+			t.Fatalf("ListTasks() error = %v", err)
+		}
+		catalog, err := manager.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Search:        dependent.Title,
+			IncludeDrafts: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog() error = %v", err)
+		}
+		if len(enriched) != 1 || len(catalog.Tasks) != 1 {
+			t.Fatalf("summary counts enriched=%d catalog=%d, want 1/1", len(enriched), len(catalog.Tasks))
+		}
+		if got, want := catalog.Tasks[0].Status, enriched[0].Status; got != want {
+			t.Fatalf("catalog status = %q, enriched service status = %q", got, want)
+		}
+		if got, want := catalog.Tasks[0].Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("catalog status = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T) {
 	t.Parallel()
 

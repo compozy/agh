@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loopsState = vi.hoisted(() => ({
   current: {
-    data: [] as unknown[] | undefined,
+    loops: [] as unknown[],
     isError: false,
     isLoading: false,
   },
@@ -12,7 +12,7 @@ const loopsState = vi.hoisted(() => ({
 
 vi.mock("../../hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-  loopsState.current = { data: loopCatalogFixtures, isError: false, isLoading: false };
+  loopsState.current = { loops: loopCatalogFixtures, isError: false, isLoading: false };
   return { useLoops: () => loopsState.current };
 });
 
@@ -38,7 +38,7 @@ function Harness({ showMapping }: { showMapping?: boolean }) {
 describe("LoopTargetFields", () => {
   beforeEach(async () => {
     const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-    loopsState.current = { data: loopCatalogFixtures, isError: false, isLoading: false };
+    loopsState.current = { loops: loopCatalogFixtures, isError: false, isLoading: false };
   });
 
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
@@ -82,7 +82,7 @@ describe("LoopTargetFields", () => {
   });
 
   it("Should render a load error instead of the empty workspace copy", () => {
-    loopsState.current = { data: undefined, isError: true, isLoading: false };
+    loopsState.current = { loops: [], isError: true, isLoading: false };
     render(<Harness />);
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load Loops");
     expect(screen.queryByText("No Loops are available in this workspace.")).not.toBeInTheDocument();

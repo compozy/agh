@@ -11,74 +11,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-func (g *GlobalDB) lookupNetworkThreadCursor(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	threadID string,
-) (networkThreadCursor, error) {
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT thread_id, last_activity_at
-			FROM network_threads
-			WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
-		ref.WorkspaceID,
-		ref.Channel,
-		strings.TrimSpace(threadID),
-	)
-	var (
-		cursor networkThreadCursor
-		raw    string
-	)
-	if err := row.Scan(&cursor.ThreadID, &raw); err != nil {
-		return networkThreadCursor{}, fmt.Errorf("store: lookup network thread cursor: %w", err)
-	}
-	timestamp, err := store.ParseTimestamp(raw)
-	if err != nil {
-		return networkThreadCursor{}, fmt.Errorf("store: parse network thread cursor: %w", err)
-	}
-	cursor.LastActivityAt = timestamp
-	return cursor, nil
-}
-
-func (g *GlobalDB) lookupNetworkDirectRoomCursor(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	directID string,
-	peerID string,
-) (networkDirectRoomCursor, error) {
-	where := []string{
-		globalDBNetworkConversationsWorkspaceIDValue,
-		globalDBNetworkConversationsChannelValue,
-		"direct_id = ?",
-	}
-	args := []any{ref.WorkspaceID, ref.Channel, strings.TrimSpace(directID)}
-	if trimmedPeer := strings.TrimSpace(peerID); trimmedPeer != "" {
-		where = append(where, "(peer_a = ? OR peer_b = ?)")
-		args = append(args, trimmedPeer, trimmedPeer)
-	}
-	row := g.db.QueryRowContext(
-		ctx,
-		store.AppendWhere(
-			`SELECT direct_id, last_activity_at FROM network_direct_rooms`,
-			where,
-		),
-		args...,
-	)
-	var (
-		cursor networkDirectRoomCursor
-		raw    string
-	)
-	if err := row.Scan(&cursor.DirectID, &raw); err != nil {
-		return networkDirectRoomCursor{}, fmt.Errorf("store: lookup network direct room cursor: %w", err)
-	}
-	timestamp, err := store.ParseTimestamp(raw)
-	if err != nil {
-		return networkDirectRoomCursor{}, fmt.Errorf("store: parse network direct room cursor: %w", err)
-	}
-	cursor.LastActivityAt = timestamp
-	return cursor, nil
-}
-
 func (g *GlobalDB) lookupNetworkConversationMessageCursor(
 	ctx context.Context,
 	ref store.NetworkConversationRef,
@@ -95,9 +27,9 @@ func (g *GlobalDB) lookupNetworkConversationMessageCursor(
 	var cursor networkMessageCursor
 	if err := g.db.QueryRowContext(
 		ctx,
-		store.AppendWhere(`SELECT message_id, timestamp FROM network_timeline_log`, where),
+		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
 		args...,
-	).Scan(&cursor.MessageID, &cursor.Timestamp); err != nil {
+	).Scan(&cursor.Sequence); err != nil {
 		return networkMessageCursor{}, fmt.Errorf("store: network conversation message cursor not found: %w", err)
 	}
 	return cursor, nil
@@ -105,6 +37,7 @@ func (g *GlobalDB) lookupNetworkConversationMessageCursor(
 
 func networkConversationMessageSelect() string {
 	return `SELECT
+		sequence,
 		message_id,
 			session_id,
 			workspace_id,
@@ -214,7 +147,9 @@ func scanNetworkThreadSummary(scanner rowScanner) (store.NetworkThreadSummary, e
 		&summary.OpenedByPeerID,
 		&sessionID,
 		&openedRaw,
+		&summary.OpenedSequence,
 		&activityRaw,
+		&summary.LastActivitySequence,
 		&summary.MessageCount,
 		&summary.ParticipantCount,
 		&summary.OpenWorkCount,
@@ -286,7 +221,9 @@ func scanNetworkDirectRoomSummary(scanner rowScanner) (store.NetworkDirectRoomSu
 		&summary.PeerA,
 		&summary.PeerB,
 		&openedRaw,
+		&summary.OpenedSequence,
 		&activityRaw,
+		&summary.LastActivitySequence,
 		&summary.MessageCount,
 		&summary.OpenWorkCount,
 		&lastPreview,

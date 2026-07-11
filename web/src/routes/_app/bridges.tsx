@@ -28,6 +28,7 @@ import {
   BridgeListPanel,
 } from "@/systems/bridges";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadBridgesRoute } from "./-bridges-preload";
 
 function validateBridgesSearch(search: Record<string, unknown>): BridgesRouteSearch {
   return {
@@ -44,6 +45,13 @@ export const Route = createFileRoute("/_app/bridges")({
     topbar: { title: "Bridges", icon: Waypoints },
   }),
   validateSearch: validateBridgesSearch,
+  loaderDeps: ({ search }) => ({
+    platform: search.platform,
+    q: search.q,
+    scope: search.scope ?? "all",
+    status: search.status,
+  }),
+  loader: ({ context, deps }) => preloadBridgesRoute(context.queryClient, deps),
   component: BridgesPage,
 });
 
@@ -110,7 +118,7 @@ function BridgesPage() {
     );
   }
 
-  if (page.totalBridgeCount === 0) {
+  if (page.totalBridgeCount === 0 && !page.hasActiveFilters) {
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="bridges-shell">
@@ -174,6 +182,7 @@ function BridgesPage() {
                 platforms={page.platforms}
                 scopeFilter={page.scopeFilter}
                 statusFilter={page.statusFilter}
+                statuses={page.statuses}
               />
             </ListingToolbar.Filters>
           </ListingToolbar.Leading>
@@ -184,14 +193,14 @@ function BridgesPage() {
 
         <div data-testid="bridge-list-panel">
           <BridgeListPanel
-            activeWorkspaceId={page.activeWorkspaceId}
             bridgeHealth={page.bridgeHealth}
             bridges={page.bridges}
+            errorMessage={page.backgroundError?.message}
+            hasActiveFilters={page.hasActiveFilters}
+            hasNextPage={page.hasNextPage}
+            isFetchingNextPage={page.isFetchingNextPage}
             onClearFilters={page.clearFilters}
-            platformFilter={page.platformFilter}
-            scopeFilter={page.scopeFilter}
-            searchQuery={page.searchQuery}
-            statusFilter={page.statusFilter}
+            onLoadMore={() => void page.loadMore()}
             view={page.view}
           />
         </div>

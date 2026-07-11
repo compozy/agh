@@ -77,7 +77,14 @@ export const Empty: Story = {
   parameters: {
     ...appRouteParameters("/knowledge"),
     ...storybookMswParameters({
-      knowledge: [aghApiMock.get("/api/memory", () => HttpResponse.json({ memories: [] }))],
+      knowledge: [
+        aghApiMock.get("/api/memory", () =>
+          HttpResponse.json({
+            memories: [],
+            page: { has_more: false, limit: 50, total: 0 },
+          })
+        ),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

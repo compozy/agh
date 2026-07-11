@@ -37,10 +37,16 @@ describe("loop read hooks", () => {
   it("Should fetch the catalog through useLoops", async () => {
     const { result } = renderHook(() => useLoops(WS), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.map(loop => loop.name)).toEqual([
+    expect(result.current.loops.map(loop => loop.name)).toEqual([
       "software-delivery",
       "reviews-watch",
     ]);
+    expect(result.current.total).toBe(2);
+    expect(result.current.facets).toEqual({
+      categories: { delivery: 1, watch: 1 },
+      kinds: { read_only: 1, workspace: 1 },
+      statuses: { running: 1, watching: 1 },
+    });
   });
 
   it("Should fetch a definition, config and annotations for one loop", async () => {

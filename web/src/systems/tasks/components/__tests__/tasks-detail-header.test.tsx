@@ -11,7 +11,17 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { TasksDetailHeader } from "../tasks-detail-header";
-import type { TaskDetailView, TaskListItem } from "../../types";
+import { buildTaskRunRecordFixture } from "../../mocks/fixtures";
+import type { TaskDetailView } from "../../types";
+
+function buildSummaryActiveRun(
+  overrides: Parameters<typeof buildTaskRunRecordFixture>[0] = {}
+): NonNullable<TaskDetailView["summary"]["active_run"]> {
+  return {
+    ...buildTaskRunRecordFixture(overrides),
+    max_attempts: 3,
+  };
+}
 
 function buildDetail(
   overrides: Partial<TaskDetailView["task"]> = {},
@@ -202,13 +212,13 @@ describe("TasksDetailHeader", () => {
   it.each(["queued", "claimed", "starting", "running"] as const)(
     "Should hide the start-run action while an active run is %s",
     status => {
-      const activeRun = {
+      const activeRun = buildSummaryActiveRun({
         id: "run_42",
         task_id: "task_001",
         attempt: 1,
         status,
         queued_at: "2026-04-11T09:30:00Z",
-      } as TaskListItem["active_run"];
+      });
       const detail = buildDetail({ status: "ready" }, { active_run: activeRun });
 
       render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
@@ -317,24 +327,19 @@ describe("TasksDetailHeader", () => {
   });
 
   it("Should surface the coordination channel chip when the active run is bound to a channel", () => {
-    const activeRun = {
+    const activeRun = buildSummaryActiveRun({
       id: "run_42",
       task_id: "task_001",
       attempt: 1,
       status: "queued",
       queued_at: "2026-04-11T09:30:00Z",
-      coordination_channel_id: "coord-task-001",
-      coordination_channel: {
-        id: "coord-task-001",
-        display_name: "TASK-42 coordination",
-      },
-    } as TaskListItem["active_run"];
+    });
     const detail = buildDetail({ status: "in_progress" }, { active_run: activeRun });
 
     render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
 
     expect(screen.getByTestId("tasks-detail-coordination")).toHaveTextContent(
-      "Channel: TASK-42 coordination"
+      "Channel: TASK-1 coordination"
     );
     expect(screen.getByTestId("tasks-detail-coordination")).toHaveAttribute(
       "title",

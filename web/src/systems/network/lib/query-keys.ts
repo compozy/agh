@@ -1,25 +1,31 @@
-import type { NetworkSurface } from "../types";
+import type {
+  NetworkChannelsQuery,
+  NetworkConversationMessageFilters,
+  NetworkDirectsListQuery,
+  NetworkSurface,
+  NetworkThreadsListQuery,
+} from "../types";
 
 function normalizeText(value?: string | null) {
-  return value ?? "";
+  return value?.trim() ?? "";
 }
 
 function normalizeLimit(value?: number | null) {
   return value ?? 0;
 }
 
-interface ConversationMessagesQuery {
-  after?: string | null;
-  before?: string | null;
-  kind?: string | null;
-  limit?: number | null;
-  work_id?: string | null;
+function catalogQuerySegments(query?: NetworkThreadsListQuery | NetworkDirectsListQuery) {
+  return [
+    normalizeText(query?.query),
+    normalizeText(query?.peer_id),
+    query?.has_work ?? null,
+    normalizeText(query?.sort),
+    normalizeLimit(query?.limit),
+  ] as const;
 }
 
-function messagesQuerySegments(query?: ConversationMessagesQuery) {
+function messageFilterSegments(query?: NetworkConversationMessageFilters) {
   return [
-    normalizeText(query?.before),
-    normalizeText(query?.after),
     normalizeText(query?.kind),
     normalizeText(query?.work_id),
     normalizeLimit(query?.limit),
@@ -29,13 +35,17 @@ function messagesQuerySegments(query?: ConversationMessagesQuery) {
 export const networkKeys = {
   all: ["network"] as const,
   status: () => [...networkKeys.all, "status"] as const,
-
   workspace: (workspaceId: string) =>
     [...networkKeys.all, "workspace", normalizeText(workspaceId)] as const,
 
   channelsRoot: (workspaceId: string) =>
     [...networkKeys.workspace(workspaceId), "channels"] as const,
-  channels: (workspaceId: string) => [...networkKeys.channelsRoot(workspaceId), "list"] as const,
+  channels: (workspaceId: string, query?: NetworkChannelsQuery) =>
+    [
+      ...networkKeys.channelsRoot(workspaceId),
+      "list",
+      normalizeLimit(query?.recent_limit),
+    ] as const,
   channelDetails: (workspaceId: string) =>
     [...networkKeys.channelsRoot(workspaceId), "detail"] as const,
   channelDetail: (workspaceId: string, channel: string) =>
@@ -43,7 +53,6 @@ export const networkKeys = {
 
   channelScope: (workspaceId: string, channel: string) =>
     [...networkKeys.workspace(workspaceId), "channel", normalizeText(channel)] as const,
-
   subscriptionsRoot: (workspaceId: string, channel: string) =>
     [...networkKeys.channelScope(workspaceId, channel), "subscriptions"] as const,
   subscriptions: (
@@ -57,18 +66,14 @@ export const networkKeys = {
       normalizeText(query?.thread_id),
     ] as const,
 
-  threadsList: (
-    workspaceId: string,
-    channel: string,
-    query?: { after?: string | null; limit?: number | null }
-  ) =>
+  threadsRoot: (workspaceId: string, channel: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
       "thread" satisfies NetworkSurface,
       "list",
-      normalizeText(query?.after),
-      normalizeLimit(query?.limit),
     ] as const,
+  threadsList: (workspaceId: string, channel: string, query?: NetworkThreadsListQuery) =>
+    [...networkKeys.threadsRoot(workspaceId, channel), ...catalogQuerySegments(query)] as const,
   threadDetail: (workspaceId: string, channel: string, threadId: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
@@ -76,33 +81,45 @@ export const networkKeys = {
       "detail",
       normalizeText(threadId),
     ] as const,
-  threadMessages: (
-    workspaceId: string,
-    channel: string,
-    threadId: string,
-    query?: ConversationMessagesQuery
-  ) =>
+  threadMessagesRoot: (workspaceId: string, channel: string, threadId: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
       "thread" satisfies NetworkSurface,
       "messages",
       normalizeText(threadId),
-      ...messagesQuerySegments(query),
     ] as const,
-
-  directsList: (
+  threadMessages: (
     workspaceId: string,
     channel: string,
-    query?: { after?: string | null; limit?: number | null; peer_id?: string | null }
+    threadId: string,
+    query?: NetworkConversationMessageFilters
   ) =>
+    [
+      ...networkKeys.threadMessagesRoot(workspaceId, channel, threadId),
+      ...messageFilterSegments(query),
+    ] as const,
+  threadMessageTail: (
+    workspaceId: string,
+    channel: string,
+    threadId: string,
+    query?: NetworkConversationMessageFilters
+  ) =>
+    [
+      ...networkKeys.channelScope(workspaceId, channel),
+      "message-tail",
+      "thread" satisfies NetworkSurface,
+      normalizeText(threadId),
+      ...messageFilterSegments(query),
+    ] as const,
+
+  directsRoot: (workspaceId: string, channel: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
       "direct" satisfies NetworkSurface,
       "list",
-      normalizeText(query?.after),
-      normalizeText(query?.peer_id),
-      normalizeLimit(query?.limit),
     ] as const,
+  directsList: (workspaceId: string, channel: string, query?: NetworkDirectsListQuery) =>
+    [...networkKeys.directsRoot(workspaceId, channel), ...catalogQuerySegments(query)] as const,
   directDetail: (workspaceId: string, channel: string, directId: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
@@ -110,24 +127,40 @@ export const networkKeys = {
       "detail",
       normalizeText(directId),
     ] as const,
-  directMessages: (
-    workspaceId: string,
-    channel: string,
-    directId: string,
-    query?: ConversationMessagesQuery
-  ) =>
+  directMessagesRoot: (workspaceId: string, channel: string, directId: string) =>
     [
       ...networkKeys.channelScope(workspaceId, channel),
       "direct" satisfies NetworkSurface,
       "messages",
       normalizeText(directId),
-      ...messagesQuerySegments(query),
+    ] as const,
+  directMessages: (
+    workspaceId: string,
+    channel: string,
+    directId: string,
+    query?: NetworkConversationMessageFilters
+  ) =>
+    [
+      ...networkKeys.directMessagesRoot(workspaceId, channel, directId),
+      ...messageFilterSegments(query),
+    ] as const,
+  directMessageTail: (
+    workspaceId: string,
+    channel: string,
+    directId: string,
+    query?: NetworkConversationMessageFilters
+  ) =>
+    [
+      ...networkKeys.channelScope(workspaceId, channel),
+      "message-tail",
+      "direct" satisfies NetworkSurface,
+      normalizeText(directId),
+      ...messageFilterSegments(query),
     ] as const,
 
   workRoot: (workspaceId: string) => [...networkKeys.workspace(workspaceId), "work"] as const,
   work: (workspaceId: string, workId: string) =>
     [...networkKeys.workRoot(workspaceId), normalizeText(workId)] as const,
-
   peersRoot: (workspaceId: string) => [...networkKeys.workspace(workspaceId), "peers"] as const,
   peers: (workspaceId: string, channel?: string | null) =>
     [...networkKeys.peersRoot(workspaceId), normalizeText(channel)] as const,

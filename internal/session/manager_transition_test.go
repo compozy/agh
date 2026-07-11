@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/store"
@@ -202,12 +203,83 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		assertRestoredResumeMeta(t, afterMeta, beforeMeta)
 		assertRestoredResumeCatalog(t, afterCatalog, beforeCatalog)
 	})
+
+	t.Run("Should synchronize a successful attach CAS into the active session", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+		attachedAt := active.Info().UpdatedAt.Add(time.Minute)
+		attach, err := h.manager.AttachSession(testutil.Context(t), store.SessionAttachRequest{
+			SessionID:  active.ID,
+			AttachedTo: "uds:operator",
+			Now:        attachedAt,
+			TTL:        time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("AttachSession() error = %v", err)
+		}
+		info := active.Info()
+		if info.AttachedTo != attach.AttachedTo || info.AttachExpiresAt == nil ||
+			!info.AttachExpiresAt.Equal(attach.AttachExpiresAt) || !info.UpdatedAt.Equal(attachedAt) {
+			t.Fatalf("active info after attach = %#v, want synchronized lock %#v", info, attach)
+		}
+		if AttachableForInfo(info, attachedAt) {
+			t.Fatal("AttachableForInfo(attached) = true, want locked")
+		}
+		healthByID, err := h.manager.SessionHealthForPage(testutil.Context(t), []*Info{info})
+		if err != nil {
+			t.Fatalf("SessionHealthForPage() error = %v", err)
+		}
+		if healthByID[active.ID].Attachable {
+			t.Fatalf("session health after attach = %#v, want not attachable", healthByID[active.ID])
+		}
+	})
+
+	t.Run("Should leave active memory unchanged when attach CAS fails", func(t *testing.T) {
+		t.Parallel()
+
+		attachErr := errors.New("attach CAS failed")
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+		before := active.Info()
+		catalog.setAttachErr(attachErr)
+		_, err := h.manager.AttachSession(testutil.Context(t), store.SessionAttachRequest{
+			SessionID:  active.ID,
+			AttachedTo: "uds:operator",
+			Now:        before.UpdatedAt.Add(time.Minute),
+			TTL:        time.Minute,
+		})
+		if !errors.Is(err, attachErr) {
+			t.Fatalf("AttachSession() error = %v, want wrapped CAS failure", err)
+		}
+		after := active.Info()
+		if after.AttachedTo != before.AttachedTo || after.AttachExpiresAt != nil ||
+			!after.UpdatedAt.Equal(before.UpdatedAt) {
+			t.Fatalf("active info after failed CAS = %#v, want unchanged %#v", after, before)
+		}
+	})
 }
 
 type recordingSessionCatalog struct {
 	mu            sync.Mutex
 	sessions      map[string]store.SessionInfo
 	updateErr     error
+	attachErr     error
 	strictUpdates bool
 }
 
@@ -268,10 +340,36 @@ func (c *recordingSessionCatalog) ListSessions(
 }
 
 func (c *recordingSessionCatalog) AttachSession(
-	context.Context,
-	store.SessionAttachRequest,
+	_ context.Context,
+	req store.SessionAttachRequest,
 ) (store.SessionAttach, error) {
-	return store.SessionAttach{}, nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.attachErr != nil {
+		return store.SessionAttach{}, c.attachErr
+	}
+	normalized := req.Normalize()
+	current, ok := c.sessions[normalized.SessionID]
+	if !ok {
+		return store.SessionAttach{}, store.ErrSessionNotFound
+	}
+	if current.State != string(StateActive) {
+		return store.SessionAttach{}, store.ErrSessionNotAttachable
+	}
+	if current.AttachedTo != "" && current.AttachExpiresAt != nil && current.AttachExpiresAt.After(normalized.Now) {
+		return store.SessionAttach{}, store.ErrSessionAttachLocked
+	}
+	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
+	current.AttachedTo = normalized.AttachedTo
+	current.AttachExpiresAt = &expiresAt
+	current.UpdatedAt = normalized.Now
+	c.sessions[normalized.SessionID] = current
+	return store.SessionAttach{
+		SessionID:       normalized.SessionID,
+		AttachedTo:      normalized.AttachedTo,
+		AttachedAt:      normalized.Now,
+		AttachExpiresAt: expiresAt,
+	}, nil
 }
 
 func (c *recordingSessionCatalog) ReconcileSessions(
@@ -301,6 +399,12 @@ func (c *recordingSessionCatalog) setUpdateErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.updateErr = err
+}
+
+func (c *recordingSessionCatalog) setAttachErr(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.attachErr = err
 }
 
 func (c *recordingSessionCatalog) requireExistingUpdates() {

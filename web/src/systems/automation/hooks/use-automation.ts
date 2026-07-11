@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   automationJobDetailOptions,
@@ -9,11 +9,15 @@ import {
   automationTriggerRunsOptions,
   automationTriggersListOptions,
 } from "../lib/query-options";
+import {
+  flattenAutomationJobPages,
+  flattenAutomationTriggerPages,
+} from "../lib/automation-list-query";
 import type {
-  AutomationJobListFilter,
+  AutomationJobStableFilter,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
-  AutomationTriggerListFilter,
+  AutomationTriggerStableFilter,
 } from "../types";
 
 interface QueryHookOptions {
@@ -21,10 +25,18 @@ interface QueryHookOptions {
 }
 
 export function useAutomationJobs(
-  filters: AutomationJobListFilter = {},
+  filters: AutomationJobStableFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery({ ...automationJobsListOptions(filters), enabled: options.enabled ?? true });
+  const query = useInfiniteQuery({
+    ...automationJobsListOptions(filters),
+    enabled: options.enabled ?? true,
+  });
+  return {
+    ...query,
+    jobs: flattenAutomationJobPages(query.data),
+    total: query.data?.pages[0]?.page.total ?? 0,
+  };
 }
 
 export function useAutomationJob(id: string, options: QueryHookOptions = {}) {
@@ -40,10 +52,18 @@ export function useAutomationJobRuns(
 }
 
 export function useAutomationTriggers(
-  filters: AutomationTriggerListFilter = {},
+  filters: AutomationTriggerStableFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery({ ...automationTriggersListOptions(filters), enabled: options.enabled ?? true });
+  const query = useInfiniteQuery({
+    ...automationTriggersListOptions(filters),
+    enabled: options.enabled ?? true,
+  });
+  return {
+    ...query,
+    triggers: flattenAutomationTriggerPages(query.data),
+    total: query.data?.pages[0]?.page.total ?? 0,
+  };
 }
 
 export function useAutomationTrigger(id: string, options: QueryHookOptions = {}) {

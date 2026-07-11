@@ -86,6 +86,12 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		if got := listPayload.Loops[0].Aggregate30d.Runs; got != 2 {
 			t.Fatalf("GET /loops aggregate runs = %d, want 2", got)
 		}
+		lastRun := listPayload.Loops[0].LastRun
+		if lastRun == nil || lastRun.ID != "run-catalog-latest" ||
+			lastRun.Status != contract.LoopRunStatusDone ||
+			!lastRun.CreatedAt.Equal(time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC)) {
+			t.Fatalf("GET /loops last_run = %#v, want lean run payload", lastRun)
+		}
 
 		createResp := performRequest(t, engine, http.MethodPost, "/workspaces/ws-1/loops", loopDefinitionRequestBody(t))
 		assertLoopStatus(t, createResp.Code, http.StatusCreated, createResp.Body.String())
@@ -264,6 +270,72 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		if deleteResp.Body.Len() != 0 {
 			t.Fatalf("DELETE /loops/:name body = %q, want empty", deleteResp.Body.String())
 		}
+	})
+}
+
+func TestLoopCatalogHandlerShouldForwardBoundedQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward every catalog filter and preserve explicit empty page metadata", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.listLoopsFn = func(
+			_ context.Context,
+			workspaceID string,
+			query looppkg.CatalogQuery,
+		) (contract.LoopsResponse, error) {
+			if workspaceID != "ws-1" || query.Search != "deploy safely" ||
+				query.Kind != looppkg.CatalogKindWorkspace || query.Category != "delivery" ||
+				query.Status != looppkg.StatusRunning || query.Sort != looppkg.CatalogSortName ||
+				query.Cursor != "cursor-1" || query.Limit != 7 {
+				t.Fatalf("ListLoops() query = workspace %q %#v", workspaceID, query)
+			}
+			return contract.LoopsResponse{
+				Loops: []contract.LoopCatalogEntryPayload{},
+				Facets: contract.LoopCatalogFacetsPayload{
+					Kinds:      map[string]int{},
+					Categories: map[string]int{},
+					Statuses:   map[string]int{},
+				},
+				Page: contract.CountedCursorPagePayload{Total: 0, Limit: 7},
+			}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-1/loops?q=deploy%20safely&kind=workspace&category=delivery&"+
+				"status=running&sort=name&cursor=cursor-1&limit=7",
+			nil,
+		)
+		assertLoopStatus(t, resp.Code, http.StatusOK, resp.Body.String())
+		var payload contract.LoopsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Page.Total != 0 || payload.Page.Limit != 7 || payload.Loops == nil {
+			t.Fatalf("GET /loops payload = %#v, want explicit empty counted page", payload)
+		}
+	})
+
+	t.Run("Should reject a malformed limit before calling the service", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.listLoopsFn = func(
+			context.Context,
+			string,
+			looppkg.CatalogQuery,
+		) (contract.LoopsResponse, error) {
+			t.Fatal("ListLoops() should not be called for malformed limit")
+			return contract.LoopsResponse{}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "udsapi", service)
+		resp := performRequest(t, engine, http.MethodGet, "/workspaces/ws-1/loops?limit=not-a-number", nil)
+		assertLoopStatus(t, resp.Code, http.StatusBadRequest, resp.Body.String())
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		assertLoopErrorPayloadContains(t, payload, looppkg.ErrCatalogQueryInvalid.Error())
 	})
 }
 
@@ -684,7 +756,7 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 }
 
 type stubLoopService struct {
-	listLoopsFn         func(context.Context, string) (contract.LoopsResponse, error)
+	listLoopsFn         func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
 	createLoopFn        func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
 	getLoopFn           func(context.Context, string, string) (contract.LoopResponse, error)
 	patchLoopFn         func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
@@ -710,11 +782,16 @@ func happyLoopService(t testing.TB) *stubLoopService {
 	cfg := loopConfig()
 	annotations := []contract.LoopAnnotationPayload{{NodeID: "draft", X: 12, Y: 34}}
 	return &stubLoopService{
-		listLoopsFn: func(context.Context, string) (contract.LoopsResponse, error) {
+		listLoopsFn: func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error) {
 			return contract.LoopsResponse{Loops: []contract.LoopCatalogEntryPayload{{
 				Name:    "alpha",
 				Version: 7,
 				Source:  contract.LoopSourceWorkspace,
+				LastRun: &contract.LoopCatalogLastRunPayload{
+					ID:        "run-catalog-latest",
+					Status:    contract.LoopRunStatusDone,
+					CreatedAt: time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC),
+				},
 				Inputs: map[string]contract.LoopInput{
 					"ticket": {Type: string(dsl.InputTypeString), Required: true},
 				},
@@ -787,8 +864,12 @@ func happyLoopService(t testing.TB) *stubLoopService {
 	}
 }
 
-func (s *stubLoopService) ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error) {
-	return s.listLoopsFn(ctx, workspaceID)
+func (s *stubLoopService) ListLoops(
+	ctx context.Context,
+	workspaceID string,
+	query looppkg.CatalogQuery,
+) (contract.LoopsResponse, error) {
+	return s.listLoopsFn(ctx, workspaceID, query)
 }
 
 func (s *stubLoopService) CreateLoop(

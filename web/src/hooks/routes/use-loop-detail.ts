@@ -26,12 +26,12 @@ export function useLoopDetail(name: string) {
   const active = workspaceId !== "" && !hasChildMatch;
 
   const loopQuery = useLoop(workspaceId, name, active);
-  const catalogQuery = useLoops(workspaceId, active);
+  const catalogQuery = useLoops(workspaceId, { limit: 50, q: name, sort: "name" }, active);
   const runsQuery = useLoopRuns(workspaceId, { loop: name, limit: RECENT_RUNS_LIMIT }, active);
   const createLoop = useCreateLoop();
   const bindings = useLoopBindings(active ? workspaceId : "", active ? name : "");
 
-  const catalogEntry = catalogQuery.data?.find(entry => entry.name === name) ?? null;
+  const catalogEntry = catalogQuery.loops.find(entry => entry.name === name) ?? null;
 
   const handlers = {
     onBack: () => {

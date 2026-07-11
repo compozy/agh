@@ -70,15 +70,21 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			},
 		}},
 		ActiveRun: &taskpkg.RunSummary{
-			ID:          "run-1",
-			TaskID:      "task-1",
-			Status:      taskpkg.TaskRunStatusRunning,
-			Attempt:     2,
-			MaxAttempts: 4,
-			SessionID:   "sess-1",
-			ClaimedBy:   &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"},
-			QueuedAt:    now.Add(-10 * time.Minute),
-			StartedAt:   now.Add(-5 * time.Minute),
+			ID:                 "run-1",
+			TaskID:             "task-1",
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            2,
+			MaxAttempts:        4,
+			SessionID:          "sess-1",
+			ClaimTokenHash:     "sha256:catalog-verifier",
+			DesignationGroupID: "designation-group",
+			Designation: &taskpkg.RunDesignationSummary{
+				Index: 2,
+				Brief: "private fan-out brief",
+			},
+			ClaimedBy: &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user-1"},
+			QueuedAt:  now.Add(-10 * time.Minute),
+			StartedAt: now.Add(-5 * time.Minute),
 		},
 		LastActivityAt: lastActivity,
 	}
@@ -96,6 +102,11 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		summaryPayload.Dependencies[0].DependsOn.Identifier != "TASK-2" ||
 		summaryPayload.Dependencies[0].DependsOn.LatestEventSeq != 11 {
 		t.Fatalf("TaskSummaryPayloadFromSummary() = %#v", summaryPayload)
+	}
+	if summaryPayload.ActiveRun.ClaimTokenHash != summary.ActiveRun.ClaimTokenHash ||
+		summaryPayload.ActiveRun.DesignationGroupID != summary.ActiveRun.DesignationGroupID ||
+		summaryPayload.ActiveRun.Designation == nil {
+		t.Fatalf("TaskSummaryPayloadFromSummary() rich active run = %#v", summaryPayload.ActiveRun)
 	}
 
 	detailPayload := core.TaskDetailPayloadFromView(&taskpkg.View{
@@ -343,6 +354,83 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		inboxPayload.Groups[0].Items[0].BlockingReason != "awaiting_approval" {
 		t.Fatalf("TaskInboxPayloadFromView() = %#v", inboxPayload)
 	}
+	encodedInbox, err := json.Marshal(inboxPayload)
+	if err != nil {
+		t.Fatalf("json.Marshal(TaskInboxPayloadFromView()) error = %v", err)
+	}
+	for _, forbidden := range []string{
+		`"paused"`,
+		`"effective_paused"`,
+		`"paused_by_task_id"`,
+		`"claim_token_hash"`,
+		`"coordination_channel"`,
+		`"designation_group_id"`,
+		`"designation"`,
+	} {
+		if strings.Contains(string(encodedInbox), forbidden) {
+			t.Fatalf("TaskInboxPayloadFromView() JSON contains %s: %s", forbidden, encodedInbox)
+		}
+	}
+}
+
+func TestTaskCatalogResponseUsesLeanPageItems(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit enrichment that requires per-task graph reads", func(t *testing.T) {
+		t.Parallel()
+
+		response := core.TaskCatalogResponseFromPage(taskpkg.CatalogPage{
+			Tasks: []taskpkg.Summary{{
+				ID:              "task-lean",
+				Title:           "Lean catalog item",
+				Paused:          true,
+				PausedBy:        "operator",
+				PausedAt:        time.Now(),
+				PausedReason:    "pause",
+				EffectivePaused: true,
+				PausedByTaskID:  "task-parent",
+				BlockedReasons:  &[]taskpkg.BlockedReason{{Source: taskpkg.BlockedSourceDependency}},
+				Dependencies:    []taskpkg.DependencyReference{{TaskID: "task-lean"}},
+				ActiveRun: &taskpkg.RunSummary{
+					ID:                 "run-lean",
+					ClaimTokenHash:     "sha256:catalog-verifier",
+					DesignationGroupID: "designation-group",
+					Designation:        &taskpkg.RunDesignationSummary{Index: 2, Brief: "private fan-out brief"},
+				},
+			}},
+			Total: 1,
+			Limit: 10,
+		})
+		if len(response.Tasks) != 1 {
+			t.Fatalf("catalog tasks = %d, want 1", len(response.Tasks))
+		}
+		item := response.Tasks[0]
+		if item.ID != "task-lean" || item.ActiveRun == nil || item.ActiveRun.ID != "run-lean" {
+			t.Fatalf("catalog item = %#v, want bounded task and run summaries", item)
+		}
+		encoded, err := json.Marshal(response)
+		if err != nil {
+			t.Fatalf("json.Marshal(TaskCatalogResponseFromPage()) error = %v", err)
+		}
+		for _, forbidden := range []string{
+			`"paused"`,
+			`"paused_by"`,
+			`"paused_at"`,
+			`"paused_reason"`,
+			`"effective_paused"`,
+			`"paused_by_task_id"`,
+			`"blocked_reasons"`,
+			`"dependencies"`,
+			`"claim_token_hash"`,
+			`"coordination_channel"`,
+			`"designation_group_id"`,
+			`"designation"`,
+		} {
+			if strings.Contains(string(encoded), forbidden) {
+				t.Fatalf("TaskCatalogResponseFromPage() JSON contains %s: %s", forbidden, encoded)
+			}
+		}
+	})
 }
 
 func TestSchedulerControlHandlersDelegateToTaskService(t *testing.T) {
@@ -351,7 +439,7 @@ func TestSchedulerControlHandlersDelegateToTaskService(t *testing.T) {
 		var pauseTask taskpkg.PauseTaskRequest
 		var drainRequest taskpkg.SchedulerDrainRequest
 		var backlogQuery taskpkg.SchedulerBacklogQuery
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			PauseTaskFn: func(
 				_ context.Context,
 				id string,
@@ -525,7 +613,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var streamActor taskpkg.ActorContext
 	var streamQuery taskpkg.StreamQuery
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		InspectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.InspectView, error) {
 			inspectTaskActor = actor
 			return &taskpkg.InspectView{
@@ -1014,12 +1102,12 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		}
 		var inboxPayload contract.TaskInboxResponse
 		testutil.DecodeJSONResponse(t, inboxResp, &inboxPayload)
-		if inboxPayload.Inbox.Total != 1 || len(inboxPayload.Inbox.Groups) != 1 {
+		if inboxPayload.Inbox.Page.Total != 1 || len(inboxPayload.Inbox.Groups) != 1 {
 			t.Fatalf("inbox payload = %#v", inboxPayload)
 		}
 		if inboxActor.Ref != "user-1" || inboxActor.Kind != taskpkg.ActorKindHuman ||
 			inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
-			!inboxQuery.Unread {
+			inboxQuery.Unread == nil || !*inboxQuery.Unread {
 			t.Fatalf("inbox actor/query = %#v / %#v", inboxActor, inboxQuery)
 		}
 
@@ -1121,7 +1209,7 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		t,
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
-		testutil.StubTaskManager{
+		&testutil.StubTaskManager{
 			PublishTaskFn: func(
 				context.Context,
 				string,

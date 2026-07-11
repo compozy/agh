@@ -206,11 +206,11 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 | Skill: peer review                          | `.agents/skills/cy-spec-peer-review/`                                  |
 | Skill: tasks tail QA pair                   | `.agents/skills/cy-tasks-tail-qa-pair/`                                |
 | Skill: web/docs impact                      | `.agents/skills/cy-web-docs-impact/`                                   |
-| Skill: test conventions                     | `.agents/skills/agh-test-conventions/`                                 |
-| Skill: cleanup failure paths                | `.agents/skills/agh-cleanup-failure-paths/`                            |
-| Skill: schema migration                     | `.agents/skills/agh-schema-migration/`                                 |
-| Skill: contract codegen co-ship             | `.agents/skills/agh-contract-codegen-coship/`                          |
-| Skill: worktree isolation                   | `.agents/skills/agh-worktree-isolation/`                               |
+| Skill: test conventions                     | `.agents/skills/agh/agh-test-conventions/`                             |
+| Skill: cleanup failure paths                | `.agents/skills/agh/agh-cleanup-failure-paths/`                        |
+| Skill: schema migration                     | `.agents/skills/agh/agh-schema-migration/`                             |
+| Skill: contract codegen co-ship             | `.agents/skills/agh/agh-contract-codegen-coship/`                      |
+| Skill: worktree isolation                   | `.agents/skills/agh/agh-worktree-isolation/`                           |
 | Skill: spec preflight (loads this playbook) | `.agents/skills/cy-spec-preflight/`                                    |
 | Root rules                                  | `/CLAUDE.md`, `/AGENTS.md`                                             |
 | Web rules                                   | `/web/CLAUDE.md`                                                       |

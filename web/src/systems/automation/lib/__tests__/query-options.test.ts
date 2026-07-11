@@ -11,7 +11,7 @@ import {
 } from "../query-options";
 
 describe("automation list options", () => {
-  it("uses the configured stale and refetch intervals", () => {
+  it("uses focus/invalidation reconciliation instead of polling every loaded page", () => {
     const jobOptions = automationJobsListOptions({ scope: "workspace", workspace_id: "ws_alpha" });
     const triggerOptions = automationTriggersListOptions({
       scope: "workspace",
@@ -19,9 +19,9 @@ describe("automation list options", () => {
     });
 
     expect(jobOptions.staleTime).toBe(15_000);
-    expect(jobOptions.refetchInterval).toBe(30_000);
+    expect(jobOptions.refetchInterval).toBeUndefined();
     expect(triggerOptions.staleTime).toBe(15_000);
-    expect(triggerOptions.refetchInterval).toBe(30_000);
+    expect(triggerOptions.refetchInterval).toBeUndefined();
   });
 
   it("includes workspace filters in query keys", () => {
@@ -29,6 +29,8 @@ describe("automation list options", () => {
       scope: "workspace",
       workspace_id: "ws_alpha",
       source: "dynamic",
+      enabled: true,
+      q: "review",
       limit: 10,
     });
 
@@ -39,9 +41,12 @@ describe("automation list options", () => {
       "workspace",
       "ws_alpha",
       "dynamic",
+      "true",
+      "review",
       "10",
       "",
     ]);
+    expect(options.initialPageParam).toBeUndefined();
   });
 });
 

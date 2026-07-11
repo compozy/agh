@@ -66,20 +66,60 @@ describe("listBridges", () => {
         },
       },
       bridges: [bridgeFixture],
+      facets: {
+        platforms: { telegram: 1 },
+        statuses: {
+          auth_required: 0,
+          degraded: 0,
+          disabled: 0,
+          error: 0,
+          ready: 1,
+          starting: 0,
+        },
+      },
+      page: { has_more: false, limit: 50, total: 1 },
     });
 
     const result = await listBridges();
 
     expect(result.bridges).toEqual([bridgeFixture]);
+    expect(result.page).toEqual({ has_more: false, limit: 50, total: 1 });
+    expect(result.facets.platforms).toEqual({ telegram: 1 });
     await expectFetchRequest({ path: "/api/bridges" });
   });
 
-  it("sends bridge list scope filters", async () => {
-    mockJsonResponse({ bridges: [] });
+  it("sends every bridge catalog filter and cursor", async () => {
+    mockJsonResponse({
+      bridge_health: {},
+      bridges: [],
+      facets: {
+        platforms: {},
+        statuses: {
+          auth_required: 0,
+          degraded: 0,
+          disabled: 0,
+          error: 0,
+          ready: 0,
+          starting: 0,
+        },
+      },
+      page: { has_more: false, limit: 25, total: 0 },
+    });
 
-    await listBridges({ scope: "all", workspace_id: " ws_alpha " });
+    await listBridges({
+      cursor: " cursor-2 ",
+      limit: 25,
+      platform: " slack ",
+      q: " ops ",
+      scope: "all",
+      sort: "name",
+      status: "ready",
+      workspace_id: " ws_alpha ",
+    });
 
-    await expectFetchRequest({ path: "/api/bridges?scope=all&workspace_id=ws_alpha" });
+    await expectFetchRequest({
+      path: "/api/bridges?scope=all&workspace_id=ws_alpha&q=ops&platform=slack&status=ready&sort=name&cursor=cursor-2&limit=25",
+    });
   });
 
   it("passes abort signal through to fetch", async () => {

@@ -66,12 +66,7 @@ export function ThreadOverlay({
         </ScrollArea>
       ) : (
         <>
-          <WorkBanner
-            hasNeedsInput={openWork.hasNeedsInput}
-            needsInputCount={openWork.needsInputCount}
-            openCount={openWork.openCount}
-            workingCount={openWork.workingCount}
-          />
+          <WorkBanner hasNeedsInput={false} openCount={openWork.openCount} />
           <ScrollArea className="min-h-0 flex-1">
             <ThreadOverlayRoot
               isLoading={overlay.isDetailLoading}
@@ -81,9 +76,12 @@ export function ThreadOverlay({
             <ThreadOverlayReplies
               emptyOverride={<ThreadEmpty />}
               isLoading={overlay.isMessagesLoading}
+              hasOlder={overlay.hasOlder}
+              isLoadingOlder={overlay.isLoadingOlder}
               lastReadAt={overlay.lastReadIso}
               messages={overlay.replies}
               onDiscardOptimistic={handleDiscard}
+              onLoadOlder={overlay.loadOlder}
               onRetryOptimistic={handleRetry}
               replyCount={overlay.replyCount}
               toolbarHandlers={toolbarHandlers}
@@ -91,6 +89,7 @@ export function ThreadOverlay({
           </ScrollArea>
 
           <DetailComposer
+            workspaceId={workspaceId}
             channel={channel}
             disabledReason={disabledReason ?? undefined}
             displayName={session?.displayName}

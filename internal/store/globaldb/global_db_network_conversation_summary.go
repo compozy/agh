@@ -126,10 +126,12 @@ func refreshNetworkThreadSummary(
 	if _, err := exec.ExecContext(
 		ctx,
 		`UPDATE network_threads
-		SET last_activity_at = ?, message_count = ?, participant_count = ?, open_work_count = ?,
+		SET last_activity_at = ?, last_activity_sequence = ?,
+			message_count = ?, participant_count = ?, open_work_count = ?,
 			last_message_preview = ?
 		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
 		latest.timestamp,
+		latest.sequence,
 		messageCount,
 		participantCount,
 		openWorkCount,
@@ -186,9 +188,11 @@ func refreshNetworkDirectRoomSummary(
 	if _, err := exec.ExecContext(
 		ctx,
 		`UPDATE network_direct_rooms
-		SET last_activity_at = ?, message_count = ?, open_work_count = ?, last_message_preview = ?
+		SET last_activity_at = ?, last_activity_sequence = ?,
+			message_count = ?, open_work_count = ?, last_message_preview = ?
 		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
 		latest.timestamp,
+		latest.sequence,
 		messageCount,
 		openWorkCount,
 		latest.preview,
@@ -202,6 +206,7 @@ func refreshNetworkDirectRoomSummary(
 }
 
 type latestNetworkMessage struct {
+	sequence  int64
 	timestamp string
 	preview   string
 }
@@ -220,15 +225,15 @@ func latestNetworkConversationMessage(
 	}
 	var latest latestNetworkMessage
 	query := fmt.Sprintf(
-		`SELECT timestamp, preview_text
+		`SELECT sequence, timestamp, preview_text
 			FROM network_timeline_log
 			WHERE workspace_id = ? AND channel = ? AND surface = ? AND %s = ?
-			ORDER BY timestamp DESC, message_id DESC
+			ORDER BY sequence DESC
 			LIMIT 1`,
 		column,
 	)
 	if err := exec.QueryRowContext(ctx, query, workspaceID, channel, surface, containerID).
-		Scan(&latest.timestamp, &latest.preview); err != nil {
+		Scan(&latest.sequence, &latest.timestamp, &latest.preview); err != nil {
 		return latestNetworkMessage{}, fmt.Errorf("store: lookup latest network conversation message: %w", err)
 	}
 	return latest, nil

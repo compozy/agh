@@ -12,8 +12,7 @@ import (
 )
 
 type networkMessageCursor struct {
-	MessageID string
-	Timestamp string
+	Sequence int64
 }
 
 type networkMessageNullableFields struct {
@@ -51,10 +50,11 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		ctx,
 		"write network message",
 		func(exec networkSQLExecutor) error {
-			inserted, err := insertNetworkTimelineMessageWithExecutor(ctx, exec, entry)
+			inserted, sequence, err := insertNetworkTimelineMessageWithExecutor(ctx, exec, entry)
 			if err != nil || !inserted {
 				return err
 			}
+			entry.Sequence = sequence
 			projection, err := deriveNetworkTimelineWorkProjection(ctx, exec, entry)
 			if err != nil {
 				return err
@@ -112,6 +112,7 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 	query store.NetworkMessageQuery,
 ) (string, []any, bool, error) {
 	sqlQuery := `SELECT
+			sequence,
 			message_id,
 			session_id,
 			workspace_id,
@@ -151,23 +152,25 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		if cursorErr != nil {
 			return "", nil, false, cursorErr
 		}
-		where = append(where, "(timestamp < ? OR (timestamp = ? AND message_id < ?))")
-		args = append(args, cursor.Timestamp, cursor.Timestamp, cursor.MessageID)
+		where = append(where, "sequence < ?")
+		args = append(args, cursor.Sequence)
 		reverseResults = true
 	case strings.TrimSpace(query.AfterMessageID) != "":
 		cursor, cursorErr := g.lookupNetworkMessageCursor(ctx, query.AfterMessageID, query)
 		if cursorErr != nil {
 			return "", nil, false, cursorErr
 		}
-		where = append(where, "(timestamp > ? OR (timestamp = ? AND message_id > ?))")
-		args = append(args, cursor.Timestamp, cursor.Timestamp, cursor.MessageID)
+		where = append(where, "sequence > ?")
+		args = append(args, cursor.Sequence)
+	default:
+		reverseResults = query.Limit > 0
 	}
 
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	if reverseResults {
-		sqlQuery += " ORDER BY timestamp DESC, message_id DESC"
+		sqlQuery += " ORDER BY sequence DESC"
 	} else {
-		sqlQuery += " ORDER BY timestamp ASC, message_id ASC"
+		sqlQuery += " ORDER BY sequence ASC"
 	}
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 	return sqlQuery, args, reverseResults, nil
@@ -193,8 +196,21 @@ func networkMessageFilterClauses(query store.NetworkMessageQuery, includeMessage
 		where = append(where, "(peer_from = ? OR peer_to = ?)")
 		args = append(args, peerID, peerID)
 	}
-	if query.DirectedOnly {
-		where = append(where, "peer_to IS NOT NULL AND TRIM(peer_to) <> ''")
+	directed := `(COALESCE(TRIM(peer_to), '') <> ''
+		OR COALESCE(TRIM(direct_id), '') <> ''
+		OR COALESCE(TRIM(surface), '') = 'direct')`
+	public := `(COALESCE(TRIM(peer_to), '') = ''
+		AND COALESCE(TRIM(direct_id), '') = ''
+		AND COALESCE(TRIM(surface), '') <> 'direct')`
+	switch {
+	case query.PublicOnly && query.IncludePresence:
+		where = append(where, "(kind = 'greet' OR "+public+")")
+	case query.PublicOnly:
+		where = append(where, "kind <> 'greet' AND "+public)
+	case query.DirectedOnly && query.IncludePresence:
+		where = append(where, "(kind = 'greet' OR "+directed+")")
+	case query.DirectedOnly:
+		where = append(where, "kind <> 'greet' AND "+directed)
 	}
 	return where, args
 }
@@ -237,9 +253,9 @@ func (g *GlobalDB) lookupNetworkMessageCursor(
 	var cursor networkMessageCursor
 	err := g.db.QueryRowContext(
 		ctx,
-		store.AppendWhere(`SELECT message_id, timestamp FROM network_timeline_log`, where),
+		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
 		args...,
-	).Scan(&cursor.MessageID, &cursor.Timestamp)
+	).Scan(&cursor.Sequence)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return networkMessageCursor{}, fmt.Errorf("store: network message cursor not found: %w", err)
@@ -255,6 +271,7 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 		nullable networkMessageNullableFields
 	)
 	if err := scanner.Scan(
+		&entry.Sequence,
 		&entry.MessageID,
 		&nullable.sessionID,
 		&entry.WorkspaceID,

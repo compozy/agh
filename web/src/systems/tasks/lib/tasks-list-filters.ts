@@ -1,24 +1,24 @@
 import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
-import type { TaskPriority, TaskStatus } from "../types";
+import type { TaskOwnerKind, TaskPriority, TaskStatus } from "../types";
 import { taskOwnerKindLabel, taskPriorityLabel, taskStatusLabel } from "./task-formatters";
 
 export type TaskFilterFieldKey = "status" | "owner" | "priority";
 
 export interface TaskFilterOwnerOption {
   ref: string;
-  kind?: import("../types").TaskOwnerKind;
+  kind: TaskOwnerKind;
 }
 
 export interface TaskFilterState {
   statusFilter: TaskStatus | null;
-  ownerFilter: string | null;
+  ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
 }
 
 export interface TaskFilterHandlers {
   onStatusChange: (next: TaskStatus | null) => void;
-  onOwnerChange: (next: string | null) => void;
+  onOwnerChange: (next: TaskFilterOwnerOption | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
 }
 
@@ -35,6 +35,32 @@ const STATUS_OPTIONS: TaskStatus[] = [
 ];
 
 const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "medium", "low"];
+const OWNER_KINDS: TaskOwnerKind[] = [
+  "agent_session",
+  "automation",
+  "extension",
+  "human",
+  "network_peer",
+  "pool",
+];
+
+export function taskOwnerFilterValue(owner: TaskFilterOwnerOption): string {
+  return `${encodeURIComponent(owner.kind)}:${encodeURIComponent(owner.ref)}`;
+}
+
+function taskOwnerFilterFromValue(value: string | undefined): TaskFilterOwnerOption | null {
+  if (!value) return null;
+  const separator = value.indexOf(":");
+  if (separator < 1) return null;
+  try {
+    const rawKind = decodeURIComponent(value.slice(0, separator));
+    const ref = decodeURIComponent(value.slice(separator + 1));
+    const kind = OWNER_KINDS.find(candidate => candidate === rawKind);
+    return kind && ref ? { kind, ref } : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Build the `FilterFieldsConfig` consumed by `<Filters>` — three single-select
@@ -45,6 +71,10 @@ const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "medium", "low"];
 export function buildTaskFilterFields(
   ownerOptions: TaskFilterOwnerOption[]
 ): FilterFieldsConfig<string> {
+  const refCounts = new Map<string, number>();
+  for (const owner of ownerOptions) {
+    refCounts.set(owner.ref, (refCounts.get(owner.ref) ?? 0) + 1);
+  }
   return [
     {
       key: "status",
@@ -64,8 +94,11 @@ export function buildTaskFilterFields(
       type: "select",
       searchable: true,
       options: ownerOptions.map(owner => ({
-        value: owner.ref,
-        label: owner.ref || taskOwnerKindLabel(owner.kind),
+        value: taskOwnerFilterValue(owner),
+        label:
+          (refCounts.get(owner.ref) ?? 0) > 1
+            ? `${owner.ref} · ${taskOwnerKindLabel(owner.kind)}`
+            : owner.ref,
       })),
     },
   ];
@@ -85,7 +118,7 @@ export function taskFiltersToChips(state: TaskFilterState): Filter<string>[] {
     chips.push(buildChip("priority", state.priorityFilter));
   }
   if (state.ownerFilter) {
-    chips.push(buildChip("owner", state.ownerFilter));
+    chips.push(buildChip("owner", taskOwnerFilterValue(state.ownerFilter)));
   }
   return chips;
 }
@@ -112,7 +145,7 @@ export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilt
 
   handlers.onStatusChange(asTaskStatus(lookup.get("status")));
   handlers.onPriorityChange(asTaskPriority(lookup.get("priority")));
-  handlers.onOwnerChange(lookup.get("owner") ?? null);
+  handlers.onOwnerChange(taskOwnerFilterFromValue(lookup.get("owner")));
 }
 
 function asTaskStatus(value: string | undefined): TaskStatus | null {

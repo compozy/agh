@@ -18,6 +18,7 @@ export type { ResolveWorkspaceParams } from "./adapters/workspace-api";
 
 // Query infrastructure
 export { isHomeWorkspace, splitHomeWorkspace } from "./lib/home-workspace";
+export { selectActiveWorkspace } from "./lib/active-workspace";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
 export type { HomeWorkspacePartition, WorkspaceHomeCandidate } from "./lib/home-workspace";
 export { workspaceKeys } from "./lib/query-keys";

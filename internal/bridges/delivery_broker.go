@@ -110,6 +110,7 @@ type Broker struct {
 	turnIndex    map[turnIndexKey]string
 	sessionIndex map[string]map[string]struct{}
 	routes       map[string]*routeWorker
+	bridgeRoutes map[string]map[string]*routeWorker
 	metrics      map[string]*instanceDeliveryMetrics
 }
 
@@ -127,6 +128,7 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 		turnIndex:      make(map[turnIndexKey]string),
 		sessionIndex:   make(map[string]map[string]struct{}),
 		routes:         make(map[string]*routeWorker),
+		bridgeRoutes:   make(map[string]map[string]*routeWorker),
 		metrics:        make(map[string]*instanceDeliveryMetrics),
 	}
 	for _, opt := range opts {
@@ -180,53 +182,6 @@ func (b *Broker) Close() {
 		b.cancel()
 	}
 	b.wg.Wait()
-}
-
-// DeliveryMetrics returns a point-in-time snapshot of per-instance broker
-// telemetry used by health and observability surfaces.
-func (b *Broker) DeliveryMetrics() map[string]BridgeDeliveryMetrics {
-	if b == nil {
-		return nil
-	}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	snapshot := make(map[string]BridgeDeliveryMetrics, len(b.metrics))
-	for bridgeInstanceID, metrics := range b.metrics {
-		if metrics == nil {
-			continue
-		}
-
-		clonedReasons := make(map[string]int, len(metrics.droppedByReason))
-		totalDropped := 0
-		for reason, count := range metrics.droppedByReason {
-			clonedReasons[reason] = count
-			totalDropped += count
-		}
-
-		snapshot[bridgeInstanceID] = BridgeDeliveryMetrics{
-			BridgeInstanceID:        bridgeInstanceID,
-			DeliveryDroppedTotal:    totalDropped,
-			DeliveryDroppedByReason: clonedReasons,
-			DeliveryFailuresTotal:   metrics.deliveryFailuresTotal,
-			LastError:               metrics.lastError,
-			LastErrorAt:             metrics.lastErrorAt,
-			LastSuccessAt:           metrics.lastSuccessAt,
-		}
-	}
-
-	for _, route := range b.routes {
-		if route == nil || route.bridgeInstanceID == "" {
-			continue
-		}
-		entry := snapshot[route.bridgeInstanceID]
-		entry.BridgeInstanceID = route.bridgeInstanceID
-		entry.DeliveryBacklog += len(route.queue)
-		snapshot[route.bridgeInstanceID] = entry
-	}
-
-	return snapshot
 }
 
 // RegisterPromptDelivery binds one prompted session turn to a live delivery
@@ -523,6 +478,15 @@ func (b *Broker) ensureRouteLocked(hash string, bridgeInstanceID string, extensi
 		stopCh:           make(chan struct{}),
 	}
 	b.routes[hash] = route
+	if b.bridgeRoutes == nil {
+		b.bridgeRoutes = make(map[string]map[string]*routeWorker)
+	}
+	indexedRoutes := b.bridgeRoutes[route.bridgeInstanceID]
+	if indexedRoutes == nil {
+		indexedRoutes = make(map[string]*routeWorker)
+		b.bridgeRoutes[route.bridgeInstanceID] = indexedRoutes
+	}
+	indexedRoutes[hash] = route
 
 	b.wg.Add(1)
 	go b.runRouteWorker(route)
@@ -1058,6 +1022,12 @@ func (b *Broker) retireIdleRouteLocked(route *routeWorker, routeHash string) {
 		return
 	}
 	delete(b.routes, route.hash)
+	if indexedRoutes := b.bridgeRoutes[route.bridgeInstanceID]; indexedRoutes != nil {
+		delete(indexedRoutes, route.hash)
+		if len(indexedRoutes) == 0 {
+			delete(b.bridgeRoutes, route.bridgeInstanceID)
+		}
+	}
 	close(route.stopCh)
 }
 

@@ -40,9 +40,6 @@ export function useSessionChatRuntime({
             void queryClient.invalidateQueries({
               queryKey: sessionKeys.history(workspaceId, sessionId),
             });
-            void queryClient.invalidateQueries({
-              queryKey: sessionKeys.transcript(workspaceId, sessionId),
-            });
             void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
           });
         },

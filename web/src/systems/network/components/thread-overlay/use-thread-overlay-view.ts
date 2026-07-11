@@ -33,8 +33,14 @@ export function useThreadOverlayView({
 }: UseThreadOverlayViewArgs): UseThreadOverlayViewResult {
   const overlay = useThreadOverlay({ workspaceId, channel, fullPage, threadId });
   const session = useActiveNetworkSession(channel, { workspaceId });
-  const openWork = useOpenWork({ channel, surface: "thread", containerId: threadId });
-  const { retry, discard } = useSendNetworkMessage();
+  const openWork = useOpenWork({
+    workspaceId,
+    channel,
+    surface: "thread",
+    containerId: threadId,
+    exactOpenCount: overlay.detail?.open_work_count,
+  });
+  const { retry, discard } = useSendNetworkMessage({ workspaceId });
 
   const buildSendInput = useCallback(
     (message: NetworkConversationMessage): SendNetworkMessageThreadInput | null => {

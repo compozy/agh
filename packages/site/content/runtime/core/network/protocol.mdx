@@ -16,41 +16,41 @@ validate, route, queue, and audit each message.
 
 Every network message is one UTF-8 JSON envelope. The canonical fields are:
 
-| Field          | Required           | Meaning                                                                                 |
-| -------------- | ------------------ | --------------------------------------------------------------------------------------- |
-| `protocol`     | yes                | Must be `agh-network/v0`.                                                               |
-| `id`           | yes                | Collision-resistant message identifier.                                                 |
-| `workspace_id` | yes                | Stable workspace identity that scopes the channel, peers, conversations, and work.      |
-| `kind`         | yes                | One of `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                       |
-| `channel`      | yes                | Logical channel name. Must match the AGH channel grammar.                               |
-| `surface`      | conversation kinds | `"thread"` for public N-to-N, `"direct"` for restricted two-party.                      |
-| `thread_id`    | thread surface     | Public thread identifier when `surface == "thread"`.                                    |
-| `direct_id`    | direct surface     | Direct-room identifier when `surface == "direct"`. Matches `^direct_[a-f0-9]{32}$`.     |
-| `from`         | yes                | Claimed sender peer ID.                                                                 |
-| `to`           | directed messages  | Target peer ID for directed messages.                                                   |
-| `work_id`      | lifecycle messages | Lifecycle correlation inside one conversation container. REQUIRED on `receipt`/`trace`. |
-| `reply_to`     | optional           | Message ID being answered.                                                              |
-| `trace_id`     | optional           | Correlation ID for a larger flow.                                                       |
-| `causation_id` | optional           | Immediate causal parent message.                                                        |
-| `ts`           | yes                | Unix epoch seconds.                                                                     |
-| `expires_at`   | optional           | Sender-declared TTL boundary.                                                           |
-| `body`         | yes                | Kind-specific JSON object.                                                              |
-| `proof`        | optional           | Reserved for forward-compatible trust profiles.                                         |
-| `ext`          | optional           | Opaque extension map. Unknown keys are ignored.                                         |
+| Field          | Required                   | Meaning                                                                                              |
+| -------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `protocol`     | yes                        | Must be `agh-network/v0`.                                                                            |
+| `id`           | yes                        | Collision-resistant message identifier.                                                              |
+| `workspace_id` | yes                        | Stable workspace identity that scopes the channel, peers, conversations, and work.                   |
+| `kind`         | yes                        | One of `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                    |
+| `channel`      | yes                        | Logical channel name. Must match the AGH channel grammar.                                            |
+| `surface`      | conversation kinds         | `"thread"` for public N-to-N, `"direct"` for restricted two-party.                                   |
+| `thread_id`    | thread surface             | Public thread identifier when `surface == "thread"`.                                                 |
+| `direct_id`    | direct surface             | Direct-room identifier when `surface == "direct"`. Matches `^direct_[a-f0-9]{32}$`.                  |
+| `from`         | yes                        | Claimed sender peer ID.                                                                              |
+| `to`           | capability/lifecycle `say` | Target peer ID. REQUIRED on `capability` and on `say` carrying `work_id`.                            |
+| `work_id`      | lifecycle messages         | Lifecycle correlation inside one conversation container. REQUIRED on `capability`/`receipt`/`trace`. |
+| `reply_to`     | optional                   | Message ID being answered.                                                                           |
+| `trace_id`     | optional                   | Correlation ID for a larger flow.                                                                    |
+| `causation_id` | optional                   | Immediate causal parent message.                                                                     |
+| `ts`           | yes                        | Unix epoch seconds.                                                                                  |
+| `expires_at`   | optional                   | Sender-declared TTL boundary.                                                                        |
+| `body`         | yes                        | Kind-specific JSON object.                                                                           |
+| `proof`        | optional                   | Reserved for forward-compatible trust profiles.                                                      |
+| `ext`          | optional                   | Opaque extension map. Unknown keys are ignored.                                                      |
 
 AGH validates the header, participants, references, conversation surface, container ID, work
 binding, body shape, kind-specific requirements, and freshness window before routing an envelope.
 
 ## Message kinds
 
-| Kind         | Purpose                                                                                 | Conversation surface                                                                                |
-| ------------ | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `greet`      | Advertise peer presence and a peer card.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.          |
-| `whois`      | Request or return peer card information.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.          |
-| `say`        | Send conversation text inside a public thread or direct room.                           | MUST carry `surface` and the matching container ID. MAY carry `work_id` for lifecycle-bearing work. |
-| `capability` | Transfer a structured AGH capability document inside a public thread or direct room.    | MUST carry `surface` and the matching container ID. Carries `work_id` when work-linked.             |
-| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported, or canceled work. | MUST carry `surface`, the matching container ID, and the `work_id` of the work being acknowledged.  |
-| `trace`      | Report progress or a terminal work state.                                               | MUST carry `surface`, the matching container ID, and the `work_id` of the work being reported.      |
+| Kind         | Purpose                                                                                 | Conversation surface                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `greet`      | Advertise peer presence and a peer card.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.                     |
+| `whois`      | Request or return peer card information.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.                     |
+| `say`        | Send conversation text inside a public thread or direct room.                           | MUST carry `surface` and the matching container ID. A lifecycle-bearing `say` also carries `work_id` and `to`. |
+| `capability` | Transfer a structured AGH capability document inside a public thread or direct room.    | MUST carry `surface`, the matching container ID, `work_id`, and target peer `to`.                              |
+| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported, or canceled work. | MUST carry `surface`, the matching container ID, and the `work_id` of the work being acknowledged.             |
+| `trace`      | Report progress or a terminal work state.                                               | MUST carry `surface`, the matching container ID, and the `work_id` of the work being reported.                 |
 
 `direct` is not a message kind. Restricted two-party text is `kind:"say"` with `surface:"direct"`
 and a matching `direct_id`. The runtime rejects envelopes that try to set `kind:"direct"`.

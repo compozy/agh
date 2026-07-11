@@ -4,13 +4,28 @@ import { bridgeKeys } from "../query-keys";
 
 describe("bridgeKeys", () => {
   it("creates stable list and providers keys", () => {
-    expect(bridgeKeys.list()).toEqual(["bridges", "list", "all", "", ""]);
-    expect(bridgeKeys.list({ scope: "all", workspace_id: "ws_alpha" })).toEqual([
+    expect(bridgeKeys.list()).toEqual(["bridges", "list", "all", "", "", "", "", "", "", ""]);
+    expect(
+      bridgeKeys.list({
+        scope: "all",
+        workspace_id: "ws_alpha",
+        q: " support ",
+        platform: "slack",
+        status: "ready",
+        sort: "name",
+        limit: 25,
+      })
+    ).toEqual([
       "bridges",
       "list",
       "all",
       "ws_alpha",
       "",
+      "support",
+      "slack",
+      "ready",
+      "name",
+      "25",
     ]);
     expect(bridgeKeys.providers()).toEqual(["bridges", "providers"]);
   });

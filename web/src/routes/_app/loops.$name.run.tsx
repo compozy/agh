@@ -5,11 +5,13 @@ import { Empty, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { LoopRunForm, useLoop } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadLoopRunFormRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/run")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `Run ${params.name}`, icon: Repeat2 },
   }),
+  loader: ({ context, params }) => preloadLoopRunFormRoute(context.queryClient, params.name),
   component: LoopRunFormRoute,
 });
 

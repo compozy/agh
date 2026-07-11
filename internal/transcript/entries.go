@@ -8,19 +8,27 @@ import (
 
 // Entry pairs a UI message with the event sequence that last shaped it.
 type Entry struct {
-	Message   UIMessage `json:"message"`
-	Sequence  int64     `json:"sequence"`
-	EventType string    `json:"-"`
-	Marker    *Marker   `json:"-"`
+	Message       UIMessage `json:"message"`
+	StartSequence int64     `json:"start_sequence"`
+	Sequence      int64     `json:"sequence"`
+	EventType     string    `json:"-"`
+	Marker        *Marker   `json:"-"`
 }
 
 // ToUIEntries projects persisted session events into sequence-bearing AI SDK messages.
 func ToUIEntries(events []store.SessionEvent) ([]Entry, error) {
-	fold := NewFold()
-	if _, err := fold.Apply(events); err != nil {
+	projection, err := BuildProjection(events, 0)
+	if err != nil {
 		return nil, err
 	}
-	return fold.Entries(), nil
+	entries := make([]Entry, 0, len(projection.Segments))
+	for _, segment := range projection.Segments {
+		if segment.Entry == nil {
+			continue
+		}
+		entries = append(entries, *segment.Entry)
+	}
+	return CloneEntries(entries), nil
 }
 
 // MessagesFromEntries returns the UI messages carried by sequence-bearing entries.
@@ -37,10 +45,11 @@ func CloneEntries(entries []Entry) []Entry {
 	cloned := make([]Entry, 0, len(entries))
 	for _, entry := range entries {
 		cloned = append(cloned, Entry{
-			Message:   cloneUIMessage(entry.Message),
-			Sequence:  entry.Sequence,
-			EventType: entry.EventType,
-			Marker:    cloneMarker(entry.Marker),
+			Message:       cloneUIMessage(entry.Message),
+			StartSequence: entry.StartSequence,
+			Sequence:      entry.Sequence,
+			EventType:     entry.EventType,
+			Marker:        cloneMarker(entry.Marker),
 		})
 	}
 	return cloned

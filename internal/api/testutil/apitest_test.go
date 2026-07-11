@@ -221,7 +221,7 @@ func TestStubTaskManagerEnqueueRunFallback(t *testing.T) {
 	t.Run("Should report a missing task before any run exists", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := StubTaskManager{}.EnqueueRun(
+		_, err := (&StubTaskManager{}).EnqueueRun(
 			context.Background(),
 			taskpkg.EnqueueRun{},
 			taskpkg.ActorContext{},

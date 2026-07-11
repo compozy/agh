@@ -14,12 +14,15 @@ agh automation triggers [flags]
 ### Options
 
 ```
+      --cursor string      Continue after this automation trigger cursor
+      --enabled            Filter by enabled state; use --enabled=false for disabled triggers
       --event string       Filter by activation event
   -h, --help               help for triggers
-      --last int           Show only the most recent N triggers
+      --limit int          Maximum triggers per page (default 50)
       --loop string        Filter by loop target name
+      --query string       Search triggers by definition or filter fields
       --scope string       Filter by scope: global or workspace
-      --source string      Filter by definition source: config or dynamic
+      --source string      Filter by definition source: config, package, or dynamic
       --workspace string   Filter by workspace path, name, or ID
 ```
 

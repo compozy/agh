@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // ErrLoopVersionConflict reports a failed expected_version compare-and-swap.
@@ -60,8 +61,16 @@ func StatusForLoopError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, taskpkg.ErrPermissionDenied):
 		return http.StatusForbidden
-	case errors.Is(err, looppkg.ErrValidation):
+	case errors.Is(err, looppkg.ErrValidation),
+		errors.Is(err, looppkg.ErrCatalogQueryInvalid),
+		errors.Is(err, looppkg.ErrCatalogCursorInvalid):
 		return http.StatusBadRequest
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
+		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
+		return StatusForWorkspaceError(err)
+	case errors.Is(err, looppkg.ErrCatalogUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, looppkg.ErrInvalidTransition),
 		errors.Is(err, looppkg.ErrAncestryRejected):
 		return http.StatusUnprocessableEntity

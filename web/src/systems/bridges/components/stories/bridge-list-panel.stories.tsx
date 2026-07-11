@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
-import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { bridgesListFixture } from "@/systems/bridges/mocks";
 import type { BridgeSummary } from "@/systems/bridges/types";
 
@@ -34,14 +33,10 @@ const defaultBridges: BridgeSummary[] = [
 ];
 
 const defaultProps = {
-  activeWorkspaceId: storyWorkspaceIds.hq as string | null,
   bridgeHealth: bridgesListFixture.bridge_health ? { ...bridgesListFixture.bridge_health } : {},
   bridges: defaultBridges,
+  hasActiveFilters: false,
   onClearFilters: () => undefined,
-  platformFilter: null,
-  scopeFilter: "all" as const,
-  searchQuery: "",
-  statusFilter: null,
   view: "rows" as const,
 };
 
@@ -72,7 +67,7 @@ export const Empty: Story = {
 export const FilteredEmpty: Story = {
   render: () => (
     <PanelSurface className="max-w-3xl">
-      <BridgeListPanel {...defaultProps} bridges={[]} searchQuery="zzzzzz" />
+      <BridgeListPanel {...defaultProps} bridges={[]} hasActiveFilters />
     </PanelSurface>
   ),
 };

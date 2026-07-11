@@ -57,8 +57,8 @@ type SessionManager interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
-	Transcript(ctx context.Context, id string, query store.EventQuery) ([]transcript.Entry, error)
-	TranscriptWatermark(ctx context.Context, id string) session.TranscriptWatermark
+	TranscriptPage(ctx context.Context, id string, query transcript.PageQuery) (transcript.Page, error)
+	TranscriptChanges(ctx context.Context, id string, query transcript.ChangeQuery) (transcript.ChangePage, error)
 	RepairSession(ctx context.Context, opts session.RepairOpts) (*session.RepairResult, error)
 	Delete(ctx context.Context, id string) error
 	Stop(ctx context.Context, id string) error
@@ -76,11 +76,21 @@ type SessionManager interface {
 	InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error)
 }
 
+// SessionPageManager is the bounded public catalog capability implemented by
+// the runtime manager without widening internal full-snapshot consumers.
+type SessionPageManager interface {
+	ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error)
+}
+
+// SessionAttachManager owns durable attach CAS and live-session synchronization.
+type SessionAttachManager interface {
+	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)
+}
+
 // SessionCatalog exposes daemon-owned session catalog operations that must not
 // create a second live session authority.
 type SessionCatalog interface {
 	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
-	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)
 }
 
 // Observer is the observability surface exposed by API transports.
@@ -100,6 +110,19 @@ type Observer interface {
 	) (observe.TaskInboxView, error)
 }
 
+// BridgeCatalogObserver is the required bounded bridge projection used by public catalog surfaces.
+type BridgeCatalogObserver interface {
+	CheckBridgeCatalogReady() error
+	QueryBridgeEffectiveStatuses(
+		ctx context.Context,
+		records []bridgepkg.BridgeCatalogRecord,
+	) (map[string]bridgepkg.BridgeStatus, error)
+	QueryBridgeHealthFor(
+		ctx context.Context,
+		instances []bridgepkg.BridgeInstance,
+	) ([]observe.BridgeInstanceHealth, error)
+}
+
 // BridgeService is the daemon-owned bridge runtime surface exposed by API transports.
 type BridgeService interface {
 	bridgepkg.Registry
@@ -107,7 +130,12 @@ type BridgeService interface {
 	bridgepkg.BridgeTaskSubscriptionStore
 	bridgepkg.TargetResolver
 	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)
+	CountBridgeRoutes(ctx context.Context, bridgeInstanceIDs []string) (map[string]int, error)
 	ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
+	ListSecretBindingsForInstances(
+		ctx context.Context,
+		bridgeInstanceIDs []string,
+	) (map[string][]bridgepkg.BridgeSecretBinding, error)
 	PutSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding, secretValue *string) error
 	DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error
 	StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
@@ -184,6 +212,12 @@ type HeartbeatWakeService interface {
 // SessionHealthReader reads metadata-only session health rows.
 type SessionHealthReader interface {
 	GetSessionHealth(ctx context.Context, sessionID string) (heartbeat.SessionHealth, error)
+}
+
+// SessionHealthPageReader returns health for one bounded session catalog page
+// without per-session metadata or store reads.
+type SessionHealthPageReader interface {
+	SessionHealthForPage(ctx context.Context, infos []*session.Info) (map[string]heartbeat.SessionHealth, error)
 }
 
 // HeartbeatWakeEventReader lists retained Heartbeat wake audit rows.
@@ -406,14 +440,14 @@ type ToolApprovalIssuer interface {
 
 // AutomationManager exposes automation state and control surfaces to the API layer.
 type AutomationManager interface {
-	ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	Jobs(ctx context.Context) ([]automationpkg.Job, error)
 	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
 	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	DeleteJob(ctx context.Context, id string) error
 	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
-	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	Triggers(ctx context.Context) ([]automationpkg.Trigger, error)
 	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
 	CreateTrigger(
@@ -439,6 +473,7 @@ type AutomationManager interface {
 // TaskService exposes task-domain state and lifecycle surfaces to the API layer.
 type TaskService interface {
 	taskpkg.Manager
+	taskpkg.CatalogManager
 }
 
 // WorkspaceService exposes workspace registration and resolution to the API layer.

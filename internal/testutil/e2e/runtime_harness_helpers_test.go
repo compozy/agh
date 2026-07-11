@@ -1413,7 +1413,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			return
 		}
 		writeJSON(w, aghcontract.TasksResponse{
-			Tasks: []aghcontract.TaskSummaryPayload{{
+			Tasks: []aghcontract.TaskCatalogItemPayload{{
 				ID:        "task-1",
 				Scope:     "workspace",
 				Title:     "demo",

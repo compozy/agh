@@ -1,5 +1,4 @@
-export const daemonKeys = {
-  all: ["daemon"] as const,
-  health: () => [...daemonKeys.all, "health"] as const,
-  status: () => [...daemonKeys.all, "status"] as const,
+export const statusKeys = {
+  all: ["status"] as const,
+  current: () => [...statusKeys.all, "current"] as const,
 };

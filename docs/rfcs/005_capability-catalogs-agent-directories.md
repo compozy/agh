@@ -287,8 +287,8 @@ Transfer rules:
 - the payload lives inside `body.capability`
 - `digest` must match the runtime-computed canonical digest of the structured capability document
 - receivers reject digest mismatches as protocol verification failures
-- `kind:"capability"` may be broadcast or directed
-- if `interaction_id` is present, the transferred capability participates in the same interaction lifecycle machinery as other interaction-bearing envelopes
+- `kind:"capability"` carries a conversation surface, matching container ID, target peer in `to`, and `work_id`
+- the transferred capability participates in the same container-bound work lifecycle as a directed `say` carrying `work_id`
 
 ## Worked Example: Authoring to Discovery to Transfer
 
@@ -364,7 +364,7 @@ Daemon APIs expose the same brief view as typed `peer_card.capabilities` entries
           "summary": "Repair failing Go migration tests and explain the change.",
           "outcome": "A validated patch summary with the corrected assertions.",
           "version": "1.2.0",
-          "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+          "digest": "sha256:9f19a533e236700a29866cb9bf0af2d022785faed82ad050f33bd6e29816f052",
           "context_needed": ["repo", "incident bundle"],
           "requirements": ["collect-failing-tests"]
         }
@@ -385,7 +385,7 @@ Daemon APIs expose the same brief view as typed `peer_card.capabilities` entries
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
-      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+      "digest": "sha256:9f19a533e236700a29866cb9bf0af2d022785faed82ad050f33bd6e29816f052",
       "context_needed": ["repo", "incident bundle"],
       "requirements": ["collect-failing-tests"]
     }

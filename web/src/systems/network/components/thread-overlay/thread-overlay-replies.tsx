@@ -19,6 +19,9 @@ export interface ThreadOverlayRepliesProps {
   onRetryOptimistic?: (message: NetworkConversationMessage) => void;
   onDiscardOptimistic?: (message: NetworkConversationMessage) => void;
   onWorkChipClick?: (message: NetworkConversationMessage) => void;
+  hasOlder?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlder?: () => void | Promise<void>;
 }
 
 export function ThreadOverlayReplies({
@@ -32,6 +35,9 @@ export function ThreadOverlayReplies({
   onRetryOptimistic,
   onDiscardOptimistic,
   onWorkChipClick,
+  hasOlder,
+  isLoadingOlder,
+  onLoadOlder,
 }: ThreadOverlayRepliesProps) {
   const replyLabel = replyCount === 1 ? "1 reply" : `${replyCount} replies`;
 
@@ -53,10 +59,13 @@ export function ThreadOverlayReplies({
           )
         }
         isLoading={isLoading}
+        hasOlder={hasOlder}
+        isLoadingOlder={isLoadingOlder}
         lastReadAt={lastReadAt}
         messages={messages}
         now={now}
         onDiscardOptimistic={onDiscardOptimistic}
+        onLoadOlder={onLoadOlder}
         onRetryOptimistic={onRetryOptimistic}
         onWorkChipClick={onWorkChipClick}
         toolbarHandlers={toolbarHandlers}

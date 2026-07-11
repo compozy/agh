@@ -23,7 +23,6 @@ import (
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
@@ -910,11 +909,11 @@ func waitForSessionTranscriptText(
 	var lastVisible string
 	var lastErr error
 	for time.Now().Before(deadline) {
-		entries, err := sessions.Transcript(testutil.Context(t), sessionID, store.EventQuery{})
+		page, err := sessions.TranscriptPage(testutil.Context(t), sessionID, transcriptpkg.PageQuery{})
 		if err != nil {
 			lastErr = err
 		} else {
-			messages := transcriptpkg.MessagesFromEntries(entries)
+			messages := transcriptpkg.MessagesFromEntries(page.Entries)
 			lastVisible = transcriptpkg.JoinUIMessageText(messages)
 			if containsAllText(lastVisible, wantTexts) {
 				return messages
@@ -923,9 +922,9 @@ func waitForSessionTranscriptText(
 		time.Sleep(20 * time.Millisecond)
 	}
 	if lastErr != nil {
-		t.Fatalf("Transcript(%q) error = %v", sessionID, lastErr)
+		t.Fatalf("TranscriptPage(%q) error = %v", sessionID, lastErr)
 	}
-	t.Fatalf("Transcript(%q) visible text = %q, want all %#v", sessionID, lastVisible, wantTexts)
+	t.Fatalf("TranscriptPage(%q) visible text = %q, want all %#v", sessionID, lastVisible, wantTexts)
 	return nil
 }
 

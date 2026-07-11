@@ -10,9 +10,20 @@ interface LoopStartBindingsPanelProps {
   declaredKinds: readonly string[];
   /** Attached loop-target automations for this Loop (via the `loop=<name>` filter). */
   bindings: readonly LoopBindingRow[];
+  jobs?: LoopBindingPagination;
+  triggers?: LoopBindingPagination;
   isLoading?: boolean;
   onAddTrigger?: () => void;
   onAddSchedule?: () => void;
+}
+
+export interface LoopBindingPagination {
+  error?: Error | null;
+  hasMore: boolean;
+  isFetchingMore: boolean;
+  loadMore: () => void;
+  loaded: number;
+  total: number;
 }
 
 const SCHEDULE_KIND = "schedule";
@@ -27,12 +38,21 @@ const TRIGGER_KINDS = new Set(["trigger", "webhook"]);
 export function LoopStartBindingsPanel({
   declaredKinds,
   bindings,
+  jobs,
+  triggers,
   isLoading = false,
   onAddTrigger,
   onAddSchedule,
 }: LoopStartBindingsPanelProps) {
   const canAddSchedule = declaredKinds.includes(SCHEDULE_KIND);
   const canAddTrigger = declaredKinds.some(kind => TRIGGER_KINDS.has(kind));
+  const hasPagination = Boolean(jobs || triggers);
+  const loadedBindings = hasPagination
+    ? (jobs?.loaded ?? 0) + (triggers?.loaded ?? 0)
+    : bindings.length;
+  const totalBindings = hasPagination
+    ? (jobs?.total ?? 0) + (triggers?.total ?? 0)
+    : bindings.length;
   return (
     <Section label="Start bindings" data-testid="loop-start-bindings">
       <div className="rounded-lg border border-line bg-canvas-soft">
@@ -48,6 +68,15 @@ export function LoopStartBindingsPanel({
           ))}
           <span className="ml-auto font-mono text-[9.5px] text-faint">declared</span>
         </div>
+
+        {hasPagination ? (
+          <p
+            className="border-t border-line-soft px-3.5 py-2 font-mono text-[10.5px] text-faint"
+            data-testid="loop-bindings-progress"
+          >
+            {loadedBindings} of {totalBindings} attached loaded
+          </p>
+        ) : null}
 
         {isLoading ? (
           <div className="flex items-center gap-2 border-t border-line-soft px-3.5 py-3 text-[11.5px] text-subtle">
@@ -95,6 +124,53 @@ export function LoopStartBindingsPanel({
             </div>
           ))
         )}
+
+        {jobs?.error ? (
+          <p
+            className="border-t border-line-soft px-3.5 py-2 text-caption text-danger"
+            role="alert"
+          >
+            {jobs.error.message}
+          </p>
+        ) : null}
+        {triggers?.error ? (
+          <p
+            className="border-t border-line-soft px-3.5 py-2 text-caption text-danger"
+            role="alert"
+          >
+            {triggers.error.message}
+          </p>
+        ) : null}
+        {jobs?.hasMore || triggers?.hasMore ? (
+          <div className="flex flex-wrap gap-2 border-t border-line-soft px-3.5 py-2.5">
+            {jobs?.hasMore ? (
+              <Button
+                aria-busy={jobs.isFetchingMore}
+                data-testid="loop-bindings-load-more-jobs"
+                disabled={jobs.isFetchingMore}
+                onClick={jobs.loadMore}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {jobs.isFetchingMore ? "Loading schedules…" : "Load more schedules"}
+              </Button>
+            ) : null}
+            {triggers?.hasMore ? (
+              <Button
+                aria-busy={triggers.isFetchingMore}
+                data-testid="loop-bindings-load-more-triggers"
+                disabled={triggers.isFetchingMore}
+                onClick={triggers.loadMore}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {triggers.isFetchingMore ? "Loading triggers…" : "Load more triggers"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         {canAddTrigger || canAddSchedule ? (
           <div className="flex gap-2 border-t border-line-soft px-3.5 py-2.5">

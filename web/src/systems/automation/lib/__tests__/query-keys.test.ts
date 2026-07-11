@@ -4,11 +4,24 @@ import { automationKeys } from "../query-keys";
 
 describe("automationKeys", () => {
   it("separates job, trigger, and run namespaces", () => {
-    expect(automationKeys.jobList()).toEqual(["automation", "jobs", "list", "", "", "", "", ""]);
+    expect(automationKeys.jobList()).toEqual([
+      "automation",
+      "jobs",
+      "list",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
     expect(automationKeys.triggerList()).toEqual([
       "automation",
       "triggers",
       "list",
+      "",
+      "",
       "",
       "",
       "",
@@ -39,6 +52,8 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
+      "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
       "automation",
@@ -49,6 +64,31 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
+      "",
+    ]);
+  });
+
+  it("includes package, enabled, search and loop filters but never a cursor", () => {
+    expect(
+      automationKeys.jobList({
+        enabled: false,
+        limit: 25,
+        loop: "delivery",
+        q: "review",
+        source: "package",
+      })
+    ).toEqual([
+      "automation",
+      "jobs",
+      "list",
+      "",
+      "",
+      "package",
+      "false",
+      "review",
+      "25",
+      "delivery",
     ]);
   });
 

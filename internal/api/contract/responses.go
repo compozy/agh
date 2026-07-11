@@ -1,9 +1,5 @@
 package contract
 
-import (
-	"github.com/compozy/agh/internal/transcript"
-)
-
 // SessionsResponse wraps the shared session list payload.
 type SessionsResponse struct {
 	Sessions []SessionPayload `json:"sessions"`
@@ -38,11 +34,6 @@ type SessionEventsResponse struct {
 // SessionHistoryResponse wraps the shared grouped turn history payload.
 type SessionHistoryResponse struct {
 	History []TurnHistoryPayload `json:"history"`
-}
-
-// SessionTranscriptResponse wraps the canonical transcript payload.
-type SessionTranscriptResponse struct {
-	Entries []transcript.Entry `json:"entries"`
 }
 
 // SessionRepairResponse wraps the repair report for one session.
@@ -117,7 +108,8 @@ type AgentCoordinatorConfigResponse struct {
 
 // JobsResponse wraps the shared automation job list payload.
 type JobsResponse struct {
-	Jobs []JobPayload `json:"jobs"`
+	Jobs []JobPayload             `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
 }
 
 // JobResponse wraps one shared automation job payload.
@@ -127,7 +119,8 @@ type JobResponse struct {
 
 // TriggersResponse wraps the shared automation trigger list payload.
 type TriggersResponse struct {
-	Triggers []TriggerPayload `json:"triggers"`
+	Triggers []TriggerPayload         `json:"triggers"`
+	Page     CountedCursorPagePayload `json:"page"`
 }
 
 // TriggerResponse wraps one shared automation trigger payload.
@@ -147,7 +140,9 @@ type RunResponse struct {
 
 // TasksResponse wraps the shared task list payload.
 type TasksResponse struct {
-	Tasks []TaskSummaryPayload `json:"tasks"`
+	Tasks  []TaskCatalogItemPayload `json:"tasks"`
+	Page   CountedCursorPagePayload `json:"page"`
+	Facets TaskCatalogFacetsPayload `json:"facets"`
 }
 
 // TaskResponse wraps one shared task payload.
@@ -263,109 +258,6 @@ type HookEventsResponse struct {
 // LogsListResponse wraps the runtime logs payload.
 type LogsListResponse struct {
 	Events []LogEventPayload `json:"events"`
-}
-
-// NetworkStatusResponse wraps the network runtime status payload.
-type NetworkStatusResponse struct {
-	Network NetworkStatusPayload `json:"network"`
-}
-
-// NetworkPeersResponse wraps the visible peer list payload.
-type NetworkPeersResponse struct {
-	Peers []NetworkPeerPayload `json:"peers"`
-}
-
-// NetworkChannelsResponse wraps the active channel list payload.
-type NetworkChannelsResponse struct {
-	Channels []NetworkChannelPayload `json:"channels"`
-}
-
-// CreateNetworkChannelResponse wraps the created channel detail payload.
-type CreateNetworkChannelResponse struct {
-	Channel NetworkChannelDetailPayload `json:"channel"`
-}
-
-// NetworkChannelResponse wraps one channel detail payload.
-type NetworkChannelResponse struct {
-	Channel NetworkChannelDetailPayload `json:"channel"`
-}
-
-// NetworkSubscriptionsResponse wraps channel/thread subscription preferences.
-type NetworkSubscriptionsResponse struct {
-	Subscriptions []NetworkSubscriptionPayload `json:"subscriptions"`
-}
-
-// NetworkSubscriptionResponse wraps one subscription preference.
-type NetworkSubscriptionResponse struct {
-	Subscription NetworkSubscriptionPayload `json:"subscription"`
-}
-
-// NetworkChannelMessagesResponse wraps the read-only channel timeline payload.
-type NetworkChannelMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-}
-
-// NetworkPeerResponse wraps one selected peer detail payload.
-type NetworkPeerResponse struct {
-	Peer NetworkPeerDetailPayload `json:"peer"`
-}
-
-// NetworkPeerMessagesResponse wraps the peer-room timeline payload.
-type NetworkPeerMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-}
-
-// NetworkSendResponse wraps the outbound send result payload.
-type NetworkSendResponse struct {
-	Message NetworkSendPayload `json:"message"`
-}
-
-// NetworkThreadsResponse wraps public-thread summaries.
-type NetworkThreadsResponse struct {
-	Threads []NetworkThreadSummaryPayload `json:"threads"`
-}
-
-// NetworkThreadResponse wraps one public-thread summary.
-type NetworkThreadResponse struct {
-	Thread    NetworkThreadSummaryPayload      `json:"thread"`
-	PeerCosts []NetworkThreadPeerCostPayload   `json:"peer_costs,omitempty"`
-	TaskLinks []NetworkTaskThreadOriginPayload `json:"task_links,omitempty"`
-}
-
-// NetworkThreadMessagesResponse wraps one public-thread message timeline.
-type NetworkThreadMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-}
-
-// PromoteNetworkThreadTaskResponse wraps a promoted task and its network origin link.
-type PromoteNetworkThreadTaskResponse struct {
-	Task   TaskPayload                    `json:"task"`
-	Origin NetworkTaskThreadOriginPayload `json:"origin"`
-}
-
-// NetworkDirectRoomsResponse wraps direct-room summaries.
-type NetworkDirectRoomsResponse struct {
-	Directs []NetworkDirectRoomPayload `json:"directs"`
-}
-
-// NetworkDirectRoomResponse wraps one direct-room summary.
-type NetworkDirectRoomResponse struct {
-	Direct NetworkDirectRoomPayload `json:"direct"`
-}
-
-// NetworkDirectRoomMessagesResponse wraps one direct-room message timeline.
-type NetworkDirectRoomMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-}
-
-// NetworkWorkResponse wraps one network work lookup.
-type NetworkWorkResponse struct {
-	Work NetworkWorkPayload `json:"work"`
-}
-
-// NetworkInboxResponse wraps the queued inbox payload.
-type NetworkInboxResponse struct {
-	Messages []NetworkEnvelopePayload `json:"messages"`
 }
 
 // FanOutTaskRunsResponse wraps designated sibling runs enqueued for one task.

@@ -88,6 +88,7 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -140,14 +141,22 @@ vi.mock("@/systems/automation", async () => {
   return {
     ...actual,
     useAutomationJobs: () => ({
-      data: mockJobs,
       error: mockJobsError,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
       isLoading: mockJobsLoading,
+      jobs: mockJobs,
+      total: mockJobs.length,
     }),
     useAutomationTriggers: () => ({
-      data: mockTriggers,
       error: mockTriggersError,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
       isLoading: mockTriggersLoading,
+      total: mockTriggers.length,
+      triggers: mockTriggers,
     }),
     useAutomationJob: () => ({
       data: mockJobDetail,

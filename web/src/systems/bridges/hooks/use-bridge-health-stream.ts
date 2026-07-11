@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
 import { bridgeKeys } from "../lib/query-keys";
 import type {
@@ -18,12 +18,14 @@ interface BridgeHealthEventSource {
 }
 
 interface UseBridgeHealthStreamOptions {
+  bridgeIds?: readonly string[];
   enabled?: boolean;
   eventSourceFactory?: (url: string) => BridgeHealthEventSource;
   filters?: BridgeListFilter;
 }
 
 const BRIDGE_HEALTH_STREAM_URL = "/api/bridges/health/stream";
+const MAX_BRIDGE_IDS_PER_STREAM = 200;
 
 function defaultEventSourceFactory(url: string): BridgeHealthEventSource {
   return new EventSource(url);
@@ -38,12 +40,13 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
-function buildBridgeHealthStreamUrl(filters: BridgeListFilter = {}) {
+function buildBridgeHealthStreamUrl(bridgeIds: readonly string[], filters: BridgeListFilter = {}) {
   const params = new URLSearchParams();
   const scope = normalizeOptionalText(filters.scope);
   const workspaceId = normalizeOptionalText(filters.workspace_id);
   const workspace = normalizeOptionalText(filters.workspace);
 
+  params.set("bridge_ids", bridgeIds.join(","));
   if (scope) {
     params.set("scope", scope);
   }
@@ -77,21 +80,28 @@ function invalidateBridgeRoutesWhenCountChanges(
   void queryClient.invalidateQueries({ queryKey: bridgeKeys.routes(bridgeID) });
 }
 
-function mergeBridgeHealthSnapshot(
-  current: BridgesListResponse | undefined,
+function mergeBridgeHealthSnapshotPage(
+  current: BridgesListResponse,
   snapshot: BridgeHealthStreamSnapshot
-): BridgesListResponse | undefined {
-  if (!current) {
-    return current;
-  }
-
+): BridgesListResponse {
   const visibleBridgeIds = new Set(current.bridges.map(bridge => bridge.id));
-  const bridge_health = Object.fromEntries(
+  const incomingHealth = Object.fromEntries(
     Object.entries(snapshot.bridge_health).filter(([bridgeID]) => visibleBridgeIds.has(bridgeID))
   );
   return {
     ...current,
-    bridge_health,
+    bridge_health: { ...current.bridge_health, ...incomingHealth },
+  };
+}
+
+function mergeBridgeHealthSnapshot(
+  current: InfiniteData<BridgesListResponse, unknown> | undefined,
+  snapshot: BridgeHealthStreamSnapshot
+): InfiniteData<BridgesListResponse, unknown> | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    pages: current.pages.map(page => mergeBridgeHealthSnapshotPage(page, snapshot)),
   };
 }
 
@@ -99,11 +109,14 @@ export function applyBridgeHealthSnapshot(
   queryClient: ReturnType<typeof useQueryClient>,
   snapshot: BridgeHealthStreamSnapshot
 ) {
-  for (const [queryKey] of queryClient.getQueriesData<BridgesListResponse | undefined>({
+  for (const [queryKey] of queryClient.getQueriesData<
+    InfiniteData<BridgesListResponse, unknown> | undefined
+  >({
     queryKey: bridgeKeys.lists(),
   })) {
-    queryClient.setQueryData<BridgesListResponse | undefined>(queryKey, current =>
-      mergeBridgeHealthSnapshot(current, snapshot)
+    queryClient.setQueryData<InfiniteData<BridgesListResponse, unknown> | undefined>(
+      queryKey,
+      current => mergeBridgeHealthSnapshot(current, snapshot)
     );
   }
 
@@ -129,20 +142,24 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
   const scope = options?.filters?.scope;
   const workspaceId = options?.filters?.workspace_id;
   const workspace = options?.filters?.workspace;
+  const bridgeIdsKey = [...new Set(options?.bridgeIds ?? [])]
+    .map(bridgeId => bridgeId.trim())
+    .filter(Boolean)
+    .join(",");
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (
       !enabled ||
+      bridgeIdsKey === "" ||
       typeof window === "undefined" ||
       (!hasCustomFactory && typeof EventSource === "undefined")
     ) {
       return undefined;
     }
 
-    const source = eventSourceFactory(
-      buildBridgeHealthStreamUrl({ scope, workspace_id: workspaceId, workspace })
-    );
+    const bridgeIds = bridgeIdsKey.split(",");
+    const sources: BridgeHealthEventSource[] = [];
     const handleSnapshot = (event: Event) => {
       if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
         return;
@@ -160,13 +177,31 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
       console.error("Bridge health stream failed", event);
     };
 
-    source.addEventListener("snapshot", handleSnapshot);
-    source.onerror = handleError;
+    for (let index = 0; index < bridgeIds.length; index += MAX_BRIDGE_IDS_PER_STREAM) {
+      const chunk = bridgeIds.slice(index, index + MAX_BRIDGE_IDS_PER_STREAM);
+      const source = eventSourceFactory(
+        buildBridgeHealthStreamUrl(chunk, { scope, workspace_id: workspaceId, workspace })
+      );
+      source.addEventListener("snapshot", handleSnapshot);
+      source.onerror = handleError;
+      sources.push(source);
+    }
 
     return () => {
-      source.removeEventListener?.("snapshot", handleSnapshot);
-      source.onerror = null;
-      source.close();
+      for (const source of sources) {
+        source.removeEventListener?.("snapshot", handleSnapshot);
+        source.onerror = null;
+        source.close();
+      }
     };
-  }, [enabled, eventSourceFactory, hasCustomFactory, queryClient, scope, workspaceId, workspace]);
+  }, [
+    bridgeIdsKey,
+    enabled,
+    eventSourceFactory,
+    hasCustomFactory,
+    queryClient,
+    scope,
+    workspaceId,
+    workspace,
+  ]);
 }

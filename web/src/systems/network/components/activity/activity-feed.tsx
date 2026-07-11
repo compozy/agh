@@ -1,7 +1,7 @@
 import { ActivitySquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Empty, Eyebrow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, Empty, Eyebrow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,16 @@ export interface ActivityFeedProps {
   threads: ReadonlyArray<NetworkThreadSummary>;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
   isLoading: boolean;
+  threadTotal?: number;
+  directTotal?: number;
+  hasMoreThreads?: boolean;
+  hasMoreDirects?: boolean;
+  isLoadingMoreThreads?: boolean;
+  isLoadingMoreDirects?: boolean;
+  onLoadMoreThreads?: () => void | Promise<void>;
+  onLoadMoreDirects?: () => void | Promise<void>;
+  isFiltered?: boolean;
+  sort?: "recent_activity" | "created" | "alphabetical";
 }
 
 type ThreadEntry = {
@@ -22,6 +32,7 @@ type ThreadEntry = {
   preview: string;
   title: string;
   timestamp: string | null;
+  openedAt: string | null;
   to: "/network/$workspaceId/$channel/threads/$threadId";
   params: { workspaceId: string; channel: string; threadId: string };
 };
@@ -32,6 +43,7 @@ type DirectEntry = {
   preview: string;
   title: string;
   timestamp: string | null;
+  openedAt: string | null;
   to: "/network/$workspaceId/$channel/directs/$directId";
   params: { workspaceId: string; channel: string; directId: string };
 };
@@ -42,7 +54,8 @@ function buildEntries(
   workspaceId: string,
   channel: string,
   threads: ReadonlyArray<NetworkThreadSummary>,
-  directs: ReadonlyArray<NetworkDirectRoomSummary>
+  directs: ReadonlyArray<NetworkDirectRoomSummary>,
+  sort: "recent_activity" | "created" | "alphabetical"
 ): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
   for (const thread of threads) {
@@ -52,6 +65,7 @@ function buildEntries(
       params: { workspaceId, channel, threadId: thread.thread_id },
       preview: thread.last_message_preview ?? "No messages yet.",
       timestamp: thread.last_activity_at ?? null,
+      openedAt: thread.opened_at ?? null,
       title: thread.title ?? "Untitled thread",
       to: "/network/$workspaceId/$channel/threads/$threadId",
     });
@@ -63,15 +77,27 @@ function buildEntries(
       params: { workspaceId, channel, directId: direct.direct_id },
       preview: direct.last_message_preview ?? "No messages yet.",
       timestamp: direct.last_activity_at ?? null,
+      openedAt: direct.opened_at ?? null,
       title: `${direct.peer_a} ↔ ${direct.peer_b}`,
       to: "/network/$workspaceId/$channel/directs/$directId",
     });
   }
 
   return entries.sort((left, right) => {
+    if (sort === "alphabetical") {
+      const byTitle = left.title.localeCompare(right.title, undefined, { sensitivity: "base" });
+      return byTitle === 0 ? left.id.localeCompare(right.id) : byTitle;
+    }
+    if (sort === "created") {
+      const leftCreated = left.openedAt ? new Date(left.openedAt).getTime() : 0;
+      const rightCreated = right.openedAt ? new Date(right.openedAt).getTime() : 0;
+      const byCreated = leftCreated - rightCreated;
+      return byCreated === 0 ? left.id.localeCompare(right.id) : byCreated;
+    }
     const leftTs = left.timestamp ? new Date(left.timestamp).getTime() : 0;
     const rightTs = right.timestamp ? new Date(right.timestamp).getTime() : 0;
-    return rightTs - leftTs;
+    const byActivity = rightTs - leftTs;
+    return byActivity === 0 ? left.id.localeCompare(right.id) : byActivity;
   });
 }
 
@@ -95,21 +121,35 @@ export function ActivityFeed({
   threads,
   directs,
   isLoading,
+  threadTotal = threads.length,
+  directTotal = directs.length,
+  hasMoreThreads = false,
+  hasMoreDirects = false,
+  isLoadingMoreThreads = false,
+  isLoadingMoreDirects = false,
+  onLoadMoreThreads,
+  onLoadMoreDirects,
+  isFiltered = false,
+  sort = "recent_activity",
 }: ActivityFeedProps) {
-  const entries = buildEntries(workspaceId, channel, threads, directs);
+  const entries = buildEntries(workspaceId, channel, threads, directs, sort);
 
   if (isLoading && entries.length === 0) {
     return <ActivityFeedSkeleton />;
   }
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && !hasMoreThreads && !hasMoreDirects) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <Empty
           className="max-w-md"
-          description="No activity yet across threads or direct rooms."
+          description={
+            isFiltered
+              ? "Try another search or remove a filter."
+              : "No activity yet across threads or direct rooms."
+          }
           icon={ActivitySquare}
-          title="Quiet across the channel."
+          title={isFiltered ? "No matching activity." : "Quiet across the channel."}
         />
       </div>
     );
@@ -122,7 +162,9 @@ export function ActivityFeed({
       data-testid="network-activity-feed"
     >
       <div className="border-b border-line px-5 py-2" data-testid="network-activity-subheader">
-        <Eyebrow>Recent activity / Read-only</Eyebrow>
+        <Eyebrow>
+          Recent activity / {entries.length} loaded / {threadTotal + directTotal} total
+        </Eyebrow>
       </div>
       {entries.map(entry => {
         const linkClass = cn(
@@ -171,6 +213,32 @@ export function ActivityFeed({
           </Link>
         );
       })}
+      {hasMoreThreads || hasMoreDirects ? (
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
+          {hasMoreThreads && onLoadMoreThreads ? (
+            <Button
+              aria-busy={isLoadingMoreThreads}
+              disabled={isLoadingMoreThreads}
+              onClick={() => void onLoadMoreThreads()}
+              size="sm"
+              variant="outline"
+            >
+              {isLoadingMoreThreads ? "Loading threads…" : "Load more threads"}
+            </Button>
+          ) : null}
+          {hasMoreDirects && onLoadMoreDirects ? (
+            <Button
+              aria-busy={isLoadingMoreDirects}
+              disabled={isLoadingMoreDirects}
+              onClick={() => void onLoadMoreDirects()}
+              size="sm"
+              variant="outline"
+            >
+              {isLoadingMoreDirects ? "Loading rooms…" : "Load more direct rooms"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

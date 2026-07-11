@@ -33,6 +33,9 @@ func TestResourceSpecShouldProjectMetadataAndRejectInvalidDefinitions(t *testing
 		if got, want := spec.Catalog.Keywords, []string{"alpha", "beta"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("spec.Catalog.Keywords = %#v, want %#v", got, want)
 		}
+		if got, want := spec.ContractGoal, "Test loop projection"; got != want {
+			t.Fatalf("spec.ContractGoal = %q, want %q", got, want)
+		}
 		if got, want := len(spec.Start), 2; got != want {
 			t.Fatalf("len(spec.Start) = %d, want %d", got, want)
 		}

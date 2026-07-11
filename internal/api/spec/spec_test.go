@@ -32,13 +32,75 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 		check func(t *testing.T, doc *openapi3.T)
 	}{
 		{
+			name: "ShouldDescribeBoundedLoopCatalogContract",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				listLoops := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops", "GET")
+				for _, parameter := range []string{"q", "kind", "category", "status", "sort", "cursor", "limit"} {
+					assertParameter(t, listLoops, parameter, openapi3.ParameterInQuery, false)
+				}
+				assertEnumValues(
+					t,
+					parameterSchema(t, listLoops, "kind", openapi3.ParameterInQuery),
+					"read_only",
+					"workspace",
+				)
+				assertEnumValues(
+					t,
+					parameterSchema(t, listLoops, "status", openapi3.ParameterInQuery),
+					contract.LoopRunStatusValues()...,
+				)
+				assertEnumValues(
+					t,
+					parameterSchema(t, listLoops, "sort", openapi3.ParameterInQuery),
+					"name",
+				)
+
+				response := jsonResponseSchema(t, listLoops, 200)
+				assertRequired(t, response, "loops", "facets", "page")
+				assertRequired(t, propertySchema(t, response, "page"), "has_more", "total", "limit")
+				assertRequired(t, propertySchema(t, response, "facets"), "kinds", "categories", "statuses")
+				loops := propertySchema(t, response, "loops")
+				if loops.Items == nil || loops.Items.Value == nil {
+					t.Fatal("expected Loop catalog entries to define an items schema")
+				}
+				assertRequired(
+					t,
+					loops.Items.Value,
+					"name",
+					"version",
+					"source",
+					"catalog",
+					"contract",
+					"aggregate_30d",
+					"success_rate_30d",
+				)
+				lastRun := propertySchema(t, loops.Items.Value, "last_run")
+				assertRequired(t, lastRun, "id", "status", "created_at")
+				for _, richField := range []string{
+					"workspace_id",
+					"loop_name",
+					"generation",
+					"start_metadata",
+					"inputs",
+				} {
+					assertPropertyAbsent(t, lastRun, richField)
+				}
+				for _, status := range []int{400, 404, 410, 503, 500} {
+					assertResponseStatus(t, listLoops, status)
+				}
+			},
+		},
+		{
 			name: "ShouldDescribeSessionListRequiredFieldsAndEnums",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
 				listSessions := operationFor(t, doc, "/api/sessions", "GET")
 				listSessionsSchema := jsonResponseSchema(t, listSessions, 200)
-				assertRequired(t, listSessionsSchema, "sessions")
+				assertRequired(t, listSessionsSchema, "sessions", "page")
+				assertRequired(t, propertySchema(t, listSessionsSchema, "page"), "has_more", "total", "limit")
 
 				sessionsSchema := propertySchema(t, listSessionsSchema, "sessions")
 				if sessionsSchema.Items == nil || sessionsSchema.Items.Value == nil {
@@ -69,8 +131,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"attach_expires_at",
 				)
 				assertParameter(t, listSessions, "resumable", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "state", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "agent", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "q", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "sort", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "cursor", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "limit", openapi3.ParameterInQuery, false)
+				assertResponseStatus(t, listSessions, 400)
+				assertResponseStatus(t, listSessions, 503)
 				assertEnumValues(
 					t,
 					propertySchema(t, sessionSchema, "type"),
@@ -177,16 +245,27 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"GET",
 				)
 				assertParameter(t, transcriptOperation, "limit", openapi3.ParameterInQuery, false)
-				assertParameter(t, transcriptOperation, "after_sequence", openapi3.ParameterInQuery, false)
 				assertParameter(t, transcriptOperation, "before_sequence", openapi3.ParameterInQuery, false)
+				assertParameterAbsent(t, transcriptOperation, "after_sequence", openapi3.ParameterInQuery)
 				transcriptResponse := jsonResponseSchema(t, transcriptOperation, 200)
-				assertRequired(t, transcriptResponse, "entries")
+				assertRequired(
+					t,
+					transcriptResponse,
+					"entries",
+					"epoch",
+					"generation",
+					"max_sequence",
+					"has_older",
+					"limit",
+				)
 				assertPropertyAbsent(t, transcriptResponse, "messages")
 				entriesSchema := propertySchema(t, transcriptResponse, "entries")
 				if entriesSchema.Items == nil || entriesSchema.Items.Value == nil {
 					t.Fatal("expected transcript entries to define an items schema")
 				}
-				assertRequired(t, entriesSchema.Items.Value, "message", "sequence")
+				assertRequired(t, entriesSchema.Items.Value, "message", "start_sequence", "sequence")
+				assertResponseStatus(t, transcriptOperation, 400)
+				assertResponseStatus(t, transcriptOperation, 503)
 
 				streamOperation := operationFor(
 					t,
@@ -196,22 +275,44 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertParameter(t, streamOperation, "Last-Event-ID", openapi3.ParameterInHeader, false)
 				assertParameter(t, streamOperation, "after_sequence", openapi3.ParameterInQuery, false)
+				assertParameter(t, streamOperation, "epoch", openapi3.ParameterInQuery, false)
+				assertParameter(t, streamOperation, "generation", openapi3.ParameterInQuery, false)
+				assertParameter(t, streamOperation, "limit", openapi3.ParameterInQuery, false)
 				assertEnumValues(
 					t,
 					parameterSchema(t, streamOperation, "frames", openapi3.ParameterInQuery),
 					contract.SessionStreamFrameRaw,
 					contract.SessionStreamFrameTranscript,
 				)
-				assertEnumValues(
-					t,
-					parameterSchema(t, streamOperation, "replay", openapi3.ParameterInQuery),
-					contract.SessionStreamReplaySnapshot,
-				)
+				assertParameterAbsent(t, streamOperation, "replay", openapi3.ParameterInQuery)
 				streamSchema := responseSchema(t, streamOperation, 200, specContentTypeEventStream)
 				propertySchema(t, streamSchema, "raw")
-				propertySchema(t, streamSchema, "transcript_snapshot")
-				propertySchema(t, streamSchema, "transcript_delta")
+				snapshotSchema := propertySchema(t, streamSchema, "transcript_snapshot")
+				assertRequired(
+					t,
+					snapshotSchema,
+					"session_id",
+					"epoch",
+					"generation",
+					"entries",
+					"max_sequence",
+					"has_older",
+					"reset",
+				)
+				deltaSchema := propertySchema(t, streamSchema, "transcript_delta")
+				assertRequired(
+					t,
+					deltaSchema,
+					"session_id",
+					"epoch",
+					"generation",
+					"entries",
+					"cursor",
+					"max_sequence",
+					"has_more",
+				)
 				propertySchema(t, streamSchema, "session_stopped")
+				assertResponseStatus(t, streamOperation, 503)
 
 				eventsOperation := operationFor(
 					t,
@@ -243,6 +344,62 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listSubscriptions, "peer_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "thread_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSubscriptions, "limit", openapi3.ParameterInQuery, false)
+			},
+		},
+		{
+			name: "Should describe the network send conversation contract",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				send := operationFor(t, doc, "/api/workspaces/{workspace_id}/network/send", "POST")
+				request := jsonRequestSchema(t, send)
+				assertEnumValues(
+					t,
+					propertySchema(t, request, "kind"),
+					"greet",
+					"whois",
+					"say",
+					"capability",
+					"receipt",
+					"trace",
+				)
+				assertEnumValues(t, propertySchema(t, request, "surface"), "thread", "direct")
+
+				threadID := propertySchema(t, request, "thread_id")
+				const threadIDPattern = `^thread_[a-z0-9][a-z0-9_-]{2,95}$`
+				if threadID.Pattern != threadIDPattern {
+					t.Fatalf("network send thread_id pattern = %q, want %q", threadID.Pattern, threadIDPattern)
+				}
+				if !strings.Contains(threadID.Description, "first valid send creates the public thread") {
+					t.Fatalf(
+						"network send thread_id description = %q, want implicit-create contract",
+						threadID.Description,
+					)
+				}
+				directID := propertySchema(t, request, "direct_id")
+				const directIDPattern = `^direct_[a-f0-9]{32}$`
+				if directID.Pattern != directIDPattern {
+					t.Fatalf("network send direct_id pattern = %q, want %q", directID.Pattern, directIDPattern)
+				}
+				body := propertySchema(t, request, "body")
+				assertSchemaIncludesType(t, body, openapi3.TypeObject)
+				if !strings.Contains(body.Description, "say requires a non-empty text field") {
+					t.Fatalf("network send body description = %q, want say body contract", body.Description)
+				}
+				workID := propertySchema(t, request, "work_id")
+				if !strings.Contains(workID.Description, "Required for capability, receipt, and trace") {
+					t.Fatalf("network send work_id description = %q, want required-kind contract", workID.Description)
+				}
+				target := propertySchema(t, request, "to")
+				if !strings.Contains(target.Description, "Required for capability and for say carrying work_id") {
+					t.Fatalf("network send to description = %q, want lifecycle target contract", target.Description)
+				}
+				if !strings.Contains(request.Description, "greet and whois omit conversation and work fields") {
+					t.Fatalf(
+						"network send request description = %q, want discovery omission contract",
+						request.Description,
+					)
+				}
 			},
 		},
 		{
@@ -494,6 +651,25 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
+				for _, operation := range []*openapi3.Operation{
+					operationFor(t, doc, "/api/automation/jobs", "GET"),
+					operationFor(t, doc, "/api/automation/triggers", "GET"),
+				} {
+					assertParameter(t, operation, "q", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "cursor", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "enabled", openapi3.ParameterInQuery, false)
+					assertEnumValues(
+						t,
+						parameterSchema(t, operation, "source", openapi3.ParameterInQuery),
+						"config",
+						"package",
+						"dynamic",
+					)
+					pageSchema := propertySchema(t, jsonResponseSchema(t, operation, 200), "page")
+					assertRequired(t, pageSchema, "has_more", "total", "limit")
+					assertNotRequired(t, pageSchema, "next_cursor")
+				}
+
 				createJob := operationFor(t, doc, "/api/automation/jobs", "POST")
 				createJobSchema := jsonRequestSchema(t, createJob)
 				assertRequired(t, createJobSchema, "scope", "name", "agent_name", "prompt", "schedule")
@@ -689,6 +865,16 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listBridges, "scope", openapi3.ParameterInQuery, false)
 				assertParameter(t, listBridges, "workspace_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, listBridges, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "q", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "platform", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "status", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "sort", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "cursor", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "limit", openapi3.ParameterInQuery, false)
+				listSchema := jsonResponseSchema(t, listBridges, 200)
+				assertRequired(t, listSchema, "bridges", "bridge_health", "facets", "page")
+				streamHealth := operationFor(t, doc, "/api/bridges/health/stream", "GET")
+				assertParameter(t, streamHealth, "bridge_ids", openapi3.ParameterInQuery, true)
 
 				providers := operationFor(t, doc, "/api/bridges/providers", "GET")
 				providersSchema := jsonResponseSchema(t, providers, 200)
@@ -1277,6 +1463,41 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "sort", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "cursor", openapi3.ParameterInQuery, false)
+				assertEnumValues(
+					t,
+					parameterSchema(t, listTasks, "scope", openapi3.ParameterInQuery),
+					"all", "global", "workspace",
+				)
+				listTasksSchema := jsonResponseSchema(t, listTasks, 200)
+				assertRequired(t, listTasksSchema, "tasks", "page", "facets")
+				listItemsSchema := propertySchema(t, listTasksSchema, "tasks")
+				if listItemsSchema.Items == nil || listItemsSchema.Items.Value == nil {
+					t.Fatal("expected task catalog to define an items schema")
+				}
+				listItemSchema := listItemsSchema.Items.Value
+				for _, field := range []string{
+					"paused",
+					"paused_by",
+					"paused_at",
+					"paused_reason",
+					"effective_paused",
+					"paused_by_task_id",
+					"blocked_reasons",
+					"dependencies",
+				} {
+					assertPropertyAbsent(t, listItemSchema, field)
+				}
+				listRunSchema := propertySchema(t, listItemSchema, "active_run")
+				for _, field := range []string{
+					"claim_token_hash",
+					"coordination_channel",
+					"designation_group_id",
+					"designation",
+				} {
+					assertPropertyAbsent(t, listRunSchema, field)
+				}
 
 				blockTask := operationFor(t, doc, "/api/tasks/{id}/blocks", "POST")
 				assertParameter(t, blockTask, "id", openapi3.ParameterInPath, true)
@@ -1633,12 +1854,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, inbox, "lane", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "unread", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "query", openapi3.ParameterInQuery, false)
+				assertParameter(t, inbox, "status", openapi3.ParameterInQuery, false)
+				assertParameter(t, inbox, "priority", openapi3.ParameterInQuery, false)
+				assertParameter(t, inbox, "cursor", openapi3.ParameterInQuery, false)
 				inboxSchema := jsonResponseSchema(t, inbox, 200)
 				assertRequired(t, inboxSchema, "inbox")
 
 				inboxPayload := propertySchema(t, inboxSchema, "inbox")
-				assertRequired(t, inboxPayload, "total", "unread_total", "archived_total")
-				assertNotRequired(t, inboxPayload, "groups")
+				assertRequired(t, inboxPayload, "page", "facets", "unread_total", "archived_total", "groups")
+				assertRequired(t, propertySchema(t, inboxPayload, "page"), "total", "limit", "has_more")
 				groupsSchema := propertySchema(t, inboxPayload, "groups")
 				if groupsSchema.Items == nil || groupsSchema.Items.Value == nil {
 					t.Fatal("expected groups to define an items schema")
@@ -1646,6 +1870,24 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				groupSchema := groupsSchema.Items.Value
 				assertRequired(t, groupSchema, "lane", "count", "unread_count")
 				assertNotRequired(t, groupSchema, "items")
+				groupItemsSchema := propertySchema(t, groupSchema, "items")
+				if groupItemsSchema.Items == nil || groupItemsSchema.Items.Value == nil {
+					t.Fatal("expected task inbox group items to define an items schema")
+				}
+				inboxItemSchema := groupItemsSchema.Items.Value
+				inboxTaskSchema := propertySchema(t, inboxItemSchema, "task")
+				for _, field := range []string{"paused", "effective_paused", "paused_by_task_id"} {
+					assertPropertyAbsent(t, inboxTaskSchema, field)
+				}
+				inboxRunSchema := propertySchema(t, inboxItemSchema, "run")
+				for _, field := range []string{
+					"claim_token_hash",
+					"coordination_channel",
+					"designation_group_id",
+					"designation",
+				} {
+					assertPropertyAbsent(t, inboxRunSchema, field)
+				}
 				assertEnumValues(
 					t,
 					propertySchema(t, groupSchema, "lane"),
@@ -2056,6 +2298,19 @@ func assertParameter(t *testing.T, operation *openapi3.Operation, name string, i
 		}
 	}
 	t.Fatalf("missing parameter %q in %s", name, in)
+}
+
+func assertParameterAbsent(t *testing.T, operation *openapi3.Operation, name string, in string) {
+	t.Helper()
+
+	for _, ref := range operation.Parameters {
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+		if ref.Value.Name == name && ref.Value.In == in {
+			t.Fatalf("expected parameter %q in %s to be absent", name, in)
+		}
+	}
 }
 
 func parameterSchema(t *testing.T, operation *openapi3.Operation, name string, in string) *openapi3.Schema {

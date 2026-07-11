@@ -3,27 +3,8 @@ import { fn } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import { primaryAgentFixture } from "@/systems/agent/mocks";
-import type { SessionPayload } from "@/systems/session/types";
 
 import { AgentPageActions, AgentPageStatusPill } from "../agent-page-header";
-
-const idleSessions: SessionPayload[] = [];
-
-const activeSessions: SessionPayload[] = [
-  {
-    id: "sess-active-1",
-    name: "Launch hold triage",
-    agent_name: primaryAgentFixture.name,
-    provider: primaryAgentFixture.provider,
-    workspace_id: "ws-launch",
-    workspace_path: "/repos/launch",
-    state: "active",
-    badge: "idle",
-    attachable: true,
-    created_at: "2026-04-17T16:00:00Z",
-    updated_at: "2026-04-17T18:10:00Z",
-  },
-];
 
 const meta: Meta<typeof AgentPageActions> = {
   title: "systems/agent/components/AgentPageHeader",
@@ -97,7 +78,7 @@ export const StatusIdle: StoryObj<typeof AgentPageStatusPill> = {
   args: {},
   render: () => (
     <CenteredSurface>
-      <AgentPageStatusPill sessions={idleSessions} />
+      <AgentPageStatusPill activeCount={0} />
     </CenteredSurface>
   ),
 };
@@ -110,7 +91,7 @@ export const StatusActive: StoryObj<typeof AgentPageStatusPill> = {
   args: {},
   render: () => (
     <CenteredSurface>
-      <AgentPageStatusPill sessions={activeSessions} />
+      <AgentPageStatusPill activeCount={3} />
     </CenteredSurface>
   ),
 };

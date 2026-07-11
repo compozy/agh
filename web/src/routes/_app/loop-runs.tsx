@@ -6,11 +6,16 @@ import { Empty, ListingPage, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { LoopRunsView, type LoopOutcomeValue, useLoopRuns } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadLoopRunsRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loop-runs")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Runs", icon: Activity },
   }),
+  loader: ({ context, location }) =>
+    location.pathname.split("/").filter(Boolean).length === 1
+      ? preloadLoopRunsRoute(context.queryClient)
+      : Promise.resolve(),
   component: LoopRunsRoute,
 });
 

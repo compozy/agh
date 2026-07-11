@@ -7,9 +7,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -17,6 +19,129 @@ import (
 
 func TestDaemonNativeLoopTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should forward the bounded catalog query within caller workspace scope", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedWorkspaceID string
+		var capturedQuery looppkg.CatalogQuery
+		lastRunCreatedAt := time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					listLoopsFn: func(
+						_ context.Context,
+						workspaceID string,
+						query looppkg.CatalogQuery,
+					) (contract.LoopsResponse, error) {
+						capturedWorkspaceID = workspaceID
+						capturedQuery = query
+						return contract.LoopsResponse{
+							Loops: []contract.LoopCatalogEntryPayload{{
+								Name: "release",
+								LastRun: &contract.LoopCatalogLastRunPayload{
+									ID:        "run-release-latest",
+									Status:    contract.LoopRunStatusRunning,
+									CreatedAt: lastRunCreatedAt,
+								},
+							}},
+							Facets: contract.LoopCatalogFacetsPayload{
+								Kinds:      map[string]int{"workspace": 2},
+								Categories: map[string]int{"delivery": 2},
+								Statuses:   map[string]int{"running": 1},
+							},
+							Page: contract.CountedCursorPagePayload{
+								NextCursor: "cursor-2",
+								HasMore:    true,
+								Total:      3,
+								Limit:      1,
+							},
+						}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopList,
+				Input: json.RawMessage(
+					`{"q":"release","kind":"workspace","category":"delivery","status":"running","sort":"name","cursor":"cursor-1","limit":1}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_list) error = %v", err)
+		}
+
+		if capturedWorkspaceID != "ws-alpha" {
+			t.Fatalf("workspaceID = %q, want ws-alpha", capturedWorkspaceID)
+		}
+		wantQuery := looppkg.CatalogQuery{
+			Search:   "release",
+			Kind:     looppkg.CatalogKindWorkspace,
+			Category: "delivery",
+			Status:   looppkg.StatusRunning,
+			Sort:     looppkg.CatalogSortName,
+			Cursor:   "cursor-1",
+			Limit:    1,
+		}
+		if capturedQuery != wantQuery {
+			t.Fatalf("query = %#v, want %#v", capturedQuery, wantQuery)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"facets"`))
+		requireNativeStructuredContains(t, result, []byte(`"id":"run-release-latest"`))
+		requireNativeStructuredContains(t, result, []byte(`"status":"running"`))
+		requireNativeStructuredContains(t, result, []byte(`"created_at":"2026-07-10T11:00:00Z"`))
+		requireNativeStructuredContains(t, result, []byte(`"next_cursor":"cursor-2"`))
+		requireNativeStructuredContains(t, result, []byte(`"total":3`))
+		if result.Preview != "1 of 3 loops; more available" {
+			t.Fatalf("preview = %q, want bounded continuation summary", result.Preview)
+		}
+	})
+
+	t.Run("Should reject a loop catalog workspace outside caller scope", func(t *testing.T) {
+		t.Parallel()
+
+		listCalled := false
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{
+					listLoopsFn: func(
+						context.Context,
+						string,
+						looppkg.CatalogQuery,
+					) (contract.LoopsResponse, error) {
+						listCalled = true
+						return contract.LoopsResponse{}, nil
+					},
+				}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopList,
+				Input:  json.RawMessage(`{"workspace_id":"ws-beta"}`),
+			},
+		)
+
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) {
+			t.Fatalf("Registry.Call(loop_list foreign workspace) error = %v, want ToolError", err)
+		}
+		if toolErr.Code != toolspkg.ErrorCodeDenied ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
+			t.Fatalf("tool error = %#v, want scope mismatch denial", toolErr)
+		}
+		if listCalled {
+			t.Fatal("ListLoops was called for a workspace outside caller scope")
+		}
+	})
 
 	t.Run("Should route dry run through loop service with native tool actor", func(t *testing.T) {
 		t.Parallel()
@@ -97,7 +222,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDLoopApprove)
 
 		loopSvc = &nativeLoopServiceStub{
-			listLoopsFn: func(context.Context, string) (contract.LoopsResponse, error) {
+			listLoopsFn: func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error) {
 				return contract.LoopsResponse{}, nil
 			},
 		}
@@ -183,7 +308,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 }
 
 type nativeLoopServiceStub struct {
-	listLoopsFn         func(context.Context, string) (contract.LoopsResponse, error)
+	listLoopsFn         func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
 	createLoopFn        func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
 	getLoopFn           func(context.Context, string, string) (contract.LoopResponse, error)
 	patchLoopFn         func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
@@ -203,9 +328,13 @@ type nativeLoopServiceStub struct {
 
 var _ core.LoopService = (*nativeLoopServiceStub)(nil)
 
-func (s *nativeLoopServiceStub) ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error) {
+func (s *nativeLoopServiceStub) ListLoops(
+	ctx context.Context,
+	workspaceID string,
+	query looppkg.CatalogQuery,
+) (contract.LoopsResponse, error) {
 	if s.listLoopsFn != nil {
-		return s.listLoopsFn(ctx, workspaceID)
+		return s.listLoopsFn(ctx, workspaceID, query)
 	}
 	return contract.LoopsResponse{}, errors.New("unexpected ListLoops call")
 }

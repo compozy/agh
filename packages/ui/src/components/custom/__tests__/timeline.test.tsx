@@ -20,4 +20,21 @@ describe("Timeline", () => {
     expect(items[0].textContent).toContain("Started");
     expect(items[1].textContent).toContain("Completed");
   });
+
+  it("Should use a flow container for a composed title", () => {
+    const { container } = render(
+      <TimelineEvent
+        title={
+          <div>
+            <span>Accepted</span>
+            <span>Controller</span>
+          </div>
+        }
+      />
+    );
+
+    const title = container.querySelector('[data-slot="timeline-event-title"]');
+    expect(title?.tagName).toBe("DIV");
+    expect(title).toHaveTextContent("AcceptedController");
+  });
 });

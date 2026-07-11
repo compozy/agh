@@ -14,8 +14,7 @@ vi.mock("@/systems/agent/adapters/agent-api", () => ({
 }));
 
 vi.mock("@/systems/status/adapters/daemon-api", () => ({
-  fetchHealth: vi.fn(),
-  fetchDaemonStatus: vi.fn(),
+  fetchStatus: vi.fn(),
 }));
 
 vi.mock("@/systems/session/adapters/session-api", () => ({
@@ -56,7 +55,8 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace-store", () => ({
 }));
 
 import { fetchAgents } from "@/systems/agent/adapters/agent-api";
-import { fetchHealth } from "@/systems/status/adapters/daemon-api";
+import { fetchStatus } from "@/systems/status/adapters/daemon-api";
+import { statusFixture } from "@/systems/status/mocks/fixtures";
 import { fetchSessions } from "@/systems/session/adapters/session-api";
 import { fetchWorkspace, fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 
@@ -189,7 +189,7 @@ describe("useHomePage", () => {
   beforeEach(() => {
     mockSelectedWorkspaceId = "ws_main";
     vi.clearAllMocks();
-    vi.mocked(fetchHealth).mockResolvedValue(HEALTH_FIXTURE);
+    vi.mocked(fetchStatus).mockResolvedValue({ ...statusFixture, health: HEALTH_FIXTURE });
     vi.mocked(fetchWorkspaces).mockResolvedValue(WORKSPACES_FIXTURE);
     vi.mocked(fetchWorkspace).mockResolvedValue({
       workspace: WORKSPACES_FIXTURE[0],
@@ -201,7 +201,10 @@ describe("useHomePage", () => {
     vi.mocked(fetchAgents).mockImplementation(async (workspace?: string | null) =>
       workspace === "ws_main" ? WORKSPACE_AGENTS_FIXTURE : AGENTS_FIXTURE
     );
-    vi.mocked(fetchSessions).mockResolvedValue(SESSIONS_FIXTURE);
+    vi.mocked(fetchSessions).mockResolvedValue({
+      sessions: [SESSIONS_FIXTURE[0]!],
+      page: { has_more: true, limit: 1, next_cursor: "active-page-2", total: 2 },
+    });
   });
 
   afterEach(() => {
@@ -232,6 +235,10 @@ describe("useHomePage", () => {
     expect(metricsByKey.workspaces.value).toBe("2");
     expect(metricsByKey.agents.value).toBe("3");
     expect(metricsByKey.uptime.value).toBe("1h 15m");
+    expect(fetchSessions).toHaveBeenCalledWith(
+      { workspace: "ws_main", state: "active", limit: 1 },
+      expect.any(AbortSignal)
+    );
   });
 
   it("updates the agents metric when the active workspace changes", async () => {
@@ -273,7 +280,10 @@ describe("useHomePage", () => {
   });
 
   it("maps a non-ok health status to a warning/degraded descriptor", async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({ ...HEALTH_FIXTURE, status: "degraded" });
+    vi.mocked(fetchStatus).mockResolvedValue({
+      ...statusFixture,
+      health: { ...HEALTH_FIXTURE, status: "degraded" },
+    });
 
     const { result } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
 
@@ -286,7 +296,7 @@ describe("useHomePage", () => {
   });
 
   it("returns an error descriptor after the health query fails", async () => {
-    vi.mocked(fetchHealth).mockRejectedValue(new Error("network down"));
+    vi.mocked(fetchStatus).mockRejectedValue(new Error("network down"));
 
     const { result } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
 

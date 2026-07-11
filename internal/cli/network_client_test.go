@@ -64,9 +64,21 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						if got := req.URL.Query().Get("after"); got != "thread_0" {
 							t.Fatalf("network threads after query = %q, want thread_0", got)
 						}
+						if got := req.URL.Query().Get("query"); got != "launch" {
+							t.Fatalf("network threads query = %q, want launch", got)
+						}
+						if got := req.URL.Query().Get("peer_id"); got != "reviewer.sess-b" {
+							t.Fatalf("network threads peer_id = %q, want reviewer.sess-b", got)
+						}
+						if got := req.URL.Query().Get("sort"); got != "alphabetical" {
+							t.Fatalf("network threads sort = %q, want alphabetical", got)
+						}
+						if got := req.URL.Query().Get("has_work"); got != "true" {
+							t.Fatalf("network threads has_work = %q, want true", got)
+						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"threads":[{"channel":"builders","thread_id":"thread_launch","root_message_id":"msg-root","opened_by_peer_id":"coder.sess-a","message_count":2,"participant_count":2,"open_work_count":1,"last_message_preview":"ready"}]}`,
+							`{"threads":[{"channel":"builders","thread_id":"thread_launch","root_message_id":"msg-root","opened_by_peer_id":"coder.sess-a","message_count":2,"participant_count":2,"open_work_count":1,"last_message_preview":"ready"}],"page":{"next_cursor":"thread_next","has_more":true,"total":8,"limit":2}}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/channels/builders/threads/thread_launch":
 						return newHTTPResponse(
@@ -92,15 +104,30 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"messages":[{"message_id":"msg-thread-1","channel":"builders","surface":"thread","thread_id":"thread_launch","kind":"say","direction":"outbound","peer_from":"coder.sess-a","work_id":"work_1","preview_text":"ready","body":{"text":"ready"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
+							`{"messages":[{"message_id":"msg-thread-1","channel":"builders","surface":"thread","thread_id":"thread_launch","kind":"say","direction":"outbound","peer_from":"coder.sess-a","work_id":"work_1","preview_text":"ready","body":{"text":"ready"},"timestamp":"2026-04-03T12:00:00Z"}],"page":{"next_cursor":"msg-thread-next","has_more":true,"limit":2}}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/channels/builders/directs":
 						if got := req.URL.Query().Get("peer_id"); got != "reviewer.sess-b" {
 							t.Fatalf("network directs peer_id query = %q, want reviewer.sess-b", got)
 						}
+						if got := req.URL.Query().Get("query"); got != "review" {
+							t.Fatalf("network directs query = %q, want review", got)
+						}
+						if got := req.URL.Query().Get("sort"); got != "created" {
+							t.Fatalf("network directs sort = %q, want created", got)
+						}
+						if got := req.URL.Query().Get("has_work"); got != "false" {
+							t.Fatalf("network directs has_work = %q, want false", got)
+						}
+						if got := req.URL.Query().Get("limit"); got != "3" {
+							t.Fatalf("network directs limit = %q, want 3", got)
+						}
+						if got := req.URL.Query().Get("after"); got != "direct_0" {
+							t.Fatalf("network directs after = %q, want direct_0", got)
+						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"directs":[{"channel":"builders","direct_id":"direct_99401d24bee62651d189e5a561785466","peer_a":"coder.sess-a","peer_b":"reviewer.sess-b","message_count":1,"open_work_count":1,"last_message_preview":"please review"}]}`,
+							`{"directs":[{"channel":"builders","direct_id":"direct_99401d24bee62651d189e5a561785466","peer_a":"coder.sess-a","peer_b":"reviewer.sess-b","message_count":1,"open_work_count":1,"last_message_preview":"please review"}],"page":{"has_more":false,"total":1,"limit":3}}`,
 						), nil
 					case req.Method == http.MethodPost &&
 						req.URL.Path == "/api/workspaces/ws-alpha/network/channels/builders/directs/resolve":
@@ -132,7 +159,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"messages":[{"message_id":"msg-direct-1","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","kind":"say","direction":"outbound","peer_from":"coder.sess-a","peer_to":"reviewer.sess-b","work_id":"work_1","preview_text":"please review","body":{"text":"please review"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
+							`{"messages":[{"message_id":"msg-direct-1","channel":"builders","surface":"direct","direct_id":"direct_99401d24bee62651d189e5a561785466","kind":"say","direction":"outbound","peer_from":"coder.sess-a","peer_to":"reviewer.sess-b","work_id":"work_1","preview_text":"please review","body":{"text":"please review"},"timestamp":"2026-04-03T12:00:00Z"}],"page":{"has_more":false,"limit":2}}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/work/work_1":
 						return newHTTPResponse(
@@ -200,13 +227,19 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			t.Fatalf("CreateNetworkChannel() = %#v, %v", createdChannel, err)
 		}
 
+		hasWork := true
 		threads, err := client.NetworkThreads(ctx, NetworkThreadsQuery{
 			WorkspaceRef: "ws-alpha",
 			Channel:      "builders",
+			Query:        "launch",
+			PeerID:       "reviewer.sess-b",
+			Sort:         "alphabetical",
+			HasWork:      &hasWork,
 			Limit:        2,
 			After:        "thread_0",
 		})
-		if err != nil || len(threads) != 1 || threads[0].ThreadID != "thread_launch" {
+		if err != nil || len(threads.Threads) != 1 || threads.Threads[0].ThreadID != "thread_launch" ||
+			threads.Page.Total != 8 || threads.Page.Limit != 2 || !threads.Page.HasMore {
 			t.Fatalf("NetworkThreads() = %#v, %v", threads, err)
 		}
 
@@ -225,16 +258,25 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			Kind:         "say",
 			WorkID:       "work_1",
 		})
-		if err != nil || len(threadMessages) != 1 || threadMessages[0].MessageID != "msg-thread-1" {
+		if err != nil || len(threadMessages.Messages) != 1 ||
+			threadMessages.Messages[0].MessageID != "msg-thread-1" || threadMessages.Page.Limit != 2 ||
+			!threadMessages.Page.HasMore || threadMessages.Page.NextCursor != "msg-thread-next" {
 			t.Fatalf("NetworkThreadMessages() = %#v, %v", threadMessages, err)
 		}
 
+		hasNoWork := false
 		directs, err := client.NetworkDirects(ctx, NetworkDirectsQuery{
 			WorkspaceRef: "ws-alpha",
 			Channel:      "builders",
+			Query:        "review",
 			PeerID:       "reviewer.sess-b",
+			Sort:         "created",
+			HasWork:      &hasNoWork,
+			Limit:        3,
+			After:        "direct_0",
 		})
-		if err != nil || len(directs) != 1 || directs[0].DirectID != directID {
+		if err != nil || len(directs.Directs) != 1 || directs.Directs[0].DirectID != directID ||
+			directs.Page.Total != 1 || directs.Page.Limit != 3 || directs.Page.HasMore {
 			t.Fatalf("NetworkDirects() = %#v, %v", directs, err)
 		}
 
@@ -258,7 +300,9 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 			Limit:        2,
 			WorkID:       "work_1",
 		})
-		if err != nil || len(directMessages) != 1 || directMessages[0].MessageID != "msg-direct-1" {
+		if err != nil || len(directMessages.Messages) != 1 ||
+			directMessages.Messages[0].MessageID != "msg-direct-1" || directMessages.Page.Limit != 2 ||
+			directMessages.Page.HasMore {
 			t.Fatalf("NetworkDirectMessages() = %#v, %v", directMessages, err)
 		}
 
@@ -304,15 +348,26 @@ func TestNetworkClientHelpersAndAliases(t *testing.T) {
 		if got := networkInboxValues("sess-a"); got.Get("session_id") != "sess-a" {
 			t.Fatalf("networkInboxValues() = %v, want session_id filter", got)
 		}
-		if got := networkThreadsValues(NetworkThreadsQuery{Limit: 2, After: "thread_0"}); got.Get("limit") != "2" ||
-			got.Get("after") != "thread_0" {
+		hasWork := true
+		if got := networkThreadsValues(NetworkThreadsQuery{
+			Query: "launch", PeerID: "reviewer.sess-b", Sort: "alphabetical", HasWork: &hasWork,
+			Limit: 2, After: "thread_0",
+		}); got.Get("limit") != "2" || got.Get("after") != "thread_0" || got.Get("query") != "launch" ||
+			got.Get("peer_id") != "reviewer.sess-b" || got.Get("sort") != "alphabetical" ||
+			got.Get("has_work") != "true" {
 			t.Fatalf("networkThreadsValues() = %v, want list cursor filters", got)
 		}
+		hasNoWork := false
 		if got := networkDirectsValues(NetworkDirectsQuery{
-			PeerID: "reviewer.sess-b",
-			Limit:  2,
-			After:  "direct_0",
-		}); got.Get("peer_id") != "reviewer.sess-b" || got.Get("limit") != "2" || got.Get("after") != "direct_0" {
+			Query:   "review",
+			PeerID:  "reviewer.sess-b",
+			Sort:    "created",
+			HasWork: &hasNoWork,
+			Limit:   2,
+			After:   "direct_0",
+		}); got.Get("query") != "review" || got.Get("peer_id") != "reviewer.sess-b" ||
+			got.Get("sort") != "created" || got.Get("has_work") != "false" ||
+			got.Get("limit") != "2" || got.Get("after") != "direct_0" {
 			t.Fatalf("networkDirectsValues() = %v, want peer/list filters", got)
 		}
 		if got := networkConversationMessagesValues(NetworkConversationMessagesQuery{
@@ -325,8 +380,8 @@ func TestNetworkClientHelpersAndAliases(t *testing.T) {
 			got.Get("after") != "msg-1" || got.Get("kind") != "say" || got.Get("work_id") != "work_1" {
 			t.Fatalf("networkConversationMessagesValues() = %v, want message filters", got)
 		}
-		if got, err := networkThreadPath(" ws-alpha ", " builders ", " thread_1 "); err != nil ||
-			got != "/api/workspaces/ws-alpha/network/channels/builders/threads/thread_1" {
+		if got, err := networkThreadPath(" ws-alpha ", " builders ", " thread_123 "); err != nil ||
+			got != "/api/workspaces/ws-alpha/network/channels/builders/threads/thread_123" {
 			t.Fatalf("networkThreadPath() = %q, %v", got, err)
 		}
 		if got, err := networkDirectMessagesPath("ws-alpha", "builders", "direct_1"); err != nil ||

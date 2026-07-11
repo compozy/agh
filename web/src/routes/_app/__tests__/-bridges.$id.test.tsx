@@ -113,7 +113,9 @@ vi.mock("@/systems/bridges", async () => {
   return {
     ...actual,
     useBridges: () => ({
-      data: mockBridgesData,
+      data: mockBridgesData ? { pageParams: [undefined], pages: [mockBridgesData] } : undefined,
+      bridgeHealth: mockBridgesData?.bridge_health ?? {},
+      bridges: mockBridgesData?.bridges ?? [],
       error: null,
       isLoading: false,
     }),
@@ -313,6 +315,18 @@ describe("BridgeDetailRoute", () => {
         brg_support: makeHealth(),
       },
       bridges: [makeBridge()],
+      facets: {
+        platforms: { telegram: 1 },
+        statuses: {
+          auth_required: 0,
+          degraded: 0,
+          disabled: 0,
+          error: 0,
+          ready: 1,
+          starting: 0,
+        },
+      },
+      page: { has_more: false, limit: 50, total: 1 },
     };
     mockBridgeDetail = {
       bridge: makeBridge(),

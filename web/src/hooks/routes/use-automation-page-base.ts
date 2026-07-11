@@ -1,9 +1,11 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { AutomationApiError } from "@/systems/automation";
 import { localInputToDate, toRfc3339 } from "@/systems/automation/lib/cron-engine";
 import type {
   AutomationScopeFilter,
+  AutomationSource,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
 } from "@/systems/automation";
@@ -23,6 +25,16 @@ export type TriggerEditorState =
 export interface AutomationCreateSeed {
   /** When set, the page opens the create sheet in Run-loop mode for this Loop. */
   loop?: string;
+}
+
+export interface AutomationRouteSearch {
+  create?: "loop";
+  enabled?: boolean;
+  event?: string;
+  loop?: string;
+  q?: string;
+  scope?: AutomationScopeFilter;
+  source?: AutomationSource;
 }
 
 export function buildEmptyState({
@@ -102,13 +114,16 @@ export function normalizeAutomationSchedule(
   };
 }
 
-export function useAutomationPageBase() {
+export function useAutomationPageBase(
+  kind: "jobs" | "triggers",
+  search: AutomationRouteSearch = {}
+) {
+  const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const settingsQuery = useSettingsAutomation();
-  const [scopeFilter, setScopeFilter] = useState<AutomationScopeFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const scopeFilter = search.scope ?? "all";
+  const searchQuery = search.q ?? "";
 
   const scopedWorkspaceId =
     scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
@@ -116,17 +131,39 @@ export function useAutomationPageBase() {
   const listFilters = useMemo(
     () => ({
       limit: 50,
+      enabled: search.enabled,
+      loop: search.loop,
+      q: searchQuery,
       scope: scopeFilter === "all" ? undefined : scopeFilter,
+      source: search.source,
       workspace_id: scopedWorkspaceId,
     }),
-    [scopeFilter, scopedWorkspaceId]
+    [scopeFilter, scopedWorkspaceId, search.enabled, search.loop, search.source, searchQuery]
+  );
+
+  const updateSearch = useCallback(
+    (updates: Partial<AutomationRouteSearch>) => {
+      void navigate({
+        search: current => ({ ...(current as AutomationRouteSearch), ...updates }),
+        to: kind === "jobs" ? "/jobs" : "/triggers",
+      });
+    },
+    [kind, navigate]
+  );
+
+  const setScopeFilter = useCallback(
+    (scope: AutomationScopeFilter) => updateSearch({ scope: scope === "all" ? undefined : scope }),
+    [updateSearch]
+  );
+  const setSearchQuery = useCallback(
+    (q: string) => updateSearch({ q: q.trim() === "" ? undefined : q }),
+    [updateSearch]
   );
 
   return {
     activeWorkspace,
     activeWorkspaceId,
     automationRuntime: settingsQuery.data?.runtime ?? null,
-    deferredSearchQuery,
     listFilters,
     scopeFilter,
     searchQuery,

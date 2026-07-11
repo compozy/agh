@@ -34,6 +34,29 @@ import {
   listBridgeRoutes,
   listBridges,
 } from "@/systems/bridges/adapters/bridges-api";
+import type { BridgesListResponse } from "@/systems/bridges/types";
+
+function bridgePage(
+  bridges: BridgesListResponse["bridges"] = [],
+  page: BridgesListResponse["page"] = { has_more: false, limit: 50, total: bridges.length }
+): BridgesListResponse {
+  return {
+    bridge_health: {},
+    bridges,
+    facets: {
+      platforms: {},
+      statuses: {
+        auth_required: 0,
+        degraded: 0,
+        disabled: 0,
+        error: 0,
+        ready: 0,
+        starting: 0,
+      },
+    },
+    page,
+  };
+}
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -54,36 +77,63 @@ describe("useBridges", () => {
   });
 
   it("loads the bridges list", async () => {
-    vi.mocked(listBridges).mockResolvedValue({
-      bridges: [],
-    });
+    vi.mocked(listBridges).mockResolvedValue(bridgePage());
 
     const { result } = renderHook(() => useBridges(), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(result.current.data?.bridges).toEqual([]);
+      expect(result.current.bridges).toEqual([]);
     });
 
-    expect(listBridges).toHaveBeenCalledWith({}, expect.any(AbortSignal));
+    expect(listBridges).toHaveBeenCalledWith(expect.any(Object), expect.any(AbortSignal));
   });
 
   it("passes bridge list filters to the adapter", async () => {
-    vi.mocked(listBridges).mockResolvedValue({
-      bridges: [],
-    });
+    vi.mocked(listBridges).mockResolvedValue(bridgePage());
 
     const { result } = renderHook(() => useBridges({ scope: "all", workspace_id: "ws_alpha" }), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(result.current.data?.bridges).toEqual([]);
+      expect(result.current.bridges).toEqual([]);
     });
 
     expect(listBridges).toHaveBeenCalledWith(
-      { scope: "all", workspace_id: "ws_alpha" },
+      expect.objectContaining({ scope: "all", workspace_id: "ws_alpha" }),
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("appends cursor pages and preserves the exact server total", async () => {
+    const firstBridge = { id: "brg_1" } as BridgesListResponse["bridges"][number];
+    const secondBridge = { id: "brg_2" } as BridgesListResponse["bridges"][number];
+    const firstPage = bridgePage([firstBridge], {
+      has_more: true,
+      limit: 1,
+      next_cursor: "cursor-2",
+      total: 2,
+    });
+    firstPage.facets.platforms = { slack: 2 };
+    vi.mocked(listBridges)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(bridgePage([secondBridge], { has_more: false, limit: 1, total: 2 }));
+
+    const { result } = renderHook(() => useBridges({ limit: 1, q: "ops" }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.bridges).toHaveLength(1));
+    await result.current.fetchNextPage();
+    await waitFor(() =>
+      expect(result.current.bridges.map(bridge => bridge.id)).toEqual(["brg_1", "brg_2"])
+    );
+
+    expect(result.current.total).toBe(2);
+    expect(result.current.facets?.platforms).toEqual({ slack: 2 });
+    expect(listBridges).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: "cursor-2", limit: 1, q: "ops" }),
       expect.any(AbortSignal)
     );
   });

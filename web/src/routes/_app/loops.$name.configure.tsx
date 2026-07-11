@@ -5,11 +5,13 @@ import { Empty, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { LoopConfigureSheet, useLoop, useLoopConfig } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadLoopConfigureRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name/configure")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `Configure ${params.name}`, icon: SlidersHorizontal },
   }),
+  loader: ({ context, params }) => preloadLoopConfigureRoute(context.queryClient, params.name),
   component: LoopConfigureRoute,
 });
 

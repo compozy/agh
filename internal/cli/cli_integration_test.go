@@ -177,19 +177,20 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list human error = %v", err)
 	}
-	if !strings.Contains(humanOut, "Sessions") || !strings.Contains(humanOut, created.ID) {
-		t.Fatalf("human output = %q, want session table", humanOut)
+	if !strings.Contains(humanOut, "Sessions") || !strings.Contains(humanOut, created.ID) ||
+		!strings.Contains(humanOut, "Page") || !strings.Contains(humanOut, "Has More") {
+		t.Fatalf("human output = %q, want session table and page metadata", humanOut)
 	}
 
 	jsonOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
 	if err != nil {
 		t.Fatalf("session list json error = %v", err)
 	}
-	var listed []SessionRecord
+	var listed SessionListPage
 	if err := json.Unmarshal([]byte(jsonOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(session list) error = %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != created.ID {
+	if len(listed.Sessions) != 1 || listed.Sessions[0].ID != created.ID {
 		t.Fatalf("listed = %#v, want one created session", listed)
 	}
 
@@ -200,8 +201,8 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	if !strings.Contains(
 		toonOut,
 		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,updated_at}:",
-	) {
-		t.Fatalf("toon output = %q, want TOON table", toonOut)
+	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
+		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
 }
 
@@ -246,15 +247,15 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list error = %v", err)
 	}
-	var listed []SessionRecord
+	var listed SessionListPage
 	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(session list) error = %v", err)
 	}
-	if got, want := len(listed), 1; got != want {
+	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed[0].Channel != "builders" {
-		t.Fatalf("listed[0].Channel = %q, want %q", listed[0].Channel, "builders")
+	if listed.Sessions[0].Channel != "builders" {
+		t.Fatalf("listed[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -447,15 +448,15 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 		t.Fatalf("session list error = %v", err)
 	}
 
-	var listed []SessionRecord
+	var listed SessionListPage
 	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(session list) error = %v", err)
 	}
-	if got, want := len(listed), 1; got != want {
+	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed[0].Provider != "fake-alt" {
-		t.Fatalf("listed[0].Provider = %q, want %q", listed[0].Provider, "fake-alt")
+	if listed.Sessions[0].Provider != "fake-alt" {
+		t.Fatalf("listed[0].Provider = %q, want %q", listed.Sessions[0].Provider, "fake-alt")
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -1464,11 +1465,11 @@ func TestWorkspaceCommandsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session list --workspace error = %v", err)
 	}
-	var listed []SessionRecord
+	var listed SessionListPage
 	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(session list) error = %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != created.ID {
+	if len(listed.Sessions) != 1 || listed.Sessions[0].ID != created.ID {
 		t.Fatalf("listed = %#v, want one workspace-filtered session", listed)
 	}
 }
@@ -1967,11 +1968,11 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("task list error = %v", err)
 	}
-	var listed []TaskSummaryRecord
+	var listed TaskListRecord
 	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(task list) error = %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != created.ID {
+	if len(listed.Tasks) != 1 || listed.Tasks[0].ID != created.ID {
 		t.Fatalf("listed tasks = %#v, want created task", listed)
 	}
 
@@ -3119,6 +3120,12 @@ func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.Bridge
 		return nil
 	}
 	return nil
+}
+
+func (s *integrationBridgeService) DeliveryMetricsFor(
+	[]string,
+) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
+	return nil, nil
 }
 
 func (s *integrationBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {

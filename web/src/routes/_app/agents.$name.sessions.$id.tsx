@@ -31,6 +31,7 @@ import {
   type SessionPayload,
 } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { adoptRouteWorkspaceWhenSelectionInvalid } from "./-route-preload";
 
 interface AgentSessionRouteLoaderData {
   workspaceId: string | null;
@@ -41,9 +42,8 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
     topbar: { title: `${params.name} · Session`, icon: MessageCircle },
   }),
   loader: ({ context, params }) => {
-    const { queryClient } = context as unknown as { queryClient: QueryClient };
     return prefetchAgentSessionRoute({
-      queryClient,
+      queryClient: context.queryClient,
       sessionId: params.id,
     });
   },
@@ -63,9 +63,10 @@ export async function prefetchAgentSessionRoute({
     return { workspaceId: null };
   }
 
+  await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
   await Promise.allSettled([
     queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),
-    queryClient.ensureQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
+    queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
   ]);
 
   return { workspaceId };
@@ -292,7 +293,7 @@ interface SessionPageContentProps {
   onDeleteSuccess: () => void;
 }
 
-export function SessionPage() {
+function SessionPage() {
   const { name, id } = Route.useParams();
   const { workspaceId } = Route.useLoaderData();
 

@@ -15,37 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// NetworkThreads returns public-thread summaries for one channel.
-func (h *BaseHandlers) NetworkThreads(c *gin.Context) {
-	if _, ok := h.requireNetworkReadDependencies(c); !ok {
-		return
-	}
-	networkStore := h.NetworkStore
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	query, err := parseNetworkThreadQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-
-	threads, err := networkStore.ListThreads(c.Request.Context(), scope.NetworkChannelRef(channel), query)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.NetworkThreadsResponse{
-		Threads: NetworkThreadSummaryPayloadsFromStore(threads),
-	})
-}
-
 // NetworkThread returns one public-thread summary.
 func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 	if _, ok := h.requireNetworkReadDependencies(c); !ok {
@@ -457,60 +426,6 @@ func (h *BaseHandlers) networkThreadTaskLinks(
 	)
 }
 
-// NetworkThreadMessages returns messages isolated to one public thread.
-func (h *BaseHandlers) NetworkThreadMessages(c *gin.Context) {
-	if _, ok := h.requireNetworkReadDependencies(c); !ok {
-		return
-	}
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	threadID := strings.TrimSpace(c.Param("thread_id"))
-	ref := store.NetworkConversationRef{
-		WorkspaceID: scope.NetworkWorkspaceID(),
-		Channel:     channel,
-		Surface:     store.NetworkSurfaceThread,
-		ThreadID:    threadID,
-	}
-	h.respondNetworkConversationMessages(c, ref)
-}
-
-// NetworkDirectRooms returns direct-room summaries for one channel.
-func (h *BaseHandlers) NetworkDirectRooms(c *gin.Context) {
-	if _, ok := h.requireNetworkReadDependencies(c); !ok {
-		return
-	}
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	query, err := parseNetworkDirectRoomQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-
-	directs, err := h.NetworkStore.ListDirectRooms(c.Request.Context(), scope.NetworkChannelRef(channel), query)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.NetworkDirectRoomsResponse{
-		Directs: NetworkDirectRoomPayloadsFromStore(directs),
-	})
-}
-
 // ResolveNetworkDirectRoom creates or returns a deterministic two-party direct room.
 func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	service, ok := h.requireNetworkReadDependencies(c)
@@ -619,30 +534,6 @@ func (h *BaseHandlers) NetworkDirectRoom(c *gin.Context) {
 	})
 }
 
-// NetworkDirectRoomMessages returns messages isolated to one direct room.
-func (h *BaseHandlers) NetworkDirectRoomMessages(c *gin.Context) {
-	if _, ok := h.requireNetworkReadDependencies(c); !ok {
-		return
-	}
-	channel, err := normalizeNetworkChannel(c.Param("channel"))
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	directID := strings.TrimSpace(c.Param("direct_id"))
-	ref := store.NetworkConversationRef{
-		WorkspaceID: scope.NetworkWorkspaceID(),
-		Channel:     channel,
-		Surface:     store.NetworkSurfaceDirect,
-		DirectID:    directID,
-	}
-	h.respondNetworkConversationMessages(c, ref)
-}
-
 // NetworkWork returns one network work row by work_id.
 func (h *BaseHandlers) NetworkWork(c *gin.Context) {
 	if _, ok := h.requireNetworkReadDependencies(c); !ok {
@@ -676,32 +567,6 @@ func (h *BaseHandlers) requireNetworkReadDependencies(c *gin.Context) (NetworkSe
 		return nil, false
 	}
 	return service, true
-}
-
-func (h *BaseHandlers) respondNetworkConversationMessages(c *gin.Context, ref store.NetworkConversationRef) {
-	if err := ref.Validate(); err != nil {
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
-		return
-	}
-	query, err := parseNetworkConversationMessageQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	messages, err := h.NetworkStore.ListConversationMessages(c.Request.Context(), ref, query)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	payload := NetworkConversationMessagePayloadsFromStore(messages)
-	switch ref.Surface {
-	case store.NetworkSurfaceThread:
-		c.JSON(http.StatusOK, contract.NetworkThreadMessagesResponse{Messages: payload})
-	case store.NetworkSurfaceDirect:
-		c.JSON(http.StatusOK, contract.NetworkDirectRoomMessagesResponse{Messages: payload})
-	default:
-		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("surface is required")))
-	}
 }
 
 func (h *BaseHandlers) resolveDirectRoomPeers(
@@ -747,55 +612,6 @@ func (h *BaseHandlers) resolveDirectRoomPeers(
 		)
 	}
 	return local, remote, nil
-}
-
-func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
-	limit, err := parsePositiveIntQuery(c)
-	if err != nil {
-		return store.NetworkThreadQuery{}, NewNetworkValidationError(err)
-	}
-	query := store.NetworkThreadQuery{
-		Limit: limit,
-		After: strings.TrimSpace(c.Query("after")),
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkThreadQuery{}, NewNetworkValidationError(err)
-	}
-	return query, nil
-}
-
-func parseNetworkDirectRoomQuery(c *gin.Context) (store.NetworkDirectRoomQuery, error) {
-	limit, err := parsePositiveIntQuery(c)
-	if err != nil {
-		return store.NetworkDirectRoomQuery{}, NewNetworkValidationError(err)
-	}
-	query := store.NetworkDirectRoomQuery{
-		PeerID: strings.TrimSpace(c.Query("peer_id")),
-		Limit:  limit,
-		After:  strings.TrimSpace(c.Query("after")),
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkDirectRoomQuery{}, NewNetworkValidationError(err)
-	}
-	return query, nil
-}
-
-func parseNetworkConversationMessageQuery(c *gin.Context) (store.NetworkConversationMessageQuery, error) {
-	limit, err := parsePositiveIntQuery(c)
-	if err != nil {
-		return store.NetworkConversationMessageQuery{}, NewNetworkValidationError(err)
-	}
-	query := store.NetworkConversationMessageQuery{
-		BeforeMessageID: strings.TrimSpace(c.Query("before")),
-		AfterMessageID:  strings.TrimSpace(c.Query("after")),
-		Kind:            strings.TrimSpace(c.Query("kind")),
-		WorkID:          strings.TrimSpace(c.Query("work_id")),
-		Limit:           limit,
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkConversationMessageQuery{}, NewNetworkValidationError(err)
-	}
-	return query, nil
 }
 
 func networkThreadPromotionDigest(

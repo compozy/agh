@@ -6,6 +6,8 @@ export type {
   LoopAnnotation,
   LoopAnnotationsUpdateRequest,
   LoopCatalogEntry,
+  LoopCatalogStableFilter,
+  LoopsListResponse,
   LoopCatalogInfo,
   LoopConfig,
   LoopConfigUpdateRequest,
@@ -109,8 +111,6 @@ export type { LoopFilterFieldKey, LoopFilterHandlers } from "./lib/loop-list-fil
 export {
   applyLoopFilterChips,
   buildLoopFilterFields,
-  filterLoopCatalog,
-  filterLoopsByQuery,
   loopFiltersToChips,
   parseLoopCategoryFilter,
   parseLoopKindFilter,
@@ -308,7 +308,6 @@ export type { LoopStatusPillProps } from "./components/loop-status-pill";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
-export { LoopBindingBadge } from "./components/catalog/loop-binding-badge";
 export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";

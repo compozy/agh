@@ -23,6 +23,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/extension/protocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
@@ -2661,10 +2662,13 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle(automation/jobs) error = %v", err)
 	}
-	var listed []automationpkg.Job
+	var listed extensioncontract.AutomationJobsResult
 	decodeResult(t, listResult, &listed)
-	if got, want := len(listed), 1; got != want {
+	if got, want := len(listed.Jobs), 1; got != want {
 		t.Fatalf("len(automation/jobs) = %d, want %d", got, want)
+	}
+	if got, want := listed.Page.Total, 1; got != want {
+		t.Fatalf("automation/jobs page total = %d, want %d", got, want)
 	}
 
 	getResult, err := env.call(t, "ext-automation", "automation/jobs/get", map[string]any{"id": created.ID})
@@ -2791,10 +2795,13 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Handle(automation/triggers) error = %v", err)
 		}
-		var listed []apicontract.TriggerPayload
+		var listed extensioncontract.AutomationTriggersResult
 		decodeResult(t, listResult, &listed)
-		if got, want := len(listed), 1; got != want {
+		if got, want := len(listed.Triggers), 1; got != want {
 			t.Fatalf("len(automation/triggers) = %d, want %d", got, want)
+		}
+		if got, want := listed.Page.Total, 1; got != want {
+			t.Fatalf("automation/triggers page total = %d, want %d", got, want)
 		}
 
 		getResult, err := env.call(t, "ext-automation", "automation/triggers/get", map[string]any{"id": created.ID})
@@ -3086,10 +3093,16 @@ func TestHostAPIHandlerAutomationGetterAndMethodHandlers(t *testing.T) {
 		t.Fatalf("Handle(automation/jobs via getter) error = %v", err)
 	}
 
-	var jobs []automationpkg.Job
-	decodeResult(t, result, &jobs)
-	if jobs == nil {
+	var jobsResult extensioncontract.AutomationJobsResult
+	decodeResult(t, result, &jobsResult)
+	if jobsResult.Jobs == nil {
 		t.Fatal("automation/jobs result = nil, want empty slice")
+	}
+	if got, want := jobsResult.Page.Limit, automationpkg.DefaultListLimit; got != want {
+		t.Fatalf("automation/jobs page limit = %d, want %d", got, want)
+	}
+	if jobsResult.Page.Total != 0 || jobsResult.Page.HasMore || jobsResult.Page.NextCursor != "" {
+		t.Fatalf("automation/jobs page = %#v, want empty terminal page", jobsResult.Page)
 	}
 }
 
@@ -3320,10 +3333,20 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 		t.Fatalf("Handle(tasks) error = %v", err)
 	}
 
-	var listed []apicontract.TaskSummaryPayload
-	decodeResult(t, listResult, &listed)
+	var listedPage apicontract.TasksResponse
+	decodeResult(t, listResult, &listedPage)
+	listed := listedPage.Tasks
 	if got, want := len(listed), 1; got != want {
 		t.Fatalf("len(tasks) = %d, want %d", got, want)
+	}
+	if got, want := listedPage.Page.Total, 1; got != want {
+		t.Fatalf("tasks.page.total = %d, want %d", got, want)
+	}
+	if got, want := listedPage.Page.Limit, 10; got != want {
+		t.Fatalf("tasks.page.limit = %d, want %d", got, want)
+	}
+	if listedPage.Page.HasMore {
+		t.Fatal("tasks.page.has_more = true, want false")
 	}
 	if got, want := listed[0].ID, child.ID; got != want {
 		t.Fatalf("tasks[0].ID = %q, want %q", got, want)
@@ -3352,9 +3375,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	if got, want := listed[0].DependencyCount, 1; got != want {
 		t.Fatalf("tasks[0].DependencyCount = %d, want %d", got, want)
 	}
-	if got, want := len(listed[0].Dependencies), 1; got != want {
-		t.Fatalf("len(tasks[0].Dependencies) = %d, want %d", got, want)
-	}
 	if listed[0].ActiveRun == nil {
 		t.Fatal("tasks[0].ActiveRun = nil, want active run summary")
 	}
@@ -3376,12 +3396,16 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 		t.Fatalf("Handle(tasks include_drafts) error = %v", err)
 	}
 
-	var withDrafts []apicontract.TaskSummaryPayload
-	decodeResult(t, withDraftsResult, &withDrafts)
+	var withDraftsPage apicontract.TasksResponse
+	decodeResult(t, withDraftsResult, &withDraftsPage)
+	withDrafts := withDraftsPage.Tasks
 	if got, want := len(withDrafts), 2; got != want {
 		t.Fatalf("len(tasks include_drafts) = %d, want %d", got, want)
 	}
-	if !slices.ContainsFunc(withDrafts, func(item apicontract.TaskSummaryPayload) bool {
+	if got, want := withDraftsPage.Page.Total, 2; got != want {
+		t.Fatalf("tasks include_drafts page.total = %d, want %d", got, want)
+	}
+	if !slices.ContainsFunc(withDrafts, func(item apicontract.TaskCatalogItemPayload) bool {
 		return item.Draft && item.Status == taskpkg.TaskStatusDraft
 	}) {
 		t.Fatal("tasks include_drafts missing draft payload")
@@ -3599,7 +3623,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 
 	var inbox apicontract.TaskInboxPayload
 	decodeResult(t, inboxResult, &inbox)
-	if inbox.Total < 1 || len(inbox.Groups) == 0 {
+	if inbox.Page.Total < 1 || len(inbox.Groups) == 0 {
 		t.Fatalf("tasks/inbox = %#v, want approval group", inbox)
 	}
 	if got, want := inbox.Groups[0].Lane, apicontract.TaskInboxLaneApprovals; got != want {
@@ -4571,7 +4595,7 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	}
 
 	zeroInbox := taskInboxPayloadFromView(observepkg.TaskInboxView{})
-	if zeroInbox.Total != 0 || len(zeroInbox.Groups) != 0 {
+	if zeroInbox.Page.Total != 0 || len(zeroInbox.Groups) != 0 {
 		t.Fatalf("taskInboxPayloadFromView(zero) = %#v, want zero payload", zeroInbox)
 	}
 
@@ -4589,17 +4613,6 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 	}
 	if got, want := filtered[0].ID, "run-3"; got != want {
 		t.Fatalf("filterTaskRuns()[0].ID = %q, want %q", got, want)
-	}
-
-	filteredTasks := filterTaskListDrafts([]taskpkg.Summary{
-		{ID: "task-1", Draft: false, Status: taskpkg.TaskStatusReady},
-		{ID: "task-2", Draft: true, Status: taskpkg.TaskStatusDraft},
-	}, apicontract.TaskListQuery{Limit: 10})
-	if got, want := len(filteredTasks), 1; got != want {
-		t.Fatalf("len(filterTaskListDrafts default) = %d, want %d", got, want)
-	}
-	if got, want := filteredTasks[0].ID, "task-1"; got != want {
-		t.Fatalf("filterTaskListDrafts()[0].ID = %q, want %q", got, want)
 	}
 }
 

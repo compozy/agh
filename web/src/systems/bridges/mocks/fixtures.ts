@@ -81,6 +81,22 @@ export const bridgesListFixture: BridgesListResponse = {
       },
     },
   ],
+  facets: {
+    platforms: { slack: 1 },
+    statuses: {
+      auth_required: 0,
+      degraded: 0,
+      disabled: 0,
+      error: 0,
+      ready: 1,
+      starting: 0,
+    },
+  },
+  page: {
+    has_more: false,
+    limit: 50,
+    total: 1,
+  },
 };
 
 export const bridgeRoutesFixture: BridgeRoute[] = [

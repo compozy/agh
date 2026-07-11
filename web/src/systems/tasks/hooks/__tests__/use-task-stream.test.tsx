@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildTaskStreamUrl, useTaskStream } from "@/systems/tasks";
-import type { TaskStreamEventSource, TaskStreamPayload } from "@/systems/tasks";
+import { buildTaskStreamUrl, tasksKeys, useTaskStream } from "@/systems/tasks";
+import type { TaskListPage, TaskStreamEventSource, TaskStreamPayload } from "@/systems/tasks";
 
 type TaskStreamEventSourceLike = TaskStreamEventSource;
 
@@ -144,6 +144,75 @@ describe("buildTaskStreamUrl", () => {
 });
 
 describe("useTaskStream", () => {
+  it("Should mark catalogs stale once per burst and reconcile them once on stream cleanup", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const filters = { limit: 1, scope: "workspace" as const, workspace: "ws_alpha" };
+    const firstPage: TaskListPage = {
+      facets: { owners: [], statuses: [{ count: 2, status: "ready" }] },
+      page: { has_more: true, limit: 1, next_cursor: "tasks:1", total: 2 },
+      tasks: [],
+    };
+    const secondPage: TaskListPage = {
+      facets: firstPage.facets,
+      page: { has_more: false, limit: 1, total: 2 },
+      tasks: [],
+    };
+    queryClient.setQueryData(tasksKeys.list(filters), {
+      pageParams: [undefined, "tasks:1"],
+      pages: [firstPage, secondPage],
+    });
+    const catalogQuery = vi.fn(({ pageParam }: { pageParam: unknown }) =>
+      Promise.resolve(pageParam === "tasks:1" ? secondPage : firstPage)
+    );
+    const catalog = renderHook(
+      () =>
+        useInfiniteQuery({
+          getNextPageParam: lastPage => lastPage.page.next_cursor,
+          initialPageParam: undefined as string | undefined,
+          queryFn: catalogQuery,
+          queryKey: tasksKeys.list(filters),
+          staleTime: Number.POSITIVE_INFINITY,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(catalog.result.current.data?.pages).toHaveLength(2));
+    expect(catalogQuery).not.toHaveBeenCalled();
+
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const eventSource = new FakeTaskStreamEventSource();
+    const onEvent = vi.fn();
+    const stream = renderHook(
+      ({ afterSequence }: { afterSequence: number }) =>
+        useTaskStream("task_001", {
+          afterSequence,
+          eventSourceFactory: () => eventSource,
+          onEvent,
+        }),
+      { initialProps: { afterSequence: 24 }, wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitNamed("task.run_started", buildStreamPayload({ sequence: 25 }));
+      eventSource.emitNamed("task.run_started", buildStreamPayload({ sequence: 26 }));
+      eventSource.emitNamed("task.run_started", buildStreamPayload({ sequence: 27 }));
+    });
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
+
+    expect(catalogQuery).not.toHaveBeenCalled();
+    const catalogInvalidations = invalidateQueries.mock.calls.filter(
+      ([filtersArg]) => JSON.stringify(filtersArg?.queryKey) === JSON.stringify(tasksKeys.lists())
+    );
+    expect(catalogInvalidations).toEqual([[{ queryKey: tasksKeys.lists(), refetchType: "none" }]]);
+
+    stream.rerender({ afterSequence: 27 });
+    await Promise.resolve();
+    expect(catalogQuery).not.toHaveBeenCalled();
+
+    stream.unmount();
+    await waitFor(() => expect(catalogQuery).toHaveBeenCalledTimes(2));
+    catalog.unmount();
+  });
+
   it("Should open a stream URL seeded with after_sequence and parse named SSE events", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");

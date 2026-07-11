@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   getAutomationJob,
@@ -10,23 +10,32 @@ import {
   listAutomationTriggers,
 } from "../adapters/automation-api";
 import { automationKeys } from "./query-keys";
+import {
+  automationJobRequest,
+  automationTriggerRequest,
+  normalizeAutomationJobFilter,
+  normalizeAutomationTriggerFilter,
+} from "./automation-list-query";
 import type {
-  AutomationJobListFilter,
+  AutomationJobStableFilter,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
-  AutomationTriggerListFilter,
+  AutomationTriggerStableFilter,
 } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const RUNS_REFETCH_INTERVAL = 15_000;
 
-export function automationJobsListOptions(filters: AutomationJobListFilter = {}) {
-  return queryOptions({
-    queryKey: automationKeys.jobList(filters),
-    queryFn: ({ signal }) => listAutomationJobs(filters, signal),
+export function automationJobsListOptions(filters: AutomationJobStableFilter = {}) {
+  const normalizedFilters = normalizeAutomationJobFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: automationKeys.jobList(normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
   });
 }
 
@@ -54,12 +63,15 @@ export function automationJobRunsOptions(
   });
 }
 
-export function automationTriggersListOptions(filters: AutomationTriggerListFilter = {}) {
-  return queryOptions({
-    queryKey: automationKeys.triggerList(filters),
-    queryFn: ({ signal }) => listAutomationTriggers(filters, signal),
+export function automationTriggersListOptions(filters: AutomationTriggerStableFilter = {}) {
+  const normalizedFilters = normalizeAutomationTriggerFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: automationKeys.triggerList(normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listAutomationTriggers(automationTriggerRequest(normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
   });
 }
 

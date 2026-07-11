@@ -53,4 +53,63 @@ describe("LoopStartBindingsPanel", () => {
     expect(screen.getByTestId("loop-add-trigger")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-add-schedule")).not.toBeInTheDocument();
   });
+
+  it("Should disclose partial binding totals and page each automation kind explicitly", () => {
+    const loadMoreJobs = vi.fn();
+    const { rerender } = render(
+      <LoopStartBindingsPanel
+        bindings={BINDINGS}
+        declaredKinds={DECLARED}
+        jobs={{
+          error: null,
+          hasMore: true,
+          isFetchingMore: false,
+          loadMore: loadMoreJobs,
+          loaded: 50,
+          total: 72,
+        }}
+        triggers={{
+          error: null,
+          hasMore: false,
+          isFetchingMore: false,
+          loadMore: vi.fn(),
+          loaded: 18,
+          total: 18,
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("loop-bindings-progress")).toHaveTextContent(
+      "68 of 90 attached loaded"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Load more schedules" }));
+    expect(loadMoreJobs).toHaveBeenCalledOnce();
+
+    rerender(
+      <LoopStartBindingsPanel
+        bindings={BINDINGS}
+        declaredKinds={DECLARED}
+        jobs={{
+          error: new Error("Could not load the next schedules page"),
+          hasMore: true,
+          isFetchingMore: true,
+          loadMore: loadMoreJobs,
+          loaded: 50,
+          total: 72,
+        }}
+        triggers={{
+          error: null,
+          hasMore: false,
+          isFetchingMore: false,
+          loadMore: vi.fn(),
+          loaded: 18,
+          total: 18,
+        }}
+      />
+    );
+    expect(screen.getByTestId("loop-binding-row")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load");
+    expect(screen.getByTestId("loop-bindings-load-more-jobs")).toBeDisabled();
+    expect(screen.getByTestId("loop-bindings-load-more-jobs")).toHaveAttribute("aria-busy", "true");
+  });
 });

@@ -59,12 +59,12 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 		jobs := map[string]automationpkg.Job{job.ID: job}
 		triggers := map[string]automationpkg.Trigger{trigger.ID: trigger}
 		automation := testutil.StubAutomationManager{
-			ListTriggersFn: func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error) {
+			ListTriggersFn: func(_ context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error) {
 				list := make([]automationpkg.Trigger, 0, len(triggers))
 				for _, record := range triggers {
 					list = append(list, record)
 				}
-				return list, nil
+				return automationpkg.TriggerListPage{Triggers: list, Total: len(list), Limit: query.Limit}, nil
 			},
 			GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
 				record, ok := jobs[job.ID]

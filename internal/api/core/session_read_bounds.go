@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,23 +34,23 @@ func rejectTranscriptBackwardCursor(c *gin.Context) error {
 	return fmt.Errorf("before_sequence is only supported on /transcript")
 }
 
-func parseSessionTranscriptQuery(c *gin.Context) (store.EventQuery, error) {
+func parseSessionTranscriptQuery(c *gin.Context) (transcript.PageQuery, error) {
+	for _, name := range []string{"after_sequence", "since", "type", "agent_name", "turn_id"} {
+		if _, ok := c.GetQuery(name); ok {
+			return transcript.PageQuery{}, fmt.Errorf("%s is not supported on /transcript", name)
+		}
+	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
-		return store.EventQuery{}, err
-	}
-	afterSequence, err := ParseOptionalInt64(c.Query("after_sequence"))
-	if err != nil {
-		return store.EventQuery{}, err
+		return transcript.PageQuery{}, err
 	}
 	beforeSequence, err := ParseOptionalInt64(c.Query("before_sequence"))
 	if err != nil {
-		return store.EventQuery{}, err
+		return transcript.PageQuery{}, err
 	}
-	query := store.EventQuery{
+	query := transcript.PageQuery{
 		Limit:          limit,
-		AfterSequence:  afterSequence,
 		BeforeSequence: beforeSequence,
 	}
-	return applyBoundedSessionReadDefault(query)
+	return query.Normalize()
 }

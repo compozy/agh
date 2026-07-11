@@ -927,7 +927,13 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 			optOutExecutor.ID,
 			"opt-out",
 		)
-		assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, optOutTaskID, optOutRun.ID, 500*time.Millisecond)
+		assertNoSyntheticWakePromptWithin(
+			t,
+			registration.DiagnosticsPath,
+			optOutTaskID,
+			optOutRun.ID,
+			500*time.Millisecond,
+		)
 		assertTaskWakeSuppressedReason(t, ctx, harness, optOutTaskID, "wake_creator_disabled")
 	})
 
@@ -940,7 +946,13 @@ func TestDaemonE2ETaskWakeCreatorDeliversSyntheticTurnAndSuppressesIneligibleWak
 			creatorSession.ID,
 			"self",
 		)
-		assertNoSyntheticWakePromptWithin(t, registration.DiagnosticsPath, selfWakeTaskID, selfWakeRun.ID, 500*time.Millisecond)
+		assertNoSyntheticWakePromptWithin(
+			t,
+			registration.DiagnosticsPath,
+			selfWakeTaskID,
+			selfWakeRun.ID,
+			500*time.Millisecond,
+		)
 		assertTaskWakeSuppressedReason(t, ctx, harness, selfWakeTaskID, "self_wake")
 	})
 

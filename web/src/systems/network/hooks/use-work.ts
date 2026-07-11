@@ -9,6 +9,7 @@ import type { NetworkConversationMessage, NetworkSurface, NetworkWorkDetail } fr
 import { useNetworkMessages } from "./use-messages";
 
 export interface UseNetworkWorkArgs {
+  workspaceId?: string | null;
   workId: string | null | undefined;
   /** Inspector mounted? When false, polling drops back to the on-focus default. */
   inspectorOpen?: boolean;
@@ -28,13 +29,14 @@ export interface UseNetworkWorkResult {
  * (the staleTime + refetchOnWindowFocus from `networkWorkOptions`).
  */
 export function useNetworkWork({
+  workspaceId: requestedWorkspaceId,
   workId,
   inspectorOpen = false,
   enabled = true,
 }: UseNetworkWorkArgs): UseNetworkWorkResult {
   const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
-  const isReady = enabled && Boolean(workId) && activeWorkspaceId != null;
+  const workspaceId = requestedWorkspaceId ?? activeWorkspaceId ?? "";
+  const isReady = enabled && Boolean(workId) && Boolean(workspaceId);
   const baseOptions = networkWorkOptions(workspaceId, workId ?? "", isReady);
   const query = useQuery({
     ...baseOptions,
@@ -75,22 +77,24 @@ export interface OpenWorkEntry {
 }
 
 export interface UseOpenWorkArgs {
+  workspaceId?: string | null;
   channel: string | null | undefined;
   surface: NetworkSurface | null | undefined;
   containerId: string | null | undefined;
   enabled?: boolean;
+  exactOpenCount?: number;
 }
 
 export interface UseOpenWorkResult {
-  /** Work entries that the inspector / chip can render — never includes silent states. */
+  /** Work entries proven by lifecycle messages in the currently loaded timeline pages. */
   entries: OpenWorkEntry[];
-  /** Open work count from the active container's loaded messages — drives banner visibility. */
+  /** Exact detail-summary total when supplied; otherwise the loaded-entry count. */
   openCount: number;
-  /** True when at least one entry is in `needs_input`, used by the banner escalation. */
+  /** Loaded-page evidence only; never use as a complete container aggregate. */
   hasNeedsInput: boolean;
-  /** Count of entries currently awaiting human input — feeds the banner breakdown. */
+  /** Loaded-page evidence only; never use as a complete container aggregate. */
   needsInputCount: number;
-  /** Count of entries actively working — feeds the banner breakdown. */
+  /** Loaded-page evidence only; never use as a complete container aggregate. */
   workingCount: number;
   isLoading: boolean;
 }
@@ -141,20 +145,24 @@ function shouldReplaceWorkState(
  * Aggregates open-work state from the messages already loaded for the active
  * container. The technique is intentional: the public API exposes
  * `open_work_count` on summaries (`_techspec.md`) and individual `getNetworkWork`
- * lookups, but no per-container "list works" endpoint. Scanning the loaded
- * messages avoids fanning out an N+1 of `getNetworkWork` calls.
+ * lookups, but no per-container "list works" endpoint. Scanning loaded messages
+ * can populate forensic rows, while `exactOpenCount` keeps the visible total
+ * authoritative and may be larger than `entries.length`.
  *
  * `_design.md` §13.3 forbids client-side aggregation of *full message lists*
  * for **channel-level** counters; the active container's already-loaded
  * timeline is fair game and is not a counter — it is forensic detail.
  */
 export function useOpenWork({
+  workspaceId,
   channel,
   surface,
   containerId,
   enabled = true,
+  exactOpenCount,
 }: UseOpenWorkArgs): UseOpenWorkResult {
   const messagesQuery = useNetworkMessages({
+    workspaceId,
     channel,
     containerId,
     surface,
@@ -227,11 +235,11 @@ export function useOpenWork({
     entries.sort((left, right) => left.workId.localeCompare(right.workId));
     return {
       entries,
-      openCount: entries.length,
+      openCount: exactOpenCount ?? entries.length,
       hasNeedsInput,
       needsInputCount,
       workingCount,
       isLoading: messagesQuery.isLoading,
     };
-  }, [enabled, messagesQuery.messages, messagesQuery.isLoading]);
+  }, [enabled, exactOpenCount, messagesQuery.messages, messagesQuery.isLoading]);
 }

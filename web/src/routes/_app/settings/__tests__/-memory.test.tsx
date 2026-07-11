@@ -3,7 +3,9 @@ import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { settingsMemoryConfigFixture } from "@/systems/settings/mocks/fixtures";
-import { MemorySettingsPage } from "../memory";
+import { Route } from "../memory";
+
+const MemorySettingsPage = Route.options.component!;
 
 const envelope = {
   section: "memory" as const,
@@ -82,7 +84,7 @@ const restartBanner: RestartBanner = {
 };
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: unknown) => opts,
+  createFileRoute: () => (opts: unknown) => ({ options: opts }),
 }));
 
 vi.mock("@/hooks/routes/use-settings-memory-page", () => ({

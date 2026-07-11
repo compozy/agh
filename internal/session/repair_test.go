@@ -97,11 +97,11 @@ func TestManagerRepairSession(t *testing.T) {
 			t.Fatal("repair tool result Error = empty, want interruption detail")
 		}
 
-		entries, err := h.manager.Transcript(testutil.Context(t), meta.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), meta.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(repaired) error = %v", err)
+			t.Fatalf("TranscriptPage(repaired) error = %v", err)
 		}
-		messages := transcript.MessagesFromEntries(entries)
+		messages := transcript.MessagesFromEntries(page.Entries)
 		assertTranscriptHasDonePart(t, messages)
 	})
 
@@ -120,11 +120,11 @@ func TestManagerRepairSession(t *testing.T) {
 			t.Fatal("RepairSession().Persisted = false, want true")
 		}
 
-		entries, err := h.manager.Transcript(testutil.Context(t), meta.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), meta.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(repaired partial text) error = %v", err)
+			t.Fatalf("TranscriptPage(repaired partial text) error = %v", err)
 		}
-		messages := transcript.MessagesFromEntries(entries)
+		messages := transcript.MessagesFromEntries(page.Entries)
 		if got := transcript.JoinUIMessageText(messages); !strings.Contains(got, "partial before crash") {
 			t.Fatalf("Transcript(repaired partial text) text = %q, want partial assistant evidence", got)
 		}

@@ -119,6 +119,11 @@ func TestTaskErrorHelpers(t *testing.T) {
 		{name: "session missing", err: session.ErrSessionNotFound, want: http.StatusNotFound},
 		{name: "os not exist", err: os.ErrNotExist, want: http.StatusNotFound},
 		{name: "workspace root missing", err: workspacepkg.ErrWorkspaceRootMissing, want: http.StatusGone},
+		{
+			name: "workspace resolver unavailable",
+			err:  workspacepkg.ErrWorkspaceResolverUnavailable,
+			want: http.StatusServiceUnavailable,
+		},
 		{name: "attach forbidden", err: taskpkg.ErrSessionAttachNotAllowed, want: http.StatusConflict},
 		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
@@ -161,6 +166,9 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 	}
 	if got := StatusForAutomationError(automationpkg.ErrWebhookSignatureInvalid); got != http.StatusUnauthorized {
 		t.Fatalf("StatusForAutomationError(signature invalid) = %d, want %d", got, http.StatusUnauthorized)
+	}
+	if got := StatusForAutomationError(automationpkg.ErrListCursorInvalid); got != http.StatusBadRequest {
+		t.Fatalf("StatusForAutomationError(invalid cursor) = %d, want %d", got, http.StatusBadRequest)
 	}
 	if got := StatusForAutomationError(looppkg.ErrValidation); got != http.StatusUnprocessableEntity {
 		t.Fatalf("StatusForAutomationError(loop validation) = %d, want %d", got, http.StatusUnprocessableEntity)
@@ -220,6 +228,26 @@ func TestLoopErrorHelpers(t *testing.T) {
 			name: "Should map Loop transition conflicts to conflict",
 			err:  looppkg.ErrTransitionConflict,
 			want: http.StatusConflict,
+		},
+		{
+			name: "Should map Loop catalog cursor errors to bad request",
+			err:  looppkg.ErrCatalogCursorInvalid,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "Should map missing Loop catalog workspaces to not found",
+			err:  workspacepkg.ErrWorkspaceNotFound,
+			want: http.StatusNotFound,
+		},
+		{
+			name: "Should map missing Loop catalog roots to gone",
+			err:  workspacepkg.ErrWorkspaceRootMissing,
+			want: http.StatusGone,
+		},
+		{
+			name: "Should map unavailable Loop catalogs to service unavailable",
+			err:  looppkg.ErrCatalogUnavailable,
+			want: http.StatusServiceUnavailable,
 		},
 		{
 			name: "Should map unknown Loop errors to internal server error",

@@ -652,7 +652,7 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 		strings.TrimSpace(errorText),
 		"agent runtime became unavailable during prompt",
 	)
-	proc.setWaitErrorOverride(acp.WrapFailure(store.FailureProcess, summary, errors.New(summary)))
+	proc.setWaitErrorOverride(acp.WrapFailure(failure.Kind, summary, errors.New(summary)))
 
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
@@ -766,7 +766,10 @@ func (m *Manager) handlePromptPumpEvent(
 	}
 
 	fatalPromptFailure := promptFatalFailure(normalized)
-	m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent)
+	if err := m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent); err != nil {
+		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+		return failure, errorText, true
+	}
 	if stop := m.sendPromptPumpEvent(ctx, deliveryCtx, out, loop, normalized, runtimeEvent); stop {
 		return fatalPromptFailure, normalized.Error, true
 	}
@@ -847,18 +850,18 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	loop *promptPumpLoopState,
 	normalized acp.AgentEvent,
 	runtimeEvent bool,
-) {
+) error {
 	if loop.activity != nil && !runtimeEvent {
 		loop.activity.observeEvent(normalized)
 	}
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
-		m.sessionLogger(session).
-			Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
+		return fmt.Errorf("session: record prompt event: %w", err)
 	}
 	m.notifyAgentEvent(ctx, session, normalized)
 	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {
 		m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 	}
+	return nil
 }
 
 func (m *Manager) emitTranscriptMarker(
@@ -1093,24 +1096,7 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 		return err
 	}
 
-	if event.Usage != nil {
-		if err := recorder.RecordTokenUsage(ctx, store.TokenUsage{
-			TurnID:           event.Usage.TurnID,
-			InputTokens:      event.Usage.InputTokens,
-			OutputTokens:     event.Usage.OutputTokens,
-			TotalTokens:      event.Usage.TotalTokens,
-			ThoughtTokens:    event.Usage.ThoughtTokens,
-			CacheReadTokens:  event.Usage.CacheReadTokens,
-			CacheWriteTokens: event.Usage.CacheWriteTokens,
-			ContextUsed:      event.Usage.ContextUsed,
-			ContextSize:      event.Usage.ContextSize,
-			CostAmount:       event.Usage.CostAmount,
-			CostCurrency:     event.Usage.CostCurrency,
-			Timestamp:        event.Usage.Timestamp,
-		}); err != nil {
-			return err
-		}
-	}
+	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)

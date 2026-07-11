@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -263,5 +263,41 @@ describe("AgentSessionsList", () => {
     expect(
       screen.getByTestId("agent-session-status-sess_unhealthy_activity")
     ).not.toHaveTextContent("RUNNING");
+  });
+
+  it("loads the next server page from an accessible loading-aware control", () => {
+    const onLoadMore = vi.fn();
+    const { rerender } = render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[makeSession({ id: "sess_page_one" })]}
+        isLoading={false}
+        isError={false}
+        hasMore
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    const button = screen.getByRole("button", { name: "Load more sessions" });
+    fireEvent.click(button);
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[makeSession({ id: "sess_page_one" })]}
+        isLoading={false}
+        isError={false}
+        hasMore
+        isLoadingMore
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Loading more sessions" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Loading more sessions" })).toHaveAttribute(
+      "aria-busy",
+      "true"
+    );
   });
 });

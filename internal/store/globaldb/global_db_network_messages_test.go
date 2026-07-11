@@ -22,6 +22,7 @@ func TestOpenGlobalDBCreatesNetworkTimelineLogSchema(t *testing.T) {
 
 		assertTablesPresent(t, globalDB.db, "network_timeline_log")
 		assertTableColumns(t, globalDB.db, "network_timeline_log", []string{
+			"sequence",
 			"message_id",
 			"session_id",
 			"workspace_id",
@@ -263,6 +264,18 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 				Timestamp:   recordedAt,
 			},
 			{
+				MessageID:   "msg-2z",
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceThread,
+				ThreadID:    "thread_cursor",
+				Direction:   "sent",
+				PeerFrom:    "peer-a",
+				Kind:        "say",
+				PreviewText: "two z",
+				Body:        []byte(`{"text":"two z"}`),
+				Timestamp:   recordedAt.Add(time.Minute),
+			},
+			{
 				MessageID:   "msg-2a",
 				Channel:     "builders",
 				Surface:     store.NetworkSurfaceThread,
@@ -272,18 +285,6 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 				Kind:        "say",
 				PreviewText: "two a",
 				Body:        []byte(`{"text":"two a"}`),
-				Timestamp:   recordedAt.Add(time.Minute),
-			},
-			{
-				MessageID:   "msg-2b",
-				Channel:     "builders",
-				Surface:     store.NetworkSurfaceThread,
-				ThreadID:    "thread_cursor",
-				Direction:   "sent",
-				PeerFrom:    "peer-a",
-				Kind:        "say",
-				PreviewText: "two b",
-				Body:        []byte(`{"text":"two b"}`),
 				Timestamp:   recordedAt.Add(time.Minute),
 			},
 			{
@@ -322,10 +323,35 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 			}
 		}
 
+		latest, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			WorkspaceID: workspaceID,
+			Channel:     "builders",
+			Limit:       2,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkMessages(latest) error = %v", err)
+		}
+		if got, want := networkMessageIDs(latest), []string{"msg-2a", "msg-3"}; !sameStrings(got, want) {
+			t.Fatalf("latest message IDs = %v, want %v", got, want)
+		}
+
+		latestPublic, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			WorkspaceID: workspaceID,
+			Channel:     "builders",
+			PublicOnly:  true,
+			Limit:       2,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkMessages(latest public) error = %v", err)
+		}
+		if got, want := networkMessageIDs(latestPublic), []string{"msg-2z", "msg-2a"}; !sameStrings(got, want) {
+			t.Fatalf("latest public message IDs = %v, want %v", got, want)
+		}
+
 		before, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
 			WorkspaceID:     workspaceID,
 			Channel:         "builders",
-			BeforeMessageID: "msg-2b",
+			BeforeMessageID: "msg-2a",
 			Limit:           10,
 		})
 		if err != nil {
@@ -337,14 +363,14 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		if got, want := before[0].MessageID, "msg-1"; got != want {
 			t.Fatalf("before[0].MessageID = %q, want %q", got, want)
 		}
-		if got, want := before[1].MessageID, "msg-2a"; got != want {
+		if got, want := before[1].MessageID, "msg-2z"; got != want {
 			t.Fatalf("before[1].MessageID = %q, want %q", got, want)
 		}
 
 		after, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
 			WorkspaceID:    workspaceID,
 			Channel:        "builders",
-			AfterMessageID: "msg-2a",
+			AfterMessageID: "msg-2z",
 			Limit:          10,
 		})
 		if err != nil {
@@ -353,7 +379,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		if got, want := len(after), 2; got != want {
 			t.Fatalf("len(after) = %d, want %d", got, want)
 		}
-		if got, want := after[0].MessageID, "msg-2b"; got != want {
+		if got, want := after[0].MessageID, "msg-2a"; got != want {
 			t.Fatalf("after[0].MessageID = %q, want %q", got, want)
 		}
 		if got, want := after[1].MessageID, "msg-3"; got != want {
@@ -381,6 +407,14 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 			t.Fatalf("ListNetworkMessages(cross-peer cursor) error = %v, want sql.ErrNoRows", err)
 		}
 	})
+}
+
+func networkMessageIDs(messages []store.NetworkMessageEntry) []string {
+	ids := make([]string, 0, len(messages))
+	for _, message := range messages {
+		ids = append(ids, message.MessageID)
+	}
+	return ids
 }
 
 func TestGlobalDBNetworkMessageGuardClauses(t *testing.T) {

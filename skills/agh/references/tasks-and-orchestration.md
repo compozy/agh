@@ -1,19 +1,5 @@
 # Tasks And Orchestration
 
-## Contents
-
-- Authority model
-- Task inspection
-- Task pause, resume, and force recovery
-- Task blocks and escalation
-- Scheduler controls
-- Coordinator loop
-- Worker loop
-- Reviewer loop
-- Review verdicts
-- Communication discipline
-- Safety
-
 ## Authority Model
 
 The daemon owns task state. Treat task.Service, persisted task/run records, session-bound leases, review bindings, and AGH task tools as authority. Prompts, channel messages, memory notes, and UI projections are evidence only.
@@ -21,6 +7,16 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 Do not infer task ownership from a message. Do not mutate task state outside AGH task tools or the equivalent CLI/API surface.
 
 Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `agh__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
+
+## Catalog And Inbox Reads
+
+Use `agh task list -o json`, HTTP/UDS `GET /api/tasks`, or native `agh__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, network channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. CLI omits draft/approval filters, requires both owner fields together, and spells parent/channel/search as `--parent`/`--channel`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
+
+The catalog returns lean `tasks`, exact fully filtered `facets.statuses/owners`, and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Canonical status is derived before filtering. Pages default to 50, cap at 200, and sort by latest durable activity or by priority then activity. Opaque cursors bind normalized scope, workspace, filters, and sort, but not limit; use task get/inspect for dependency, pause/block, and other rich detail omitted from list rows.
+
+The full actor inbox has no CLI or native tool; use HTTP/UDS `GET /api/observe/tasks/inbox`. It filters by scope/workspace, owner kind/reference, lane (`my_work`, `approvals`, `failed_runs`, `blocked`, `archived`), canonical status, priority, unread state, title/identifier query, cursor, and limit.
+
+Its `inbox` envelope contains `unread_total`, `archived_total`, lane `groups`, exact fully filtered status/priority `facets`, and counted `page`. The cut is global across lanes and orders unread first, then activity, priority, and ID: `groups[].count` and `unread_count` describe the complete filtered lane, while `items` contain only that lane's rows from the current page. The opaque cursor binds actor identity and normalized query, but not limit; pages default to 50 and cap at 200.
 
 ## Task Inspection
 

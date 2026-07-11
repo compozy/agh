@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { AlertCircle, Plus } from "lucide-react";
 
 import { useTasksRoute } from "@/hooks/routes/use-tasks-route";
 import {
@@ -9,7 +9,7 @@ import {
   TasksKanbanBoard,
   TasksListSurface,
 } from "@/systems/tasks";
-import { Button, PillGroup, useTopbarSlot } from "@agh/ui";
+import { BlockLoading, Button, Empty, PillGroup, useTopbarSlot } from "@agh/ui";
 
 export function TasksRoute() {
   const view = useTasksRoute();
@@ -43,7 +43,7 @@ export function TasksRoute() {
           {
             value: "inbox",
             label: "Inbox",
-            badge: page.inbox?.unread_total ?? 0,
+            badge: page.inboxUnreadCount,
             testId: "tasks-mode-inbox",
           },
         ]}
@@ -52,7 +52,7 @@ export function TasksRoute() {
     actions: (
       <Button
         data-testid="tasks-open-create"
-        disabled={isCreateRoute}
+        disabled={isCreateRoute || !page.hasActiveTaskScope}
         onClick={openCreateRoute}
         size="sm"
         type="button"
@@ -73,6 +73,20 @@ export function TasksRoute() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="tasks-shell-body">
         {hasChildMatch ? (
           <Outlet />
+        ) : page.scopeLoading ? (
+          <BlockLoading
+            data-testid="tasks-scope-loading"
+            label="Resolving task scope"
+            size="md"
+            surface="bare"
+          />
+        ) : page.scopeError ? (
+          <Empty
+            data-testid="tasks-scope-error"
+            description={page.scopeError.message}
+            icon={AlertCircle}
+            title="Unable to resolve task scope"
+          />
         ) : surfaceMode === "dashboard" ? (
           <TasksDashboardView
             dashboard={page.dashboard}
@@ -96,16 +110,20 @@ export function TasksRoute() {
             errorMessage={page.inboxError?.message ?? null}
             inbox={page.inbox}
             inboxUpdatedAt={page.inboxUpdatedAt}
+            hasMore={page.hasMoreInbox}
             isLoading={page.inboxLoading}
+            isLoadingMore={page.isLoadingMoreInbox}
             laneFilter={page.inboxLaneFilter}
             onApprove={page.handleApproveTask}
             onArchive={page.handleArchiveTask}
             onDismiss={page.handleDismissTask}
             onLaneChange={page.handleInboxLaneChange}
             onMarkRead={page.handleMarkTaskRead}
+            onLoadMore={page.loadMoreInbox}
             onPriorityChange={page.handleInboxPriorityChange}
             onReject={page.handleRejectTask}
-            onRetry={page.handleRetryTask}
+            onRetry={page.handleRetryRun}
+            onRetryQuery={page.retryInbox}
             onSearchChange={page.setInboxSearchQuery}
             onStatusChange={page.handleInboxStatusChange}
             onToggleUnread={page.handleInboxUnreadToggle}
@@ -114,6 +132,12 @@ export function TasksRoute() {
             statusFilter={page.inboxStatusFilter}
             unreadOnly={page.inboxUnreadOnly}
             workspaceName={page.activeWorkspaceName}
+            pendingApproveIds={page.pendingApproveIds}
+            pendingArchiveIds={page.pendingArchiveIds}
+            pendingDismissIds={page.pendingDismissIds}
+            pendingMarkReadIds={page.pendingMarkReadIds}
+            pendingRejectIds={page.pendingRejectIds}
+            pendingRetryIds={page.pendingRetryIds}
           />
         ) : page.isEmpty ? (
           <TasksEmptyState
@@ -130,17 +154,27 @@ export function TasksRoute() {
           <TasksKanbanBoard
             columns={page.kanbanColumns}
             errorMessage={page.listError?.message ?? null}
+            hasMore={page.hasMoreTasks}
             isLoading={page.listLoading}
-            onCreateInColumn={openCreateRoute}
+            isLoadingMore={page.isLoadingMoreTasks}
+            onCreate={openCreateRoute}
+            onRetryLoad={page.retryTasks}
+            onRetryTask={page.handleRetryRun}
             onSelectTask={handleSelectTask}
+            onLoadMore={page.loadMoreTasks}
             selectedTaskId={routedTaskId ?? page.effectiveSelectedTaskId}
+            statusCounts={page.statusCounts}
           />
         ) : (
           <TasksListSurface
             errorMessage={page.listError?.message ?? null}
             isLoading={page.listLoading}
+            hasMore={page.hasMoreTasks}
+            isLoadingMore={page.isLoadingMoreTasks}
             listUpdatedAt={page.listUpdatedAt}
             onOwnerChange={page.handleOwnerChange}
+            onLoadMore={page.loadMoreTasks}
+            onRetryLoad={page.retryTasks}
             onPriorityChange={page.handlePriorityChange}
             onSortChange={page.handleSortChange}
             onStatusChange={page.handleStatusChange}
@@ -151,6 +185,7 @@ export function TasksRoute() {
             searchQuery={page.searchQuery}
             sortBy={page.sortBy}
             statusFilter={page.statusFilter}
+            statusCounts={page.statusCounts}
             tasks={page.visibleTasks}
             totalCount={page.tasksCount}
             workspaceName={page.activeWorkspaceName}

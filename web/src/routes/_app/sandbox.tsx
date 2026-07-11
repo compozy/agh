@@ -15,6 +15,7 @@ import {
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSandboxRoute } from "./-settings-preload";
 import {
   Alert,
   AlertAction,
@@ -45,6 +46,7 @@ export const Route = createFileRoute("/_app/sandbox")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Sandbox", icon: Boxes },
   }),
+  loader: ({ context }) => preloadSandboxRoute(context.queryClient),
   component: SandboxPage,
 });
 
@@ -284,7 +286,6 @@ function SandboxRow({
     </TableRow>
   );
 }
-
 function ProfileLine({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-center gap-2 whitespace-nowrap">
@@ -301,7 +302,6 @@ function backendLabel(backend: string): string {
   };
   return map[backend] ?? `custom backend · ${backend}`;
 }
-
 function backendTone(backend: string): "success" | "info" | "neutral" {
   if (backend === "local") return "success";
   if (backend === "daytona") return "info";

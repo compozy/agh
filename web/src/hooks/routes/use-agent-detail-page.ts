@@ -16,6 +16,13 @@ export interface UseAgentDetailPageResult {
   agentLoading: boolean;
   agentError: Error | null;
   sessions: SessionPayload[];
+  sessionsTotal: number;
+  activeSessionsTotal: number;
+  resumableSessionsTotal: number;
+  lastSessionActivityAt: string | null;
+  hasMoreSessions: boolean;
+  isLoadingMoreSessions: boolean;
+  onLoadMoreSessions: () => void;
   sessionsLoading: boolean;
   sessionsError: boolean;
   isRefreshing: boolean;
@@ -40,6 +47,13 @@ export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
   } = useAgent(name, activeWorkspaceId);
   const {
     sessions,
+    total: sessionsTotal,
+    activeTotal: activeSessionsTotal,
+    resumableTotal: resumableSessionsTotal,
+    lastActivityAt: lastSessionActivityAt,
+    hasMore: hasMoreSessions,
+    isLoadingMore: isLoadingMoreSessions,
+    loadMore: onLoadMoreSessions,
     isLoading: sessionsLoading,
     isError: sessionsError,
   } = useAgentSessions(activeWorkspaceId, name);
@@ -70,6 +84,13 @@ export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
     agentLoading,
     agentError: (agentError as Error | null) ?? null,
     sessions,
+    sessionsTotal,
+    activeSessionsTotal,
+    resumableSessionsTotal,
+    lastSessionActivityAt,
+    hasMoreSessions,
+    isLoadingMoreSessions,
+    onLoadMoreSessions,
     sessionsLoading,
     sessionsError,
     isRefreshing,

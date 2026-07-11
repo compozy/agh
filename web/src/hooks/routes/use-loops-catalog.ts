@@ -18,8 +18,6 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
-import { useLoopBindingIndex } from "./use-loop-bindings";
-
 export interface LoopsRouteSearch {
   q?: string;
   view?: ListingViewMode;
@@ -44,9 +42,20 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
     status: search.status ?? null,
   };
 
-  // Skip catalog + binding fetches while a child route (detail/editor/run) owns the view.
-  const loopsQuery = useLoops(workspaceId, workspaceId !== "" && !hasChildMatch);
-  const bindingIndex = useLoopBindingIndex(hasChildMatch ? "" : workspaceId);
+  const catalogFilters = {
+    category: filter.category ?? undefined,
+    kind:
+      filter.kind === "read-only"
+        ? ("read_only" as const)
+        : filter.kind === "workspace"
+          ? ("workspace" as const)
+          : undefined,
+    limit: 50,
+    q: searchQuery,
+    sort: "name" as const,
+    status: filter.status ?? undefined,
+  };
+  const loopsQuery = useLoops(workspaceId, catalogFilters, workspaceId !== "" && !hasChildMatch);
 
   const updateSearch = useCallback(
     (updater: (current: LoopsRouteSearch) => LoopsRouteSearch) => {
@@ -131,7 +140,11 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
 
   return {
     activeWorkspace,
-    bindingIndex,
+    hasActiveFilters:
+      searchQuery.trim() !== "" ||
+      filter.kind !== "all" ||
+      filter.category !== null ||
+      filter.status !== null,
     clearFilters,
     filter,
     handleRefresh,

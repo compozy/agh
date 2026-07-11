@@ -52,6 +52,7 @@ const (
 	bridgeListKey           = "list"
 	bridgeMessageKey        = "message"
 	bridgePeerIDKey         = "peer_id"
+	bridgePlatformKey       = "platform"
 	bridgeResolvedValue     = "resolved"
 	bridgeScopeKey          = "scope"
 	bridgeStepValue         = "Step"
@@ -88,25 +89,6 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newBridgeSecretBindingsCommand(deps))
 	cmd.AddCommand(newBridgeTestDeliveryCommand(deps))
 	return cmd
-}
-
-func newBridgeListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   bridgeListKey,
-		Short: "List bridge instances",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			items, err := client.ListBridges(cmd.Context())
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, bridgeListBundle(items, deps.now))
-		},
-	}
 }
 
 func newBridgeGetCommand(deps commandDeps) *cobra.Command {
@@ -692,63 +674,6 @@ func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func bridgeListBundle(items []BridgeRecord, now func() time.Time) outputBundle {
-	return listBundle(
-		items,
-		items,
-		"Bridges",
-		[]string{
-			"ID",
-			automationNameValue,
-			bundlePlatformValue,
-			bridgeExtensionValue,
-			automationScopeValue,
-			configWorkspaceValue,
-			automationStatusValue,
-			"Routing",
-			authoredContextUpdatedValue,
-		},
-		"bridges",
-		[]string{
-			"id",
-			bridgeDisplayNameKey,
-			"platform",
-			"extension_name",
-			bridgeScopeKey,
-			bridgeWorkspaceIDKey,
-			bridgeStatusKey,
-			"routing",
-			bridgeUpdatedAtKey,
-		},
-		func(item BridgeRecord) []string {
-			return []string{
-				stringOrDash(item.ID),
-				stringOrDash(item.DisplayName),
-				stringOrDash(item.Platform),
-				stringOrDash(item.ExtensionName),
-				stringOrDash(string(item.Scope)),
-				stringOrDash(item.WorkspaceID),
-				stringOrDash(string(item.Status)),
-				stringOrDash(bridgeRoutingPolicyLabel(item.RoutingPolicy)),
-				stringOrDash(formatAge(now, item.UpdatedAt)),
-			}
-		},
-		func(item BridgeRecord) []string {
-			return []string{
-				item.ID,
-				item.DisplayName,
-				item.Platform,
-				item.ExtensionName,
-				string(item.Scope),
-				item.WorkspaceID,
-				string(item.Status),
-				bridgeRoutingPolicyLabel(item.RoutingPolicy),
-				formatTime(item.UpdatedAt),
-			}
-		},
-	)
-}
-
 func bridgeBundle(item BridgeRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
@@ -785,7 +710,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 			return renderToonObject(bridgeBridgeKey, []string{
 				"id",
 				bridgeDisplayNameKey,
-				"platform",
+				bridgePlatformKey,
 				"extension_name",
 				bridgeScopeKey,
 				bridgeWorkspaceIDKey,
@@ -977,7 +902,7 @@ func bridgeSecretBindingListBundle(items []BridgeSecretBindingRecord) outputBund
 			taskBridgeInstanceIDKey,
 			bridgeBindingNameKey,
 			"secret_ref",
-			"kind",
+			networkKindKey,
 			bridgeUpdatedAtKey,
 		},
 		func(item BridgeSecretBindingRecord) []string {
@@ -1026,7 +951,7 @@ func bridgeSecretBindingBundle(item BridgeSecretBindingRecord) outputBundle {
 					taskBridgeInstanceIDKey,
 					bridgeBindingNameKey,
 					"secret_ref",
-					"kind",
+					bundleKindKey,
 					bridgeCreatedAtKey,
 					bridgeUpdatedAtKey,
 				},

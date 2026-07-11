@@ -28,7 +28,8 @@ func (h *BaseHandlers) beginSessionStreamTelemetry(
 		activeStreams,
 	)
 	attrs = append(attrs,
-		"replay_snapshot", options.replaySnapshot,
+		"expected_epoch_supplied", options.expectedEpoch != nil,
+		"expected_generation_supplied", options.expectedGeneration != nil,
 		"subscription_active", subscriptionActive,
 	)
 	h.sessionStreamLogger().InfoContext(ctx, "api: session stream opened", attrs...)
@@ -43,7 +44,8 @@ func (h *BaseHandlers) beginSessionStreamTelemetry(
 			activeStreams,
 		)
 		attrs = append(attrs,
-			"replay_snapshot", options.replaySnapshot,
+			"expected_epoch_supplied", options.expectedEpoch != nil,
+			"expected_generation_supplied", options.expectedGeneration != nil,
 			"subscription_active", subscriptionActive,
 		)
 		h.sessionStreamLogger().InfoContext(ctx, "api: session stream closed", attrs...)
@@ -162,7 +164,7 @@ func (h *BaseHandlers) sessionStreamAttrs(
 	catchUpBatchSize int,
 	activeStreams int64,
 ) []any {
-	workspaceID, workspacePath := streamWorkspaceFields(info)
+	workspaceID, workspacePath := h.streamWorkspaceFields(info)
 	return []any{
 		"session_id", sessionID,
 		"workspace_id", workspaceID,

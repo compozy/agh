@@ -17,6 +17,7 @@ export interface WorkInspectorProps {
    * `<NetworkInspector>` to host the Work tab body.
    */
   chromeless?: boolean;
+  totalCount?: number;
 }
 
 export function WorkInspector({
@@ -25,10 +26,21 @@ export function WorkInspector({
   onJump,
   className,
   chromeless = false,
+  totalCount = entries.length,
 }: WorkInspectorProps) {
   const body =
     isLoading && entries.length === 0 ? (
       <p className="px-4 py-6 text-small-body text-subtle">Loading…</p>
+    ) : entries.length === 0 && totalCount > 0 ? (
+      <div className="flex justify-center px-4 py-6">
+        <Empty
+          className="max-w-sm"
+          description={`${totalCount} open work ${totalCount === 1 ? "item is" : "items are"} known, but ${totalCount === 1 ? "its" : "their"} lifecycle messages are outside the loaded timeline.`}
+          fill={false}
+          icon={Activity}
+          title="Open work details not loaded."
+        />
+      </div>
     ) : entries.length === 0 ? (
       <div className="flex justify-center px-4 py-6">
         <Empty
@@ -72,7 +84,9 @@ export function WorkInspector({
     >
       <header className="flex items-baseline justify-between border-b border-line px-4 py-3">
         <h2 className="text-sm font-medium text-fg">Work</h2>
-        <Eyebrow data-testid="network-work-inspector-count">{entries.length} open</Eyebrow>
+        <Eyebrow data-testid="network-work-inspector-count">
+          {entries.length} loaded · {totalCount} open
+        </Eyebrow>
       </header>
       {body}
     </section>

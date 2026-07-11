@@ -175,6 +175,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"idx_loop_runs_queue_order",
 		"ON loop_runs(workspace_id, loop_name, status, created_at ASC, id ASC)",
 	)
+	assertIndexesPresent(t, globalDB.db, "loop_runs", "idx_loop_runs_catalog")
+	assertIndexSQLContains(
+		t,
+		globalDB.db,
+		"idx_loop_runs_catalog",
+		"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
+	)
 	assertIndexesPresent(t, globalDB.db, "task_runs", "uq_task_runs_active_loop_coordinator")
 	assertIndexesPresent(t, globalDB.db, "loop_generation_outputs", "idx_loop_generation_outputs_output_ref")
 	assertIndexSQLContains(t, globalDB.db, "uq_task_runs_active_loop_coordinator", "ON task_runs(loop_run_id)")

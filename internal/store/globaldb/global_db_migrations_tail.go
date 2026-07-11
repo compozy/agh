@@ -21,4 +21,11 @@ var globalSchemaTailMigrations = []store.Migration{
 		Up:       migrateModelCatalogCurationPresence,
 		Checksum: "2026-07-10-add-model-catalog-curation-presence",
 	},
+	networkChannelProjectionsMigration,
+	sessionCatalogPagingMigration,
+	loopCatalogPagingMigration,
+	automationCatalogProjectionMigration,
+	networkTimelineSequenceMigration,
+	sessionsCatalogIndexCleanupMigration,
+	networkDirectRoomCreatedIndexMigration,
 }

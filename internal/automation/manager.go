@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	modelpkg "github.com/compozy/agh/internal/automation/model"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/resources"
@@ -43,38 +44,6 @@ type managerRuntimeComponent interface {
 type SessionManager interface {
 	SessionCreator
 	Status(ctx context.Context, id string) (*session.Info, error)
-}
-
-// Store is the automation persistence surface consumed by the composed
-// automation manager.
-type Store interface {
-	RunStore
-	GetRun(ctx context.Context, id string) (Run, error)
-	CreateJob(ctx context.Context, job Job) (Job, error)
-	UpdateJob(ctx context.Context, job Job) (Job, error)
-	DeleteJob(ctx context.Context, id string) error
-	GetJob(ctx context.Context, id string) (Job, error)
-	ListJobs(ctx context.Context, query JobListQuery) ([]Job, error)
-	CreateTrigger(ctx context.Context, trigger Trigger) (Trigger, error)
-	UpdateTrigger(ctx context.Context, trigger Trigger) (Trigger, error)
-	DeleteTrigger(ctx context.Context, id string) error
-	GetTrigger(ctx context.Context, id string) (Trigger, error)
-	ListTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error)
-	ListRuns(ctx context.Context, query RunQuery) ([]Run, error)
-	GetSchedulerState(ctx context.Context, jobID string) (SchedulerState, error)
-	ListSchedulerStates(ctx context.Context) ([]SchedulerState, error)
-	SaveSchedulerState(ctx context.Context, state SchedulerState) (SchedulerState, error)
-	DeleteSchedulerState(ctx context.Context, jobID string) error
-	ClaimScheduledRun(ctx context.Context, claim SchedulerClaim) (SchedulerClaimResult, error)
-	RecordRunDeliveryError(ctx context.Context, runID string, runErr error) (Run, error)
-	SetJobEnabledOverlay(ctx context.Context, overlay JobEnabledOverlay) (JobEnabledOverlay, error)
-	GetJobEnabledOverlay(ctx context.Context, jobID string) (JobEnabledOverlay, error)
-	ListJobEnabledOverlays(ctx context.Context) ([]JobEnabledOverlay, error)
-	DeleteJobEnabledOverlay(ctx context.Context, jobID string) error
-	SetTriggerEnabledOverlay(ctx context.Context, overlay TriggerEnabledOverlay) (TriggerEnabledOverlay, error)
-	GetTriggerEnabledOverlay(ctx context.Context, triggerID string) (TriggerEnabledOverlay, error)
-	ListTriggerEnabledOverlays(ctx context.Context) ([]TriggerEnabledOverlay, error)
-	DeleteTriggerEnabledOverlay(ctx context.Context, triggerID string) error
 }
 
 // WebhookSecretResolver resolves a persisted webhook secret reference.
@@ -517,11 +486,11 @@ func (m *Manager) loadStartupDefinitionsLocked(ctx context.Context) ([]Job, []Tr
 		m.projectedTriggers = triggerMapFromSlice(projectedTriggers)
 		m.triggerRevision = triggerRevision
 
-		jobs, err := m.applyJobQueryAndOverlays(ctx, m.projectedJobDefinitionsLocked(), JobListQuery{})
+		jobs, err := m.applyJobOverlays(ctx, m.projectedJobDefinitionsLocked())
 		if err != nil {
 			return nil, nil, fmt.Errorf("automation: load effective jobs: %w", err)
 		}
-		triggers, err := m.applyTriggerQueryAndOverlays(ctx, m.projectedTriggerDefinitionsLocked(), TriggerListQuery{})
+		triggers, err := m.applyTriggerOverlays(ctx, m.projectedTriggerDefinitionsLocked())
 		if err != nil {
 			return nil, nil, fmt.Errorf("automation: load effective triggers: %w", err)
 		}
@@ -584,15 +553,15 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 // Jobs returns overlay-aware job definitions from persistence.
 func (m *Manager) Jobs(ctx context.Context) ([]Job, error) {
-	return m.ListJobs(ctx, JobListQuery{})
+	return m.loadEffectiveJobs(ctx, JobListQuery{})
 }
 
 // ListJobs returns overlay-aware job definitions using the supplied filters.
-func (m *Manager) ListJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
+func (m *Manager) ListJobs(ctx context.Context, query JobListQuery) (JobListPage, error) {
 	if ctx == nil {
-		return nil, errors.New("automation: list jobs context is required")
+		return JobListPage{}, errors.New("automation: list jobs context is required")
 	}
-	return m.loadEffectiveJobs(ctx, query)
+	return m.loadEffectiveJobPage(ctx, modelpkg.JobListQueryWithDefaultLimit(query))
 }
 
 // GetJob returns one overlay-aware job definition by id.
@@ -786,16 +755,16 @@ func (m *Manager) triggerJob(ctx context.Context, id string, payload map[string]
 
 // Triggers returns overlay-aware trigger definitions from persistence.
 func (m *Manager) Triggers(ctx context.Context) ([]Trigger, error) {
-	return m.ListTriggers(ctx, TriggerListQuery{})
+	return m.loadEffectiveTriggers(ctx, TriggerListQuery{})
 }
 
 // ListTriggers returns overlay-aware trigger definitions using the supplied
 // filters.
-func (m *Manager) ListTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error) {
+func (m *Manager) ListTriggers(ctx context.Context, query TriggerListQuery) (TriggerListPage, error) {
 	if ctx == nil {
-		return nil, errors.New("automation: list triggers context is required")
+		return TriggerListPage{}, errors.New("automation: list triggers context is required")
 	}
-	return m.loadEffectiveTriggers(ctx, query)
+	return m.loadEffectiveTriggerPage(ctx, modelpkg.TriggerListQueryWithDefaultLimit(query))
 }
 
 // GetTrigger returns one overlay-aware trigger definition by id.
@@ -1255,74 +1224,6 @@ func (m *Manager) DeleteAutomationSessionTaskActor(sessionID string) {
 	delete(m.sessionTaskActors, trimmedSessionID)
 }
 
-func (m *Manager) loadEffectiveJobs(ctx context.Context, query JobListQuery) ([]Job, error) {
-	if m.resourceDefinitionsEnabled() {
-		jobs := m.projectedJobDefinitions()
-		return m.applyJobQueryAndOverlays(ctx, jobs, query)
-	}
-
-	jobs, err := m.store.ListJobs(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	overlays, err := m.store.ListJobEnabledOverlays(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	overlayByID := make(map[string]bool, len(overlays))
-	for _, overlay := range overlays {
-		overlayByID[overlay.JobID] = overlay.EnabledOverride
-	}
-
-	effective := make([]Job, 0, len(jobs))
-	for _, job := range jobs {
-		next := cloneJob(job)
-		if isOverlayManagedSource(next.Source) {
-			if enabled, ok := overlayByID[next.ID]; ok {
-				next.Enabled = enabled
-			}
-		}
-		effective = append(effective, next)
-	}
-	sortJobs(effective)
-	return effective, nil
-}
-
-func (m *Manager) loadEffectiveTriggers(ctx context.Context, query TriggerListQuery) ([]Trigger, error) {
-	if m.resourceDefinitionsEnabled() {
-		triggers := m.projectedTriggerDefinitions()
-		return m.applyTriggerQueryAndOverlays(ctx, triggers, query)
-	}
-
-	triggers, err := m.store.ListTriggers(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	overlays, err := m.store.ListTriggerEnabledOverlays(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	overlayByID := make(map[string]bool, len(overlays))
-	for _, overlay := range overlays {
-		overlayByID[overlay.TriggerID] = overlay.EnabledOverride
-	}
-
-	effective := make([]Trigger, 0, len(triggers))
-	for _, trigger := range triggers {
-		next := cloneTrigger(trigger)
-		if isOverlayManagedSource(next.Source) {
-			if enabled, ok := overlayByID[next.ID]; ok {
-				next.Enabled = enabled
-			}
-		}
-		effective = append(effective, next)
-	}
-	sortTriggers(effective)
-	return effective, nil
-}
-
 func (m *Manager) effectiveJob(ctx context.Context, id string) (Job, error) {
 	if m.resourceDefinitionsEnabled() {
 		job, err := m.projectedJobDefinition(id)
@@ -1563,7 +1464,7 @@ func (m *Manager) SyncManagedDefinitions(
 }
 
 func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desired []Job) (int, int, error) {
-	existing, err := m.store.ListJobs(ctx, JobListQuery{Source: source})
+	existing, err := m.store.ListJobDefinitions(ctx, source)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1615,7 +1516,7 @@ func (m *Manager) syncTriggersForSource(
 	source JobSource,
 	desired []Trigger,
 ) (int, int, error) {
-	existing, err := m.store.ListTriggers(ctx, TriggerListQuery{Source: source})
+	existing, err := m.store.ListTriggerDefinitions(ctx, source)
 	if err != nil {
 		return 0, 0, err
 	}

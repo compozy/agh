@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   NetworkApiError,
@@ -9,17 +9,22 @@ import {
   getNetworkThread,
   getNetworkWork,
   listNetworkChannels,
-  listNetworkDirectRooms,
   listNetworkDirectRoomMessages,
+  listNetworkDirectRooms,
   listNetworkPeers,
   listNetworkSubscriptions,
   listNetworkThreadMessages,
   listNetworkThreads,
   type NetworkSubscriptionsListQuery,
-  type NetworkDirectsListQuery,
-  type NetworkThreadsListQuery,
 } from "../adapters/network-api";
-import type { NetworkConversationMessagesQuery } from "../types";
+import type {
+  NetworkChannelsQuery,
+  NetworkConversationMessageFilters,
+  NetworkCursorPageParam,
+  NetworkDirectsListQuery,
+  NetworkMessagePageParam,
+  NetworkThreadsListQuery,
+} from "../types";
 import { networkKeys } from "./query-keys";
 
 const STATUS_REFETCH_INTERVAL = 30_000;
@@ -27,19 +32,46 @@ const STATUS_STALE_TIME = 10_000;
 const CHANNELS_REFETCH_INTERVAL = 30_000;
 const LIST_REFETCH_INTERVAL = 15_000;
 const LIST_STALE_TIME = 5_000;
-const MESSAGES_REFETCH_INTERVAL = 5_000;
-const MESSAGES_STALE_TIME = 2_000;
 const WORK_REFETCH_INTERVAL = 3_000;
-const DEFAULT_TIMELINE_LIMIT = 120;
-const DEFAULT_LIST_LIMIT = 50;
+export const NETWORK_DEFAULT_RECENTS_LIMIT = 5;
+export const NETWORK_DEFAULT_TIMELINE_LIMIT = 120;
+export const NETWORK_DEFAULT_LIST_LIMIT = 50;
 const DETAIL_RETRY_LIMIT = 2;
 
 function shouldRetryDetailQuery(failureCount: number, error: Error): boolean {
   if (error instanceof NetworkApiError && error.status >= 400 && error.status < 500) {
     return false;
   }
-
   return failureCount < DETAIL_RETRY_LIMIT;
+}
+
+type NetworkCatalogStableQuery = Omit<NetworkThreadsListQuery, "after"> & { limit: number };
+
+function normalizeCatalogQuery(
+  query: NetworkThreadsListQuery | NetworkDirectsListQuery,
+  limit = NETWORK_DEFAULT_LIST_LIMIT
+): NetworkCatalogStableQuery {
+  const { after: _after, peer_id: peerId, query: search, sort, ...stable } = query;
+  return {
+    ...stable,
+    ...(search?.trim() ? { query: search.trim() } : {}),
+    ...(peerId?.trim() ? { peer_id: peerId.trim() } : {}),
+    limit: query.limit ?? limit,
+    sort: sort?.trim() || "recent_activity",
+  };
+}
+
+function normalizeMessageFilters(
+  query: NetworkConversationMessageFilters,
+  limit = NETWORK_DEFAULT_TIMELINE_LIMIT
+): NetworkConversationMessageFilters & { limit: number } {
+  const { kind, work_id: workId, ...stable } = query;
+  return {
+    ...stable,
+    ...(kind?.trim() ? { kind: kind.trim() } : {}),
+    ...(workId?.trim() ? { work_id: workId.trim() } : {}),
+    limit: query.limit ?? limit,
+  };
 }
 
 export function networkStatusOptions() {
@@ -52,10 +84,18 @@ export function networkStatusOptions() {
   });
 }
 
-export function networkChannelsOptions(workspaceId: string, enabled = true) {
+export function networkChannelsOptions(
+  workspaceId: string,
+  query: NetworkChannelsQuery = { recent_limit: NETWORK_DEFAULT_RECENTS_LIMIT },
+  enabled = true
+) {
+  const normalizedQuery = {
+    ...query,
+    recent_limit: query.recent_limit ?? NETWORK_DEFAULT_RECENTS_LIMIT,
+  };
   return queryOptions({
-    queryKey: networkKeys.channels(workspaceId),
-    queryFn: ({ signal }) => listNetworkChannels(workspaceId, signal),
+    queryKey: networkKeys.channels(workspaceId, normalizedQuery),
+    queryFn: ({ signal }) => listNetworkChannels(workspaceId, normalizedQuery, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: CHANNELS_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
@@ -96,12 +136,21 @@ export function networkThreadsOptions(
   query: NetworkThreadsListQuery = {},
   enabled = true
 ) {
-  const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_LIST_LIMIT };
-  return queryOptions({
-    queryKey: networkKeys.threadsList(workspaceId, channel, normalizedQuery),
-    queryFn: ({ signal }) => listNetworkThreads(workspaceId, channel, normalizedQuery, signal),
+  const stableQuery = normalizeCatalogQuery(query);
+  return infiniteQueryOptions({
+    queryKey: networkKeys.threadsList(workspaceId, channel, stableQuery),
+    queryFn: ({ pageParam, signal }) =>
+      listNetworkThreads(
+        workspaceId,
+        channel,
+        { ...stableQuery, ...(pageParam ? { after: pageParam } : {}) },
+        signal
+      ),
+    initialPageParam: null as NetworkCursorPageParam,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: LIST_STALE_TIME,
-    refetchInterval: LIST_REFETCH_INTERVAL,
+    refetchInterval: query =>
+      (query.state.data?.pages.length ?? 0) > 1 ? false : LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
     enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
   });
@@ -128,17 +177,27 @@ export function networkThreadMessagesOptions(
   workspaceId: string,
   channel: string,
   threadId: string,
-  query: NetworkConversationMessagesQuery = {},
+  query: NetworkConversationMessageFilters = {},
   enabled = true
 ) {
-  const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_TIMELINE_LIMIT };
-  return queryOptions({
-    queryKey: networkKeys.threadMessages(workspaceId, channel, threadId, normalizedQuery),
-    queryFn: ({ signal }) =>
-      listNetworkThreadMessages(workspaceId, channel, threadId, normalizedQuery, signal),
-    staleTime: MESSAGES_STALE_TIME,
-    refetchInterval: MESSAGES_REFETCH_INTERVAL,
-    refetchOnWindowFocus: true,
+  const filters = normalizeMessageFilters(query);
+  return infiniteQueryOptions({
+    queryKey: networkKeys.threadMessages(workspaceId, channel, threadId, filters),
+    queryFn: ({ pageParam, signal }) =>
+      listNetworkThreadMessages(
+        workspaceId,
+        channel,
+        threadId,
+        { ...filters, ...pageParam },
+        signal
+      ),
+    initialPageParam: null as NetworkMessagePageParam,
+    getNextPageParam: lastPage =>
+      lastPage.page.has_more && lastPage.page.next_cursor
+        ? { before: lastPage.page.next_cursor }
+        : undefined,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
     enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(threadId) && enabled,
   });
 }
@@ -149,12 +208,21 @@ export function networkDirectsOptions(
   query: NetworkDirectsListQuery = {},
   enabled = true
 ) {
-  const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_LIST_LIMIT };
-  return queryOptions({
-    queryKey: networkKeys.directsList(workspaceId, channel, normalizedQuery),
-    queryFn: ({ signal }) => listNetworkDirectRooms(workspaceId, channel, normalizedQuery, signal),
+  const stableQuery = normalizeCatalogQuery(query);
+  return infiniteQueryOptions({
+    queryKey: networkKeys.directsList(workspaceId, channel, stableQuery),
+    queryFn: ({ pageParam, signal }) =>
+      listNetworkDirectRooms(
+        workspaceId,
+        channel,
+        { ...stableQuery, ...(pageParam ? { after: pageParam } : {}) },
+        signal
+      ),
+    initialPageParam: null as NetworkCursorPageParam,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: LIST_STALE_TIME,
-    refetchInterval: LIST_REFETCH_INTERVAL,
+    refetchInterval: query =>
+      (query.state.data?.pages.length ?? 0) > 1 ? false : LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
     enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
   });
@@ -181,17 +249,27 @@ export function networkDirectMessagesOptions(
   workspaceId: string,
   channel: string,
   directId: string,
-  query: NetworkConversationMessagesQuery = {},
+  query: NetworkConversationMessageFilters = {},
   enabled = true
 ) {
-  const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_TIMELINE_LIMIT };
-  return queryOptions({
-    queryKey: networkKeys.directMessages(workspaceId, channel, directId, normalizedQuery),
-    queryFn: ({ signal }) =>
-      listNetworkDirectRoomMessages(workspaceId, channel, directId, normalizedQuery, signal),
-    staleTime: MESSAGES_STALE_TIME,
-    refetchInterval: MESSAGES_REFETCH_INTERVAL,
-    refetchOnWindowFocus: true,
+  const filters = normalizeMessageFilters(query);
+  return infiniteQueryOptions({
+    queryKey: networkKeys.directMessages(workspaceId, channel, directId, filters),
+    queryFn: ({ pageParam, signal }) =>
+      listNetworkDirectRoomMessages(
+        workspaceId,
+        channel,
+        directId,
+        { ...filters, ...pageParam },
+        signal
+      ),
+    initialPageParam: null as NetworkMessagePageParam,
+    getNextPageParam: lastPage =>
+      lastPage.page.has_more && lastPage.page.next_cursor
+        ? { before: lastPage.page.next_cursor }
+        : undefined,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
     enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(directId) && enabled,
   });
 }
@@ -200,7 +278,7 @@ export function networkWorkOptions(workspaceId: string, workId: string, enabled 
   return queryOptions({
     queryKey: networkKeys.work(workspaceId, workId),
     queryFn: ({ signal }) => getNetworkWork(workspaceId, workId, signal),
-    staleTime: MESSAGES_STALE_TIME,
+    staleTime: 2_000,
     refetchInterval: WORK_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
     enabled: Boolean(workspaceId) && Boolean(workId) && enabled,

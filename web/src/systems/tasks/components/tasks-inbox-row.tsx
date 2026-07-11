@@ -8,8 +8,7 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
   taskId: string;
   /**
    * Inbox group this row belongs to. Drives the rail tone —
-   * `needs_review` paints warning, `blocked` paints danger, `stuck` paints
-   * warning ring, `mentions` paints `fg-strong` (operator attention), `updates`
+   * `needs_review` paints warning, `blocked` paints danger, and `updates`
    * paints a faint ring.
    */
   group: InboxGroupId;
@@ -27,15 +26,12 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
 
 /**
  * Inbox row primitive — 3-column grid `[ rail | body | meta ]`. The rail
- * carries the group tone (signal palette only — `mentions` uses `fg-strong`,
- * never `accent`, so the per-viewport accent budget stays with the active
- * CTA). Unread state is expressed via the body's title weight.
+ * carries the group tone from backend-backed signals. Unread state is
+ * expressed via the body's title weight.
  */
 const RAIL_CLASS: Record<InboxGroupId, string> = {
   needs_review: "bg-warning",
   blocked: "bg-danger",
-  stuck: "bg-transparent inset-ring-1 inset-ring-warning",
-  mentions: "bg-fg-strong",
   updates: "bg-transparent shadow-focus-ring-inset",
 };
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
+  bridgeListFilterForScope,
   compactBridgeDeliveryDefaults,
   createBridgeTestDeliveryDraft,
   createBridgeUpdateDraft,
@@ -24,7 +25,6 @@ import {
   useUpdateBridge,
 } from "@/systems/bridges";
 import type {
-  BridgeListFilter,
   BridgeResolveTargetResponse,
   BridgeTestDeliveryDraft,
   BridgeUpdateDraft,
@@ -63,12 +63,10 @@ function useBridgeDetailPage(bridgeId: string) {
 
   const deferredTargetSearchQuery = useDeferredValue(targetSearchQuery);
 
-  const bridgeListFilters = useMemo<BridgeListFilter>(() => {
-    if (!activeWorkspaceId) {
-      return { scope: "global" };
-    }
-    return { scope: "all", workspace_id: activeWorkspaceId };
-  }, [activeWorkspaceId]);
+  const bridgeListFilters = useMemo(
+    () => bridgeListFilterForScope("all", activeWorkspaceId),
+    [activeWorkspaceId]
+  );
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: Boolean(bridgeId) });
   const providersQuery = useBridgeProviders();
@@ -81,8 +79,8 @@ function useBridgeDetailPage(bridgeId: string) {
   const resolveBridgeTargetMutation = useResolveBridgeTarget();
   const testDeliveryMutation = useTestBridgeDelivery();
 
-  const bridges = bridgesQuery.data?.bridges ?? [];
-  const bridgeHealth = bridgesQuery.data?.bridge_health ?? {};
+  const bridges = bridgesQuery.bridges;
+  const bridgeHealth = bridgesQuery.bridgeHealth;
   const providers = providersQuery.data ?? [];
 
   const listBridgeSummary = useMemo(

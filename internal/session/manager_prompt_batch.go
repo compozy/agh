@@ -36,8 +36,8 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		}
 	}
 	if err := m.recordPromptEventBatch(ctx, session, normalized); err != nil {
-		m.sessionLogger(session).
-			Warn("session: record prompt event batch failed", "turn_id", turnState.turnID, "error", err)
+		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+		return failure, errorText, true
 	}
 
 	for _, event := range normalized {
@@ -88,25 +88,7 @@ func (m *Manager) recordPromptEventBatch(
 		return err
 	}
 	for _, event := range events {
-		if event.Usage == nil {
-			continue
-		}
-		if err := recorder.RecordTokenUsage(ctx, store.TokenUsage{
-			TurnID:           event.Usage.TurnID,
-			InputTokens:      event.Usage.InputTokens,
-			OutputTokens:     event.Usage.OutputTokens,
-			TotalTokens:      event.Usage.TotalTokens,
-			ThoughtTokens:    event.Usage.ThoughtTokens,
-			CacheReadTokens:  event.Usage.CacheReadTokens,
-			CacheWriteTokens: event.Usage.CacheWriteTokens,
-			ContextUsed:      event.Usage.ContextUsed,
-			ContextSize:      event.Usage.ContextSize,
-			CostAmount:       event.Usage.CostAmount,
-			CostCurrency:     event.Usage.CostCurrency,
-			Timestamp:        event.Usage.Timestamp,
-		}); err != nil {
-			return err
-		}
+		m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	}
 
 	for _, event := range persisted {

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -70,17 +69,6 @@ type memorySelector struct {
 	AgentName     string
 	AgentTier     memcontract.AgentTier
 	IncludeSystem bool
-}
-
-// ListMemory lists memory headers for the requested scope.
-func (h *BaseHandlers) ListMemory(c *gin.Context) {
-	headers, err := h.listMemoryHeaders(c.Request.Context(), memorySelectorFromQuery(c))
-	if err != nil {
-		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.MemoryListResponse{Memories: memorySummaryPayloads(headers)})
 }
 
 // MemoryHealth returns the memory-specific health snapshot.
@@ -293,7 +281,7 @@ func (h *BaseHandlers) ReadMemory(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	if !selector.IncludeSystem && memorySystemManaged(location.Filename) {
+	if !selector.IncludeSystem && memory.IsSystemManagedFilename(location.Filename) {
 		err := fmt.Errorf("%w: memory %q not found", os.ErrNotExist, location.Filename)
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -720,129 +708,6 @@ func (h *BaseHandlers) ReloadMemory(c *gin.Context) {
 		ReloadedAt: reloadedAt,
 		Generation: reloadedAt.UnixNano(),
 	})
-}
-
-func (h *BaseHandlers) ListMemoryDecisions(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
-		return
-	}
-	query, err := h.memoryDecisionListQuery(c)
-	if err != nil {
-		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-		return
-	}
-	records, err := h.MemoryStore.ListDecisionRecords(c.Request.Context(), query)
-	if err != nil {
-		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-		return
-	}
-	payloads := make([]contract.MemoryDecisionPayload, 0, len(records))
-	for _, record := range records {
-		payloads = append(payloads, MemoryDecisionRecordPayload(record))
-	}
-	c.JSON(http.StatusOK, contract.MemoryDecisionListResponse{Decisions: payloads})
-}
-
-func (h *BaseHandlers) GetMemoryDecision(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
-		return
-	}
-	record, err := h.MemoryStore.LoadDecisionRecord(c.Request.Context(), c.Param("decision_id"))
-	if err != nil {
-		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-		return
-	}
-	c.JSON(http.StatusOK, contract.MemoryDecisionResponse{Decision: MemoryDecisionRecordPayload(record)})
-}
-
-func (h *BaseHandlers) RevertMemoryDecision(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
-		return
-	}
-	var req contract.MemoryDecisionRevertRequest
-	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-		h.respondMemoryError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%s: decode memory decision revert request: %w", h.transportName(), err),
-			nil,
-		)
-		return
-	}
-	id := strings.TrimSpace(c.Param("decision_id"))
-	record, err := h.MemoryStore.LoadDecisionRecord(c.Request.Context(), id)
-	if err != nil {
-		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-		return
-	}
-	reverted := false
-	if !req.DryRun {
-		store, err := h.memoryStoreForDecisionRecord(c.Request.Context(), record)
-		if err != nil {
-			h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-			return
-		}
-		result, err := store.RevertDecision(c.Request.Context(), id)
-		if err != nil {
-			h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
-			return
-		}
-		reverted = result.Reverted
-	}
-	c.JSON(http.StatusOK, contract.MemoryDecisionRevertResponse{
-		Decision: MemoryDecisionRecordPayload(record),
-		Reverted: reverted,
-		DryRun:   req.DryRun,
-	})
-}
-
-func (h *BaseHandlers) memoryStoreForDecisionRecord(
-	ctx context.Context,
-	record memory.DecisionRecord,
-) (*memory.Store, error) {
-	if h.MemoryStore == nil {
-		return nil, errors.New("memory store is not configured")
-	}
-	scope := record.Decision.Frontmatter.Scope.Normalize()
-	if scope == memcontract.ScopeWorkspace {
-		workspace, err := h.workspaceForMemoryDecision(ctx, record.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
-	}
-	if scope == memcontract.ScopeAgent && record.AgentTier.Normalize() == memcontract.AgentTierWorkspace {
-		workspace, err := h.workspaceForMemoryDecision(ctx, record.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-		return h.MemoryStore.ForWorkspace(workspace.RootDir), nil
-	}
-	return h.MemoryStore, nil
-}
-
-func (h *BaseHandlers) workspaceForMemoryDecision(
-	ctx context.Context,
-	workspaceID string,
-) (aghworkspace.Workspace, error) {
-	id := strings.TrimSpace(workspaceID)
-	if id == "" {
-		return aghworkspace.Workspace{}, errors.New("memory: decision workspace_id is required")
-	}
-	if h.Workspaces == nil {
-		return aghworkspace.Workspace{}, errors.New("memory: workspace service is not configured")
-	}
-	workspace, err := h.Workspaces.Get(ctx, id)
-	if err != nil {
-		return aghworkspace.Workspace{}, fmt.Errorf("memory: resolve decision workspace %q: %w", id, err)
-	}
-	if strings.TrimSpace(workspace.RootDir) == "" {
-		return aghworkspace.Workspace{}, fmt.Errorf("memory: decision workspace %q root_dir is required", id)
-	}
-	return workspace, nil
 }
 
 func (h *BaseHandlers) GetMemoryRecallTrace(c *gin.Context) {
@@ -1312,13 +1177,13 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 		return payload, nil
 	}
 
-	globalHeaders, err := h.MemoryStore.Scan(memcontract.ScopeGlobal)
+	globalCount, err := h.MemoryStore.SourceHeaderCount(memcontract.ScopeGlobal)
 	if err != nil {
 		payload.Status = memoryHealthStatusUnavailable
 		payload.Reason = err.Error()
 		return payload, nil
 	}
-	payload.GlobalFiles = len(globalHeaders)
+	payload.GlobalFiles = globalCount
 
 	workspaces, err := h.memoryHealthWorkspaces(
 		ctx,
@@ -1330,13 +1195,13 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
 		store := h.MemoryStore.ForWorkspace(workspace)
-		headers, err := store.Scan(memcontract.ScopeWorkspace)
+		count, err := store.SourceHeaderCount(memcontract.ScopeWorkspace)
 		if err != nil {
 			payload.Status = memoryHealthStatusDegraded
 			payload.Reason = err.Error()
 			return payload, nil
 		}
-		payload.WorkspaceFiles += len(headers)
+		payload.WorkspaceFiles += count
 	}
 
 	stats, err := h.MemoryStore.HealthStats(ctx, workspaces)
@@ -1526,54 +1391,6 @@ func cloneRuleHits(hits []memcontract.RuleHit) []memcontract.RuleHit {
 		cloned[idx].Details = ssepkg.ScrubMemoryContextString(cloned[idx].Details)
 	}
 	return cloned
-}
-
-func (h *BaseHandlers) listMemoryHeaders(ctx context.Context, selector memorySelector) ([]memcontract.Header, error) {
-	if h.MemoryStore == nil {
-		return nil, errors.New("memory store is not configured")
-	}
-
-	resolved, err := h.resolveMemorySelector(ctx, selector, false)
-	if err != nil {
-		return nil, err
-	}
-
-	scopes := []memcontract.Scope{memcontract.ScopeGlobal}
-	if resolved.Scope != "" {
-		scopes = []memcontract.Scope{resolved.Scope}
-	}
-	if resolved.Scope == "" && resolved.Workspace != "" {
-		scopes = append(scopes, memcontract.ScopeWorkspace)
-	}
-
-	headers := make([]memcontract.Header, 0, len(scopes))
-	for _, currentScope := range scopes {
-		current := resolved
-		current.Scope = currentScope
-		store, err := h.memoryStoreForSelector(ctx, current)
-		if err != nil {
-			return nil, err
-		}
-		items, err := store.Scan(currentScope)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range items {
-			if !resolved.IncludeSystem && memorySystemManaged(item.Filename) {
-				continue
-			}
-			headers = append(headers, item)
-		}
-	}
-
-	sort.SliceStable(headers, func(i, j int) bool {
-		if headers[i].ModTime.Equal(headers[j].ModTime) {
-			return headers[i].Filename < headers[j].Filename
-		}
-		return headers[i].ModTime.After(headers[j].ModTime)
-	})
-
-	return headers, nil
 }
 
 // ResolveMemoryLocation resolves the storage location for a memory document.
@@ -1885,31 +1702,6 @@ func (h *BaseHandlers) resolveMemoryCreateSelector(
 	}, true)
 }
 
-func (h *BaseHandlers) memoryDecisionListQuery(c *gin.Context) (memory.DecisionListQuery, error) {
-	selector, err := h.resolveMemorySelector(c.Request.Context(), memorySelectorFromQuery(c), false)
-	if err != nil {
-		return memory.DecisionListQuery{}, err
-	}
-	since, err := ParseOptionalTime(c.Query("since"))
-	if err != nil {
-		return memory.DecisionListQuery{}, NewMemoryValidationError(err)
-	}
-	limit, err := parseMemoryLimit(c.Query("limit"))
-	if err != nil {
-		return memory.DecisionListQuery{}, err
-	}
-	return memory.DecisionListQuery{
-		Scope:       selector.Scope,
-		WorkspaceID: selector.WorkspaceID,
-		AgentName:   selector.AgentName,
-		AgentTier:   selector.AgentTier,
-		Operation:   firstNonEmptyString(c.Query("operation"), c.Query("op")),
-		Since:       since,
-		Reason:      c.Query("reason"),
-		Limit:       limit,
-	}, nil
-}
-
 func (h *BaseHandlers) memoryDreamListQuery(c *gin.Context) (memory.DreamRunListQuery, error) {
 	selector, err := h.resolveMemorySelector(c.Request.Context(), memorySelectorFromQuery(c), false)
 	if err != nil {
@@ -2218,23 +2010,29 @@ func memoryHeaderAndBody(content []byte) (memcontract.Header, string, error) {
 func memorySummaryPayloads(headers []memcontract.Header) []contract.MemoryEntrySummaryPayload {
 	payloads := make([]contract.MemoryEntrySummaryPayload, 0, len(headers))
 	for _, header := range headers {
-		payloads = append(payloads, memorySummaryPayload(header))
+		payloads = append(payloads, MemorySummaryPayloadFromHeader(header))
 	}
 	return payloads
 }
 
 func memorySummaryPayload(header memcontract.Header) contract.MemoryEntrySummaryPayload {
+	return MemorySummaryPayloadFromHeader(header)
+}
+
+// MemorySummaryPayloadFromHeader converts one resolved memory header for public transports.
+func MemorySummaryPayloadFromHeader(header memcontract.Header) contract.MemoryEntrySummaryPayload {
 	payload := contract.MemoryEntrySummaryPayload{
 		Filename:      strings.TrimSpace(header.Filename),
 		Name:          strings.TrimSpace(header.Name),
 		Description:   strings.TrimSpace(header.Description),
 		Type:          header.Type.Normalize(),
 		Scope:         header.Scope.Normalize(),
+		WorkspaceID:   strings.TrimSpace(header.WorkspaceID),
 		AgentName:     strings.TrimSpace(header.AgentName),
 		AgentTier:     header.AgentTier.Normalize(),
 		ModTime:       header.ModTime.UTC(),
-		Injection:     !memorySystemManaged(header.Filename),
-		SystemManaged: memorySystemManaged(header.Filename),
+		Injection:     !memory.IsSystemManagedFilename(header.Filename),
+		SystemManaged: memory.IsSystemManagedFilename(header.Filename),
 	}
 	if header.Provenance != nil {
 		created := header.Provenance.CreatedAt.UTC()
@@ -2345,11 +2143,6 @@ func memorySearchResultPayloads(recall memcontract.Packaged) []contract.MemorySe
 		}
 	}
 	return results
-}
-
-func memorySystemManaged(filename string) bool {
-	trimmed := strings.TrimSpace(filename)
-	return strings.HasPrefix(trimmed, "_system/") || strings.HasPrefix(trimmed, "_system")
 }
 
 func locationFilename(location MemoryLocation, header memcontract.Header) string {

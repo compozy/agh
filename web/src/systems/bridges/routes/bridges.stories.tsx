@@ -45,7 +45,24 @@ export const Empty: Story = {
     ...appRouteParameters("/bridges"),
     ...storybookMswParameters({
       bridges: [
-        aghApiMock.get("/api/bridges", () => HttpResponse.json({ bridges: [], bridge_health: {} })),
+        aghApiMock.get("/api/bridges", () =>
+          HttpResponse.json({
+            bridge_health: {},
+            bridges: [],
+            facets: {
+              platforms: {},
+              statuses: {
+                auth_required: 0,
+                degraded: 0,
+                disabled: 0,
+                error: 0,
+                ready: 0,
+                starting: 0,
+              },
+            },
+            page: { has_more: false, limit: 50, total: 0 },
+          })
+        ),
       ],
     }),
   },
@@ -102,7 +119,22 @@ export const Loading: Story = {
       bridges: [
         aghApiMock.get("/api/bridges", async () => {
           await delay("infinite");
-          return HttpResponse.json({ bridges: [], bridge_health: {} });
+          return HttpResponse.json({
+            bridge_health: {},
+            bridges: [],
+            facets: {
+              platforms: {},
+              statuses: {
+                auth_required: 0,
+                degraded: 0,
+                disabled: 0,
+                error: 0,
+                ready: 0,
+                starting: 0,
+              },
+            },
+            page: { has_more: false, limit: 50, total: 0 },
+          });
         }),
       ],
     }),

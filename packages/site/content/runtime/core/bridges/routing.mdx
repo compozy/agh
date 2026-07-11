@@ -262,8 +262,11 @@ the unfinished responses before the bridge notifier finishes the session stop pa
 | Delivery transport fails or returns an invalid acknowledgement           | The broker records the failure and retries with a resume snapshot.                                    |
 
 Bridge health fields are returned by `agh bridge list`, `agh bridge get`, and the HTTP bridge
-responses. For live monitoring, subscribe to `GET /api/bridges/health/stream`; it emits an initial
-snapshot and then changed health snapshots.
+responses. For live monitoring, subscribe to `GET /api/bridges/health/stream` with the required
+`bridge_ids` query parameter. Pass the comma-separated IDs from the current catalog page (up to
+200), and reuse that page's `scope` and `workspace_id` query values. The stream emits an initial
+snapshot and then changes only for that authorized, page-bounded set; loading another catalog page
+opens a stream for its IDs instead of hydrating the full registry.
 
 ## Related pages
 

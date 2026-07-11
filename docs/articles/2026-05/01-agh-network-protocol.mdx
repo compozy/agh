@@ -113,7 +113,7 @@ agh.network.v0.<workspace_id>.<channel>.broadcast
 agh.network.v0.<workspace_id>.<channel>.peer.<route_token>
 ```
 
-Broadcast carries `greet`, broadcast `whois`, public-thread `say`, and broadcast `capability`. Directed traffic carries targeted `whois`, addressed `say`, `receipt`, and `trace` on the receiver's direct subject.
+Broadcast carries `greet`, broadcast `whois`, and public-thread `say` without lifecycle work. Directed traffic carries targeted `whois`, addressed `say`, `capability`, `receipt`, and `trace` on the receiver's direct subject.
 
 ```text
        broadcast subject                            direct subject

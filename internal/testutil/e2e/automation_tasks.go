@@ -122,11 +122,11 @@ func (h *RuntimeHarness) GetAutomationRun(
 	return response.Run, nil
 }
 
-// ListTasks fetches task summaries through the public UDS surface.
+// ListTasks fetches lean task catalog rows through the public UDS surface.
 func (h *RuntimeHarness) ListTasks(
 	ctx context.Context,
 	query url.Values,
-) ([]aghcontract.TaskSummaryPayload, error) {
+) ([]aghcontract.TaskCatalogItemPayload, error) {
 	var response aghcontract.TasksResponse
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/tasks"+encodeQuery(query), nil, &response); err != nil {
 		return nil, err

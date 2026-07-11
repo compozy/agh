@@ -62,6 +62,7 @@ func ResourceSpecFromDefinition(def dsl.Definition, opts ResourceParseOptions) R
 		Version:                def.Meta.Version,
 		Description:            strings.TrimSpace(def.Meta.Description),
 		Catalog:                catalogSpecFromDefinition(def),
+		ContractGoal:           strings.TrimSpace(def.Contract.Goal),
 		Start:                  startSpecsFromDefinition(def),
 		Source:                 opts.Source.Normalize(),
 		Dir:                    strings.TrimSpace(opts.Dir),

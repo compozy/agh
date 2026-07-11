@@ -65,7 +65,11 @@ export const EmptyCatalog: Story = {
     ...storybookMswParameters({
       loops: [
         aghApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
-          HttpResponse.json({ loops: [] })
+          HttpResponse.json({
+            facets: { categories: {}, kinds: {}, statuses: {} },
+            loops: [],
+            page: { has_more: false, limit: 50, total: 0 },
+          })
         ),
       ],
     }),
@@ -81,7 +85,11 @@ export const LoadingCatalog: Story = {
       loops: [
         aghApiMock.get("/api/workspaces/{workspace_id}/loops", async () => {
           await delay("infinite");
-          return HttpResponse.json({ loops: [] });
+          return HttpResponse.json({
+            facets: { categories: {}, kinds: {}, statuses: {} },
+            loops: [],
+            page: { has_more: false, limit: 50, total: 0 },
+          });
         }),
       ],
     }),

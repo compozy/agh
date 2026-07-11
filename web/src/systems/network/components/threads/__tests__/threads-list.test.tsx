@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
@@ -121,6 +122,27 @@ describe("ThreadsList", () => {
       />
     );
     expect(screen.getByTestId("network-thread-list")).toHaveAttribute("data-dim", "true");
+  });
+
+  it("Should expose an accessible load-more action when the server has another page", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    render(
+      <ThreadsList
+        activeThreadId={null}
+        channel="ops"
+        hasMore
+        isLoading={false}
+        isLoadingMore={false}
+        onLoadMore={onLoadMore}
+        threads={threads}
+        total={2}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more threads" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 
   it("Should truncate long title and preview without expanding row width", () => {

@@ -191,9 +191,8 @@ For HTTP, `since` must be RFC3339 or RFC3339Nano. The CLI is more convenient: `a
 turns after grouping all matching rows. Both are capped at 1000 by `limit` and reject
 `before_sequence`.
 
-The transcript endpoint accepts `limit`, `after_sequence`, and `before_sequence`. It returns
-sequence-bearing entries so clients can page or merge transcript state without guessing which
-persisted event shaped a message:
+The transcript endpoint accepts `limit` and `before_sequence`. It returns one bounded chronological
+page whose stable start cursors are separate from the latest event sequence that shaped each entry:
 
 ```json
 {
@@ -204,14 +203,23 @@ persisted event shaped a message:
         "role": "assistant",
         "parts": [{ "type": "text", "text": "Done.", "state": "done" }]
       },
+      "start_sequence": 40,
       "sequence": 42
     }
-  ]
+  ],
+  "epoch": 3,
+  "generation": 7,
+  "max_sequence": 42,
+  "has_older": true,
+  "next_before_sequence": 40,
+  "limit": 200
 }
 ```
 
-`after_sequence` and `before_sequence` are mutually exclusive. `before_sequence` is only supported
-on `/transcript`.
+Use `next_before_sequence` as the next request's `before_sequence` while `has_older` is true.
+`start_sequence` is the stable backward-paging cursor; `sequence` can advance when later events
+update the same logical entry. The endpoint rejects forward cursors and event-row filters because
+forward transcript changes belong to the fenced SSE stream.
 
 ## Subscribing over SSE
 
@@ -227,14 +235,14 @@ event reader.
 Open the default transcript SSE stream directly:
 
 ```bash
-curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?replay=snapshot'
+curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?limit=200'
 ```
 
 The default stream writes:
 
 - `id:` as the transcript cursor sequence
-- `event: transcript_snapshot` for the initial bounded transcript window
-- `event: transcript_delta` for one folded transcript entry after the current cursor
+- `event: transcript_snapshot` for the initial bounded transcript window or an explicit fenced reset
+- `event: transcript_delta` for a bounded batch of materialized entry upserts after the current cursor
 - `event: session_stopped` when a stopped session has no more rows to deliver
 - `event: error` when the stream fails before it can continue; this frame is terminal
 
@@ -243,7 +251,7 @@ Example transcript snapshot frame:
 ```text
 id: 42
 event: transcript_snapshot
-data: {"session_id":"sess-1234","workspace_id":"ws_alpha","epoch":0,"entries":[{"message":{"id":"msg-42","role":"assistant","parts":[{"type":"text","text":"Done.","state":"done"}]},"sequence":42}],"min_sequence":42,"max_sequence":42,"reset_below":true,"reason":"subscribe"}
+data: {"session_id":"sess-1234","workspace_id":"ws_alpha","epoch":3,"generation":7,"entries":[{"message":{"id":"msg-42","role":"assistant","parts":[{"type":"text","text":"Done.","state":"done"}]},"start_sequence":40,"sequence":42}],"max_sequence":42,"has_older":true,"next_before_sequence":40,"reset":false}
 ```
 
 Open the raw stored-event stream when you need event rows:
@@ -267,20 +275,27 @@ event: tool_result
 data: {"id":"evt-000042","session_id":"sess-1234","sequence":42,"turn_id":"turn-9abc","type":"tool_result","agent_name":"general","content":{"schema":"agh.session.event.v1","type":"tool_result","tool_call_id":"tool-call-1","tool_result":{"content":"package session"}},"timestamp":"2026-04-16T01:10:06Z"}
 ```
 
-### Reconnect and backlog replay
+### Reconnect with transcript fences
 
-Reconnect from a known sequence:
+Reconnect from a cursor only with the `epoch` and `generation` returned by the page or snapshot that
+owns it:
 
 ```bash
 curl -N \
   -H "Last-Event-ID: 42" \
-  'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream'
+  'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?epoch=3&generation=7&limit=200'
 ```
 
-`Last-Event-ID` must be a numeric persisted sequence. In transcript mode, AGH emits deltas after
-that cursor unless `replay=snapshot` is supplied. Without `Last-Event-ID`, AGH seeds transcript
-subscribers with a bounded snapshot automatically. In raw mode, AGH replays persisted backlog rows
-after the cursor and then continues polling for new rows.
+`Last-Event-ID` must be a non-negative numeric transcript cursor. With matching fences, AGH emits
+bounded `transcript_delta` batches. A missing or stale fence, or a cursor beyond the current
+projection, produces a `transcript_snapshot` with `reset: true` and one of these reasons:
+`fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`. Replace only that
+session's cached transcript when an explicit reset arrives. A new stream without a cursor receives
+a bounded snapshot with `reset: false`.
+
+The old `replay` query is rejected. Raw mode remains a separate stored-event contract: with
+`frames=raw`, AGH resumes persisted rows after `Last-Event-ID` and then follows new rows. Raw cursors
+do not carry transcript projection fences.
 
 If the session is already stopped and no new stored rows arrive, AGH emits a terminal synthetic
 `session_stopped` SSE event and closes the stream. When the stopped session has failure

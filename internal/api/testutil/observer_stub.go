@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	core "github.com/compozy/agh/internal/api/core"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/store"
@@ -12,12 +13,21 @@ import (
 )
 
 type StubObserver struct {
-	QueryEventsFn        func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	OnAgentEventFn       func(context.Context, string, acp.AgentEvent)
-	QueryHookCatalogFn   func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
-	QueryHookRunsFn      func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn    func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
-	QueryBridgeHealthFn  func(context.Context) ([]observe.BridgeInstanceHealth, error)
+	CheckBridgeCatalogReadyFn      func() error
+	QueryEventsFn                  func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	OnAgentEventFn                 func(context.Context, string, acp.AgentEvent)
+	QueryHookCatalogFn             func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn                func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn              func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryBridgeHealthFn            func(context.Context) ([]observe.BridgeInstanceHealth, error)
+	QueryBridgeEffectiveStatusesFn func(
+		context.Context,
+		[]bridgepkg.BridgeCatalogRecord,
+	) (map[string]bridgepkg.BridgeStatus, error)
+	QueryBridgeHealthForFn func(
+		context.Context,
+		[]bridgepkg.BridgeInstance,
+	) ([]observe.BridgeInstanceHealth, error)
 	HealthFn             func(context.Context) (observe.Health, error)
 	QueryTokenStatsFn    func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error)
 	QueryTaskDashboardFn func(context.Context, observe.TaskDashboardQuery) (observe.TaskDashboardView, error)
@@ -26,6 +36,13 @@ type StubObserver struct {
 		observe.TaskInboxQuery,
 		taskpkg.ActorIdentity,
 	) (observe.TaskInboxView, error)
+}
+
+func (s StubObserver) CheckBridgeCatalogReady() error {
+	if s.CheckBridgeCatalogReadyFn != nil {
+		return s.CheckBridgeCatalogReadyFn()
+	}
+	return nil
 }
 
 func (s StubObserver) QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -79,6 +96,51 @@ func (s StubObserver) QueryBridgeHealth(ctx context.Context) ([]observe.BridgeIn
 		return s.QueryBridgeHealthFn(ctx)
 	}
 	return nil, nil
+}
+
+func (s StubObserver) QueryBridgeEffectiveStatuses(
+	ctx context.Context,
+	records []bridgepkg.BridgeCatalogRecord,
+) (map[string]bridgepkg.BridgeStatus, error) {
+	if s.QueryBridgeEffectiveStatusesFn != nil {
+		return s.QueryBridgeEffectiveStatusesFn(ctx, records)
+	}
+	health, err := s.QueryBridgeHealth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	statuses := make(map[string]bridgepkg.BridgeStatus, len(records))
+	for _, record := range records {
+		statuses[record.ID] = record.Status
+	}
+	for _, item := range health {
+		statuses[item.BridgeInstanceID] = item.Status
+	}
+	return statuses, nil
+}
+
+func (s StubObserver) QueryBridgeHealthFor(
+	ctx context.Context,
+	instances []bridgepkg.BridgeInstance,
+) ([]observe.BridgeInstanceHealth, error) {
+	if s.QueryBridgeHealthForFn != nil {
+		return s.QueryBridgeHealthForFn(ctx, instances)
+	}
+	health, err := s.QueryBridgeHealth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	requested := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		requested[instance.ID] = struct{}{}
+	}
+	filtered := make([]observe.BridgeInstanceHealth, 0, len(instances))
+	for _, item := range health {
+		if _, ok := requested[item.BridgeInstanceID]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
 }
 
 func (s StubObserver) QueryHookCatalog(

@@ -52,13 +52,13 @@ type stubClient struct {
 	listNetworkSubscriptionsFn   func(context.Context, NetworkSubscriptionsQuery) ([]NetworkSubscriptionRecord, error)
 	setNetworkSubscriptionFn     func(context.Context, string, string, NetworkSubscriptionRequest) (NetworkSubscriptionRecord, error)
 	deleteNetworkSubscriptionFn  func(context.Context, string, string, string, string) error
-	networkThreadsFn             func(context.Context, NetworkThreadsQuery) ([]NetworkThreadRecord, error)
+	networkThreadsFn             func(context.Context, NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
 	networkThreadFn              func(context.Context, string, string, string) (NetworkThreadRecord, error)
-	networkThreadMessagesFn      func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
-	networkDirectsFn             func(context.Context, NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
+	networkThreadMessagesFn      func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkThreadMessagesResponse, error)
+	networkDirectsFn             func(context.Context, NetworkDirectsQuery) (contract.NetworkDirectRoomsResponse, error)
 	networkDirectResolveFn       func(context.Context, string, string, NetworkDirectResolveRequest) (NetworkDirectRoomRecord, error)
 	networkDirectFn              func(context.Context, string, string, string) (NetworkDirectRoomRecord, error)
-	networkDirectMessagesFn      func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
+	networkDirectMessagesFn      func(context.Context, NetworkConversationMessagesQuery) (contract.NetworkDirectRoomMessagesResponse, error)
 	networkWorkFn                func(context.Context, string, string) (NetworkWorkRecord, error)
 	networkSendFn                func(context.Context, NetworkSendRequest) (NetworkSendRecord, error)
 	networkInboxFn               func(context.Context, string, string) ([]NetworkEnvelopeRecord, error)
@@ -80,7 +80,7 @@ type stubClient struct {
 	updateBundleActivationFn     func(context.Context, string, UpdateBundleActivationRequest) (BundleActivationRecord, error)
 	deactivateBundleFn           func(context.Context, string) error
 	bundleNetworkSettingsFn      func(context.Context) (BundleNetworkSettingsRecord, error)
-	listBridgesFn                func(context.Context) ([]BridgeRecord, error)
+	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
 	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
 	getBridgeFn                  func(context.Context, string) (BridgeRecord, error)
 	updateBridgeFn               func(context.Context, string, UpdateBridgeRequest) (BridgeRecord, error)
@@ -100,6 +100,7 @@ type stubClient struct {
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
 	testBridgeDeliveryFn         func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
 	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
 	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn                 func(context.Context, string) (SessionRecord, error)
 	getSessionHealthFn           func(context.Context, string) (SessionHealthRecord, error)
@@ -125,7 +126,7 @@ type stubClient struct {
 	getWorkspaceFn               func(context.Context, string) (WorkspaceDetailRecord, error)
 	updateWorkspaceFn            func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn            func(context.Context, string) error
-	listLoopsFn                  func(context.Context, string) (contract.LoopsResponse, error)
+	listLoopsFn                  func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
 	createLoopFn                 func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
 	getLoopFn                    func(context.Context, string, string) (contract.LoopResponse, error)
 	patchLoopFn                  func(
@@ -244,14 +245,14 @@ type stubClient struct {
 	enableMemoryProviderFn        func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
 	disableMemoryProviderFn       func(context.Context, string, MemoryProviderLifecycleRequest) (MemoryProviderLifecycleRecord, error)
 	createMemoryAdhocNoteFn       func(context.Context, MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
-	listAutomationJobsFn          func(context.Context, AutomationJobQuery) ([]JobRecord, error)
+	listAutomationJobsFn          func(context.Context, AutomationJobQuery) (AutomationJobListRecord, error)
 	createAutomationJobFn         func(context.Context, AutomationJobCreateRequest) (JobRecord, error)
 	getAutomationJobFn            func(context.Context, string) (JobRecord, error)
 	updateAutomationJobFn         func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error)
 	deleteAutomationJobFn         func(context.Context, string) error
 	triggerAutomationJobFn        func(context.Context, string) (RunRecord, error)
 	automationJobRunsFn           func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
-	listAutomationTriggersFn      func(context.Context, AutomationTriggerQuery) ([]TriggerRecord, error)
+	listAutomationTriggersFn      func(context.Context, AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	createAutomationTriggerFn     func(context.Context, AutomationTriggerCreateRequest) (TriggerRecord, error)
 	getAutomationTriggerFn        func(context.Context, string) (TriggerRecord, error)
 	updateAutomationTriggerFn     func(context.Context, string, AutomationTriggerUpdateRequest) (TriggerRecord, error)
@@ -259,7 +260,7 @@ type stubClient struct {
 	automationTriggerRunsFn       func(context.Context, string, AutomationRunQuery) ([]RunRecord, error)
 	listAutomationRunsFn          func(context.Context, AutomationRunQuery) ([]RunRecord, error)
 	getAutomationRunFn            func(context.Context, string) (RunRecord, error)
-	listTasksFn                   func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error)
+	listTasksFn                   func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error)
 	createTaskFn                  func(context.Context, CreateTaskRequest) (TaskRecord, error)
 	createTaskAsAgentFn           func(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
 	getTaskFn                     func(context.Context, string) (TaskDetailRecord, error)
@@ -672,11 +673,11 @@ func (s *stubClient) DeleteNetworkSubscription(
 func (s *stubClient) NetworkThreads(
 	ctx context.Context,
 	query NetworkThreadsQuery,
-) ([]NetworkThreadRecord, error) {
+) (contract.NetworkThreadsResponse, error) {
 	if s.networkThreadsFn != nil {
 		return s.networkThreadsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected NetworkThreads call")
+	return contract.NetworkThreadsResponse{}, errors.New("unexpected NetworkThreads call")
 }
 
 func (s *stubClient) NetworkThread(
@@ -694,21 +695,21 @@ func (s *stubClient) NetworkThread(
 func (s *stubClient) NetworkThreadMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
-) ([]NetworkConversationMessageRecord, error) {
+) (contract.NetworkThreadMessagesResponse, error) {
 	if s.networkThreadMessagesFn != nil {
 		return s.networkThreadMessagesFn(ctx, query)
 	}
-	return nil, errors.New("unexpected NetworkThreadMessages call")
+	return contract.NetworkThreadMessagesResponse{}, errors.New("unexpected NetworkThreadMessages call")
 }
 
 func (s *stubClient) NetworkDirects(
 	ctx context.Context,
 	query NetworkDirectsQuery,
-) ([]NetworkDirectRoomRecord, error) {
+) (contract.NetworkDirectRoomsResponse, error) {
 	if s.networkDirectsFn != nil {
 		return s.networkDirectsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected NetworkDirects call")
+	return contract.NetworkDirectRoomsResponse{}, errors.New("unexpected NetworkDirects call")
 }
 
 func (s *stubClient) NetworkDirectResolve(
@@ -738,11 +739,11 @@ func (s *stubClient) NetworkDirect(
 func (s *stubClient) NetworkDirectMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
-) ([]NetworkConversationMessageRecord, error) {
+) (contract.NetworkDirectRoomMessagesResponse, error) {
 	if s.networkDirectMessagesFn != nil {
 		return s.networkDirectMessagesFn(ctx, query)
 	}
-	return nil, errors.New("unexpected NetworkDirectMessages call")
+	return contract.NetworkDirectRoomMessagesResponse{}, errors.New("unexpected NetworkDirectMessages call")
 }
 
 func (s *stubClient) NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error) {
@@ -930,11 +931,11 @@ func (s *stubClient) BundleNetworkSettings(ctx context.Context) (BundleNetworkSe
 	return BundleNetworkSettingsRecord{}, errors.New("unexpected BundleNetworkSettings call")
 }
 
-func (s *stubClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
+func (s *stubClient) ListBridges(ctx context.Context, query BridgeListQuery) (BridgeListRecord, error) {
 	if s.listBridgesFn != nil {
-		return s.listBridgesFn(ctx)
+		return s.listBridgesFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListBridges call")
+	return BridgeListRecord{}, errors.New("unexpected ListBridges call")
 }
 
 func (s *stubClient) CreateBridge(
@@ -1104,11 +1105,21 @@ func (s *stubClient) TestBridgeDelivery(
 func (s *stubClient) ListSessions(
 	ctx context.Context,
 	query SessionListQuery,
-) ([]SessionRecord, error) {
-	if s.listSessionsFn != nil {
-		return s.listSessionsFn(ctx, query)
+) (SessionListPage, error) {
+	if s.listSessionPageFn != nil {
+		return s.listSessionPageFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListSessions call")
+	if s.listSessionsFn != nil {
+		sessions, err := s.listSessionsFn(ctx, query)
+		return SessionListPage{
+			Sessions: sessions,
+			Page: contract.CountedCursorPagePayload{
+				Total: len(sessions),
+				Limit: len(sessions),
+			},
+		}, err
+	}
+	return SessionListPage{}, errors.New("unexpected ListSessions call")
 }
 
 func (s *stubClient) CreateSession(
@@ -1347,9 +1358,13 @@ func (s *stubClient) DeleteWorkspace(ctx context.Context, ref string) error {
 	return errors.New("unexpected DeleteWorkspace call")
 }
 
-func (s *stubClient) ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error) {
+func (s *stubClient) ListLoops(
+	ctx context.Context,
+	workspaceID string,
+	query LoopListQuery,
+) (contract.LoopsResponse, error) {
 	if s.listLoopsFn != nil {
-		return s.listLoopsFn(ctx, workspaceID)
+		return s.listLoopsFn(ctx, workspaceID, query)
 	}
 	return contract.LoopsResponse{}, errors.New("unexpected ListLoops call")
 }
@@ -2235,11 +2250,11 @@ func (s *stubClient) CreateMemoryAdhocNote(
 func (s *stubClient) ListAutomationJobs(
 	ctx context.Context,
 	query AutomationJobQuery,
-) ([]JobRecord, error) {
+) (AutomationJobListRecord, error) {
 	if s.listAutomationJobsFn != nil {
 		return s.listAutomationJobsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListAutomationJobs call")
+	return AutomationJobListRecord{}, errors.New("unexpected ListAutomationJobs call")
 }
 
 func (s *stubClient) CreateAutomationJob(
@@ -2298,11 +2313,11 @@ func (s *stubClient) AutomationJobRuns(
 func (s *stubClient) ListAutomationTriggers(
 	ctx context.Context,
 	query AutomationTriggerQuery,
-) ([]TriggerRecord, error) {
+) (AutomationTriggerListRecord, error) {
 	if s.listAutomationTriggersFn != nil {
 		return s.listAutomationTriggersFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ListAutomationTriggers call")
+	return AutomationTriggerListRecord{}, errors.New("unexpected ListAutomationTriggers call")
 }
 
 func (s *stubClient) CreateAutomationTrigger(
@@ -2371,11 +2386,15 @@ func (s *stubClient) GetAutomationRun(ctx context.Context, id string) (RunRecord
 func (s *stubClient) ListTasks(
 	ctx context.Context,
 	query TaskListQuery,
-) ([]TaskSummaryRecord, error) {
+) (TaskListRecord, error) {
 	if s.listTasksFn != nil {
-		return s.listTasksFn(ctx, query)
+		tasks, err := s.listTasksFn(ctx, query)
+		return TaskListRecord{
+			Tasks: tasks,
+			Page:  contract.CountedCursorPagePayload{Total: len(tasks), Limit: query.Limit},
+		}, err
 	}
-	return nil, errors.New("unexpected ListTasks call")
+	return TaskListRecord{}, errors.New("unexpected ListTasks call")
 }
 
 func (s *stubClient) CreateTask(

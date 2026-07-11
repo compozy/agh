@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { taskInboxOptions } from "../lib/query-options";
+import { readTaskInboxData } from "../lib/task-inbox-query";
 import type { TaskInboxFilter } from "../types";
 
 interface QueryHookOptions {
@@ -8,5 +9,9 @@ interface QueryHookOptions {
 }
 
 export function useTaskInbox(filters: TaskInboxFilter = {}, options: QueryHookOptions = {}) {
-  return useQuery(taskInboxOptions(filters, options.enabled ?? true));
+  const query = useInfiniteQuery(taskInboxOptions(filters, options.enabled ?? true));
+  return {
+    ...query,
+    data: readTaskInboxData(query.data),
+  };
 }

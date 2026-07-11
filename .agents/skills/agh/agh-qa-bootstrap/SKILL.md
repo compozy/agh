@@ -14,7 +14,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 ## Required Inputs
 
 - **scenario-slug** (optional): short context for the QA lab, such as `release-qa`, `autonomy`, or `hooks-network`. Defaults to `release-candidate`.
-- **--playbook \<ref\>** (required for real-scenario-qa runs): playbook ref under `.agents/skills/real-scenario-qa/references/playbooks/` (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When set, the helper materializes the playbook's workspaces, knowledge files, agent registrations, and open task tree, and replaces the legacy charter skeleton with a populated charter. When omitted, the legacy skeleton charter is generated for backwards compatibility with non-playbook flows.
+- **--playbook \<ref\>** (required for real-scenario-qa runs): playbook ref under `.agents/skills/agh/real-scenario-qa/references/playbooks/` (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When set, the helper materializes the playbook's workspaces, knowledge files, agent registrations, and open task tree, and replaces the legacy charter skeleton with a populated charter. When omitted, the legacy skeleton charter is generated for backwards compatibility with non-playbook flows.
 
 ## Procedures
 
@@ -23,9 +23,9 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 1. Resolve the scenario slug from the user request. Default to `release-candidate`.
 2. When the caller is `real-scenario-qa`, the playbook ref is REQUIRED. Confirm `references/playbooks/<ref>.md` exists before running the helper.
 3. For a new QA pass, execute the repo-root bootstrap helper (bootstrap, mutating). Pass `--playbook` when applicable:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"]`
+   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"]`
 4. Only when continuing the same active QA session or loop and a manifest path is already known, reuse that exact lab:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"] --reuse-manifest "<manifest-path>"`
+   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"] --reuse-manifest "<manifest-path>"`
 5. Read the helper output and record:
    - `SCENARIO_SLUG`
    - `WORKSPACE_PATH`
@@ -72,7 +72,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
    `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
 5. Keep `agh config set` and any other config mutation against the same isolated home strictly sequential. Do not parallelize writes against the same config file.
 6. Downstream QA must run the validation auditor from `AUDIT_COMMAND` before claiming behavior-first completion. The auditor writes `qa-audit-report.json` and `qa-audit-report.md`:
-   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
 
 **Step 4: Report Reuse State**
 
@@ -82,7 +82,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 **Step 5: Tear Down the Lab (MANDATORY on every terminal path)**
 
 1. A QA pass is not complete while lab processes are alive. On pass, fail, blocked, or abort, run the recorded teardown:
-   `eval "$TEARDOWN_COMMAND"` (equivalent to `python3 .agents/skills/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest "$BOOTSTRAP_MANIFEST"`).
+   `eval "$TEARDOWN_COMMAND"` (equivalent to `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest "$BOOTSTRAP_MANIFEST"`).
 2. The teardown stops the daemon gracefully, kills the lab tmux server, and sweeps survivors (registered `qa/pids/*.pid`, cmdline references to lab roots, lab-port listeners, open files under runtime/provider homes). It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps the manifest with a `teardown` block.
 3. Cite `teardown.json` (`"clean": true`) as completion evidence in the final QA summary. Exit code `1` (survivors) is a blocking failure — diagnose the survivors, never ignore them.
 4. Register every long-lived process you start against the lab at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` immediately after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/web-dev.pid"`). The registry is the teardown's primary kill list.

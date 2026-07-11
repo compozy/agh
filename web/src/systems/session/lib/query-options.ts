@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   fetchSession,
@@ -13,8 +13,16 @@ import {
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
-import type { SessionState } from "../types";
+import type { SessionListFilters, SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
+import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
+import {
+  nextTranscriptPageParam,
+  transcriptPageFromResponse,
+  transcriptPageMatchesFence,
+  transcriptPageRequest,
+  type SessionTranscriptPageParam,
+} from "./session-transcript-query";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
@@ -24,26 +32,29 @@ const SESSION_WARM_CACHE_GC_TIME_MS = 30 * 60 * 1_000;
 /**
  * Session detail + transcript are the hot return path for `/agents/:name/sessions/:id`.
  * Keep them inactive for 30 minutes so tab restores and cross-route returns render from
- * cache immediately, while their short staleTime/background polling keeps live sessions fresh.
+ * cache immediately. Session detail uses bounded live polling, while transcript freshness is
+ * driven by its SSE tail and explicit recovery reads.
  */
 const SESSION_WARM_CACHE_POLICY = {
   gcTime: SESSION_WARM_CACHE_GC_TIME_MS,
 } as const;
 
 /**
- * Live session states worth polling: while a session is `active|starting|stopping`
- * its transcript can still grow, so the read paths run a bounded self-heal refetch
- * (mirrors `sessionDetailOptions`). A `stopped` session is terminal; no polling.
+ * Live session states worth polling: while a session is `active|starting|stopping`, detail and
+ * usage aggregates can still change. A `stopped` session is terminal; no polling.
  */
 export function isLiveSessionState(state: SessionState | null | undefined): boolean {
   return state === "active" || state === "starting" || state === "stopping";
 }
 
-export function sessionsListOptions(workspace: string | null = null) {
-  return queryOptions({
-    queryKey: sessionKeys.list(workspace),
-    queryFn: ({ signal }) => fetchSessions(workspace ?? undefined, signal),
-    refetchInterval: 5_000,
+export function sessionsListOptions(filters: SessionListFilters = {}) {
+  const normalizedFilters = normalizeSessionListFilters(filters);
+  return infiniteQueryOptions({
+    queryKey: sessionKeys.list(normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      fetchSessions(sessionListRequest(normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: 2_000,
   });
 }
@@ -76,7 +87,7 @@ export function sessionEventsOptions(
   params?: FetchSessionEventsParams
 ) {
   return queryOptions({
-    queryKey: sessionKeys.events(workspace, id),
+    queryKey: sessionKeys.eventsList(workspace, id, params),
     queryFn: ({ signal }) => fetchSessionEvents(workspace, id, params, signal),
     staleTime: 5_000,
     enabled: !!workspace && !!id,
@@ -92,17 +103,23 @@ export function sessionHistoryOptions(workspace: string, id: string) {
   });
 }
 
-export function sessionTranscriptOptions(
-  workspace: string,
-  id: string,
-  sessionState?: SessionState | null
-) {
-  return queryOptions({
+export function sessionTranscriptOptions(workspace: string, id: string) {
+  return infiniteQueryOptions({
     queryKey: sessionKeys.transcript(workspace, id),
-    queryFn: ({ signal }) => fetchSessionTranscript(workspace, id, signal),
-    // Bounded self-heal: a transient transcript fetch failure (5xx, recorder churn,
-    // daemon restart) recovers without navigation while the session is still live.
-    refetchInterval: isLiveSessionState(sessionState) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false,
+    queryFn: async ({ pageParam, signal }) => {
+      const response = await fetchSessionTranscript(
+        workspace,
+        id,
+        transcriptPageRequest(pageParam),
+        signal
+      );
+      if (!transcriptPageMatchesFence(response, pageParam)) {
+        throw new Error("Session transcript changed while loading older messages");
+      }
+      return transcriptPageFromResponse(response);
+    },
+    initialPageParam: undefined as SessionTranscriptPageParam,
+    getNextPageParam: nextTranscriptPageParam,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,

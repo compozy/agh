@@ -197,44 +197,6 @@ func (g *GlobalDB) GetBridgeInstance(ctx context.Context, id string) (bridges.Br
 	return instance, nil
 }
 
-// ListBridgeInstances returns all persisted bridge instances in stable display-name order.
-func (g *GlobalDB) ListBridgeInstances(ctx context.Context) ([]bridges.BridgeInstance, error) {
-	if err := g.checkReady(ctx, "list bridge instances"); err != nil {
-		return nil, err
-	}
-
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			id, scope, workspace_id, platform, extension_name, display_name,
-			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
-			created_at, updated_at
-		 FROM bridge_instances
-		 ORDER BY display_name ASC, created_at ASC, id ASC`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: query bridge instances: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	instances := make([]bridges.BridgeInstance, 0)
-	for rows.Next() {
-		instance, scanErr := scanBridgeInstance(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		instances = append(instances, instance)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate bridge instances: %w", err)
-	}
-
-	return instances, nil
-}
-
 // ReplaceBridgeInstances atomically swaps the daemon-visible bridge instance projection.
 func (g *GlobalDB) ReplaceBridgeInstances(ctx context.Context, instances []bridges.BridgeInstance) (err error) {
 	if err := g.checkReady(ctx, "replace bridge instances"); err != nil {
@@ -490,7 +452,7 @@ func (g *GlobalDB) GetBridgeSecretBinding(
 func (g *GlobalDB) ListBridgeSecretBindings(
 	ctx context.Context,
 	bridgeInstanceID string,
-) ([]bridges.BridgeSecretBinding, error) {
+) (bindings []bridges.BridgeSecretBinding, err error) {
 	if err := g.checkReady(ctx, "list bridge secret bindings"); err != nil {
 		return nil, err
 	}
@@ -512,10 +474,12 @@ func (g *GlobalDB) ListBridgeSecretBindings(
 		return nil, fmt.Errorf("store: query bridge secret bindings for %q: %w", trimmedInstanceID, err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close bridge secret binding rows: %w", closeErr))
+		}
 	}()
 
-	bindings := make([]bridges.BridgeSecretBinding, 0)
+	bindings = make([]bridges.BridgeSecretBinding, 0)
 	for rows.Next() {
 		binding, scanErr := scanBridgeSecretBinding(rows)
 		if scanErr != nil {
@@ -682,7 +646,10 @@ func (g *GlobalDB) ResolveBridgeRoute(ctx context.Context, key bridges.RoutingKe
 }
 
 // ListBridgeRoutes returns persisted routes for one bridge instance ordered by recency.
-func (g *GlobalDB) ListBridgeRoutes(ctx context.Context, bridgeInstanceID string) ([]bridges.BridgeRoute, error) {
+func (g *GlobalDB) ListBridgeRoutes(
+	ctx context.Context,
+	bridgeInstanceID string,
+) (routes []bridges.BridgeRoute, err error) {
 	if err := g.checkReady(ctx, "list bridge routes"); err != nil {
 		return nil, err
 	}
@@ -707,10 +674,12 @@ func (g *GlobalDB) ListBridgeRoutes(ctx context.Context, bridgeInstanceID string
 		return nil, fmt.Errorf("store: query bridge routes for %q: %w", trimmedInstanceID, err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close bridge route rows: %w", closeErr))
+		}
 	}()
 
-	routes := make([]bridges.BridgeRoute, 0)
+	routes = make([]bridges.BridgeRoute, 0)
 	for rows.Next() {
 		route, scanErr := scanBridgeRoute(rows)
 		if scanErr != nil {

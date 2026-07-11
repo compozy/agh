@@ -569,7 +569,7 @@ func TestTaskBlockHandlersReturnUDSStatusAndBody(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
-		manager := apitestutil.StubTaskManager{
+		manager := &apitestutil.StubTaskManager{
 			BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
 				return taskpkg.TaskBlock{
 					ID:        "block-uds",
@@ -1110,11 +1110,15 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	}
 
 	var response struct {
-		Sessions []sessionPayload `json:"sessions"`
+		Sessions []sessionPayload                  `json:"sessions"`
+		Page     contract.CountedCursorPagePayload `json:"page"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Sessions) != 2 {
 		t.Fatalf("len(sessions) = %d, want 2", len(response.Sessions))
+	}
+	if response.Page.Total != 2 || response.Page.Limit != session.DefaultListLimit {
+		t.Fatalf("page = %#v, want UDS counted page metadata", response.Page)
 	}
 }
 
@@ -1146,7 +1150,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 
 	var response struct {
-		Sessions []sessionPayload `json:"sessions"`
+		Sessions []sessionPayload                  `json:"sessions"`
+		Page     contract.CountedCursorPagePayload `json:"page"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Sessions) != 1 || response.Sessions[0].ID != "sess-a" {
@@ -1154,6 +1159,9 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	if response.Sessions[0].WorkspaceID != "ws-workspace" {
 		t.Fatalf("workspace_id = %q, want ws-workspace", response.Sessions[0].WorkspaceID)
+	}
+	if response.Page.Total != 1 {
+		t.Fatalf("page total = %d, want workspace-scoped total 1", response.Page.Total)
 	}
 }
 
@@ -2043,19 +2051,32 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
-			return []transcript.Entry{{
-				Sequence: 1,
-				Message: transcript.UIMessage{
-					ID:   "msg-1",
-					Role: transcript.UIRoleAssistant,
-					Parts: []transcript.UIMessagePart{{
-						Type:  "text",
-						Text:  "hello",
-						State: "done",
-					}},
-				},
-			}}, nil
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			info := newSessionInfo(id)
+			info.TranscriptEpoch = 5
+			return info, nil
+		},
+		TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+			if id != "sess-123" || query.Limit != 200 || query.BeforeSequence != 0 {
+				t.Fatalf("TranscriptPage() call = %q %#v, want bounded default tail", id, query)
+			}
+			return transcript.Page{
+				Entries: []transcript.Entry{{
+					StartSequence: 1,
+					Sequence:      1,
+					Message: transcript.UIMessage{
+						ID:   "msg-1",
+						Role: transcript.UIRoleAssistant,
+						Parts: []transcript.UIMessagePart{{
+							Type:  "text",
+							Text:  "hello",
+							State: "done",
+						}},
+					},
+				}},
+				Generation:  4,
+				MaxSequence: 1,
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -2072,9 +2093,7 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
 
-	var response struct {
-		Entries []transcript.Entry `json:"entries"`
-	}
+	var response contract.SessionTranscriptResponse
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Entries) != 1 {
 		t.Fatalf("len(entries) = %d, want 1", len(response.Entries))
@@ -2084,6 +2103,9 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 	}
 	if got := response.Entries[0].Message.Parts[0].Text; got != "hello" {
 		t.Fatalf("entries[0].Message.Parts[0].Text = %q, want %q", got, "hello")
+	}
+	if response.Epoch != 5 || response.Generation != 4 || response.MaxSequence != 1 || response.Limit != 200 {
+		t.Fatalf("transcript page metadata = %#v", response)
 	}
 }
 

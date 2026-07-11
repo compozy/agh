@@ -42,7 +42,8 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrBulkTooLarge):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, errAgentIdentityUnavailable),
-		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
+		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable),
+		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
 		return http.StatusForbidden

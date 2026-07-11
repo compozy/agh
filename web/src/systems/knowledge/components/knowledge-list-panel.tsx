@@ -2,6 +2,7 @@ import { AlertCircle, BookOpen } from "lucide-react";
 
 import {
   Empty,
+  Button,
   Eyebrow,
   Item,
   ItemDescription,
@@ -41,6 +42,11 @@ interface KnowledgeListPanelProps {
   errorMessage?: string | null;
   searchMode?: boolean;
   searchInfo?: string | null;
+  totalCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  onRetry?: () => void;
 }
 
 interface KnowledgeListItemProps {
@@ -136,6 +142,11 @@ function KnowledgeListPanel({
   errorMessage = null,
   searchMode = false,
   searchInfo = null,
+  totalCount = memories.length,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  onRetry,
 }: KnowledgeListPanelProps) {
   const groups = groupKnowledgeMemoriesByScope(memories);
   const isEmpty = memories.length === 0;
@@ -144,10 +155,10 @@ function KnowledgeListPanel({
     <aside className="flex min-h-0 flex-1 flex-col" data-testid="knowledge-list-panel">
       <div className="border-b border-line p-3">
         <SearchInput
-          aria-label="Search knowledge"
+          aria-label="Recall knowledge"
           data-testid="knowledge-search-input"
           onChange={onSearchChange}
-          placeholder={searchMode ? "Recall query..." : "Filter knowledge..."}
+          placeholder="Recall knowledge..."
           value={searchQuery}
         />
         {searchInfo ? (
@@ -215,6 +226,39 @@ function KnowledgeListPanel({
                 ))}
               </ListGroup>
             ))}
+            {errorMessage ? (
+              <div
+                className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-danger"
+                data-testid="knowledge-list-pagination-error"
+                role="alert"
+              >
+                <span>{errorMessage}</span>
+                {onRetry ? (
+                  <Button onClick={onRetry} size="sm" type="button" variant="neutral">
+                    Retry loading knowledge
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            {!searchMode && !errorMessage && hasMore && onLoadMore ? (
+              <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+                <span className="text-xs tabular-nums text-subtle">
+                  {memories.length} of {totalCount}
+                </span>
+                <Button
+                  aria-busy={isLoadingMore}
+                  aria-label={isLoadingMore ? "Loading more knowledge" : "Load more knowledge"}
+                  disabled={isLoadingMore}
+                  onClick={onLoadMore}
+                  size="sm"
+                  type="button"
+                  variant="neutral"
+                >
+                  {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+                  {isLoadingMore ? "Loading more knowledge" : "Load more knowledge"}
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

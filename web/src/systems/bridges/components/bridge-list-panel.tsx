@@ -1,6 +1,5 @@
 import { AlertCircle, Waypoints } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
 
 import {
   Button,
@@ -17,25 +16,18 @@ import {
   bridgeStatusTone,
   formatBridgeRelativeTime,
 } from "../lib/bridge-formatters";
-import {
-  effectiveBridgeStatus,
-  filterBridges,
-  type BridgeFilterState,
-  type BridgePlatformFilter,
-  type BridgeStatusFilter,
-} from "../lib/bridge-list-filters";
-import type { BridgeHealthMap, BridgeScopeFilter, BridgeSummary } from "../types";
+import { effectiveBridgeStatus } from "../lib/bridge-list-filters";
+import type { BridgeHealthMap, BridgeSummary } from "../types";
 
 export interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
   bridges: BridgeSummary[];
-  searchQuery: string;
   view: ListingViewMode;
-  scopeFilter: BridgeScopeFilter;
-  platformFilter: BridgePlatformFilter | null;
-  statusFilter: BridgeStatusFilter | null;
-  activeWorkspaceId: string | null;
+  hasActiveFilters?: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
   onClearFilters: () => void;
+  onLoadMore?: () => void;
   isLoading?: boolean;
   errorMessage?: string | null;
 }
@@ -157,34 +149,16 @@ function BridgeCatalogCard({ bridge, health }: BridgeRowProps) {
 function BridgeListPanel({
   bridgeHealth,
   bridges,
-  searchQuery,
   view,
-  scopeFilter,
-  platformFilter,
-  statusFilter,
-  activeWorkspaceId,
+  hasActiveFilters = false,
+  hasNextPage = false,
+  isFetchingNextPage = false,
   onClearFilters,
+  onLoadMore,
   isLoading = false,
   errorMessage = null,
 }: BridgeListPanelProps) {
-  const filterState: BridgeFilterState = useMemo(
-    () => ({
-      platform: platformFilter,
-      scope: scopeFilter,
-      status: statusFilter,
-    }),
-    [platformFilter, scopeFilter, statusFilter]
-  );
-  const filtered = useMemo(
-    () => filterBridges(bridges, bridgeHealth, searchQuery, filterState, activeWorkspaceId),
-    [activeWorkspaceId, bridgeHealth, bridges, filterState, searchQuery]
-  );
-  const hasActiveFilters =
-    searchQuery.trim() !== "" ||
-    scopeFilter !== "all" ||
-    platformFilter !== null ||
-    statusFilter !== null;
-  const isEmpty = filtered.length === 0;
+  const isEmpty = bridges.length === 0;
 
   if (isLoading && isEmpty) {
     return (
@@ -244,30 +218,52 @@ function BridgeListPanel({
     );
   }
 
-  if (view === "cards") {
-    return (
+  const catalog =
+    view === "cards" ? (
       <div
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
         data-testid="bridge-list-card-grid"
       >
-        {filtered.map(bridge => (
+        {bridges.map(bridge => (
           <BridgeCatalogCard bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
         ))}
       </div>
+    ) : (
+      <div
+        className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+        data-testid="bridge-list-rows"
+      >
+        {bridges.map(bridge => (
+          <BridgeListingRow bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
+        ))}
+      </div>
     );
-  }
 
   return (
-    <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
-      data-testid="bridge-list-rows"
-    >
-      {filtered.map(bridge => (
-        <BridgeListingRow bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
-      ))}
+    <div className="flex flex-col gap-3">
+      {catalog}
+      {errorMessage ? (
+        <p className="text-caption text-danger" data-testid="bridge-list-page-error" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+      {hasNextPage && onLoadMore ? (
+        <div className="flex justify-center">
+          <Button
+            aria-busy={isFetchingNextPage}
+            data-testid="bridge-list-load-more"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {isFetchingNextPage ? "Loading more bridges…" : "Load more bridges"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export { BridgeListPanel };
-export type { BridgeFilterState };

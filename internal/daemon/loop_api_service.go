@@ -20,17 +20,17 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-const loopCatalogAggregateWindow = 30 * 24 * time.Hour
-
 type loopAPIPersistence interface {
 	looppkg.Store
 	looppkg.RunReader
+	looppkg.CatalogRunReader
 	looppkg.AnnotationStore
 }
 
 type daemonLoopAPIService struct {
 	aggregate         looppkg.Service
 	persistence       loopAPIPersistence
+	catalogRuns       looppkg.CatalogRunReader
 	resolver          *daemonLoopDefinitionResolver
 	catalog           *resourceCatalog[looppkg.ResourceSpec]
 	publisher         loopResourcePublisher
@@ -102,6 +102,7 @@ func newDaemonLoopAPIService(
 	return &daemonLoopAPIService{
 		aggregate:         aggregate,
 		persistence:       persistence,
+		catalogRuns:       persistence,
 		resolver:          resolver,
 		catalog:           state.loopCatalog,
 		publisher:         state.loopResources,
@@ -110,39 +111,6 @@ func newDaemonLoopAPIService(
 		homePaths:         homePaths,
 		now:               now,
 	}, nil
-}
-
-func (s *daemonLoopAPIService) ListLoops(
-	ctx context.Context,
-	workspaceID string,
-) (contract.LoopsResponse, error) {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
-	if err != nil {
-		return contract.LoopsResponse{}, err
-	}
-	records := looppkg.ResolveEffectiveResources(s.catalog.Snapshot(), string(ws))
-	loops := make([]contract.LoopCatalogEntryPayload, 0, len(records))
-	for _, record := range records {
-		def, defErr := daemonLoopDefinitionFromSpec(record.Spec)
-		if defErr != nil {
-			return contract.LoopsResponse{}, defErr
-		}
-		runs, runErr := s.persistence.ListLoopRuns(ctx, looppkg.RunListQuery{
-			WorkspaceID:  ws,
-			LoopName:     record.Spec.Name,
-			CreatedAfter: s.now().Add(-loopCatalogAggregateWindow),
-			Limit:        500,
-		})
-		if runErr != nil {
-			return contract.LoopsResponse{}, runErr
-		}
-		payload, err := loopCatalogEntryPayload(record.Spec, def, runs)
-		if err != nil {
-			return contract.LoopsResponse{}, err
-		}
-		loops = append(loops, payload)
-	}
-	return contract.LoopsResponse{Loops: loops}, nil
 }
 
 func (s *daemonLoopAPIService) CreateLoop(

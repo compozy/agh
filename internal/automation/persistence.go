@@ -27,6 +27,15 @@ var (
 	ErrJobOverlayNotFound = modelpkg.ErrJobOverlayNotFound
 	// ErrTriggerOverlayNotFound reports that a trigger enabled overlay row does not exist.
 	ErrTriggerOverlayNotFound = modelpkg.ErrTriggerOverlayNotFound
+	// ErrListCursorInvalid reports a malformed or query-mismatched automation list cursor.
+	ErrListCursorInvalid = modelpkg.ErrListCursorInvalid
+)
+
+const (
+	// DefaultListLimit bounds automation list responses when callers omit a limit.
+	DefaultListLimit = modelpkg.DefaultListLimit
+	// MaxListLimit bounds one automation list response.
+	MaxListLimit = modelpkg.MaxListLimit
 )
 
 // JobListQuery filters persisted automation job listings.
@@ -34,6 +43,42 @@ type JobListQuery = modelpkg.JobListQuery
 
 // TriggerListQuery filters persisted automation trigger listings.
 type TriggerListQuery = modelpkg.TriggerListQuery
+
+// JobListPage is one stable page of automation jobs.
+type JobListPage = modelpkg.JobListPage
+
+// TriggerListPage is one stable page of automation triggers.
+type TriggerListPage = modelpkg.TriggerListPage
+
+// ValidateJobListQuery validates job list filters and cursor binding.
+func ValidateJobListQuery(query JobListQuery) error {
+	return modelpkg.ValidateJobListQuery(query)
+}
+
+// ValidateTriggerListQuery validates trigger list filters and cursor binding.
+func ValidateTriggerListQuery(query TriggerListQuery) error {
+	return modelpkg.ValidateTriggerListQuery(query)
+}
+
+// BuildJobListPage applies canonical job filters, ordering, and cursor pagination.
+func BuildJobListPage(jobs []Job, query JobListQuery) (JobListPage, error) {
+	return modelpkg.BuildJobListPage(jobs, query)
+}
+
+// BuildTriggerListPage applies canonical trigger filters, ordering, and cursor pagination.
+func BuildTriggerListPage(triggers []Trigger, query TriggerListQuery) (TriggerListPage, error) {
+	return modelpkg.BuildTriggerListPage(triggers, query)
+}
+
+// SortJobsForList orders jobs by source precedence, name, and id.
+func SortJobsForList(jobs []Job) {
+	modelpkg.SortJobsForList(jobs)
+}
+
+// SortTriggersForList orders triggers by source precedence, name, and id.
+func SortTriggersForList(triggers []Trigger) {
+	modelpkg.SortTriggersForList(triggers)
+}
 
 // RunQuery filters automation run history and fire-limit window lookups.
 type RunQuery = modelpkg.RunQuery

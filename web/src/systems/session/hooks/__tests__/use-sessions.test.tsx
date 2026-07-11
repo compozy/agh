@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "../../types";
+import { sessionKeys } from "../../lib/query-keys";
 import { useSession, useSessionById, useSessions } from "../use-sessions";
 
 vi.mock("../../adapters/session-api", () => ({
@@ -66,24 +67,15 @@ describe("useSessions", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it("loads sessions for the selected workspace filter", async () => {
-    vi.mocked(fetchSessions).mockResolvedValue([
-      {
-        id: "sess-001",
-        agent_name: "claude-agent",
-        provider: "claude",
-        workspace_id: "ws_alpha",
-        workspace_path: "/workspace/alpha",
-        state: "active",
-        badge: "idle",
-        attachable: true,
-        created_at: "2026-04-06T10:00:00Z",
-        updated_at: "2026-04-06T10:00:00Z",
-      },
-    ]);
+    vi.mocked(fetchSessions).mockResolvedValue({
+      sessions: [makeSession()],
+      page: { has_more: false, limit: 50, total: 1 },
+    });
 
     const { result } = renderHook(() => useSessions("ws_alpha"), {
       wrapper: createWrapper(),
@@ -94,7 +86,111 @@ describe("useSessions", () => {
     });
 
     expect(result.current.data?.[0]?.provider).toBe("claude");
-    expect(fetchSessions).toHaveBeenCalledWith("ws_alpha", expect.any(AbortSignal));
+    expect(result.current.total).toBe(1);
+    expect(fetchSessions).toHaveBeenCalledWith({ workspace: "ws_alpha" }, expect.any(AbortSignal));
+  });
+
+  it("appends cursor pages while keeping stable filters in the base query key", async () => {
+    vi.mocked(fetchSessions)
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-002" })],
+        page: { has_more: true, limit: 1, next_cursor: "cursor-1", total: 2 },
+      })
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-001" })],
+        page: { has_more: false, limit: 1, total: 2 },
+      });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useSessions("ws_alpha", {
+          filters: { agent: "claude-agent", sort: "last_activity", limit: 1 },
+        }),
+      { wrapper: createWrapperWithClient(queryClient) }
+    );
+
+    await waitFor(() =>
+      expect(result.current.data?.map(session => session.id)).toEqual(["sess-002"])
+    );
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() =>
+      expect(result.current.data?.map(session => session.id)).toEqual(["sess-002", "sess-001"])
+    );
+    expect(result.current.total).toBe(2);
+    expect(result.current.hasNextPage).toBe(false);
+    expect(fetchSessions).toHaveBeenNthCalledWith(
+      1,
+      {
+        agent: "claude-agent",
+        limit: 1,
+        sort: "last_activity",
+        workspace: "ws_alpha",
+      },
+      expect.any(AbortSignal)
+    );
+    expect(fetchSessions).toHaveBeenNthCalledWith(
+      2,
+      {
+        agent: "claude-agent",
+        cursor: "cursor-1",
+        limit: 1,
+        sort: "last_activity",
+        workspace: "ws_alpha",
+      },
+      expect.any(AbortSignal)
+    );
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .map(query => query.queryKey)
+    ).toContainEqual(
+      sessionKeys.list({
+        agent: "claude-agent",
+        limit: 1,
+        sort: "last_activity",
+        workspace: "ws_alpha",
+      })
+    );
+  });
+
+  it("does not periodically refetch every loaded catalog page", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessions)
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-002" })],
+        page: { has_more: true, limit: 1, next_cursor: "cursor-1", total: 2 },
+      })
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-001" })],
+        page: { has_more: false, limit: 1, total: 2 },
+      });
+
+    const { result } = renderHook(() => useSessions("ws_alpha", { filters: { limit: 1 } }), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(result.current.data?.map(session => session.id)).toEqual(["sess-002"]);
+    await act(async () => {
+      await result.current.fetchNextPage();
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(result.current.data?.map(session => session.id)).toEqual(["sess-002", "sess-001"]);
+
+    expect(fetchSessions).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(fetchSessions).toHaveBeenCalledTimes(2);
   });
 
   it("disables the query when the workspace filter is unavailable", async () => {
@@ -105,6 +201,45 @@ describe("useSessions", () => {
     expect(fetchSessions).not.toHaveBeenCalled();
   });
 });
+
+describe("session event query identity", () => {
+  it("includes every bounded event response parameter after normalization", () => {
+    const first = sessionKeys.eventsList("ws_alpha", "sess-001", {
+      after_sequence: 10,
+      agent_name: " claude-agent ",
+      limit: 25,
+      since: " 2026-07-11T12:00:00Z ",
+      turn_id: " turn-1 ",
+      type: " tool_call ",
+    });
+    const second = sessionKeys.eventsList("ws_alpha", "sess-001", {
+      after_sequence: 11,
+      agent_name: "claude-agent",
+      limit: 25,
+      since: "2026-07-11T12:00:00Z",
+      turn_id: "turn-1",
+      type: "tool_call",
+    });
+
+    expect(first).not.toEqual(second);
+    expect(first.at(-1)).toEqual({
+      after_sequence: 10,
+      agent_name: "claude-agent",
+      limit: 25,
+      since: "2026-07-11T12:00:00Z",
+      turn_id: "turn-1",
+      type: "tool_call",
+    });
+    expect(sessionKeys.eventsList("ws_alpha", "sess-001", { type: "   " })).toEqual(
+      sessionKeys.eventsList("ws_alpha", "sess-001")
+    );
+  });
+});
+
+function createWrapperWithClient(queryClient: QueryClient) {
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+}
 
 describe("useSession", () => {
   it("loads a single session detail", async () => {

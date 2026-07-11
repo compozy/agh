@@ -1,4 +1,5 @@
-import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
+import { normalizeBridgeCatalogFilter } from "./bridge-list-query";
+import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
 
 function normalizeKeyValue(value?: string | number | null) {
   return value == null ? "" : String(value);
@@ -7,13 +8,20 @@ function normalizeKeyValue(value?: string | number | null) {
 export const bridgeKeys = {
   all: ["bridges"] as const,
   lists: () => [...bridgeKeys.all, "list"] as const,
-  list: (filters: BridgeListFilter = {}) =>
-    [
+  list: (filters: BridgeCatalogFilter = {}) => {
+    const normalized = normalizeBridgeCatalogFilter(filters);
+    return [
       ...bridgeKeys.lists(),
-      filters.scope ?? "all",
-      normalizeKeyValue(filters.workspace_id),
-      normalizeKeyValue(filters.workspace),
-    ] as const,
+      normalized.scope ?? "all",
+      normalizeKeyValue(normalized.workspace_id),
+      normalizeKeyValue(normalized.workspace),
+      normalizeKeyValue(normalized.q),
+      normalizeKeyValue(normalized.platform),
+      normalizeKeyValue(normalized.status),
+      normalizeKeyValue(normalized.sort),
+      normalizeKeyValue(normalized.limit),
+    ] as const;
+  },
   providers: () => [...bridgeKeys.all, "providers"] as const,
   details: () => [...bridgeKeys.all, "detail"] as const,
   detail: (id: string) => [...bridgeKeys.details(), normalizeKeyValue(id)] as const,

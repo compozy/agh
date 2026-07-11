@@ -825,6 +825,42 @@ export interface AutomationJobsParams {
   scope?: Scope;
   workspace_id?: string;
   enabled?: boolean;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export type JobSource = string;
+
+export interface Job {
+  id: string;
+  scope: Scope;
+  name: string;
+  target_kind: TargetKind;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  schedule?: ScheduleSpec;
+  task?: JobTaskConfig;
+  loop_target?: LoopTarget;
+  enabled: boolean;
+  retry: RetryConfig;
+  fire_limit: FireLimitConfig;
+  source: JobSource;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface CountedCursorPagePayload {
+  next_cursor?: string;
+  has_more: boolean;
+  total: number;
+  limit: number;
+}
+
+export interface AutomationJobsResult {
+  jobs: Job[];
+  page: CountedCursorPagePayload;
 }
 
 export type AutomationObservationPatch = Record<string, never>;
@@ -938,6 +974,37 @@ export interface AutomationTriggersParams {
   workspace_id?: string;
   event?: string;
   enabled?: boolean;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface Trigger {
+  id: string;
+  scope: Scope;
+  name: string;
+  target_kind: TargetKind;
+  agent_name: string;
+  workspace_id?: string;
+  prompt: string;
+  event: string;
+  filter?: Record<string, string>;
+  loop_target?: LoopTarget;
+  enabled: boolean;
+  retry: RetryConfig;
+  fire_limit: FireLimitConfig;
+  source: JobSource;
+  webhook_id?: string;
+  endpoint_slug?: string;
+  webhook_secret_present: boolean;
+  webhook_secret_hash?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface AutomationTriggersResult {
+  triggers: Trigger[];
+  page: CountedCursorPagePayload;
 }
 
 export interface AutonomyMatcher {
@@ -2041,27 +2108,6 @@ export interface InputPreSubmitPayload {
   context_blocks?: ContextBlock[];
 }
 
-export type JobSource = string;
-
-export interface Job {
-  id: string;
-  scope: Scope;
-  name: string;
-  target_kind: TargetKind;
-  agent_name: string;
-  workspace_id?: string;
-  prompt: string;
-  schedule?: ScheduleSpec;
-  task?: JobTaskConfig;
-  loop_target?: LoopTarget;
-  enabled: boolean;
-  retry: RetryConfig;
-  fire_limit: FireLimitConfig;
-  source: JobSource;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
-}
-
 export interface ListLogsParams {
   workspace_id: string;
   session_id?: string;
@@ -2580,6 +2626,24 @@ export interface NetworkChannelsParams {
   workspace_id: string;
 }
 
+export interface NetworkDirectMessagesParams {
+  workspace_id: string;
+  channel: string;
+  direct_id: string;
+  before?: string;
+  after?: string;
+  kind?: string;
+  work_id?: string;
+  limit?: number;
+}
+
+export interface NetworkDirectResolveParams {
+  workspace_id: string;
+  channel: string;
+  session_id: string;
+  peer_id: string;
+}
+
 export interface NetworkConversationMessagePayload {
   message_id: string;
   workspace_id?: string;
@@ -2610,22 +2674,15 @@ export interface NetworkConversationMessagePayload {
   timestamp: ISODateTime;
 }
 
-export interface NetworkDirectMessagesParams {
-  workspace_id: string;
-  channel: string;
-  direct_id: string;
-  before?: string;
-  after?: string;
-  kind?: string;
-  work_id?: string;
-  limit?: number;
+export interface CursorPagePayload {
+  next_cursor?: string;
+  has_more: boolean;
+  limit: number;
 }
 
-export interface NetworkDirectResolveParams {
-  workspace_id: string;
-  channel: string;
-  session_id: string;
-  peer_id: string;
+export interface NetworkDirectRoomMessagesResponse {
+  messages: NetworkConversationMessagePayload[];
+  page: CursorPagePayload;
 }
 
 export interface NetworkDirectRoomOpenedPayload {
@@ -2663,10 +2720,18 @@ export interface NetworkDirectRoomPayload {
   last_message_preview?: string;
 }
 
+export interface NetworkDirectRoomsResponse {
+  directs: NetworkDirectRoomPayload[];
+  page: CountedCursorPagePayload;
+}
+
 export interface NetworkDirectsParams {
   workspace_id: string;
   channel: string;
+  query?: string;
   peer_id?: string;
+  sort?: string;
+  has_work?: boolean;
   limit?: number;
   after?: string;
 }
@@ -2906,6 +2971,11 @@ export interface NetworkThreadMessagesParams {
   limit?: number;
 }
 
+export interface NetworkThreadMessagesResponse {
+  messages: NetworkConversationMessagePayload[];
+  page: CursorPagePayload;
+}
+
 export interface NetworkThreadOpenedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -2960,8 +3030,17 @@ export interface NetworkThreadTargetParams {
 export interface NetworkThreadsParams {
   workspace_id: string;
   channel: string;
+  query?: string;
+  peer_id?: string;
+  sort?: string;
+  has_work?: boolean;
   limit?: number;
   after?: string;
+}
+
+export interface NetworkThreadsResponse {
+  threads: NetworkThreadSummaryPayload[];
+  page: CountedCursorPagePayload;
 }
 
 export interface NetworkWorkClosedPayload {
@@ -4713,7 +4792,7 @@ export interface TaskRunSummaryPayload {
   error?: string;
 }
 
-export interface TaskSummary {
+export interface TaskSummaryPayload {
   id: string;
   identifier?: string;
   scope: Scope;
@@ -4809,9 +4888,9 @@ export interface TaskEventPayload {
 }
 
 export interface TaskDetail {
-  summary: TaskSummary;
+  summary: TaskSummaryPayload;
   task: Task;
-  children?: TaskSummary[];
+  children?: TaskSummaryPayload[];
   dependencies?: TaskDependencyPayload[];
   dependency_references?: TaskDependencyReferencePayload[];
   runs?: TaskRun[];
@@ -4820,6 +4899,38 @@ export interface TaskDetail {
 }
 
 export type TaskInboxLane = string;
+
+export interface TaskInboxTaskPayload {
+  id: string;
+  identifier?: string;
+  title: string;
+  status: Status;
+  priority?: Priority;
+  owner?: Ownership;
+  scope: Scope;
+  workspace_id?: string;
+  latest_event_seq: number;
+}
+
+export interface TaskCatalogRunPayload {
+  id: string;
+  task_id: string;
+  status: RunStatus;
+  attempt: number;
+  previous_run_id?: string;
+  failure_kind?: string;
+  max_attempts: number;
+  session_id?: string;
+  claimed_by?: ActorIdentity;
+  lease_until?: ISODateTime;
+  heartbeat_at?: ISODateTime;
+  coordination_channel_id?: string;
+  queued_at: ISODateTime;
+  claimed_at?: ISODateTime;
+  started_at?: ISODateTime;
+  ended_at?: ISODateTime;
+  error?: string;
+}
 
 export interface TaskTriageStatePayload {
   task_id: string;
@@ -4832,13 +4943,13 @@ export interface TaskTriageStatePayload {
 }
 
 export interface TaskInboxItemPayload {
-  task: TaskReferencePayload;
+  task: TaskInboxTaskPayload;
   lane: TaskInboxLane;
   approval_policy?: ApprovalPolicy;
   approval_state?: ApprovalState;
   blocking_reason?: string;
   latest_activity_at: ISODateTime;
-  run?: TaskRunSummaryPayload;
+  run?: TaskCatalogRunPayload;
   triage: TaskTriageStatePayload;
 }
 
@@ -4849,21 +4960,42 @@ export interface TaskInboxLaneGroupPayload {
   items?: TaskInboxItemPayload[];
 }
 
-export interface TaskInbox {
-  total: number;
-  unread_total: number;
-  archived_total: number;
-  groups?: TaskInboxLaneGroupPayload[];
+export interface TaskInboxStatusFacetPayload {
+  status: Status;
+  count: number;
 }
 
+export interface TaskInboxPriorityFacetPayload {
+  priority: Priority;
+  count: number;
+}
+
+export interface TaskInboxFacetsPayload {
+  statuses: TaskInboxStatusFacetPayload[];
+  priorities: TaskInboxPriorityFacetPayload[];
+}
+
+export interface TaskInbox {
+  unread_total: number;
+  archived_total: number;
+  groups: TaskInboxLaneGroupPayload[];
+  page: CountedCursorPagePayload;
+  facets: TaskInboxFacetsPayload;
+}
+
+export type CatalogScope = string;
+
 export interface TaskInboxParams {
-  scope?: Scope;
+  scope?: CatalogScope;
   workspace?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   lane?: TaskInboxLane;
+  status?: Status;
+  priority?: Priority;
   unread?: boolean;
   query?: string;
+  cursor?: string;
   limit?: number;
 }
 
@@ -5448,8 +5580,10 @@ export interface TaskUpdateParams {
   clear_owner?: boolean;
 }
 
+export type CatalogSort = string;
+
 export interface TasksParams {
-  scope?: Scope;
+  scope?: CatalogScope;
   workspace?: string;
   status?: Status;
   priority?: Priority;
@@ -5460,7 +5594,64 @@ export interface TasksParams {
   parent_task_id?: string;
   network_channel?: string;
   query?: string;
+  sort?: CatalogSort;
+  cursor?: string;
   limit?: number;
+}
+
+export interface TaskCatalogItemPayload {
+  id: string;
+  identifier?: string;
+  scope: Scope;
+  workspace_id?: string;
+  parent_task_id?: string;
+  network_channel?: string;
+  title: string;
+  priority?: Priority;
+  max_attempts?: number;
+  auto_enqueue_on_ready?: boolean;
+  status: Status;
+  approval_policy?: ApprovalPolicy;
+  approval_state?: ApprovalState;
+  draft?: boolean;
+  owner?: Ownership;
+  current_run_id?: string;
+  latest_event_seq: number;
+  needs_attention?: boolean;
+  needs_attention_reason?: string;
+  needs_attention_at?: ISODateTime;
+  needs_attention_by?: ActorIdentity;
+  wake_creator: boolean;
+  created_by: ActorIdentity;
+  origin: Origin;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  closed_at?: ISODateTime;
+  child_count?: number;
+  dependency_count?: number;
+  active_run?: TaskCatalogRunPayload;
+  last_activity_at?: ISODateTime;
+}
+
+export interface TaskCatalogStatusFacetPayload {
+  status: Status;
+  count: number;
+}
+
+export interface TaskCatalogOwnerFacetPayload {
+  owner: Ownership;
+  count: number;
+}
+
+export interface TaskCatalogFacetsPayload {
+  statuses: TaskCatalogStatusFacetPayload[];
+  owners: TaskCatalogOwnerFacetPayload[];
+}
+
+export interface TasksResponse {
+  tasks: TaskCatalogItemPayload[];
+  page: CountedCursorPagePayload;
+  facets: TaskCatalogFacetsPayload;
 }
 
 export type BackendKind = string;
@@ -5613,29 +5804,6 @@ export interface ToolResultPatch {
   title?: string;
   tool_result?: JSONValue;
   error?: string;
-}
-
-export interface Trigger {
-  id: string;
-  scope: Scope;
-  name: string;
-  target_kind: TargetKind;
-  agent_name: string;
-  workspace_id?: string;
-  prompt: string;
-  event: string;
-  filter?: Record<string, string>;
-  loop_target?: LoopTarget;
-  enabled: boolean;
-  retry: RetryConfig;
-  fire_limit: FireLimitConfig;
-  source: JobSource;
-  webhook_id?: string;
-  endpoint_slug?: string;
-  webhook_secret_present: boolean;
-  webhook_secret_hash?: string;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
 }
 
 export interface TriggerResult {
@@ -6042,7 +6210,7 @@ export interface HostAPIMethodMap {
   };
   "automation/jobs": {
     params: AutomationJobsParams | undefined;
-    result: Job[];
+    result: AutomationJobsResult;
   };
   "automation/jobs/get": {
     params: AutomationTargetParams;
@@ -6070,7 +6238,7 @@ export interface HostAPIMethodMap {
   };
   "automation/triggers": {
     params: AutomationTriggersParams | undefined;
-    result: Trigger[];
+    result: AutomationTriggersResult;
   };
   "automation/triggers/get": {
     params: AutomationTargetParams;
@@ -6102,7 +6270,7 @@ export interface HostAPIMethodMap {
   };
   tasks: {
     params: TasksParams | undefined;
-    result: TaskSummary[];
+    result: TasksResponse;
   };
   "tasks/get": {
     params: TaskTargetParams;
@@ -6186,7 +6354,7 @@ export interface HostAPIMethodMap {
   };
   "network/threads": {
     params: NetworkThreadsParams;
-    result: NetworkThreadSummaryPayload[];
+    result: NetworkThreadsResponse;
   };
   "network/thread/get": {
     params: NetworkThreadTargetParams;
@@ -6194,11 +6362,11 @@ export interface HostAPIMethodMap {
   };
   "network/thread/messages": {
     params: NetworkThreadMessagesParams;
-    result: NetworkConversationMessagePayload[];
+    result: NetworkThreadMessagesResponse;
   };
   "network/directs": {
     params: NetworkDirectsParams;
-    result: NetworkDirectRoomPayload[];
+    result: NetworkDirectRoomsResponse;
   };
   "network/direct/resolve": {
     params: NetworkDirectResolveParams;
@@ -6206,7 +6374,7 @@ export interface HostAPIMethodMap {
   };
   "network/direct/messages": {
     params: NetworkDirectMessagesParams;
-    result: NetworkConversationMessagePayload[];
+    result: NetworkDirectRoomMessagesResponse;
   };
   "network/work/get": {
     params: NetworkWorkGetParams;

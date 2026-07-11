@@ -73,7 +73,9 @@ function invalidateLoopDefinitionQueries(
   workspaceId: string,
   name?: string
 ) {
-  const pending = [queryClient.invalidateQueries({ queryKey: loopsKeys.catalog(workspaceId) })];
+  const pending = [
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
+  ];
   if (name) {
     pending.push(queryClient.invalidateQueries({ queryKey: loopsKeys.detail(workspaceId, name) }));
     pending.push(queryClient.invalidateQueries({ queryKey: loopsKeys.config(workspaceId, name) }));
@@ -87,6 +89,7 @@ function invalidateLoopDefinitionQueries(
 /** Invalidate this workspace's runs lists + (optionally) a single run's detail. */
 function invalidateLoopRunQueries(queryClient: QueryClient, workspaceId: string, runId?: string) {
   const pending = [
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
   ];
   if (runId) {

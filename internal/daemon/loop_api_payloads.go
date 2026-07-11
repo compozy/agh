@@ -31,16 +31,24 @@ func loopDefinitionPayload(
 func loopCatalogEntryPayload(
 	spec looppkg.ResourceSpec,
 	def dsl.Definition,
-	runs []looppkg.Run,
+	summary looppkg.CatalogRunSummary,
 ) (contract.LoopCatalogEntryPayload, error) {
-	aggregate := loopCatalogAggregate(runs)
+	aggregate := contract.LoopCatalogAggregatePayload{
+		Runs:      summary.Aggregate30d.Runs,
+		Succeeded: summary.Aggregate30d.Succeeded,
+		Failed:    summary.Aggregate30d.Failed,
+	}
 	document, err := loopDefinitionDocument(def)
 	if err != nil {
 		return contract.LoopCatalogEntryPayload{}, err
 	}
-	lastRun, err := firstLoopRunPayload(runs)
-	if err != nil {
-		return contract.LoopCatalogEntryPayload{}, err
+	var lastRun *contract.LoopCatalogLastRunPayload
+	if summary.LastRun != nil {
+		lastRun = &contract.LoopCatalogLastRunPayload{
+			ID:        string(summary.LastRun.ID),
+			Status:    contract.LoopRunStatus(summary.LastRun.Status),
+			CreatedAt: summary.LastRun.CreatedAt,
+		}
 	}
 	return contract.LoopCatalogEntryPayload{
 		Name:          spec.Name,
@@ -65,37 +73,11 @@ func loopCatalogResourcePayload(spec looppkg.CatalogResourceSpec) contract.LoopC
 	}
 }
 
-func loopCatalogAggregate(runs []looppkg.Run) contract.LoopCatalogAggregatePayload {
-	var aggregate contract.LoopCatalogAggregatePayload
-	for _, run := range runs {
-		aggregate.Runs++
-		switch run.Status {
-		case looppkg.StatusDone:
-			aggregate.Succeeded++
-		case looppkg.StatusFailed, looppkg.StatusBlocked, looppkg.StatusExhausted, looppkg.StatusStalled:
-			aggregate.Failed++
-		default:
-		}
-	}
-	return aggregate
-}
-
 func loopSuccessRate(aggregate contract.LoopCatalogAggregatePayload) float64 {
 	if aggregate.Runs == 0 {
 		return 0
 	}
 	return float64(aggregate.Succeeded) / float64(aggregate.Runs)
-}
-
-func firstLoopRunPayload(runs []looppkg.Run) (*contract.LoopRunPayload, error) {
-	if len(runs) == 0 {
-		return nil, nil
-	}
-	payload, err := loopRunPayload(runs[0])
-	if err != nil {
-		return nil, err
-	}
-	return &payload, nil
 }
 
 func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {

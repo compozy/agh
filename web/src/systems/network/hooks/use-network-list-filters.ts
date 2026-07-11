@@ -1,94 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { createFilter, type Filter as ReuiFilter } from "@agh/ui/components/reui/filters";
-import { useActiveWorkspace } from "@/systems/workspace";
 
+import type { NetworkLastReadLookupKey } from "./use-last-read";
+import { useLastRead } from "./use-last-read";
 import { useActiveNetworkSession } from "./use-active-session";
-import { useLastRead, type NetworkLastReadLookupKey } from "./use-last-read";
-import type { NetworkDirectRoomSummary, NetworkSurface, NetworkThreadSummary } from "../types";
-
-const PINNED_STORAGE_KEY = "network:pinned-items";
+import { useNetworkDirects, type UseNetworkDirectsResult } from "./use-directs";
+import { useNetworkThreads, type UseNetworkThreadsResult } from "./use-threads";
 
 export type NetworkListSort = "recent_activity" | "created" | "alphabetical";
-
-export type NetworkFilterKey = "has_work" | "mentions_me" | "pinned" | "unread";
-
+export type NetworkFilterKey = "has_work" | "includes_me";
 export const NETWORK_FILTER_KEYS = [
   "has_work",
-  "mentions_me",
-  "pinned",
-  "unread",
+  "includes_me",
 ] as const satisfies ReadonlyArray<NetworkFilterKey>;
 
-export interface NetworkListFilterCounts {
-  all: number;
-  hasWork: number;
-  me: number;
-  pinned: number;
-  unread: number;
-}
-
 export type NetworkChipFilter = ReuiFilter<boolean>;
-
-type PinnedStore = Record<string, true>;
-
-function pinnedKey(
-  workspaceId: string,
-  channel: string,
-  surface: NetworkSurface,
-  id: string
-): string {
-  return `${workspaceId}:${channel}:${surface}:${id}`;
-}
-
-function readPinned(): PinnedStore {
-  if (typeof window === "undefined") {
-    return {};
-  }
-  try {
-    const raw = window.localStorage.getItem(PINNED_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    const out: PinnedStore = {};
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (value === true) {
-        out[key] = true;
-      }
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function writePinned(store: PinnedStore): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  try {
-    window.localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    // best-effort
-  }
-}
 
 function isKnownChipKey(field: string): field is NetworkFilterKey {
   return (NETWORK_FILTER_KEYS as ReadonlyArray<string>).includes(field);
 }
 
-function chipKeySet(filters: ReadonlyArray<NetworkChipFilter>): Set<NetworkFilterKey> {
-  const out = new Set<NetworkFilterKey>();
-  for (const filter of filters) {
-    if (isKnownChipKey(filter.field)) {
-      out.add(filter.field);
-    }
-  }
-  return out;
+function activeKeys(filters: ReadonlyArray<NetworkChipFilter>): Set<NetworkFilterKey> {
+  return new Set(
+    filters
+      .map(filter => filter.field)
+      .filter((field): field is NetworkFilterKey => isKnownChipKey(field))
+  );
 }
 
 export function createNetworkChipFilter(key: NetworkFilterKey): NetworkChipFilter {
@@ -96,303 +34,135 @@ export function createNetworkChipFilter(key: NetworkFilterKey): NetworkChipFilte
 }
 
 export interface UseNetworkListFiltersArgs {
+  workspaceId: string | null | undefined;
   channel: string;
-  threads: ReadonlyArray<NetworkThreadSummary>;
-  directs: ReadonlyArray<NetworkDirectRoomSummary>;
+  enabled?: boolean;
 }
 
 export interface UseNetworkListFiltersResult {
   filters: NetworkChipFilter[];
   sort: NetworkListSort;
-  counts: NetworkListFilterCounts;
+  searchQuery: string;
+  canFilterBySelf: boolean;
+  isFiltered: boolean;
   setFilters: (next: NetworkChipFilter[]) => void;
   setSort: (next: NetworkListSort) => void;
-  filteredThreads: NetworkThreadSummary[];
-  filteredDirects: NetworkDirectRoomSummary[];
-  pin: (surface: NetworkSurface, id: string) => void;
-  unpin: (surface: NetworkSurface, id: string) => void;
-  isPinned: (surface: NetworkSurface, id: string) => boolean;
-  markAllRead: () => void;
-  isMarkAllReadDisabled: boolean;
+  setSearchQuery: (next: string) => void;
+  threadsQuery: UseNetworkThreadsResult;
+  directsQuery: UseNetworkDirectsResult;
+  filteredThreads: UseNetworkThreadsResult["threads"];
+  filteredDirects: UseNetworkDirectsResult["directs"];
+  markLoadedRead: () => void;
+  isMarkLoadedReadDisabled: boolean;
 }
 
-function compareTimestampDesc(a: string | null | undefined, b: string | null | undefined): number {
-  const left = a ? new Date(a).getTime() : 0;
-  const right = b ? new Date(b).getTime() : 0;
-  return right - left;
-}
-
-function compareTimestampAsc(a: string | null | undefined, b: string | null | undefined): number {
-  return -compareTimestampDesc(a, b);
-}
-
-function applyThreadSort(
-  threads: ReadonlyArray<NetworkThreadSummary>,
-  sort: NetworkListSort
-): NetworkThreadSummary[] {
-  const copy = [...threads];
-  if (sort === "alphabetical") {
-    copy.sort((left, right) => (left.title ?? "").localeCompare(right.title ?? ""));
-  } else if (sort === "created") {
-    copy.sort((left, right) => compareTimestampAsc(left.opened_at, right.opened_at));
-  } else {
-    copy.sort((left, right) => compareTimestampDesc(left.last_activity_at, right.last_activity_at));
-  }
-  return copy;
-}
-
-function applyDirectSort(
-  directs: ReadonlyArray<NetworkDirectRoomSummary>,
-  sort: NetworkListSort
-): NetworkDirectRoomSummary[] {
-  const copy = [...directs];
-  if (sort === "alphabetical") {
-    copy.sort((left, right) =>
-      `${left.peer_a}↔${left.peer_b}`.localeCompare(`${right.peer_a}↔${right.peer_b}`)
-    );
-  } else if (sort === "created") {
-    copy.sort((left, right) => compareTimestampAsc(left.opened_at, right.opened_at));
-  } else {
-    copy.sort((left, right) => compareTimestampDesc(left.last_activity_at, right.last_activity_at));
-  }
-  return copy;
-}
-
-/**
- * Per-channel filter / sort / mark-all-read state for the network list views.
- *
- * Filters compose: each `NetworkChipFilter` in `filters` represents an active
- * boolean toggle (`has_work`, `mentions_me`, `pinned`, `unread`). An empty
- * `filters` array means no filter — all rows pass. Filters and sort run
- * client-side over the loaded list; server-side push down is documented as a
- * follow-up TechSpec so the response envelope stays unchanged for now.
- */
 export function useNetworkListFilters({
+  workspaceId,
   channel,
-  threads,
-  directs,
+  enabled = true,
 }: UseNetworkListFiltersArgs): UseNetworkListFiltersResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const [filters, setFilters] = useState<NetworkChipFilter[]>([]);
+  const [filters, setFilterState] = useState<NetworkChipFilter[]>([]);
   const [sort, setSort] = useState<NetworkListSort>("recent_activity");
-  const [pinnedStore, setPinnedStore] = useState<PinnedStore>(() => readPinned());
-  const lastRead = useLastRead();
-  const session = useActiveNetworkSession(channel);
+  const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearch = useDeferredValue(searchQuery.trim());
+  const session = useActiveNetworkSession(channel, { workspaceId });
   const selfPeerId = session.session?.peerId ?? null;
+  const canFilterBySelf = Boolean(selfPeerId);
+  const selected = useMemo(() => activeKeys(filters), [filters]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
+    if (!canFilterBySelf) {
+      setFilterState(current => current.filter(filter => filter.field !== "includes_me"));
     }
-    function handleStorage(event: StorageEvent) {
-      if (event.key === PINNED_STORAGE_KEY) {
-        setPinnedStore(readPinned());
-      }
-    }
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
+  }, [canFilterBySelf]);
 
-  const isPinned = useCallback(
-    (surface: NetworkSurface, id: string) =>
-      activeWorkspaceId != null &&
-      pinnedStore[pinnedKey(activeWorkspaceId, channel, surface, id)] === true,
-    [activeWorkspaceId, channel, pinnedStore]
-  );
-
-  const togglePinned = useCallback(
-    (surface: NetworkSurface, id: string, on: boolean) => {
-      if (!activeWorkspaceId) {
-        return;
-      }
-      setPinnedStore(current => {
-        const key = pinnedKey(activeWorkspaceId, channel, surface, id);
-        const isCurrentlyOn = current[key] === true;
-        if (isCurrentlyOn === on) {
-          return current;
-        }
-        const next = { ...current };
-        if (on) {
-          next[key] = true;
-        } else {
-          delete next[key];
-        }
-        writePinned(next);
-        return next;
-      });
+  const setFilters = useCallback(
+    (next: NetworkChipFilter[]) => {
+      setFilterState(
+        next.filter(
+          filter =>
+            isKnownChipKey(filter.field) && (filter.field !== "includes_me" || canFilterBySelf)
+        )
+      );
     },
-    [activeWorkspaceId, channel]
+    [canFilterBySelf]
   );
+  const serverQuery = useMemo(
+    () => ({
+      ...(deferredSearch ? { query: deferredSearch } : {}),
+      ...(selected.has("has_work") ? { has_work: true } : {}),
+      ...(selected.has("includes_me") && selfPeerId ? { peer_id: selfPeerId } : {}),
+      sort,
+    }),
+    [deferredSearch, selected, selfPeerId, sort]
+  );
+  const queryEnabled = enabled && Boolean(workspaceId) && Boolean(channel);
+  const threadsQuery = useNetworkThreads(channel, {
+    workspaceId,
+    enabled: queryEnabled,
+    query: serverQuery,
+  });
+  const directsQuery = useNetworkDirects(channel, {
+    workspaceId,
+    enabled: queryEnabled,
+    query: serverQuery,
+  });
+  const lastRead = useLastRead({ workspaceId });
 
-  const pin = useCallback(
-    (surface: NetworkSurface, id: string) => togglePinned(surface, id, true),
-    [togglePinned]
-  );
-  const unpin = useCallback(
-    (surface: NetworkSurface, id: string) => togglePinned(surface, id, false),
-    [togglePinned]
-  );
-
-  const isThreadUnread = useCallback(
-    (thread: NetworkThreadSummary): boolean => {
-      const last = lastRead.lastReadAt({
-        channel,
-        surface: "thread",
-        containerId: thread.thread_id,
-      });
-      if (!thread.last_activity_at) {
-        return false;
-      }
-      if (!last) {
-        return true;
-      }
-      return new Date(thread.last_activity_at).getTime() > new Date(last).getTime();
+  const isUnread = useCallback(
+    (key: NetworkLastReadLookupKey, lastActivityAt?: string | null) => {
+      if (!lastActivityAt) return false;
+      const readAt = lastRead.lastReadAt(key);
+      return !readAt || new Date(lastActivityAt).getTime() > new Date(readAt).getTime();
     },
-    [channel, lastRead]
+    [lastRead]
   );
-
-  const isDirectUnread = useCallback(
-    (direct: NetworkDirectRoomSummary): boolean => {
-      const last = lastRead.lastReadAt({
-        channel,
-        surface: "direct",
-        containerId: direct.direct_id,
-      });
-      if (!direct.last_activity_at) {
-        return false;
-      }
-      if (!last) {
-        return true;
-      }
-      return new Date(direct.last_activity_at).getTime() > new Date(last).getTime();
-    },
-    [channel, lastRead]
+  const markLoadedRead = useCallback(() => {
+    for (const thread of threadsQuery.threads) {
+      lastRead.markRead(
+        { channel, surface: "thread", containerId: thread.thread_id },
+        thread.last_activity_at
+      );
+    }
+    for (const direct of directsQuery.directs) {
+      lastRead.markRead(
+        { channel, surface: "direct", containerId: direct.direct_id },
+        direct.last_activity_at
+      );
+    }
+  }, [channel, directsQuery.directs, lastRead, threadsQuery.threads]);
+  const isMarkLoadedReadDisabled = useMemo(
+    () =>
+      !threadsQuery.threads.some(thread =>
+        isUnread(
+          { channel, surface: "thread", containerId: thread.thread_id },
+          thread.last_activity_at
+        )
+      ) &&
+      !directsQuery.directs.some(direct =>
+        isUnread(
+          { channel, surface: "direct", containerId: direct.direct_id },
+          direct.last_activity_at
+        )
+      ),
+    [channel, directsQuery.directs, isUnread, threadsQuery.threads]
   );
-
-  const isThreadMine = useCallback(
-    (thread: NetworkThreadSummary): boolean => {
-      if (!selfPeerId) {
-        return false;
-      }
-      return thread.opened_by_peer_id === selfPeerId;
-    },
-    [selfPeerId]
-  );
-
-  const isDirectMine = useCallback(
-    (direct: NetworkDirectRoomSummary): boolean => {
-      if (!selfPeerId) {
-        return false;
-      }
-      return direct.peer_a === selfPeerId || direct.peer_b === selfPeerId;
-    },
-    [selfPeerId]
-  );
-
-  const counts = useMemo<NetworkListFilterCounts>(() => {
-    const all = threads.length + directs.length;
-    let hasWork = 0;
-    let me = 0;
-    let pinned = 0;
-    let unread = 0;
-    for (const thread of threads) {
-      if (thread.open_work_count > 0) {
-        hasWork += 1;
-      }
-      if (isThreadMine(thread)) {
-        me += 1;
-      }
-      if (isPinned("thread", thread.thread_id)) {
-        pinned += 1;
-      }
-      if (isThreadUnread(thread)) {
-        unread += 1;
-      }
-    }
-    for (const direct of directs) {
-      if (direct.open_work_count > 0) {
-        hasWork += 1;
-      }
-      if (isDirectMine(direct)) {
-        me += 1;
-      }
-      if (isPinned("direct", direct.direct_id)) {
-        pinned += 1;
-      }
-      if (isDirectUnread(direct)) {
-        unread += 1;
-      }
-    }
-    return { all, hasWork, me, pinned, unread };
-  }, [threads, directs, isThreadMine, isDirectMine, isPinned, isThreadUnread, isDirectUnread]);
-
-  const filteredThreads = useMemo(() => {
-    const active = chipKeySet(filters);
-    let scope: NetworkThreadSummary[] = threads.filter(thread => {
-      if (active.size === 0) return true;
-      if (active.has("has_work") && thread.open_work_count <= 0) return false;
-      if (active.has("mentions_me") && !isThreadMine(thread)) return false;
-      if (active.has("pinned") && !isPinned("thread", thread.thread_id)) return false;
-      if (active.has("unread") && !isThreadUnread(thread)) return false;
-      return true;
-    });
-    scope = applyThreadSort(scope, sort);
-    return scope;
-  }, [threads, filters, sort, isThreadMine, isPinned, isThreadUnread]);
-
-  const filteredDirects = useMemo(() => {
-    const active = chipKeySet(filters);
-    let scope: NetworkDirectRoomSummary[] = directs.filter(direct => {
-      if (active.size === 0) return true;
-      if (active.has("has_work") && direct.open_work_count <= 0) return false;
-      if (active.has("mentions_me") && !isDirectMine(direct)) return false;
-      if (active.has("pinned") && !isPinned("direct", direct.direct_id)) return false;
-      if (active.has("unread") && !isDirectUnread(direct)) return false;
-      return true;
-    });
-    scope = applyDirectSort(scope, sort);
-    return scope;
-  }, [directs, filters, sort, isDirectMine, isPinned, isDirectUnread]);
-
-  const markAllRead = useCallback(() => {
-    for (const thread of filteredThreads) {
-      if (!thread.last_activity_at) {
-        continue;
-      }
-      const key: NetworkLastReadLookupKey = {
-        channel,
-        surface: "thread",
-        containerId: thread.thread_id,
-      };
-      lastRead.markRead(key, thread.last_activity_at);
-    }
-    for (const direct of filteredDirects) {
-      if (!direct.last_activity_at) {
-        continue;
-      }
-      const key: NetworkLastReadLookupKey = {
-        channel,
-        surface: "direct",
-        containerId: direct.direct_id,
-      };
-      lastRead.markRead(key, direct.last_activity_at);
-    }
-  }, [channel, filteredThreads, filteredDirects, lastRead]);
-
-  const isMarkAllReadDisabled = counts.unread === 0;
+  const isFiltered = filters.length > 0 || searchQuery.trim().length > 0;
 
   return {
     filters,
     sort,
-    counts,
+    searchQuery,
+    canFilterBySelf,
+    isFiltered,
     setFilters,
     setSort,
-    filteredThreads,
-    filteredDirects,
-    pin,
-    unpin,
-    isPinned,
-    markAllRead,
-    isMarkAllReadDisabled,
+    setSearchQuery,
+    threadsQuery,
+    directsQuery,
+    filteredThreads: threadsQuery.threads,
+    filteredDirects: directsQuery.directs,
+    markLoadedRead,
+    isMarkLoadedReadDisabled,
   };
 }

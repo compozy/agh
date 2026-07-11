@@ -8,18 +8,18 @@ import {
   DaemonDown,
   NetworkEmpty,
   ThreadOverlay,
-  useNetworkDirects,
   useNetworkListFilters,
   useNetworkRouteView,
-  useNetworkThreads,
 } from "@/systems/network";
 import { NetworkListFiltersProvider } from "@/systems/network/contexts/network-list-filters-context";
 import { NetworkInspector, NetworkShell } from "@/systems/network/components/shell";
+import { preloadNetworkRootRoute } from "./-network-preload";
 
 export const Route = createFileRoute("/_app/network")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Network", icon: NetworkIcon },
   }),
+  loader: ({ context }) => preloadNetworkRootRoute(context.queryClient),
   component: NetworkRouteShell,
 });
 
@@ -42,12 +42,10 @@ function NetworkRouteShell() {
   });
 
   const activeChannelKey = activeChannel?.channel ?? null;
-  const toolbarThreads = useNetworkThreads(activeChannelKey);
-  const toolbarDirects = useNetworkDirects(activeChannelKey);
   const filters = useNetworkListFilters({
+    workspaceId,
     channel: activeChannelKey ?? "",
-    threads: toolbarThreads.threads,
-    directs: toolbarDirects.directs,
+    enabled: Boolean(activeChannelKey),
   });
 
   if (page.isStatusLoading) {
@@ -164,8 +162,8 @@ function NetworkRouteShell() {
       />
     ) : null;
 
-  const threadCount = activeChannelKey ? toolbarThreads.threads.length : null;
-  const directCount = activeChannelKey ? toolbarDirects.directs.length : null;
+  const threadCount = activeChannelKey ? filters.threadsQuery.total : null;
+  const directCount = activeChannelKey ? filters.directsQuery.total : null;
 
   return (
     <>

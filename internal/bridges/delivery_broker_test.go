@@ -659,6 +659,74 @@ func TestBrokerDeliveryMetricsCaptureTerminalFailures(t *testing.T) {
 	}
 }
 
+func TestBrokerDeliveryMetricsForReadsOnlyRequestedBridgeRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should exclude foreign metrics and route backlog from a bounded snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		broker := NewBroker(nil)
+		t.Cleanup(broker.Close)
+
+		broker.mu.Lock()
+		broker.metrics["brg-page"] = &instanceDeliveryMetrics{deliveryFailuresTotal: 2}
+		broker.metrics["brg-foreign"] = &instanceDeliveryMetrics{deliveryFailuresTotal: 99}
+		pageRoute := broker.ensureRouteLocked("route-page", "brg-page", "ext-page")
+		pageRoute.queue = append(pageRoute.queue, deliveryQueueItem{deliveryID: "delivery-page"})
+		foreignRoute := broker.ensureRouteLocked("route-foreign", "brg-foreign", "ext-foreign")
+		foreignRoute.queue = append(foreignRoute.queue, deliveryQueueItem{deliveryID: "delivery-foreign"})
+		if got, want := len(broker.bridgeRoutes["brg-page"]), 1; got != want {
+			broker.mu.Unlock()
+			t.Fatalf("page route index size = %d, want %d", got, want)
+		}
+		if got, want := len(broker.bridgeRoutes["brg-foreign"]), 1; got != want {
+			broker.mu.Unlock()
+			t.Fatalf("foreign route index size = %d, want %d", got, want)
+		}
+		broker.mu.Unlock()
+
+		snapshot, err := broker.DeliveryMetricsFor([]string{"brg-page"})
+		if err != nil {
+			t.Fatalf("DeliveryMetricsFor() error = %v", err)
+		}
+		if got, want := len(snapshot), 1; got != want {
+			t.Fatalf("len(DeliveryMetricsFor()) = %d, want %d: %#v", got, want, snapshot)
+		}
+		if got, want := snapshot["brg-page"].DeliveryBacklog, 1; got != want {
+			t.Fatalf("DeliveryMetricsFor().DeliveryBacklog = %d, want %d", got, want)
+		}
+		if got, want := snapshot["brg-page"].DeliveryFailuresTotal, 2; got != want {
+			t.Fatalf("DeliveryMetricsFor().DeliveryFailuresTotal = %d, want %d", got, want)
+		}
+		if _, leaked := snapshot["brg-foreign"]; leaked {
+			t.Fatalf("DeliveryMetricsFor() leaked foreign bridge telemetry: %#v", snapshot)
+		}
+
+		broker.mu.Lock()
+		pageRoute.queue = nil
+		broker.retireIdleRouteLocked(pageRoute, pageRoute.hash)
+		if _, exists := broker.bridgeRoutes["brg-page"]; exists {
+			broker.mu.Unlock()
+			t.Fatalf("retired page route remained indexed: %#v", broker.bridgeRoutes)
+		}
+		recreated := broker.ensureRouteLocked("route-page", "brg-page", "ext-page")
+		recreated.queue = append(recreated.queue, deliveryQueueItem{deliveryID: "delivery-page-recreated"})
+		if got, want := len(broker.bridgeRoutes["brg-page"]), 1; got != want {
+			broker.mu.Unlock()
+			t.Fatalf("recreated page route index size = %d, want %d", got, want)
+		}
+		broker.mu.Unlock()
+
+		snapshot, err = broker.DeliveryMetricsFor([]string{"brg-page"})
+		if err != nil {
+			t.Fatalf("DeliveryMetricsFor(recreated) error = %v", err)
+		}
+		if got, want := snapshot["brg-page"].DeliveryBacklog, 1; got != want {
+			t.Fatalf("recreated DeliveryBacklog = %d, want %d without duplicate index entries", got, want)
+		}
+	})
+}
+
 func TestBrokerRejectedDeliverDoesNotAdvanceSnapshot(t *testing.T) {
 	t.Parallel()
 

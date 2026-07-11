@@ -13,11 +13,13 @@ import {
 } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { type HomeMetricEntry, type HomePageView, useHomePage } from "@/hooks/routes/use-home-page";
+import { preloadHomeRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Home", icon: Home },
   }),
+  loader: ({ context }) => preloadHomeRoute(context.queryClient),
   component: AppHomePage,
 });
 

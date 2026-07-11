@@ -1,4 +1,5 @@
-import type { LoopRunsFilter, LoopStreamFilter } from "../types";
+import { normalizeLoopCatalogFilter } from "./loops-list-query";
+import type { LoopCatalogStableFilter, LoopRunsFilter, LoopStreamFilter } from "../types";
 
 function normalizeText(value?: string | null): string {
   // Trim to match the adapter's `normalizeOptionalText`, so a whitespace-padded
@@ -20,7 +21,19 @@ export const loopsKeys = {
   all: ["loops"] as const,
 
   catalogRoot: () => [...loopsKeys.all, "catalog"] as const,
-  catalog: (workspaceId: string) => [...loopsKeys.catalogRoot(), workspaceId] as const,
+  catalogByWorkspace: (workspaceId: string) => [...loopsKeys.catalogRoot(), workspaceId] as const,
+  catalog: (workspaceId: string, filters: LoopCatalogStableFilter = {}) => {
+    const normalized = normalizeLoopCatalogFilter(filters);
+    return [
+      ...loopsKeys.catalogByWorkspace(workspaceId),
+      normalizeText(normalized.q),
+      normalizeText(normalized.kind),
+      normalizeText(normalized.category),
+      normalizeText(normalized.status),
+      normalizeText(normalized.sort),
+      normalizeNumber(normalized.limit),
+    ] as const;
+  },
 
   details: () => [...loopsKeys.all, "detail"] as const,
   detail: (workspaceId: string, name: string) =>

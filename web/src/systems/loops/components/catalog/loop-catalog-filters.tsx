@@ -4,9 +4,7 @@ import { useMemo } from "react";
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui/components/reui/filters";
 
-import type { LoopCatalogEntry } from "../../types";
 import type { LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
-import { loopCategories, loopStatuses } from "../../lib/loop-catalog";
 import {
   applyLoopFilterChips,
   buildLoopFilterFields,
@@ -14,8 +12,8 @@ import {
 } from "../../lib/loop-list-filters";
 
 export interface LoopCatalogFiltersProps {
-  /** Catalog entries used to derive present category/status options. */
-  entries: readonly LoopCatalogEntry[];
+  categories: readonly string[];
+  statuses: readonly LoopStatusFilter[];
   kindFilter: LoopKindFilter;
   categoryFilter: string | null;
   statusFilter: LoopStatusFilter | null;
@@ -29,7 +27,8 @@ export interface LoopCatalogFiltersProps {
  * Kind / category / status options are data-driven from the catalog (truthful UI).
  */
 function LoopCatalogFilters({
-  entries,
+  categories,
+  statuses,
   kindFilter,
   categoryFilter,
   statusFilter,
@@ -37,12 +36,7 @@ function LoopCatalogFilters({
   onCategoryFilterChange,
   onStatusFilterChange,
 }: LoopCatalogFiltersProps) {
-  const categoryOptions = useMemo(() => loopCategories(entries), [entries]);
-  const statusOptions = useMemo(() => loopStatuses(entries), [entries]);
-  const fields = useMemo(
-    () => buildLoopFilterFields(categoryOptions, statusOptions),
-    [categoryOptions, statusOptions]
-  );
+  const fields = useMemo(() => buildLoopFilterFields(categories, statuses), [categories, statuses]);
   const chips = useMemo(
     () =>
       loopFiltersToChips({

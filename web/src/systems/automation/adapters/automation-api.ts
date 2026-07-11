@@ -8,11 +8,13 @@ import {
 import type {
   AutomationJob,
   AutomationJobListFilter,
+  AutomationJobsListResponse,
   AutomationRun,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
   AutomationTrigger,
   AutomationTriggerListFilter,
+  AutomationTriggersListResponse,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
   UpdateAutomationJobRequest,
@@ -50,13 +52,16 @@ function normalizeRunFilters(filters: AutomationRunHistoryFilter = {}): Automati
 export async function listAutomationJobs(
   filters: AutomationJobListFilter = {},
   signal?: AbortSignal
-): Promise<AutomationJob[]> {
+): Promise<AutomationJobsListResponse> {
   const { data, error, response } = await apiClient.GET("/api/automation/jobs", {
     params: {
       query: {
         scope: filters.scope,
         workspace_id: normalizeOptionalText(filters.workspace_id),
         source: filters.source,
+        enabled: filters.enabled,
+        q: normalizeOptionalText(filters.q),
+        cursor: normalizeOptionalText(filters.cursor),
         limit: filters.limit,
         loop: normalizeOptionalText(filters.loop),
       },
@@ -71,7 +76,7 @@ export async function listAutomationJobs(
     );
   }
 
-  return requireResponseData(data, response, "Failed to fetch automation jobs").jobs;
+  return requireResponseData(data, response, "Failed to fetch automation jobs");
 }
 
 export async function getAutomationJob(id: string, signal?: AbortSignal): Promise<AutomationJob> {
@@ -210,14 +215,17 @@ export async function listAutomationJobRuns(
 export async function listAutomationTriggers(
   filters: AutomationTriggerListFilter = {},
   signal?: AbortSignal
-): Promise<AutomationTrigger[]> {
+): Promise<AutomationTriggersListResponse> {
   const { data, error, response } = await apiClient.GET("/api/automation/triggers", {
     params: {
       query: {
         scope: filters.scope,
         workspace_id: normalizeOptionalText(filters.workspace_id),
         source: filters.source,
+        enabled: filters.enabled,
         event: normalizeOptionalText(filters.event),
+        q: normalizeOptionalText(filters.q),
+        cursor: normalizeOptionalText(filters.cursor),
         limit: filters.limit,
         loop: normalizeOptionalText(filters.loop),
       },
@@ -232,7 +240,7 @@ export async function listAutomationTriggers(
     );
   }
 
-  return requireResponseData(data, response, "Failed to fetch automation triggers").triggers;
+  return requireResponseData(data, response, "Failed to fetch automation triggers");
 }
 
 export async function getAutomationTrigger(

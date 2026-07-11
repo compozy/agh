@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
 )
 
@@ -52,11 +53,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),
 		sessionHealthHookLast: make(map[string]time.Time),
-		transcriptCache:       make(map[string]*transcriptCacheEntry),
 		streamEvents:          newSessionEventBroadcaster(),
 		logger:                slog.Default(),
 		driver:                NewACPDriverAdapter(acp.New()),
 		homePaths:             homePaths,
+		readSessionMeta:       store.ReadSessionMeta,
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
@@ -307,7 +308,6 @@ func (m *Manager) releaseReservation(id string) {
 
 func (m *Manager) remove(id string) {
 	target := strings.TrimSpace(id)
-	m.invalidateTranscriptCache(target)
 	m.mu.Lock()
 	if done, ok := m.finalizing[target]; ok {
 		close(done)

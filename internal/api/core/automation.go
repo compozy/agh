@@ -45,7 +45,7 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
-	jobs, err := manager.ListJobs(c.Request.Context(), query)
+	page, err := manager.ListJobs(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
@@ -57,7 +57,15 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.JobsResponse{Jobs: JobPayloadsFromJobs(jobs, schedulerStateByID)})
+	c.JSON(http.StatusOK, contract.JobsResponse{
+		Jobs: JobPayloadsFromJobs(page.Jobs, schedulerStateByID),
+		Page: contract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	})
 }
 
 // CreateAutomationJob stores a new dynamic automation job.
@@ -280,13 +288,21 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 		return
 	}
 
-	triggers, err := manager.ListTriggers(c.Request.Context(), query)
+	page, err := manager.ListTriggers(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TriggersResponse{Triggers: TriggerPayloadsFromTriggers(triggers)})
+	c.JSON(http.StatusOK, contract.TriggersResponse{
+		Triggers: TriggerPayloadsFromTriggers(page.Triggers),
+		Page: contract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	})
 }
 
 // CreateAutomationTrigger stores a new dynamic automation trigger definition.
@@ -606,61 +622,6 @@ func (h *BaseHandlers) automationHealth(ctx context.Context) (contract.Automatio
 		return contract.AutomationHealthPayload{}, err
 	}
 	return AutomationHealthPayloadFromStatus(h.Config.Automation.Enabled, status), nil
-}
-
-// ParseAutomationJobListQuery parses the shared automation job list filters.
-func ParseAutomationJobListQuery(c *gin.Context) (automationpkg.JobListQuery, error) {
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return automationpkg.JobListQuery{}, err
-	}
-
-	query := automationpkg.JobListQuery{
-		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
-		LoopName:    strings.TrimSpace(c.Query("loop")),
-		Limit:       limit,
-	}
-	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
-		query.Scope = automationpkg.Scope(rawScope)
-		if err := query.Scope.Validate("scope"); err != nil {
-			return automationpkg.JobListQuery{}, err
-		}
-	}
-	if rawSource := strings.TrimSpace(c.Query("source")); rawSource != "" {
-		query.Source = automationpkg.JobSource(rawSource)
-		if err := query.Source.Validate("source"); err != nil {
-			return automationpkg.JobListQuery{}, err
-		}
-	}
-	return query, nil
-}
-
-// ParseAutomationTriggerListQuery parses the shared automation trigger list filters.
-func ParseAutomationTriggerListQuery(c *gin.Context) (automationpkg.TriggerListQuery, error) {
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return automationpkg.TriggerListQuery{}, err
-	}
-
-	query := automationpkg.TriggerListQuery{
-		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
-		Event:       strings.TrimSpace(c.Query("event")),
-		LoopName:    strings.TrimSpace(c.Query("loop")),
-		Limit:       limit,
-	}
-	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
-		query.Scope = automationpkg.Scope(rawScope)
-		if err := query.Scope.Validate("scope"); err != nil {
-			return automationpkg.TriggerListQuery{}, err
-		}
-	}
-	if rawSource := strings.TrimSpace(c.Query("source")); rawSource != "" {
-		query.Source = automationpkg.JobSource(rawSource)
-		if err := query.Source.Validate("source"); err != nil {
-			return automationpkg.TriggerListQuery{}, err
-		}
-	}
-	return query, nil
 }
 
 // ParseAutomationRunQuery parses the shared automation run list filters.

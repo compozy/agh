@@ -1,12 +1,16 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
-export type AutomationJob = OperationResponse<"getAutomationJob", 200>["job"];
-export type AutomationTrigger = OperationResponse<"getAutomationTrigger", 200>["trigger"];
+export type AutomationJobsListResponse = OperationResponse<"listAutomationJobs", 200>;
+export type AutomationTriggersListResponse = OperationResponse<"listAutomationTriggers", 200>;
+export type AutomationJob = AutomationJobsListResponse["jobs"][number];
+export type AutomationTrigger = AutomationTriggersListResponse["triggers"][number];
 export type AutomationRun = OperationResponse<"getAutomationRun", 200>["run"];
 export type AutomationSchedulerState = NonNullable<AutomationJob["scheduler"]>;
 
 export type AutomationJobListFilter = OperationQuery<"listAutomationJobs">;
 export type AutomationTriggerListFilter = OperationQuery<"listAutomationTriggers">;
+export type AutomationJobStableFilter = Omit<AutomationJobListFilter, "cursor">;
+export type AutomationTriggerStableFilter = Omit<AutomationTriggerListFilter, "cursor">;
 export type AutomationRunListFilter = OperationQuery<"listAutomationRuns">;
 export type AutomationRunHistoryFilter = OperationQuery<"listAutomationJobRuns">;
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 const defaultReadOnlyPoolTTL = 30 * time.Second
@@ -201,6 +202,7 @@ type readOnlyPoolLease struct {
 }
 
 var _ store.EventRecorder = (*readOnlyPoolLease)(nil)
+var _ transcript.Reader = (*readOnlyPoolLease)(nil)
 
 func newReadOnlyPoolLease(
 	pool *ReadOnlyPool,
@@ -240,6 +242,34 @@ func (l *readOnlyPoolLease) History(
 		return nil, errors.New("store: read-only pool lease recorder is required")
 	}
 	return l.entry.recorder.History(ctx, query)
+}
+
+func (l *readOnlyPoolLease) TranscriptPage(
+	ctx context.Context,
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return transcript.Page{}, errors.New("store: read-only pool lease recorder is required")
+	}
+	reader, ok := l.entry.recorder.(transcript.Reader)
+	if !ok {
+		return transcript.Page{}, errors.New("store: pooled recorder has no transcript projection")
+	}
+	return reader.TranscriptPage(ctx, query)
+}
+
+func (l *readOnlyPoolLease) TranscriptChanges(
+	ctx context.Context,
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	if l == nil || l.entry == nil || l.entry.recorder == nil {
+		return transcript.ChangePage{}, errors.New("store: read-only pool lease recorder is required")
+	}
+	reader, ok := l.entry.recorder.(transcript.Reader)
+	if !ok {
+		return transcript.ChangePage{}, errors.New("store: pooled recorder has no transcript projection")
+	}
+	return reader.TranscriptChanges(ctx, query)
 }
 
 func (l *readOnlyPoolLease) Close(context.Context) error {

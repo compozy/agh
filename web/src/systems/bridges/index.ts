@@ -1,5 +1,6 @@
 export type {
   BridgeCreateDraft,
+  BridgeCatalogFilter,
   BridgeSecretBinding,
   BridgeDeliveryDefaults,
   BridgeDeliveryMode,
@@ -95,12 +96,10 @@ export {
 } from "./lib/bridge-formatters";
 export {
   applyBridgeFilterChips,
+  bridgeListFilterForScope,
   bridgeFiltersToChips,
   buildBridgeFilterFields,
   effectiveBridgeStatus,
-  filterBridges,
-  matchesBridgeScope,
-  matchesBridgeSearch,
   parseBridgePlatformFilter,
   parseBridgeScopeFilter,
   parseBridgeStatusFilter,

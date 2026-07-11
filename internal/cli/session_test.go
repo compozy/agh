@@ -256,22 +256,31 @@ func TestSessionNewRejectsRelativeCWD(t *testing.T) {
 	}
 }
 
-func TestSessionListPassesWorkspaceFilter(t *testing.T) {
+func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 	t.Parallel()
 
 	var seenQuery SessionListQuery
 
 	deps := newTestDeps(t, &stubClient{
-		listSessionsFn: func(_ context.Context, query SessionListQuery) ([]SessionRecord, error) {
+		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
 			seenQuery = query
-			return []SessionRecord{{
+			return SessionListPage{Sessions: []SessionRecord{{
 				ID:            "sess-1",
 				AgentName:     "general",
 				WorkspaceID:   "ws-filtered",
 				WorkspacePath: "/workspace/project",
 				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
+				Health: &contract.SessionHealthPayload{
+					State:  contract.SessionHealthStateIdle,
+					Health: contract.SessionHealthHealthy,
+				},
+				CreatedAt: fixedTestNow,
+				UpdatedAt: fixedTestNow,
+			}}, Page: contract.CountedCursorPagePayload{
+				NextCursor: "cursor-next",
+				HasMore:    true,
+				Total:      7,
+				Limit:      2,
 			}}, nil
 		},
 	})
@@ -284,22 +293,110 @@ func TestSessionListPassesWorkspaceFilter(t *testing.T) {
 		"--workspace",
 		"ws-filtered",
 		"--all",
+		"--state",
+		"stopped",
+		"--agent",
+		"general",
+		"--query",
+		"demo",
+		"--sort",
+		"last_activity",
+		"--cursor",
+		"cursor-prev",
+		"--limit",
+		"2",
+		"--include-health",
 		"-o",
 		"json",
 	)
 	if err != nil {
 		t.Fatalf("executeRootCommand(session list) error = %v", err)
 	}
-	if seenQuery.Workspace != "ws-filtered" {
-		t.Fatalf("seenQuery.Workspace = %q, want %q", seenQuery.Workspace, "ws-filtered")
+	if seenQuery.Workspace != "ws-filtered" || seenQuery.State != "stopped" ||
+		seenQuery.Agent != "general" || seenQuery.Query != "demo" ||
+		!seenQuery.IncludeHealth ||
+		seenQuery.Sort != "last_activity" || seenQuery.Cursor != "cursor-prev" || seenQuery.Limit != 2 {
+		t.Fatalf("seenQuery = %#v, want all server-owned page filters", seenQuery)
 	}
 
-	var decoded []SessionRecord
+	var decoded SessionListPage
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(session list) error = %v", err)
 	}
-	if len(decoded) != 1 || decoded[0].WorkspaceID != "ws-filtered" {
+	if len(decoded.Sessions) != 1 || decoded.Sessions[0].WorkspaceID != "ws-filtered" ||
+		decoded.Sessions[0].Health == nil || decoded.Sessions[0].Health.Health != contract.SessionHealthHealthy ||
+		decoded.Page.NextCursor != "cursor-next" || decoded.Page.Total != 7 || !decoded.Page.HasMore {
 		t.Fatalf("decoded = %#v, want filtered session", decoded)
+	}
+}
+
+func TestSessionListDefaultsToExactActiveState(t *testing.T) {
+	t.Parallel()
+
+	var seenQuery SessionListQuery
+	deps := newTestDeps(t, &stubClient{
+		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+			seenQuery = query
+			return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
+		},
+	})
+	if _, _, err := executeRootCommand(t, deps, "session", "list", "-o", "json"); err != nil {
+		t.Fatalf("executeRootCommand(session list) error = %v", err)
+	}
+	if seenQuery.State != string(session.StateActive) {
+		t.Fatalf("seenQuery.State = %q, want exact active hard cut", seenQuery.State)
+	}
+}
+
+func TestSessionListJSONLIncludesContinuationRecord(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		listSessionPageFn: func(_ context.Context, _ SessionListQuery) (SessionListPage, error) {
+			return SessionListPage{
+				Sessions: []SessionRecord{{
+					ID:    "sess-1",
+					State: session.StateActive,
+					Health: &contract.SessionHealthPayload{
+						State:  contract.SessionHealthStateIdle,
+						Health: contract.SessionHealthHealthy,
+					},
+				}},
+				Page: contract.CountedCursorPagePayload{
+					NextCursor: "cursor-next",
+					HasMore:    true,
+					Total:      3,
+					Limit:      1,
+				},
+			}, nil
+		},
+	})
+	stdout, _, err := executeRootCommand(t, deps, "session", "list", "-o", "jsonl")
+	if err != nil {
+		t.Fatalf("executeRootCommand(session list jsonl) error = %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("session list jsonl lines = %d, want session + page; output=%q", len(lines), stdout)
+	}
+	var item SessionRecord
+	if err := json.Unmarshal([]byte(lines[0]), &item); err != nil {
+		t.Fatalf("json.Unmarshal(session jsonl item) error = %v", err)
+	}
+	if item.Health == nil || item.Health.State != contract.SessionHealthStateIdle ||
+		item.Health.Health != contract.SessionHealthHealthy {
+		t.Fatalf("session jsonl item = %#v, want nested health", item)
+	}
+	var continuation struct {
+		Type string                            `json:"type"`
+		Page contract.CountedCursorPagePayload `json:"page"`
+	}
+	if err := json.Unmarshal([]byte(lines[1]), &continuation); err != nil {
+		t.Fatalf("json.Unmarshal(page continuation) error = %v", err)
+	}
+	if continuation.Type != "page" || continuation.Page.NextCursor != "cursor-next" ||
+		!continuation.Page.HasMore || continuation.Page.Total != 3 || continuation.Page.Limit != 1 {
+		t.Fatalf("continuation = %#v, want usable page metadata", continuation)
 	}
 }
 
@@ -786,6 +883,44 @@ func TestSessionResumeReturnsSessionRecord(t *testing.T) {
 	}
 }
 
+func TestSessionResumeLatestUsesBoundedPage(t *testing.T) {
+	t.Parallel()
+
+	var seenQuery SessionListQuery
+	deps := newTestDeps(t, &stubClient{
+		listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+			seenQuery = query
+			return SessionListPage{
+				Sessions: []SessionRecord{{ID: "sess-latest", State: session.StateActive}},
+				Page:     contract.CountedCursorPagePayload{Total: 4, Limit: 1},
+			}, nil
+		},
+		resumeSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			if id != "sess-latest" {
+				t.Fatalf("ResumeSession() id = %q, want sess-latest", id)
+			}
+			return SessionRecord{ID: id, State: session.StateActive}, nil
+		},
+	})
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		"resume",
+		"--latest",
+		"--workspace",
+		"ws-alpha",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("executeRootCommand(session resume --latest) error = %v", err)
+	}
+	if seenQuery.Workspace != "ws-alpha" || !seenQuery.Resumable ||
+		seenQuery.Sort != session.ListSortLastActivity || seenQuery.Limit != 1 {
+		t.Fatalf("latest query = %#v, want one resumable last-activity page", seenQuery)
+	}
+}
+
 func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -1063,10 +1198,22 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		WorkspacePath: "/workspace/project",
 		Channel:       "builders",
 		State:         session.StateActive,
-		UpdatedAt:     fixedTestNow,
+		Health: &contract.SessionHealthPayload{
+			State:  contract.SessionHealthStateIdle,
+			Health: contract.SessionHealthHealthy,
+		},
+		UpdatedAt: fixedTestNow,
 	}}
 
-	bundle := sessionListBundle(items, func() time.Time {
+	bundle := sessionListBundle(SessionListPage{
+		Sessions: items,
+		Page: contract.CountedCursorPagePayload{
+			NextCursor: "cursor-next",
+			HasMore:    true,
+			Total:      4,
+			Limit:      len(items),
+		},
+	}, func() time.Time {
 		return fixedTestNow.Add(time.Hour)
 	})
 
@@ -1079,8 +1226,9 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		!strings.Contains(human, "fake") ||
 		!strings.Contains(human, "/workspace/project") ||
 		!strings.Contains(strings.ToLower(human), "channel") ||
-		!strings.Contains(human, "builders") {
-		t.Fatalf("sessionListBundle().human() = %q, want session, provider, workspace, and channel output", human)
+		!strings.Contains(human, "builders") || !strings.Contains(human, "idle") ||
+		!strings.Contains(human, "healthy") || !strings.Contains(human, "cursor-next") {
+		t.Fatalf("sessionListBundle().human() = %q, want session, workspace, channel, and health output", human)
 	}
 
 	toon, err := bundle.toon()
@@ -1092,8 +1240,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		!strings.Contains(strings.ToLower(toon), "provider") ||
 		!strings.Contains(toon, "fake") ||
 		!strings.Contains(strings.ToLower(toon), "channel") ||
-		!strings.Contains(toon, "builders") {
-		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with provider and channel", toon)
+		!strings.Contains(toon, "builders") || !strings.Contains(toon, "idle") ||
+		!strings.Contains(toon, "healthy") || !strings.Contains(toon, "cursor-next") ||
+		!strings.Contains(toon, "has_more") {
+		t.Fatalf("sessionListBundle().toon() = %q, want sessions array output with provider, channel, and health", toon)
 	}
 }
 

@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import type { TopbarRouteContext } from "@/types/topbar";
+import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 import {
   SessionNotFoundError,
   sessionByIdOptions,
@@ -32,15 +33,14 @@ export async function redirectSessionPermalinkRoute({
   context,
   params,
 }: {
-  context: unknown;
+  context: RouterContext;
   params: { id: string };
 }): Promise<SessionPermalinkRouteContext> {
   const topbar = { title: "Session", icon: MessageCircle };
-  const { queryClient } = context as { queryClient: QueryClient };
   let session: SessionPayload;
   try {
     session = await resolveSessionPermalink({
-      queryClient,
+      queryClient: context.queryClient,
       sessionId: params.id,
     });
   } catch (error) {
@@ -74,7 +74,7 @@ export async function resolveSessionPermalink({
   if (workspaceId) {
     queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
     await Promise.allSettled([
-      queryClient.ensureQueryData(sessionTranscriptOptions(workspaceId, session.id)),
+      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, session.id)),
       queryClient.ensureQueryData(sessionDetailOptions(workspaceId, session.id)),
     ]);
   }

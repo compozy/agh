@@ -4,6 +4,8 @@ import { useNetworkRailView } from "./use-network-rail-view";
 import { useNetworkRouteShell } from "./use-network-route-shell";
 import { useOpenWork } from "./use-work";
 import { useThreadViewMode } from "./use-thread-view-mode";
+import { useNetworkThreadDetail } from "./use-threads";
+import { useNetworkDirectDetail } from "./use-directs";
 
 export function useNetworkRouteView() {
   const route = useNetworkRouteShell();
@@ -16,18 +18,37 @@ export function useNetworkRouteView() {
       : null;
   const containerId = route.activeThreadId ?? route.activeDirectId ?? null;
   const channelKey = route.activeChannel?.channel ?? null;
+  const threadDetail = useNetworkThreadDetail(channelKey, route.activeThreadId, {
+    workspaceId: route.activeWorkspaceId,
+    enabled: route.activeThreadId != null,
+  });
+  const directDetail = useNetworkDirectDetail(channelKey, route.activeDirectId, {
+    workspaceId: route.activeWorkspaceId,
+    enabled: route.activeDirectId != null,
+  });
+  const exactOpenCount =
+    threadDetail.thread?.open_work_count ?? directDetail.direct?.open_work_count;
   const openWork = useOpenWork({
+    workspaceId: route.activeWorkspaceId,
     channel: channelKey,
     surface: containerSurface,
     containerId,
     enabled: Boolean(channelKey) && containerSurface != null,
+    exactOpenCount,
   });
   const inspectorView = useNetworkInspectorView({
+    workspaceId: route.activeWorkspaceId,
     channel: channelKey,
     enabled: Boolean(channelKey) && !showOverlayInRightRail,
   });
-  const railView = useNetworkRailView({ channel: channelKey });
-  const networkCreate = useNetworkCreateChannelAction({ enabled: route.page.isNetworkEnabled });
+  const railView = useNetworkRailView({
+    workspaceId: route.activeWorkspaceId,
+    channel: channelKey,
+  });
+  const networkCreate = useNetworkCreateChannelAction({
+    enabled: route.page.isNetworkEnabled,
+    workspaceId: route.activeWorkspaceId,
+  });
 
   return {
     ...route,

@@ -14,6 +14,7 @@ import { useNetworkDirectDetail } from "./use-directs";
 import { useNetworkMessages } from "./use-messages";
 
 export interface UseDirectRoomArgs {
+  workspaceId: string;
   channel: string;
   directId: string;
   selfPeerId?: string;
@@ -25,6 +26,9 @@ export interface UseDirectRoomResult {
   detailError: Error | null;
   messages: NetworkConversationMessage[];
   isMessagesLoading: boolean;
+  hasOlder: boolean;
+  isLoadingOlder: boolean;
+  loadOlder: () => Promise<void>;
   messagesError: Error | null;
   otherPeerId: string;
   presence: NetworkPresence;
@@ -49,12 +53,14 @@ function presenceFromPeer(peer: NetworkPeerSummary | undefined): NetworkPresence
 }
 
 export function useDirectRoom({
+  workspaceId,
   channel,
   directId,
   selfPeerId,
 }: UseDirectRoomArgs): UseDirectRoomResult {
-  const detail = useNetworkDirectDetail(channel, directId);
+  const detail = useNetworkDirectDetail(channel, directId, { workspaceId });
   const messagesQuery = useNetworkMessages({
+    workspaceId,
     channel,
     containerId: directId,
     enabled: Boolean(detail.direct),
@@ -64,7 +70,6 @@ export function useDirectRoom({
     () => pickOtherPeerId(detail.direct, selfPeerId),
     [detail.direct, selfPeerId]
   );
-  const workspaceId = detail.direct?.workspace_id ?? "";
   const peersQuery = useQuery(
     networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherPeerId))
   );
@@ -72,7 +77,7 @@ export function useDirectRoom({
     () => presenceFromPeer(peersQuery.data?.find(peer => peer.peer_id === otherPeerId)),
     [otherPeerId, peersQuery.data]
   );
-  const { lastReadAt, markRead } = useLastRead();
+  const { lastReadAt, markRead } = useLastRead({ workspaceId });
   const lastReadIso = lastReadAt({ channel, containerId: directId, surface: "direct" });
 
   useEffect(() => {
@@ -89,6 +94,9 @@ export function useDirectRoom({
     detailError: detail.error,
     messages: messagesQuery.messages,
     isMessagesLoading: messagesQuery.isLoading,
+    hasOlder: messagesQuery.hasOlder,
+    isLoadingOlder: messagesQuery.isLoadingOlder,
+    loadOlder: messagesQuery.loadOlder,
     messagesError: messagesQuery.error,
     otherPeerId,
     presence,

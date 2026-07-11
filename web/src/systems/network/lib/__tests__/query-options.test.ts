@@ -2,8 +2,19 @@ import { QueryClient, type QueryFunctionContext } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  listNetworkThreadMessages: vi.fn().mockResolvedValue([]),
-  listNetworkDirectRoomMessages: vi.fn().mockResolvedValue([]),
+  listNetworkThreadMessages: vi.fn().mockResolvedValue({
+    messages: [],
+    page: { has_more: false, limit: 120 },
+  }),
+  listNetworkDirectRoomMessages: vi.fn().mockResolvedValue({
+    messages: [],
+    page: { has_more: false, limit: 120 },
+  }),
+  listNetworkThreads: vi.fn().mockResolvedValue({
+    threads: [],
+    page: { has_more: false, limit: 50, total: 0 },
+  }),
+  listNetworkChannels: vi.fn().mockResolvedValue({ channels: [], recents: [] }),
 }));
 
 vi.mock("../../adapters/network-api", async () => {
@@ -13,6 +24,8 @@ vi.mock("../../adapters/network-api", async () => {
     ...actual,
     listNetworkThreadMessages: mocks.listNetworkThreadMessages,
     listNetworkDirectRoomMessages: mocks.listNetworkDirectRoomMessages,
+    listNetworkThreads: mocks.listNetworkThreads,
+    listNetworkChannels: mocks.listNetworkChannels,
   };
 });
 
@@ -22,20 +35,29 @@ import {
   networkDirectMessagesOptions,
   networkThreadDetailOptions,
   networkThreadMessagesOptions,
+  networkThreadsOptions,
+  networkChannelsOptions,
 } from "../query-options";
 import { networkKeys } from "../query-keys";
+import { flattenNetworkMessages } from "../infinite-data";
+import { rollNetworkMessageTail } from "../../hooks/use-network-message-tail";
 
-function makeQueryContext<TQueryKey extends readonly unknown[]>(queryKey: TQueryKey) {
+function makeQueryContext<TQueryKey extends readonly unknown[], TPageParam = never>(
+  queryKey: TQueryKey,
+  pageParam?: TPageParam
+) {
   return {
     client: new QueryClient(),
+    direction: "forward" as const,
     meta: undefined,
+    pageParam,
     queryKey,
     signal: new AbortController().signal,
-  } satisfies QueryFunctionContext<TQueryKey>;
+  } as QueryFunctionContext<TQueryKey, TPageParam>;
 }
 
-function requireQueryFn<TQueryKey extends readonly unknown[]>(
-  queryFn: ((context: QueryFunctionContext<TQueryKey>) => unknown) | undefined
+function requireQueryFn<TQueryKey extends readonly unknown[], TPageParam = never>(
+  queryFn: ((context: QueryFunctionContext<TQueryKey, TPageParam>) => unknown) | undefined
 ) {
   if (!queryFn) {
     throw new Error("Expected queryFn to be defined");
@@ -54,12 +76,25 @@ function requireRetry(
   return retry;
 }
 
+function networkMessage(messageId: string, text = messageId) {
+  return {
+    body: {},
+    channel: "builders",
+    direction: "received",
+    kind: "say",
+    message_id: messageId,
+    peer_from: "peer",
+    text,
+    timestamp: "2026-07-11T00:01:00Z",
+  };
+}
+
 describe("network query options , surface isolation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("threads tab queries are namespaced with channel + surface + thread id", async () => {
+  it("threads tab queries keep stable filters in the base key and message cursors in pageParam", async () => {
     const options = networkThreadMessagesOptions("ws_alpha", "builders", "thread_one");
     expect(options.queryKey).toEqual([
       "network",
@@ -72,18 +107,114 @@ describe("network query options , surface isolation", () => {
       "thread_one",
       "",
       "",
-      "",
-      "",
       120,
     ]);
-    await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
+    expect(options.initialPageParam).toBeNull();
+    expect(options.refetchInterval).toBeUndefined();
+    expect(options.refetchOnWindowFocus).toBe(false);
+    await requireQueryFn(options.queryFn)(
+      makeQueryContext(options.queryKey, { before: "msg_older" })
+    );
     expect(mocks.listNetworkThreadMessages).toHaveBeenCalledWith(
       "ws_alpha",
       "builders",
       "thread_one",
-      { limit: 120 },
+      { before: "msg_older", limit: 120 },
       expect.any(AbortSignal)
     );
+  });
+
+  it("loads the bounded embedded recents projection with the channel catalog", async () => {
+    const options = networkChannelsOptions("ws_alpha");
+    expect(options.queryKey).toEqual(["network", "workspace", "ws_alpha", "channels", "list", 5]);
+    if (typeof options.queryFn !== "function") throw new Error("Expected channel query function");
+    await options.queryFn(makeQueryContext(options.queryKey));
+    expect(mocks.listNetworkChannels).toHaveBeenCalledWith(
+      "ws_alpha",
+      { recent_limit: 5 },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("preserves server order while replacing a live-tail duplicate in place", () => {
+    const data = rollNetworkMessageTail(
+      {
+        pages: [
+          {
+            messages: [networkMessage("msg-z", "first"), networkMessage("msg-y", "stale")],
+            page: { has_more: false, limit: 4 },
+          },
+        ],
+        pageParams: [null],
+      },
+      [networkMessage("msg-y", "updated"), networkMessage("msg-a", "last")]
+    );
+
+    expect(data.pages[0]?.messages.map(item => item.message_id)).toEqual([
+      "msg-z",
+      "msg-y",
+      "msg-a",
+    ]);
+    expect(data.pages[0]?.messages[1]?.text).toBe("updated");
+  });
+
+  it("keeps the live tail bounded while rolling its oldest message into loaded history", () => {
+    const data = rollNetworkMessageTail(
+      {
+        pages: [
+          {
+            messages: [networkMessage("msg-z"), networkMessage("msg-y"), networkMessage("msg-x")],
+            page: { has_more: false, limit: 3 },
+          },
+        ],
+        pageParams: [null],
+      },
+      [networkMessage("msg-a")]
+    );
+
+    expect(data.pages[0]?.messages.map(item => item.message_id)).toEqual([
+      "msg-y",
+      "msg-x",
+      "msg-a",
+    ]);
+    expect(data.pages[1]?.messages.map(item => item.message_id)).toEqual(["msg-z"]);
+  });
+
+  it("flattens older pages before the live tail without inferring order from timestamp or id", () => {
+    const flattened = flattenNetworkMessages({
+      pages: [
+        {
+          messages: [networkMessage("msg-b"), networkMessage("msg-a")],
+          page: { has_more: true, limit: 2, next_cursor: "msg-b" },
+        },
+        {
+          messages: [networkMessage("msg-z"), networkMessage("msg-y")],
+          page: { has_more: false, limit: 2 },
+        },
+      ],
+      pageParams: [null, { before: "msg-b" }],
+    });
+
+    expect(flattened.map(item => item.message_id)).toEqual(["msg-z", "msg-y", "msg-b", "msg-a"]);
+  });
+
+  it("deduplicates overlapping message pages without moving the canonical position", () => {
+    const flattened = flattenNetworkMessages({
+      pages: [
+        {
+          messages: [networkMessage("msg-z", "updated"), networkMessage("msg-a", "last")],
+          page: { has_more: true, limit: 2, next_cursor: "msg-z" },
+        },
+        {
+          messages: [networkMessage("msg-z", "stale"), networkMessage("msg-y", "second")],
+          page: { has_more: false, limit: 2 },
+        },
+      ],
+      pageParams: [null, { before: "msg-z" }],
+    });
+
+    expect(flattened.map(item => item.message_id)).toEqual(["msg-z", "msg-y", "msg-a"]);
+    expect(flattened[0]?.text).toBe("updated");
   });
 
   it("directs tab queries are namespaced with channel + surface + direct id", async () => {
@@ -99,16 +230,58 @@ describe("network query options , surface isolation", () => {
       "direct_one",
       "",
       "",
-      "",
-      "",
       120,
     ]);
-    await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
+    expect(options.initialPageParam).toBeNull();
+    await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey, null));
     expect(mocks.listNetworkDirectRoomMessages).toHaveBeenCalledWith(
       "ws_alpha",
       "builders",
       "direct_one",
       { limit: 120 },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("catalog queries preserve counted envelopes and bind only stable server filters to the key", async () => {
+    const options = networkThreadsOptions("ws_alpha", "builders", {
+      has_work: true,
+      peer_id: "peer.alpha",
+      query: "release",
+      sort: "alphabetical",
+    });
+
+    expect(options.queryKey).toEqual([
+      "network",
+      "workspace",
+      "ws_alpha",
+      "channel",
+      "builders",
+      "thread",
+      "list",
+      "release",
+      "peer.alpha",
+      true,
+      "alphabetical",
+      50,
+    ]);
+    expect(options.initialPageParam).toBeNull();
+
+    const page = await requireQueryFn(options.queryFn)(
+      makeQueryContext(options.queryKey, "thread_cursor")
+    );
+    expect(page).toEqual({ threads: [], page: { has_more: false, limit: 50, total: 0 } });
+    expect(mocks.listNetworkThreads).toHaveBeenCalledWith(
+      "ws_alpha",
+      "builders",
+      {
+        after: "thread_cursor",
+        has_work: true,
+        limit: 50,
+        peer_id: "peer.alpha",
+        query: "release",
+        sort: "alphabetical",
+      },
       expect.any(AbortSignal)
     );
   });
@@ -143,37 +316,49 @@ describe("network query options , surface isolation", () => {
     const client = new QueryClient();
     const threadOpts = networkThreadMessagesOptions("ws_alpha", "builders", "container_x");
     const directOpts = networkDirectMessagesOptions("ws_alpha", "builders", "container_x");
-    client.setQueryData(threadOpts.queryKey, [
-      {
-        message_id: "thread-msg",
-        body: {},
-        channel: "builders",
-        direction: "sent",
-        kind: "say",
-        peer_from: "p",
-        timestamp: "",
-      },
-    ]);
-    client.setQueryData(directOpts.queryKey, [
-      {
-        message_id: "direct-msg",
-        body: {},
-        channel: "builders",
-        direction: "sent",
-        kind: "say",
-        peer_from: "p",
-        timestamp: "",
-      },
-    ]);
+    client.setQueryData(threadOpts.queryKey, {
+      pages: [
+        {
+          messages: [
+            {
+              message_id: "thread-msg",
+              body: {},
+              channel: "builders",
+              direction: "sent",
+              kind: "say",
+              peer_from: "p",
+              timestamp: "",
+            },
+          ],
+          page: { has_more: false, limit: 120 },
+        },
+      ],
+      pageParams: [null],
+    });
+    client.setQueryData(directOpts.queryKey, {
+      pages: [
+        {
+          messages: [
+            {
+              message_id: "direct-msg",
+              body: {},
+              channel: "builders",
+              direction: "sent",
+              kind: "say",
+              peer_from: "p",
+              timestamp: "",
+            },
+          ],
+          page: { has_more: false, limit: 120 },
+        },
+      ],
+      pageParams: [null],
+    });
 
-    const threadCacheValue = client.getQueryData(threadOpts.queryKey) as Array<{
-      message_id: string;
-    }>;
-    const directCacheValue = client.getQueryData(directOpts.queryKey) as Array<{
-      message_id: string;
-    }>;
-    expect(threadCacheValue?.[0]?.message_id).toBe("thread-msg");
-    expect(directCacheValue?.[0]?.message_id).toBe("direct-msg");
+    const threadCacheValue = client.getQueryData(threadOpts.queryKey);
+    const directCacheValue = client.getQueryData(directOpts.queryKey);
+    expect(threadCacheValue?.pages[0]?.messages[0]?.message_id).toBe("thread-msg");
+    expect(directCacheValue?.pages[0]?.messages[0]?.message_id).toBe("direct-msg");
 
     const threadEntry = client.getQueryCache().findAll({
       queryKey: networkKeys.threadsList("ws_alpha", "builders").slice(0, 6),

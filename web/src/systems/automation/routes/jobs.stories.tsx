@@ -54,7 +54,11 @@ export const Empty: Story = {
   parameters: {
     ...appRouteParameters("/jobs"),
     ...storybookMswParameters({
-      automation: [aghApiMock.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
+      automation: [
+        aghApiMock.get("/api/automation/jobs", () =>
+          HttpResponse.json({ jobs: [], page: { has_more: false, limit: 50, total: 0 } })
+        ),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -98,7 +102,10 @@ export const Loading: Story = {
       automation: [
         aghApiMock.get("/api/automation/jobs", async () => {
           await delay("infinite");
-          return HttpResponse.json({ jobs: [] });
+          return HttpResponse.json({
+            jobs: [],
+            page: { has_more: false, limit: 50, total: 0 },
+          });
         }),
       ],
     }),

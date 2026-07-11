@@ -1,14 +1,5 @@
 # Runtime Operations
 
-## Contents
-
-- Operating model
-- Session lifecycle
-- Session CLI
-- Diagnostics order
-- Status, doctor, logs, and support
-- Runtime boundaries
-
 ## Operating Model
 
 AGH is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
@@ -30,9 +21,9 @@ Attachability is explicit runtime state. Use `agh session list --resumable -o js
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `agh session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
-The event store and transcript are the durable source of truth for reattach. When reconnecting to an existing session, read `agh session history <session-id>` or the transcript API first, then follow session events from the latest cursor. The transcript API returns `entries` with `{ message, sequence }`, so agents can page or merge UI messages without guessing the event cursor. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
 
-The HTTP/UDS session stream defaults to transcript frames: `transcript_snapshot`, `transcript_delta`, and terminal `session_stopped`. Use `replay=snapshot` when a subscriber needs a bounded current transcript window before live deltas. Use `frames=raw` when the caller needs persisted `SessionEventPayload` rows; `agh session events --follow` already requests raw frames.
+The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta`, and terminal `session_stopped` frames. Reconnect with the last SSE cursor plus the snapshot's `epoch` and `generation`; a fence mismatch returns an explicit reset snapshot. The removed `replay` query is invalid. Use `frames=raw` for persisted `SessionEventPayload` rows; `agh session events --follow` already requests raw frames.
 
 ## Session CLI
 

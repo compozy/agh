@@ -11,7 +11,7 @@ import { LoopContractPanel } from "./loop-contract-panel";
 import { LoopDeclaredInputs } from "./loop-declared-inputs";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
-import { LoopStartBindingsPanel } from "./loop-start-bindings-panel";
+import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
 import { LoopStatsPanel } from "./loop-stats-panel";
 import { LoopVersionsPanel } from "./loop-versions-panel";
 
@@ -21,6 +21,8 @@ interface LoopDetailProps {
   recentRuns: readonly LoopRun[];
   bindings: readonly LoopBindingRow[];
   bindingsLoading: boolean;
+  bindingJobs?: LoopBindingPagination;
+  bindingTriggers?: LoopBindingPagination;
   successRate: number | null;
   aggregate: LoopAggregate30d | null;
   onBack: () => void;
@@ -43,6 +45,8 @@ export function LoopDetailView({
   recentRuns,
   bindings,
   bindingsLoading,
+  bindingJobs,
+  bindingTriggers,
   successRate,
   aggregate,
   onBack,
@@ -154,9 +158,11 @@ export function LoopDetailView({
             <LoopStartBindingsPanel
               declaredKinds={declaredKinds}
               bindings={bindings}
+              jobs={bindingJobs}
               isLoading={bindingsLoading}
               onAddTrigger={onAddTrigger}
               onAddSchedule={onAddSchedule}
+              triggers={bindingTriggers}
             />
             <LoopLimitsPanel contract={definition.contract} />
             <LoopVersionsPanel version={loop.version} />

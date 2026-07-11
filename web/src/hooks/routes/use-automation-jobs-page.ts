@@ -6,9 +6,7 @@ import {
   createAutomationJobDraft,
   createAutomationDialogHandle,
   createLoopTargetJobDraft,
-  filterAutomationJobs,
   normalizeAutomationRetry,
-  sortAutomationJobs,
   useAutomationJob,
   useAutomationJobRuns,
   useAutomationJobs,
@@ -30,11 +28,15 @@ import {
   resolveSelectedId,
   useAutomationPageBase,
   type AutomationCreateSeed,
+  type AutomationRouteSearch,
   type JobEditorState,
 } from "./use-automation-page-base";
 
-export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
-  const page = useAutomationPageBase();
+export function useAutomationJobsPage(
+  seed: AutomationCreateSeed = {},
+  search: AutomationRouteSearch = {}
+) {
+  const page = useAutomationPageBase("jobs", search);
   const [editor, setEditor] = useState<JobEditorState | null>(null);
   const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
   const jobSubmitInFlightRef = useRef(false);
@@ -42,19 +44,15 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
   const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
   const jobsQuery = useAutomationJobs(page.listFilters);
-  const jobs = jobsQuery.data ?? [];
+  const jobs = jobsQuery.jobs;
   const runtimeUnavailableMessage = automationUnavailableMessage(
     "jobs",
     page.automationRuntime,
     jobsQuery.error
   );
-  const visibleJobs = useMemo(
-    () => sortAutomationJobs(filterAutomationJobs(jobs, page.deferredSearchQuery)),
-    [jobs, page.deferredSearchQuery]
-  );
   const effectiveSelectedJobId = useMemo(
-    () => resolveSelectedId(page.selectedId, visibleJobs),
-    [page.selectedId, visibleJobs]
+    () => resolveSelectedId(page.selectedId, jobs),
+    [jobs, page.selectedId]
   );
 
   const jobDetailQuery = useAutomationJob(effectiveSelectedJobId ?? "", {
@@ -71,10 +69,7 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
   const deleteJobMutation = useDeleteAutomationJob();
   const triggerJobMutation = useTriggerAutomationJob();
 
-  const selectedJob =
-    jobDetailQuery.data ??
-    visibleJobs.find(job => job.id === effectiveSelectedJobId) ??
-    jobs.find(job => job.id === effectiveSelectedJobId);
+  const selectedJob = jobDetailQuery.data ?? jobs.find(job => job.id === effectiveSelectedJobId);
 
   const displayedRuns = useMemo(() => {
     const runs = jobRunsQuery.data ?? [];
@@ -192,9 +187,9 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
   };
 
   const emptyState =
-    visibleJobs.length === 0
+    jobs.length === 0
       ? buildEmptyState({
-          hasQuery: page.deferredSearchQuery.trim() !== "",
+          hasQuery: page.searchQuery.trim() !== "",
           kind: "jobs",
           onCreate: handleCreate,
         })
@@ -204,9 +199,12 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
     activeWorkspaceName: page.activeWorkspace?.name,
     errorMessage: jobsQuery.error?.message ?? null,
     isLoading: jobsQuery.isLoading,
-    jobs: visibleJobs,
+    hasNextPage: jobsQuery.hasNextPage,
+    isFetchingNextPage: jobsQuery.isFetchingNextPage,
+    jobs,
     kind: "jobs" as const,
     onSearchChange: page.setSearchQuery,
+    onLoadMore: () => void jobsQuery.fetchNextPage(),
     onSelect: (id: string) =>
       startTransition(() => {
         page.setSelectedId(id);
@@ -215,7 +213,7 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
     scopeFilter: page.scopeFilter,
     searchQuery: page.searchQuery,
     selectedId: effectiveSelectedJobId,
-    totalCount: jobs.length,
+    totalCount: jobsQuery.total,
     triggers: [],
   };
 
@@ -265,7 +263,7 @@ export function useAutomationJobsPage(seed: AutomationCreateSeed = {}) {
   };
 
   return {
-    currentTotalCount: jobs.length,
+    currentTotalCount: jobsQuery.total,
     detailPanelProps,
     editorDialogProps,
     handleCreate,

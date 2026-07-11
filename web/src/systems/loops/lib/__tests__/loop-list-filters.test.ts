@@ -2,13 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { FilterFieldConfig } from "@agh/ui/components/reui/filters";
 
-import { loopCatalogFixtures } from "../../mocks/fixtures";
 import type { LoopCatalogFilter } from "../loop-catalog";
 import {
   applyLoopFilterChips,
   buildLoopFilterFields,
-  filterLoopCatalog,
-  filterLoopsByQuery,
   loopFiltersToChips,
   parseLoopCategoryFilter,
   parseLoopKindFilter,
@@ -73,21 +70,6 @@ describe("loop-list-filters", () => {
       },
     });
     expect(next).toEqual({ kind: "all", category: null, status: null });
-  });
-
-  it("Should search by name and goal", () => {
-    expect(filterLoopsByQuery(loopCatalogFixtures, "software")).toHaveLength(1);
-    expect(filterLoopsByQuery(loopCatalogFixtures, "Ship the requested")).toHaveLength(1);
-    expect(filterLoopsByQuery(loopCatalogFixtures, "zzz")).toHaveLength(0);
-  });
-
-  it("Should AND search with chip filters", () => {
-    const filtered = filterLoopCatalog(loopCatalogFixtures, "watch", {
-      kind: "read-only",
-      category: null,
-      status: null,
-    });
-    expect(filtered.map(entry => entry.name)).toEqual(["reviews-watch"]);
   });
 
   it("Should parse URL search values and reject unknowns", () => {

@@ -65,6 +65,14 @@ vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => mockConnectionStatus,
 }));
 
+vi.mock("@/systems/status", () => ({
+  useDaemonHealth: () => ({
+    connectionStatus: mockConnectionStatus,
+    health: { status: "ok" },
+    isInitialLoading: false,
+  }),
+}));
+
 vi.mock("@/systems/runtime/hooks/use-nav-counts", () => ({
   useNavCounts: () => ({
     counts: {},

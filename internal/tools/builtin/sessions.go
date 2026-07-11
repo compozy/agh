@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/agh/internal/tools"
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/agh/internal/tools"
+)
 
 const (
 	sessionsSessionsKey = "sessions"
@@ -14,20 +18,7 @@ const (
 )
 
 var sessionTools = []toolspkg.Descriptor{
-	nativeDescriptor(
-		toolspkg.ToolIDSessionList,
-		"session_list",
-		"Session List",
-		"List runtime sessions through the existing session query surface.",
-		sessionListInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, sessionsListKey},
-		[]string{"session list", "runtime sessions"},
-	),
+	sessionListDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDSessionStatus,
 		"session_status",
@@ -86,6 +77,25 @@ var sessionTools = []toolspkg.Descriptor{
 	),
 }
 
+func sessionListDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		toolspkg.ToolIDSessionList,
+		"session_list",
+		"Session List",
+		"List one bounded, workspace-safe page of runtime sessions.",
+		sessionListInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, sessionsListKey},
+		[]string{"session list", "runtime sessions"},
+	)
+	descriptor.OutputSchema = json.RawMessage(sessionListOutputSchema)
+	return descriptor
+}
+
 func sessionDescriptors() []toolspkg.Descriptor {
 	return sessionTools
 }
@@ -94,7 +104,34 @@ const sessionListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"workspace":{"type":"string"},
-		"limit":{"type":"integer"}
+		"state":{"type":"string","enum":["starting","active","stopping","stopped"]},
+		"agent":{"type":"string"},
+		"q":{"type":"string"},
+		"resumable":{"type":"boolean"},
+		"include_health":{"type":"boolean"},
+		"sort":{"type":"string","enum":["recent","last_activity"]},
+		"cursor":{"type":"string"},
+		"limit":{"type":"integer","minimum":1,"maximum":100}
+	},
+	"additionalProperties":false
+}`
+
+const sessionListOutputSchema = `{
+	"type":"object",
+	"required":["sessions","page"],
+	"properties":{
+		"sessions":{"type":"array","items":{"type":"object"}},
+		"page":{
+			"type":"object",
+			"required":["has_more","total","limit"],
+			"properties":{
+				"next_cursor":{"type":"string"},
+				"has_more":{"type":"boolean"},
+				"total":{"type":"integer","minimum":0},
+				"limit":{"type":"integer","minimum":1,"maximum":100}
+			},
+			"additionalProperties":false
+		}
 	},
 	"additionalProperties":false
 }`

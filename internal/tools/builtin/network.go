@@ -71,6 +71,7 @@ var networkTools = []toolspkg.Descriptor{
 		"network_send",
 		"Network Send",
 		"Send one AGH network message into a public thread or restricted direct room. "+
+			"A valid first thread send opens the public thread; later sends reuse its thread_id. "+
 			"Direct-room visibility is restricted to the two room peers plus runtime/audit access, "+
 			"not cryptographic privacy.",
 		networkSendInputSchema,
@@ -305,31 +306,6 @@ const networkInboxInputSchema = `{
 	"additionalProperties":false
 }`
 
-const networkSendInputSchema = `{
-	"type":"object",
-	"required":["workspace_id","channel","kind","body"],
-	"properties":{
-		"workspace_id":{"type":"string"},
-		"session_id":{"type":"string"},
-		"channel":{"type":"string"},
-		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
-		"surface":{"type":"string","enum":["thread","direct"]},
-		"thread_id":{"type":"string"},
-		"direct_id":{"type":"string"},
-		"work_id":{"type":"string"},
-		"to":{"type":"string"},
-		"mentions":{"type":"array","items":{"type":"string"}},
-		"body":{"type":"object"},
-		"reply_to":{"type":"string"},
-		"trace_id":{"type":"string"},
-		"causation_id":{"type":"string"},
-		"expires_at":{"type":"integer"},
-		"id":{"type":"string"},
-		"ext":{"type":"object"}
-	},
-	"additionalProperties":false
-}`
-
 const networkChannelCreateInputSchema = `{
 	"type":"object",
 	"required":["workspace_id","channel","purpose"],
@@ -400,7 +376,11 @@ const networkThreadsInputSchema = `{
 	"properties":{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
-		"limit":{"type":"integer"},
+		"query":{"type":"string"},
+		"peer_id":{"type":"string"},
+		"sort":{"type":"string","enum":["recent_activity","created","alphabetical"]},
+		"has_work":{"type":"boolean"},
+		"limit":{"type":"integer","minimum":1,"maximum":200},
 		"after":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -417,7 +397,7 @@ const networkThreadMessagesInputSchema = `{
 		"after":{"type":"string"},
 		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
 		"work_id":{"type":"string"},
-		"limit":{"type":"integer"}
+		"limit":{"type":"integer","minimum":1,"maximum":200}
 	},
 	"additionalProperties":false
 }`
@@ -428,8 +408,11 @@ const networkDirectsInputSchema = `{
 	"properties":{
 		"workspace_id":{"type":"string"},
 		"channel":{"type":"string"},
+		"query":{"type":"string"},
 		"peer_id":{"type":"string"},
-		"limit":{"type":"integer"},
+		"sort":{"type":"string","enum":["recent_activity","created","alphabetical"]},
+		"has_work":{"type":"boolean"},
+		"limit":{"type":"integer","minimum":1,"maximum":200},
 		"after":{"type":"string"}
 	},
 	"additionalProperties":false
@@ -458,7 +441,7 @@ const networkDirectMessagesInputSchema = `{
 		"after":{"type":"string"},
 		"kind":{"type":"string","enum":["greet","whois","say","capability","receipt","trace"]},
 		"work_id":{"type":"string"},
-		"limit":{"type":"integer"}
+		"limit":{"type":"integer","minimum":1,"maximum":200}
 	},
 	"additionalProperties":false
 }`

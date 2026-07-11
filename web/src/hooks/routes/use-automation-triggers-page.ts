@@ -6,9 +6,7 @@ import {
   createAutomationDialogHandle,
   createAutomationTriggerDraft,
   createLoopTargetTriggerDraft,
-  filterAutomationTriggers,
   normalizeAutomationRetry,
-  sortAutomationTriggers,
   useAutomationTrigger,
   useAutomationTriggerRuns,
   useAutomationTriggers,
@@ -24,30 +22,30 @@ import {
   resolveSelectedId,
   useAutomationPageBase,
   type AutomationCreateSeed,
+  type AutomationRouteSearch,
   type TriggerEditorState,
 } from "./use-automation-page-base";
 
-export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
-  const page = useAutomationPageBase();
+export function useAutomationTriggersPage(
+  seed: AutomationCreateSeed = {},
+  search: AutomationRouteSearch = {}
+) {
+  const page = useAutomationPageBase("triggers", search);
   const [editor, setEditor] = useState<TriggerEditorState | null>(null);
   const triggerSubmitInFlightRef = useRef(false);
   const seededRef = useRef(false);
   const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
-  const triggersQuery = useAutomationTriggers(page.listFilters);
-  const triggers = triggersQuery.data ?? [];
+  const triggersQuery = useAutomationTriggers({ ...page.listFilters, event: search.event });
+  const triggers = triggersQuery.triggers;
   const runtimeUnavailableMessage = automationUnavailableMessage(
     "triggers",
     page.automationRuntime,
     triggersQuery.error
   );
-  const visibleTriggers = useMemo(
-    () => sortAutomationTriggers(filterAutomationTriggers(triggers, page.deferredSearchQuery)),
-    [page.deferredSearchQuery, triggers]
-  );
   const effectiveSelectedTriggerId = useMemo(
-    () => resolveSelectedId(page.selectedId, visibleTriggers),
-    [page.selectedId, visibleTriggers]
+    () => resolveSelectedId(page.selectedId, triggers),
+    [page.selectedId, triggers]
   );
 
   const triggerDetailQuery = useAutomationTrigger(effectiveSelectedTriggerId ?? "", {
@@ -64,9 +62,7 @@ export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
   const deleteTriggerMutation = useDeleteAutomationTrigger();
 
   const selectedTrigger =
-    triggerDetailQuery.data ??
-    visibleTriggers.find(trigger => trigger.id === effectiveSelectedTriggerId) ??
-    triggers.find(trigger => trigger.id === effectiveSelectedTriggerId);
+    triggerDetailQuery.data ?? triggers.find(trigger => trigger.id === effectiveSelectedTriggerId);
 
   const handleScopeChange = (nextScope: AutomationScopeFilter) => {
     startTransition(() => {
@@ -160,9 +156,9 @@ export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
   };
 
   const emptyState =
-    visibleTriggers.length === 0
+    triggers.length === 0
       ? buildEmptyState({
-          hasQuery: page.deferredSearchQuery.trim() !== "",
+          hasQuery: page.searchQuery.trim() !== "",
           kind: "triggers",
           onCreate: handleCreate,
         })
@@ -173,8 +169,11 @@ export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
     errorMessage: triggersQuery.error?.message ?? null,
     isLoading: triggersQuery.isLoading,
     jobs: [],
+    hasNextPage: triggersQuery.hasNextPage,
+    isFetchingNextPage: triggersQuery.isFetchingNextPage,
     kind: "triggers" as const,
     onSearchChange: page.setSearchQuery,
+    onLoadMore: () => void triggersQuery.fetchNextPage(),
     onSelect: (id: string) =>
       startTransition(() => {
         page.setSelectedId(id);
@@ -182,8 +181,8 @@ export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
     scopeFilter: page.scopeFilter,
     searchQuery: page.searchQuery,
     selectedId: effectiveSelectedTriggerId,
-    totalCount: triggers.length,
-    triggers: visibleTriggers,
+    totalCount: triggersQuery.total,
+    triggers,
   };
 
   const detailPanelProps = {
@@ -229,7 +228,7 @@ export function useAutomationTriggersPage(seed: AutomationCreateSeed = {}) {
   };
 
   return {
-    currentTotalCount: triggers.length,
+    currentTotalCount: triggersQuery.total,
     detailPanelProps,
     editorDialogProps,
     handleCreate,

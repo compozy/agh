@@ -50,7 +50,7 @@ describe("TasksInboxView", () => {
 
   it("Should render approval items under the Needs review group with a warning solid dot", () => {
     const inbox = buildInboxFixture({
-      total: 1,
+      page: { has_more: false, limit: 50, total: 1 },
       unread_total: 1,
       groups: [
         {
@@ -94,7 +94,7 @@ describe("TasksInboxView", () => {
 
   it("Should render blocked items under the Blocked group with a danger solid dot", () => {
     const inbox = buildInboxFixture({
-      total: 1,
+      page: { has_more: false, limit: 50, total: 1 },
       unread_total: 0,
       groups: [
         {
@@ -138,7 +138,7 @@ describe("TasksInboxView", () => {
   it("Should emit search and unread toggle changes", () => {
     const props = makeBaseProps();
     const inbox = buildInboxFixture({
-      total: 1,
+      page: { has_more: false, limit: 50, total: 1 },
       groups: [
         {
           lane: "my_work",
@@ -164,6 +164,8 @@ describe("TasksInboxView", () => {
   it("Should render loading, error, and empty states", () => {
     const { rerender } = render(<TasksInboxView {...makeBaseProps()} inbox={null} isLoading />);
     expect(screen.getByTestId("tasks-inbox-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-inbox-page-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-inbox-page-totals")).not.toBeInTheDocument();
 
     rerender(<TasksInboxView {...makeBaseProps()} errorMessage="oops" inbox={null} />);
     expect(screen.getByTestId("tasks-inbox-error")).toHaveTextContent("oops");
@@ -183,7 +185,7 @@ describe("TasksInboxView", () => {
     };
 
     const inbox = buildInboxFixture({
-      total: 4,
+      page: { has_more: false, limit: 50, total: 4 },
       unread_total: 3,
       groups: [
         {
@@ -277,9 +279,129 @@ describe("TasksInboxView", () => {
 
     expect(handlers.onApprove).toHaveBeenCalledWith("task_apr");
     expect(handlers.onReject).toHaveBeenCalledWith("task_apr");
-    expect(handlers.onRetry).toHaveBeenCalledWith("task_fail");
+    expect(handlers.onRetry).toHaveBeenCalledWith("run_fail");
     expect(handlers.onDismiss).toHaveBeenCalledWith("task_fail");
     expect(handlers.onMarkRead).toHaveBeenCalledWith("task_my");
     expect(handlers.onArchive).toHaveBeenCalledWith("task_my");
+  });
+
+  it("Should expose an accessible continuation and keep loaded groups visible", () => {
+    const onLoadMore = vi.fn();
+    const inbox = buildInboxFixture({
+      page: { has_more: true, limit: 1, next_cursor: "inbox:1", total: 2 },
+      groups: [
+        {
+          lane: "my_work",
+          count: 2,
+          unread_count: 0,
+          items: [buildInboxItemFixture()],
+        },
+      ],
+    });
+
+    render(<TasksInboxView {...makeBaseProps()} hasMore inbox={inbox} onLoadMore={onLoadMore} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more inbox tasks" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("tasks-inbox-groups")).toBeInTheDocument();
+  });
+
+  it("Should retry the failed inbox operation without requesting another page", () => {
+    const onLoadMore = vi.fn();
+    const onRetryQuery = vi.fn();
+    const inbox = buildInboxFixture({
+      page: { has_more: true, limit: 1, next_cursor: "inbox:1", total: 2 },
+      groups: [
+        {
+          lane: "my_work",
+          count: 2,
+          unread_count: 0,
+          items: [buildInboxItemFixture()],
+        },
+      ],
+    });
+
+    render(
+      <TasksInboxView
+        {...makeBaseProps()}
+        errorMessage="Inbox refresh failed"
+        hasMore
+        inbox={inbox}
+        onLoadMore={onLoadMore}
+        onRetryQuery={onRetryQuery}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading inbox" }));
+    expect(onRetryQuery).toHaveBeenCalledTimes(1);
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it("Should disable only the pending run retry target", () => {
+    const inbox = buildInboxFixture({
+      page: { has_more: false, limit: 50, total: 2 },
+      groups: [
+        {
+          lane: "failed_runs",
+          count: 2,
+          unread_count: 2,
+          items: [
+            buildInboxItemFixture({
+              lane: "failed_runs",
+              task: { id: "task_a", scope: "workspace", status: "failed", title: "Task A" },
+              run: {
+                attempt: 1,
+                id: "run_a",
+                max_attempts: 3,
+                queued_at: "2026-04-17T09:55:00Z",
+                status: "failed",
+                task_id: "task_a",
+              },
+            }),
+            buildInboxItemFixture({
+              lane: "failed_runs",
+              task: { id: "task_b", scope: "workspace", status: "failed", title: "Task B" },
+              run: {
+                attempt: 1,
+                id: "run_b",
+                max_attempts: 3,
+                queued_at: "2026-04-17T09:56:00Z",
+                status: "failed",
+                task_id: "task_b",
+              },
+            }),
+          ],
+        },
+      ],
+    });
+
+    render(
+      <TasksInboxView
+        {...makeBaseProps()}
+        inbox={inbox}
+        onRetry={vi.fn()}
+        pendingRetryIds={new Set(["run_a"])}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-inbox-item-retry-task_a")).toBeDisabled();
+    expect(screen.getByTestId("tasks-inbox-item-retry-task_b")).toBeEnabled();
+  });
+
+  it("Should label partial inbox groups as loaded of the exact lane total", () => {
+    const inbox = buildInboxFixture({
+      page: { has_more: true, limit: 1, next_cursor: "inbox:1", total: 10 },
+      groups: [
+        {
+          lane: "approvals",
+          count: 10,
+          unread_count: 4,
+          items: [buildInboxItemFixture({ lane: "approvals" })],
+        },
+      ],
+    });
+
+    render(<TasksInboxView {...makeBaseProps()} inbox={inbox} />);
+    expect(screen.getByTestId("tasks-inbox-group-count-needs_review")).toHaveTextContent("1 of 10");
   });
 });

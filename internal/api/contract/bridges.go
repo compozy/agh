@@ -273,12 +273,6 @@ func (e bridgeContractError) Error() string {
 	return string(e)
 }
 
-// BridgesResponse wraps the shared bridge list payload.
-type BridgesResponse struct {
-	Bridges      []BridgePayload                `json:"bridges"`
-	BridgeHealth map[string]BridgeHealthPayload `json:"bridge_health,omitempty"`
-}
-
 // BridgeHealthStreamPayload wraps one bridge-health SSE snapshot payload.
 type BridgeHealthStreamPayload struct {
 	GeneratedAt  time.Time                      `json:"generated_at"`
@@ -388,16 +382,6 @@ type BridgeHealthPayload struct {
 	LastErrorAt             *time.Time                   `json:"last_error_at,omitempty"`
 	Degradation             *bridgepkg.BridgeDegradation `json:"degradation,omitempty"`
 	Diagnostics             []bridgepkg.BridgeDiagnostic `json:"diagnostics,omitempty"`
-}
-
-// BridgeStatusCountsPayload captures aggregate per-status counts for bridge health.
-type BridgeStatusCountsPayload struct {
-	Disabled     int `json:"disabled"`
-	Starting     int `json:"starting"`
-	Ready        int `json:"ready"`
-	Degraded     int `json:"degraded"`
-	AuthRequired int `json:"auth_required"`
-	Error        int `json:"error"`
 }
 
 // BridgeAggregateHealthPayload captures the additive bridge summary nested

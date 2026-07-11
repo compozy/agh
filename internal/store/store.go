@@ -39,6 +39,8 @@ var (
 	ErrNetworkWorkContainerMismatch = errors.New("store: network work container mismatch")
 	// ErrNetworkWorkClosed reports a non-duplicate message for terminal work.
 	ErrNetworkWorkClosed = errors.New("store: network work closed")
+	// ErrNetworkCursorInvalid reports a malformed or query-mismatched network list cursor.
+	ErrNetworkCursorInvalid = errors.New("store: network cursor invalid")
 )
 
 // EventRecorder captures session events and token usage in the per-session database.
@@ -98,6 +100,23 @@ type NetworkChannelStore interface {
 	DeleteNetworkChannel(ctx context.Context, ref NetworkChannelRef) error
 }
 
+// NetworkChannelProjectionStore reads materialized channel timeline totals.
+type NetworkChannelProjectionStore interface {
+	ListNetworkChannelProjections(
+		ctx context.Context,
+		query NetworkChannelProjectionQuery,
+	) ([]NetworkChannelProjection, error)
+	ListNetworkChannelKindCounts(
+		ctx context.Context,
+		ref NetworkChannelRef,
+	) ([]NetworkChannelKindCount, error)
+}
+
+// NetworkRecentStore reads cross-channel recent conversation summaries.
+type NetworkRecentStore interface {
+	ListNetworkRecents(ctx context.Context, query NetworkRecentQuery) ([]NetworkRecentSummary, error)
+}
+
 // AppMetadataStore manages a small global key-value table for instance-level flags.
 type AppMetadataStore interface {
 	GetAppMetadata(ctx context.Context, key string) (string, bool, error)
@@ -131,13 +150,13 @@ type NetworkConversationStore interface {
 		ctx context.Context,
 		entry NetworkConversationMessage,
 	) (NetworkConversationWriteResult, error)
-	ListThreads(ctx context.Context, ref NetworkChannelRef, query NetworkThreadQuery) ([]NetworkThreadSummary, error)
+	ListThreads(ctx context.Context, ref NetworkChannelRef, query NetworkThreadQuery) (NetworkThreadPage, error)
 	GetThread(ctx context.Context, ref NetworkChannelRef, threadID string) (NetworkThreadSummary, error)
 	ListDirectRooms(
 		ctx context.Context,
 		ref NetworkChannelRef,
 		query NetworkDirectRoomQuery,
-	) ([]NetworkDirectRoomSummary, error)
+	) (NetworkDirectRoomPage, error)
 	GetDirectRoom(ctx context.Context, ref NetworkChannelRef, directID string) (NetworkDirectRoomSummary, error)
 	ListConversationMessages(
 		ctx context.Context,
@@ -171,6 +190,8 @@ type SessionRegistry interface {
 	PermissionLogStore
 	NetworkAuditStore
 	NetworkChannelStore
+	NetworkChannelProjectionStore
+	NetworkRecentStore
 	NetworkMessageStore
 	NetworkConversationStore
 	NetworkPreferenceStore

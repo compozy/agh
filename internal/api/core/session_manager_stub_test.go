@@ -13,11 +13,12 @@ type sessionManagerStub struct {
 	create            func(context.Context, session.CreateOpts) (*session.Session, error)
 	list              func() []*session.Info
 	listAll           func(context.Context) ([]*session.Info, error)
+	listPage          func(context.Context, session.ListQuery) (session.ListPage, error)
 	status            func(context.Context, string) (*session.Info, error)
 	events            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	history           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	transcript        func(context.Context, string, store.EventQuery) ([]transcript.Entry, error)
-	watermark         func(context.Context, string) session.TranscriptWatermark
+	transcriptPage    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+	transcriptChanges func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
 	inputQueueSummary func(context.Context, string) (session.InputQueueSummary, error)
 	repairSession     func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	delete            func(context.Context, string) error
@@ -56,6 +57,13 @@ func (s sessionManagerStub) ListAll(ctx context.Context) ([]*session.Info, error
 	return nil, nil
 }
 
+func (s sessionManagerStub) ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error) {
+	if s.listPage != nil {
+		return s.listPage(ctx, query)
+	}
+	return session.ListPage{}, nil
+}
+
 func (s sessionManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
 	if s.status != nil {
 		return s.status(ctx, id)
@@ -85,25 +93,26 @@ func (s sessionManagerStub) History(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) Transcript(
+func (s sessionManagerStub) TranscriptPage(
 	ctx context.Context,
 	id string,
-	query store.EventQuery,
-) ([]transcript.Entry, error) {
-	if s.transcript != nil {
-		return s.transcript(ctx, id, query)
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	if s.transcriptPage != nil {
+		return s.transcriptPage(ctx, id, query)
 	}
-	return nil, session.ErrSessionNotFound
+	return transcript.Page{}, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) TranscriptWatermark(
+func (s sessionManagerStub) TranscriptChanges(
 	ctx context.Context,
 	id string,
-) session.TranscriptWatermark {
-	if s.watermark != nil {
-		return s.watermark(ctx, id)
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	if s.transcriptChanges != nil {
+		return s.transcriptChanges(ctx, id, query)
 	}
-	return session.TranscriptWatermark{}
+	return transcript.ChangePage{}, session.ErrSessionNotFound
 }
 
 func (s sessionManagerStub) InputQueueSummary(

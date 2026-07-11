@@ -6,9 +6,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockNavigate, mockSetActiveWorkspaceId } = vi.hoisted(() => ({
+const { mockNavigate, mockSetActiveWorkspaceId, mockUseNetworkPage } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockSetActiveWorkspaceId: vi.fn<(workspaceId: string | null) => void>(),
+  mockUseNetworkPage: vi.fn(),
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
@@ -45,16 +46,19 @@ vi.mock("../use-last-read", () => ({
 }));
 
 vi.mock("../use-network-page", () => ({
-  useNetworkPage: () => ({
-    channels: [
-      {
-        channel: "copy",
-        last_activity_at: "2026-05-14T02:00:00Z",
-      },
-    ],
-    firstVisibleChannel: { channel: "copy" },
-    recents: [],
-  }),
+  useNetworkPage: (...args: unknown[]) => {
+    mockUseNetworkPage(...args);
+    return {
+      channels: [
+        {
+          channel: "copy",
+          last_activity_at: "2026-05-14T02:00:00Z",
+        },
+      ],
+      firstVisibleChannel: { channel: "copy" },
+      recents: [],
+    };
+  },
 }));
 
 import { useNetworkRouteShell } from "../use-network-route-shell";
@@ -70,6 +74,7 @@ describe("useNetworkRouteShell", () => {
     mockChildPathname = "/network/ws_alpha/copy/threads";
     mockNavigate.mockReset();
     mockSetActiveWorkspaceId.mockReset();
+    mockUseNetworkPage.mockReset();
     mockNavigate.mockResolvedValue(undefined);
   });
 
@@ -82,6 +87,8 @@ describe("useNetworkRouteShell", () => {
     };
 
     renderHook(() => useNetworkRouteShell());
+
+    expect(mockUseNetworkPage).toHaveBeenCalledWith("ws_alpha", { enabled: true });
 
     await waitFor(() => {
       expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_alpha");

@@ -460,19 +460,62 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/transcript"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/transcript?limit=1"),
 		nil,
 		nil,
 	)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			t.Fatalf("read transcript error body: %v", readErr)
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatalf("close transcript error body: %v", closeErr)
+		}
 		t.Fatalf("transcript status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
-	var payload contract.SessionTranscriptResponse
-	decodeHTTPJSON(t, resp, &payload)
-	messages := transcript.MessagesFromEntries(payload.Entries)
+	var tail contract.SessionTranscriptResponse
+	decodeHTTPJSON(t, resp, &tail)
+	if len(tail.Entries) != 1 || !tail.HasOlder || tail.NextBeforeSequence == 0 || tail.Limit != 1 {
+		t.Fatalf("tail page = %#v, want one entry and an older cursor", tail)
+	}
+	olderResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(
+			runtime.host,
+			runtime.port,
+			"/api/workspaces/ws-workspace/sessions/"+sessionID+"/transcript?limit=1&before_sequence="+
+				strconv.FormatInt(tail.NextBeforeSequence, 10),
+		),
+		nil,
+		nil,
+	)
+	if olderResp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(olderResp.Body)
+		if readErr != nil {
+			t.Fatalf("read older transcript error body: %v", readErr)
+		}
+		if closeErr := olderResp.Body.Close(); closeErr != nil {
+			t.Fatalf("close older transcript error body: %v", closeErr)
+		}
+		t.Fatalf("older transcript status = %d, want %d; body=%s", olderResp.StatusCode, http.StatusOK, string(body))
+	}
+	var older contract.SessionTranscriptResponse
+	decodeHTTPJSON(t, olderResp, &older)
+	if len(older.Entries) != 1 || older.HasOlder || older.Limit != 1 {
+		t.Fatalf("older page = %#v, want final one-entry page", older)
+	}
+	if older.Epoch != tail.Epoch || older.Generation != tail.Generation || older.MaxSequence != tail.MaxSequence {
+		t.Fatalf("page identity changed across walk: older=%#v tail=%#v", older, tail)
+	}
+	if older.Entries[0].StartSequence >= tail.Entries[0].StartSequence {
+		t.Fatalf("page cursors overlap or regress: older=%#v tail=%#v", older.Entries, tail.Entries)
+	}
+	entries := append(append([]transcript.Entry(nil), older.Entries...), tail.Entries...)
+	messages := transcript.MessagesFromEntries(entries)
 	if len(messages) != 2 {
 		t.Fatalf("len(messages) = %d, want 2", len(messages))
 	}
@@ -1751,7 +1794,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 				return []*session.Info{newSessionInfo("sess-1")}, nil
 			},
 		}),
-		WithTaskService(stubTaskManager{}),
+		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),
@@ -2845,6 +2888,15 @@ func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.Bridge
 		return nil
 	}
 	return s.broker.DeliveryMetrics()
+}
+
+func (s *integrationBridgeService) DeliveryMetricsFor(
+	bridgeInstanceIDs []string,
+) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
+	if s == nil || s.broker == nil {
+		return nil, nil
+	}
+	return s.broker.DeliveryMetricsFor(bridgeInstanceIDs)
 }
 
 func (s *integrationBridgeService) Broker() *bridgepkg.Broker {

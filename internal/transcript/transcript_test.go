@@ -1102,10 +1102,10 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)
 		}
-		if got, want := len(messages), 2; got != want {
+		if got, want := len(messages), 1; got != want {
 			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
 		}
-		if got, want := len(messages[0].Parts), 1; got != want {
+		if got, want := len(messages[0].Parts), 2; got != want {
 			t.Fatalf("len(messages[0].Parts) = %d, want %d; parts=%#v", got, want, messages[0].Parts)
 		}
 		if got, want := messages[0].Parts[0].Type, uiPartText; got != want {
@@ -1115,14 +1115,7 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 			t.Fatalf("parts[0].State = %q, want %q", got, want)
 		}
 
-		if got, want := messages[1].ID, "ev-error"; got != want {
-			t.Fatalf("messages[1].ID = %q, want %q", got, want)
-		}
-		if got, want := len(messages[1].Parts), 1; got != want {
-			t.Fatalf("len(messages[1].Parts) = %d, want %d; parts=%#v", got, want, messages[1].Parts)
-		}
-
-		errorPart := messages[1].Parts[0]
+		errorPart := messages[0].Parts[1]
 		if got, want := errorPart.Type, uiPartDataEvent; got != want {
 			t.Fatalf("parts[1].Type = %q, want %q", got, want)
 		}

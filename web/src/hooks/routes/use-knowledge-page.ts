@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   knowledgeMemoryKey,
-  sortKnowledgeMemories,
+  DEFAULT_MEMORY_LIST_LIMIT,
   useDeleteMemory,
   useEditMemory,
   useMemories,
@@ -13,6 +13,7 @@ import {
   useWriteMemory,
   type EditMemoryParams,
   type KnowledgeAgentTier,
+  type KnowledgeListFilter,
   type KnowledgeMemoryItem,
   type KnowledgeScope,
   type KnowledgeSelector,
@@ -109,7 +110,19 @@ function useKnowledgePage() {
     };
   }, [activeScope, agentTier, selector?.workspaceId, trimmedAgentName]);
 
-  const memoriesQuery = useMemories(selector ?? undefined, { enabled: Boolean(selector) });
+  const catalogFilter = useMemo<KnowledgeListFilter | undefined>(
+    () =>
+      selector
+        ? {
+            ...selector,
+            includeSystem: false,
+            limit: DEFAULT_MEMORY_LIST_LIMIT,
+            sort: "recent",
+          }
+        : undefined,
+    [selector]
+  );
+  const memoriesQuery = useMemories(catalogFilter, { enabled: Boolean(catalogFilter) });
   const searchEnabled = Boolean(selector) && trimmedSearchQuery.length > 0;
   const searchQueryResult = useMemorySearch(selector ?? undefined, trimmedSearchQuery, {
     enabled: searchEnabled,
@@ -167,7 +180,7 @@ function useKnowledgePage() {
     searchQueryResult.data?.results,
   ]);
 
-  const visibleMemories = useMemo(() => sortKnowledgeMemories(listMemories), [listMemories]);
+  const visibleMemories = listMemories;
 
   const effectiveSelectedMemoryKey = useMemo(() => {
     if (
@@ -189,25 +202,34 @@ function useKnowledgePage() {
     enabled: Boolean(detailSelector && selectedMemory),
   });
   const decisionsQuery = useMemoryDecisions(
-    detailSelector ? { ...detailSelector, limit: 10 } : undefined,
-    { enabled: Boolean(detailSelector) }
+    detailSelector && selectedMemory
+      ? { ...detailSelector, filename: selectedMemory.filename, limit: 10 }
+      : undefined,
+    { enabled: Boolean(detailSelector && selectedMemory) }
   );
 
   const isListLoading = searchEnabled ? searchQueryResult.isLoading : memoriesQuery.isLoading;
   const listError = searchEnabled ? searchQueryResult.error : memoriesQuery.error;
 
-  const isLoading = isListLoading;
-  const error = listError ?? null;
+  const isLoading = isListLoading && visibleMemories.length === 0;
+  const error = visibleMemories.length === 0 ? (listError ?? null) : null;
+  const listRetryError = visibleMemories.length > 0 ? (listError ?? null) : null;
+  const retryMemories = useCallback(() => {
+    if (memoriesQuery.isFetchNextPageError) {
+      void memoriesQuery.fetchNextPage();
+      return;
+    }
+    void memoriesQuery.refetch();
+  }, [memoriesQuery]);
+  const retryKnowledgeList = useCallback(() => {
+    if (searchEnabled) {
+      void searchQueryResult.refetch();
+      return;
+    }
+    retryMemories();
+  }, [retryMemories, searchEnabled, searchQueryResult]);
 
-  const decisionsForSelected: MemoryDecision[] = useMemo(() => {
-    const decisions = decisionsQuery.data?.decisions ?? [];
-    if (!selectedMemory) return [];
-    return decisions.filter(
-      decision =>
-        decision.target_filename === selectedMemory.filename ||
-        decision.frontmatter.filename === selectedMemory.filename
-    );
-  }, [decisionsQuery.data?.decisions, selectedMemory]);
+  const decisionsForSelected: MemoryDecision[] = decisionsQuery.data?.decisions ?? [];
 
   const clearActionState = () => {
     if (actionTargetKey !== null || deleteMutationError !== null) {
@@ -383,7 +405,15 @@ function useKnowledgePage() {
     setSelectedMemoryKey: handleSetSelectedMemoryKey,
     effectiveSelectedMemoryKey,
     memories: visibleMemories,
-    memoryCount: visibleMemories.length,
+    memoryCount: searchEnabled ? visibleMemories.length : memoriesQuery.total,
+    hasMoreMemories: !searchEnabled && memoriesQuery.hasNextPage,
+    isLoadingMoreMemories: memoriesQuery.isFetchingNextPage,
+    loadMoreMemories: () => {
+      void memoriesQuery.fetchNextPage();
+    },
+    retryMemories,
+    retryKnowledgeList,
+    listRetryError,
     isLoading,
     error,
     selectedMemory,
@@ -402,7 +432,7 @@ function useKnowledgePage() {
     handleCreate,
     isCreatePending,
     createError,
-    createDefaultType: (activeScope === "workspace" ? "project" : "user") as MemoryType,
+    createDefaultType: defaultMemoryType(activeScope),
     canCreateMemory: Boolean(selector),
     decisions: decisionsForSelected,
     decisionsError: decisionsQuery.error,
@@ -418,3 +448,7 @@ function useKnowledgePage() {
 }
 
 export { useKnowledgePage };
+
+function defaultMemoryType(scope: KnowledgeScope): MemoryType {
+  return scope === "workspace" ? "project" : "user";
+}

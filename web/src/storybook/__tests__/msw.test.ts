@@ -18,7 +18,24 @@ function handlerSignature(handler: { info: { method: unknown; path: unknown } })
 describe("storybook msw helpers", () => {
   it("creates grouped story overrides without requiring untouched domains to be repeated", () => {
     const bridgesOverride = [
-      aghApiMock.get("/api/bridges", () => HttpResponse.json({ bridges: [], bridge_health: {} })),
+      aghApiMock.get("/api/bridges", () =>
+        HttpResponse.json({
+          bridge_health: {},
+          bridges: [],
+          facets: {
+            platforms: {},
+            statuses: {
+              auth_required: 0,
+              degraded: 0,
+              disabled: 0,
+              error: 0,
+              ready: 0,
+              starting: 0,
+            },
+          },
+          page: { has_more: false, limit: 50, total: 0 },
+        })
+      ),
     ];
     const parameters = storybookMswParameters({ bridges: bridgesOverride });
     const mergedGroups = {
@@ -41,7 +58,24 @@ describe("storybook msw helpers", () => {
 
   it("preserves untouched handlers inside an overridden group while replacing matching endpoints", () => {
     const bridgesOverride = [
-      aghApiMock.get("/api/bridges", () => HttpResponse.json({ bridges: [], bridge_health: {} })),
+      aghApiMock.get("/api/bridges", () =>
+        HttpResponse.json({
+          bridge_health: {},
+          bridges: [],
+          facets: {
+            platforms: {},
+            statuses: {
+              auth_required: 0,
+              degraded: 0,
+              disabled: 0,
+              error: 0,
+              ready: 0,
+              starting: 0,
+            },
+          },
+          page: { has_more: false, limit: 50, total: 0 },
+        })
+      ),
     ];
     const composedGroup = composeStorybookHandlerGroup("bridges", bridgesOverride);
     const signatures = composedGroup.map(handlerSignature);

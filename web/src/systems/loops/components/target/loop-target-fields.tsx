@@ -1,4 +1,4 @@
-import { Field, FieldLabel, NativeSelect, NativeSelectOption, Spinner } from "@agh/ui";
+import { Button, Field, FieldLabel, NativeSelect, NativeSelectOption, Spinner } from "@agh/ui";
 
 import { useLoops } from "../../hooks/use-loops";
 import {
@@ -30,9 +30,17 @@ export function LoopTargetFields({
   onChange,
   showMapping = false,
 }: LoopTargetFieldsProps) {
-  const loopsQuery = useLoops(workspaceId, workspaceId !== "");
-  const loops = loopsQuery.data ?? [];
-  const selected = loops.find(loop => loop.name === value.loop_name) ?? null;
+  const loopsQuery = useLoops(workspaceId, { limit: 50, sort: "name" }, workspaceId !== "");
+  const loops = loopsQuery.loops;
+  const loadedSelection = loops.find(loop => loop.name === value.loop_name) ?? null;
+  const selectedLoopQuery = useLoops(
+    workspaceId,
+    { limit: 50, q: value.loop_name, sort: "name" },
+    workspaceId !== "" && value.loop_name !== "" && !loadedSelection
+  );
+  const selected =
+    loadedSelection ?? selectedLoopQuery.loops.find(loop => loop.name === value.loop_name) ?? null;
+  const options = selected && !loadedSelection ? [selected, ...loops] : loops;
   const inputs = selected?.inputs ?? {};
   const inputNames = Object.keys(inputs);
 
@@ -45,11 +53,11 @@ export function LoopTargetFields({
             <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
             Loading loops…
           </div>
-        ) : loopsQuery.isError ? (
+        ) : loopsQuery.isError && loops.length === 0 ? (
           <p className="text-[11.5px] text-danger" role="alert">
             Could not load Loops for this workspace.
           </p>
-        ) : loops.length === 0 ? (
+        ) : options.length === 0 ? (
           <p className="text-[11.5px] text-subtle">No Loops are available in this workspace.</p>
         ) : (
           <NativeSelect
@@ -59,13 +67,31 @@ export function LoopTargetFields({
             onChange={event => onChange(setLoopTargetLoop(value, event.target.value))}
           >
             <NativeSelectOption value="">Select a loop</NativeSelectOption>
-            {loops.map(loop => (
+            {options.map(loop => (
               <NativeSelectOption key={loop.name} value={loop.name}>
                 {loop.name}
               </NativeSelectOption>
             ))}
           </NativeSelect>
         )}
+        {loopsQuery.error && loops.length > 0 ? (
+          <p className="text-[11.5px] text-danger" role="alert">
+            {loopsQuery.error.message}
+          </p>
+        ) : null}
+        {loopsQuery.hasNextPage ? (
+          <Button
+            aria-busy={loopsQuery.isFetchingNextPage}
+            data-testid="loop-target-load-more"
+            disabled={loopsQuery.isFetchingNextPage}
+            onClick={() => void loopsQuery.fetchNextPage()}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {loopsQuery.isFetchingNextPage ? "Loading more loops…" : "Load more loops"}
+          </Button>
+        ) : null}
       </Field>
 
       {selected && inputNames.length > 0 ? (

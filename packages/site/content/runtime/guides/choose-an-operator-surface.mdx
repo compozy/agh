@@ -59,11 +59,15 @@ reference. Use the generated references when you need exact syntax.
 
     ```bash
     curl http://localhost:2123/api/status
-    curl -N 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/stream?replay=snapshot'
+    curl 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/transcript?limit=200'
+    curl -N \
+      -H 'Last-Event-ID: 42' \
+      'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/stream?epoch=3&generation=7&limit=200'
     ```
 
-    What happened: the browser or integration reads daemon state and then subscribes to transcript
-    snapshots and deltas as stored session events are folded into UI messages.
+    What happened: the browser or integration reads a bounded transcript page, retains its
+    `epoch`, `generation`, and applied cursor, then subscribes to fenced transcript deltas. Use the
+    values returned by your own page instead of the example values above.
 
     Add `frames=raw` when the integration needs raw persisted event rows instead of transcript
     frames.

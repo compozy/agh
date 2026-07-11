@@ -11,13 +11,12 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
 )
 
 type transcriptSnapshotResult struct {
-	maxSequence int64
-	resetBelow  bool
+	cursor     int64
+	generation int64
 }
 
 type sessionStreamEventObserver interface {
@@ -25,14 +24,16 @@ type sessionStreamEventObserver interface {
 }
 
 type transcriptSnapshotServedPayload struct {
-	WorkspaceID   string `json:"workspace_id,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
-	SessionID     string `json:"session_id"`
-	Epoch         int64  `json:"epoch"`
-	ResetBelow    bool   `json:"reset_below"`
-	Reason        string `json:"reason"`
-	MinSequence   int64  `json:"min_sequence"`
-	MaxSequence   int64  `json:"max_sequence"`
+	WorkspaceID        string `json:"workspace_id,omitempty"`
+	WorkspacePath      string `json:"workspace_path,omitempty"`
+	SessionID          string `json:"session_id"`
+	Epoch              int64  `json:"epoch"`
+	Generation         int64  `json:"generation"`
+	Reset              bool   `json:"reset"`
+	Reason             string `json:"reason,omitempty"`
+	MaxSequence        int64  `json:"max_sequence"`
+	HasOlder           bool   `json:"has_older"`
+	NextBeforeSequence int64  `json:"next_before_sequence,omitempty"`
 }
 
 func (h *BaseHandlers) writeTranscriptSnapshot(
@@ -40,59 +41,59 @@ func (h *BaseHandlers) writeTranscriptSnapshot(
 	writer FlushWriter,
 	sessionID string,
 	info *session.Info,
-	cursor int64,
+	limit int,
+	reset bool,
+	reason string,
 ) (transcriptSnapshotResult, error) {
 	startedAt := time.Now()
-	entries, err := h.Sessions.Transcript(ctx, sessionID, store.EventQuery{Limit: defaultSessionReadLimit})
+	page, err := h.Sessions.TranscriptPage(ctx, sessionID, transcript.PageQuery{Limit: limit})
 	h.logTranscriptAssembly(
 		ctx,
 		sessionID,
 		info,
 		"snapshot",
-		cursor,
 		0,
-		len(entries),
+		0,
+		len(page.Entries),
 		time.Since(startedAt),
 		err,
 	)
 	if err != nil {
 		return transcriptSnapshotResult{}, fmt.Errorf("query transcript snapshot: %w", err)
 	}
-	minSequence, maxSequence := transcriptEntryBounds(entries)
-	watermark := h.Sessions.TranscriptWatermark(ctx, sessionID)
-	resetBelow, reason := transcriptSnapshotReset(cursor, minSequence, maxSequence, watermark)
-	workspaceID, workspacePath := streamWorkspaceFields(info)
+	workspaceID, workspacePath := h.streamWorkspaceFields(info)
 	payload := contract.TranscriptSnapshotPayload{
-		SessionID:     sessionID,
-		WorkspaceID:   workspaceID,
-		WorkspacePath: workspacePath,
-		Epoch:         transcriptEpoch(info),
-		Entries:       entries,
-		MinSequence:   minSequence,
-		MaxSequence:   maxSequence,
-		ResetBelow:    resetBelow,
-		Reason:        reason,
+		SessionID:          sessionID,
+		WorkspaceID:        workspaceID,
+		WorkspacePath:      workspacePath,
+		Epoch:              transcriptEpoch(info),
+		Generation:         page.Generation,
+		Entries:            transcript.CloneEntries(page.Entries),
+		MaxSequence:        page.MaxSequence,
+		HasOlder:           page.HasOlder,
+		NextBeforeSequence: page.NextBeforeSequence,
+		Reset:              reset,
+		Reason:             reason,
 	}
-	result := transcriptSnapshotResult{
-		maxSequence: maxSequence,
-		resetBelow:  resetBelow,
-	}
+	result := transcriptSnapshotResult{cursor: page.MaxSequence, generation: page.Generation}
 	if err := WriteSSE(writer, SSEMessage{
-		ID:   strconv.FormatInt(maxSequence, 10),
+		ID:   strconv.FormatInt(page.MaxSequence, 10),
 		Name: contract.SessionStreamEventTranscriptSnapshot,
 		Data: payload,
 	}); err != nil {
 		return result, err
 	}
 	h.emitTranscriptSnapshotServed(ctx, sessionID, info, transcriptSnapshotServedPayload{
-		WorkspaceID:   workspaceID,
-		WorkspacePath: workspacePath,
-		SessionID:     sessionID,
-		Epoch:         payload.Epoch,
-		ResetBelow:    resetBelow,
-		Reason:        reason,
-		MinSequence:   minSequence,
-		MaxSequence:   maxSequence,
+		WorkspaceID:        workspaceID,
+		WorkspacePath:      workspacePath,
+		SessionID:          sessionID,
+		Epoch:              payload.Epoch,
+		Generation:         payload.Generation,
+		Reset:              reset,
+		Reason:             reason,
+		MaxSequence:        page.MaxSequence,
+		HasOlder:           page.HasOlder,
+		NextBeforeSequence: page.NextBeforeSequence,
 	})
 	return result, nil
 }
@@ -126,57 +127,33 @@ func (h *BaseHandlers) emitTranscriptSnapshotServed(
 		}
 		return
 	}
-	observer.OnAgentEvent(ctx, sessionID, acp.AgentEvent{
-		Type: events.SessionStreamSnapshotServed,
-		Raw:  raw,
-	})
+	observer.OnAgentEvent(ctx, sessionID, acp.AgentEvent{Type: events.SessionStreamSnapshotServed, Raw: raw})
 }
 
-func transcriptEntryBounds(entries []transcript.Entry) (int64, int64) {
-	if len(entries) == 0 {
-		return 0, 0
-	}
-	minSequence := entries[0].Sequence
-	maxSequence := entries[0].Sequence
-	for _, entry := range entries[1:] {
-		if entry.Sequence < minSequence {
-			minSequence = entry.Sequence
-		}
-		if entry.Sequence > maxSequence {
-			maxSequence = entry.Sequence
-		}
-	}
-	return minSequence, maxSequence
-}
-
-func transcriptSnapshotReset(
+func transcriptReconnectResetReason(
 	cursor int64,
-	minSequence int64,
+	expectedEpoch *int64,
+	expectedGeneration *int64,
+	epoch int64,
+	generation int64,
 	maxSequence int64,
-	watermark session.TranscriptWatermark,
-) (bool, string) {
-	if cursor > maxSequence {
-		return true, contract.TranscriptSnapshotReasonEpochReset
-	}
-	if watermark.Sequence > 0 && cursor <= watermark.Sequence {
-		return true, transcriptSnapshotWatermarkReason(watermark)
-	}
+) string {
 	if cursor == 0 {
-		return true, contract.TranscriptSnapshotReasonSubscribe
+		return ""
 	}
-	if minSequence > 0 && cursor < minSequence-1 {
-		return true, contract.TranscriptSnapshotReasonReconnect
+	if expectedEpoch == nil || expectedGeneration == nil {
+		return contract.TranscriptSnapshotReasonFenceMissing
 	}
-	return false, contract.TranscriptSnapshotReasonReconnect
-}
-
-func transcriptSnapshotWatermarkReason(watermark session.TranscriptWatermark) string {
-	switch watermark.Reason {
-	case session.TranscriptWatermarkReasonCacheRebuild:
-		return contract.TranscriptSnapshotReasonCacheRebuild
-	default:
-		return contract.TranscriptSnapshotReasonBelowWindowMutation
+	if *expectedEpoch != epoch {
+		return contract.TranscriptSnapshotReasonEpochMismatch
 	}
+	if *expectedGeneration != generation {
+		return contract.TranscriptSnapshotReasonGenerationMismatch
+	}
+	if cursor > maxSequence {
+		return contract.TranscriptSnapshotReasonSequenceReset
+	}
+	return ""
 }
 
 func transcriptEpoch(info *session.Info) int64 {

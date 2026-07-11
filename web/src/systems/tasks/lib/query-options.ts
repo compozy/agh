@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   getAgentContext,
@@ -21,6 +21,8 @@ import {
   listTasks,
 } from "../adapters/tasks-api";
 import { tasksKeys } from "./query-keys";
+import { taskInboxPageRequest, taskInboxStableFilter } from "./task-inbox-query";
+import { taskListPageRequest, taskListStableFilter } from "./task-list-query";
 import type {
   TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
@@ -36,13 +38,17 @@ const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
 const LIVE_REFETCH_INTERVAL = 15_000;
+const INITIAL_CURSOR: string | undefined = undefined;
 
 export function tasksListOptions(filters: TaskListFilter = {}, enabled = true) {
-  return queryOptions({
-    queryKey: tasksKeys.list(filters),
-    queryFn: ({ signal }) => listTasks(filters, signal),
+  const stableFilters = taskListStableFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: tasksKeys.list(stableFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listTasks(taskListPageRequest(stableFilters, pageParam), signal),
+    initialPageParam: INITIAL_CURSOR,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled,
   });
 }
@@ -128,11 +134,14 @@ export function taskDashboardOptions(filters: TaskDashboardFilter = {}, enabled 
 }
 
 export function taskInboxOptions(filters: TaskInboxFilter = {}, enabled = true) {
-  return queryOptions({
-    queryKey: tasksKeys.inbox(filters),
-    queryFn: ({ signal }) => getTaskInbox(filters, signal),
+  const stableFilters = taskInboxStableFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: tasksKeys.inbox(stableFilters),
+    queryFn: ({ pageParam, signal }) =>
+      getTaskInbox(taskInboxPageRequest(stableFilters, pageParam), signal),
+    initialPageParam: INITIAL_CURSOR,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled,
   });
 }

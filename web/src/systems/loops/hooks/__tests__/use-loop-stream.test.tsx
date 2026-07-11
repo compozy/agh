@@ -194,8 +194,8 @@ describe("useLoopStream", () => {
     });
     // Only this workspace's runs lists — not the unscoped root across all workspaces.
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
-    // The workspace-wide catalog must never be refetched from a single run's frame.
-    expect(invalidateQueries).not.toHaveBeenCalledWith({
+    // Status changes own the catalog's latest-run and aggregate projections.
+    expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["loops", "catalog", "ws_1"],
     });
 

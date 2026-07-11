@@ -16,6 +16,7 @@ import {
   buildTaskTreeNodeFixture,
   buildTaskTreeFixture,
 } from "@/systems/tasks/mocks/fixtures";
+import { buildTaskCatalogResponse } from "@/systems/tasks/mocks/query-responses";
 import { TASK_TEMPLATES } from "@/systems/tasks/lib/task-templates";
 import { useTask, useTasks } from "@/systems/tasks";
 import type {
@@ -261,24 +262,11 @@ function detailForTask(task: StatefulTask): TaskDetailView {
   });
 }
 
-function listTasksForRequest(request: Request) {
-  const url = new URL(request.url);
-  const scope = url.searchParams.get("scope");
-  const workspace = url.searchParams.get("workspace");
-  const includeDrafts = url.searchParams.get("include_drafts") !== "false";
-  const status = url.searchParams.get("status");
-
-  return taskStore
-    .listScoped({ scope, workspace })
-    .filter(task => includeDrafts || !task.draft)
-    .filter(task => !status || task.status === status);
-}
-
 function taskCreateHandlers(): HttpHandler[] {
   return [
     http.get("/api/workspaces", () => HttpResponse.json({ workspaces })),
     http.get("/api/tasks", ({ request }) =>
-      HttpResponse.json({ tasks: listTasksForRequest(request) })
+      HttpResponse.json(buildTaskCatalogResponse(taskStore.all(), new URL(request.url)))
     ),
     http.get("/api/tasks/:id", ({ params }) => {
       const task = taskStore.get(String(params.id));
@@ -359,6 +347,13 @@ function taskCreateHandlers(): HttpHandler[] {
     }),
     http.post("/api/tasks/:id/runs", ({ params }) => {
       const taskId = String(params.id);
+      const task = taskStore.get(taskId);
+      if (!task) {
+        return HttpResponse.json({ error: `Task not found: ${taskId}` }, { status: 404 });
+      }
+      if (task.max_attempts === undefined) {
+        return HttpResponse.json({ error: `Task has no retry policy: ${taskId}` }, { status: 500 });
+      }
       enqueuedTaskIds.push(taskId);
       const run = buildTaskRunRecordFixture({
         id: `run_${taskId}`,
@@ -367,22 +362,23 @@ function taskCreateHandlers(): HttpHandler[] {
         started_at: null,
       });
       taskRuns = [run, ...taskRuns];
+      const activeRun: NonNullable<TaskListItem["active_run"]> = {
+        attempt: run.attempt,
+        claimed_by: run.claimed_by,
+        coordination_channel_id: run.coordination_channel_id,
+        error: run.error,
+        id: run.id,
+        max_attempts: task.max_attempts,
+        queued_at: run.queued_at,
+        session_id: run.session_id,
+        started_at: run.started_at,
+        status: run.status,
+        task_id: run.task_id,
+      };
       taskStore.patch(taskId, {
-        active_run: {
-          attempt: run.attempt,
-          claimed_by: run.claimed_by,
-          claim_token_hash: run.claim_token_hash,
-          coordination_channel_id: run.coordination_channel_id,
-          error: run.error,
-          id: run.id,
-          queued_at: run.queued_at,
-          session_id: run.session_id,
-          started_at: run.started_at,
-          status: run.status,
-          task_id: run.task_id,
-        },
+        active_run: activeRun,
         status: "in_progress",
-      } as Partial<StatefulTask>);
+      });
 
       return HttpResponse.json(
         {

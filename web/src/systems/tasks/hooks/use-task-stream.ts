@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { buildTaskStreamUrl } from "../adapters/tasks-api";
@@ -101,18 +101,36 @@ function resolveFilters(options: UseTaskStreamOptions): TaskStreamFilter {
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
-function invalidateTaskStreamQueries(queryClient: QueryClient, taskId: string) {
+function invalidateLiveTaskStreamQueries(queryClient: QueryClient, taskId: string) {
   void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.timelineRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.runsRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.runDetails() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
-  void queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "dashboard"] });
-  void queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "inbox"] });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.contextBundle() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.agentContext() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.reviewsRoot() });
   void queryClient.invalidateQueries({ queryKey: tasksKeys.bridgeNotificationsRoot() });
+}
+
+function markTaskCatalogsStale(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: tasksKeys.lists(), refetchType: "none" });
+  void queryClient.invalidateQueries({
+    queryKey: [...tasksKeys.all, "dashboard"],
+    refetchType: "none",
+  });
+  void queryClient.invalidateQueries({
+    queryKey: [...tasksKeys.all, "inbox"],
+    refetchType: "none",
+  });
+}
+
+function reconcileActiveTaskCatalogs(queryClient: QueryClient) {
+  void queryClient.refetchQueries({ queryKey: tasksKeys.lists(), type: "active" });
+  void queryClient.refetchQueries({
+    queryKey: [...tasksKeys.all, "dashboard"],
+    type: "active",
+  });
+  void queryClient.refetchQueries({ queryKey: [...tasksKeys.all, "inbox"], type: "active" });
 }
 
 export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}) {
@@ -125,6 +143,20 @@ export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}
   const onError = options.onError;
   const queryClient = useQueryClient();
   const trimmedId = taskId.trim();
+  const catalogsDirty = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || trimmedId === "") {
+      return undefined;
+    }
+    return () => {
+      if (!catalogsDirty.current) {
+        return;
+      }
+      catalogsDirty.current = false;
+      reconcileActiveTaskCatalogs(queryClient);
+    };
+  }, [enabled, queryClient, trimmedId]);
 
   useEffect(() => {
     if (
@@ -145,7 +177,11 @@ export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}
       }
       try {
         const payload = JSON.parse(event.data) as TaskStreamPayload;
-        invalidateTaskStreamQueries(queryClient, trimmedId);
+        invalidateLiveTaskStreamQueries(queryClient, trimmedId);
+        if (!catalogsDirty.current) {
+          catalogsDirty.current = true;
+          markTaskCatalogsStale(queryClient);
+        }
         if (onEvent) {
           onEvent(payload);
         }

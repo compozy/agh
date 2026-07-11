@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   getLoop,
@@ -10,20 +10,23 @@ import {
 } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { loopsKeys } from "./query-keys";
-import type { LoopRunsFilter } from "../types";
+import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
+import type { LoopCatalogStableFilter, LoopRunsFilter } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
 const LIVE_REFETCH_INTERVAL = 15_000;
 
-export function loopsCatalogOptions(workspaceId: string, enabled = true) {
-  return queryOptions({
-    queryKey: loopsKeys.catalog(workspaceId),
-    queryFn: ({ signal }) => listLoops(workspaceId, signal),
+export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogStableFilter = {}) {
+  const normalizedFilters = normalizeLoopCatalogFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.catalog(workspaceId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listLoops(workspaceId, loopCatalogRequest(normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled: Boolean(workspaceId) && enabled,
   });
 }
 

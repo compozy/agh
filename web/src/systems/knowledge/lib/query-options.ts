@@ -1,21 +1,33 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   listMemories,
   listMemoryDecisions,
   readMemory,
   searchMemory,
-  type ListMemoryDecisionsParams,
 } from "@/systems/knowledge/adapters/knowledge-api";
 import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
-import type { KnowledgeSelector } from "@/systems/knowledge/types";
+import {
+  knowledgeListPageRequest,
+  knowledgeListStableFilter,
+} from "@/systems/knowledge/lib/memory-list-query";
+import type {
+  KnowledgeListFilter,
+  KnowledgeSelector,
+  ListMemoryDecisionsParams,
+} from "@/systems/knowledge/types";
 
-export function memoriesListOptions(selector?: KnowledgeSelector) {
-  return queryOptions({
-    queryKey: knowledgeKeys.list(selector),
-    queryFn: ({ signal }) => listMemories(selector, signal),
+const INITIAL_CURSOR: string | undefined = undefined;
+
+export function memoriesListOptions(filters?: KnowledgeListFilter) {
+  const stableFilters = knowledgeListStableFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: knowledgeKeys.list(stableFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listMemories(knowledgeListPageRequest(stableFilters, pageParam), signal),
+    initialPageParam: INITIAL_CURSOR,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 }
 
@@ -42,7 +54,7 @@ export function memorySearchOptions(
   const trimmed = queryText.trim();
   const enabled = trimmed.length > 0 && Boolean(selector?.scope);
   return queryOptions({
-    queryKey: knowledgeKeys.search(trimmed, selector),
+    queryKey: knowledgeKeys.search(trimmed, selector, options),
     queryFn: ({ signal }) => {
       if (!selector || trimmed.length === 0) {
         throw new Error("Memory search query requires a selector and a non-empty query");
@@ -69,7 +81,7 @@ export function memorySearchOptions(
 export function memoryDecisionsOptions(params: ListMemoryDecisionsParams | undefined) {
   const enabled = Boolean(params?.scope);
   return queryOptions({
-    queryKey: knowledgeKeys.decisionsFor("", params),
+    queryKey: knowledgeKeys.decisionsFor(params),
     queryFn: ({ signal }) => {
       if (!params) {
         throw new Error("Memory decisions query requires a selector");

@@ -16,6 +16,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
+
 from qa_skill_paths import real_scenario_script
 
 ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
@@ -130,12 +131,12 @@ def load_json(path: Path) -> dict:
 
 
 def detect_browser_mode(codex_home: Path) -> tuple[str, str]:
-    browser_skill_glob = codex_home.glob("plugins/cache/openai-bundled/browser-use/*/skills/browser/SKILL.md")
-    if any(browser_skill_glob):
+    del codex_home
+    if shutil.which("browser-use"):
         return "browser-use", ""
     if shutil.which("agent-browser"):
-        return "agent-browser", "browser-use skill not found in CODEX_HOME plugin cache"
-    return "blocked", "Neither browser-use plugin nor agent-browser CLI is available"
+        return "agent-browser", "browser-use CLI is not available"
+    return "blocked", "Neither browser-use nor agent-browser CLI is available"
 
 
 def safe_symlink(target: Path, link: Path) -> None:

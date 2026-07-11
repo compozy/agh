@@ -363,6 +363,21 @@ func TestNetworkConversationQueryValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize semantically equivalent conversation list queries", func(t *testing.T) {
+		t.Parallel()
+
+		thread := (NetworkThreadQuery{Search: "  Launch  ", Limit: 0}).Normalize()
+		if thread.Search != "launch" || thread.Sort != NetworkConversationSortRecentActivity ||
+			thread.Limit != NetworkConversationListDefaultLimit {
+			t.Fatalf("Normalize(thread query) = %#v, want lowercase search and canonical defaults", thread)
+		}
+		direct := (NetworkDirectRoomQuery{Search: "  REVIEW  ", Limit: 999}).Normalize()
+		if direct.Search != "review" || direct.Sort != NetworkConversationSortRecentActivity ||
+			direct.Limit != NetworkConversationListMaxLimit {
+			t.Fatalf("Normalize(direct query) = %#v, want lowercase search and capped limit", direct)
+		}
+	})
+
 	t.Run("Should reject dual message cursors and invalid work ids", func(t *testing.T) {
 		t.Parallel()
 

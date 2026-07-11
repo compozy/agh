@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,6 +96,8 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		fixture, workspace, _ := setup(t)
 		query := url.Values{}
 		query.Set("workspace_id", workspace)
+		query.Set("sort", memory.HeaderListSortName)
+		query.Set("limit", "1")
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
 		if listResp.Code != http.StatusOK {
 			t.Fatalf("list memory status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
@@ -102,11 +105,143 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		var payload contract.MemoryListResponse
 		testutil.DecodeJSONResponse(t, listResp, &payload)
-		if len(payload.Memories) != 2 {
-			t.Fatalf("memory entries len = %d, want 2; payload=%#v", len(payload.Memories), payload)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "global.md" {
+			t.Fatalf("first memory page = %#v, want global.md", payload.Memories)
 		}
-		if payload.Memories[0].Filename == "" || payload.Memories[1].Filename == "" {
-			t.Fatalf("memory entries = %#v", payload.Memories)
+		if payload.Page.Total != 2 || payload.Page.Limit != 1 || !payload.Page.HasMore ||
+			payload.Page.NextCursor == "" {
+			t.Fatalf("first memory page metadata = %#v", payload.Page)
+		}
+
+		query.Set("cursor", payload.Page.NextCursor)
+		secondResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
+		if secondResp.Code != http.StatusOK {
+			t.Fatalf(
+				"second memory page status = %d, want %d; body=%s",
+				secondResp.Code,
+				http.StatusOK,
+				secondResp.Body.String(),
+			)
+		}
+		var second contract.MemoryListResponse
+		testutil.DecodeJSONResponse(t, secondResp, &second)
+		if len(second.Memories) != 1 || second.Memories[0].Filename != "workspace.md" {
+			t.Fatalf("second memory page = %#v, want workspace.md", second.Memories)
+		}
+		if second.Memories[0].WorkspaceID == "" {
+			t.Fatalf("second memory page workspace_id = empty; payload=%#v", second.Memories[0])
+		}
+		if second.Page.Total != 2 || second.Page.Limit != 1 || second.Page.HasMore || second.Page.NextCursor != "" {
+			t.Fatalf("second memory page metadata = %#v", second.Page)
+		}
+	})
+
+	t.Run("Should reach an oldest matching memory beyond the prompt scan cap", func(t *testing.T) {
+		t.Parallel()
+
+		globalDir := filepath.Join(t.TempDir(), "memory")
+		store := memory.NewStore(globalDir)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		seedCoreMemoryCatalogDocuments(t, globalDir, 205)
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			store,
+			&stubDreamTrigger{},
+		)
+
+		query := url.Values{}
+		query.Set("scope", string(memcontract.ScopeGlobal))
+		query.Set("type", string(memcontract.TypeReference))
+		query.Set("limit", "1")
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("list memory status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+
+		var payload contract.MemoryListResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.Page.Total != 1 || len(payload.Memories) != 1 ||
+			payload.Memories[0].Filename != "memory-000.md" {
+			t.Fatalf("list memory payload = %#v, want oldest matching memory", payload)
+		}
+	})
+
+	t.Run("Should isolate workspace agent memory identities", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
+		identity, err := workspacepkg.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		store := memory.NewStore(
+			filepath.Join(baseDir, "global-memory"),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		base := store.ForWorkspace(workspaceRoot)
+		for _, agentName := range []string{"reviewer-a", "reviewer-b"} {
+			agentStore := base.ForAgent(identity.WorkspaceID, agentName, memcontract.AgentTierWorkspace)
+			if err := agentStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs(%s) error = %v", agentName, err)
+			}
+			if err := agentStore.Write(
+				memcontract.ScopeAgent,
+				agentName+".md",
+				[]byte(memoryDocument(t, agentName, memcontract.TypeFeedback, "agent memory")),
+			); err != nil {
+				t.Fatalf("Store.Write(%s) error = %v", agentName, err)
+			}
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: identity.WorkspaceID, RootDir: workspaceRoot},
+					WorkspaceID: identity.WorkspaceID,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			store,
+			&stubDreamTrigger{},
+		)
+
+		query := url.Values{}
+		query.Set("workspace_id", identity.WorkspaceID)
+		query.Set("agent_name", "reviewer-a")
+		query.Set("agent_tier", string(memcontract.AgentTierWorkspace))
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/memory?"+query.Encode(), nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"list agent memory status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusOK,
+				response.Body.String(),
+			)
+		}
+
+		var payload contract.MemoryListResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.Page.Total != 1 || len(payload.Memories) != 1 {
+			t.Fatalf("list agent memory payload = %#v, want one reviewer-a memory", payload)
+		}
+		got := payload.Memories[0]
+		if got.Filename != "reviewer-a.md" || got.WorkspaceID != identity.WorkspaceID ||
+			got.AgentName != "reviewer-a" || got.AgentTier != memcontract.AgentTierWorkspace {
+			t.Fatalf("list agent memory item = %#v, want reviewer-a workspace identity", got)
 		}
 	})
 
@@ -321,6 +456,17 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _ := setup(t)
+		workspaceStore := fixture.Handlers.MemoryStore.ForWorkspace(workspace)
+		for idx := range 205 {
+			filename := fmt.Sprintf("health-%03d.md", idx)
+			if err := workspaceStore.Write(
+				memcontract.ScopeWorkspace,
+				filename,
+				[]byte(memoryDocument(t, fmt.Sprintf("Health %03d", idx), memcontract.TypeReference, "health count")),
+			); err != nil {
+				t.Fatalf("Write(%q) error = %v", filename, err)
+			}
+		}
 		query := url.Values{}
 		query.Set("workspace_id", workspace)
 		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/health?"+query.Encode(), nil)
@@ -330,7 +476,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		var payload contract.MemoryHealthPayload
 		testutil.DecodeJSONResponse(t, healthResp, &payload)
-		if payload.Status != "ok" || !payload.Configured || payload.WorkspaceCount != 1 || payload.WorkspaceFiles != 1 {
+		if payload.Status != "ok" ||
+			!payload.Configured ||
+			payload.WorkspaceCount != 1 ||
+			payload.WorkspaceFiles != 206 {
 			t.Fatalf("memory health payload = %#v", payload)
 		}
 	})
@@ -452,7 +601,8 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 
 		var payload contract.MemoryHealthPayload
 		testutil.DecodeJSONResponse(t, healthResp, &payload)
-		if payload.Status != "degraded" || payload.OrphanedFiles != 1 || !strings.Contains(payload.Reason, "orphaned") {
+		if payload.Status != "degraded" || payload.WorkspaceFiles != 0 || payload.IndexedFiles != 1 ||
+			payload.OrphanedFiles != 1 || !strings.Contains(payload.Reason, "orphaned") {
 			t.Fatalf("memory health payload = %#v, want degraded orphan report", payload)
 		}
 	})
@@ -610,7 +760,33 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		var writePayload contract.MemoryMutationDecisionResponse
 		testutil.DecodeJSONResponse(t, writeResp, &writePayload)
 
-		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/decisions?scope=global&limit=5", nil)
+		newerBody, err := json.Marshal(contract.MemoryCreateRequest{
+			Scope:   memcontract.ScopeGlobal,
+			Type:    memcontract.TypeProject,
+			Name:    "Newer Decision API",
+			Content: "A different decision that must not consume the filtered limit.",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(newer write request) error = %v", err)
+		}
+		newerResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory", newerBody)
+		if newerResp.Code != http.StatusOK {
+			t.Fatalf(
+				"newer write status = %d, want %d; body=%s",
+				newerResp.Code,
+				http.StatusOK,
+				newerResp.Body.String(),
+			)
+		}
+
+		listResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/memory/decisions?scope=global&filename="+
+				url.QueryEscape(writePayload.Decision.TargetFilename)+"&limit=1",
+			nil,
+		)
 		if listResp.Code != http.StatusOK {
 			t.Fatalf(
 				"list decisions status = %d, want %d; body=%s",
@@ -621,8 +797,8 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 		var listPayload contract.MemoryDecisionListResponse
 		testutil.DecodeJSONResponse(t, listResp, &listPayload)
-		if len(listPayload.Decisions) == 0 || listPayload.Decisions[0].ID != writePayload.Decision.ID {
-			t.Fatalf("decision list = %#v, want decision %q first", listPayload.Decisions, writePayload.Decision.ID)
+		if len(listPayload.Decisions) != 1 || listPayload.Decisions[0].ID != writePayload.Decision.ID {
+			t.Fatalf("decision list = %#v, want only decision %q", listPayload.Decisions, writePayload.Decision.ID)
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/decisions/"+writePayload.Decision.ID, nil)
@@ -1388,4 +1564,26 @@ func memoryDocument(t *testing.T, name string, typ memcontract.Type, body string
 		t.Fatalf("yaml.Marshal() error = %v", err)
 	}
 	return "---\n" + string(metadata) + "---\n\n" + body
+}
+
+func seedCoreMemoryCatalogDocuments(t *testing.T, dir string, count int) {
+	t.Helper()
+
+	baseTime := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
+	for index := range count {
+		typ := memcontract.TypeProject
+		if index == 0 {
+			typ = memcontract.TypeReference
+		}
+		filename := fmt.Sprintf("memory-%03d.md", index)
+		content := memoryDocument(t, fmt.Sprintf("Memory %03d", index), typ, "body")
+		path := filepath.Join(dir, filename)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", filename, err)
+		}
+		modTime := baseTime.Add(time.Duration(index) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("Chtimes(%s) error = %v", filename, err)
+		}
+	}
 }

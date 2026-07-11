@@ -86,7 +86,7 @@ func (g *GlobalDB) networkConversationOpenedAtTimelineRow(
 		    AND channel = ?
 		    AND surface = ?
 		    AND `+column+` = ?
-		    AND rowid < ?`,
+		    AND sequence < ?`,
 		message.WorkspaceID,
 		message.Channel,
 		surface,

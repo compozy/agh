@@ -249,37 +249,6 @@ func ParseLogsCursor(raw string) (LogsCursor, error) {
 	return cursor, nil
 }
 
-// ParseTaskListQuery parses the shared task-list query parameters.
-func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return contract.TaskListQuery{}, NewTaskValidationError(err)
-	}
-	includeDrafts, err := ParseOptionalBool(c.Query("include_drafts"))
-	if err != nil {
-		return contract.TaskListQuery{}, NewTaskValidationError(err)
-	}
-
-	query := contract.TaskListQuery{
-		Scope:          taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
-		Workspace:      strings.TrimSpace(c.Query("workspace")),
-		Status:         taskpkg.Status(strings.TrimSpace(c.Query("status"))).Normalize(),
-		Priority:       taskpkg.Priority(strings.TrimSpace(c.Query("priority"))).Normalize(),
-		IncludeDrafts:  includeDrafts,
-		ApprovalState:  taskpkg.ApprovalState(strings.TrimSpace(c.Query("approval_state"))).Normalize(),
-		OwnerKind:      taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
-		OwnerRef:       strings.TrimSpace(c.Query("owner_ref")),
-		ParentTaskID:   strings.TrimSpace(c.Query("parent_task_id")),
-		NetworkChannel: strings.TrimSpace(c.Query("network_channel")),
-		Query:          strings.TrimSpace(c.Query("query")),
-		Limit:          limit,
-	}
-	if err := validateParsedTaskListQuery(query); err != nil {
-		return contract.TaskListQuery{}, err
-	}
-	return query, nil
-}
-
 // ParseTaskRunListQuery parses the shared task-run list query parameters.
 func ParseTaskRunListQuery(c *gin.Context) (contract.TaskRunListQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
@@ -337,52 +306,6 @@ func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error
 	return query, nil
 }
 
-// ParseTaskInboxQuery parses the shared task inbox query parameters.
-func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
-	unread, err := ParseOptionalBool(c.Query("unread"))
-	if err != nil {
-		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
-	}
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
-	}
-
-	query := contract.TaskInboxQuery{
-		Scope:     taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
-		Workspace: strings.TrimSpace(c.Query("workspace")),
-		OwnerKind: taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
-		OwnerRef:  strings.TrimSpace(c.Query("owner_ref")),
-		Lane:      contract.TaskInboxLane(strings.TrimSpace(strings.ToLower(c.Query("lane")))),
-		Unread:    unread,
-		Query:     strings.TrimSpace(c.Query("query")),
-		Limit:     limit,
-	}
-	if err := validateParsedTaskInboxQuery(query); err != nil {
-		return contract.TaskInboxQuery{}, err
-	}
-	return query, nil
-}
-
-func validateParsedTaskListQuery(query contract.TaskListQuery) error {
-	if err := validateOptionalTaskScope(query.Scope, "task_query.scope"); err != nil {
-		return err
-	}
-	if err := validateOptionalTaskStatus(query.Status, "task_query.status"); err != nil {
-		return err
-	}
-	if err := validateOptionalTaskPriority(query.Priority, "task_query.priority"); err != nil {
-		return err
-	}
-	if err := validateOptionalTaskApprovalState(query.ApprovalState, "task_query.approval_state"); err != nil {
-		return err
-	}
-	if err := validateOptionalTaskOwnerKind(query.OwnerKind, "task_query.owner_kind"); err != nil {
-		return err
-	}
-	return nil
-}
-
 func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 	summaryQuery := observe.TaskSummaryQuery{
 		Scope:      query.Scope,
@@ -394,131 +317,6 @@ func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 		return NewTaskValidationError(err)
 	}
 	return nil
-}
-
-func validateParsedTaskInboxQuery(query contract.TaskInboxQuery) error {
-	summaryQuery := observe.TaskSummaryQuery{
-		Scope:     query.Scope,
-		OwnerKind: query.OwnerKind,
-		OwnerRef:  query.OwnerRef,
-	}
-	if err := summaryQuery.Validate(); err != nil {
-		return NewTaskValidationError(err)
-	}
-	if err := validateOptionalTaskInboxLane(query.Lane, "task_inbox_query.lane"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateOptionalTaskScope(scope taskpkg.Scope, path string) error {
-	if scope.Normalize() == "" {
-		return nil
-	}
-	if err := scope.Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func validateOptionalTaskStatus(status taskpkg.Status, path string) error {
-	if status.Normalize() == "" {
-		return nil
-	}
-	if err := status.Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func validateOptionalTaskPriority(priority taskpkg.Priority, path string) error {
-	if priority.Normalize() == "" {
-		return nil
-	}
-	if err := priority.Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func validateOptionalTaskApprovalState(state taskpkg.ApprovalState, path string) error {
-	if state.Normalize() == "" {
-		return nil
-	}
-	if err := state.Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func validateOptionalTaskOwnerKind(kind taskpkg.OwnerKind, path string) error {
-	if kind.Normalize() == "" {
-		return nil
-	}
-	if err := kind.Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func validateOptionalTaskInboxLane(lane contract.TaskInboxLane, path string) error {
-	if observe.TaskInboxLane(lane).Normalize() == "" {
-		return nil
-	}
-	if err := observe.TaskInboxLane(lane).Validate(path); err != nil {
-		return NewTaskValidationError(err)
-	}
-	return nil
-}
-
-func (h *BaseHandlers) taskListDomainQuery(
-	ctx context.Context,
-	query contract.TaskListQuery,
-) (taskpkg.Query, error) {
-	domainQuery := taskpkg.Query{
-		Scope:          query.Scope.Normalize(),
-		Status:         query.Status.Normalize(),
-		Priority:       query.Priority.Normalize(),
-		ApprovalState:  query.ApprovalState.Normalize(),
-		OwnerKind:      query.OwnerKind.Normalize(),
-		OwnerRef:       strings.TrimSpace(query.OwnerRef),
-		ParentTaskID:   strings.TrimSpace(query.ParentTaskID),
-		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
-		Search:         strings.TrimSpace(query.Query),
-		Limit:          query.Limit,
-	}
-
-	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
-		if domainQuery.Scope.Normalize() == taskpkg.ScopeGlobal {
-			return taskpkg.Query{}, taskpkg.ValidateScopeBinding(
-				domainQuery.Scope,
-				workspaceRef,
-				"task_query",
-				"workspace",
-			)
-		}
-		workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
-		if err != nil {
-			return taskpkg.Query{}, err
-		}
-		domainQuery.WorkspaceID = workspaceID
-	}
-
-	if err := validateTaskChannel("task_query.network_channel", domainQuery.NetworkChannel); err != nil {
-		return taskpkg.Query{}, err
-	}
-	if err := domainQuery.Validate("task_query"); err != nil {
-		return taskpkg.Query{}, err
-	}
-	return domainQuery, nil
-}
-
-func (h *BaseHandlers) parseTaskListQuery(ctx context.Context, c *gin.Context) (taskpkg.Query, error) {
-	query, err := ParseTaskListQuery(c)
-	if err != nil {
-		return taskpkg.Query{}, err
-	}
-	return h.taskListDomainQuery(ctx, query)
 }
 
 func taskRunListDomainQuery(query contract.TaskRunListQuery) (taskpkg.RunQuery, error) {
@@ -607,44 +405,6 @@ func (h *BaseHandlers) taskDashboardDomainQuery(
 	}
 	if err := domainQuery.Validate(); err != nil {
 		return observe.TaskDashboardQuery{}, err
-	}
-	return domainQuery, nil
-}
-
-func (h *BaseHandlers) taskInboxDomainQuery(
-	ctx context.Context,
-	query contract.TaskInboxQuery,
-) (observe.TaskInboxQuery, error) {
-	domainQuery := observe.TaskInboxQuery{
-		Scope:     query.Scope.Normalize(),
-		OwnerKind: query.OwnerKind.Normalize(),
-		OwnerRef:  strings.TrimSpace(query.OwnerRef),
-		Lane:      observe.TaskInboxLane(query.Lane).Normalize(),
-		Unread:    query.Unread,
-		Search:    strings.TrimSpace(query.Query),
-		Limit:     query.Limit,
-	}
-
-	if workspaceRef := strings.TrimSpace(query.Workspace); workspaceRef != "" {
-		if err := taskpkg.ValidateScopeBinding(
-			domainQuery.Scope,
-			workspaceRef,
-			"task_inbox_query",
-			"workspace",
-		); err != nil {
-			return observe.TaskInboxQuery{}, err
-		}
-		if domainQuery.Scope.Normalize() == taskpkg.ScopeWorkspace {
-			workspaceID, err := h.lookupWorkspaceID(ctx, workspaceRef)
-			if err != nil {
-				return observe.TaskInboxQuery{}, err
-			}
-			domainQuery.WorkspaceID = workspaceID
-		}
-	}
-
-	if err := domainQuery.Validate(); err != nil {
-		return observe.TaskInboxQuery{}, err
 	}
 	return domainQuery, nil
 }

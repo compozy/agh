@@ -108,7 +108,7 @@ describe("AutomationListPanel", () => {
     expect(screen.getByTestId("automation-list-error")).toHaveTextContent("boom");
   });
 
-  it("filters trigger items from the search box", async () => {
+  it("forwards search changes and renders the server-filtered trigger response", async () => {
     const user = userEvent.setup();
     let currentQuery = "";
 
@@ -160,5 +160,50 @@ describe("AutomationListPanel", () => {
     rerenderPanel();
 
     expect(screen.getByTestId("automation-list-empty")).toBeInTheDocument();
+  });
+
+  it("loads the next page explicitly while preserving loaded rows and errors", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const { rerender } = render(
+      <AutomationListPanel
+        errorMessage="Next page failed"
+        hasNextPage
+        jobs={[jobFixture]}
+        kind="jobs"
+        onLoadMore={onLoadMore}
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={12}
+        triggers={[]}
+      />
+    );
+
+    expect(screen.getByTestId("automation-item-job_daily_review")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Next page failed");
+    await user.click(screen.getByRole("button", { name: "Load more jobs" }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+
+    rerender(
+      <AutomationListPanel
+        hasNextPage
+        isFetchingNextPage
+        jobs={[jobFixture]}
+        kind="jobs"
+        onLoadMore={onLoadMore}
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        scopeFilter="all"
+        searchQuery=""
+        selectedId={null}
+        totalCount={12}
+        triggers={[]}
+      />
+    );
+    expect(screen.getByTestId("automation-list-load-more")).toBeDisabled();
+    expect(screen.getByTestId("automation-list-load-more")).toHaveAttribute("aria-busy", "true");
   });
 });

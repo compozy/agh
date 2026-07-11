@@ -94,6 +94,12 @@ var sessionSchemaMigrations = []store.Migration{
 			`CREATE UNIQUE INDEX IF NOT EXISTS idx_events_sequence ON events(sequence);`,
 		},
 	},
+	{
+		Version:  4,
+		Name:     "materialize_transcript_projection",
+		Up:       materializeTranscriptProjection,
+		Checksum: "2026-07-10-materialize-transcript-projection-v1",
+	},
 }
 
 const (
@@ -340,23 +346,7 @@ func (s *SessionDB) QueryHookRuns(ctx context.Context, query store.HookRunQuery)
 	if err != nil {
 		return nil, fmt.Errorf("store: query hook runs: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	records := make([]hookspkg.HookRunRecord, 0)
-	for rows.Next() {
-		record, scanErr := s.scanHookRunRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		records = append(records, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate hook runs: %w", err)
-	}
-
-	return records, nil
+	return s.scanHookRunRecords(rows)
 }
 
 // Query returns events filtered by the supplied options.
@@ -381,23 +371,7 @@ func (s *SessionDB) Query(ctx context.Context, query store.EventQuery) ([]store.
 	if err != nil {
 		return nil, fmt.Errorf("store: query session events: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	events := make([]store.SessionEvent, 0)
-	for rows.Next() {
-		event, scanErr := s.scanSessionEvent(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate session events: %w", err)
-	}
-
-	return events, nil
+	return s.scanSessionEvents(rows)
 }
 
 // History returns ordered session events grouped by turn id.
@@ -507,27 +481,6 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 	}
 
 	return nil
-}
-
-func clearSessionSQLite(ctx context.Context, db *sql.DB) error {
-	if ctx == nil {
-		return errors.New("store: clear session sqlite context is required")
-	}
-	if db == nil {
-		return errors.New("store: clear session sqlite database is required")
-	}
-	return store.ExecuteWriteNoCheckpoint(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
-		for _, stmt := range []string{
-			"DELETE FROM hook_runs",
-			"DELETE FROM token_usage",
-			"DELETE FROM events",
-		} {
-			if _, err := tx.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("store: clear session table: %w", err)
-			}
-		}
-		return nil
-	})
 }
 
 func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {

@@ -453,6 +453,51 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 func TestGlobalDBSessionHealthStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should load one bounded page of health rows by ids", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceOne, sessionOne := registerHeartbeatWorkspaceAndSession(
+			t,
+			globalDB,
+			"heartbeat-health-batch-one",
+			"sess-health-batch-one",
+		)
+		workspaceTwo, sessionTwo := registerHeartbeatWorkspaceAndSession(
+			t,
+			globalDB,
+			"heartbeat-health-batch-two",
+			"sess-health-batch-two",
+		)
+		baseAt := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
+		for _, health := range []heartbeat.SessionHealth{
+			heartbeatSessionHealthForTest(sessionOne, workspaceOne, "coder", baseAt),
+			heartbeatSessionHealthForTest(sessionTwo, workspaceTwo, "coder", baseAt.Add(time.Minute)),
+		} {
+			if _, err := globalDB.UpsertSessionHealth(ctx, health); err != nil {
+				t.Fatalf("UpsertSessionHealth(%q) error = %v", health.SessionID, err)
+			}
+		}
+
+		rows, err := globalDB.ListSessionHealthByIDs(ctx, []string{
+			" " + sessionOne + " ",
+			sessionTwo,
+			sessionOne,
+			"sess-missing",
+		})
+		if err != nil {
+			t.Fatalf("ListSessionHealthByIDs() error = %v", err)
+		}
+		gotIDs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			gotIDs = append(gotIDs, row.SessionID)
+		}
+		if want := []string{sessionTwo, sessionOne}; !slices.Equal(gotIDs, want) {
+			t.Fatalf("ListSessionHealthByIDs() ids = %#v, want %#v", gotIDs, want)
+		}
+	})
+
 	t.Run("Should upsert read recover and mark stale rows without deleting policy snapshots", func(t *testing.T) {
 		t.Parallel()
 

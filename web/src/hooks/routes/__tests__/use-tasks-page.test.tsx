@@ -24,6 +24,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   addTaskDependency: vi.fn(),
   removeTaskDependency: vi.fn(),
   enqueueTaskRun: vi.fn(),
+  retryTaskRun: vi.fn(),
   attachTaskRunSession: vi.fn(),
   cancelTaskRun: vi.fn(),
   claimTaskRun: vi.fn(),
@@ -51,8 +52,28 @@ vi.mock("sonner", () => ({
 }));
 
 const workspaceMockState = vi.hoisted(() => ({
-  selectedWorkspaceId: "ws_alpha",
-  userHomeDir: "/Users/operator",
+  error: null as Error | null,
+  hasHydrated: true,
+  isLoading: false,
+  selectedWorkspaceId: "ws_alpha" as string | null,
+}));
+
+const daemonStatusMockState = vi.hoisted(
+  (): {
+    data: { user_home_dir: string } | undefined;
+    error: Error | null;
+    isLoading: boolean;
+    isPending: boolean;
+  } => ({
+    data: { user_home_dir: "/Users/operator" },
+    error: null,
+    isLoading: false,
+    isPending: false,
+  })
+);
+
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => daemonStatusMockState,
 }));
 
 vi.mock("@/systems/workspace", async importOriginal => {
@@ -87,78 +108,120 @@ vi.mock("@/systems/workspace", async importOriginal => {
   return {
     ...actual,
     useActiveWorkspace: () => {
-      const activeWorkspace =
-        workspaces.find(workspace => workspace.id === workspaceMockState.selectedWorkspaceId) ??
-        workspaces[0];
+      const activeWorkspace = workspaceMockState.hasHydrated
+        ? (workspaces.find(workspace => workspace.id === workspaceMockState.selectedWorkspaceId) ??
+          workspaces[0])
+        : undefined;
       return {
         activeWorkspace,
-        activeWorkspaceId: activeWorkspace.id,
+        activeWorkspaceId: activeWorkspace?.id ?? null,
+        error: workspaceMockState.error,
+        hasHydrated: workspaceMockState.hasHydrated,
+        isLoading: workspaceMockState.isLoading,
+        isPending: workspaceMockState.isLoading,
         workspaces,
       };
     },
-    useUserHomeDir: () => workspaceMockState.userHomeDir,
   };
 });
 
 import {
   approveTask,
   archiveTask,
-  createTask,
   dismissTask,
-  enqueueTaskRun,
   getTaskDashboard,
   getTaskInbox,
   listTasks,
   markTaskRead,
-  publishTask,
   rejectTask,
+  retryTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
 import { getScheduler, getSchedulerBacklog } from "@/systems/scheduler/adapters/scheduler-api";
+import {
+  buildInboxFixture,
+  buildTaskFixture,
+  taskDashboardFixture,
+  taskTriageStateFixture,
+} from "@/systems/tasks/mocks/fixtures";
+import type { TaskListFilter, TaskListPage } from "@/systems/tasks";
+import { tasksKeys } from "@/systems/tasks";
 
 import { useTasksPage } from "../use-tasks-page";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
+function createQueryClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+}
 
+function createWrapper(queryClient = createQueryClient()) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-const taskFixture = {
+const taskFixture = buildTaskFixture({
+  active_run: null,
   id: "task_001",
   title: "Review PR",
   identifier: "TASK-1",
-  status: "ready" as const,
-  scope: "workspace" as const,
-  origin: { kind: "web" as const, ref: "op" },
-  created_at: "2026-04-11T09:00:00Z",
-  updated_at: "2026-04-11T09:00:00Z",
-  created_by: { kind: "human" as const, ref: "op" },
-};
+  status: "ready",
+});
+const failedTaskFixture = buildTaskFixture({
+  active_run: null,
+  id: "task_002",
+  title: "Fix bug",
+  status: "failed",
+});
+const taskFixtures = [
+  taskFixture,
+  failedTaskFixture,
+  buildTaskFixture({
+    active_run: null,
+    id: "task_003",
+    title: "Draft proposal",
+    status: "draft",
+    draft: true,
+  }),
+];
+
+function taskListPage(tasks = taskFixtures, total = 21): TaskListPage {
+  return {
+    facets: {
+      owners: [{ count: 12, owner: { kind: "agent_session", ref: "product" } }],
+      statuses: [
+        { count: 10, status: "ready" },
+        { count: 8, status: "failed" },
+        { count: 3, status: "draft" },
+      ],
+    },
+    page: {
+      has_more: total > tasks.length,
+      limit: 50,
+      next_cursor: total > tasks.length ? "tasks:3" : undefined,
+      total,
+    },
+    tasks,
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
+  daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
+  daemonStatusMockState.error = null;
+  daemonStatusMockState.isLoading = false;
+  daemonStatusMockState.isPending = false;
+  workspaceMockState.error = null;
+  workspaceMockState.hasHydrated = true;
+  workspaceMockState.isLoading = false;
   workspaceMockState.selectedWorkspaceId = "ws_alpha";
-  workspaceMockState.userHomeDir = "/Users/operator";
-  vi.mocked(listTasks).mockResolvedValue([
-    taskFixture,
-    { ...taskFixture, id: "task_002", title: "Fix bug", status: "failed" },
-    {
-      ...taskFixture,
-      id: "task_003",
-      title: "Draft proposal",
-      status: "draft",
-      draft: true,
-    },
-  ] as never);
-  vi.mocked(getTaskDashboard).mockResolvedValue({ totals: { tasks_total: 3 } } as never);
-  vi.mocked(getTaskInbox).mockResolvedValue({
-    total: 0,
-    archived_total: 0,
-    unread_total: 0,
-  } as never);
+  vi.mocked(listTasks).mockImplementation((filters: TaskListFilter = {}) => {
+    if (filters.query === "Fix") {
+      return Promise.resolve(taskListPage([failedTaskFixture], 1));
+    }
+    return Promise.resolve(taskListPage());
+  });
+  vi.mocked(getTaskDashboard).mockResolvedValue(taskDashboardFixture);
+  vi.mocked(getTaskInbox).mockResolvedValue(buildInboxFixture({ unread_total: 6 }));
   vi.mocked(getScheduler).mockResolvedValue({
     paused: false,
     queued_run_count: 0,
@@ -167,14 +230,12 @@ beforeEach(() => {
     as_of: "2026-04-17T10:00:00Z",
   } as never);
   vi.mocked(getSchedulerBacklog).mockResolvedValue({ runs: [], total: 0 } as never);
-  vi.mocked(createTask).mockResolvedValue({ id: "task_999", title: "Generated" } as never);
-  vi.mocked(publishTask).mockResolvedValue({ id: "task_003", title: "Draft" } as never);
-  vi.mocked(enqueueTaskRun).mockResolvedValue({ id: "run_001" } as never);
+  vi.mocked(retryTaskRun).mockResolvedValue({ id: "run_retry" } as never);
   vi.mocked(approveTask).mockResolvedValue({ id: "task_001" } as never);
   vi.mocked(rejectTask).mockResolvedValue({ id: "task_001" } as never);
-  vi.mocked(markTaskRead).mockResolvedValue({ task_id: "task_001", read: true } as never);
-  vi.mocked(archiveTask).mockResolvedValue({ task_id: "task_001", archived: true } as never);
-  vi.mocked(dismissTask).mockResolvedValue({ task_id: "task_001", dismissed: true } as never);
+  vi.mocked(markTaskRead).mockResolvedValue(taskTriageStateFixture);
+  vi.mocked(archiveTask).mockResolvedValue({ ...taskTriageStateFixture, archived: true });
+  vi.mocked(dismissTask).mockResolvedValue({ ...taskTriageStateFixture, dismissed: true });
 });
 
 afterEach(() => {
@@ -182,7 +243,7 @@ afterEach(() => {
 });
 
 describe("useTasksPage", () => {
-  it("exposes list state, counts, draft tasks, and derived flags", async () => {
+  it("exposes exact list state, counts, and derived flags", async () => {
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
     await waitFor(() => {
@@ -190,12 +251,11 @@ describe("useTasksPage", () => {
     });
 
     expect(result.current.mode).toBe("list");
-    expect(result.current.tasksCount).toBe(3);
+    expect(result.current.tasksCount).toBe(21);
     expect(result.current.effectiveSelectedTaskId).toBe("task_001");
-    expect(result.current.statusCounts.ready).toBe(1);
-    expect(result.current.statusCounts.failed).toBe(1);
-    expect(result.current.statusCounts.draft).toBe(1);
-    expect(result.current.draftTasks.map(task => task.id)).toEqual(["task_003"]);
+    expect(result.current.statusCounts.ready).toBe(10);
+    expect(result.current.statusCounts.failed).toBe(8);
+    expect(result.current.statusCounts.draft).toBe(3);
     // 4-column kanban collapses draft + ready + pending + blocked into "pending"; fixture has 1 draft + 1 ready.
     expect(result.current.kanbanColumns.find(c => c.column.id === "pending")?.tasks).toHaveLength(
       2
@@ -205,6 +265,15 @@ describe("useTasksPage", () => {
     expect(listFilters?.workspace).toBe("ws_alpha");
     expect(result.current.activeWorkspaceName).toBe("Alpha");
     expect(result.current.isEmpty).toBe(false);
+    expect(result.current.inboxUnreadCount).toBe(6);
+    expect(getTaskInbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "workspace",
+        workspace: "ws_alpha",
+        limit: 1,
+      }),
+      expect.any(AbortSignal)
+    );
   });
 
   it("maps the home workspace to global task queries", async () => {
@@ -221,7 +290,49 @@ describe("useTasksPage", () => {
     expect(result.current.activeWorkspaceName).toBe("Home");
   });
 
-  it("only fetches list reads when the list/kanban tab is active", async () => {
+  it("waits for daemon status before issuing any task-scoped read", async () => {
+    daemonStatusMockState.data = undefined;
+    daemonStatusMockState.isLoading = true;
+    daemonStatusMockState.isPending = true;
+
+    const { result, rerender } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    expect(result.current.scopeLoading).toBe(true);
+    expect(result.current.scopeError).toBeNull();
+    expect(result.current.isEmpty).toBe(false);
+    expect(listTasks).not.toHaveBeenCalled();
+    expect(getTaskInbox).not.toHaveBeenCalled();
+    expect(getTaskDashboard).not.toHaveBeenCalled();
+
+    daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
+    daemonStatusMockState.isLoading = false;
+    daemonStatusMockState.isPending = false;
+    rerender();
+
+    await waitFor(() => {
+      expect(listTasks).toHaveBeenCalled();
+      expect(getTaskInbox).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 1, scope: "workspace", workspace: "ws_alpha" }),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it("surfaces daemon status failure without rendering an empty or zero catalog", () => {
+    daemonStatusMockState.data = undefined;
+    daemonStatusMockState.error = new Error("daemon status unavailable");
+
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    expect(result.current.scopeLoading).toBe(false);
+    expect(result.current.scopeError).toEqual(new Error("daemon status unavailable"));
+    expect(result.current.isEmpty).toBe(false);
+    expect(listTasks).not.toHaveBeenCalled();
+    expect(getTaskInbox).not.toHaveBeenCalled();
+    expect(getTaskDashboard).not.toHaveBeenCalled();
+  });
+
+  it("keeps full catalogs mode-scoped while retaining the minimal inbox badge read", async () => {
     const { result } = renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
       wrapper: createWrapper(),
     });
@@ -239,7 +350,11 @@ describe("useTasksPage", () => {
     expect(backlogFilters?.scope).toBe("workspace");
     expect(backlogFilters?.workspace).toBe("ws_alpha");
     expect(listTasks).not.toHaveBeenCalled();
-    expect(getTaskInbox).not.toHaveBeenCalled();
+    expect(getTaskInbox).toHaveBeenCalledTimes(1);
+    expect(getTaskInbox).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1 }),
+      expect.any(AbortSignal)
+    );
   });
 
   it("swaps to inbox reads when the inbox tab is active", async () => {
@@ -259,7 +374,7 @@ describe("useTasksPage", () => {
     expect(inboxFilters?.workspace).toBe("ws_alpha");
   });
 
-  it("maps inbox unread + search state into the backend query (lane stays client-side)", async () => {
+  it("maps inbox lane, status, priority, unread, and search into the backend query", async () => {
     const { result } = renderHook(() => useTasksPage({ initialMode: "inbox" }), {
       wrapper: createWrapper(),
     });
@@ -269,9 +384,9 @@ describe("useTasksPage", () => {
     });
 
     act(() => {
-      // Lane filter is now a pure client-side UI control —
-      // setting it must not trigger a backend refetch with a `lane` param.
       result.current.handleInboxLaneChange("approvals");
+      result.current.handleInboxStatusChange("pending");
+      result.current.handleInboxPriorityChange("high");
       result.current.handleInboxUnreadToggle(true);
       result.current.setInboxSearchQuery("rotate");
     });
@@ -279,15 +394,15 @@ describe("useTasksPage", () => {
     await waitFor(() => {
       expect(getTaskInbox).toHaveBeenLastCalledWith(
         expect.objectContaining({
+          lane: "approvals",
+          status: "pending",
+          priority: "high",
           unread: true,
           query: "rotate",
         }),
         expect.any(AbortSignal)
       );
     });
-    for (const [filters] of vi.mocked(getTaskInbox).mock.calls) {
-      expect((filters as { lane?: unknown }).lane).toBeUndefined();
-    }
   });
 
   it("maps the active workspace scope into the dashboard query", async () => {
@@ -342,120 +457,91 @@ describe("useTasksPage", () => {
 
     expect(result.current.effectiveSelectedTaskId).toBe("task_002");
     expect(listTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
+      expect.objectContaining({
+        scope: "workspace",
+        workspace: "ws_alpha",
+        query: "Fix",
+        sort: "recent",
+        limit: 50,
+      }),
       expect.any(AbortSignal)
     );
   });
 
-  it("opens the create modal with template defaults applied to the draft", () => {
+  it("retries a failed task continuation without restarting the catalog", async () => {
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
 
-    expect(result.current.isCreateModalOpen).toBe(false);
+    vi.mocked(listTasks).mockRejectedValueOnce(new Error("next page failed"));
+    act(() => result.current.loadMoreTasks());
+    await waitFor(() => expect(result.current.listError?.message).toBe("next page failed"));
 
-    act(() => {
-      result.current.handleOpenCreateModal("human_in_loop");
+    vi.mocked(listTasks).mockResolvedValueOnce(taskListPage([], 21));
+    act(() => result.current.retryTasks());
+
+    await waitFor(() => {
+      expect(listTasks).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cursor: "tasks:3" }),
+        expect.any(AbortSignal)
+      );
     });
-
-    expect(result.current.isCreateModalOpen).toBe(true);
-    expect(result.current.createTemplateId).toBe("human_in_loop");
-    expect(result.current.createDraft.priority).toBe("high");
-    expect(result.current.createDraft.approvalPolicy).toBe("manual");
-    expect(result.current.createDraft.scope).toBe("workspace");
-
-    act(() => {
-      result.current.handleCloseCreateModal();
-    });
-    expect(result.current.isCreateModalOpen).toBe(false);
   });
 
-  it("opens the create modal as a global task from the home workspace", () => {
-    workspaceMockState.selectedWorkspaceId = "ws_home";
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
-
-    act(() => {
-      result.current.handleOpenCreateModal("human_in_loop");
+  it("retries a failed task refetch from the first page", async () => {
+    const queryClient = createQueryClient();
+    const { result } = renderHook(() => useTasksPage(), {
+      wrapper: createWrapper(queryClient),
     });
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
 
-    expect(result.current.createDraft.scope).toBe("global");
-    expect(result.current.createDraft.workspaceId).toBeNull();
-  });
-
-  it("submits the create payload, enqueues the first run, and closes the modal", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
-
-    act(() => {
-      result.current.handleOpenCreateModal("one_shot");
-    });
-
-    act(() => {
-      result.current.setCreateDraft(current => ({ ...current, title: "New thing" }));
-    });
-
+    vi.mocked(listTasks).mockRejectedValueOnce(new Error("refetch failed"));
     await act(async () => {
-      await result.current.submitCreateTask(result.current.createDraft, false);
+      await queryClient.refetchQueries({ queryKey: tasksKeys.lists() });
     });
+    await waitFor(() => expect(result.current.listError?.message).toBe("refetch failed"));
 
-    expect(createTask).toHaveBeenCalledTimes(1);
-    expect(createTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "New thing",
-        scope: "workspace",
-        workspace: "ws_alpha",
-        priority: "medium",
-        max_attempts: 1,
-        draft: false,
-      })
-    );
-    expect(enqueueTaskRun).toHaveBeenCalledWith("task_999", {});
-    expect(result.current.isCreateModalOpen).toBe(false);
+    vi.mocked(listTasks).mockResolvedValueOnce(taskListPage());
+    act(() => result.current.retryTasks());
+
+    await waitFor(() => {
+      expect(listTasks).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ cursor: expect.anything() }),
+        expect.any(AbortSignal)
+      );
+    });
   });
 
-  it("save-draft submissions never enqueue a run", async () => {
+  it("preserves owner kind when server facets share the same ref", async () => {
+    vi.mocked(listTasks).mockResolvedValue({
+      facets: {
+        owners: [
+          { count: 4, owner: { kind: "human", ref: "operator" } },
+          { count: 7, owner: { kind: "agent_session", ref: "operator" } },
+        ],
+        statuses: [],
+      },
+      page: { has_more: false, limit: 50, total: 0 },
+      tasks: [],
+    });
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.ownerOptions).toHaveLength(2));
+
+    const agentOwner = result.current.ownerOptions[1];
+    if (!agentOwner) throw new Error("expected an agent owner facet");
     act(() => {
-      result.current.handleOpenCreateModal("one_shot");
-    });
-    act(() => {
-      result.current.setCreateDraft(current => ({ ...current, title: "Drafted" }));
+      result.current.handleOwnerChange(agentOwner);
     });
 
-    await act(async () => {
-      await result.current.submitCreateTask(result.current.createDraft, true);
+    await waitFor(() => {
+      expect(listTasks).toHaveBeenLastCalledWith(
+        expect.objectContaining({ owner_kind: "agent_session", owner_ref: "operator" }),
+        expect.any(AbortSignal)
+      );
     });
-
-    expect(createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Drafted", draft: true })
-    );
-    expect(enqueueTaskRun).not.toHaveBeenCalled();
+    expect(result.current.ownerFilter).toEqual({ kind: "agent_session", ref: "operator" });
   });
 
-  it("recurring template always saves as draft even when submit triggers create", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
-    act(() => {
-      result.current.handleOpenCreateModal("recurring");
-    });
-    act(() => {
-      result.current.setCreateDraft(current => ({ ...current, title: "Recurring" }));
-    });
-
-    await act(async () => {
-      await result.current.submitCreateTask(result.current.createDraft, false);
-    });
-
-    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
-    expect(enqueueTaskRun).not.toHaveBeenCalled();
-  });
-
-  it("publishTask delegates to the publish mutation", async () => {
-    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
-    await act(async () => {
-      await result.current.handlePublishTask("task_003");
-    });
-
-    expect(publishTask).toHaveBeenCalledWith("task_003");
-  });
-
-  it("delegates approve, reject, archive, dismiss, mark-read and retry triage actions", async () => {
+  it("delegates triage actions and retries a failed run by run id", async () => {
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
     await act(async () => {
@@ -464,7 +550,7 @@ describe("useTasksPage", () => {
       await result.current.handleArchiveTask("task_001");
       await result.current.handleDismissTask("task_001");
       await result.current.handleMarkTaskRead("task_001");
-      await result.current.handleRetryTask("task_001");
+      await result.current.handleRetryRun("run_001");
     });
 
     expect(approveTask).toHaveBeenCalledWith("task_001");
@@ -472,6 +558,30 @@ describe("useTasksPage", () => {
     expect(archiveTask).toHaveBeenCalledWith("task_001");
     expect(dismissTask).toHaveBeenCalledWith("task_001");
     expect(markTaskRead).toHaveBeenCalledWith("task_001");
-    expect(enqueueTaskRun).toHaveBeenCalledWith("task_001", {});
+    expect(retryTaskRun).toHaveBeenCalledWith("run_001", {});
+  });
+
+  it("blocks duplicate retry submission while preserving the pending run identity", async () => {
+    let resolveRetry: ((value: unknown) => void) | undefined;
+    vi.mocked(retryTaskRun).mockImplementationOnce(
+      () => new Promise(resolve => (resolveRetry = resolve)) as never
+    );
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    let first: Promise<void> | undefined;
+    await act(async () => {
+      first = result.current.handleRetryRun("run_001");
+      void result.current.handleRetryRun("run_001");
+      await Promise.resolve();
+    });
+
+    expect(retryTaskRun).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingRetryIds.has("run_001")).toBe(true);
+
+    await act(async () => {
+      resolveRetry?.({ id: "run_retry" });
+      await first;
+    });
+    expect(result.current.pendingRetryIds.has("run_001")).toBe(false);
   });
 });

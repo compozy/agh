@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -131,6 +132,204 @@ func TestManagerStartRegistersResourceDefinitionsAtStartup(t *testing.T) {
 	if got, want := registered, 1; got != want {
 		t.Fatalf("len(manager.triggers.registrations) = %d, want %d", got, want)
 	}
+}
+
+func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter the effective source union before the page cut", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		configJob := h.putJobResourceWithSource(t, "job-union-config", "needle-config", JobSourceConfig)
+		packageJob := h.putJobResourceWithSource(t, "job-union-package", "needle-package", JobSourcePackage)
+		h.putJobResourceWithSource(t, "job-union-dynamic", "needle-dynamic", JobSourceDynamic)
+		configTrigger := h.putTriggerResourceWithSource(
+			t,
+			"trigger-union-config",
+			"needle-config",
+			JobSourceConfig,
+		)
+		packageTrigger := h.putTriggerResourceWithSource(
+			t,
+			"trigger-union-package",
+			"needle-package",
+			JobSourcePackage,
+		)
+		h.putTriggerResourceWithSource(
+			t,
+			"trigger-union-dynamic",
+			"needle-dynamic",
+			JobSourceDynamic,
+		)
+		if _, err := h.db.SetJobEnabledOverlay(h.ctx, JobEnabledOverlay{
+			JobID:           configJob.ID,
+			EnabledOverride: false,
+		}); err != nil {
+			t.Fatalf("SetJobEnabledOverlay(config) error = %v", err)
+		}
+		if _, err := h.db.SetJobEnabledOverlay(h.ctx, JobEnabledOverlay{
+			JobID:           packageJob.ID,
+			EnabledOverride: false,
+		}); err != nil {
+			t.Fatalf("SetJobEnabledOverlay(package) error = %v", err)
+		}
+		if _, err := h.db.SetTriggerEnabledOverlay(h.ctx, TriggerEnabledOverlay{
+			TriggerID:       configTrigger.ID,
+			EnabledOverride: false,
+		}); err != nil {
+			t.Fatalf("SetTriggerEnabledOverlay(config) error = %v", err)
+		}
+		if _, err := h.db.SetTriggerEnabledOverlay(h.ctx, TriggerEnabledOverlay{
+			TriggerID:       packageTrigger.ID,
+			EnabledOverride: false,
+		}); err != nil {
+			t.Fatalf("SetTriggerEnabledOverlay(package) error = %v", err)
+		}
+
+		manager := h.newResourceManager(t)
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("manager.Shutdown() error = %v", err)
+			}
+		})
+		disabled := false
+		jobQuery := JobListQuery{Search: "needle", Enabled: &disabled, Limit: 1}
+		jobPage, err := manager.ListJobs(h.ctx, jobQuery)
+		if err != nil {
+			t.Fatalf("manager.ListJobs(first) error = %v", err)
+		}
+		if jobPage.Total != 2 || len(jobPage.Jobs) != 1 || jobPage.Jobs[0].ID != configJob.ID ||
+			!jobPage.HasMore || jobPage.NextCursor == "" {
+			t.Fatalf("manager.ListJobs(first) = %#v, want config-first effective union page", jobPage)
+		}
+		jobQuery.Cursor = jobPage.NextCursor
+		jobPage, err = manager.ListJobs(h.ctx, jobQuery)
+		if err != nil {
+			t.Fatalf("manager.ListJobs(second) error = %v", err)
+		}
+		if jobPage.Total != 2 || len(jobPage.Jobs) != 1 || jobPage.Jobs[0].ID != packageJob.ID || jobPage.HasMore {
+			t.Fatalf("manager.ListJobs(second) = %#v, want package terminal page", jobPage)
+		}
+
+		triggerQuery := TriggerListQuery{Search: "needle", Enabled: &disabled, Limit: 1}
+		triggerPage, err := manager.ListTriggers(h.ctx, triggerQuery)
+		if err != nil {
+			t.Fatalf("manager.ListTriggers(first) error = %v", err)
+		}
+		if triggerPage.Total != 2 || len(triggerPage.Triggers) != 1 ||
+			triggerPage.Triggers[0].ID != configTrigger.ID || !triggerPage.HasMore ||
+			triggerPage.NextCursor == "" {
+			t.Fatalf("manager.ListTriggers(first) = %#v, want config-first effective union page", triggerPage)
+		}
+		triggerQuery.Cursor = triggerPage.NextCursor
+		triggerPage, err = manager.ListTriggers(h.ctx, triggerQuery)
+		if err != nil {
+			t.Fatalf("manager.ListTriggers(second) error = %v", err)
+		}
+		if triggerPage.Total != 2 || len(triggerPage.Triggers) != 1 ||
+			triggerPage.Triggers[0].ID != packageTrigger.ID || triggerPage.HasMore {
+			t.Fatalf("manager.ListTriggers(second) = %#v, want package terminal page", triggerPage)
+		}
+	})
+
+	t.Run("Should walk matching jobs and triggers with one canonical order", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		sources := []JobSource{JobSourceDynamic, JobSourceConfig, JobSourcePackage}
+		expectedJobs := make([]Job, 0, 13)
+		expectedTriggers := make([]Trigger, 0, 13)
+		for index := range 13 {
+			jobRecord := h.putJobResourceWithSource(
+				t,
+				fmt.Sprintf("job-list-%02d", index),
+				fmt.Sprintf("needle-job-%02d", 12-index),
+				sources[index%len(sources)],
+			)
+			expectedJobs = append(expectedJobs, Job{
+				ID:     jobRecord.ID,
+				Name:   jobRecord.Spec.Name,
+				Source: jobRecord.Spec.Source,
+			})
+			triggerRecord := h.putTriggerResourceWithSource(
+				t,
+				fmt.Sprintf("trigger-list-%02d", index),
+				fmt.Sprintf("needle-trigger-%02d", 12-index),
+				sources[index%len(sources)],
+			)
+			expectedTriggers = append(expectedTriggers, Trigger{
+				ID:     triggerRecord.ID,
+				Name:   triggerRecord.Spec.Name,
+				Source: triggerRecord.Spec.Source,
+			})
+		}
+		h.putJobResource(t, "job-list-decoy", "unrelated-job")
+		h.putTriggerResource(t, "trigger-list-decoy", "unrelated-trigger")
+
+		manager := h.newResourceManager(t)
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("manager.Shutdown() error = %v", err)
+			}
+		})
+
+		SortJobsForList(expectedJobs)
+		jobQuery := JobListQuery{Search: " NeEdLe ", Limit: 4}
+		walkedJobIDs := make([]string, 0, len(expectedJobs))
+		for {
+			page, err := manager.ListJobs(h.ctx, jobQuery)
+			if err != nil {
+				t.Fatalf("manager.ListJobs(cursor=%q) error = %v", jobQuery.Cursor, err)
+			}
+			if got, want := page.Total, len(expectedJobs); got != want {
+				t.Fatalf("manager.ListJobs().Total = %d, want %d", got, want)
+			}
+			for _, job := range page.Jobs {
+				walkedJobIDs = append(walkedJobIDs, job.ID)
+			}
+			if !page.HasMore {
+				break
+			}
+			jobQuery.Cursor = page.NextCursor
+		}
+		for index, job := range expectedJobs {
+			if got, want := walkedJobIDs[index], job.ID; got != want {
+				t.Fatalf("walked job %d = %q, want %q", index, got, want)
+			}
+		}
+
+		SortTriggersForList(expectedTriggers)
+		triggerQuery := TriggerListQuery{Search: "needle", Limit: 5}
+		walkedTriggerIDs := make([]string, 0, len(expectedTriggers))
+		for {
+			page, err := manager.ListTriggers(h.ctx, triggerQuery)
+			if err != nil {
+				t.Fatalf("manager.ListTriggers(cursor=%q) error = %v", triggerQuery.Cursor, err)
+			}
+			if got, want := page.Total, len(expectedTriggers); got != want {
+				t.Fatalf("manager.ListTriggers().Total = %d, want %d", got, want)
+			}
+			for _, trigger := range page.Triggers {
+				walkedTriggerIDs = append(walkedTriggerIDs, trigger.ID)
+			}
+			if !page.HasMore {
+				break
+			}
+			triggerQuery.Cursor = page.NextCursor
+		}
+		for index, trigger := range expectedTriggers {
+			if got, want := walkedTriggerIDs[index], trigger.ID; got != want {
+				t.Fatalf("walked trigger %d = %q, want %q", index, got, want)
+			}
+		}
+	})
 }
 
 func TestAutomationJobResourceBuildDoesNotMutateLiveRuntime(t *testing.T) {
@@ -995,6 +1194,16 @@ func (h *managerResourceHarness) newResourceManager(t *testing.T, opts ...Option
 
 func (h *managerResourceHarness) putJobResource(t *testing.T, id string, name string) resources.Record[Job] {
 	t.Helper()
+	return h.putJobResourceWithSource(t, id, name, JobSourceDynamic)
+}
+
+func (h *managerResourceHarness) putJobResourceWithSource(
+	t *testing.T,
+	id string,
+	name string,
+	source JobSource,
+) resources.Record[Job] {
+	t.Helper()
 
 	runAt := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
 	job := Job{
@@ -1006,7 +1215,7 @@ func (h *managerResourceHarness) putJobResource(t *testing.T, id string, name st
 		Enabled:   true,
 		Retry:     DefaultRetryConfig(),
 		FireLimit: DefaultFireLimitConfig(),
-		Source:    JobSourceDynamic,
+		Source:    source,
 	}
 	record, err := h.jobStore.Put(testutil.Context(t), h.actor, resources.Draft[Job]{
 		ID:              id,
@@ -1022,6 +1231,16 @@ func (h *managerResourceHarness) putJobResource(t *testing.T, id string, name st
 
 func (h *managerResourceHarness) putTriggerResource(t *testing.T, id string, name string) resources.Record[Trigger] {
 	t.Helper()
+	return h.putTriggerResourceWithSource(t, id, name, JobSourceDynamic)
+}
+
+func (h *managerResourceHarness) putTriggerResourceWithSource(
+	t *testing.T,
+	id string,
+	name string,
+	source JobSource,
+) resources.Record[Trigger] {
+	t.Helper()
 
 	trigger := Trigger{
 		Scope:     AutomationScopeGlobal,
@@ -1032,7 +1251,7 @@ func (h *managerResourceHarness) putTriggerResource(t *testing.T, id string, nam
 		Enabled:   true,
 		Retry:     DefaultRetryConfig(),
 		FireLimit: DefaultFireLimitConfig(),
-		Source:    JobSourceDynamic,
+		Source:    source,
 	}
 	record, err := h.triggerStore.Put(testutil.Context(t), h.actor, resources.Draft[Trigger]{
 		ID:              id,

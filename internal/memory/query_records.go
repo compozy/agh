@@ -82,6 +82,9 @@ func (s *Store) ResetDerived(ctx context.Context, opts memcontract.ReindexOption
 	if s.catalog == nil {
 		return DerivedResetResult{ResetAt: time.Now().UTC()}, nil
 	}
+	unlock := s.lockMutations()
+	defer unlock()
+
 	deletedRows, err := s.catalog.clearDerivedScope(
 		ctx,
 		scope,
@@ -92,7 +95,7 @@ func (s *Store) ResetDerived(ctx context.Context, opts memcontract.ReindexOption
 	if err != nil {
 		return DerivedResetResult{}, err
 	}
-	indexedRows, err := s.reindexScopes(ctx, scope, workspaceRoot, workspaceID)
+	indexedRows, err := s.reindexScopesLocked(ctx, scope, workspaceRoot, workspaceID)
 	if err != nil {
 		return DerivedResetResult{}, err
 	}
@@ -166,7 +169,11 @@ func (c *catalog) clearDerivedScope(
 			return fmt.Errorf("memory: inspect derived reset rows: %w", err)
 		}
 		returnCount = int(affected)
-		return c.upsertCatalogScopeStateTx(ctx, tx, scope, workspaceID)
+		return invalidateCatalogIdentityTx(
+			ctx,
+			tx,
+			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
+		)
 	})
 	if err != nil {
 		return 0, err

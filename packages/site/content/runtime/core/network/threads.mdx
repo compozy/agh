@@ -115,6 +115,16 @@ GET /api/workspaces/ws_alpha/network/channels/builders/threads/thread_release_ch
 GET /api/workspaces/ws_alpha/network/channels/builders/threads/thread_release_check_20260416/messages
 ```
 
+Thread lists are counted cursor pages. The daemon applies participant, text, open-work, and sort
+filters before the page cut and returns exact `total`, `limit`, `has_more`, and `next_cursor`
+metadata. Keep a cursor with the same workspace, channel, filters, and sort that produced it.
+
+Message reads return a bounded chronological tail. Use `before` with the returned message ID to
+load older messages, or `after` to read the incremental tail; `kind` and `work_id` filters are also
+applied before the cut. Message IDs remain the public cursor. Internally, AGH orders messages by the
+durable append sequence, so messages written in the same protocol-timestamp second keep causal
+order without exposing workspace-global sequence gaps.
+
 Thread summaries include `coordination_cost` with `delivered_count`, `prompt_size_bytes`, and
 `estimated_prompt_tokens`. The thread detail response can include per-peer `peer_costs`. Message
 payloads include `size_bytes`, which is the persisted audit size for that envelope. These fields

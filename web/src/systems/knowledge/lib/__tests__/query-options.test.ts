@@ -8,10 +8,16 @@ import {
 } from "@/systems/knowledge/lib/query-options";
 
 describe("memoriesListOptions", () => {
-  it("Should include staleTime and refetchInterval defaults", () => {
+  it("Should expose infinite cursor pages without automatic catalog polling", () => {
     const options = memoriesListOptions({ scope: "global" });
     expect(options.staleTime).toBe(30_000);
-    expect(options.refetchInterval).toBe(60_000);
+    expect(options.refetchInterval).toBeUndefined();
+    expect(options.initialPageParam).toBeUndefined();
+    const page = {
+      memories: [],
+      page: { has_more: true, limit: 1, next_cursor: "memory-next", total: 2 },
+    };
+    expect(options.getNextPageParam?.(page, [page], undefined, [undefined])).toBe("memory-next");
   });
 
   it("Should include the full selector tuple in the query key", () => {
@@ -20,6 +26,10 @@ describe("memoriesListOptions", () => {
       agentName: "cto",
       agentTier: "workspace",
       workspaceId: "ws_launch",
+      type: "reference",
+      sort: "name",
+      includeSystem: false,
+      limit: 25,
     });
     expect(options.queryKey).toEqual([
       "knowledge",
@@ -28,12 +38,27 @@ describe("memoriesListOptions", () => {
       "ws_launch",
       "cto",
       "workspace",
+      "reference",
+      "name",
+      false,
+      25,
     ]);
   });
 
   it("Should pad missing selectors with empty strings", () => {
     const options = memoriesListOptions();
-    expect(options.queryKey).toEqual(["knowledge", "list", "", "", "", ""]);
+    expect(options.queryKey).toEqual([
+      "knowledge",
+      "list",
+      "global",
+      "",
+      "",
+      "",
+      "",
+      "",
+      null,
+      null,
+    ]);
   });
 });
 
@@ -81,7 +106,18 @@ describe("memorySearchOptions", () => {
   it("Should be enabled when selector and query text are present", () => {
     const options = memorySearchOptions({ scope: "global" }, "launch");
     expect(options.enabled).toBe(true);
-    expect(options.queryKey).toEqual(["knowledge", "search", "launch", "global", "", "", ""]);
+    expect(options.queryKey).toEqual([
+      "knowledge",
+      "search",
+      "launch",
+      "global",
+      "",
+      "",
+      "",
+      null,
+      null,
+      null,
+    ]);
   });
 
   it("Should propagate workspace selector to the query key", () => {
@@ -97,7 +133,20 @@ describe("memorySearchOptions", () => {
       "ws_launch",
       "",
       "",
+      null,
+      null,
+      null,
     ]);
+  });
+
+  it("Should include response-shaping search options in the query key", () => {
+    const options = memorySearchOptions({ scope: "global" }, "rollout", {
+      topK: 7,
+      includeSystem: true,
+      explain: true,
+    });
+
+    expect(options.queryKey.slice(-3)).toEqual([7, true, true]);
   });
 });
 
@@ -112,16 +161,23 @@ describe("memoryDecisionsOptions", () => {
       agentName: "cto",
       agentTier: "workspace",
       workspaceId: "ws_launch",
+      filename: "launch.md",
+      op: "update",
+      since: "2026-04-25T21:00:00Z",
+      limit: 10,
     });
     expect(options.enabled).toBe(true);
     expect(options.queryKey).toEqual([
       "knowledge",
       "decisions",
-      "",
       "agent",
       "ws_launch",
       "cto",
       "workspace",
+      "launch.md",
+      "update",
+      "2026-04-25T21:00:00Z",
+      10,
     ]);
   });
 });

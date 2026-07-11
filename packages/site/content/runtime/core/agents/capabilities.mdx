@@ -347,7 +347,7 @@ verify the digest against the canonical document before caching or forwarding.
     "summary": "Repair failing Go migration tests and explain the change.",
     "outcome": "A validated patch summary with the corrected assertions.",
     "version": "1.2.0",
-    "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+    "digest": "sha256:9f19a533e236700a29866cb9bf0af2d022785faed82ad050f33bd6e29816f052",
     "context_needed": ["repo", "incident bundle"],
     "requirements": ["collect-failing-tests"]
   }
@@ -355,9 +355,9 @@ verify the digest against the canonical document before caching or forwarding.
 ```
 
 A `kind:"capability"` envelope MUST carry a conversation surface (`surface:"thread"` with
-`thread_id`, or `surface:"direct"` with `direct_id`) and MAY carry a `work_id`. When `work_id` is
-present, the capability participates in the same lifecycle rules as a `say` envelope with
-`work_id`. See [Capability Envelope](/protocol/message-kinds/#capability) and
+`thread_id`, or `surface:"direct"` with `direct_id`), a target peer in `to`, and a `work_id`. The
+capability participates in the same lifecycle rules as a directed `say` envelope with `work_id`. See
+[Capability Envelope](/protocol/message-kinds/#capability) and
 [Work Lifecycle](/protocol/interactions) for the contract.
 
 ## Related pages

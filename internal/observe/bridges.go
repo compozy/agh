@@ -16,8 +16,9 @@ import (
 // observability health and query surfaces.
 type BridgeSource interface {
 	ListInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error)
-	ListRoutes(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeRoute, error)
+	CountBridgeRoutes(ctx context.Context, bridgeInstanceIDs []string) (map[string]int, error)
 	DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics
+	DeliveryMetricsFor(bridgeInstanceIDs []string) (map[string]bridgepkg.BridgeDeliveryMetrics, error)
 }
 
 // BridgeStatusCounts captures the current effective per-status instance counts.
@@ -175,26 +176,22 @@ func (o *Observer) collectBridgeHealth(ctx context.Context) ([]BridgeInstanceHea
 	}
 
 	deliveryMetrics := source.DeliveryMetrics()
+	routeCounts, err := bridgePageRouteCounts(ctx, source, instances)
+	if err != nil {
+		return nil, BridgeAggregateHealth{}, err
+	}
 	health := make([]BridgeInstanceHealth, 0, len(instances))
 	summary := BridgeAggregateHealth{TotalInstances: len(instances)}
 
 	for _, instance := range instances {
-		routes, err := source.ListRoutes(ctx, instance.ID)
-		if err != nil {
-			return nil, BridgeAggregateHealth{}, fmt.Errorf(
-				"observe: list routes for bridge instance %q: %w",
-				instance.ID,
-				err,
-			)
-		}
-
+		instanceID := strings.TrimSpace(instance.ID)
 		item := BridgeInstanceHealth{
-			BridgeInstanceID: instance.ID,
+			BridgeInstanceID: instanceID,
 			Status:           instance.Status.Normalize(),
-			RouteCount:       len(routes),
+			RouteCount:       routeCounts[instanceID],
 		}
 
-		if metrics, ok := deliveryMetrics[strings.TrimSpace(instance.ID)]; ok {
+		if metrics, ok := deliveryMetrics[instanceID]; ok {
 			item.DeliveryBacklog = metrics.DeliveryBacklog
 			item.DeliveryDroppedTotal = metrics.DeliveryDroppedTotal
 			item.DeliveryDroppedByReason = cloneDroppedReasons(metrics.DeliveryDroppedByReason)
@@ -204,7 +201,7 @@ func (o *Observer) collectBridgeHealth(ctx context.Context) ([]BridgeInstanceHea
 			item.LastErrorAt = metrics.LastErrorAt
 		}
 
-		if observed, ok := stateSnapshot[strings.TrimSpace(instance.ID)]; ok {
+		if observed, ok := stateSnapshot[instanceID]; ok {
 			item.AuthFailuresTotal = observed.authFailuresTotal
 			item.Status = effectiveBridgeStatus(instance, observed)
 			if observed.runtimeUpdatedAt.After(item.LastErrorAt) {
@@ -226,8 +223,16 @@ func (o *Observer) collectBridgeHealth(ctx context.Context) ([]BridgeInstanceHea
 }
 
 func effectiveBridgeStatus(instance bridgepkg.BridgeInstance, observed observedBridgeState) bridgepkg.BridgeStatus {
-	persisted := instance.Status.Normalize()
-	if !instance.Enabled || persisted == bridgepkg.BridgeStatusDisabled {
+	return effectiveBridgeLifecycleStatus(instance.Enabled, instance.Status, observed)
+}
+
+func effectiveBridgeLifecycleStatus(
+	enabled bool,
+	status bridgepkg.BridgeStatus,
+	observed observedBridgeState,
+) bridgepkg.BridgeStatus {
+	persisted := status.Normalize()
+	if !enabled || persisted == bridgepkg.BridgeStatusDisabled {
 		return bridgepkg.BridgeStatusDisabled
 	}
 	if persisted == bridgepkg.BridgeStatusAuthRequired {

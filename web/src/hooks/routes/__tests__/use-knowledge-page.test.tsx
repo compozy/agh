@@ -1,11 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  KnowledgeMemoryItem,
-  MemoryHeader,
-  MemorySearchResponse,
-} from "@/systems/knowledge/types";
+import type { MemoryHeader, MemoryDecision, MemorySearchResponse } from "@/systems/knowledge/types";
 
 const useMemoriesMock = vi.fn();
 const useMemoryMock = vi.fn();
@@ -19,6 +15,10 @@ const writeMutateAsync = vi.fn();
 const writeReset = vi.fn();
 const revertMutateAsync = vi.fn();
 const revertReset = vi.fn();
+const fetchNextPage = vi.fn();
+const refetchMemories = vi.fn();
+let mockMemoriesFetchNextPageError = false;
+let mockMemoriesRefetchError = false;
 let mockDeletePending = false;
 let mockDeleteError: Error | null = null;
 let mockEditPending = false;
@@ -142,20 +142,24 @@ describe("useKnowledgePage", () => {
     mockWriteError = null;
     mockRevertPending = false;
     mockRevertError = null;
+    fetchNextPage.mockResolvedValue(undefined);
+    refetchMemories.mockResolvedValue(undefined);
+    mockMemoriesFetchNextPageError = false;
+    mockMemoriesRefetchError = false;
     useMemoriesMock.mockImplementation(selector => {
       if (!selector) {
-        return { data: [], isLoading: false, error: null };
+        return catalogResult([], 0, false);
       }
       if (selector.scope === "global") {
-        return { data: [GLOBAL_MEMORY], isLoading: false, error: null };
+        return catalogResult([GLOBAL_MEMORY], 17, true);
       }
       if (selector.scope === "workspace") {
-        return { data: [WORKSPACE_MEMORY], isLoading: false, error: null };
+        return catalogResult([WORKSPACE_MEMORY], 1, false);
       }
       if (selector.scope === "agent") {
-        return { data: [AGENT_MEMORY], isLoading: false, error: null };
+        return catalogResult([AGENT_MEMORY], 1, false);
       }
-      return { data: [], isLoading: false, error: null };
+      return catalogResult([], 0, false);
     });
     useMemoryMock.mockReturnValue({
       data: { ...GLOBAL_MEMORY, content: "# Memory content" },
@@ -213,9 +217,16 @@ describe("useKnowledgePage", () => {
     });
 
     expect(useMemoriesMock).toHaveBeenLastCalledWith(
-      { scope: "global" },
+      { scope: "global", includeSystem: false, limit: 50, sort: "recent" },
       expect.objectContaining({ enabled: true })
     );
+    expect(result.current.memoryCount).toBe(17);
+    expect(result.current.hasMoreMemories).toBe(true);
+
+    act(() => {
+      result.current.loadMoreMemories();
+    });
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
 
   it("Should switch to workspace scope and pass the active workspace id to the list query", async () => {
@@ -230,9 +241,39 @@ describe("useKnowledgePage", () => {
     });
 
     expect(useMemoriesMock).toHaveBeenLastCalledWith(
-      { scope: "workspace", workspaceId: "ws_signalforge" },
+      {
+        scope: "workspace",
+        workspaceId: "ws_signalforge",
+        includeSystem: false,
+        limit: 50,
+        sort: "recent",
+      },
       expect.objectContaining({ enabled: true })
     );
+  });
+
+  it("Should retry a failed continuation with the same next-page operation", async () => {
+    mockMemoriesFetchNextPageError = true;
+    const { result } = renderHook(() => useKnowledgePage());
+
+    act(() => {
+      result.current.retryMemories();
+    });
+
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    expect(refetchMemories).not.toHaveBeenCalled();
+  });
+
+  it("Should retry a failed refetch without advancing the page cursor", async () => {
+    mockMemoriesRefetchError = true;
+    const { result } = renderHook(() => useKnowledgePage());
+
+    act(() => {
+      result.current.retryMemories();
+    });
+
+    expect(refetchMemories).toHaveBeenCalledTimes(1);
+    expect(fetchNextPage).not.toHaveBeenCalled();
   });
 
   it("Should switch to agent scope and require an agent name before issuing the list query", async () => {
@@ -260,6 +301,9 @@ describe("useKnowledgePage", () => {
         agentName: "cto",
         agentTier: "workspace",
         workspaceId: "ws_signalforge",
+        includeSystem: false,
+        limit: 50,
+        sort: "recent",
       },
       expect.objectContaining({ enabled: true })
     );
@@ -310,8 +354,10 @@ describe("useKnowledgePage", () => {
       expect(result.current.memories).toHaveLength(1);
     });
 
+    const memory = result.current.memories[0];
+    if (!memory) throw new Error("expected an agent memory");
     await act(async () => {
-      await result.current.handleDelete(result.current.memories[0] as KnowledgeMemoryItem);
+      await result.current.handleDelete(memory);
     });
 
     expect(deleteMutateAsync).toHaveBeenCalledWith({
@@ -332,8 +378,10 @@ describe("useKnowledgePage", () => {
       expect(result.current.selectedMemory).toBeTruthy();
     });
 
+    const memory = result.current.selectedMemory;
+    if (!memory) throw new Error("expected a selected memory");
     await act(async () => {
-      await result.current.handleEdit(result.current.selectedMemory as KnowledgeMemoryItem, {
+      await result.current.handleEdit(memory, {
         content: "next body",
         description: "tightened",
       });
@@ -380,7 +428,7 @@ describe("useKnowledgePage", () => {
     expect(result.current.createOpen).toBe(false);
   });
 
-  it("Should expose the controller decisions for the selected memory", async () => {
+  it("Should request controller decisions for the selected memory before the server limit", async () => {
     useMemoryDecisionsMock.mockReturnValue({
       data: {
         decisions: [
@@ -400,22 +448,6 @@ describe("useKnowledgePage", () => {
               type: "reference",
             },
           },
-          {
-            id: "dec_other",
-            candidate_hash: "h2",
-            op: "add",
-            scope: "global",
-            source: "rule",
-            confidence: 0.5,
-            decided_at: "2026-04-25T21:04:00Z",
-            target_filename: "different.md",
-            frontmatter: {
-              filename: "different.md",
-              mod_time: "2026-04-25T21:00:00Z",
-              name: "Different",
-              type: "reference",
-            },
-          },
         ],
       },
       isLoading: false,
@@ -429,15 +461,23 @@ describe("useKnowledgePage", () => {
     });
 
     expect(result.current.decisions[0]?.id).toBe("dec_match");
+    expect(useMemoryDecisionsMock).toHaveBeenLastCalledWith(
+      {
+        scope: "global",
+        filename: "operator-playbook-0425.md",
+        limit: 10,
+      },
+      expect.objectContaining({ enabled: true })
+    );
   });
 
   it("Should revert an applied decision through the decision mutation", async () => {
-    const decision = {
+    const decision: MemoryDecision = {
       id: "dec_match",
       candidate_hash: "h",
-      op: "update" as const,
-      scope: "global" as const,
-      source: "rule" as const,
+      op: "update",
+      scope: "global",
+      source: "rule",
       confidence: 0.9,
       decided_at: "2026-04-25T21:03:00Z",
       applied_at: "2026-04-25T21:03:01Z",
@@ -446,7 +486,7 @@ describe("useKnowledgePage", () => {
         filename: "operator-playbook-0425.md",
         mod_time: "2026-04-25T21:00:00Z",
         name: "Operator Playbook 0425",
-        type: "reference" as const,
+        type: "reference",
       },
     };
     const { result } = renderHook(() => useKnowledgePage());
@@ -473,10 +513,10 @@ describe("useKnowledgePage", () => {
       expect(result.current.selectedMemory).toBeTruthy();
     });
 
+    const memory = result.current.selectedMemory;
+    if (!memory) throw new Error("expected a selected memory");
     await act(async () => {
-      await expect(
-        result.current.handleDelete(result.current.selectedMemory as KnowledgeMemoryItem)
-      ).rejects.toThrow("Delete failed");
+      await expect(result.current.handleDelete(memory)).rejects.toThrow("Delete failed");
     });
 
     await waitFor(() => {
@@ -499,3 +539,18 @@ describe("useKnowledgePage", () => {
     });
   });
 });
+
+function catalogResult(memories: MemoryHeader[], total: number, hasNextPage: boolean) {
+  return {
+    data: memories,
+    error: null,
+    fetchNextPage,
+    hasNextPage,
+    isFetchNextPageError: mockMemoriesFetchNextPageError,
+    isFetchingNextPage: false,
+    isLoading: false,
+    isRefetchError: mockMemoriesRefetchError,
+    refetch: refetchMemories,
+    total,
+  };
+}

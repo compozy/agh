@@ -11,33 +11,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-// RegistryStore is the persistence surface consumed by the daemon-owned bridge
-// registry. The global DB implementation from task 01 satisfies this contract.
-type RegistryStore interface {
-	InsertBridgeInstance(ctx context.Context, instance BridgeInstance) error
-	UpdateBridgeInstance(ctx context.Context, instance BridgeInstance) error
-	GetBridgeInstance(ctx context.Context, id string) (BridgeInstance, error)
-	ListBridgeInstances(ctx context.Context) ([]BridgeInstance, error)
-	PutBridgeRoute(ctx context.Context, route BridgeRoute) error
-	ResolveBridgeRoute(ctx context.Context, key RoutingKey) (BridgeRoute, error)
-	ListBridgeRoutes(ctx context.Context, bridgeInstanceID string) ([]BridgeRoute, error)
-}
-
-// Registry owns bridge instance lifecycle validation and canonical routing-key
-// construction on top of the persistence layer.
-type Registry interface {
-	CreateInstance(ctx context.Context, req CreateInstanceRequest) (*BridgeInstance, error)
-	GetInstance(ctx context.Context, id string) (*BridgeInstance, error)
-	ListInstances(ctx context.Context) ([]BridgeInstance, error)
-	UpdateInstance(ctx context.Context, req UpdateInstanceRequest) (*BridgeInstance, error)
-	UpdateInstanceState(ctx context.Context, req UpdateInstanceStateRequest) (*BridgeInstance, error)
-	BuildRoutingKey(ctx context.Context, key RoutingKey) (RoutingKey, error)
-	ResolveRoute(ctx context.Context, key RoutingKey) (*BridgeRoute, error)
-	ResolveOrCreateRoute(ctx context.Context, route BridgeRoute) (*BridgeRoute, bool, error)
-	UpsertRoute(ctx context.Context, route BridgeRoute) (*BridgeRoute, error)
-	ListRoutes(ctx context.Context, bridgeInstanceID string) ([]BridgeRoute, error)
-}
-
 // CreateInstanceRequest captures the persisted configuration for a new bridge instance.
 type CreateInstanceRequest struct {
 	ID                   string               `json:"id,omitempty"`
@@ -227,27 +200,6 @@ func (s *Service) GetInstance(ctx context.Context, id string) (*BridgeInstance, 
 		return nil, fmt.Errorf("bridges: get bridge instance %q: %w", trimmedID, err)
 	}
 	return cloneBridgeInstance(instance), nil
-}
-
-// ListInstances returns all persisted bridge instances.
-func (s *Service) ListInstances(ctx context.Context) ([]BridgeInstance, error) {
-	if err := s.checkReady(ctx, "list bridge instances"); err != nil {
-		return nil, err
-	}
-
-	instances, err := s.store.ListBridgeInstances(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("bridges: list bridge instances: %w", err)
-	}
-	if len(instances) == 0 {
-		return instances, nil
-	}
-
-	cloned := make([]BridgeInstance, 0, len(instances))
-	for _, instance := range instances {
-		cloned = append(cloned, *cloneBridgeInstance(instance))
-	}
-	return cloned, nil
 }
 
 // UpdateInstance updates one persisted bridge instance without changing its

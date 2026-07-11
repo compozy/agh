@@ -53,6 +53,12 @@ function normalizeBridgeListFilter(filters: BridgeListFilter = {}): BridgeListFi
     scope: filters.scope,
     workspace_id: normalizeOptionalText(filters.workspace_id),
     workspace: normalizeOptionalText(filters.workspace),
+    q: normalizeOptionalText(filters.q),
+    platform: normalizeOptionalText(filters.platform),
+    status: filters.status,
+    sort: filters.sort,
+    cursor: normalizeOptionalText(filters.cursor),
+    limit: filters.limit,
   };
 }
 

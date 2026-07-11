@@ -1,23 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { fetchDaemonStatus, fetchHealth } from "../adapters/daemon-api";
-import { daemonKeys } from "./query-keys";
+import { fetchStatus } from "../adapters/daemon-api";
+import { statusKeys } from "./query-keys";
 
-export function daemonHealthOptions() {
+export function statusOptions() {
   return queryOptions({
-    queryKey: daemonKeys.health(),
-    queryFn: ({ signal }) => fetchHealth(signal),
+    queryKey: statusKeys.current(),
+    queryFn: ({ signal }) => fetchStatus(signal),
     refetchInterval: 10_000,
     retry: 1,
     staleTime: 5_000,
-  });
-}
-
-export function daemonStatusOptions() {
-  return queryOptions({
-    queryKey: daemonKeys.status(),
-    queryFn: ({ signal }) => fetchDaemonStatus(signal),
-    retry: 1,
-    staleTime: 60_000,
   });
 }

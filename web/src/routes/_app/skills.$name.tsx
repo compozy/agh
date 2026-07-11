@@ -9,6 +9,7 @@ import {
 } from "@/hooks/routes/use-skill-detail-page";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { SkillDetailPanel } from "@/systems/skill";
+import { preloadSkillDetailRoute } from "./-skill-preload";
 
 function validateSkillDetailSearch(search: Record<string, unknown>): SkillDetailRouteSearch {
   return {
@@ -21,6 +22,9 @@ export const Route = createFileRoute("/_app/skills/$name")({
     topbar: { title: params.name, icon: Wrench },
   }),
   validateSearch: validateSkillDetailSearch,
+  loaderDeps: ({ search }) => ({ content: search.content }),
+  loader: ({ context, deps, params }) =>
+    preloadSkillDetailRoute(context.queryClient, params.name, deps),
   component: SkillDetailRoute,
 });
 

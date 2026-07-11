@@ -12,6 +12,7 @@ import {
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSettingsMemoryRoute } from "../-settings-preload";
 import {
   Button,
   Input,
@@ -28,19 +29,18 @@ export const Route = createFileRoute("/_app/settings/memory")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Memory settings", icon: Brain },
   }),
+  loader: ({ context }) => preloadSettingsMemoryRoute(context.queryClient),
   component: MemorySettingsPage,
 });
 
 type MemoryConfig = SettingsMemorySection["config"];
 type ValidationSetter = (key: string) => (message: string | null) => void;
-
 const TEST_PREFIX = "settings-page-memory";
-
 function formatHealthTimestamp(timestamp: string): string {
   return timestamp.replace("T", " ").replace(/\.\d+Z$/, "Z");
 }
 
-export function MemorySettingsPage() {
+function MemorySettingsPage() {
   const page = useSettingsMemoryPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
   const setValidationError = useCallback<ValidationSetter>(

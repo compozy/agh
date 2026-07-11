@@ -48,6 +48,40 @@ func TestSessionEventBroadcaster(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deliver wake events across a sequence reset", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		events, cancel, err := manager.SubscribeSessionEventWakes(testutil.Context(t), "sess-wake")
+		if err != nil {
+			t.Fatalf("SubscribeSessionEventWakes() error = %v", err)
+		}
+		defer cancel()
+
+		for _, sequence := range []int64{100, 1} {
+			manager.publishSessionEvent(testutil.Context(t), &Session{ID: "sess-wake"}, store.SessionEvent{
+				SessionID: "sess-wake",
+				Sequence:  sequence,
+				TurnID:    "turn-wake",
+				Type:      "agent_message",
+			})
+		}
+
+		for _, wantSequence := range []int64{100, 1} {
+			select {
+			case event := <-events:
+				if event.Sequence != wantSequence {
+					t.Fatalf("event.Sequence = %d, want %d", event.Sequence, wantSequence)
+				}
+			case <-testutil.Context(t).Done():
+				t.Fatalf("timed out waiting for wake sequence %d", wantSequence)
+			}
+		}
+	})
+
 	t.Run("Should close slow subscriber on overflow", func(t *testing.T) {
 		t.Parallel()
 

@@ -2,13 +2,7 @@ import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
 
 import type { TaskInboxItem, TaskInboxLane } from "../types";
 
-/**
- * UI-only inbox lane vocabulary — five lanes in declared order
- * (`My work · Mentions · Failed runs · Updates · Approvals`). The backend
- * inbox query also exposes `blocked` and `archived` lanes; both flow into
- * `My work` when present so the lane switcher matches the proposal exactly.
- */
-export type InboxUiLane = "my_work" | "mentions" | "failed_runs" | "updates" | "approvals";
+export type InboxUiLane = TaskInboxLane;
 
 export type InboxLaneFilterId = "all" | InboxUiLane;
 
@@ -19,10 +13,10 @@ export interface InboxLaneDefinition {
 
 export const INBOX_UI_LANES: InboxLaneDefinition[] = [
   { id: "my_work", label: "My work" },
-  { id: "mentions", label: "Mentions" },
-  { id: "failed_runs", label: "Failed runs" },
-  { id: "updates", label: "Updates" },
   { id: "approvals", label: "Approvals" },
+  { id: "failed_runs", label: "Failed runs" },
+  { id: "blocked", label: "Blocked" },
+  { id: "archived", label: "Archived" },
 ];
 
 /**
@@ -31,7 +25,7 @@ export const INBOX_UI_LANES: InboxLaneDefinition[] = [
  * ring). Group membership is derived from backend item shape via
  * `resolveInboxGroupId`.
  */
-export type InboxGroupId = "needs_review" | "blocked" | "stuck" | "mentions" | "updates";
+export type InboxGroupId = "needs_review" | "blocked" | "updates";
 
 export interface InboxGroupDefinition {
   id: InboxGroupId;
@@ -43,8 +37,6 @@ export interface InboxGroupDefinition {
 export const INBOX_GROUPS: InboxGroupDefinition[] = [
   { id: "needs_review", label: "Needs review", dotTone: "warning", dotVariant: "solid" },
   { id: "blocked", label: "Blocked", dotTone: "danger", dotVariant: "solid" },
-  { id: "stuck", label: "Stuck", dotTone: "warning", dotVariant: "ring" },
-  { id: "mentions", label: "Mentions", dotTone: "accent", dotVariant: "solid" },
   { id: "updates", label: "Updates", dotTone: "faint", dotVariant: "ring" },
 ];
 
@@ -58,7 +50,7 @@ export function inboxGroupDotProps(group: InboxGroupId): Pick<StatusDotProps, "t
 }
 
 /**
- * Routes an inbox item into one of the five UI groups. Mapping rules:
+ * Routes an inbox item into the three groups supported by backend signals.
  *
  * - Approval pending + `approvals` lane → `needs_review`.
  * - `blocked` lane OR task status `blocked` → `blocked`.
@@ -66,8 +58,6 @@ export function inboxGroupDotProps(group: InboxGroupId): Pick<StatusDotProps, "t
  * - `failed_runs` lane → `needs_review` (failures require operator action).
  * - Anything else with `my_work` lane → `updates` (informational).
  *
- * `stuck` and `mentions` have no backing signal in the MVP and stay empty
- * until follow-up work lights them up (per techspec MVP boundary).
  */
 export function resolveInboxGroupId(item: TaskInboxItem): InboxGroupId {
   if (item.lane === "approvals") {
@@ -82,17 +72,12 @@ export function resolveInboxGroupId(item: TaskInboxItem): InboxGroupId {
   return "updates";
 }
 
-/** Maps a backend inbox lane onto the UI lane vocabulary. */
+export function resolveInboxLaneGroupId(lane: TaskInboxLane): InboxGroupId {
+  if (lane === "approvals" || lane === "failed_runs") return "needs_review";
+  if (lane === "blocked") return "blocked";
+  return "updates";
+}
+
 export function backendLaneToUiLane(lane: TaskInboxLane): InboxUiLane {
-  switch (lane) {
-    case "approvals":
-      return "approvals";
-    case "failed_runs":
-      return "failed_runs";
-    default:
-      // `blocked`, `archived`, `my_work` collapse into `My work`
-      // — the proposal kanban surfaces all backend lanes without a dedicated
-      // archive switch.
-      return "my_work";
-  }
+  return lane;
 }

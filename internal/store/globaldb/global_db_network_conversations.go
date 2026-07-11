@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/store"
 )
@@ -21,16 +20,6 @@ const (
 	globalDBNetworkConversationsRejectedKey  = "rejected"
 	globalDBNetworkConversationsThreadIDKey  = "thread_id"
 )
-
-type networkThreadCursor struct {
-	ThreadID       string
-	LastActivityAt time.Time
-}
-
-type networkDirectRoomCursor struct {
-	DirectID       string
-	LastActivityAt time.Time
-}
 
 type networkWorkMutation struct {
 	opened       bool
@@ -86,7 +75,7 @@ func (g *GlobalDB) WriteConversationMessage(
 		ctx,
 		"write network conversation message",
 		func(exec networkSQLExecutor) error {
-			inserted, insertErr := insertNetworkTimelineMessageWithExecutor(ctx, exec, normalized)
+			inserted, sequence, insertErr := insertNetworkTimelineMessageWithExecutor(ctx, exec, normalized)
 			if insertErr != nil {
 				return insertErr
 			}
@@ -100,6 +89,7 @@ func (g *GlobalDB) WriteConversationMessage(
 				)
 				return nil
 			}
+			normalized.Sequence = sequence
 
 			opened, ensureErr := ensureNetworkConversationContainer(ctx, exec, normalized)
 			if ensureErr != nil {
@@ -168,82 +158,6 @@ func upsertNetworkThreadParticipantsForMessage(
 	return nil
 }
 
-// ListThreads returns public-thread summaries for one channel.
-func (g *GlobalDB) ListThreads(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	query store.NetworkThreadQuery,
-) (summaries []store.NetworkThreadSummary, err error) {
-	if err := g.checkReady(ctx, "list network threads"); err != nil {
-		return nil, err
-	}
-	normalizedRef := normalizeNetworkChannelRef(ref)
-	if err := normalizedRef.Validate(); err != nil {
-		return nil, err
-	}
-	if err := query.Validate(); err != nil {
-		return nil, fmt.Errorf("store: validate network thread query: %w", err)
-	}
-
-	sqlQuery := `SELECT
-		workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-		opened_at, last_activity_at, message_count, participant_count, open_work_count,
-		COALESCE((
-			SELECT SUM(stats.delivered_count)
-			FROM network_thread_peer_token_stats AS stats
-			WHERE stats.workspace_id = network_threads.workspace_id
-				AND stats.channel = network_threads.channel
-				AND stats.thread_id = network_threads.thread_id
-		), 0),
-		COALESCE((
-			SELECT SUM(stats.prompt_size_bytes)
-			FROM network_thread_peer_token_stats AS stats
-			WHERE stats.workspace_id = network_threads.workspace_id
-				AND stats.channel = network_threads.channel
-				AND stats.thread_id = network_threads.thread_id
-		), 0),
-		COALESCE((
-			SELECT SUM(stats.estimated_prompt_tokens)
-			FROM network_thread_peer_token_stats AS stats
-			WHERE stats.workspace_id = network_threads.workspace_id
-				AND stats.channel = network_threads.channel
-				AND stats.thread_id = network_threads.thread_id
-		), 0),
-		last_message_preview
-	FROM network_threads`
-	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
-	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
-	if after := strings.TrimSpace(query.After); after != "" {
-		cursor, cursorErr := g.lookupNetworkThreadCursor(ctx, normalizedRef, after)
-		if cursorErr != nil {
-			return nil, cursorErr
-		}
-		cursorAt := store.FormatTimestamp(cursor.LastActivityAt)
-		where = append(where, "(last_activity_at < ? OR (last_activity_at = ? AND thread_id > ?))")
-		args = append(args, cursorAt, cursorAt, cursor.ThreadID)
-	}
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY last_activity_at DESC, thread_id ASC"
-	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
-
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query network threads: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("store: close network thread rows: %w", closeErr)
-			if err != nil {
-				err = errors.Join(err, closeErr)
-				return
-			}
-			err = closeErr
-		}
-	}()
-
-	return scanNetworkThreadSummaries(rows)
-}
-
 // GetThread returns one public-thread summary.
 func (g *GlobalDB) GetThread(
 	ctx context.Context,
@@ -267,7 +181,8 @@ func (g *GlobalDB) GetThread(
 		ctx,
 		`SELECT
 			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-			opened_at, last_activity_at, message_count, participant_count, open_work_count,
+			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
+			message_count, participant_count, open_work_count,
 			COALESCE((
 				SELECT SUM(stats.delivered_count)
 				FROM network_thread_peer_token_stats AS stats
@@ -299,64 +214,6 @@ func (g *GlobalDB) GetThread(
 	return scanNetworkThreadSummary(row)
 }
 
-// ListDirectRooms returns direct-room summaries for one channel.
-func (g *GlobalDB) ListDirectRooms(
-	ctx context.Context,
-	ref store.NetworkChannelRef,
-	query store.NetworkDirectRoomQuery,
-) (summaries []store.NetworkDirectRoomSummary, err error) {
-	if err := g.checkReady(ctx, "list network direct rooms"); err != nil {
-		return nil, err
-	}
-	normalizedRef := normalizeNetworkChannelRef(ref)
-	if err := normalizedRef.Validate(); err != nil {
-		return nil, err
-	}
-	if err := query.Validate(); err != nil {
-		return nil, fmt.Errorf("store: validate network direct room query: %w", err)
-	}
-
-	sqlQuery := `SELECT
-		workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
-		message_count, open_work_count, last_message_preview
-	FROM network_direct_rooms`
-	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
-	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
-	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
-		where = append(where, "(peer_a = ? OR peer_b = ?)")
-		args = append(args, peerID, peerID)
-	}
-	if after := strings.TrimSpace(query.After); after != "" {
-		cursor, cursorErr := g.lookupNetworkDirectRoomCursor(ctx, normalizedRef, after, query.PeerID)
-		if cursorErr != nil {
-			return nil, cursorErr
-		}
-		cursorAt := store.FormatTimestamp(cursor.LastActivityAt)
-		where = append(where, "(last_activity_at < ? OR (last_activity_at = ? AND direct_id > ?))")
-		args = append(args, cursorAt, cursorAt, cursor.DirectID)
-	}
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY last_activity_at DESC, direct_id ASC"
-	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
-
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query network direct rooms: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("store: close network direct room rows: %w", closeErr)
-			if err != nil {
-				err = errors.Join(err, closeErr)
-				return
-			}
-			err = closeErr
-		}
-	}()
-
-	return scanNetworkDirectRoomSummaries(rows)
-}
-
 // GetDirectRoom returns one direct-room summary.
 func (g *GlobalDB) GetDirectRoom(
 	ctx context.Context,
@@ -379,7 +236,8 @@ func (g *GlobalDB) GetDirectRoom(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+			workspace_id, channel, direct_id, peer_a, peer_b,
+			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
 			message_count, open_work_count, last_message_preview
 		FROM network_direct_rooms
 		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
@@ -416,22 +274,24 @@ func (g *GlobalDB) ListConversationMessages(
 		if cursorErr != nil {
 			return nil, cursorErr
 		}
-		where = append(where, "(timestamp < ? OR (timestamp = ? AND message_id < ?))")
-		args = append(args, cursor.Timestamp, cursor.Timestamp, cursor.MessageID)
+		where = append(where, "sequence < ?")
+		args = append(args, cursor.Sequence)
 		reverseResults = true
 	case strings.TrimSpace(query.AfterMessageID) != "":
 		cursor, cursorErr := g.lookupNetworkConversationMessageCursor(ctx, normalizedRef, query.AfterMessageID, query)
 		if cursorErr != nil {
 			return nil, cursorErr
 		}
-		where = append(where, "(timestamp > ? OR (timestamp = ? AND message_id > ?))")
-		args = append(args, cursor.Timestamp, cursor.Timestamp, cursor.MessageID)
+		where = append(where, "sequence > ?")
+		args = append(args, cursor.Sequence)
+	default:
+		reverseResults = query.Limit > 0
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	if reverseResults {
-		sqlQuery += " ORDER BY timestamp DESC, message_id DESC"
+		sqlQuery += " ORDER BY sequence DESC"
 	} else {
-		sqlQuery += " ORDER BY timestamp ASC, message_id ASC"
+		sqlQuery += " ORDER BY sequence ASC"
 	}
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 

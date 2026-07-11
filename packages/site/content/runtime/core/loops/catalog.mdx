@@ -11,8 +11,10 @@ lets you launch a run without opening a graph.
 
 ## The catalog
 
-The catalog is a **local projection** of the definitions on disk, grouped into **Read-only** and
-**Workspace**. It is a list, not a card wall. Each row shows:
+The catalog is a daemon-owned projection of the effective definitions for the selected workspace,
+grouped into **Read-only** and **Workspace**. Filtering, ordering, totals, and the page cut happen in
+the runtime before the Web, CLI, or native-tool surface receives a row. It is a list, not a card
+wall. Each row shows:
 
 - the Loop's name, kind tag, and source (`agh.loop/v1` or a slug);
 - a one-line goal;
@@ -21,9 +23,13 @@ The catalog is a **local projection** of the definitions on disk, grouped into *
 - a 30-day success rate;
 - an inline **Run** button.
 
-Filter by kind (All / Read-only / Workspace) and by category. A row whose Loop has an attached
-hands-free start shows a small binding badge — a clock for a schedule, a webhook glyph for a
-webhook. A watch-source is **not** a start binding and never earns that badge.
+Search by Loop name or goal, filter by kind, category, or latest-run status, and continue through
+the stable counted pages. The response includes exact facets and a `page` object with the total,
+applied limit, continuation cursor, and `has_more` state.
+
+The catalog does not show a start-binding badge. A badge derived from one bounded jobs/triggers
+sample could claim that a Loop has no binding when the matching definition is on a later page.
+Open Loop detail for the authoritative, independently paged binding lists.
 
 Two first-party Loops ship through the default-enrolled `dev-cycle` extension:
 
@@ -54,8 +60,9 @@ Opening a row shows everything about one Loop — its contract, its body, and it
 - **Declared inputs** — name, required marker, type badge, description, and default.
 - **Start bindings** — the declared `start[]` kinds as read-only chips, plus one row per attached
   automation (schedule, webhook, or trigger) with its enabled state and a kind-specific detail line.
-  **Add trigger** and **Add schedule** open the existing [automation](/runtime/core/automation)
-  sheets pre-targeted at this Loop.
+  Jobs and triggers continue independently, so loading another jobs page never resets triggers (or
+  vice versa). **Add trigger** and **Add schedule** open the existing
+  [automation](/runtime/core/automation) sheets pre-targeted at this Loop.
 - **Limits & budget** — every stop limit as `default / ceiling`, so the hard daemon
   [ceiling](/runtime/core/loops/guardrails#limits-budgets-and-ceilings) is always visible.
 - **Versions** and a 30-day stat grid.
@@ -68,11 +75,11 @@ published in place — adapting one means forking it first.
 The catalog and detail views are one surface over the daemon. The same reads are available to
 agents and scripts:
 
-| Action       | CLI                | HTTP                    | Native tool         |
-| ------------ | ------------------ | ----------------------- | ------------------- |
-| List Loops   | `agh loop list`    | `GET /loops`            | `agh__loop_list`    |
-| Read a Loop  | `agh loop inspect` | `GET /loops/:name`      | `agh__loop_inspect` |
-| Launch a run | `agh loop run`     | `POST /loops/:name/run` | `agh__loop_run`     |
+| Action       | CLI                | HTTP                                                   | Native tool         |
+| ------------ | ------------------ | ------------------------------------------------------ | ------------------- |
+| List Loops   | `agh loop list`    | `GET /api/workspaces/{workspace_id}/loops`             | `agh__loop_list`    |
+| Read a Loop  | `agh loop inspect` | `GET /api/workspaces/{workspace_id}/loops/{name}`      | `agh__loop_inspect` |
+| Launch a run | `agh loop run`     | `POST /api/workspaces/{workspace_id}/loops/{name}/run` | `agh__loop_run`     |
 
 See the full [`agh loop`](/runtime/cli-reference/loop) CLI and the
 [Loops API](/runtime/api-reference/loops).

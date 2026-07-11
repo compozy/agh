@@ -40,12 +40,12 @@ describe("inboxFiltersToChips", () => {
 
   it("Should keep chip ids stable across renders for the same field", () => {
     const first = inboxFiltersToChips({
-      laneFilter: "mentions",
+      laneFilter: "blocked",
       statusFilter: null,
       priorityFilter: null,
     });
     const second = inboxFiltersToChips({
-      laneFilter: "mentions",
+      laneFilter: "blocked",
       statusFilter: null,
       priorityFilter: null,
     });

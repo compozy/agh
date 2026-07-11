@@ -109,6 +109,7 @@ describe("loop mutation hooks", () => {
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
     });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
 
     invalidate.mockClear();
     await result.current.mutateAsync({
@@ -135,6 +136,7 @@ describe("loop mutation hooks", () => {
       });
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
   });
 
   it("Should invalidate the run after an approval decision", async () => {

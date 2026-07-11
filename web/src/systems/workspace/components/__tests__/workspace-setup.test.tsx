@@ -25,7 +25,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/status", () => ({
-  useStatus: () => mockDaemonStatusState,
+  useDaemonStatus: () => mockDaemonStatusState,
 }));
 
 vi.mock("../../hooks/use-workspaces", () => ({

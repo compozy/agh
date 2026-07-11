@@ -41,7 +41,11 @@ export const Empty: Story = {
   args: {},
   parameters: {
     ...storybookMswParameters({
-      automation: [aghApiMock.get("/api/automation/jobs", () => HttpResponse.json({ jobs: [] }))],
+      automation: [
+        aghApiMock.get("/api/automation/jobs", () =>
+          HttpResponse.json({ jobs: [], page: { has_more: false, limit: 50, total: 0 } })
+        ),
+      ],
     }),
   },
   render: () => <AutomationListPanelFromPage />,

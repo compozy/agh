@@ -87,7 +87,7 @@ func (m *Manager) BuildJobResourceState(
 	}
 	sortJobs(jobs)
 
-	effectiveJobs, err := m.applyJobQueryAndOverlays(ctx, jobs, JobListQuery{})
+	effectiveJobs, err := m.applyJobOverlays(ctx, jobs)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (m *Manager) BuildTriggerResourceState(
 	}
 	sortTriggers(triggers)
 
-	effectiveTriggers, err := m.applyTriggerQueryAndOverlays(ctx, triggers, TriggerListQuery{})
+	effectiveTriggers, err := m.applyTriggerOverlays(ctx, triggers)
 	if err != nil {
 		return nil, err
 	}
@@ -840,95 +840,6 @@ func (m *Manager) projectedTriggerDefinition(id string) (Trigger, error) {
 		return Trigger{}, ErrTriggerNotFound
 	}
 	return cloneTrigger(trigger), nil
-}
-
-func (m *Manager) applyJobQueryAndOverlays(
-	ctx context.Context,
-	jobs []Job,
-	query JobListQuery,
-) ([]Job, error) {
-	overlays, err := m.store.ListJobEnabledOverlays(ctx)
-	if err != nil {
-		return nil, err
-	}
-	overlayByID := make(map[string]bool, len(overlays))
-	for _, overlay := range overlays {
-		overlayByID[overlay.JobID] = overlay.EnabledOverride
-	}
-
-	effective := make([]Job, 0, len(jobs))
-	for _, job := range jobs {
-		if query.Scope != "" && job.Scope != query.Scope {
-			continue
-		}
-		if query.WorkspaceID != "" && job.WorkspaceID != strings.TrimSpace(query.WorkspaceID) {
-			continue
-		}
-		if query.Source != "" && job.Source != query.Source {
-			continue
-		}
-		if query.LoopName != "" && !jobMatchesLoopName(job, query.LoopName) {
-			continue
-		}
-		next := cloneJob(job)
-		if isOverlayManagedSource(next.Source) {
-			if enabled, ok := overlayByID[next.ID]; ok {
-				next.Enabled = enabled
-			}
-		}
-		effective = append(effective, next)
-	}
-	sortJobs(effective)
-	if query.Limit > 0 && len(effective) > query.Limit {
-		effective = effective[:query.Limit]
-	}
-	return effective, nil
-}
-
-func (m *Manager) applyTriggerQueryAndOverlays(
-	ctx context.Context,
-	triggers []Trigger,
-	query TriggerListQuery,
-) ([]Trigger, error) {
-	overlays, err := m.store.ListTriggerEnabledOverlays(ctx)
-	if err != nil {
-		return nil, err
-	}
-	overlayByID := make(map[string]bool, len(overlays))
-	for _, overlay := range overlays {
-		overlayByID[overlay.TriggerID] = overlay.EnabledOverride
-	}
-
-	effective := make([]Trigger, 0, len(triggers))
-	for _, trigger := range triggers {
-		if query.Scope != "" && trigger.Scope != query.Scope {
-			continue
-		}
-		if query.WorkspaceID != "" && trigger.WorkspaceID != strings.TrimSpace(query.WorkspaceID) {
-			continue
-		}
-		if query.Event != "" && trigger.Event != strings.TrimSpace(query.Event) {
-			continue
-		}
-		if query.Source != "" && trigger.Source != query.Source {
-			continue
-		}
-		if query.LoopName != "" && !triggerMatchesLoopName(trigger, query.LoopName) {
-			continue
-		}
-		next := cloneTrigger(trigger)
-		if isOverlayManagedSource(next.Source) {
-			if enabled, ok := overlayByID[next.ID]; ok {
-				next.Enabled = enabled
-			}
-		}
-		effective = append(effective, next)
-	}
-	sortTriggers(effective)
-	if query.Limit > 0 && len(effective) > query.Limit {
-		effective = effective[:query.Limit]
-	}
-	return effective, nil
 }
 
 func jobMapFromSlice(jobs []Job) map[string]Job {

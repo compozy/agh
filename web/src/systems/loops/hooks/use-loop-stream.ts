@@ -34,10 +34,11 @@ interface UseLoopStreamOptions {
 const LOOP_STREAM_EVENT_TYPES = LOOP_RUN_EVENT_KINDS satisfies readonly LoopRunEventKind[];
 
 // Lifecycle kinds mutate durable run state, so each one invalidates the run detail +
-// runs list (daemon truth wins). The high-frequency display frames `token_tick` and
+// runs list (daemon truth wins). A status transition also invalidates the catalog's
+// `last_run`/aggregate projection. The high-frequency display frames `token_tick` and
 // `channel_msg` are applied locally via `onEvent` (the run-page meter/timeline store,
 // task 20) and never invalidate — otherwise every tick would refetch the workspace
-// runs list. The catalog's 30d aggregates refresh on their own interval, not per frame.
+// runs list.
 const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>(
   LOOP_RUN_LIFECYCLE_EVENT_KINDS satisfies readonly LoopRunEventKind[]
 );
@@ -52,9 +53,17 @@ function defaultEventSourceFactory(url: string): LoopStreamEventSource {
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
-function invalidateLoopRunQueries(queryClient: QueryClient, workspaceId: string, runId: string) {
+function invalidateLoopRunQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  runId: string,
+  refreshCatalog: boolean
+) {
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+  if (refreshCatalog) {
+    void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
+  }
 }
 
 /**
@@ -121,7 +130,12 @@ export function useLoopStream(
       // ("message") falls back to the parsed payload kind.
       const kind = event.type !== "message" ? event.type : (payload.kind ?? "");
       if (isLifecycleKind(kind)) {
-        invalidateLoopRunQueries(queryClient, trimmedWorkspace, trimmedRun);
+        invalidateLoopRunQueries(
+          queryClient,
+          trimmedWorkspace,
+          trimmedRun,
+          kind === "status_changed"
+        );
       }
       onEventRef.current?.(payload);
     };

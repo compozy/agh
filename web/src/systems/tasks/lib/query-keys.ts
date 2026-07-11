@@ -9,6 +9,8 @@ import type {
   TaskStreamFilter,
   TaskTimelineFilter,
 } from "../types";
+import { taskInboxStableFilter } from "./task-inbox-query";
+import { taskListStableFilter } from "./task-list-query";
 
 function normalizeText(value?: string | null): string {
   return typeof value === "string" ? value : "";
@@ -26,22 +28,25 @@ export const tasksKeys = {
   all: ["tasks"] as const,
 
   lists: () => [...tasksKeys.all, "list"] as const,
-  list: (filters: TaskListFilter = {}) =>
-    [
+  list: (filters: TaskListFilter = {}) => {
+    const normalized = taskListStableFilter(filters);
+    return [
       ...tasksKeys.lists(),
-      normalizeText(filters.scope),
-      normalizeText(filters.workspace),
-      normalizeText(filters.status),
-      normalizeText(filters.priority),
-      normalizeFlag(filters.include_drafts),
-      normalizeText(filters.approval_state),
-      normalizeText(filters.owner_kind),
-      normalizeText(filters.owner_ref),
-      normalizeText(filters.parent_task_id),
-      normalizeText(filters.network_channel),
-      normalizeText(filters.query),
-      normalizeNumber(filters.limit),
-    ] as const,
+      normalizeText(normalized.scope),
+      normalizeText(normalized.workspace),
+      normalizeText(normalized.status),
+      normalizeText(normalized.priority),
+      normalizeFlag(normalized.include_drafts),
+      normalizeText(normalized.approval_state),
+      normalizeText(normalized.owner_kind),
+      normalizeText(normalized.owner_ref),
+      normalizeText(normalized.parent_task_id),
+      normalizeText(normalized.network_channel),
+      normalizeText(normalized.query),
+      normalizeText(normalized.sort),
+      normalizeNumber(normalized.limit),
+    ] as const;
+  },
 
   details: () => [...tasksKeys.all, "detail"] as const,
   detail: (id: string) => [...tasksKeys.details(), id] as const,
@@ -87,19 +92,23 @@ export const tasksKeys = {
       normalizeText(filters.origin_kind),
     ] as const,
 
-  inbox: (filters: TaskInboxFilter = {}) =>
-    [
+  inbox: (filters: TaskInboxFilter = {}) => {
+    const normalized = taskInboxStableFilter(filters);
+    return [
       ...tasksKeys.all,
       "inbox",
-      normalizeText(filters.scope),
-      normalizeText(filters.workspace),
-      normalizeText(filters.owner_kind),
-      normalizeText(filters.owner_ref),
-      normalizeText(filters.lane),
-      normalizeFlag(filters.unread),
-      normalizeText(filters.query),
-      normalizeNumber(filters.limit),
-    ] as const,
+      normalizeText(normalized.scope),
+      normalizeText(normalized.workspace),
+      normalizeText(normalized.owner_kind),
+      normalizeText(normalized.owner_ref),
+      normalizeText(normalized.lane),
+      normalizeText(normalized.status),
+      normalizeText(normalized.priority),
+      normalizeFlag(normalized.unread),
+      normalizeText(normalized.query),
+      normalizeNumber(normalized.limit),
+    ] as const;
+  },
 
   triageRoot: () => [...tasksKeys.all, "triage"] as const,
 

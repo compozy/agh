@@ -1,6 +1,5 @@
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 import { AlertCircle, Compass, User2 } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
@@ -12,13 +11,17 @@ import {
   AgentSessionsList,
   AgentStatsGrid,
 } from "@/systems/agent";
-import { filterVisibleSessions } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadAgentDetailRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/agents/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: params.name, icon: User2 },
   }),
+  loader: ({ context, location, params }) =>
+    location.pathname.split("/").filter(Boolean).length === 2
+      ? preloadAgentDetailRoute(context.queryClient, params.name)
+      : Promise.resolve(),
   component: AgentDetailPage,
 });
 
@@ -40,11 +43,10 @@ interface AgentDetailContentProps {
 
 function AgentDetailContent({ name }: AgentDetailContentProps) {
   const page = useAgentDetailPage(name);
-  const visibleSessions = useMemo(() => filterVisibleSessions(page.sessions), [page.sessions]);
 
   useTopbarSlot({
-    count: visibleSessions.length,
-    tabs: page.agent ? <AgentPageStatusPill sessions={visibleSessions} /> : undefined,
+    count: page.sessionsTotal,
+    tabs: page.agent ? <AgentPageStatusPill activeCount={page.activeSessionsTotal} /> : undefined,
     actions: page.agent ? (
       <AgentPageActions
         agent={page.agent}
@@ -104,14 +106,22 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
         >
           {hasResolvedSessions ? (
             <div className="flex flex-col gap-3" data-testid="agent-session-summary">
-              <AgentStatsGrid sessions={visibleSessions} />
+              <AgentStatsGrid
+                total={page.sessionsTotal}
+                active={page.activeSessionsTotal}
+                resumable={page.resumableSessionsTotal}
+                lastActivityAt={page.lastSessionActivityAt}
+              />
             </div>
           ) : null}
           <AgentSessionsList
             agentName={name}
-            sessions={visibleSessions}
+            sessions={page.sessions}
             isLoading={page.sessionsLoading}
             isError={page.sessionsError}
+            hasMore={page.hasMoreSessions}
+            isLoadingMore={page.isLoadingMoreSessions}
+            onLoadMore={page.onLoadMoreSessions}
           />
         </div>
       </div>

@@ -187,8 +187,8 @@ const deleteDecision: MemoryDecision = {
   scope: "global",
   source: "rule",
   confidence: 1,
-  decided_at: DECIDED_AT,
-  applied_at: APPLIED_AT,
+  decided_at: "2026-04-16T17:31:00Z",
+  applied_at: "2026-04-16T17:31:01Z",
   target_filename: "operator-style.md",
   reason: "rule:explicit-delete",
   frontmatter: {
@@ -196,6 +196,25 @@ const deleteDecision: MemoryDecision = {
     mod_time: MOD_TIME,
     name: "Operator Style",
     type: "user",
+  },
+};
+
+const addDecision: MemoryDecision = {
+  id: "dec_add_fixture",
+  candidate_hash: "sha256:add-candidate",
+  op: "add",
+  scope: "global",
+  source: "rule",
+  confidence: 0.98,
+  decided_at: "2026-04-17T18:31:00Z",
+  applied_at: "2026-04-17T18:31:01Z",
+  target_filename: "launch-brief.md",
+  reason: "rule:new-entry",
+  frontmatter: {
+    filename: "launch-brief.md",
+    mod_time: "2026-04-17T18:31:00Z",
+    name: "Launch Brief",
+    type: "project",
   },
 };
 
@@ -213,10 +232,6 @@ export const memoryDeleteFixture: MemoryDeleteResponse = {
   applied: true,
   decision: deleteDecision,
 };
-
-// Backwards-compat alias retained for callers that still consume the legacy
-// "mutation" fixture name. Prefer the explicit fixtures above going forward.
-export const memoryMutationFixture: MemoryDeleteResponse = { ...memoryDeleteFixture };
 
 export const memoryDecisionRevertFixture: MemoryDecisionRevertResponse = {
   decision: editDecision,
@@ -272,5 +287,5 @@ export const memorySearchFixture: MemorySearchResponse = {
 };
 
 export const memoryDecisionsFixture: MemoryDecisionsResponse = {
-  decisions: [editDecision, deleteDecision],
+  decisions: [addDecision, editDecision, deleteDecision],
 };

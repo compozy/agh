@@ -30,7 +30,7 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 		name             string
 		path             string
 		body             []byte
-		buildTaskManager func(*testing.T, *taskRunTerminalIntegrationCapture, time.Time) testutil.StubTaskManager
+		buildTaskManager func(*testing.T, *taskRunTerminalIntegrationCapture, time.Time) *testutil.StubTaskManager
 		assertCapture    func(*testing.T, *taskRunTerminalIntegrationCapture)
 		wantStatus       taskpkg.RunStatus
 		wantOriginRef    string
@@ -42,9 +42,9 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			name: "Should preserve historical channel bindings in complete responses",
 			path: "/task-runs/run-2/complete",
 			body: []byte(`{"result":{"ok":true,"path":"historical-http-complete"}}`),
-			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) testutil.StubTaskManager {
+			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
-				return testutil.StubTaskManager{
+				return &testutil.StubTaskManager{
 					CompleteRunFn: func(_ context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.actorContext = actor
@@ -82,9 +82,9 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			name: "Should preserve historical channel bindings in fail responses",
 			path: "/task-runs/run-2/fail",
 			body: []byte(`{"error":"boom","metadata":{"step":"claim","mode":"historical-http"}}`),
-			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) testutil.StubTaskManager {
+			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
-				return testutil.StubTaskManager{
+				return &testutil.StubTaskManager{
 					FailRunFn: func(_ context.Context, runID string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.failure = failure
@@ -132,9 +132,9 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			name: "Should preserve historical channel bindings in cancel responses",
 			path: "/task-runs/run-2/cancel",
 			body: []byte(`{"reason":"operator canceled","metadata":{"step":"cancel","mode":"historical-http"}}`),
-			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) testutil.StubTaskManager {
+			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
-				return testutil.StubTaskManager{
+				return &testutil.StubTaskManager{
 					CancelRunFn: func(_ context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.cancel = req

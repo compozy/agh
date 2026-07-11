@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 
-import { useStatus } from "@/systems/status";
+import { useDaemonStatus } from "@/systems/status";
 
 import { useUserHomeDirStore } from "./use-user-home-dir-store";
 
 export function useSyncUserHomeDir() {
-  const { data } = useStatus();
+  const { data } = useDaemonStatus();
   const setUserHomeDir = useUserHomeDirStore(state => state.setUserHomeDir);
 
   useEffect(() => {

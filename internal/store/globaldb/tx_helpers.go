@@ -70,6 +70,37 @@ func (g *GlobalDB) withNetworkImmediateTransaction(
 	})
 }
 
+func (g *GlobalDB) withNetworkReadTransaction(
+	ctx context.Context,
+	action string,
+	run func(exec networkSQLExecutor) error,
+) (err error) {
+	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("store: begin %s transaction: %w", action, err)
+	}
+
+	finished := false
+	defer func() {
+		if finished {
+			return
+		}
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			joinCleanupError(&err, fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr))
+		}
+	}()
+
+	if err := run(tx); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit %s transaction: %w", action, err)
+	}
+	finished = true
+	return nil
+}
+
 func (g *GlobalDB) withImmediateTransaction(
 	ctx context.Context,
 	action string,

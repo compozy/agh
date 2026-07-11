@@ -5,11 +5,16 @@ import { Empty, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { LoopDetailView } from "@/systems/loops";
 import { useLoopDetail } from "@/hooks/routes/use-loop-detail";
+import { preloadLoopDetailRoute } from "./-loops-preload";
 
 export const Route = createFileRoute("/_app/loops/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: params.name, icon: Repeat2 },
   }),
+  loader: ({ context, location, params }) =>
+    location.pathname.split("/").filter(Boolean).length === 2
+      ? preloadLoopDetailRoute(context.queryClient, params.name)
+      : Promise.resolve(),
   component: LoopDetailRoute,
 });
 
@@ -67,6 +72,8 @@ function LoopDetailRoute() {
       recentRuns={runsQuery.data?.runs ?? []}
       bindings={bindings.rows}
       bindingsLoading={bindings.isLoading}
+      bindingJobs={bindings.jobs}
+      bindingTriggers={bindings.triggers}
       successRate={catalogEntry?.success_rate_30d ?? null}
       aggregate={catalogEntry?.aggregate_30d ?? null}
       onBack={handlers.onBack}

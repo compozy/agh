@@ -15,8 +15,10 @@ import {
   memoryDeleteFixture,
   memoryDreamTriggerFixture,
   memoryEditFixture,
+  memoryHeadersFixture,
   memoryWriteFixture,
 } from "@/systems/knowledge/mocks";
+import { knowledgeKeys } from "@/systems/knowledge/lib/query-keys";
 
 vi.mock("@/systems/knowledge/adapters/knowledge-api", () => ({
   listMemories: vi.fn(),
@@ -53,6 +55,17 @@ describe("useDeleteMemory", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+    const listKey = knowledgeKeys.list({ scope: "global", limit: 1 });
+    const cachedList = {
+      pageParams: [undefined],
+      pages: [
+        {
+          memories: memoryHeadersFixture.slice(0, 1),
+          page: { has_more: false, limit: 1, total: 1 },
+        },
+      ],
+    };
+    queryClient.setQueryData(listKey, cachedList);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const wrapper = ({ children }: { children: ReactNode }) =>
@@ -76,6 +89,7 @@ describe("useDeleteMemory", () => {
       "old.md"
     );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
+    expect(queryClient.getQueryData(listKey)).toEqual(cachedList);
   });
 
   it("Should surface daemon failures as the mutation error", async () => {

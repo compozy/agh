@@ -385,7 +385,7 @@ func newTestHandlers(
 		manager,
 		observer,
 		nil,
-		stubTaskManager{},
+		&stubTaskManager{},
 		nil,
 		stubWorkspaceService{},
 		homePaths,
@@ -406,7 +406,7 @@ func newTestHandlersWithBridges(
 		manager,
 		observer,
 		nil,
-		stubTaskManager{},
+		&stubTaskManager{},
 		bridges,
 		workspaces,
 		homePaths,
@@ -533,7 +533,7 @@ func newTestHandlersWithResources(
 	return newHandlers(&handlerConfig{
 		sessions:       manager,
 		sessionCatalog: defaultTestSessionCatalog(manager),
-		tasks:          stubTaskManager{},
+		tasks:          &stubTaskManager{},
 		observer:       observer,
 		resources:      resources,
 		workspaces:     stubWorkspaceService{},
@@ -567,7 +567,7 @@ func newTestHandlersWithResourcesAndAuth(
 	return newHandlers(&handlerConfig{
 		sessions:       manager,
 		sessionCatalog: defaultTestSessionCatalog(manager),
-		tasks:          stubTaskManager{},
+		tasks:          &stubTaskManager{},
 		observer:       observer,
 		resources:      resources,
 		workspaces:     stubWorkspaceService{},
@@ -601,7 +601,7 @@ func newTestHandlersWithSettingsAndExtensions(
 
 	return newHandlers(&handlerConfig{
 		sessions:        stubSessionManager{},
-		tasks:           stubTaskManager{},
+		tasks:           &stubTaskManager{},
 		observer:        stubObserver{},
 		workspaces:      stubWorkspaceService{},
 		settings:        settings,

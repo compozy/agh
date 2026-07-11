@@ -4,13 +4,18 @@ import (
 	"context"
 
 	"github.com/compozy/agh/internal/api/contract"
+	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // LoopService exposes the daemon-owned Loop public API facade to transports.
 type LoopService interface {
-	ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error)
+	ListLoops(
+		ctx context.Context,
+		workspaceID string,
+		query looppkg.CatalogQuery,
+	) (contract.LoopsResponse, error)
 	CreateLoop(ctx context.Context, workspaceID string, req contract.CreateLoopRequest) (contract.LoopResponse, error)
 	GetLoop(ctx context.Context, workspaceID string, name string) (contract.LoopResponse, error)
 	PatchLoop(

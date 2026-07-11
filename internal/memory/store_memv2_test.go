@@ -5,8 +5,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +134,396 @@ func TestMemoryDocumentHelpers(t *testing.T) {
 			t.Fatalf("ConsolidationLockPath() = %q, want canonical lock path", got)
 		}
 	})
+}
+
+func TestMemoryHeaderListPage(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
+	headers := []memcontract.Header{
+		{
+			Filename: "user-latest.md",
+			Name:     "Latest",
+			Type:     memcontract.TypeUser,
+			Scope:    memcontract.ScopeGlobal,
+			ModTime:  baseTime.Add(5 * time.Minute),
+		},
+		{
+			Filename: "_system/internal.md",
+			Name:     "Internal",
+			Type:     memcontract.TypeUser,
+			Scope:    memcontract.ScopeGlobal,
+			ModTime:  baseTime.Add(4 * time.Minute),
+		},
+		{
+			Filename: "user-middle.md",
+			Name:     "middle",
+			Type:     memcontract.TypeUser,
+			Scope:    memcontract.ScopeGlobal,
+			ModTime:  baseTime.Add(3 * time.Minute),
+		},
+		{
+			Filename: "project-new.md",
+			Name:     "Project",
+			Type:     memcontract.TypeProject,
+			Scope:    memcontract.ScopeWorkspace,
+			ModTime:  baseTime.Add(2 * time.Minute),
+		},
+		{
+			Filename: "user-oldest.md",
+			Name:     "alpha",
+			Type:     memcontract.TypeUser,
+			Scope:    memcontract.ScopeGlobal,
+			ModTime:  baseTime.Add(time.Minute),
+		},
+	}
+
+	t.Run("Should filter before a stable counted page cut", func(t *testing.T) {
+		t.Parallel()
+
+		query := HeaderListQuery{
+			Scope: memcontract.ScopeGlobal,
+			Type:  memcontract.TypeUser,
+			Limit: 2,
+		}
+		first, err := BuildHeaderListPage(headers, query)
+		if err != nil {
+			t.Fatalf("BuildHeaderListPage(first) error = %v", err)
+		}
+		if first.Total != 3 || first.Limit != 2 || !first.HasMore || first.NextCursor == "" {
+			t.Fatalf("BuildHeaderListPage(first) page = %#v", first)
+		}
+		if got, want := headerFilenames(
+			first.Headers,
+		), []string{
+			"user-latest.md",
+			"user-middle.md",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("BuildHeaderListPage(first) filenames = %#v, want %#v", got, want)
+		}
+
+		mutated := append([]memcontract.Header(nil), headers...)
+		mutated[2].ModTime = baseTime.Add(10 * time.Minute)
+		query.Cursor = first.NextCursor
+		second, err := BuildHeaderListPage(mutated, query)
+		if err != nil {
+			t.Fatalf("BuildHeaderListPage(second) error = %v", err)
+		}
+		if second.Total != 3 || second.Limit != 2 || second.HasMore || second.NextCursor != "" {
+			t.Fatalf("BuildHeaderListPage(second) page = %#v", second)
+		}
+		if got, want := headerFilenames(second.Headers), []string{"user-oldest.md"}; !slices.Equal(got, want) {
+			t.Fatalf("BuildHeaderListPage(second) filenames = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should sort names canonically and bind cursors to selectors and filters", func(t *testing.T) {
+		t.Parallel()
+
+		query := HeaderListQuery{
+			Scope:       memcontract.ScopeGlobal,
+			WorkspaceID: "workspace-a",
+			Sort:        HeaderListSortName,
+			Limit:       1,
+		}
+		first, err := BuildHeaderListPage(headers, query)
+		if err != nil {
+			t.Fatalf("BuildHeaderListPage(name first) error = %v", err)
+		}
+		if got, want := headerFilenames(first.Headers), []string{"user-oldest.md"}; !slices.Equal(got, want) {
+			t.Fatalf("BuildHeaderListPage(name first) filenames = %#v, want %#v", got, want)
+		}
+
+		mismatched := query
+		mismatched.WorkspaceID = "workspace-b"
+		mismatched.Cursor = first.NextCursor
+		if _, err := BuildHeaderListPage(headers, mismatched); !errors.Is(err, ErrHeaderListCursorInvalid) {
+			t.Fatalf("BuildHeaderListPage(mismatched cursor) error = %v, want ErrHeaderListCursorInvalid", err)
+		}
+	})
+
+	t.Run("Should list every matching header beyond the prompt scan cap without a catalog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDir := filepath.Join(t.TempDir(), "global-memory")
+		store := NewStore(globalDir)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		seedHeaderCatalogDocuments(t, globalDir, 205)
+
+		catalogHeaders, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders() error = %v", err)
+		}
+		page, err := BuildHeaderListPage(catalogHeaders, HeaderListQuery{
+			Scope: memcontract.ScopeGlobal,
+			Type:  memcontract.TypeReference,
+			Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("BuildHeaderListPage() error = %v", err)
+		}
+		if len(catalogHeaders) != 205 || page.Total != 1 || len(page.Headers) != 1 ||
+			page.Headers[0].Filename != "memory-000.md" {
+			t.Fatalf("catalog headers/page = %d/%#v, want oldest reference header", len(catalogHeaders), page)
+		}
+
+		query := HeaderListQuery{Scope: memcontract.ScopeGlobal, Limit: 100}
+		for pageIndex, wantFirst := range []string{"memory-204.md", "memory-104.md", "memory-004.md"} {
+			catalogPage, err := BuildHeaderListPage(catalogHeaders, query)
+			if err != nil {
+				t.Fatalf("BuildHeaderListPage(page %d) error = %v", pageIndex+1, err)
+			}
+			if catalogPage.Total != 205 || len(catalogPage.Headers) == 0 ||
+				catalogPage.Headers[0].Filename != wantFirst {
+				t.Fatalf("catalog page %d = %#v, want total 205 and first %s", pageIndex+1, catalogPage, wantFirst)
+			}
+			if pageIndex < 2 && (!catalogPage.HasMore || catalogPage.NextCursor == "") {
+				t.Fatalf("catalog page %d metadata = %#v, want another page", pageIndex+1, catalogPage)
+			}
+			if pageIndex == 2 && (catalogPage.HasMore || catalogPage.NextCursor != "") {
+				t.Fatalf("catalog page %d metadata = %#v, want terminal page", pageIndex+1, catalogPage)
+			}
+			query.Cursor = catalogPage.NextCursor
+		}
+	})
+
+	t.Run("Should list lean catalog headers without reopening ready document bodies", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global-memory")
+		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		seedHeaderCatalogDocuments(t, globalDir, 205)
+
+		first, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(first) error = %v", err)
+		}
+		if len(first) != 205 {
+			t.Fatalf("Store.CatalogHeaders(first) len = %d, want 205", len(first))
+		}
+		corruptBody := append([]byte("not frontmatter\n"), bytes.Repeat([]byte("x"), 1<<20)...)
+		if err := os.WriteFile(filepath.Join(globalDir, "memory-000.md"), corruptBody, filePerm); err != nil {
+			t.Fatalf("WriteFile(corrupt ready body) error = %v", err)
+		}
+
+		second, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(second) error = %v", err)
+		}
+		page, err := BuildHeaderListPage(second, HeaderListQuery{
+			Scope: memcontract.ScopeGlobal,
+			Type:  memcontract.TypeReference,
+			Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("BuildHeaderListPage() error = %v", err)
+		}
+		if page.Total != 1 || len(page.Headers) != 1 || page.Headers[0].Filename != "memory-000.md" {
+			t.Fatalf("ready catalog page = %#v, want cached lean header", page)
+		}
+	})
+
+	t.Run("Should preserve writes that overlap cold catalog rebuilds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global-memory")
+		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		seedHeaderCatalogDocuments(t, globalDir, 2)
+		if _, err := store.catalog.ensureDB(ctx); err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		store.mu.Lock()
+		locked := true
+		defer func() {
+			if locked {
+				store.mu.Unlock()
+			}
+		}()
+
+		type catalogResult struct {
+			headers []memcontract.Header
+			err     error
+		}
+		listStarted := make(chan struct{})
+		listResults := make(chan catalogResult, 1)
+		go func() {
+			close(listStarted)
+			headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+			listResults <- catalogResult{headers: headers, err: err}
+		}()
+		<-listStarted
+		blockedTimer := time.NewTimer(250 * time.Millisecond)
+		defer blockedTimer.Stop()
+		select {
+		case result := <-listResults:
+			if result.err != nil {
+				t.Fatalf("Store.CatalogHeaders() error = %v", result.err)
+			}
+			t.Fatal("Store.CatalogHeaders() completed while the mutation lock was held")
+		case <-blockedTimer.C:
+		}
+
+		newContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "New Memory",
+			Type: memcontract.TypeProject,
+		}, "new body\n")
+		writeStarted := make(chan struct{})
+		writeResults := make(chan error, 1)
+		go func() {
+			close(writeStarted)
+			writeResults <- store.Write(
+				memcontract.ScopeGlobal,
+				"memory-new.md",
+				newContent,
+			)
+		}()
+		<-writeStarted
+
+		store.mu.Unlock()
+		locked = false
+
+		initial := <-listResults
+		if initial.err != nil {
+			t.Fatalf("Store.CatalogHeaders(initial) error = %v", initial.err)
+		}
+		if got := len(initial.headers); got < 2 || got > 3 {
+			t.Fatalf("Store.CatalogHeaders(initial) len = %d, want 2 or 3", got)
+		}
+		if err := <-writeResults; err != nil {
+			t.Fatalf("Store.Write() error = %v", err)
+		}
+
+		final, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(final) error = %v", err)
+		}
+		if len(final) != 3 || !slices.Contains(headerFilenames(final), "memory-new.md") {
+			t.Fatalf("Store.CatalogHeaders(final) = %d headers, want 3 including memory-new.md", len(final))
+		}
+	})
+
+	t.Run("Should reindex readiness independently for each agent identity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		if err := os.MkdirAll(workspaceRoot, dirPerm); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
+		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		base := NewStore(
+			filepath.Join(baseDir, "global-memory"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		).ForWorkspace(workspaceRoot)
+		agentA := base.ForAgent(identity.WorkspaceID, "reviewer-a", memcontract.AgentTierWorkspace)
+		agentB := base.ForAgent(identity.WorkspaceID, "reviewer-b", memcontract.AgentTierWorkspace)
+		for _, fixture := range []struct {
+			store    *Store
+			filename string
+			agent    string
+		}{
+			{store: agentA, filename: "feedback-a.md", agent: "reviewer-a"},
+			{store: agentB, filename: "feedback-b.md", agent: "reviewer-b"},
+		} {
+			if err := fixture.store.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs(%s) error = %v", fixture.agent, err)
+			}
+			path, err := fixture.store.pathFor(memcontract.ScopeAgent, fixture.filename)
+			if err != nil {
+				t.Fatalf("Store.pathFor(%s) error = %v", fixture.agent, err)
+			}
+			if err := os.WriteFile(
+				path,
+				agentMemoryPayload(fixture.agent, fixture.agent, memcontract.AgentTierWorkspace, "body\n"),
+				filePerm,
+			); err != nil {
+				t.Fatalf("WriteFile(%s) error = %v", fixture.agent, err)
+			}
+		}
+
+		first, err := agentA.CatalogHeaders(ctx, memcontract.ScopeAgent)
+		if err != nil {
+			t.Fatalf("agentA.CatalogHeaders() error = %v", err)
+		}
+		second, err := agentB.CatalogHeaders(ctx, memcontract.ScopeAgent)
+		if err != nil {
+			t.Fatalf("agentB.CatalogHeaders() error = %v", err)
+		}
+		if got, want := headerFilenames(first), []string{"feedback-a.md"}; !slices.Equal(got, want) {
+			t.Fatalf("agentA catalog = %#v, want %#v", got, want)
+		}
+		if got, want := headerFilenames(second), []string{"feedback-b.md"}; !slices.Equal(got, want) {
+			t.Fatalf("agentB catalog = %#v, want %#v", got, want)
+		}
+
+		agentAPath, err := agentA.pathFor(memcontract.ScopeAgent, "feedback-a.md")
+		if err != nil {
+			t.Fatalf("agentA.pathFor() error = %v", err)
+		}
+		if err := os.WriteFile(agentAPath, []byte("invalid body\n"), filePerm); err != nil {
+			t.Fatalf("WriteFile(corrupt agent A body) error = %v", err)
+		}
+		cached, err := agentA.CatalogHeaders(ctx, memcontract.ScopeAgent)
+		if err != nil {
+			t.Fatalf("agentA.CatalogHeaders(cached) error = %v", err)
+		}
+		if got, want := headerFilenames(cached), []string{"feedback-a.md"}; !slices.Equal(got, want) {
+			t.Fatalf("agentA cached catalog = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func seedHeaderCatalogDocuments(t *testing.T, dir string, count int) {
+	t.Helper()
+
+	baseTime := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
+	for index := range count {
+		typ := memcontract.TypeProject
+		if index == 0 {
+			typ = memcontract.TypeReference
+		}
+		filename := fmt.Sprintf("memory-%03d.md", index)
+		content := mustMemoryContent(t, testMemoryMeta{
+			Name: fmt.Sprintf("Memory %03d", index),
+			Type: typ,
+		}, "body\n")
+		path := filepath.Join(dir, filename)
+		if err := os.WriteFile(path, content, filePerm); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", filename, err)
+		}
+		modTime := baseTime.Add(time.Duration(index) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("Chtimes(%s) error = %v", filename, err)
+		}
+	}
+}
+
+func headerFilenames(headers []memcontract.Header) []string {
+	filenames := make([]string, 0, len(headers))
+	for _, header := range headers {
+		filenames = append(filenames, header.Filename)
+	}
+	return filenames
 }
 
 func TestStoreMemV2BackendHelpers(t *testing.T) {
@@ -320,6 +712,47 @@ func TestMemoryCatalogUtilityHelpers(t *testing.T) {
 }
 
 func TestStoreDecisionControllerWAL(t *testing.T) {
+	t.Run("Should filter target filename before applying the decision limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		store := NewStore(
+			filepath.Join(baseDir, "agh-home", memoryDirName),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		for _, filename := range []string{"selected.md", "newer.md"} {
+			content := mustMemoryContent(t, testMemoryMeta{
+				Name: filename,
+				Type: memcontract.TypeProject,
+			}, "Persisted memory body.\n")
+			if _, err := store.ProposeWrite(
+				ctx,
+				memcontract.ScopeGlobal,
+				filename,
+				content,
+				memcontract.OriginHTTP,
+			); err != nil {
+				t.Fatalf("Store.ProposeWrite(%q) error = %v", filename, err)
+			}
+		}
+
+		records, err := store.ListDecisionRecords(ctx, DecisionListQuery{
+			Scope:          memcontract.ScopeGlobal,
+			TargetFilename: "selected.md",
+			Limit:          1,
+		})
+		if err != nil {
+			t.Fatalf("Store.ListDecisionRecords() error = %v", err)
+		}
+		if len(records) != 1 || records[0].Decision.TargetFilename != "selected.md" {
+			t.Fatalf("Store.ListDecisionRecords() = %#v, want selected.md only", records)
+		}
+	})
+
 	t.Run("Should propose writes through decision WAL before applying files", func(t *testing.T) {
 		t.Parallel()
 

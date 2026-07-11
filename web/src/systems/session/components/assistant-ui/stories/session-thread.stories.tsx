@@ -311,7 +311,22 @@ const hoverToolbarTranscript: TranscriptMessage[] = [
 ];
 
 function transcriptEntries(messages: TranscriptMessage[]) {
-  return messages.map((message, index) => ({ message, sequence: index + 1 }));
+  return messages.map((message, index) => ({
+    message,
+    sequence: index + 1,
+    start_sequence: index + 1,
+  }));
+}
+
+function transcriptPayload(messages: TranscriptMessage[]) {
+  return {
+    entries: transcriptEntries(messages),
+    epoch: 1,
+    generation: 1,
+    has_older: false,
+    limit: 200,
+    max_sequence: messages.length,
+  };
 }
 
 /**
@@ -331,7 +346,7 @@ const meta: Meta<typeof SessionThread> = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: [] })
+          HttpResponse.json(transcriptPayload([]))
         ),
       ],
     }),
@@ -441,7 +456,7 @@ export const QueuedComposer: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
+          HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],
     }),
@@ -474,7 +489,7 @@ export const MixedStreaming: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
+          HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],
     }),
@@ -495,7 +510,7 @@ export const FoldedTurns: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(foldedTurnsTranscript) })
+          HttpResponse.json(transcriptPayload(foldedTurnsTranscript))
         ),
       ],
     }),
@@ -519,7 +534,7 @@ export const ChangedFilesRollup: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(changedFilesTranscript) })
+          HttpResponse.json(transcriptPayload(changedFilesTranscript))
         ),
       ],
     }),
@@ -542,7 +557,7 @@ export const HoverToolbar: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(hoverToolbarTranscript) })
+          HttpResponse.json(transcriptPayload(hoverToolbarTranscript))
         ),
       ],
     }),
@@ -579,7 +594,7 @@ export const BusyInputControls: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(mixedStreamingTranscript) })
+          HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
         ),
       ],
     }),

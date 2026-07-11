@@ -5,6 +5,7 @@ import {
 import { Composer } from "./composer";
 
 export interface DetailComposerThreadProps {
+  workspaceId?: string;
   surface: "thread";
   channel: string;
   threadId: string;
@@ -15,6 +16,7 @@ export interface DetailComposerThreadProps {
 }
 
 export interface DetailComposerDirectProps {
+  workspaceId?: string;
   surface: "direct";
   channel: string;
   directId: string;
@@ -60,7 +62,7 @@ function buildSendInput(
 }
 
 export function DetailComposer(props: DetailComposerProps) {
-  const { send, isSending } = useSendNetworkMessage();
+  const { send, isSending } = useSendNetworkMessage({ workspaceId: props.workspaceId });
   const disabled = props.disabledReason != null;
 
   const placeholder =

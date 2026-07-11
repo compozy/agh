@@ -18,7 +18,7 @@ export interface TaskKanbanCardProps {
   task: TaskListItem;
   selected?: boolean;
   onSelect?: (taskId: string) => void;
-  onRetry?: (taskId: string) => void;
+  onRetry?: (runId: string) => void;
 }
 
 const STATUS_LABELS: Partial<Record<TaskListItem["status"], string>> = {
@@ -41,7 +41,7 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
   const activeRun = task.active_run ?? null;
   const isFailed = task.status === "failed";
   const failedError = isFailed && activeRun?.error ? activeRun.error : null;
-  const canRetry = isFailed && Boolean(onRetry);
+  const canRetry = isFailed && Boolean(activeRun?.id && onRetry);
 
   const identifier = taskShortId(task);
   const ownerLabel = taskOwnerLabel(task.owner);
@@ -137,7 +137,9 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
           data-testid={`tasks-kanban-card-retry-${task.id}`}
           onClick={event => {
             event.stopPropagation();
-            onRetry?.(task.id);
+            if (activeRun) {
+              onRetry?.(activeRun.id);
+            }
           }}
           size="xs"
           type="button"

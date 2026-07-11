@@ -12,6 +12,7 @@ import {
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import { useSupportBundleDownload } from "@/systems/support";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSettingsObservabilityRoute } from "../-settings-preload";
 import {
   Button,
   Eyebrow,
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_app/settings/observability")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Observability", icon: Activity },
   }),
+  loader: ({ context }) => preloadSettingsObservabilityRoute(context.queryClient),
   component: ObservabilitySettingsPage,
 });
 
@@ -40,7 +42,6 @@ type Runtime = SettingsObservabilitySection["runtime"];
 
 const GB = 1024 * 1024 * 1024;
 const MB = 1024 * 1024;
-
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
   if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`;
@@ -48,7 +49,6 @@ function formatBytes(bytes: number): string {
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
 }
-
 function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});

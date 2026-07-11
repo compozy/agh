@@ -16,6 +16,7 @@ import { selectNavCount, useNavCounts } from "../use-nav-counts";
 
 class FakeEventSource implements NavCountsEventSource {
   public close = vi.fn();
+  public onopen: ((event: Event) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
   private readonly listeners = new Map<string, Array<(event: MessageEvent) => void>>();
 
@@ -42,6 +43,10 @@ class FakeEventSource implements NavCountsEventSource {
 
   emitError(): void {
     if (this.onerror) this.onerror(new Event("error"));
+  }
+
+  emitOpen(): void {
+    if (this.onopen) this.onopen(new Event("open"));
   }
 }
 
@@ -247,6 +252,7 @@ describe("useNavCounts contract", () => {
     });
     expect(result.current.counts.tasks?.stale).toBe(false);
     act(() => {
+      eventSource.emitOpen();
       eventSource.emitError();
     });
     await act(async () => {
@@ -267,6 +273,7 @@ describe("useNavCounts contract", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     act(() => {
+      eventSource.emitOpen();
       eventSource.emitError();
     });
     await act(async () => {
@@ -278,6 +285,33 @@ describe("useNavCounts contract", () => {
     });
     expect(result.current.counts.tasks?.stale).toBe(false);
     expect(result.current.counts.tasks?.count).toBe(1);
+    unmount();
+  });
+
+  it("Should clear tasks.stale when EventSource reconnects without a business event", async () => {
+    const { store, eventSource } = createStoreHarness({
+      fetcherSpec: { tasks: { count: 7 } },
+      heartbeatWindowMs: 5_000,
+      staleCheckIntervalMs: 1_000,
+    });
+    const { result, unmount } = renderHook(() => useNavCounts({ store }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    act(() => {
+      eventSource.emitOpen();
+      eventSource.emitError();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    expect(result.current.counts.tasks).toEqual({ count: 7, stale: true });
+
+    act(() => {
+      eventSource.emitOpen();
+    });
+
+    expect(result.current.counts.tasks).toEqual({ count: 7, stale: false });
     unmount();
   });
 

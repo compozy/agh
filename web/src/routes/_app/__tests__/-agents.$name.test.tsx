@@ -35,8 +35,8 @@ vi.mock("@agh/ui", async importOriginal => {
 vi.mock("@/systems/agent", () => ({
   AgentInfoInspector: () => <aside data-testid="agent-info-inspector" />,
   AgentPageActions: () => <div data-testid="agent-page-actions" />,
-  AgentPageStatusPill: ({ sessions }: { sessions: SessionPayload[] }) => (
-    <span data-testid="agent-page-status-pill">{sessions.length}</span>
+  AgentPageStatusPill: ({ activeCount }: { activeCount: number }) => (
+    <span data-testid="agent-page-status-pill">{activeCount}</span>
   ),
   AgentSessionsList: ({
     sessions,
@@ -44,18 +44,24 @@ vi.mock("@/systems/agent", () => ({
     isError,
     emptyTitle,
     emptyDescription,
+    hasMore,
+    isLoadingMore,
   }: {
     sessions: SessionPayload[];
     isLoading: boolean;
     isError: boolean;
     emptyTitle?: ReactNode;
     emptyDescription?: ReactNode;
+    hasMore?: boolean;
+    isLoadingMore?: boolean;
   }) => (
     <div
       data-testid="agent-sessions-list"
       data-loading={isLoading}
       data-error={isError}
       data-session-ids={sessions.map(session => session.id).join(",")}
+      data-has-more={hasMore}
+      data-loading-more={isLoadingMore}
     >
       {sessions.map(session => (
         <span key={session.id}>{session.id}</span>
@@ -66,10 +72,20 @@ vi.mock("@/systems/agent", () => ({
       ) : null}
     </div>
   ),
-  AgentStatsGrid: ({ sessions }: { sessions: SessionPayload[] }) => (
+  AgentStatsGrid: ({
+    total,
+    active,
+    resumable,
+  }: {
+    total: number;
+    active: number;
+    resumable: number;
+  }) => (
     <div
       data-testid="agent-stats-grid"
-      data-session-ids={sessions.map(session => session.id).join(",")}
+      data-total={total}
+      data-active={active}
+      data-resumable={resumable}
     />
   ),
 }));
@@ -84,6 +100,13 @@ function makePage(overrides: Partial<UseAgentDetailPageResult> = {}): UseAgentDe
     agentLoading: false,
     agentError: null,
     sessions: [primarySessionFixture],
+    sessionsTotal: 205,
+    activeSessionsTotal: 7,
+    resumableSessionsTotal: 13,
+    lastSessionActivityAt: "2026-07-11T12:00:00Z",
+    hasMoreSessions: true,
+    isLoadingMoreSessions: false,
+    onLoadMoreSessions: vi.fn(),
     sessionsLoading: false,
     sessionsError: false,
     isRefreshing: false,
@@ -137,67 +160,34 @@ describe("Agent detail route", () => {
     expect(screen.getByTestId("agent-stats-grid")).toBeInTheDocument();
   });
 
-  it("omits memory extraction sessions from agent metrics and list", () => {
+  it("renders server-owned totals without deriving them from the loaded page", () => {
     const normalSession = {
       ...primarySessionFixture,
       id: "sess-normal",
       type: "user",
       state: "active",
     } satisfies SessionPayload;
-    const legacyDreamSession = {
-      ...primarySessionFixture,
-      id: "sess-dream",
-      name: "Memory extractor",
-      type: "dream",
-      state: "active",
-    } satisfies SessionPayload;
-    const spawnedMemorySession = {
-      ...primarySessionFixture,
-      id: "sess-memory",
-      name: "Memory extractor",
-      type: "spawned",
-      state: "stopped",
-      lineage: {
-        parent_session_id: "sess-normal",
-        root_session_id: "sess-normal",
-        spawn_depth: 1,
-        spawn_role: "memory-extractor",
-        ttl_expires_at: "2026-04-17T20:00:00Z",
-        auto_stop_on_parent: true,
-        spawn_budget: {
-          max_children: 4,
-          max_depth: 1,
-          ttl_seconds: 7200,
-        },
-        permission_policy: {
-          tools: [],
-          skills: [],
-          mcp_servers: [],
-          workspace_paths: [],
-          network_channels: [],
-          sandbox_profiles: [],
-        },
-      },
-    } satisfies SessionPayload;
     mockUseAgentDetailPage.mockReturnValue(
-      makePage({ sessions: [legacyDreamSession, spawnedMemorySession, normalSession] })
+      makePage({
+        sessions: [normalSession],
+        sessionsTotal: 205,
+        activeSessionsTotal: 7,
+        resumableSessionsTotal: 13,
+      })
     );
 
     render(<AgentDetailRoute />);
 
     const topbarSlot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    expect(topbarSlot).toMatchObject({ count: 1 });
-    expect(topbarSlot?.tabs.props.sessions.map((session: SessionPayload) => session.id)).toEqual([
-      "sess-normal",
-    ]);
-    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute(
-      "data-session-ids",
-      "sess-normal"
-    );
+    expect(topbarSlot).toMatchObject({ count: 205 });
+    expect(topbarSlot?.tabs.props.activeCount).toBe(7);
+    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-total", "205");
+    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-active", "7");
+    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-resumable", "13");
     expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute(
       "data-session-ids",
       "sess-normal"
     );
-    expect(screen.queryByTestId("agent-session-view-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute("data-has-more", "true");
   });
 });

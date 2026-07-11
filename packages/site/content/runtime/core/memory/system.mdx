@@ -215,7 +215,7 @@ Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice
 
 | Capability         | CLI                                                            | HTTP / UDS                                                                | Native tool                                             |
 | ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
-| List entries       | `agh memory list`                                              | `GET /api/memory`                                                         | `agh__memory_list`                                      |
+| List entries       | `agh memory list [--type/--sort/--cursor/--limit]`             | `GET /api/memory?type=&sort=&cursor=&limit=`                              | `agh__memory_list`                                      |
 | Show one entry     | `agh memory show <filename>`                                   | `GET /api/memory/{filename}`                                              | `agh__memory_show`                                      |
 | Search recall      | `agh memory search <query>`                                    | `POST /api/memory/search`                                                 | `agh__memory_search`                                    |
 | Operator write     | `agh memory write`                                             | `POST /api/memory`                                                        | n/a                                                     |
@@ -227,7 +227,7 @@ Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice
 | Dream listing      | `agh memory dream show <date-or-run-id>`                       | `GET /api/memory/dreams`, `GET /api/memory/dreams/{dream_id}`             | `agh__memory_dream_list`, `agh__memory_dream_show`      |
 | Dream retry        | `agh memory dream retry <run_id>`                              | `POST /api/memory/dreams/{dream_id}/retry`                                | `agh__memory_dream_retry`                               |
 | Dream status       | `agh memory dream status`                                      | `GET /api/memory/dreams/status`                                           | `agh__memory_dream_status`                              |
-| Decisions list     | `agh memory decisions list`                                    | `GET /api/memory/decisions`                                               | `agh__memory_decisions_list`                            |
+| Decisions list     | `agh memory decisions list [--filename <file>]`                | `GET /api/memory/decisions[?filename=<file>]`                             | `agh__memory_decisions_list`                            |
 | Decision detail    | `agh memory decisions show <id>`                               | `GET /api/memory/decisions/{decision_id}`                                 | `agh__memory_decisions_show`                            |
 | Decision revert    | `agh memory decisions revert <id>`                             | `POST /api/memory/decisions/{decision_id}/revert`                         | `agh__memory_decisions_revert`                          |
 | Recall trace       | `agh memory recall trace <session_id> <turn_seq>`              | `GET /api/memory/recall-traces/{session_id}/{turn_seq}`                   | `agh__memory_recall_trace`                              |
@@ -286,16 +286,16 @@ fit. Useful index entries are short and point to one file:
 
 Every controller decision and recall outcome is observable.
 
-| Surface                                                 | Use it for                                                                                                                                                                       |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agh memory health`                                     | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                                              |
-| `agh memory decisions list`                             | The Slice 1 truthful audit log: every committed/rejected/shadowed/reverted controller decision with redaction-safe traces.                                                       |
-| `agh memory recall trace <session_id> <turn_seq>`       | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes.                               |
-| `agh memory extractor status`                           | Queue and useful-work diagnostics: queued/in-flight sessions, active provider sessions, backpressured sessions, coalesced/dropped turns, skipped empty turns, and failure count. |
-| `GET /api/memory/health`                                | Same data as `agh memory health` over HTTP/UDS.                                                                                                                                  |
-| `GET /api/memory/decisions`                             | Same data as `agh memory decisions list` with redaction-safe payloads (no `post_content`, `prior_content`, or raw LLM responses on the wire).                                    |
-| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `agh memory recall trace` over HTTP/UDS.                                                                                                                            |
-| `GET /api/memory/extractor/status`                      | Same extractor queue and useful-work diagnostics over HTTP/UDS.                                                                                                                  |
+| Surface                                                 | Use it for                                                                                                                                                                          |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agh memory health`                                     | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                                                 |
+| `agh memory decisions list [--filename <file>]`         | The Slice 1 truthful audit log. Filename filtering happens before `--limit`, so one file's recent decisions are not displaced by newer decisions for another file.                  |
+| `agh memory recall trace <session_id> <turn_seq>`       | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes.                                  |
+| `agh memory extractor status`                           | Queue and useful-work diagnostics: queued/in-flight sessions, active provider sessions, backpressured sessions, coalesced/dropped turns, skipped empty turns, and failure count.    |
+| `GET /api/memory/health`                                | Same data as `agh memory health` over HTTP/UDS.                                                                                                                                     |
+| `GET /api/memory/decisions[?filename=<file>]`           | Same data as `agh memory decisions list` with redaction-safe payloads; `filename` is applied before `limit` (no `post_content`, `prior_content`, or raw LLM responses on the wire). |
+| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `agh memory recall trace` over HTTP/UDS.                                                                                                                               |
+| `GET /api/memory/extractor/status`                      | Same extractor queue and useful-work diagnostics over HTTP/UDS.                                                                                                                     |
 
 `memory_events` rows have stable canonical op names (`memory.write.committed`,
 `memory.write.rejected`, `memory.recall.executed`, `memory.dream.run.promoted`,
@@ -351,8 +351,15 @@ List and show:
 
 ```bash
 agh memory list
+agh memory list --scope workspace --type project --sort name --limit 50 -o json
 agh memory show project_runtime-docs.md --scope workspace
 ```
+
+Memory lists are counted cursor pages. Filtering and sorting happen before the page cut; JSON and
+native-tool results expose `page.total`, the normalized `page.limit`, `page.has_more`, and an opaque
+`page.next_cursor`. Reuse that cursor only with the same selector, type, and sort. The default page
+size is 50 and the maximum is 200. `_system/` entries remain excluded unless `include_system` is
+explicitly enabled.
 
 Search recall:
 

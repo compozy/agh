@@ -478,46 +478,56 @@ func TestStoreScanSkipsAtomicTempFiles(t *testing.T) {
 }
 
 func TestStoreScanCapsAtTwoHundredFiles(t *testing.T) {
-	t.Parallel()
+	t.Run("Should cap prompt scans while counting every valid source header", func(t *testing.T) {
+		t.Parallel()
 
-	env := newTestStoreEnv(t)
-	base := time.Now().Add(-205 * time.Minute)
+		env := newTestStoreEnv(t)
+		base := time.Now().Add(-205 * time.Minute)
 
-	for idx := range 205 {
-		filename := fmt.Sprintf("%03d.md", idx)
-		payload := mustMemoryContent(t, testMemoryMeta{
-			Name:        fmt.Sprintf("Memory %03d", idx),
-			Description: "Cap test",
-			Type:        memcontract.TypeReference,
-		}, "Reference entry\n")
-		if err := env.store.Write(memcontract.ScopeWorkspace, filename, payload); err != nil {
-			t.Fatalf("Store.Write(%q) error = %v", filename, err)
+		for idx := range 205 {
+			filename := fmt.Sprintf("%03d.md", idx)
+			payload := mustMemoryContent(t, testMemoryMeta{
+				Name:        fmt.Sprintf("Memory %03d", idx),
+				Description: "Cap test",
+				Type:        memcontract.TypeReference,
+			}, "Reference entry\n")
+			if err := env.store.Write(memcontract.ScopeWorkspace, filename, payload); err != nil {
+				t.Fatalf("Store.Write(%q) error = %v", filename, err)
+			}
+
+			path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
+			if err != nil {
+				t.Fatalf("pathFor(%q) error = %v", filename, err)
+			}
+			modTime := base.Add(time.Duration(idx) * time.Minute)
+			if err := os.Chtimes(path, modTime, modTime); err != nil {
+				t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+			}
 		}
 
-		path, err := env.store.pathFor(memcontract.ScopeWorkspace, filename)
+		headers, err := env.store.Scan(memcontract.ScopeWorkspace)
 		if err != nil {
-			t.Fatalf("pathFor(%q) error = %v", filename, err)
+			t.Fatalf("Store.Scan() error = %v", err)
 		}
-		modTime := base.Add(time.Duration(idx) * time.Minute)
-		if err := os.Chtimes(path, modTime, modTime); err != nil {
-			t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+
+		if got, want := len(headers), 200; got != want {
+			t.Fatalf("len(headers) = %d, want %d", got, want)
 		}
-	}
+		if headers[0].Filename != "204.md" {
+			t.Fatalf("headers[0].Filename = %q, want %q", headers[0].Filename, "204.md")
+		}
+		if headers[len(headers)-1].Filename != "005.md" {
+			t.Fatalf("headers[last].Filename = %q, want %q", headers[len(headers)-1].Filename, "005.md")
+		}
 
-	headers, err := env.store.Scan(memcontract.ScopeWorkspace)
-	if err != nil {
-		t.Fatalf("Store.Scan() error = %v", err)
-	}
-
-	if got, want := len(headers), 200; got != want {
-		t.Fatalf("len(headers) = %d, want %d", got, want)
-	}
-	if headers[0].Filename != "204.md" {
-		t.Fatalf("headers[0].Filename = %q, want %q", headers[0].Filename, "204.md")
-	}
-	if headers[len(headers)-1].Filename != "005.md" {
-		t.Fatalf("headers[last].Filename = %q, want %q", headers[len(headers)-1].Filename, "005.md")
-	}
+		count, err := env.store.SourceHeaderCount(memcontract.ScopeWorkspace)
+		if err != nil {
+			t.Fatalf("Store.SourceHeaderCount() error = %v", err)
+		}
+		if got, want := count, 205; got != want {
+			t.Fatalf("Store.SourceHeaderCount() = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestStoreScanCapsAtTwoHundredFilesAfterSkippingMalformedNewestEntries(t *testing.T) {
@@ -1865,16 +1875,17 @@ func TestStoreMemoryV2CatalogSchemaMigrations(t *testing.T) {
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		).ForWorkspace(workspaceRoot)
-		if _, err := store.HealthStats(ctx, []string{workspaceRoot}); err != nil {
-			t.Fatalf("Store.HealthStats(migrated) error = %v", err)
+		db, err := store.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB(migrated) error = %v", err)
 		}
 		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
 		if err != nil {
 			t.Fatalf("workspace EnsureIdentity() error = %v", err)
 		}
 
-		assertMemoryCatalogSchemaHead(t, store.catalog.db)
-		columns := memoryCatalogColumns(t, store.catalog.db, "memory_catalog_entries")
+		assertMemoryCatalogSchemaHead(t, db)
+		columns := memoryCatalogColumns(t, db, "memory_catalog_entries")
 		if _, exists := columns["workspace_root"]; exists {
 			t.Fatal("memory_catalog_entries.workspace_root still exists after memory v2 migration")
 		}
@@ -1889,6 +1900,17 @@ func TestStoreMemoryV2CatalogSchemaMigrations(t *testing.T) {
 		}
 		if got, want := catalogWorkspaceID, identity.WorkspaceID; got != want {
 			t.Fatalf("catalog workspace_id = %q, want %q", got, want)
+		}
+		var ftsMatches int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_catalog_fts WHERE memory_catalog_fts MATCH ?`,
+			"legacy",
+		).Scan(&ftsMatches); err != nil {
+			t.Fatalf("query rebuilt catalog FTS error = %v", err)
+		}
+		if ftsMatches != 1 {
+			t.Fatalf("rebuilt catalog FTS matches = %d, want 1", ftsMatches)
 		}
 
 		var (
@@ -1911,6 +1933,33 @@ func TestStoreMemoryV2CatalogSchemaMigrations(t *testing.T) {
 		if memoryTestTableExists(t, store.catalog.db, "memory_operation_log") {
 			t.Fatal("memory_operation_log still exists after memory v2 migration")
 		}
+		stats, err := store.HealthStats(ctx, []string{workspaceRoot})
+		if err != nil {
+			t.Fatalf("Store.HealthStats(authoritative empty reindex) error = %v", err)
+		}
+		if stats.IndexedFiles != 0 {
+			t.Fatalf("Store.HealthStats(authoritative empty reindex).IndexedFiles = %d, want 0", stats.IndexedFiles)
+		}
+		if got := memoryCatalogEntryCount(t, db); got != 0 {
+			t.Fatalf("memory catalog row count after authoritative empty reindex = %d, want 0", got)
+		}
+		ready, err := store.catalog.scopeReady(ctx, memcontract.ScopeWorkspace, identity.WorkspaceID)
+		if err != nil {
+			t.Fatalf("catalog.scopeReady(authoritative empty reindex) error = %v", err)
+		}
+		if !ready {
+			t.Fatal("catalog.scopeReady(authoritative empty reindex) = false, want true")
+		}
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_catalog_fts WHERE memory_catalog_fts MATCH ?`,
+			"legacy",
+		).Scan(&ftsMatches); err != nil {
+			t.Fatalf("query catalog FTS after authoritative empty reindex error = %v", err)
+		}
+		if ftsMatches != 0 {
+			t.Fatalf("catalog FTS matches after authoritative empty reindex = %d, want 0", ftsMatches)
+		}
 		firstMigrationCount := memoryCatalogMigrationCount(t, store.catalog.db)
 
 		if err := store.catalog.db.Close(); err != nil {
@@ -1927,7 +1976,7 @@ func TestStoreMemoryV2CatalogSchemaMigrations(t *testing.T) {
 		if got, want := memoryCatalogMigrationCount(t, reopened.catalog.db), firstMigrationCount; got != want {
 			t.Fatalf("memory migration count after reopen = %d, want %d", got, want)
 		}
-		if got, want := memoryCatalogEntryCount(t, reopened.catalog.db), 1; got != want {
+		if got, want := memoryCatalogEntryCount(t, reopened.catalog.db), 0; got != want {
 			t.Fatalf("memory catalog row count after reopen = %d, want %d", got, want)
 		}
 	})
@@ -2020,6 +2069,372 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 			t.Fatalf("logs = %q, want derived sync warning after delete", logs.String())
 		}
 	})
+
+	t.Run("Should invalidate and repair ready catalogs after write and delete sync failures", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		var logs bytes.Buffer
+		store.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+		keptContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Kept Memory",
+			Type: memcontract.TypeUser,
+		}, "kept body\n")
+		if err := store.Write(memcontract.ScopeGlobal, "kept.md", keptContent); err != nil {
+			t.Fatalf("Store.Write(kept) error = %v", err)
+		}
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+
+		db, err := store.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		dropInsertTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "insert")
+		newContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "New Memory",
+			Type: memcontract.TypeProject,
+		}, "new body\n")
+		if err := store.Write(memcontract.ScopeGlobal, "new.md", newContent); err != nil {
+			t.Fatalf("Store.Write(new) error = %v, want primary mutation success", err)
+		}
+		if _, err := store.Read(memcontract.ScopeGlobal, "new.md"); err != nil {
+			t.Fatalf("Store.Read(new) error = %v, want written source", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, false)
+		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
+			t.Fatalf("logs after write = %q, want derived sync warning", logs.String())
+		}
+		dropInsertTrigger()
+
+		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(after write) error = %v", err)
+		}
+		assertMemoryCatalogFilenames(t, headers, "kept.md", "new.md")
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+
+		logs.Reset()
+		dropDeleteTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "delete")
+		if err := store.Delete(memcontract.ScopeGlobal, "new.md"); err != nil {
+			t.Fatalf("Store.Delete(new) error = %v, want primary mutation success", err)
+		}
+		if _, err := store.Read(memcontract.ScopeGlobal, "new.md"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Store.Read(deleted new) error = %v, want os.ErrNotExist", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, false)
+		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
+			t.Fatalf("logs after delete = %q, want derived sync warning", logs.String())
+		}
+		dropDeleteTrigger()
+
+		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(after delete) error = %v", err)
+		}
+		assertMemoryCatalogFilenames(t, headers, "kept.md")
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+
+		logs.Reset()
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+		canceledContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Canceled Sync Memory",
+			Type: memcontract.TypeFeedback,
+		}, "canceled sync body\n")
+		if err := store.writeRaw(
+			canceledCtx,
+			memcontract.ScopeGlobal,
+			"canceled.md",
+			canceledContent,
+			true,
+		); err != nil {
+			t.Fatalf("Store.writeRaw(canceled sync) error = %v, want primary mutation success", err)
+		}
+		if _, err := store.Read(memcontract.ScopeGlobal, "canceled.md"); err != nil {
+			t.Fatalf("Store.Read(canceled) error = %v, want written source", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, false)
+		if !strings.Contains(logs.String(), "sync derived state failed after mutation") {
+			t.Fatalf("logs after canceled sync = %q, want derived sync warning", logs.String())
+		}
+
+		headers, err = store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(after canceled sync) error = %v", err)
+		}
+		assertMemoryCatalogFilenames(t, headers, "canceled.md", "kept.md")
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+	})
+
+	t.Run("Should leave a failed derived reset dirty for the next catalog repair", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		store := NewStore(
+			filepath.Join(baseDir, "global"),
+			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		content := mustMemoryContent(t, testMemoryMeta{
+			Name: "Reset Memory",
+			Type: memcontract.TypeReference,
+		}, "reset body\n")
+		if err := store.Write(memcontract.ScopeGlobal, "reset.md", content); err != nil {
+			t.Fatalf("Store.Write(reset) error = %v", err)
+		}
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+
+		db, err := store.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		dropInsertTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "insert")
+		if _, err := store.ResetDerived(ctx, memcontract.ReindexOptions{Scope: memcontract.ScopeGlobal}); err == nil {
+			t.Fatal("Store.ResetDerived() error = nil, want forced rebuild failure")
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, false)
+		var rowCount int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM memory_catalog_entries WHERE scope = ?`,
+			string(memcontract.ScopeGlobal),
+		).Scan(&rowCount); err != nil {
+			t.Fatalf("query cleared catalog row count error = %v", err)
+		}
+		if rowCount != 0 {
+			t.Fatalf("cleared catalog row count = %d, want 0 after failed rebuild", rowCount)
+		}
+		dropInsertTrigger()
+
+		headers, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.CatalogHeaders(repair) error = %v", err)
+		}
+		assertMemoryCatalogFilenames(t, headers, "reset.md")
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+	})
+
+	t.Run("Should repair a durable dirty catalog after restart and a later mutation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "global")
+		catalogPath := filepath.Join(baseDir, "agh.db")
+		store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		var logs bytes.Buffer
+		store.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+		seedContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Seed Memory",
+			Type: memcontract.TypeUser,
+		}, "seed body\n")
+		if err := store.Write(memcontract.ScopeGlobal, "seed.md", seedContent); err != nil {
+			t.Fatalf("Store.Write(seed) error = %v", err)
+		}
+		if _, err := store.CatalogHeaders(ctx, memcontract.ScopeGlobal); err != nil {
+			t.Fatalf("Store.CatalogHeaders(seed) error = %v", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+
+		db, err := store.catalog.ensureDB(ctx)
+		if err != nil {
+			t.Fatalf("catalog.ensureDB() error = %v", err)
+		}
+		dropInsertTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "insert")
+		dropStateTrigger := installMemoryCatalogAbortTrigger(ctx, t, db, "state_delete")
+		lostContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Recovered Memory",
+			Type: memcontract.TypeProject,
+		}, "recovered body\n")
+		if err := store.Write(memcontract.ScopeGlobal, "recovered.md", lostContent); err != nil {
+			t.Fatalf("Store.Write(recovered) error = %v, want primary mutation success", err)
+		}
+		if _, err := store.Read(memcontract.ScopeGlobal, "recovered.md"); err != nil {
+			t.Fatalf("Store.Read(recovered) error = %v, want written source", err)
+		}
+		assertMemoryCatalogIdentityReady(ctx, t, store, true)
+		dirty, err := store.catalogSourceDirty(memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.catalogSourceDirty() error = %v", err)
+		}
+		if !dirty {
+			t.Fatal("Store.catalogSourceDirty() = false, want durable marker after double failure")
+		}
+		markerPath, err := store.catalogDirtyMarkerPath(memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("Store.catalogDirtyMarkerPath() error = %v", err)
+		}
+		markerBefore, err := os.ReadFile(markerPath)
+		if err != nil {
+			t.Fatalf("ReadFile(catalog dirty marker) error = %v", err)
+		}
+		reservedContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Reserved Marker Collision",
+			Type: memcontract.TypeUser,
+		}, "reserved body\n")
+		for _, reservedFilename := range []string{
+			catalogDirtyMarkerFilename,
+			strings.ToUpper(catalogDirtyMarkerFilename),
+		} {
+			writeErr := store.Write(memcontract.ScopeGlobal, reservedFilename, reservedContent)
+			if !errors.Is(writeErr, ErrValidation) {
+				t.Fatalf("Store.Write(%q) error = %v, want ErrValidation", reservedFilename, writeErr)
+			}
+			deleteErr := store.Delete(memcontract.ScopeGlobal, reservedFilename)
+			if !errors.Is(deleteErr, ErrValidation) {
+				t.Fatalf("Store.Delete(%q) error = %v, want ErrValidation", reservedFilename, deleteErr)
+			}
+		}
+		markerAfter, err := os.ReadFile(markerPath)
+		if err != nil {
+			t.Fatalf("ReadFile(catalog dirty marker after rejected mutations) error = %v", err)
+		}
+		if !bytes.Equal(markerAfter, markerBefore) {
+			t.Fatalf(
+				"catalog dirty marker changed after rejected reserved mutations: got %q want %q",
+				markerAfter,
+				markerBefore,
+			)
+		}
+		if !strings.Contains(logs.String(), "catalog identity invalidation failed after derived sync failure") {
+			t.Fatalf("logs = %q, want secondary invalidation warning", logs.String())
+		}
+		probe := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		if _, err := probe.CatalogHeaders(ctx, memcontract.ScopeGlobal); err == nil {
+			t.Fatal("restarted Store.CatalogHeaders() error = nil, want dirty marker to force a rebuild")
+		}
+		dropInsertTrigger()
+		dropStateTrigger()
+
+		restarted := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		if err := restarted.EnsureDirs(); err != nil {
+			t.Fatalf("restarted Store.EnsureDirs() error = %v", err)
+		}
+		laterContent := mustMemoryContent(t, testMemoryMeta{
+			Name: "Later Memory",
+			Type: memcontract.TypeFeedback,
+		}, "later body\n")
+		if err := restarted.Write(memcontract.ScopeGlobal, "later.md", laterContent); err != nil {
+			t.Fatalf("restarted Store.Write(later) error = %v", err)
+		}
+		dirty, err = restarted.catalogSourceDirty(memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("restarted Store.catalogSourceDirty() error = %v", err)
+		}
+		if dirty {
+			t.Fatal("restarted Store.catalogSourceDirty() = true after successful full repair")
+		}
+
+		headers, err := restarted.CatalogHeaders(ctx, memcontract.ScopeGlobal)
+		if err != nil {
+			t.Fatalf("restarted Store.CatalogHeaders() error = %v", err)
+		}
+		assertMemoryCatalogFilenames(t, headers, "later.md", "recovered.md", "seed.md")
+		assertMemoryCatalogIdentityReady(ctx, t, restarted, true)
+	})
+}
+
+func installMemoryCatalogAbortTrigger(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	operation string,
+) func() {
+	t.Helper()
+
+	var createStatement string
+	var dropStatement string
+	switch operation {
+	case "insert":
+		createStatement = `CREATE TRIGGER memory_catalog_test_abort_insert
+			BEFORE INSERT ON memory_catalog_entries
+			BEGIN
+				SELECT RAISE(ABORT, 'forced memory catalog insert failure');
+			END`
+		dropStatement = `DROP TRIGGER IF EXISTS memory_catalog_test_abort_insert`
+	case "delete":
+		createStatement = `CREATE TRIGGER memory_catalog_test_abort_delete
+			BEFORE DELETE ON memory_catalog_entries
+			BEGIN
+				SELECT RAISE(ABORT, 'forced memory catalog delete failure');
+			END`
+		dropStatement = `DROP TRIGGER IF EXISTS memory_catalog_test_abort_delete`
+	case "state_delete":
+		createStatement = `CREATE TRIGGER memory_catalog_test_abort_state_delete
+			BEFORE DELETE ON memory_catalog_state
+			BEGIN
+				SELECT RAISE(ABORT, 'forced memory catalog state delete failure');
+			END`
+		dropStatement = `DROP TRIGGER IF EXISTS memory_catalog_test_abort_state_delete`
+	default:
+		t.Fatalf("unsupported catalog abort trigger operation %q", operation)
+	}
+	if _, err := db.ExecContext(ctx, createStatement); err != nil {
+		t.Fatalf("install catalog %s abort trigger error = %v", operation, err)
+	}
+
+	drop := func() {
+		t.Helper()
+		if _, err := db.ExecContext(ctx, dropStatement); err != nil {
+			t.Errorf("drop catalog %s abort trigger error = %v", operation, err)
+		}
+	}
+	t.Cleanup(drop)
+	return drop
+}
+
+func assertMemoryCatalogIdentityReady(ctx context.Context, t *testing.T, store *Store, want bool) {
+	t.Helper()
+
+	ready, err := store.catalog.identityReady(
+		ctx,
+		newCatalogIdentity(memcontract.ScopeGlobal, "", "", ""),
+	)
+	if err != nil {
+		t.Fatalf("catalog.identityReady(global) error = %v", err)
+	}
+	if ready != want {
+		t.Fatalf("catalog.identityReady(global) = %t, want %t", ready, want)
+	}
+}
+
+func assertMemoryCatalogFilenames(t *testing.T, headers []memcontract.Header, want ...string) {
+	t.Helper()
+
+	got := make(map[string]struct{}, len(headers))
+	for _, header := range headers {
+		got[header.Filename] = struct{}{}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("catalog filenames = %#v, want %#v", got, want)
+	}
+	for _, filename := range want {
+		if _, ok := got[filename]; !ok {
+			t.Fatalf("catalog filenames = %#v, want %#v", got, want)
+		}
+	}
 }
 
 func TestStoreEnsureDirs(t *testing.T) {

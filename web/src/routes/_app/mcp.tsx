@@ -10,6 +10,7 @@ import {
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadMcpRoute } from "./-settings-preload";
 import {
   Button,
   Empty,
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/_app/mcp")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "MCP servers", icon: Server },
   }),
+  loader: ({ context }) => preloadMcpRoute(context.queryClient),
   component: MCPPage,
 });
 

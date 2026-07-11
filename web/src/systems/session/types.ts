@@ -3,6 +3,8 @@ import type { UIMessage as AIUIMessage } from "ai";
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
+export type SessionsQuery = OperationQuery<"listSessions">;
+export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
 export type SessionResponse = OperationResponse<"getSession", 200>;
 export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;
@@ -27,6 +29,7 @@ export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
 export type SessionTranscriptEntry = SessionTranscriptResponse["entries"][number];
+export type SessionTranscriptQuery = OperationQuery<"getSessionTranscript">;
 export type SessionStreamResponse = OperationResponse<"streamSession", 200>;
 export type TranscriptSnapshotPayload = NonNullable<SessionStreamResponse["transcript_snapshot"]>;
 export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcript_delta"]>;
@@ -132,6 +135,19 @@ export interface SessionDataParts extends Record<string, unknown> {
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;
 export type TranscriptMessage = SessionMessage;
 export type TranscriptMessageRole = TranscriptMessage["role"];
+
+export type NormalizedSessionTranscriptEntry = Omit<SessionTranscriptEntry, "message"> & {
+  message: SessionMessage;
+};
+
+export type NormalizedSessionTranscriptResponse = Omit<SessionTranscriptResponse, "entries"> & {
+  entries: NormalizedSessionTranscriptEntry[];
+};
+
+/** Frontend-owned stream cursor added to the bounded REST transcript page. */
+export type SessionTranscriptPage = NormalizedSessionTranscriptResponse & {
+  cursor: number;
+};
 
 export const uiMessageRoles = [
   "user",

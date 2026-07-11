@@ -268,6 +268,48 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should describe the first public thread send contract", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDNetworkSend]
+		var schema struct {
+			Description string `json:"description"`
+			Properties  map[string]struct {
+				Description string `json:"description"`
+				Pattern     string `json:"pattern"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+			t.Fatalf("network_send input schema unmarshal error = %v", err)
+		}
+
+		const threadIDPattern = `^thread_[a-z0-9][a-z0-9_-]{2,95}$`
+		if got := schema.Properties["thread_id"].Pattern; got != threadIDPattern {
+			t.Fatalf("network_send thread_id pattern = %q, want %q", got, threadIDPattern)
+		}
+		const directIDPattern = `^direct_[a-f0-9]{32}$`
+		if got := schema.Properties["direct_id"].Pattern; got != directIDPattern {
+			t.Fatalf("network_send direct_id pattern = %q, want %q", got, directIDPattern)
+		}
+		for field, phrase := range map[string]string{
+			"surface":   "required for say, capability, receipt, and trace",
+			"thread_id": "first valid send creates the public thread",
+			"body":      "say requires a non-empty text field",
+			"to":        "Required for capability and for say carrying work_id",
+			"work_id":   "Required for capability, receipt, and trace",
+		} {
+			if got := schema.Properties[field].Description; !strings.Contains(got, phrase) {
+				t.Fatalf("network_send %s description = %q, want phrase %q", field, got, phrase)
+			}
+		}
+		if !strings.Contains(schema.Description, "surface=thread requires thread_id") {
+			t.Fatalf("network_send schema description = %q, want conditional thread contract", schema.Description)
+		}
+		if !strings.Contains(schema.Description, "greet and whois omit conversation and work fields") {
+			t.Fatalf("network_send schema description = %q, want discovery omission contract", schema.Description)
+		}
+	})
+
 	t.Run("Should keep provider model refresh out of the read-only list schema", func(t *testing.T) {
 		t.Parallel()
 
@@ -387,10 +429,33 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
+		sessionListDescriptor := descriptors[toolspkg.ToolIDSessionList]
+		if !strings.Contains(string(sessionListDescriptor.InputSchema), `"cursor"`) ||
+			!strings.Contains(string(sessionListDescriptor.InputSchema), `"include_health"`) ||
+			!strings.Contains(string(sessionListDescriptor.InputSchema), `"last_activity"`) ||
+			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"page"`) ||
+			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"next_cursor"`) {
+			t.Fatalf(
+				"session list schemas = input %s output %s, want paged filters and continuation",
+				sessionListDescriptor.InputSchema,
+				sessionListDescriptor.OutputSchema,
+			)
+		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionEvents], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionDescribe], toolspkg.RiskRead, true, false, false)
+		bridgeListDescriptor := descriptors[toolspkg.ToolIDBridgesList]
+		if !strings.Contains(string(bridgeListDescriptor.InputSchema), `"workspace_id"`) ||
+			!strings.Contains(string(bridgeListDescriptor.InputSchema), `"cursor"`) ||
+			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"facets"`) ||
+			!strings.Contains(string(bridgeListDescriptor.OutputSchema), `"next_cursor"`) {
+			t.Fatalf(
+				"bridge list schemas = input %s output %s, want workspace-safe paged filters",
+				bridgeListDescriptor.InputSchema,
+				bridgeListDescriptor.OutputSchema,
+			)
+		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHealth], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(
 			t,

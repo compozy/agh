@@ -1,6 +1,7 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type BridgeListFilter = OperationQuery<"listBridges">;
+export type BridgeCatalogFilter = Omit<BridgeListFilter, "cursor">;
 export type BridgesListResponse = OperationResponse<"listBridges", 200>;
 export type BridgeSummary = BridgesListResponse["bridges"][number];
 export type BridgeHealthMap = NonNullable<BridgesListResponse["bridge_health"]>;

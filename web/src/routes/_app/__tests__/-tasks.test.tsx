@@ -1,5 +1,9 @@
+// Suite: Tasks route
+// Invariant: The route distinguishes an unavailable task catalog from an empty catalog.
+// Boundary IN: Tasks route query wiring and top-level surface selection.
+// Boundary OUT: List presentation details owned by systems/tasks component suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +12,24 @@ let childMatches: Array<{ id: string; params?: { id?: string } }> = [];
 const navigateMock = vi.fn();
 
 let searchParams: Record<string, unknown> = {};
+
+const daemonStatusMockState = vi.hoisted(
+  (): {
+    data: { user_home_dir: string } | undefined;
+    error: Error | null;
+    isLoading: boolean;
+    isPending: boolean;
+  } => ({
+    data: { user_home_dir: "/Users/operator" },
+    error: null,
+    isLoading: false,
+    isPending: false,
+  })
+);
+
+vi.mock("@/systems/status", () => ({
+  useDaemonStatus: () => daemonStatusMockState,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) => {
@@ -37,6 +59,7 @@ const archiveTaskMock = vi.fn();
 const markTaskReadMock = vi.fn();
 const dismissTaskMock = vi.fn();
 const enqueueTaskRunMock = vi.fn();
+const retryTaskRunMock = vi.fn();
 const getSchedulerMock = vi.fn();
 const getSchedulerBacklogMock = vi.fn();
 const pauseSchedulerMock = vi.fn();
@@ -72,7 +95,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   failTaskRun: vi.fn(),
   forceFailTaskRun: vi.fn(),
   forceReleaseTaskRun: vi.fn(),
-  retryTaskRun: vi.fn(),
+  retryTaskRun: (...args: unknown[]) => retryTaskRunMock(...args),
   markTaskRead: (...args: unknown[]) => markTaskReadMock(...args),
   archiveTask: (...args: unknown[]) => archiveTaskMock(...args),
   dismissTask: (...args: unknown[]) => dismissTaskMock(...args),
@@ -94,6 +117,10 @@ vi.mock("@/systems/workspace", async importOriginal => {
     useActiveWorkspace: () => ({
       activeWorkspace: { id: "ws_alpha", name: "Alpha" },
       activeWorkspaceId: "ws_alpha",
+      error: null,
+      hasHydrated: true,
+      isLoading: false,
+      isPending: false,
       workspaces: [
         {
           add_dirs: [],
@@ -113,7 +140,6 @@ vi.mock("@/systems/workspace", async importOriginal => {
         },
       ],
     }),
-    useUserHomeDir: () => "/Users/operator",
   };
 });
 
@@ -130,6 +156,7 @@ import {
   buildInboxFixture,
   buildInboxItemFixture,
 } from "@/systems/tasks/components/test-fixtures";
+import { buildTaskFixture } from "@/systems/tasks/mocks/fixtures";
 
 function renderTasksRoute() {
   const client = new QueryClient({
@@ -146,15 +173,23 @@ describe("TasksRoute", () => {
   beforeEach(() => {
     childMatches = [];
     searchParams = {};
+    daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
+    daemonStatusMockState.error = null;
+    daemonStatusMockState.isLoading = false;
+    daemonStatusMockState.isPending = false;
     navigateMock.mockReset();
     listTasksMock.mockReset();
-    listTasksMock.mockResolvedValue([]);
+    listTasksMock.mockResolvedValue({
+      facets: { owners: [], statuses: [] },
+      page: { has_more: false, limit: 50, total: 0 },
+      tasks: [],
+    });
     getTaskDashboardMock.mockReset();
     getTaskDashboardMock.mockResolvedValue(buildDashboardFixture());
     getTaskInboxMock.mockReset();
     getTaskInboxMock.mockResolvedValue(
       buildInboxFixture({
-        total: 1,
+        page: { has_more: false, limit: 50, total: 1 },
         unread_total: 1,
         groups: [
           {
@@ -194,6 +229,8 @@ describe("TasksRoute", () => {
     markTaskReadMock.mockReset();
     dismissTaskMock.mockReset();
     enqueueTaskRunMock.mockReset();
+    retryTaskRunMock.mockReset();
+    retryTaskRunMock.mockResolvedValue({ id: "run_retry" });
     getSchedulerMock.mockReset();
     getSchedulerMock.mockResolvedValue({
       active_claim_count: 0,
@@ -244,6 +281,56 @@ describe("TasksRoute", () => {
     expect(screen.getByTestId("tasks-empty-template-one_shot")).toBeInTheDocument();
   });
 
+  it("keeps the task count unknown until the catalog returns an authoritative total", async () => {
+    let resolveCatalog: ((value: unknown) => void) | undefined;
+    listTasksMock.mockImplementationOnce(() => new Promise(resolve => (resolveCatalog = resolve)));
+
+    renderTasksRoute();
+
+    expect(await screen.findByTestId("tasks-list-surface-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveCatalog?.({
+        facets: { owners: [], statuses: [] },
+        page: { has_more: false, limit: 50, total: 0 },
+        tasks: [],
+      });
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByTestId("tasks-empty-state")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("topbar-count")).toHaveTextContent("0"));
+  });
+
+  it("renders the catalog error instead of the empty state when the initial list fails", async () => {
+    listTasksMock.mockRejectedValueOnce(new Error("task catalog unavailable"));
+
+    renderTasksRoute();
+
+    expect(await screen.findByTestId("tasks-list-surface-error")).toHaveTextContent(
+      "task catalog unavailable"
+    );
+    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
+  });
+
+  it("renders daemon status failure without a task count or catalog request", async () => {
+    daemonStatusMockState.data = undefined;
+    daemonStatusMockState.error = new Error("daemon status unavailable");
+
+    renderTasksRoute();
+
+    expect(await screen.findByTestId("tasks-scope-error")).toHaveTextContent(
+      "daemon status unavailable"
+    );
+    expect(screen.queryByTestId("topbar-count")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-empty-state")).not.toBeInTheDocument();
+    expect(listTasksMock).not.toHaveBeenCalled();
+    expect(getTaskInboxMock).not.toHaveBeenCalled();
+    expect(getTaskDashboardMock).not.toHaveBeenCalled();
+  });
+
   it("renders the outlet inside the shell when a child route is active", () => {
     childMatches = [{ id: "/_app/tasks/$id", params: { id: "task_abc" } }];
     renderTasksRoute();
@@ -252,6 +339,20 @@ describe("TasksRoute", () => {
     // The detail child route takes over the full canvas; the list panel
     // is no longer rendered side-by-side with the detail (no SplitPane).
     expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
+  });
+
+  it("shows the exact unread badge before the inbox surface is opened", async () => {
+    renderTasksRoute();
+
+    await waitFor(() => {
+      const inboxTab = screen.getByTestId("tasks-mode-inbox");
+      expect(inboxTab.querySelector('[data-slot="pill-group-badge"]')).toHaveTextContent("1");
+    });
+    expect(getTaskInboxMock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1, scope: "workspace", workspace: "ws_alpha" }),
+      expect.any(AbortSignal)
+    );
+    expect(screen.queryByTestId("tasks-inbox-view")).not.toBeInTheDocument();
   });
 
   it("switches to the dashboard view and renders the cards + queue/health sections", async () => {
@@ -292,42 +393,99 @@ describe("TasksRoute", () => {
     });
   });
 
-  it("changes lane filter (client-side) and keeps the same backend query", async () => {
+  it("disables only the pending run retry and blocks duplicate submission", async () => {
+    let resolveRetry: ((value: unknown) => void) | undefined;
+    retryTaskRunMock.mockImplementationOnce(() => new Promise(resolve => (resolveRetry = resolve)));
+    getTaskInboxMock.mockResolvedValue(
+      buildInboxFixture({
+        page: { has_more: false, limit: 50, total: 2 },
+        unread_total: 2,
+        groups: [
+          {
+            lane: "failed_runs",
+            count: 2,
+            unread_count: 2,
+            items: [
+              buildInboxItemFixture({
+                lane: "failed_runs",
+                task: { id: "task_a", scope: "workspace", status: "failed", title: "Task A" },
+                run: {
+                  attempt: 1,
+                  id: "run_a",
+                  max_attempts: 3,
+                  queued_at: "2026-04-17T09:55:00Z",
+                  status: "failed",
+                  task_id: "task_a",
+                },
+              }),
+              buildInboxItemFixture({
+                lane: "failed_runs",
+                task: { id: "task_b", scope: "workspace", status: "failed", title: "Task B" },
+                run: {
+                  attempt: 1,
+                  id: "run_b",
+                  max_attempts: 3,
+                  queued_at: "2026-04-17T09:56:00Z",
+                  status: "failed",
+                  task_id: "task_b",
+                },
+              }),
+            ],
+          },
+        ],
+      })
+    );
+
+    renderTasksRoute();
+    fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
+    const retryA = await screen.findByTestId("tasks-inbox-item-retry-task_a");
+    const retryB = screen.getByTestId("tasks-inbox-item-retry-task_b");
+
+    fireEvent.click(retryA);
+    await waitFor(() => expect(retryA).toBeDisabled());
+    expect(retryA).toHaveAttribute("aria-busy", "true");
+    expect(retryB).toBeEnabled();
+    fireEvent.click(retryA);
+    expect(retryTaskRunMock).toHaveBeenCalledTimes(1);
+    expect(retryTaskRunMock).toHaveBeenCalledWith("run_a", {});
+
+    await act(async () => {
+      resolveRetry?.({ id: "run_retry" });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(retryA).toBeEnabled());
+  });
+
+  it("sends lane filters to the backend inbox query", async () => {
     renderTasksRoute();
 
     fireEvent.click(screen.getByTestId("tasks-mode-inbox"));
     await waitFor(() => expect(getTaskInboxMock).toHaveBeenCalled());
 
-    // Lane filtering is now client-side — the backend `lane`
-    // param is no longer passed and the switcher just retunes the in-memory
-    // view. Clicking a lane should not refetch with a `lane` query.
-    const callsBefore = getTaskInboxMock.mock.calls.length;
     fireEvent.click(screen.getByTestId("tasks-inbox-filter-trigger"));
     fireEvent.click(await screen.findByRole("option", { name: "Lane" }));
     fireEvent.click(await screen.findByRole("option", { name: /Approvals/ }));
     await waitFor(() => {
-      // No extra backend call triggered by the lane change.
-      expect(getTaskInboxMock.mock.calls.length).toBe(callsBefore);
+      expect(getTaskInboxMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ lane: "approvals" }),
+        expect.any(AbortSignal)
+      );
     });
-    // And no backend call should ever have included a `lane` param.
-    for (const [filters] of getTaskInboxMock.mock.calls) {
-      expect((filters as { lane?: unknown }).lane).toBeUndefined();
-    }
   });
 
   it("navigates to the route-based editor when the create action is clicked", async () => {
-    listTasksMock.mockResolvedValue([
-      {
-        id: "task_abc",
-        title: "Create API contract",
-        status: "draft",
-        scope: "workspace",
-        updated_at: "2026-04-17T10:00:00Z",
-        created_at: "2026-04-17T09:00:00Z",
-        created_by: { kind: "human", ref: "pedro@" },
-        origin: { kind: "web", ref: "agh-web" },
-      },
-    ]);
+    listTasksMock.mockResolvedValue({
+      facets: { owners: [], statuses: [{ count: 1, status: "draft" }] },
+      page: { has_more: false, limit: 50, total: 1 },
+      tasks: [
+        buildTaskFixture({
+          active_run: null,
+          id: "task_abc",
+          title: "Create API contract",
+          status: "draft",
+        }),
+      ],
+    });
 
     renderTasksRoute();
     await waitFor(() => expect(screen.getByTestId("tasks-open-create")).toBeInTheDocument());

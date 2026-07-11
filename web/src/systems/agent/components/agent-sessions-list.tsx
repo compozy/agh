@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import {
   Empty,
+  Button,
   Eyebrow,
   Pill,
   Skeleton,
@@ -25,6 +26,9 @@ export interface AgentSessionsListProps {
   sessions: SessionPayload[];
   isLoading: boolean;
   isError: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
 }
@@ -34,6 +38,9 @@ export function AgentSessionsList({
   sessions,
   isLoading,
   isError,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
   emptyTitle = "No sessions yet",
   emptyDescription = `Start a new session for ${agentName} from the toolbar above.`,
 }: AgentSessionsListProps) {
@@ -72,23 +79,41 @@ export function AgentSessionsList({
   const now = Date.now();
 
   return (
-    <div className="overflow-x-auto" data-testid="agent-sessions-table-wrapper">
-      <Table data-testid="agent-sessions-table">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-2/5">Session</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Duration</TableHead>
-            <TableHead className="text-right">Iterations</TableHead>
-            <TableHead className="text-right">Last activity</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sessions.map(session => (
-            <AgentSessionRow key={session.id} agentName={agentName} session={session} now={now} />
-          ))}
-        </TableBody>
-      </Table>
+    <div className="flex flex-col" data-testid="agent-sessions-table-wrapper">
+      <div className="overflow-x-auto">
+        <Table data-testid="agent-sessions-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-2/5">Session</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Duration</TableHead>
+              <TableHead className="text-right">Iterations</TableHead>
+              <TableHead className="text-right">Last activity</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sessions.map(session => (
+              <AgentSessionRow key={session.id} agentName={agentName} session={session} now={now} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {hasMore || isLoadingMore ? (
+        <div className="flex justify-center border-t border-line px-4 py-3">
+          <Button
+            type="button"
+            variant="neutral"
+            size="sm"
+            disabled={isLoadingMore}
+            aria-busy={isLoadingMore}
+            onClick={onLoadMore}
+            data-testid="agent-sessions-load-more"
+          >
+            {isLoadingMore ? <Spinner aria-hidden="true" /> : null}
+            {isLoadingMore ? "Loading more sessions" : "Load more sessions"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

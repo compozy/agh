@@ -2,7 +2,10 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 
 // Catalog + definition ------------------------------------------------------
 
-export type LoopCatalogEntry = OperationResponse<"listLoops", 200>["loops"][number];
+export type LoopsListResponse = OperationResponse<"listLoops", 200>;
+export type LoopCatalogFilter = OperationQuery<"listLoops">;
+export type LoopCatalogStableFilter = Omit<LoopCatalogFilter, "cursor">;
+export type LoopCatalogEntry = LoopsListResponse["loops"][number];
 export type LoopCatalogInfo = LoopCatalogEntry["catalog"];
 export type LoopSource = LoopCatalogEntry["source"];
 export type LoopContract = LoopCatalogEntry["contract"];

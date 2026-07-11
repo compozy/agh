@@ -15,6 +15,13 @@ import (
 
 const sessionEventSubscriberBuffer = 64
 
+type sessionEventSubscriptionMode uint8
+
+const (
+	sessionEventSubscriptionAfterSequence sessionEventSubscriptionMode = iota
+	sessionEventSubscriptionWakeOnly
+)
+
 type sessionEventBroadcaster struct {
 	mu          sync.Mutex
 	subscribers map[string]map[*sessionEventSubscriber]struct{}
@@ -23,6 +30,7 @@ type sessionEventBroadcaster struct {
 type sessionEventSubscriber struct {
 	sessionID string
 	after     int64
+	mode      sessionEventSubscriptionMode
 	ch        chan store.SessionEvent
 	cancel    context.CancelFunc
 	closeOnce sync.Once
@@ -38,6 +46,7 @@ func (b *sessionEventBroadcaster) subscribe(
 	ctx context.Context,
 	sessionID string,
 	afterSequence int64,
+	mode sessionEventSubscriptionMode,
 ) (<-chan store.SessionEvent, func(), error) {
 	if ctx == nil {
 		return nil, nil, errors.New("session: stream subscription context is required")
@@ -54,6 +63,7 @@ func (b *sessionEventBroadcaster) subscribe(
 	sub := &sessionEventSubscriber{
 		sessionID: target,
 		after:     afterSequence,
+		mode:      mode,
 		ch:        make(chan store.SessionEvent, sessionEventSubscriberBuffer),
 		cancel:    cancel,
 	}
@@ -102,12 +112,14 @@ func (b *sessionEventBroadcaster) publish(event store.SessionEvent) bool {
 
 	overflow := false
 	for sub := range subs {
-		if event.Sequence <= sub.after {
+		if sub.mode == sessionEventSubscriptionAfterSequence && event.Sequence <= sub.after {
 			continue
 		}
 		select {
 		case sub.ch <- event:
-			sub.after = event.Sequence
+			if sub.mode == sessionEventSubscriptionAfterSequence {
+				sub.after = event.Sequence
+			}
 		default:
 			overflow = true
 			delete(subs, sub)
@@ -168,11 +180,39 @@ func (m *Manager) SubscribeSessionEvents(
 	broadcaster := m.streamEvents
 	m.streamEventsMu.Unlock()
 
-	ch, cancel, err := broadcaster.subscribe(ctx, sessionID, afterSequence)
+	ch, cancel, err := broadcaster.subscribe(
+		ctx,
+		sessionID,
+		afterSequence,
+		sessionEventSubscriptionAfterSequence,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
 	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, afterSequence)
+	return ch, cancel, nil
+}
+
+// SubscribeSessionEventWakes registers an unfiltered projection wake subscriber.
+func (m *Manager) SubscribeSessionEventWakes(
+	ctx context.Context,
+	sessionID string,
+) (<-chan store.SessionEvent, func(), error) {
+	if m == nil {
+		return nil, nil, errors.New("session: manager is required")
+	}
+	m.streamEventsMu.Lock()
+	if m.streamEvents == nil {
+		m.streamEvents = newSessionEventBroadcaster()
+	}
+	broadcaster := m.streamEvents
+	m.streamEventsMu.Unlock()
+
+	ch, cancel, err := broadcaster.subscribe(ctx, sessionID, 0, sessionEventSubscriptionWakeOnly)
+	if err != nil {
+		return nil, nil, err
+	}
+	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, 0)
 	return ch, cancel, nil
 }
 

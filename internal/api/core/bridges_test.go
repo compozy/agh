@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/observe"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -261,6 +264,250 @@ func TestBridgeHandlersListFiltersActiveWorkspaceScope(t *testing.T) {
 	})
 }
 
+func TestBridgeHandlersListUsesBoundedBackendCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter before the page cut and return health only for page ids", func(t *testing.T) {
+		t.Parallel()
+
+		instances := make([]bridgepkg.BridgeInstance, 0, 59)
+		for index := range 55 {
+			instances = append(instances, bridgeHandlerCatalogInstance(
+				fmt.Sprintf("brg-prefix-%03d", index),
+				bridgepkg.ScopeGlobal,
+				"",
+				"telegram",
+				fmt.Sprintf("Prefix %03d", index),
+			))
+		}
+		instances = append(instances,
+			bridgeHandlerCatalogInstance(
+				"brg-needle-global", bridgepkg.ScopeGlobal, "", "slack", "Needle A",
+			),
+			bridgeHandlerCatalogInstance(
+				"brg-needle-alpha-a", bridgepkg.ScopeWorkspace, "ws-alpha", "SLACK", "Needle B",
+			),
+			bridgeHandlerCatalogInstance(
+				"brg-needle-alpha-b", bridgepkg.ScopeWorkspace, "ws-alpha", "Slack", "Needle C",
+			),
+			bridgeHandlerCatalogInstance(
+				"brg-needle-beta", bridgepkg.ScopeWorkspace, "ws-beta", "slack", "Needle Other",
+			),
+		)
+
+		instancesByID := make(map[string]bridgepkg.BridgeInstance, len(instances))
+		records := make([]bridgepkg.BridgeCatalogRecord, 0, len(instances))
+		for _, instance := range instances {
+			instancesByID[instance.ID] = instance
+			records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
+		}
+		var catalogRecordCalls, hydrationCalls, effectiveCalls, healthCalls, bindingBatchCalls int
+		var hydratedIDs []string
+		var healthPageIDs []string
+		handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				t.Fatal("ListInstances() must not hydrate the full bridge catalog")
+				return nil, nil
+			},
+			ListCatalogRecordsFn: func(
+				_ context.Context,
+				query bridgepkg.BridgeCatalogQuery,
+			) ([]bridgepkg.BridgeCatalogRecord, error) {
+				catalogRecordCalls++
+				if catalogRecordCalls == 1 && (query.WorkspaceID != "ws-alpha" || query.Platform != "slack") {
+					t.Fatalf("ListCatalogRecords() query = %#v, want resolved workspace and platform", query)
+				}
+				return records, nil
+			},
+			ListInstancesByIDsFn: func(
+				_ context.Context,
+				ids []string,
+			) ([]bridgepkg.BridgeInstance, error) {
+				hydrationCalls++
+				hydratedIDs = append([]string(nil), ids...)
+				result := make([]bridgepkg.BridgeInstance, 0, len(ids))
+				for _, id := range ids {
+					result = append(result, instancesByID[id])
+				}
+				return result, nil
+			},
+			ListProvidersFn: func(context.Context) ([]bridgepkg.BridgeProvider, error) {
+				return []bridgepkg.BridgeProvider{{
+					Platform:      "slack",
+					ExtensionName: "slack-extension",
+					SecretSlots: []bridgepkg.BridgeSecretSlot{{
+						Name:     "bot_token",
+						Required: true,
+					}},
+				}}, nil
+			},
+			ListSecretBindingsForInstancesFn: func(
+				_ context.Context,
+				ids []string,
+			) (map[string][]bridgepkg.BridgeSecretBinding, error) {
+				bindingBatchCalls++
+				result := make(map[string][]bridgepkg.BridgeSecretBinding, len(ids))
+				for _, id := range ids {
+					result[id] = []bridgepkg.BridgeSecretBinding{{
+						BridgeInstanceID: id,
+						BindingName:      "bot_token",
+						SecretRef:        "vault:bridges/" + id + "/bot_token",
+						Kind:             "token",
+					}}
+				}
+				return result, nil
+			},
+		})
+		handlers.Observer = testutil.StubObserver{
+			QueryBridgeEffectiveStatusesFn: func(
+				_ context.Context,
+				items []bridgepkg.BridgeCatalogRecord,
+			) (map[string]bridgepkg.BridgeStatus, error) {
+				effectiveCalls++
+				statuses := make(map[string]bridgepkg.BridgeStatus, len(items))
+				for _, item := range items {
+					statuses[item.ID] = item.Status
+					if strings.Contains(item.ID, "needle") {
+						statuses[item.ID] = bridgepkg.BridgeStatusError
+					}
+				}
+				return statuses, nil
+			},
+			QueryBridgeHealthForFn: func(
+				_ context.Context,
+				items []bridgepkg.BridgeInstance,
+			) ([]observe.BridgeInstanceHealth, error) {
+				healthCalls++
+				health := make([]observe.BridgeInstanceHealth, 0, len(items))
+				for _, item := range items {
+					healthPageIDs = append(healthPageIDs, item.ID)
+					health = append(health, observe.BridgeInstanceHealth{
+						BridgeInstanceID: item.ID,
+						Status:           bridgepkg.BridgeStatusError,
+						RouteCount:       2,
+					})
+				}
+				return health, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/bridges?scope=all&workspace_id=ws-alpha&q=NEEDLE&platform=SlAcK&status=error&sort=name&limit=2",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("list status = %d body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.BridgesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Bridges), 2; got != want {
+			t.Fatalf("len(bridges) = %d, want %d", got, want)
+		}
+		if got, want := payload.Page.Total, 3; got != want {
+			t.Fatalf("page.total = %d, want %d", got, want)
+		}
+		if !payload.Page.HasMore || payload.Page.NextCursor == "" || payload.Page.Limit != 2 {
+			t.Fatalf("page = %#v, want bounded continuation", payload.Page)
+		}
+		if got, want := payload.Facets.Platforms["slack"], 3; got != want {
+			t.Fatalf("platform facet = %d, want %d", got, want)
+		}
+		if got, want := payload.Facets.Statuses.Error, 3; got != want {
+			t.Fatalf("status error facet = %d, want %d", got, want)
+		}
+		if got, want := len(payload.BridgeHealth), len(payload.Bridges); got != want {
+			t.Fatalf("len(bridge_health) = %d, want %d", got, want)
+		}
+		for _, bridge := range payload.Bridges {
+			if _, ok := payload.BridgeHealth[bridge.ID]; !ok {
+				t.Fatalf("bridge_health missing returned id %q: %#v", bridge.ID, payload.BridgeHealth)
+			}
+		}
+		if catalogRecordCalls != 1 || hydrationCalls != 1 || effectiveCalls != 1 || healthCalls != 1 ||
+			bindingBatchCalls != 1 || len(healthPageIDs) != 2 || !slices.Equal(hydratedIDs, healthPageIDs) {
+			t.Fatalf(
+				"catalog calls = records:%d hydration:%d effective:%d health:%d binding_batch:%d hydrated:%#v health_ids:%#v",
+				catalogRecordCalls,
+				hydrationCalls,
+				effectiveCalls,
+				healthCalls,
+				bindingBatchCalls,
+				hydratedIDs,
+				healthPageIDs,
+			)
+		}
+
+		mismatch := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/bridges?scope=all&workspace_id=ws-alpha&q=different&cursor="+payload.Page.NextCursor+"&limit=2",
+			nil,
+		)
+		if mismatch.Code != http.StatusBadRequest || !strings.Contains(mismatch.Body.String(), "cursor") {
+			t.Fatalf(
+				"mismatched cursor status = %d body=%s, want 400 cursor error",
+				mismatch.Code,
+				mismatch.Body.String(),
+			)
+		}
+	})
+
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{name: "missing workspace", err: workspacepkg.ErrWorkspaceNotFound, status: http.StatusNotFound},
+		{name: "missing workspace root", err: workspacepkg.ErrWorkspaceRootMissing, status: http.StatusGone},
+		{name: "unavailable workspace resolver", err: workspacepkg.ErrWorkspaceResolverUnavailable, status: http.StatusServiceUnavailable},
+	} {
+		t.Run("Should map "+test.name+" before loading the bridge registry", func(t *testing.T) {
+			t.Parallel()
+
+			handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstances() should not run when workspace resolution fails")
+					return nil, nil
+				},
+			})
+			handlers.Workspaces = testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{}, test.err
+				},
+			}
+
+			resp := performRequest(t, engine, http.MethodGet, "/bridges?workspace=alpha", nil)
+			if resp.Code != test.status {
+				t.Fatalf("list status = %d, want %d body=%s", resp.Code, test.status, resp.Body.String())
+			}
+		})
+	}
+}
+
+func bridgeHandlerCatalogInstance(
+	id string,
+	scope bridgepkg.Scope,
+	workspaceID string,
+	platform string,
+	displayName string,
+) bridgepkg.BridgeInstance {
+	return bridgepkg.BridgeInstance{
+		ID:            id,
+		Scope:         scope,
+		WorkspaceID:   workspaceID,
+		Platform:      platform,
+		ExtensionName: strings.ToLower(platform) + "-extension",
+		DisplayName:   displayName,
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+	}
+}
+
 func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
@@ -308,6 +555,11 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 			},
 		}
+		var recorder *httptest.ResponseRecorder
+		batchCalls := 0
+		var batchIDs []string
+		healthCalls := 0
+		var healthIDs []string
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:                "api-core-test",
 			MaskInternalErrors:           false,
@@ -315,27 +567,45 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 			Sessions:                     testutil.StubSessionManager{},
 			Observer: testutil.StubObserver{
 				QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-					return []observe.BridgeInstanceHealth{
-						{
-							BridgeInstanceID: "brg-global",
+					t.Fatal("QueryBridgeHealth() should not hydrate an unfiltered stream snapshot")
+					return nil, nil
+				},
+				QueryBridgeHealthForFn: func(
+					_ context.Context,
+					visible []bridgepkg.BridgeInstance,
+				) ([]observe.BridgeInstanceHealth, error) {
+					healthCalls++
+					health := make([]observe.BridgeInstanceHealth, 0, len(visible))
+					for _, instance := range visible {
+						healthIDs = append(healthIDs, instance.ID)
+						routeCount := 1
+						if instance.ID == "brg-alpha" {
+							routeCount = 2
+						}
+						health = append(health, observe.BridgeInstanceHealth{
+							BridgeInstanceID: instance.ID,
 							Status:           bridgepkg.BridgeStatusReady,
-							RouteCount:       1,
-						},
-						{
-							BridgeInstanceID: "brg-alpha",
-							Status:           bridgepkg.BridgeStatusReady,
-							RouteCount:       2,
-						},
-						{
-							BridgeInstanceID: "brg-beta",
-							Status:           bridgepkg.BridgeStatusReady,
-							RouteCount:       3,
-						},
-					}, nil
+							RouteCount:       routeCount,
+						})
+					}
+					return health, nil
 				},
 			},
 			Bridges: testutil.StubBridgeService{
 				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstances() must not scan the full registry for a bounded health stream")
+					return nil, nil
+				},
+				ListInstancesByIDsFn: func(
+					_ context.Context,
+					ids []string,
+				) ([]bridgepkg.BridgeInstance, error) {
+					batchCalls++
+					batchIDs = append([]string(nil), ids...)
+					if recorder == nil || !recorder.Flushed ||
+						!strings.HasPrefix(recorder.Header().Get("Content-Type"), "text/event-stream") {
+						t.Fatalf("SSE headers were not flushed before bridge hydration: %#v", recorder)
+					}
 					return instances, nil
 				},
 			},
@@ -352,13 +622,15 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		engine := gin.New()
 		engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
 
-		resp := performRequest(
-			t,
-			engine,
+		recorder = httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodGet,
-			"/bridges/health/stream?scope=all&workspace_id=ws-alpha",
-			nil,
+			"/bridges/health/stream?scope=all&workspace_id=ws-alpha&bridge_ids=brg-global,brg-alpha,brg-beta",
+			http.NoBody,
 		)
+		engine.ServeHTTP(recorder, request)
+		resp := recorder
 		if resp.Code != http.StatusOK {
 			t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
@@ -377,7 +649,162 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		if _, ok := payload.BridgeHealth["brg-beta"]; ok {
 			t.Fatalf("stream bridge_health leaked inactive workspace bridge: %#v", payload.BridgeHealth)
 		}
+		if batchCalls != 1 || strings.Join(batchIDs, ",") != "brg-global,brg-alpha,brg-beta" ||
+			healthCalls != 1 || strings.Join(healthIDs, ",") != "brg-global,brg-alpha" {
+			t.Fatalf(
+				"stream calls = batch:%d batch_ids:%#v health:%d ids:%#v, want one bounded lookup then authorized health",
+				batchCalls,
+				batchIDs,
+				healthCalls,
+				healthIDs,
+			)
+		}
 	})
+
+	t.Run("Should emit a terminal error frame when initial hydration fails after SSE setup", func(t *testing.T) {
+		t.Parallel()
+
+		var recorder *httptest.ResponseRecorder
+		snapshotErr := errors.New("bridge registry unavailable")
+		handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				t.Fatal("ListInstances() must not run for a bounded health stream")
+				return nil, nil
+			},
+			ListInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
+				if recorder == nil || !recorder.Flushed ||
+					!strings.HasPrefix(recorder.Header().Get("Content-Type"), "text/event-stream") {
+					t.Fatalf("SSE headers were not flushed before failed bridge hydration: %#v", recorder)
+				}
+				return nil, snapshotErr
+			},
+		})
+		engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
+
+		recorder = httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/bridges/health/stream?bridge_ids=brg-global",
+			http.NoBody,
+		)
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		records := testutil.ParseSSE(t, recorder.Body.String())
+		if len(records) != 1 || records[0].Event != "error" {
+			t.Fatalf("stream records = %#v, want one terminal error frame", records)
+		}
+		if !strings.Contains(string(records[0].Data), snapshotErr.Error()) {
+			t.Fatalf("stream error data = %s, want %q", records[0].Data, snapshotErr)
+		}
+	})
+
+	for _, test := range []struct {
+		name  string
+		query string
+	}{
+		{name: "missing bridge ids", query: ""},
+		{name: "too many bridge ids", query: "?bridge_ids=" + strings.Repeat("bridge-id,", bridgepkg.MaxBridgeCatalogLimit) + "overflow"},
+	} {
+		t.Run("Should reject "+test.name+" before opening the stream", func(t *testing.T) {
+			t.Parallel()
+
+			handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstances() should not run for an invalid stream query")
+					return nil, nil
+				},
+			})
+			engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
+			resp := performRequest(t, engine, http.MethodGet, "/bridges/health/stream"+test.query, nil)
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf("stream status = %d, want %d body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+			}
+			if resp.Flushed {
+				t.Fatal("invalid stream query flushed SSE headers")
+			}
+		})
+	}
+}
+
+func TestBridgeCatalogRequiresBoundedObserver(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name     string
+		observer core.Observer
+	}{
+		{name: "nil observer"},
+		{
+			name: "observer without bounded bridge catalog capability",
+			observer: struct{ core.Observer }{
+				Observer: testutil.StubObserver{},
+			},
+		},
+		{
+			name: "bounded observer without bridge source",
+			observer: testutil.StubObserver{
+				CheckBridgeCatalogReadyFn: func() error {
+					return errors.New("bridge source is missing")
+				},
+			},
+		},
+	} {
+		t.Run("Should return unavailable for list and stream with "+test.name, func(t *testing.T) {
+			t.Parallel()
+
+			handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstances() should not run without the bounded Observer capability")
+					return nil, nil
+				},
+				ListCatalogRecordsFn: func(
+					context.Context,
+					bridgepkg.BridgeCatalogQuery,
+				) ([]bridgepkg.BridgeCatalogRecord, error) {
+					t.Fatal("ListCatalogRecords() should not run without a ready bridge source")
+					return nil, nil
+				},
+				ListInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstancesByIDs() should not run without the bounded Observer capability")
+					return nil, nil
+				},
+			})
+			handlers.Observer = test.observer
+			engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
+
+			listResponse := performRequest(t, engine, http.MethodGet, "/bridges", nil)
+			if listResponse.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"list status = %d, want %d body=%s",
+					listResponse.Code,
+					http.StatusServiceUnavailable,
+					listResponse.Body.String(),
+				)
+			}
+
+			streamResponse := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/bridges/health/stream?bridge_ids=brg-global",
+				nil,
+			)
+			if streamResponse.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"stream status = %d, want %d body=%s",
+					streamResponse.Code,
+					http.StatusServiceUnavailable,
+					streamResponse.Body.String(),
+				)
+			}
+			if streamResponse.Flushed {
+				t.Fatal("unavailable stream flushed SSE headers")
+			}
+		})
+	}
 }
 
 func TestBridgeHandlersLifecycleTransitions(t *testing.T) {

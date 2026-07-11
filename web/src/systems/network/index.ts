@@ -10,9 +10,13 @@ export type {
   NetworkChannelUpdateRequest,
   NetworkChannelUpdateResponse,
   NetworkChannelsResponse,
+  NetworkChannelsQuery,
   NetworkChannelSummary,
   NetworkConversationMessage,
+  NetworkConversationMessageFilters,
+  NetworkConversationMessagesResponse,
   NetworkConversationMessagesQuery,
+  NetworkCursorPageParam,
   NetworkCreateChannelDraft,
   NetworkDirectRoomDetail,
   NetworkDirectRoomDetailResponse,
@@ -20,7 +24,9 @@ export type {
   NetworkDirectRoomMessagesResponse,
   NetworkDirectRoomSummary,
   NetworkDirectRoomsResponse,
+  NetworkDirectsListQuery,
   NetworkKindFilter,
+  NetworkMessagePageParam,
   NetworkFanoutPolicy,
   NetworkPeerCard,
   NetworkPeerDetail,
@@ -50,6 +56,7 @@ export type {
   NetworkThreadMessage,
   NetworkThreadMessagesResponse,
   NetworkThreadsResponse,
+  NetworkThreadsListQuery,
   NetworkThreadSummary,
   NetworkWorkDetail,
   NetworkWorkResponse,
@@ -79,11 +86,7 @@ export {
   updateNetworkChannel,
   upsertNetworkSubscription,
 } from "./adapters/network-api";
-export type {
-  NetworkDirectsListQuery,
-  NetworkSubscriptionsListQuery,
-  NetworkThreadsListQuery,
-} from "./adapters/network-api";
+export type { NetworkSubscriptionsListQuery } from "./adapters/network-api";
 
 // Query infrastructure
 export { networkKeys } from "./lib/query-keys";
@@ -169,7 +172,6 @@ export {
 export type {
   NetworkChipFilter,
   NetworkFilterKey,
-  NetworkListFilterCounts,
   NetworkListSort,
   UseNetworkListFiltersArgs,
   UseNetworkListFiltersResult,

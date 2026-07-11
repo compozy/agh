@@ -1,8 +1,10 @@
 package contract
 
 import (
+	"reflect"
 	"testing"
 
+	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 )
 
@@ -43,6 +45,52 @@ func TestHostAPIMethodSpecsDefensiveCopy(t *testing.T) {
 		next := HostAPIMethodSpecs()
 		if next[0].Method != original {
 			t.Fatalf("HostAPIMethodSpecs()[0].Method = %q after mutation, want %q", next[0].Method, original)
+		}
+	})
+}
+
+func TestHostAPIMethodSpecsPagedCollectionResults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the pagination envelopes returned by collection handlers", func(t *testing.T) {
+		t.Parallel()
+
+		want := map[HostAPIMethod]NamedType{
+			HostAPIMethodAutomationJobs: {
+				Name:  "AutomationJobsResult",
+				Value: AutomationJobsResult{},
+			},
+			HostAPIMethodAutomationTriggers: {
+				Name:  "AutomationTriggersResult",
+				Value: AutomationTriggersResult{},
+			},
+			HostAPIMethodTasks: {
+				Name:  "TasksResponse",
+				Value: apicontract.TasksResponse{},
+			},
+		}
+
+		for _, spec := range HostAPIMethodSpecs() {
+			wantResult, ok := want[spec.Method]
+			if !ok {
+				continue
+			}
+			if spec.Result.Name != wantResult.Name {
+				t.Fatalf(
+					"HostAPIMethodSpecs()[%q].Result.Name = %q, want %q",
+					spec.Method,
+					spec.Result.Name,
+					wantResult.Name,
+				)
+			}
+			if got, expected := reflect.TypeOf(spec.Result.Value), reflect.TypeOf(wantResult.Value); got != expected {
+				t.Fatalf("HostAPIMethodSpecs()[%q].Result.Value type = %v, want %v", spec.Method, got, expected)
+			}
+			delete(want, spec.Method)
+		}
+
+		if len(want) != 0 {
+			t.Fatalf("HostAPIMethodSpecs() missing paged methods: %#v", want)
 		}
 	})
 }

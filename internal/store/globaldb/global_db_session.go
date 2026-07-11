@@ -14,6 +14,7 @@ import (
 
 const (
 	globalDBSessionLocalKey   = "local"
+	sessionListSortActivity   = "last_activity"
 	sessionListResumableWhere = "state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND " +
 		"(stall_state IS NULL OR trim(stall_state) = '') AND " +
 		"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)"
@@ -75,7 +76,10 @@ func (g *GlobalDB) UpdateSessionState(ctx context.Context, update store.SessionS
 }
 
 // ListSessions returns indexed sessions ordered by most recent update.
-func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
+func (g *GlobalDB) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) (sessions []store.SessionInfo, err error) {
 	if err := g.checkReady(ctx, "list sessions"); err != nil {
 		return nil, err
 	}
@@ -87,19 +91,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		return nil, err
 	}
 
-	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
-		parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
-		auto_stop_on_parent, spawn_budget_json, permission_policy_json,
-		state, acp_session_id, stop_reason, stop_detail,
-		failure_kind, failure_summary, crash_bundle_path,
-		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
-		activity_json, attached_to, attach_expires_at, transcript_epoch,
-		soul_snapshot_id, soul_digest, parent_soul_digest,
-		sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
-		sandbox_state, sandbox_provider_state_json,
-		sandbox_last_sync_at, sandbox_last_sync_error,
-		created_at, updated_at
-	FROM sessions`
+	sqlQuery := sessionInfoSelectQuery
 	where, args := store.BuildClauses(
 		store.StringClause("id", query.ID),
 		store.StringClause("state", query.State),
@@ -118,7 +110,6 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		args = append(args, store.FormatTimestamp(now))
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	//nolint:gosec // sessionListOrderClause returns one of two constant ORDER BY clauses.
 	sqlQuery += sessionListOrderClause(query.Sort)
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
@@ -127,10 +118,12 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		return nil, fmt.Errorf("store: query sessions: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close session rows: %w", closeErr))
+		}
 	}()
 
-	sessions := make([]store.SessionInfo, 0)
+	sessions = make([]store.SessionInfo, 0)
 	for rows.Next() {
 		session, scanErr := scanSessionInfo(rows)
 		if scanErr != nil {
@@ -287,7 +280,7 @@ func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, 
 
 func sessionListOrderClause(sortKey string) string {
 	switch strings.TrimSpace(sortKey) {
-	case "last_activity":
+	case sessionListSortActivity:
 		return " ORDER BY COALESCE(last_update_at, updated_at) DESC, updated_at DESC, id DESC"
 	default:
 		return " ORDER BY updated_at DESC, created_at DESC, id DESC"
@@ -520,30 +513,6 @@ func (record sessionCatalogRecord) args() []any {
 		store.FormatTimestamp(session.CreatedAt),
 		store.FormatTimestamp(session.UpdatedAt),
 	}
-}
-
-func (g *GlobalDB) loadSessionIDs(ctx context.Context, tx *sql.Tx) (map[string]struct{}, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM sessions`)
-	if err != nil {
-		return nil, fmt.Errorf("store: query existing session ids: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	ids := make(map[string]struct{})
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("store: scan existing session id: %w", err)
-		}
-		ids[id] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate existing session ids: %w", err)
-	}
-
-	return ids, nil
 }
 
 func sessionFailureKind(failure *store.SessionFailure) any {

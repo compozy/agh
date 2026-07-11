@@ -134,17 +134,21 @@ func (m *Manager) finishPromptPump(
 		activity.stop()
 		activity.finish(m.now())
 	}
-	m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
-	m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
+	if fatalPromptFailure == nil {
+		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
+		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
+	}
 	if session != nil {
 		session.clearCurrentTurnID()
 		session.clearCurrentTurnSource()
 		session.clearCurrentPromptMeta()
 		session.clearCurrentPromptCancel()
 	}
-	notifier := m.currentTurnEndNotifier()
-	if notifier != nil && session != nil {
-		notifier(session.ID)
+	if fatalPromptFailure == nil {
+		notifier := m.currentTurnEndNotifier()
+		if notifier != nil && session != nil {
+			notifier(session.ID)
+		}
 	}
 	close(out)
 	if session == nil {

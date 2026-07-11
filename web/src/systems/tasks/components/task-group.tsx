@@ -12,6 +12,7 @@ export interface TaskGroupProps {
   label: string;
   /** Item count rendered next to the label as bare mono `--faint` text. */
   count: number;
+  totalCount?: number;
   /** Row content for this group (typically `<TasksListRow>` / `<TaskCard>` siblings). */
   children: ReactNode;
   /** Optional right-aligned actions slot (e.g. inline `Add` affordance). */
@@ -19,8 +20,10 @@ export interface TaskGroupProps {
   className?: string;
 }
 
-function TaskGroup({ id, label, count, children, actions, className }: TaskGroupProps) {
+function TaskGroup({ id, label, count, totalCount, children, actions, className }: TaskGroupProps) {
   const { tone, variant } = listGroupDotProps(id);
+  const countLabel =
+    totalCount === undefined || totalCount === count ? `${count}` : `${count} of ${totalCount}`;
 
   return (
     <section
@@ -46,7 +49,7 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
           data-slot="task-group-count"
           data-testid={`task-group-${id}-count`}
         >
-          {count}
+          {countLabel}
         </span>
         {actions ? (
           <div className="ml-auto flex items-center gap-1" data-slot="task-group-actions">

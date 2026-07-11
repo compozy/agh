@@ -107,15 +107,12 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)
 		}
-		if got, want := len(messages), 3; got != want {
+		if got, want := len(messages), 2; got != want {
 			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
 		}
-		if messages[0].ID == messages[2].ID {
-			t.Fatalf("assistant message IDs = %q and %q, want unique reopened turn IDs", messages[0].ID, messages[2].ID)
-		}
-		resultPart := findUIToolPart(messages[2].Parts, "tool-Bash", "tool-cross")
+		resultPart := findUIToolPart(messages[0].Parts, "tool-Bash", "tool-cross")
 		if resultPart == nil {
-			t.Fatalf("result tool part not found; parts=%#v", messages[2].Parts)
+			t.Fatalf("result tool part not found in historical entry; parts=%#v", messages[0].Parts)
 		}
 		if got, want := resultPart.State, uiToolStateOutput; got != want {
 			t.Fatalf("result tool part state = %q, want %q; part=%#v", got, want, *resultPart)
@@ -155,12 +152,12 @@ func TestToUIMessagesToolResultContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)
 		}
-		if got, want := len(messages), 2; got != want {
+		if got, want := len(messages), 1; got != want {
 			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
 		}
-		resultPart := findUIToolPart(messages[1].Parts, "tool-Bash", "tool-omitted-turn")
+		resultPart := findUIToolPart(messages[0].Parts, "tool-Bash", "tool-omitted-turn")
 		if resultPart == nil {
-			t.Fatalf("result tool part not found; parts=%#v", messages[1].Parts)
+			t.Fatalf("result tool part not found; parts=%#v", messages[0].Parts)
 		}
 		if got, want := resultPart.State, uiToolStateOutput; got != want {
 			t.Fatalf("result tool part state = %q, want %q; part=%#v", got, want, *resultPart)

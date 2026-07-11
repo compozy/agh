@@ -1,32 +1,10 @@
-import {
-  compareKnowledgeScope,
-  knowledgeScopeLabel,
-} from "@/systems/knowledge/lib/knowledge-formatters";
+import { knowledgeScopeLabel } from "@/systems/knowledge/lib/knowledge-formatters";
 import type { KnowledgeMemoryItem, KnowledgeScope } from "@/systems/knowledge/types";
 
 export interface KnowledgeMemoryGroup {
   scope: KnowledgeScope;
   label: string;
   memories: KnowledgeMemoryItem[];
-}
-
-export function filterKnowledgeMemories(
-  memories: KnowledgeMemoryItem[],
-  query: string
-): KnowledgeMemoryItem[] {
-  const normalized = query.trim().toLowerCase();
-  if (normalized === "") {
-    return memories;
-  }
-
-  return memories.filter(memory => {
-    return (
-      memory.name.toLowerCase().includes(normalized) ||
-      (memory.description ?? "").toLowerCase().includes(normalized) ||
-      memory.type.toLowerCase().includes(normalized) ||
-      (memory.agent_name ?? "").toLowerCase().includes(normalized)
-    );
-  });
 }
 
 export function groupKnowledgeMemoriesByScope(
@@ -45,15 +23,9 @@ export function groupKnowledgeMemoriesByScope(
     buckets.set(scope, [memory]);
   }
 
-  return Array.from(buckets.entries())
-    .sort(([left], [right]) => compareKnowledgeScope(left, right))
-    .map(([scope, items]) => ({
-      scope,
-      label: knowledgeScopeLabel(scope),
-      memories: items.slice().sort((left, right) => left.name.localeCompare(right.name)),
-    }));
-}
-
-export function sortKnowledgeMemories(memories: KnowledgeMemoryItem[]): KnowledgeMemoryItem[] {
-  return groupKnowledgeMemoriesByScope(memories).flatMap(group => group.memories);
+  return Array.from(buckets.entries()).map(([scope, memories]) => ({
+    scope,
+    label: knowledgeScopeLabel(scope),
+    memories,
+  }));
 }

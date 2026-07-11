@@ -98,61 +98,6 @@ func newAutomationCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
-	var (
-		scopeRaw     string
-		workspaceRef string
-		sourceRaw    string
-		loopName     string
-		last         int
-	)
-
-	cmd := &cobra.Command{
-		Use:   "jobs",
-		Short: "Manage automation jobs",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			query, err := parseAutomationJobListQuery(
-				cmd.Context(),
-				client,
-				scopeRaw,
-				workspaceRef,
-				sourceRaw,
-				loopName,
-				last,
-			)
-			if err != nil {
-				return err
-			}
-
-			jobs, err := client.ListAutomationJobs(cmd.Context(), query)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, automationJobListBundle(jobs))
-		},
-	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
-	cmd.Flags().
-		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
-	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N jobs")
-
-	cmd.AddCommand(newAutomationJobsCreateCommand(deps))
-	cmd.AddCommand(newAutomationJobsGetCommand(deps))
-	cmd.AddCommand(newAutomationJobsUpdateCommand(deps))
-	cmd.AddCommand(newAutomationJobsDeleteCommand(deps))
-	cmd.AddCommand(newAutomationJobsTriggerCommand(deps))
-	cmd.AddCommand(newAutomationJobsHistoryCommand(deps))
-	return cmd
-}
-
 func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 	var (
 		name         string
@@ -435,63 +380,6 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
-	return cmd
-}
-
-func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
-	var (
-		scopeRaw     string
-		workspaceRef string
-		eventRaw     string
-		sourceRaw    string
-		loopName     string
-		last         int
-	)
-
-	cmd := &cobra.Command{
-		Use:   "triggers",
-		Short: "Manage automation triggers",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			query, err := parseAutomationTriggerListQuery(
-				cmd.Context(),
-				client,
-				scopeRaw,
-				workspaceRef,
-				eventRaw,
-				sourceRaw,
-				loopName,
-				last,
-			)
-			if err != nil {
-				return err
-			}
-
-			triggers, err := client.ListAutomationTriggers(cmd.Context(), query)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, automationTriggerListBundle(triggers))
-		},
-	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
-	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")
-	cmd.Flags().
-		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
-	cmd.Flags().StringVar(&loopName, "loop", "", "Filter by loop target name")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N triggers")
-
-	cmd.AddCommand(newAutomationTriggersCreateCommand(deps))
-	cmd.AddCommand(newAutomationTriggersGetCommand(deps))
-	cmd.AddCommand(newAutomationTriggersUpdateCommand(deps))
-	cmd.AddCommand(newAutomationTriggersDeleteCommand(deps))
-	cmd.AddCommand(newAutomationTriggersHistoryCommand(deps))
 	return cmd
 }
 
@@ -821,85 +709,6 @@ func newAutomationRunsGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationRunBundle(run))
 		},
 	}
-}
-
-func parseAutomationJobListQuery(
-	ctx context.Context,
-	client DaemonClient,
-	scopeRaw string,
-	workspaceRef string,
-	sourceRaw string,
-	loopName string,
-	last int,
-) (AutomationJobQuery, error) {
-	query := AutomationJobQuery{}
-	if err := validateAutomationLast(last); err != nil {
-		return AutomationJobQuery{}, err
-	}
-	query.Limit = last
-
-	scope, err := parseOptionalAutomationScope(scopeRaw)
-	if err != nil {
-		return AutomationJobQuery{}, err
-	}
-	query.Scope = scope
-
-	if trimmed := strings.TrimSpace(workspaceRef); trimmed != "" {
-		workspaceID, err := resolveAutomationWorkspaceID(ctx, client, trimmed)
-		if err != nil {
-			return AutomationJobQuery{}, err
-		}
-		query.WorkspaceID = workspaceID
-	}
-
-	source, err := parseOptionalAutomationSource(sourceRaw)
-	if err != nil {
-		return AutomationJobQuery{}, err
-	}
-	query.Source = source
-	query.LoopName = strings.TrimSpace(loopName)
-	return query, nil
-}
-
-func parseAutomationTriggerListQuery(
-	ctx context.Context,
-	client DaemonClient,
-	scopeRaw string,
-	workspaceRef string,
-	eventRaw string,
-	sourceRaw string,
-	loopName string,
-	last int,
-) (AutomationTriggerQuery, error) {
-	query := AutomationTriggerQuery{
-		Event: strings.TrimSpace(eventRaw),
-	}
-	if err := validateAutomationLast(last); err != nil {
-		return AutomationTriggerQuery{}, err
-	}
-	query.Limit = last
-
-	scope, err := parseOptionalAutomationScope(scopeRaw)
-	if err != nil {
-		return AutomationTriggerQuery{}, err
-	}
-	query.Scope = scope
-
-	if trimmed := strings.TrimSpace(workspaceRef); trimmed != "" {
-		workspaceID, err := resolveAutomationWorkspaceID(ctx, client, trimmed)
-		if err != nil {
-			return AutomationTriggerQuery{}, err
-		}
-		query.WorkspaceID = workspaceID
-	}
-
-	source, err := parseOptionalAutomationSource(sourceRaw)
-	if err != nil {
-		return AutomationTriggerQuery{}, err
-	}
-	query.Source = source
-	query.LoopName = strings.TrimSpace(loopName)
-	return query, nil
 }
 
 func parseAutomationRunListQuery(
@@ -1284,9 +1093,10 @@ func automationJobBundle(item JobRecord) outputBundle {
 	}
 }
 
-func automationJobListBundle(items []JobRecord) outputBundle {
+func automationJobListBundle(page AutomationJobListRecord) outputBundle {
+	items := page.Jobs
 	return listBundle(
-		contract.JobsResponse{Jobs: items},
+		page,
 		items,
 		"Automation Jobs",
 		[]string{
@@ -1424,9 +1234,10 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 	}
 }
 
-func automationTriggerListBundle(items []TriggerRecord) outputBundle {
+func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle {
+	items := page.Triggers
 	return listBundle(
-		contract.TriggersResponse{Triggers: items},
+		page,
 		items,
 		"Automation Triggers",
 		[]string{

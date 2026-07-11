@@ -4,6 +4,7 @@ import { useNetworkThreads, type UseNetworkThreadsResult } from "./use-threads";
 import { useInspectorState, type UseInspectorStateResult } from "./use-inspector-state";
 
 export interface UseNetworkInspectorViewArgs {
+  workspaceId: string | null | undefined;
   channel: string | null | undefined;
   /**
    * The view should only fetch members/threads/directs while the inspector is
@@ -29,12 +30,13 @@ export interface UseNetworkInspectorViewResult {
 export function useNetworkInspectorView({
   channel,
   enabled,
+  workspaceId,
 }: UseNetworkInspectorViewArgs): UseNetworkInspectorViewResult {
   const inspector = useInspectorState(channel);
-  const queryEnabled = enabled && Boolean(channel);
-  const members = useChannelMembers(channel, { enabled: queryEnabled });
-  const threads = useNetworkThreads(channel, { enabled: queryEnabled });
-  const directs = useNetworkDirects(channel, { enabled: queryEnabled });
+  const queryEnabled = enabled && inspector.open && Boolean(channel);
+  const members = useChannelMembers(channel, { enabled: queryEnabled, workspaceId });
+  const threads = useNetworkThreads(channel, { enabled: queryEnabled, workspaceId });
+  const directs = useNetworkDirects(channel, { enabled: queryEnabled, workspaceId });
 
   return { inspector, members, threads, directs };
 }

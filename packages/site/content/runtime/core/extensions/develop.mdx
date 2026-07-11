@@ -207,6 +207,27 @@ capabilities = ["session.read", "memory.read"]
 | `actions.requires`      | Host API methods the extension wants to call, such as `sessions/list`.             |
 | `security.capabilities` | Capability grants needed by those methods, such as `session.read`.                 |
 
+### Paged collection results
+
+The paged collection methods below return bounded envelopes, not bare arrays. Continue with the
+cursor from the envelope while keeping the same workspace and filters. This is a hard contract:
+extension code must read the collection field and its page metadata together.
+
+| Host API method           | Result envelope                                                 |
+| ------------------------- | --------------------------------------------------------------- |
+| `tasks`                   | `TasksResponse` with `tasks`, `page`, and `facets`              |
+| `automation/jobs`         | `AutomationJobsResult` with `jobs` and `page`                   |
+| `automation/triggers`     | `AutomationTriggersResult` with redacted `triggers` and `page`  |
+| `tasks/inbox`             | `TaskInbox` with `groups`, `page`, facets, and aggregate totals |
+| `network/threads`         | `NetworkThreadsResponse` with `threads` and `page`              |
+| `network/thread/messages` | `NetworkThreadMessagesResponse` with `messages` and `page`      |
+| `network/directs`         | `NetworkDirectRoomsResponse` with `directs` and `page`          |
+| `network/direct/messages` | `NetworkDirectRoomMessagesResponse` with `messages` and `page`  |
+
+The generated TypeScript SDK exports these result types and binds them in `HostAPIMethodMap`, so a
+consumer that still expects an array fails at compile time instead of silently dropping pagination
+metadata.
+
 Important current provide surfaces:
 
 | Provide surface  | AGH calls into the extension with                |

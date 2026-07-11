@@ -1,9 +1,4 @@
-import {
-  type QueryClient,
-  type QueryKey,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   cancelQueuedSessionPrompt,
@@ -27,27 +22,6 @@ import type {
   SessionPromptRequest,
   SessionRepairQuery,
 } from "../types";
-
-function mergeSessionList(
-  current: SessionPayload[] | undefined,
-  session: SessionPayload
-): SessionPayload[] | undefined {
-  if (!current) {
-    return current;
-  }
-
-  const withoutDuplicate = current.filter(item => item.id !== session.id);
-  return [session, ...withoutDuplicate];
-}
-
-function shouldSeedList(queryKey: QueryKey, workspaceId?: string): boolean {
-  if (!Array.isArray(queryKey)) {
-    return false;
-  }
-
-  const scope = queryKey[2];
-  return scope === "all" || (typeof workspaceId === "string" && scope === workspaceId);
-}
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {
@@ -75,7 +49,6 @@ function invalidateSessionPromptSurfaces(
   void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, id) });
   void queryClient.invalidateQueries({ queryKey: sessionKeys.events(workspaceId, id) });
   void queryClient.invalidateQueries({ queryKey: sessionKeys.history(workspaceId, id) });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(workspaceId, id) });
   void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
 }
 
@@ -87,19 +60,6 @@ export function useCreateSession() {
     onSuccess: session => {
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
-
-      for (const [queryKey] of queryClient.getQueriesData<SessionPayload[]>({
-        queryKey: sessionKeys.lists(),
-      })) {
-        if (!shouldSeedList(queryKey, session.workspace_id)) {
-          continue;
-        }
-
-        queryClient.setQueryData<SessionPayload[]>(queryKey, current =>
-          mergeSessionList(current, session)
-        );
-      }
-
       void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
       void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
@@ -214,7 +174,10 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
         history: queryClient.getQueryData(sessionKeys.history(mutateWorkspaceId, id)),
       };
 
-      queryClient.setQueryData(sessionKeys.transcript(mutateWorkspaceId, id), []);
+      queryClient.removeQueries({
+        queryKey: sessionKeys.transcript(mutateWorkspaceId, id),
+        exact: true,
+      });
       queryClient.setQueryData(sessionKeys.history(mutateWorkspaceId, id), []);
 
       return snapshot;
@@ -233,13 +196,18 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
       }
 
       const errorWorkspaceId = workspaceId ?? "";
-      queryClient.setQueryData(sessionKeys.transcript(errorWorkspaceId, id), snapshot.transcript);
+      if (snapshot.transcript !== undefined) {
+        queryClient.setQueryData(sessionKeys.transcript(errorWorkspaceId, id), snapshot.transcript);
+      }
       queryClient.setQueryData(sessionKeys.history(errorWorkspaceId, id), snapshot.history);
     },
     onSuccess: (session, id) => {
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, id), session);
-      queryClient.setQueryData(sessionKeys.transcript(workspaceId, id), []);
+      queryClient.removeQueries({
+        queryKey: sessionKeys.transcript(workspaceId, id),
+        exact: true,
+      });
       queryClient.setQueryData(sessionKeys.history(workspaceId, id), []);
     },
     onSettled: (_data, _error, id) => {

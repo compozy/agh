@@ -114,7 +114,6 @@ func (m *Manager) restartClearedConversation(
 	if _, err := m.ensureTranscriptEpoch(ctx, session, target, targetEpoch); err != nil {
 		return nil, err
 	}
-	m.invalidateTranscriptCache(target)
 	m.clearLogger().Info(
 		"session.clear.restart_complete",
 		"session_id",

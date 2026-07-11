@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
-import { useStatus } from "@/systems/status";
+import { useDaemonStatus } from "@/systems/status";
 
 import { useResolveWorkspace } from "./use-workspaces";
 
@@ -30,7 +30,7 @@ export function useWorkspaceSetupContent({
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
   const resolveWorkspace = useResolveWorkspace();
-  const statusQuery = useStatus();
+  const statusQuery = useDaemonStatus();
   const [manualPath, setManualPath] = useState("");
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [manualError, setManualError] = useState<string | null>(null);

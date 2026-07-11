@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { MessagesSquare } from "lucide-react";
 
-import { ListingRow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, ListingRow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,11 @@ export interface ThreadsListProps {
   threads: ReadonlyArray<NetworkThreadSummary>;
   activeThreadId: string | null;
   isLoading: boolean;
+  total?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void | Promise<void>;
+  isFiltered?: boolean;
   /** Reduced contrast applied when the right-rail thread overlay is open. */
   dim?: boolean;
   onStartThread?: () => void;
@@ -136,6 +141,11 @@ export function ThreadsList({
   threads,
   activeThreadId,
   isLoading,
+  total,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  isFiltered = false,
   dim = false,
   onStartThread,
 }: ThreadsListProps) {
@@ -146,7 +156,7 @@ export function ThreadsList({
   if (threads.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <ThreadsEmpty className="max-w-md" onStartThread={onStartThread} />
+        <ThreadsEmpty className="max-w-md" filtered={isFiltered} onStartThread={onStartThread} />
       </div>
     );
   }
@@ -171,6 +181,23 @@ export function ThreadsList({
           workspaceId={workspaceId}
         />
       ))}
+      {hasMore && onLoadMore ? (
+        <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+          <span className="text-small-body text-muted">
+            {threads.length} of {total ?? threads.length} threads loaded
+          </span>
+          <Button
+            aria-busy={isLoadingMore}
+            aria-label="Load more threads"
+            disabled={isLoadingMore}
+            onClick={() => void onLoadMore()}
+            size="sm"
+            variant="outline"
+          >
+            {isLoadingMore ? "Loading threads…" : "Load more threads"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

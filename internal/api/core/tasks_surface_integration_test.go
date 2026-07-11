@@ -34,7 +34,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	var inboxQuery observe.TaskInboxQuery
 	var inboxActor taskpkg.ActorIdentity
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		ListTasksFn: func(_ context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error) {
 			listQuery = query
 			listActor = actor
@@ -314,7 +314,7 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		origins = append(origins, actor.Origin.Ref)
 	}
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		PublishTaskFn: func(
 			_ context.Context,
 			id string,
@@ -593,7 +593,7 @@ func TestTaskStreamHandlerUsesSharedSSEPathIntegration(t *testing.T) {
 	var streamQuery taskpkg.StreamQuery
 	var streamActor taskpkg.ActorContext
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		StreamFn: func(_ context.Context, taskID string, query taskpkg.StreamQuery, actor taskpkg.ActorContext) (<-chan taskpkg.StreamEvent, error) {
 			streamQuery = query
 			streamActor = actor
