@@ -2,7 +2,7 @@
 
 - **Scope:** targeted `front-fixes` stabilization of Session/Agent/Home, Network/Bridges, Tasks/Automation/Loops, and Memory/Knowledge data paths, exercised inside the broad `northstar-pay` real-scenario playbook.
 - **Cadence tier:** targeted product regression pass inside a broad release-grade scenario.
-- **Build:** checkpoint `50822e78` plus the current final implementation batch.
+- **Build:** implementation commit `f6748f2f`, rebased onto `origin/main` at `dadf35f1`.
 - **Environment:** fresh isolated lab `northstar-pay-20260711-153916-425791`; daemon `http://127.0.0.1:44473`; Web `http://127.0.0.1:3000`; no HTTP/API mocks.
 - **Provider:** real Claude `claude-sonnet-4-6`; one operator kickoff; no follow-up provider prompt.
 - **Started:** 2026-07-11T15:45:04.035542Z.
