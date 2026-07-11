@@ -5,6 +5,7 @@ export {
   selectNavCount,
   useNavCounts,
 } from "./hooks/use-nav-counts";
+export { getNavCountsStore } from "./hooks/nav-counts-store";
 export {
   RuntimeConnectionIndicator,
   resolveRuntimeConnectionState,

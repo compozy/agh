@@ -1,7 +1,8 @@
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
-import type { CreateAgentParams } from "../types";
+import { joinAgentCategorySegments } from "./agent-category";
+import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
 
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;
@@ -259,6 +260,124 @@ export function buildCreateAgentParams(
         : {}),
       ...(disabledSkills.length > 0 ? { skills: { disabled: disabledSkills } } : {}),
     },
+  };
+}
+
+const CREATE_PERMISSIONS = new Set<AgentCreatePermission>([
+  "deny-all",
+  "approve-reads",
+  "approve-all",
+]);
+
+function mapPermissionsChoice(permissions: string | undefined): AgentCreatePermissionChoice {
+  if (!permissions) return "";
+  return CREATE_PERMISSIONS.has(permissions as AgentCreatePermission)
+    ? (permissions as AgentCreatePermission)
+    : "";
+}
+
+/** Prefill the create wizard from a read payload; name stays empty for the operator. */
+export function buildDraftFromAgentPayload(
+  agent: AgentPayload,
+  hasActiveWorkspace: boolean
+): AgentCreateDialogDraft {
+  const scope: AgentCreateScope =
+    agent.origin === "workspace" && hasActiveWorkspace ? "workspace" : "global";
+  const reasoning =
+    agent.reasoning_effort && isReasoningEffort(agent.reasoning_effort)
+      ? agent.reasoning_effort
+      : "";
+  return {
+    scope,
+    name: "",
+    categoryPath: joinAgentCategorySegments(agent.category_path ?? []),
+    provider: agent.provider ?? "",
+    model: agent.model ?? "",
+    reasoningEffort: reasoning,
+    command: agent.command ?? "",
+    prompt: agent.prompt ?? "",
+    permissions: mapPermissionsChoice(agent.permissions),
+    tools: [...(agent.tools ?? [])],
+    toolsets: [...(agent.toolsets ?? [])],
+    denyTools: [...(agent.deny_tools ?? [])],
+    disabledSkills: [...(agent.skills?.disabled ?? [])],
+  };
+}
+
+function sameTokenList(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+/**
+ * Build POST /duplicate body: required target name + override diff against source.
+ * Never returns a create payload.
+ */
+export function buildDuplicateAgentParams(
+  source: AgentPayload,
+  draft: AgentCreateDialogDraft,
+  workspaceId: string | null | undefined,
+  context: AgentCreateValidationContext
+): DuplicateAgentParams | null {
+  const validation = validateAgentCreateDraft(draft, context);
+  if (!validation.canSubmit) return null;
+  const normalizedWorkspaceId = workspaceId?.trim() ?? "";
+  if (draft.scope === "workspace" && normalizedWorkspaceId.length === 0) {
+    return null;
+  }
+
+  const name = draft.name.trim();
+  const provider = draft.provider.trim();
+  const prompt = draft.prompt.trim();
+  const model = draft.model.trim();
+  const reasoningEffort = isReasoningEffort(draft.reasoningEffort) ? draft.reasoningEffort : "";
+  const command = draft.command.trim();
+  const tools = normalizeOrderedTokens(draft.tools);
+  const toolsets = normalizeOrderedTokens(draft.toolsets);
+  const denyTools = normalizeOrderedTokens(draft.denyTools);
+  const disabledSkills = normalizeOrderedTokens(draft.disabledSkills);
+  const permissions = draft.permissions === "" ? undefined : draft.permissions;
+  const categoryPath = validation.categorySegments;
+
+  const sourceTools = [...(source.tools ?? [])];
+  const sourceToolsets = [...(source.toolsets ?? [])];
+  const sourceDeny = [...(source.deny_tools ?? [])];
+  const sourceDisabled = [...(source.skills?.disabled ?? [])];
+  const sourceCategory = [...(source.category_path ?? [])];
+  const sourcePermissions = mapPermissionsChoice(source.permissions) || undefined;
+  const sourceReasoning =
+    source.reasoning_effort && isReasoningEffort(source.reasoning_effort)
+      ? source.reasoning_effort
+      : "";
+
+  const overrides: NonNullable<DuplicateAgentParams["overrides"]> = {};
+  if (provider !== (source.provider ?? "")) overrides.provider = provider;
+  if (prompt !== (source.prompt ?? "")) overrides.prompt = prompt;
+  if (model !== (source.model ?? "")) overrides.model = model || undefined;
+  if (command !== (source.command ?? "")) overrides.command = command || undefined;
+  if (reasoningEffort !== sourceReasoning) {
+    overrides.reasoning_effort = reasoningEffort || undefined;
+  }
+  if (permissions !== sourcePermissions) overrides.permissions = permissions;
+  if (!sameTokenList(tools, sourceTools)) overrides.tools = tools;
+  if (!sameTokenList(toolsets, sourceToolsets)) overrides.toolsets = toolsets;
+  if (!sameTokenList(denyTools, sourceDeny)) overrides.deny_tools = denyTools;
+  if (!sameTokenList(categoryPath, sourceCategory)) {
+    overrides.category_path = categoryPath;
+  }
+  if (!sameTokenList(disabledSkills, sourceDisabled)) {
+    overrides.skills = { disabled: disabledSkills };
+  }
+
+  const sourceScope: AgentCreateScope = source.origin === "workspace" ? "workspace" : "global";
+  const scopeChanged = draft.scope !== sourceScope;
+  const hasOverrides = Object.keys(overrides).length > 0;
+
+  return {
+    name,
+    ...(scopeChanged || draft.scope === "workspace" ? { scope: draft.scope } : {}),
+    ...(draft.scope === "workspace" ? { workspace: normalizedWorkspaceId } : {}),
+    ...(hasOverrides ? { overrides } : {}),
   };
 }
 

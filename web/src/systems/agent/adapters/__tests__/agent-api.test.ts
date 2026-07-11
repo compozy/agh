@@ -2,8 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import type { CreateAgentParams } from "../../types";
-import { createAgent, fetchAgent, fetchAgents } from "../agent-api";
+import type { CreateAgentParams, DuplicateAgentParams, UpdateAgentParams } from "../../types";
+import {
+  AgentDigestConflictError,
+  AgentTargetExistsError,
+  createAgent,
+  deleteAgent,
+  duplicateAgent,
+  fetchAgent,
+  fetchAgents,
+  isAgentDigestConflict,
+  isAgentTargetExists,
+  updateAgent,
+} from "../agent-api";
 
 describe("fetchAgents", () => {
   const validResponse = {
@@ -197,6 +208,152 @@ describe("createAgent", () => {
       })
     );
 
-    await expect(createAgent(request)).rejects.toThrow("agent definition already exists");
+    await expect(createAgent(request)).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof AgentTargetExistsError &&
+        isAgentTargetExists(error) &&
+        error.message.includes("agent definition already exists")
+    );
+  });
+});
+
+describe("updateAgent", () => {
+  const params: UpdateAgentParams = {
+    expected_digest: "abc",
+    agent: {
+      name: "claude-agent",
+      provider: "claude",
+      prompt: "Updated prompt",
+    },
+  };
+
+  const response = {
+    agent: {
+      name: "claude-agent",
+      provider: "claude",
+      prompt: "Updated prompt",
+      definition_digest: "def",
+    },
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should put the update payload and return the agent", async () => {
+    mockJsonResponse(response);
+
+    const result = await updateAgent("claude-agent", params);
+
+    expect(result).toEqual(response.agent);
+    await expectFetchRequest({
+      path: "/api/agents/claude-agent",
+      method: "PUT",
+      body: params,
+    });
+  });
+
+  it("Should throw AgentDigestConflictError on 409", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "definition digest conflict" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(updateAgent("claude-agent", params)).rejects.toSatisfy(
+      (error: unknown) => error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
+    );
+  });
+});
+
+describe("deleteAgent", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should delete with workspace query and return unshadowed_origin", async () => {
+    mockJsonResponse({
+      name: "claude-agent",
+      origin: "workspace",
+      unshadowed_origin: "global",
+    });
+
+    const result = await deleteAgent("claude-agent", "ws_alpha");
+
+    expect(result).toEqual({
+      name: "claude-agent",
+      origin: "workspace",
+      unshadowed_origin: "global",
+    });
+    await expectFetchRequest({
+      path: "/api/agents/claude-agent?workspace=ws_alpha",
+      method: "DELETE",
+    });
+  });
+
+  it("Should throw 404 for unknown agents", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(deleteAgent("missing")).rejects.toThrow("Agent not found: missing");
+  });
+});
+
+describe("duplicateAgent", () => {
+  const params: DuplicateAgentParams = {
+    name: "claude-agent-copy",
+    scope: "workspace",
+    workspace: "ws_alpha",
+    overrides: { prompt: "Copy prompt" },
+  };
+
+  const response = {
+    agent: {
+      name: "claude-agent-copy",
+      provider: "claude",
+      prompt: "Copy prompt",
+    },
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should post duplicate and return the new agent", async () => {
+    mockJsonResponse(response, { status: 201 });
+
+    const result = await duplicateAgent("claude-agent", params);
+
+    expect(result).toEqual(response.agent);
+    await expectFetchRequest({
+      path: "/api/agents/claude-agent/duplicate",
+      method: "POST",
+      body: params,
+    });
+  });
+
+  it("Should throw AgentTargetExistsError on 409", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "agent definition already exists" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(duplicateAgent("claude-agent", params)).rejects.toSatisfy(
+      (error: unknown) => error instanceof AgentTargetExistsError && isAgentTargetExists(error)
+    );
   });
 });
