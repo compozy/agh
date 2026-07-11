@@ -124,7 +124,7 @@ func projectGoalGrantOutput(
 	checkpoint goal.Checkpoint,
 	turnLimit int,
 ) error {
-	_, err := exec.ExecContext(
+	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE loop_generation_outputs
 			 SET goal_status = 'active', goal_turns_used = ?, goal_turn_limit = ?
@@ -139,7 +139,7 @@ func projectGoalGrantOutput(
 	if err != nil {
 		return fmt.Errorf("store: project goal grant reactivation: %w", err)
 	}
-	return nil
+	return requireGoalRowsAffected(result, "project goal grant reactivation")
 }
 
 // CheckpointControl records one typed nonterminal or terminal control boundary by CAS.

@@ -75,7 +75,7 @@ func scanSessionInputQueueEntry(row rowScanner) (store.SessionInputQueueEntry, e
 		&fields.terminalTokens,
 		&fields.terminalAt,
 	); err != nil {
-		return store.SessionInputQueueEntry{}, err
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: scan session input queue entry: %w", err)
 	}
 	fields.applyValues(&entry)
 	if err := parseSessionInputQueueTimes(
@@ -90,7 +90,7 @@ func scanSessionInputQueueEntry(row rowScanner) (store.SessionInputQueueEntry, e
 		fields.fencedAt,
 		fields.terminalAt,
 	); err != nil {
-		return store.SessionInputQueueEntry{}, err
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input queue entry times: %w", err)
 	}
 	return entry, nil
 }

@@ -1,8 +1,8 @@
 import { cva } from "class-variance-authority";
 
 /**
- * Restrained operator alerts: neutral surface + hairline border; signal color
- * lives on the leading icon only. Titles stay fg-strong; descriptions stay muted.
+ * Restrained operator alerts: semantic tint + hairline border, with the signal
+ * repeated on the leading icon. Titles stay fg-strong; descriptions stay muted.
  * Matches web/CLAUDE.md — signal palette is information, never solid semantic banners.
  */
 const alertVariants = cva(
@@ -21,10 +21,10 @@ const alertVariants = cva(
         default: "[&>svg]:text-subtle",
         neutral: "[&>svg]:text-subtle",
         danger: "[&>svg]:text-danger",
-        warning: "[&>svg]:text-warning",
-        success: "[&>svg]:text-success",
-        info: "[&>svg]:text-info",
-        accent: "[&>svg]:text-accent",
+        warning: "bg-warning-tint [&>svg]:text-warning",
+        success: "bg-success-tint [&>svg]:text-success",
+        info: "bg-info-tint [&>svg]:text-info",
+        accent: "bg-accent-tint [&>svg]:text-accent",
       },
     },
     defaultVariants: {

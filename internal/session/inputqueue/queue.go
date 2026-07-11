@@ -148,7 +148,16 @@ func (s *Service) PeekNext(
 	ctx context.Context,
 	sessionID string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	return s.store.PeekNextSessionInput(ctx, strings.TrimSpace(sessionID))
+	target := strings.TrimSpace(sessionID)
+	entry, found, err := s.store.PeekNextSessionInput(ctx, target)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
+			"inputqueue: peek next input for session %q: %w",
+			target,
+			err,
+		)
+	}
+	return entry, found, nil
 }
 
 // Get returns one exact durable queue entry.
@@ -157,11 +166,22 @@ func (s *Service) Get(
 	sessionID string,
 	entryID string,
 ) (store.SessionInputQueueEntry, error) {
-	return s.store.GetSessionInputQueueEntry(
+	target := strings.TrimSpace(sessionID)
+	targetEntry := strings.TrimSpace(entryID)
+	entry, err := s.store.GetSessionInputQueueEntry(
 		ctx,
-		strings.TrimSpace(sessionID),
-		strings.TrimSpace(entryID),
+		target,
+		targetEntry,
 	)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"inputqueue: get input %q for session %q: %w",
+			targetEntry,
+			target,
+			err,
+		)
+	}
+	return entry, nil
 }
 
 // MarkSent records successful dispatch.

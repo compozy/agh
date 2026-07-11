@@ -19,7 +19,6 @@ import type { GoalStatusChipProps, SessionGoalSnapshot } from "./goal-status-typ
 
 export type {
   GoalComposerAffordance,
-  GoalControlAction,
   GoalStatusChipProps,
   SessionGoalSnapshot,
 } from "./goal-status-types";

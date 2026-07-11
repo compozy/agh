@@ -11,7 +11,7 @@ import { ArrowDown } from "lucide-react";
 import { type ComponentPropsWithoutRef, useEffect, useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { SessionGoalHeader } from "@/systems/session/components/goal/session-goal-header";
+import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
 import {
@@ -399,7 +399,9 @@ export function SessionThread({
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SessionComposerPrefillProvider setComposerText={composerState.setComposerText}>
-        {workspaceId ? <SessionGoalHeader sessionId={sessionId} workspaceId={workspaceId} /> : null}
+        {workspaceId ? (
+          <SessionGoalHeaderContainer sessionId={sessionId} workspaceId={workspaceId} />
+        ) : null}
         <ThreadViewport
           agentName={agentName}
           sessionId={sessionId}

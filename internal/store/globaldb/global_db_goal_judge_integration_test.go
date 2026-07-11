@@ -314,6 +314,9 @@ func TestGoalJudgeAmbiguityIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MarkJudgeAmbiguous() error = %v", err)
 		}
+		if err := globalDB.MarkJudgeAmbiguous(ctx, request); err != nil {
+			t.Fatalf("MarkJudgeAmbiguous(idempotent retry) error = %v", err)
+		}
 		attempt, err := globalDB.GetJudgeAttempt(ctx, key, "judge-attempt-ambiguous")
 		if err != nil {
 			t.Fatalf("GetJudgeAttempt() error = %v", err)

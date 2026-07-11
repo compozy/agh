@@ -61,6 +61,8 @@ on_exceeded = "halt"
 [goals]
 max_turns = 20
 context_nudge_ratio = 0.8
+outbox_batch_size = 50
+outbox_poll_interval = "100ms"
 
 [providers.claude.models]
 default = "claude-sonnet-5"

@@ -75,6 +75,7 @@ export {
 } from "./adapters/loops-api";
 
 // Query infrastructure
+export type { GoalControlAction } from "./lib/goal-control-action";
 export { loopsKeys } from "./lib/query-keys";
 export {
   loopAnnotationsOptions,

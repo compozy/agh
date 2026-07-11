@@ -35,7 +35,8 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		}
 		appender := &goalSessionEventAppenderStub{}
 		relay := &goalSessionOutboxRelay{
-			store: store, appender: appender, now: func() time.Time { return createdAt.Add(time.Second) },
+			store: store, appender: appender, batchSize: 7,
+			now: func() time.Time { return createdAt.Add(time.Second) },
 		}
 
 		if err := relay.DeliverPending(testutil.Context(t)); err == nil {
@@ -49,6 +50,9 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		}
 		if store.ackCalls != 2 || !store.delivered {
 			t.Fatalf("ack calls/delivered = %d/%t, want 2/true", store.ackCalls, store.delivered)
+		}
+		if store.claimLimit != 7 {
+			t.Fatalf("outbox claim limit = %d, want configured 7", store.claimLimit)
 		}
 		var payload goalSnapshotChangedPayload
 		if err := json.Unmarshal(appender.events[0].Content, &payload); err != nil {
@@ -198,16 +202,18 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 }
 
 type goalSessionOutboxStoreStub struct {
-	event     goalpkg.SessionOutboxEvent
-	ackErrs   []error
-	ackCalls  int
-	delivered bool
+	event      goalpkg.SessionOutboxEvent
+	ackErrs    []error
+	ackCalls   int
+	delivered  bool
+	claimLimit int
 }
 
 func (s *goalSessionOutboxStoreStub) ClaimGoalSessionOutbox(
-	context.Context,
-	int,
+	_ context.Context,
+	limit int,
 ) ([]goalpkg.SessionOutboxEvent, error) {
+	s.claimLimit = limit
 	if s.delivered {
 		return []goalpkg.SessionOutboxEvent{}, nil
 	}

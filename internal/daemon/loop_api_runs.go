@@ -147,11 +147,21 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	}
 	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
 	if err != nil {
-		return contract.LoopRunResponse{}, err
+		return contract.LoopRunResponse{}, fmt.Errorf(
+			"daemon: load executed definition snapshot %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
 	}
 	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
 	if err != nil {
-		return contract.LoopRunResponse{}, err
+		return contract.LoopRunResponse{}, fmt.Errorf(
+			"daemon: hydrate executed definition %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
 	}
 	executedDefinitionJSON, err := json.Marshal(resolved.Definition)
 	if err != nil {

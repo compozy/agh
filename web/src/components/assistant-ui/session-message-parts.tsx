@@ -13,7 +13,7 @@ export function formatDataPreview(data: unknown): string | null {
   }
 
   try {
-    return JSON.stringify(data);
+    return JSON.stringify(data) ?? String(data);
   } catch {
     return String(data);
   }

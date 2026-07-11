@@ -96,7 +96,7 @@ export async function listLoopRuns(
           status: normalizeOptionalText(filters.status),
           origin: normalizeOptionalText(filters.origin),
           origin_session: normalizeOptionalText(filters.origin_session),
-          live: normalizeOptionalText(filters.live),
+          live: filters.live,
           limit: filters.limit,
         },
       },

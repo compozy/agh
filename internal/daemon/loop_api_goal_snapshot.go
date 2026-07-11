@@ -23,7 +23,7 @@ func (s *daemonLoopAPIService) GetSessionGoal(
 	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: normalize Goal workspace %q: %w", workspaceID, err)
 	}
 	targetSessionID := strings.TrimSpace(sessionID)
 	if targetSessionID == "" {
@@ -34,25 +34,25 @@ func (s *daemonLoopAPIService) GetSessionGoal(
 	}
 	info, err := s.sessionStatus.Status(ctx, targetSessionID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: read Goal session status %q: %w", targetSessionID, err)
 	}
 	if info == nil || strings.TrimSpace(info.WorkspaceID) != string(ws) {
 		return nil, session.ErrSessionNotFound
 	}
 	projection, err := s.goalPersistence.GetSessionGoalProjection(ctx, ws, targetSessionID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: read Goal projection for session %q: %w", targetSessionID, err)
 	}
 	if !projection.Found || projection.Cleared {
 		return nil, nil
 	}
 	params, nodeID, contractSummary, err := s.goalDefinitionProjection(ctx, ws, projection)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: hydrate executed Goal definition %q: %w", projection.DefinitionDigest, err)
 	}
 	contextSnapshot, err := s.goalContextSnapshot(ctx, ws, projection)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("daemon: build Goal context snapshot for run %q: %w", projection.RunID, err)
 	}
 	return composeSessionGoalSnapshot(projection, params, nodeID, contractSummary, contextSnapshot), nil
 }
@@ -64,11 +64,19 @@ func (s *daemonLoopAPIService) goalDefinitionProjection(
 ) (dsl.GoalParams, string, string, error) {
 	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, projection.DefinitionDigest)
 	if err != nil {
-		return dsl.GoalParams{}, "", "", err
+		return dsl.GoalParams{}, "", "", fmt.Errorf(
+			"daemon: load Goal definition snapshot %q: %w",
+			projection.DefinitionDigest,
+			err,
+		)
 	}
 	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, projection.DefinitionDigest)
 	if err != nil {
-		return dsl.GoalParams{}, "", "", err
+		return dsl.GoalParams{}, "", "", fmt.Errorf(
+			"daemon: load executed Goal definition %q: %w",
+			projection.DefinitionDigest,
+			err,
+		)
 	}
 	wantedNodeID := ""
 	if projection.Checkpoint != nil {

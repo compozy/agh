@@ -49,7 +49,7 @@ func goalContextPayload(value session.GoalContextSnapshot) (contract.GoalContext
 	switch state {
 	case contract.GoalContextKnown:
 		if value.Used == nil || value.Size == nil || value.Ratio == nil || value.ReportedAt == nil ||
-			*value.Used < 0 || *value.Size <= 0 {
+			*value.Used < 0 || *value.Size <= 0 || *value.Ratio < 0 || *value.Ratio > 1 {
 			return contract.GoalContextSnapshot{}, goalContractValidationError(
 				"known Goal context requires valid usage metrics",
 			)

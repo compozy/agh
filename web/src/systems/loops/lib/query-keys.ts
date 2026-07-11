@@ -16,6 +16,10 @@ function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
 }
 
+function normalizeBoolean(value?: boolean): boolean | "" {
+  return value === undefined ? "" : value;
+}
+
 /**
  * Hierarchical Loop query keys. Every read is workspace-scoped (the Loop API is
  * mounted under `/api/workspaces/{workspace_id}`), so `workspace_id` participates
@@ -64,7 +68,7 @@ export const loopsKeys = {
       normalizeText(filters.status),
       normalizeText(filters.origin),
       normalizeText(filters.origin_session),
-      normalizeText(filters.live),
+      normalizeBoolean(filters.live),
       normalizeNumber(filters.limit),
     ] as const,
 

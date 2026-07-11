@@ -3,8 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
+import { loopsKeys } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
-import { loopsKeys } from "@/systems/loops/lib/query-keys";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { createSessionThreadListAdapter } from "../lib/session-thread-list-adapter";
 import { useSessionStore } from "./use-session-store";

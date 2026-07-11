@@ -127,7 +127,16 @@ func (f GoalCommandHandlerFunc) Handle(
 	caller PromptCaller,
 	command GoalCommand,
 ) (GoalDispatchDecision, error) {
-	return f(ctx, workspaceID, sessionID, caller, command)
+	decision, err := f(ctx, workspaceID, sessionID, caller, command)
+	if err != nil {
+		return GoalDispatchDecision{}, fmt.Errorf(
+			"session: handle Goal command %q for session %q: %w",
+			command.Verb,
+			sessionID,
+			err,
+		)
+	}
+	return decision, nil
 }
 
 // GoalCommandError carries one deterministic parser reason.
@@ -191,6 +200,17 @@ func ParseGoalCommand(message string) (GoalCommand, bool, error) {
 	case GoalCommandVerbDraft:
 		if remainder == "" {
 			return GoalCommand{}, true, goalCommandError(GoalReasonObjectiveRequired, "Goal draft text is required")
+		}
+		if err := validateGoalCommandPayload(remainder); err != nil {
+			return GoalCommand{}, true, err
+		}
+		return GoalCommand{Verb: verb, Objective: remainder}, true, nil
+	case GoalCommandVerbSet:
+		if remainder == "" {
+			return GoalCommand{}, true, goalCommandError(
+				GoalReasonObjectiveRequired,
+				"Goal objective is required",
+			)
 		}
 		if err := validateGoalCommandPayload(remainder); err != nil {
 			return GoalCommand{}, true, err

@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
-	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/workref"
 )
@@ -39,12 +36,12 @@ const (
 func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta) (sessionStartSpec, error) {
 	meta, err := m.dispatchSessionPreResume(ctx, meta)
 	if err != nil {
-		return sessionStartSpec{}, err
+		return sessionStartSpec{}, fmt.Errorf("session: dispatch pre-resume for %q: %w", meta.ID, err)
 	}
 
 	resolvedWorkspace, err := m.resolveResumeWorkspace(ctx, meta)
 	if err != nil {
-		return sessionStartSpec{}, err
+		return sessionStartSpec{}, fmt.Errorf("session: resolve resume workspace for %q: %w", meta.ID, err)
 	}
 
 	return sessionStartSpec{
@@ -60,7 +57,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		permissions:             aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:               resolvedWorkspace,
 		channel:                 strings.TrimSpace(meta.Channel),
-		cwd:                     resolvedWorkspace.RootDir,
+		cwd:                     resumeSessionCWD(meta, resolvedWorkspace.RootDir),
 		sessionType:             normalizeSessionType(Type(meta.SessionType)),
 		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		postEvent:               hookspkg.HookSessionPostResume,
@@ -84,12 +81,19 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	}, nil
 }
 
+func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) string {
+	if meta.CreationProfile != nil {
+		return strings.TrimSpace(meta.CreationProfile.CWD)
+	}
+	return workspaceRoot
+}
+
 func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *Session, err error) {
 	now := m.now()
 
 	runtime, err := m.prepareSessionStartRuntimeAndIdentity(ctx, spec, now)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: prepare %s runtime for %q: %w", spec.startAction, spec.sessionID, err)
 	}
 	defer func() {
 		if err != nil && m.hostedMCP != nil {
@@ -98,7 +102,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}()
 
 	if err := m.reserve(spec.sessionID); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: reserve %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
 	defer func() {
 		if err != nil {
@@ -108,7 +112,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 
 	storage, err := m.openSessionStartStorage(ctx, spec)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: open %s storage for %q: %w", spec.startAction, spec.sessionID, err)
 	}
 
 	var proc *AgentProcess
@@ -127,17 +131,17 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	session := spec.newStartingSession(runtime.agent, storage, now)
 	defer cleanupProviderRedactionsOnStartError(session, &err)
 	if err := m.restoreAdvertisedCommands(ctx, session); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: restore advertised commands for %q: %w", spec.sessionID, err)
 	}
 
 	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: prepare %s launch for %q: %w", spec.startAction, spec.sessionID, err)
 	}
 
 	proc, err = m.startAgentProcess(ctx, spec, session, startOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: start %s agent process for %q: %w", spec.startAction, spec.sessionID, err)
 	}
 
 	if err := m.activateAndWatch(
@@ -149,7 +153,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		spec.postEvent,
 		spec.preserveStopReason,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session: activate %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
 
 	return session, nil
@@ -198,7 +202,12 @@ func (m *Manager) prepareSessionLaunch(
 	}
 	if err := m.persistSessionMetadataOnly(session); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
-		return acp.StartOpts{}, err
+		return acp.StartOpts{}, fmt.Errorf(
+			"session: persist %s metadata for %q: %w",
+			spec.startAction,
+			spec.sessionID,
+			err,
+		)
 	}
 	return startOpts, nil
 }
@@ -217,10 +226,15 @@ func (m *Manager) prepareSessionStartRuntimeAndIdentity(
 			"error",
 			err,
 		)
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: prepare %s runtime for %q: %w",
+			spec.startAction,
+			spec.sessionID,
+			err,
+		)
 	}
 	if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
 	}
 	return runtime, nil
 }
@@ -319,7 +333,7 @@ func (m *Manager) prepareSessionStartRuntime(
 	agentDef := artifacts.Agent
 
 	if err := m.prepareSessionStartSoul(ctx, spec, artifacts, updatedAt); err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: prepare soul for %q: %w", spec.sessionID, err)
 	}
 
 	startupCtx := spec.startupPromptContext(updatedAt)
@@ -337,7 +351,7 @@ func (m *Manager) prepareSessionStartRuntime(
 		&spec.workspace,
 	)
 	if err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: assemble startup prompt for %q: %w", spec.sessionID, err)
 	}
 	if m.startupOverlay != nil {
 		startupPrompt, err = m.startupOverlay.Apply(ctx, startupCtx, startupPrompt)
@@ -359,18 +373,18 @@ func (m *Manager) prepareSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 	if err := spec.validateRuntimeOverrides(); err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: validate runtime overrides for %q: %w", spec.sessionID, err)
 	}
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
 	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: apply allowed tools for %q: %w", spec.sessionID, err)
 	}
 
 	startMCPServers, err := m.sessionMCPServers(ctx, spec, resolved)
 	if err != nil {
-		return sessionStartRuntime{}, err
+		return sessionStartRuntime{}, fmt.Errorf("session: resolve MCP servers for %q: %w", spec.sessionID, err)
 	}
 
 	return sessionStartRuntime{
@@ -441,116 +455,6 @@ func (m *Manager) sessionMCPServers(
 	return []aghconfig.MCPServer{hosted}, nil
 }
 
-func (m *Manager) openSessionStartStorage(
-	ctx context.Context,
-	spec *sessionStartSpec,
-) (sessionStartStorage, error) {
-	sessionDir := filepath.Join(m.homePaths.SessionsDir, spec.sessionID)
-	if spec.cleanupSessionDir {
-		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-			return sessionStartStorage{}, fmt.Errorf("session: create session directory %q: %w", sessionDir, err)
-		}
-	}
-
-	dbPath := store.SessionDBFile(sessionDir)
-	recorder, err := m.openStore(ctx, spec.sessionID, dbPath)
-	if err != nil {
-		return sessionStartStorage{}, fmt.Errorf("session: open session store %q: %w", dbPath, err)
-	}
-	if spec.clearEventStoreOnOpen {
-		if err := clearSessionStartRecorder(ctx, recorder, dbPath); err != nil {
-			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
-			defer cancel()
-			return sessionStartStorage{}, errors.Join(err, recorder.Close(closeCtx))
-		}
-	}
-
-	return sessionStartStorage{
-		sessionDir: sessionDir,
-		metaPath:   store.SessionMetaFile(sessionDir),
-		dbPath:     dbPath,
-		recorder:   recorder,
-	}, nil
-}
-
-type clearableEventRecorder interface {
-	Clear(context.Context) error
-}
-
-func clearSessionStartRecorder(ctx context.Context, recorder EventRecorder, dbPath string) error {
-	clearable, ok := recorder.(clearableEventRecorder)
-	if !ok {
-		return fmt.Errorf("session: event store %q does not support reset", dbPath)
-	}
-	if err := clearable.Clear(ctx); err != nil {
-		return fmt.Errorf("session: reset event store %q: %w", dbPath, err)
-	}
-	return nil
-}
-
-func (m *Manager) normalizeCreateLineage(
-	ctx context.Context,
-	sessionID string,
-	sessionType Type,
-	lineage *store.SessionLineage,
-) (*store.SessionLineage, error) {
-	normalizedType := normalizeSessionType(sessionType)
-	normalized := store.NormalizeSessionLineage(sessionID, lineage)
-	if err := store.ValidateSessionLineage(sessionID, normalized); err != nil {
-		return nil, fmt.Errorf("session: validate session lineage: %w", err)
-	}
-
-	hasParent := strings.TrimSpace(normalized.ParentSessionID) != ""
-	switch {
-	case normalizedType == SessionTypeSpawned && !hasParent:
-		return nil, errors.New("session: spawned session lineage requires a parent session id")
-	case hasParent && normalizedType != SessionTypeSpawned:
-		return nil, errors.New("session: only spawned sessions may have a parent session id")
-	case normalizedType == SessionTypeCoordinator && hasParent:
-		return nil, errors.New("session: coordinator sessions must be root sessions")
-	}
-
-	requiresTTL := normalizedType == SessionTypeSpawned || normalizedType == SessionTypeCoordinator
-	if requiresTTL && normalized.TTLExpiresAt == nil {
-		return nil, errors.New("session: spawned and coordinator sessions require a ttl deadline")
-	}
-	if normalized.TTLExpiresAt != nil {
-		now := m.now()
-		if !normalized.TTLExpiresAt.After(now) {
-			return nil, errors.New("session: ttl deadline must be in the future")
-		}
-		if normalized.SpawnBudget.TTLSeconds <= 0 {
-			ttlSeconds := int64(normalized.TTLExpiresAt.Sub(now).Seconds())
-			if ttlSeconds <= 0 {
-				ttlSeconds = 1
-			}
-			normalized.SpawnBudget.TTLSeconds = ttlSeconds
-		}
-	}
-	if err := m.validateCreateLineageReferences(ctx, normalized); err != nil {
-		return nil, err
-	}
-
-	return normalized, nil
-}
-
-func (m *Manager) validateCreateLineageReferences(ctx context.Context, lineage *store.SessionLineage) error {
-	if lineage == nil || strings.TrimSpace(lineage.ParentSessionID) == "" {
-		return nil
-	}
-	if _, err := m.Status(ctx, lineage.ParentSessionID); err != nil {
-		return fmt.Errorf("session: validate parent lineage %q: %w", lineage.ParentSessionID, err)
-	}
-	rootID := strings.TrimSpace(lineage.RootSessionID)
-	if rootID == "" || rootID == strings.TrimSpace(lineage.ParentSessionID) {
-		return nil
-	}
-	if _, err := m.Status(ctx, rootID); err != nil {
-		return fmt.Errorf("session: validate root lineage %q: %w", rootID, err)
-	}
-	return nil
-}
-
 func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 	logger := slog.Default()
 	if m != nil && m.logger != nil {
@@ -562,116 +466,4 @@ func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 		"provider", strings.TrimSpace(s.provider),
 		"workspace_id", strings.TrimSpace(s.workspace.ID),
 	)
-}
-
-func (m *Manager) sessionStartOpts(
-	s *sessionStartSpec,
-	session *Session,
-	resolved aghconfig.ResolvedAgent,
-	mcpServers []aghconfig.MCPServer,
-) acp.StartOpts {
-	return acp.StartOpts{
-		AgentName:       resolved.Name,
-		Command:         resolved.Command,
-		Cwd:             s.cwd,
-		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
-		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
-		MCPServers:      mcpServers,
-		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:    resolved.Prompt,
-		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
-		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
-		ResumeSessionID: s.acpSessionID,
-		ToolGateway:     newProviderNativeToolGateway(m, session),
-	}
-}
-
-func startSpecPermissions(s *sessionStartSpec, fallback string) string {
-	if s == nil || strings.TrimSpace(string(s.permissions)) == "" {
-		return fallback
-	}
-	return string(s.permissions)
-}
-
-func sessionStartEnv(base []string, session *Session) []string {
-	return sessionStartEnvForProvider(base, session, aghconfig.ProviderEnvPolicyFiltered)
-}
-
-func sessionStartEnvForProvider(
-	base []string,
-	session *Session,
-	envPolicy aghconfig.ProviderEnvPolicy,
-) []string {
-	env := procutil.FilteredDaemonEnv(base)
-	if envPolicy == aghconfig.ProviderEnvPolicyIsolated {
-		env = procutil.IsolatedDaemonEnv(base)
-	}
-	if session == nil {
-		return env
-	}
-
-	env = setSessionStartEnvValue(env, "AGH_SESSION_ID", strings.TrimSpace(session.ID))
-	env = setSessionStartEnvValue(env, "AGH_AGENT", strings.TrimSpace(session.AgentName))
-	env = setSessionStartEnvValue(env, "AGH_AGENT_NAME", strings.TrimSpace(session.AgentName))
-	env = unsetSessionStartEnvKeys(env, "AGH_SESSION_CHANNEL", "AGH_PEER_ID")
-
-	if effort := strings.TrimSpace(session.ReasoningEffort); effort != "" {
-		env = setSessionStartEnvValue(env, "AGH_REASONING_EFFORT", effort)
-	} else {
-		env = unsetSessionStartEnvKeys(env, "AGH_REASONING_EFFORT")
-	}
-
-	channel := strings.TrimSpace(session.Channel)
-	if channel == "" {
-		return env
-	}
-
-	env = setSessionStartEnvValue(env, "AGH_SESSION_CHANNEL", channel)
-	env = setSessionStartEnvValue(env, "AGH_PEER_ID", networkPeerID(session.AgentName, session.ID))
-	return env
-}
-
-func setSessionStartEnvValue(env []string, key string, value string) []string {
-	trimmedKey := strings.TrimSpace(key)
-	if trimmedKey == "" {
-		return env
-	}
-	entry := trimmedKey + "=" + value
-	for i, current := range env {
-		existingKey, _, ok := strings.Cut(current, "=")
-		if ok && existingKey == trimmedKey {
-			env[i] = entry
-			return env
-		}
-	}
-	return append(env, entry)
-}
-
-func unsetSessionStartEnvKeys(env []string, keys ...string) []string {
-	if len(env) == 0 || len(keys) == 0 {
-		return env
-	}
-
-	blocked := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey != "" {
-			blocked[trimmedKey] = struct{}{}
-		}
-	}
-	if len(blocked) == 0 {
-		return env
-	}
-
-	filtered := make([]string, 0, len(env))
-	for _, current := range env {
-		existingKey, _, ok := strings.Cut(current, "=")
-		if ok {
-			if _, blockedKey := blocked[existingKey]; blockedKey {
-				continue
-			}
-		}
-		filtered = append(filtered, current)
-	}
-	return filtered
 }

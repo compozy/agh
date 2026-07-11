@@ -12,7 +12,7 @@ type MdProps<T extends keyof React.JSX.IntrinsicElements> = React.ComponentProps
 const INLINE_CODE_CLASS =
   "rounded-xs bg-surface-glaze px-1 py-px font-mono text-form-input text-fg-strong";
 
-function MarkdownAnchor({ className, ...props }: MdProps<"a">) {
+function MarkdownAnchor({ className, node: _node, ...props }: MdProps<"a">) {
   return (
     <a
       className={cn(
@@ -24,11 +24,11 @@ function MarkdownAnchor({ className, ...props }: MdProps<"a">) {
   );
 }
 
-function MarkdownStrong({ className, ...props }: MdProps<"strong">) {
+function MarkdownStrong({ className, node: _node, ...props }: MdProps<"strong">) {
   return <strong className={cn("font-medium text-fg-strong", className)} {...props} />;
 }
 
-function MarkdownBlockquote({ className, ...props }: MdProps<"blockquote">) {
+function MarkdownBlockquote({ className, node: _node, ...props }: MdProps<"blockquote">) {
   return (
     <blockquote
       className={cn("border-l-2 border-line-strong pl-3 text-muted", className)}
@@ -37,45 +37,45 @@ function MarkdownBlockquote({ className, ...props }: MdProps<"blockquote">) {
   );
 }
 
-function MarkdownHr({ className, ...props }: MdProps<"hr">) {
+function MarkdownHr({ className, node: _node, ...props }: MdProps<"hr">) {
   return <hr className={cn("my-4 border-line", className)} {...props} />;
 }
 
-function MarkdownParagraph({ className, ...props }: MdProps<"p">) {
+function MarkdownParagraph({ className, node: _node, ...props }: MdProps<"p">) {
   return <p className={cn(className)} {...props} />;
 }
 
-function MarkdownH1({ className, ...props }: MdProps<"h1">) {
+function MarkdownH1({ className, node: _node, ...props }: MdProps<"h1">) {
   return (
     <h1 className={cn("text-item-title font-semibold text-fg-strong", className)} {...props} />
   );
 }
 
-function MarkdownH2({ className, ...props }: MdProps<"h2">) {
+function MarkdownH2({ className, node: _node, ...props }: MdProps<"h2">) {
   return (
     <h2 className={cn("text-card-title font-semibold text-fg-strong", className)} {...props} />
   );
 }
 
-function MarkdownH3({ className, ...props }: MdProps<"h3">) {
+function MarkdownH3({ className, node: _node, ...props }: MdProps<"h3">) {
   return (
     <h3 className={cn("text-small-body font-semibold text-fg-strong", className)} {...props} />
   );
 }
 
-function MarkdownH4({ className, ...props }: MdProps<"h4">) {
+function MarkdownH4({ className, node: _node, ...props }: MdProps<"h4">) {
   return <h4 className={cn("text-small-body font-medium text-fg", className)} {...props} />;
 }
 
-function MarkdownH5({ className, ...props }: MdProps<"h5">) {
+function MarkdownH5({ className, node: _node, ...props }: MdProps<"h5">) {
   return <h5 className={cn("text-small-body font-medium text-muted", className)} {...props} />;
 }
 
-function MarkdownH6({ className, ...props }: MdProps<"h6">) {
+function MarkdownH6({ className, node: _node, ...props }: MdProps<"h6">) {
   return <h6 className={cn("text-small-body font-medium text-muted", className)} {...props} />;
 }
 
-function MarkdownUl({ className, ...props }: MdProps<"ul">) {
+function MarkdownUl({ className, node: _node, ...props }: MdProps<"ul">) {
   return (
     <ul
       className={cn("list-disc pl-5 [&_ul]:list-[circle] [&_ul_ul]:list-[square]", className)}
@@ -84,15 +84,15 @@ function MarkdownUl({ className, ...props }: MdProps<"ul">) {
   );
 }
 
-function MarkdownOl({ className, ...props }: MdProps<"ol">) {
+function MarkdownOl({ className, node: _node, ...props }: MdProps<"ol">) {
   return <ol className={cn("list-decimal pl-5", className)} {...props} />;
 }
 
-function MarkdownLi({ className, ...props }: MdProps<"li">) {
+function MarkdownLi({ className, node: _node, ...props }: MdProps<"li">) {
   return <li className={cn("my-0.5", className)} {...props} />;
 }
 
-function MarkdownTable({ className, ...props }: MdProps<"table">) {
+function MarkdownTable({ className, node: _node, ...props }: MdProps<"table">) {
   return (
     <div className="w-full overflow-x-auto">
       <table className={cn("w-full border-collapse", className)} {...props} />
@@ -100,7 +100,7 @@ function MarkdownTable({ className, ...props }: MdProps<"table">) {
   );
 }
 
-function MarkdownTh({ className, ...props }: MdProps<"th">) {
+function MarkdownTh({ className, node: _node, ...props }: MdProps<"th">) {
   return (
     <th
       className={cn(
@@ -112,7 +112,7 @@ function MarkdownTh({ className, ...props }: MdProps<"th">) {
   );
 }
 
-function MarkdownTd({ className, ...props }: MdProps<"td">) {
+function MarkdownTd({ className, node: _node, ...props }: MdProps<"td">) {
   return (
     <td className={cn("border-b border-line px-2 py-1.5 text-form-input", className)} {...props} />
   );

@@ -43,6 +43,7 @@ type goalSessionOutboxRelay struct {
 	stopper      goalSessionCleanupStopper
 	logger       *slog.Logger
 	now          func() time.Time
+	batchSize    int
 	pollInterval time.Duration
 }
 
@@ -86,9 +87,9 @@ func (r *goalSessionOutboxRelay) DeliverPending(ctx context.Context) error {
 }
 
 func (r *goalSessionOutboxRelay) deliverPendingProjections(ctx context.Context) error {
-	events, err := r.store.ClaimGoalSessionOutbox(ctx, goalSessionOutboxBatchSize)
+	events, err := r.store.ClaimGoalSessionOutbox(ctx, r.claimBatchSize())
 	if err != nil {
-		return err
+		return fmt.Errorf("daemon: claim Goal session outbox: %w", err)
 	}
 	var deliveryErrs []error
 	for _, event := range events {
@@ -119,9 +120,9 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 	if r.cleanupStore == nil || r.stopper == nil {
 		return nil
 	}
-	obligations, err := r.cleanupStore.ClaimGoalSessionCleanup(ctx, goalSessionOutboxBatchSize)
+	obligations, err := r.cleanupStore.ClaimGoalSessionCleanup(ctx, r.claimBatchSize())
 	if err != nil {
-		return err
+		return fmt.Errorf("daemon: claim Goal session cleanup: %w", err)
 	}
 	var deliveryErrs []error
 	for _, obligation := range obligations {
@@ -147,6 +148,13 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 		}
 	}
 	return errors.Join(deliveryErrs...)
+}
+
+func (r *goalSessionOutboxRelay) claimBatchSize() int {
+	if r.batchSize > 0 {
+		return r.batchSize
+	}
+	return goalSessionOutboxBatchSize
 }
 
 func (r *goalSessionOutboxRelay) logCleanupFailure(

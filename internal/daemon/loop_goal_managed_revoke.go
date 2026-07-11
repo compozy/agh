@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
@@ -43,5 +44,8 @@ func (l *loopGoalManagedInputLifecycle) Revoke(
 	if err == nil {
 		l.clearUsageReporter(owner.QueueEntryID)
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("daemon: revoke managed Goal prompt %q: %w", owner.PromptID, err)
+	}
+	return nil
 }

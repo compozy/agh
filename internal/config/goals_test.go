@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGoalsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
@@ -24,6 +25,12 @@ func TestGoalsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
 		if cfg.Goals.ContextNudgeRatio != 0.8 {
 			t.Fatalf("Goals.ContextNudgeRatio = %v, want 0.8", cfg.Goals.ContextNudgeRatio)
 		}
+		if cfg.Goals.OutboxBatchSize != 50 {
+			t.Fatalf("Goals.OutboxBatchSize = %d, want 50", cfg.Goals.OutboxBatchSize)
+		}
+		if cfg.Goals.OutboxPollInterval != 100*time.Millisecond {
+			t.Fatalf("Goals.OutboxPollInterval = %s, want 100ms", cfg.Goals.OutboxPollInterval)
+		}
 	})
 
 	t.Run("Should apply global and workspace overlays with zero ratio preserved", func(t *testing.T) {
@@ -38,11 +45,15 @@ func TestGoalsConfigShouldLoadDefaultsAndOverlays(t *testing.T) {
 [goals]
 max_turns = 12
 context_nudge_ratio = 0.6
+outbox_batch_size = 40
+outbox_poll_interval = "250ms"
 `)
 		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [goals]
 max_turns = 7
 context_nudge_ratio = 0.0
+outbox_batch_size = 25
+outbox_poll_interval = "50ms"
 `)
 
 		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
@@ -54,6 +65,13 @@ context_nudge_ratio = 0.0
 		}
 		if cfg.Goals.ContextNudgeRatio != 0 {
 			t.Fatalf("Goals.ContextNudgeRatio = %v, want explicit zero", cfg.Goals.ContextNudgeRatio)
+		}
+		if cfg.Goals.OutboxBatchSize != 25 || cfg.Goals.OutboxPollInterval != 50*time.Millisecond {
+			t.Fatalf(
+				"Goals outbox config = %d/%s, want 25/50ms",
+				cfg.Goals.OutboxBatchSize,
+				cfg.Goals.OutboxPollInterval,
+			)
 		}
 	})
 }
@@ -84,6 +102,24 @@ func TestGoalsConfigShouldRejectWriteTimeInvalidValues(t *testing.T) {
 			path:      []string{"goals", "context_nudge_ratio"},
 			value:     1.1,
 			wantError: goalContextNudgeRatioPath,
+		},
+		{
+			name:      "Should reject zero outbox batch size",
+			path:      []string{"goals", "outbox_batch_size"},
+			value:     0,
+			wantError: goalOutboxBatchSizePath,
+		},
+		{
+			name:      "Should reject outbox batch size above the store limit",
+			path:      []string{"goals", "outbox_batch_size"},
+			value:     201,
+			wantError: goalOutboxBatchSizePath,
+		},
+		{
+			name:      "Should reject non-positive outbox poll interval",
+			path:      []string{"goals", "outbox_poll_interval"},
+			value:     "0s",
+			wantError: goalOutboxPollIntervalPath,
 		},
 	}
 
@@ -130,6 +166,16 @@ func TestGoalsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			name: "Should allow Goal context nudge ratio",
 			path: []string{"goals", "context_nudge_ratio"},
 			kind: ConfigValueFloat,
+		},
+		{
+			name: "Should allow Goal outbox batch size",
+			path: []string{"goals", "outbox_batch_size"},
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow Goal outbox poll interval",
+			path: []string{"goals", "outbox_poll_interval"},
+			kind: ConfigValueDuration,
 		},
 	}
 

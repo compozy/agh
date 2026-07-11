@@ -186,7 +186,7 @@ describe("loops-api (request construction + error mapping)", () => {
       status: "running",
       origin: "session",
       origin_session: "session_1",
-      live: "true",
+      live: true,
       limit: 10,
     });
     await expectFetchRequest({

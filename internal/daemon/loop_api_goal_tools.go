@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	goalpkg "github.com/compozy/agh/internal/loop/goal"
@@ -15,9 +16,17 @@ func (s *daemonLoopAPIService) findGoalReportTarget(
 ) (goalpkg.ToolReportTarget, bool, error) {
 	store, err := s.goalToolStore()
 	if err != nil {
-		return goalpkg.ToolReportTarget{}, false, err
+		return goalpkg.ToolReportTarget{}, false, fmt.Errorf("daemon: acquire Goal report target store: %w", err)
 	}
-	return store.FindGoalReportTarget(ctx, workspaceID, sessionID)
+	target, found, err := store.FindGoalReportTarget(ctx, workspaceID, sessionID)
+	if err != nil {
+		return goalpkg.ToolReportTarget{}, false, fmt.Errorf(
+			"daemon: find Goal report target for session %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	return target, found, nil
 }
 
 func (s *daemonLoopAPIService) resolveActiveGoalOriginAlias(
@@ -27,9 +36,13 @@ func (s *daemonLoopAPIService) resolveActiveGoalOriginAlias(
 ) (string, bool, error) {
 	store, err := s.goalToolStore()
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("daemon: acquire Goal origin alias store: %w", err)
 	}
-	return store.ResolveActiveGoalOriginAlias(ctx, workspaceID, sessionID)
+	alias, found, err := store.ResolveActiveGoalOriginAlias(ctx, workspaceID, sessionID)
+	if err != nil {
+		return "", false, fmt.Errorf("daemon: resolve Goal origin alias for session %q: %w", sessionID, err)
+	}
+	return alias, found, nil
 }
 
 func (s *daemonLoopAPIService) recordGoalReport(
@@ -38,9 +51,17 @@ func (s *daemonLoopAPIService) recordGoalReport(
 ) (goalpkg.ReportIntent, error) {
 	store, err := s.goalToolStore()
 	if err != nil {
-		return goalpkg.ReportIntent{}, err
+		return goalpkg.ReportIntent{}, fmt.Errorf("daemon: acquire Goal report store: %w", err)
 	}
-	return store.RecordGoalReport(ctx, request)
+	report, err := store.RecordGoalReport(ctx, request)
+	if err != nil {
+		return goalpkg.ReportIntent{}, fmt.Errorf(
+			"daemon: record Goal report for prompt %q: %w",
+			request.Target.PromptID,
+			err,
+		)
+	}
+	return report, nil
 }
 
 func (s *daemonLoopAPIService) goalToolStore() (goalpkg.ToolStore, error) {

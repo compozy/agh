@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
@@ -14,6 +15,9 @@ func advanceRevokedGoalCheckpoint(
 	checkpoint goal.Checkpoint,
 	request goal.RevokePromptRequest,
 ) error {
+	taskRunID := strings.TrimSpace(request.TaskRunID)
+	queueEntryID := strings.TrimSpace(request.QueueEntryID)
+	promptID := strings.TrimSpace(request.PromptID)
 	if checkpoint.JudgeAttemptID != "" {
 		if _, err := exec.ExecContext(
 			ctx,
@@ -55,9 +59,9 @@ func advanceRevokedGoalCheckpoint(
 		request.Key.ItemIndex,
 		request.ExpectedControlEpoch,
 		request.ExpectedBindingEpoch,
-		request.TaskRunID,
-		request.QueueEntryID,
-		request.PromptID,
+		taskRunID,
+		queueEntryID,
+		promptID,
 	)
 	if err != nil {
 		return fmt.Errorf("store: advance revoked Goal checkpoint: %w", err)

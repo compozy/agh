@@ -38,6 +38,13 @@ func markJudgeAmbiguousWithExecutor(
 	if err != nil {
 		return err
 	}
+	attempt, err := getGoalJudgeAttemptWithExecutor(ctx, exec, req.Key, req.AttemptID)
+	if err != nil {
+		return err
+	}
+	if attempt.Status == goalJudgeStatusAmbiguous {
+		return nil
+	}
 	if err := validateJudgeCheckpointOwner(checkpoint, req.ExpectedControlEpoch,
 		req.ExpectedBindingEpoch, req.TaskRunID, req.PromptID); err != nil {
 		return err
@@ -51,13 +58,6 @@ func markJudgeAmbiguousWithExecutor(
 		checkpoint.SessionID,
 	); err != nil {
 		return err
-	}
-	attempt, err := getGoalJudgeAttemptWithExecutor(ctx, exec, req.Key, req.AttemptID)
-	if err != nil {
-		return err
-	}
-	if attempt.Status == goalJudgeStatusAmbiguous {
-		return nil
 	}
 	if attempt.Status != goalJudgeStatusRunning {
 		return goalControlStaleError("judge attempt is not running")

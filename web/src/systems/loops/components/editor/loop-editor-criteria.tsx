@@ -37,6 +37,19 @@ function nextCriterionId(criteria: readonly Criterion[]): string {
   return `criterion_${maxSuffix + 1}`;
 }
 
+function criterionForType(id: string, type: CriterionType): Criterion {
+  switch (type) {
+    case "command":
+      return { id, type, check: "", expect: "exit_zero" };
+    case "agent-judge":
+      return { id, type, agent: "", rubric: "" };
+    case "human":
+      return { id, type, prompt: "" };
+    case "extension":
+      return { id, type, tool: "" };
+  }
+}
+
 /**
  * The gate criteria list editor (design §4.6): one row per verdict criterion with the
  * per-type fields the DSL carries — command (check + expect), agent-judge (agent +
@@ -51,7 +64,13 @@ export function LoopEditorCriteria({
   disabled = false,
   allowedTypes = CRITERION_TYPES,
 }: LoopEditorCriteriaProps) {
-  const criteria = asCriteria(value);
+  const defaultType = allowedTypes[0];
+  const criteria = asCriteria(value).map(criterion => {
+    const type = str(criterion.type) as CriterionType;
+    return defaultType && !allowedTypes.includes(type)
+      ? { ...criterion, type: defaultType }
+      : criterion;
+  });
 
   const update = (index: number, patch: Record<string, unknown>) => {
     onChange(
@@ -59,11 +78,10 @@ export function LoopEditorCriteria({
     );
   };
   const remove = (index: number) => onChange(criteria.filter((_, i) => i !== index));
-  const add = () =>
-    onChange([
-      ...criteria,
-      { id: nextCriterionId(criteria), type: "command", check: "", expect: "exit_zero" },
-    ]);
+  const add = () => {
+    if (!defaultType) return;
+    onChange([...criteria, criterionForType(nextCriterionId(criteria), defaultType)]);
+  };
 
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-criteria">
@@ -100,7 +118,7 @@ export function LoopEditorCriteria({
         type="button"
         variant="outline"
         size="sm"
-        disabled={disabled}
+        disabled={disabled || !defaultType}
         onClick={add}
         className="border-dashed"
         data-testid="loop-editor-criteria-add"
@@ -130,7 +148,7 @@ function CriterionBody({
   onChange,
   allowedTypes,
 }: CriterionBodyProps) {
-  const type = str(criterion.type) || "command";
+  const type = str(criterion.type);
   return (
     <div className="flex flex-col gap-2">
       <NativeSelect

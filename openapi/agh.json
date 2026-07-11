@@ -148735,7 +148735,7 @@
             "in": "query",
             "name": "live",
             "schema": {
-              "type": "string"
+              "type": "boolean"
             }
           },
           {

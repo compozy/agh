@@ -452,12 +452,15 @@ func (b *fakeManagedBinder) BindActionSession(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.binds = append(b.binds, req)
+	b.store.mu.Lock()
+	controlEpoch := b.store.checkpoint.ControlEpoch
+	b.store.mu.Unlock()
 	binding := loop.ActionSessionBinding{
 		WorkspaceID:      req.WorkspaceID,
 		LoopRunID:        req.LoopRunID,
 		SessionID:        fmt.Sprintf("session-%d", req.TargetBindingEpoch),
 		Handle:           req.Handle,
-		ControlEpoch:     b.store.checkpoint.ControlEpoch,
+		ControlEpoch:     controlEpoch,
 		BindingEpoch:     req.TargetBindingEpoch,
 		BindingAttemptID: req.BindingAttemptID,
 		State:            string(BindingStateActive),
@@ -469,7 +472,6 @@ func (b *fakeManagedBinder) BindActionSession(
 		return binding, err
 	}
 	b.store.mu.Lock()
-	controlEpoch := b.store.checkpoint.ControlEpoch
 	b.store.checkpoint.SessionID = fmt.Sprintf("session-%d", req.TargetBindingEpoch)
 	b.store.checkpoint.BindingHandle = req.Handle
 	b.store.checkpoint.BindingEpoch = req.TargetBindingEpoch

@@ -97,11 +97,11 @@ func (e *Executor) checkpointBoundary(
 			ActorKind:            actor.kind,
 			ActorID:              actor.id,
 		}); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("goal: persist %s checkpoint boundary: %w", disposition, err)
 		}
 		updated, err := e.store.LoadCheckpoint(ctx, segment.key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("goal: reload checkpoint after %s boundary: %w", disposition, err)
 		}
 		segment.checkpoint = updated
 		checkpoint = updated

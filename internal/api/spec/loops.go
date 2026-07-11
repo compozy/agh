@@ -240,7 +240,7 @@ func loopRuntimeOperations() []OperationSpec {
 				queryParam("status", "Filter by Loop status", false),
 				queryParam("origin", "Filter by catalog or session origin", false),
 				queryParam("origin_session", "Filter by origin session id", false),
-				queryParam("live", "Filter by live or terminal status", false),
+				boolQueryParam("live", "Filter by live or terminal status"),
 				intQueryParam("limit", "Maximum number of records to return"),
 			},
 			[]ResponseSpec{ok(contract.LoopRunsResponse{}), badRequest(), loopUnavailable(), internalError()},

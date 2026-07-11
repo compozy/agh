@@ -126,6 +126,15 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart(terminal race) error = %v", err)
 		}
+		if err := globalDB.SetLoopRunPauseRequested(
+			ctx,
+			terminalRun.WorkspaceID,
+			terminalRun.ID,
+			true,
+			firstActor,
+		); err != nil {
+			t.Fatalf("SetLoopRunPauseRequested(before terminal) error = %v", err)
+		}
 		if err := globalDB.CompareAndSwapLoopRunStatus(
 			ctx,
 			terminalRun.ID,
@@ -135,6 +144,14 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 			firstAt.Add(time.Minute),
 		); err != nil {
 			t.Fatalf("CompareAndSwapLoopRunStatus() error = %v", err)
+		}
+		terminalPersisted, err := globalDB.GetLoopRun(ctx, terminalRun.WorkspaceID, terminalRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(terminal) error = %v", err)
+		}
+		if terminalPersisted.PauseRequested || terminalPersisted.ControlActor.Ref != "" ||
+			!terminalPersisted.ControlRequestedAt.IsZero() {
+			t.Fatalf("terminal Run retained pause actor fields: %#v", terminalPersisted)
 		}
 		if err := globalDB.SetLoopRunPauseRequested(
 			ctx,
@@ -265,6 +282,16 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 			Generation:  1,
 			NodeID:      "converge",
 			ItemIndex:   0,
+		}
+		if _, err := globalDB.db.ExecContext(
+			testutil.Context(t),
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status,
+				goal_status, goal_turns_used, goal_turn_limit
+			) VALUES (?, 1, 'converge', 0, 'running', 'paused', 2, 10)`,
+			string(key.LoopRunID),
+		); err != nil {
+			t.Fatalf("insert Goal grant output error = %v", err)
 		}
 		created, err := globalDB.CreateCheckpoint(
 			testutil.Context(t),
@@ -400,21 +427,9 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 			checkpoint.ControlActorID != actor.Actor.Ref || checkpoint.ControlRequestedAt == nil {
 			t.Fatalf("checkpoint pause projection = %#v", checkpoint)
 		}
-		if err := globalDB.CheckpointControl(ctx, goal.ControlCheckpointRequest{
-			Key:                  checkpoint.Key,
-			ExpectedControlEpoch: checkpoint.ControlEpoch,
-			ExpectedBindingEpoch: checkpoint.BindingEpoch,
-			ExpectedPhase:        checkpoint.Phase,
-			TaskRunID:            checkpoint.TaskRunID,
-			QueueEntryID:         checkpoint.QueueEntryID,
-			PromptID:             checkpoint.PromptID,
-			Disposition:          looppkg.ActionDispositionPaused,
-			Status:               "paused",
-			Cause:                looppkg.ReasonCode(looppkg.TransitionCausePauseBoundary),
-			ActorKind:            checkpoint.ControlActorKind,
-			ActorID:              checkpoint.ControlActorID,
-		}); err != nil {
-			t.Fatalf("CheckpointControl() error = %v", err)
+		if checkpoint.Phase != "awaiting_control" || checkpoint.Status != "paused" ||
+			checkpoint.ControlCause != looppkg.ReasonCode(looppkg.TransitionCausePauseBoundary) {
+			t.Fatalf("checkpoint pause state = %#v", checkpoint)
 		}
 		pending, err := globalDB.ClaimGoalSessionOutbox(ctx, 10)
 		if err != nil {

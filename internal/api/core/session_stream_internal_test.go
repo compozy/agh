@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -477,6 +476,7 @@ func TestInitializeTranscriptStreamResetsMismatchedReconnect(t *testing.T) {
 			expectedEpoch:      &wantEpoch,
 			expectedGeneration: &wantGeneration,
 		},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("initializeTranscriptStream() error = %v", err)
@@ -500,6 +500,56 @@ func TestInitializeTranscriptStreamResetsMismatchedReconnect(t *testing.T) {
 	if strings.Contains(writer.String(), "event: transcript_delta") {
 		t.Fatalf("stream body contains a delta during reset: %s", writer.String())
 	}
+}
+
+func TestWriteGoalSnapshotChangedEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit the latest indexed Goal signal without a transcript delta", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := &BaseHandlers{Sessions: sessionManagerStub{
+			latestEvent: func(
+				_ context.Context,
+				sessionID string,
+				eventType string,
+			) (*store.SessionEvent, error) {
+				if sessionID != "sess-a" || eventType != session.EventTypeGoalSnapshotChanged {
+					t.Fatalf("LatestSessionEventByType(%q, %q), want sess-a Goal snapshot", sessionID, eventType)
+				}
+				return &store.SessionEvent{
+					Sequence: 12,
+					Type:     session.EventTypeGoalSnapshotChanged,
+					Content:  `{"run_id":"run-1","status":"running"}`,
+				}, nil
+			},
+		}}
+		writer := &streamTestFlushWriter{}
+
+		if err := handlers.writeGoalSnapshotChangedEvents(
+			context.Background(),
+			writer,
+			"sess-a",
+			11,
+			nil,
+		); err != nil {
+			t.Fatalf("writeGoalSnapshotChangedEvents() error = %v", err)
+		}
+
+		body := writer.String()
+		for _, fragment := range []string{
+			"id: 12",
+			"event: goal_snapshot_changed",
+			`data: {"run_id":"run-1","status":"running"}`,
+		} {
+			if !strings.Contains(body, fragment) {
+				t.Fatalf("Goal snapshot stream body missing %q: %s", fragment, body)
+			}
+		}
+		if strings.Contains(body, "event: transcript_delta") {
+			t.Fatalf("Goal snapshot signal was emitted as a transcript delta: %s", body)
+		}
+	})
 }
 
 func TestWriteTranscriptChangePages(t *testing.T) {

@@ -105,11 +105,12 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
+	replacedAt := s.now().UTC()
 	committed, err := inlineStore.ReplaceInlineLoopRun(ctx, InlineReplaceStoreRequest{
 		ExpectedRunID: expectedRunID,
 		Run:           &prepared,
 		Actor:         actor,
-		ReplacedAt:    s.now().UTC(),
+		ReplacedAt:    replacedAt,
 	})
 	if err != nil {
 		return InlineReplaceResult{}, err
@@ -119,7 +120,7 @@ func (s *service) ReplaceInline(
 			s.goalLeaseRevoker.RevokeGoalPromptLease(lease, string(TransitionCauseGoalReplace))
 		}
 	}
-	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, s.now().UTC())
+	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)
 	created := committed.Run
 	return InlineReplaceResult{ReplacedRunID: committed.ReplacedRunID, Run: &created}, nil

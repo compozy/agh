@@ -38,22 +38,9 @@ func (r *loopGoalPromptRecovery) ReconcileTerminalFromEvents(
 	if r == nil || r.store == nil || r.sessions == nil || r.binder == nil {
 		return looppkg.ActionPromptResult{}, false, errors.New("daemon: Goal prompt recovery is unavailable")
 	}
-	if err := identity.Key.Validate(); err != nil {
-		return looppkg.ActionPromptResult{}, false, err
-	}
-	entry, err := r.store.GetSessionInputQueueEntryByID(ctx, identity.QueueEntryID)
+	entry, err := r.loadGoalRecoveryEntry(ctx, identity)
 	if err != nil {
 		return looppkg.ActionPromptResult{}, false, err
-	}
-	owner, err := managedInputOwnerFromQueueEntry(entry)
-	if err != nil {
-		return looppkg.ActionPromptResult{}, false, err
-	}
-	if !managedGoalRecoveryOwnerMatches(owner, identity) {
-		return looppkg.ActionPromptResult{}, false, fmt.Errorf(
-			"%w: recovered Goal prompt identity changed",
-			looppkg.ErrTransitionConflict,
-		)
 	}
 	if managedGoalEntrySettled(entry) {
 		result, resultErr := r.binder.managedGoalPromptResult(ctx, entry)
@@ -61,7 +48,11 @@ func (r *loopGoalPromptRecovery) ReconcileTerminalFromEvents(
 	}
 	checkpoint, err := r.store.LoadCheckpoint(ctx, identity.Key)
 	if err != nil {
-		return looppkg.ActionPromptResult{}, false, err
+		return looppkg.ActionPromptResult{}, false, fmt.Errorf(
+			"daemon: load Goal recovery checkpoint for prompt %q: %w",
+			identity.PromptID,
+			err,
+		)
 	}
 	result, terminalAt, found, err := reconstructManagedGoalPromptResult(
 		ctx,
@@ -70,7 +61,14 @@ func (r *loopGoalPromptRecovery) ReconcileTerminalFromEvents(
 		entry.PromptID,
 	)
 	if err != nil || !found {
-		return looppkg.ActionPromptResult{}, false, err
+		if err != nil {
+			return looppkg.ActionPromptResult{}, false, fmt.Errorf(
+				"daemon: reconstruct Goal prompt %q from transcript: %w",
+				entry.PromptID,
+				err,
+			)
+		}
+		return looppkg.ActionPromptResult{}, false, nil
 	}
 	if err := r.store.RecoverGoalPromptTerminal(ctx, goalpkg.RecoverPromptTerminalRequest{
 		Key:                  identity.Key,
@@ -84,9 +82,48 @@ func (r *loopGoalPromptRecovery) ReconcileTerminalFromEvents(
 		Result:               result,
 		TerminalAt:           terminalAt,
 	}); err != nil {
-		return looppkg.ActionPromptResult{}, false, err
+		return looppkg.ActionPromptResult{}, false, fmt.Errorf(
+			"daemon: persist recovered Goal prompt %q terminal: %w",
+			entry.PromptID,
+			err,
+		)
 	}
 	return result, true, nil
+}
+
+func (r *loopGoalPromptRecovery) loadGoalRecoveryEntry(
+	ctx context.Context,
+	identity goalpkg.PromptRecoveryIdentity,
+) (store.SessionInputQueueEntry, error) {
+	if err := identity.Key.Validate(); err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"daemon: validate Goal prompt recovery identity: %w",
+			err,
+		)
+	}
+	entry, err := r.store.GetSessionInputQueueEntryByID(ctx, identity.QueueEntryID)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"daemon: load Goal recovery queue entry %q: %w",
+			identity.QueueEntryID,
+			err,
+		)
+	}
+	owner, err := managedInputOwnerFromQueueEntry(entry)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"daemon: decode Goal recovery owner for queue entry %q: %w",
+			identity.QueueEntryID,
+			err,
+		)
+	}
+	if !managedGoalRecoveryOwnerMatches(owner, identity) {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"%w: recovered Goal prompt identity changed",
+			looppkg.ErrTransitionConflict,
+		)
+	}
+	return entry, nil
 }
 
 func managedGoalRecoveryOwnerMatches(
@@ -109,7 +146,12 @@ func reconstructManagedGoalPromptResult(
 ) (looppkg.ActionPromptResult, time.Time, bool, error) {
 	events, err := reader.Events(ctx, sessionID, store.EventQuery{TurnID: promptID})
 	if err != nil {
-		return looppkg.ActionPromptResult{}, time.Time{}, false, err
+		return looppkg.ActionPromptResult{}, time.Time{}, false, fmt.Errorf(
+			"daemon: read Goal prompt %q transcript for session %q: %w",
+			promptID,
+			sessionID,
+			err,
+		)
 	}
 	if len(events) == 0 {
 		return looppkg.ActionPromptResult{}, time.Time{}, false, nil
@@ -146,7 +188,7 @@ func (a *recoveredManagedGoalPromptAccumulator) accept(event store.SessionEvent)
 	a.previousSequence = event.Sequence
 	agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("daemon: decode Goal prompt event sequence %d: %w", event.Sequence, err)
 	}
 	if isManagedGoalProofAuxiliaryEvent(agentEvent.Type) {
 		return true, nil

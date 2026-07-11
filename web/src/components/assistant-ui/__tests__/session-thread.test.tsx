@@ -21,6 +21,7 @@ import type { SessionMessage } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 
 import { SessionThread } from "../session-thread";
+import { formatDataPreview } from "../session-message-parts";
 import { TimelineRowContent } from "../session-timeline-render";
 import {
   computeStableSessionRows,
@@ -169,6 +170,11 @@ function renderThreadState({
 }
 
 describe("SessionThread transcript states", () => {
+  it("Should preview non-JSON values without returning undefined", () => {
+    const value = () => "result";
+    expect(formatDataPreview(value)).toBe(String(value));
+  });
+
   beforeEach(() => {
     resetSessionDebugTelemetry();
     vi.stubGlobal("fetch", createFetchMock());
@@ -254,40 +260,43 @@ describe("SessionThread transcript states", () => {
     ["goal-work", "Goal work"],
     ["goal-continuation", "Goal continuation"],
     ["goal-compaction", "Goal compaction"],
-  ] as const)("Should restore persisted %s prompt identity after reload", async (kind, label) => {
-    const transcript = [
-      {
-        id: `assistant-${kind}`,
-        role: "assistant",
-        parts: [
-          {
-            type: "data-agh-event",
-            data: {
-              type: "prompt_started",
-              goal: {
-                kind,
-                run_id: "run_1",
-                node_id: "goal",
-                generation: 2,
-                item_index: 0,
-                turn: 3,
-                prompt_attempt: 1,
-                prompt_id: `prompt-${kind}`,
+  ] as const)(
+    "Should render persisted %s prompt identity from the transcript",
+    async (kind, label) => {
+      const transcript = [
+        {
+          id: `assistant-${kind}`,
+          role: "assistant",
+          parts: [
+            {
+              type: "data-agh-event",
+              data: {
+                type: "prompt_started",
+                goal: {
+                  kind,
+                  run_id: "run_1",
+                  node_id: "goal",
+                  generation: 2,
+                  item_index: 0,
+                  turn: 3,
+                  prompt_attempt: 1,
+                  prompt_id: `prompt-${kind}`,
+                },
               },
             },
-          },
-          { type: "text", text: `${label} response`, state: "done" },
-        ] as unknown as SessionMessage["parts"],
-      } as SessionMessage,
-    ];
+            { type: "text", text: `${label} response`, state: "done" },
+          ] as unknown as SessionMessage["parts"],
+        } as SessionMessage,
+      ];
 
-    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
-    const notice = await screen.findByTestId("goal-prompt-meta");
-    expect(notice).toHaveTextContent(label);
-    expect(notice).toHaveTextContent("goal · generation 2 · turn 3");
-    expect(within(notice).getByRole("link", { name: "Open run" })).toBeInTheDocument();
-  });
+      const notice = await screen.findByTestId("goal-prompt-meta");
+      expect(notice).toHaveTextContent(label);
+      expect(notice).toHaveTextContent("goal · generation 2 · turn 3");
+      expect(within(notice).getByRole("link", { name: "Open run" })).toBeInTheDocument();
+    }
+  );
 
   it("Should not render beyond the readonly provider's committed message count when transcript grows after reconnect", async () => {
     const initialTranscript = [

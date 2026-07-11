@@ -62439,7 +62439,7 @@ export interface operations {
         /** @description Filter by origin session id */
         origin_session?: string;
         /** @description Filter by live or terminal status */
-        live?: string;
+        live?: boolean;
         /** @description Maximum number of records to return */
         limit?: number;
       };

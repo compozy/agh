@@ -82,7 +82,7 @@ function StreamMarkdown({ children, streaming = false, className, ...props }: St
       data-slot="stream-markdown"
       streaming={streaming}
       components={STREAM_MARKDOWN_COMPONENTS}
-      className={className}
+      className={cn("max-w-[72ch]", className)}
       {...props}
     >
       {children}

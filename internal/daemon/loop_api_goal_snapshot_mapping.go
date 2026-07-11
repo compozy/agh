@@ -44,7 +44,12 @@ func (s *daemonLoopAPIService) goalContextSnapshot(
 		BindingEpoch: checkpoint.BindingEpoch,
 	}, *checkpoint.UsageSequence)
 	if err != nil {
-		return session.GoalContextSnapshot{}, err
+		return session.GoalContextSnapshot{}, fmt.Errorf(
+			"daemon: read Goal usage sequence %d for session %q: %w",
+			*checkpoint.UsageSequence,
+			checkpoint.SessionID,
+			err,
+		)
 	}
 	if !usage.Known || usage.Size <= 0 || usage.Used < 0 {
 		return session.GoalContextSnapshot{}, fmt.Errorf(

@@ -171,8 +171,14 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 			"output_schema": map[string]any{
 				"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
 			},
+			"session": map[string]any{"mode": "continuous"},
+			"retry":   map[string]any{"max_attempts": 2, "on_failure": "fresh_session"},
 		}
-		var params dsl.GoalParams
+		var params struct {
+			dsl.GoalParams `yaml:",inline"`
+			Session        dsl.SessionSpec `yaml:"session"`
+			Retry          dsl.RetrySpec   `yaml:"retry"`
+		}
 		if err := goal.Decode(&params); err != nil {
 			t.Fatalf("Decode(GoalParams) error = %v", err)
 		}
@@ -186,10 +192,9 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 			t.Fatal("GoalParams.OutputSchema = nil, want decoded schema")
 		}
 
-		session := dsl.SessionSpec{Mode: "continuous"}
-		retry := dsl.RetrySpec{MaxAttempts: 2, OnFailure: "fresh_session"}
-		if session.Mode != "continuous" || retry.OnFailure != "fresh_session" {
-			t.Fatalf("session/retry = %#v/%#v, want continuous fresh_session", session, retry)
+		if params.Session.Mode != "continuous" || params.Retry.MaxAttempts != 2 ||
+			params.Retry.OnFailure != "fresh_session" {
+			t.Fatalf("session/retry = %#v/%#v, want continuous fresh_session", params.Session, params.Retry)
 		}
 	})
 

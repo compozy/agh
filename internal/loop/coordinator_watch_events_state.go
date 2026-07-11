@@ -21,7 +21,11 @@ func recoverWatchEventsState(
 	runtime coordinatorWatchEventsRuntime,
 ) (watchpkg.EventsPendingState, *task.CoordinatorTerminal, error) {
 	if state, ok, err := watchpkg.EventsPendingFromOutputRef(output.OutputRef); err != nil {
-		return watchpkg.EventsPendingState{}, nil, err
+		return watchpkg.EventsPendingState{}, nil, fmt.Errorf(
+			"loop: decode watch-events pending state for node %q: %w",
+			node.ID,
+			err,
+		)
 	} else if ok {
 		if err := validateWatchEventsPendingState(state, contracts); err != nil {
 			return watchpkg.EventsPendingState{}, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil

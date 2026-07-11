@@ -12,7 +12,7 @@ import (
 func (e *Executor) advanceSegment(ctx context.Context, segment *segmentState) (*turnBoundary, error) {
 	checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("goal: load checkpoint before advancing segment: %w", err)
 	}
 	segment.checkpoint = checkpoint
 	if checkpoint.Phase == checkpointPhaseAwaitingControl || checkpoint.Phase == checkpointPhaseTerminal {
@@ -160,7 +160,11 @@ func (e *Executor) prepareWorkResult(
 	segment.lastResult = result
 	checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)
 	if err != nil {
-		return BudgetDecision{}, Checkpoint{}, err
+		return BudgetDecision{}, Checkpoint{}, fmt.Errorf(
+			"goal: load checkpoint after work prompt %q: %w",
+			result.PromptID,
+			err,
+		)
 	}
 	segment.checkpoint = checkpoint
 	turn := checkpoint.TurnsUsed
@@ -280,7 +284,7 @@ func (e *Executor) settlePromptForPendingPause(
 ) (*turnBoundary, bool, error) {
 	checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("goal: load checkpoint before settling pending pause: %w", err)
 	}
 	segment.checkpoint = checkpoint
 	if !checkpointHasPendingPause(checkpoint) {
@@ -316,7 +320,7 @@ func (e *Executor) completeTurn(
 	if bindingEpoch < 1 {
 		bindingEpoch = segment.checkpoint.BindingEpoch
 	}
-	return e.store.CompleteTurn(ctx, CompleteTurnRequest{
+	checkpoint, err := e.store.CompleteTurn(ctx, CompleteTurnRequest{
 		Key:                  segment.key,
 		ExpectedControlEpoch: segment.checkpoint.ControlEpoch,
 		ExpectedBindingEpoch: bindingEpoch,
@@ -328,6 +332,10 @@ func (e *Executor) completeTurn(
 		DispatchActorKind:    string(segment.input.Actor.Actor.Kind),
 		DispatchActorID:      segment.input.Actor.Actor.Ref,
 	})
+	if err != nil {
+		return Checkpoint{}, fmt.Errorf("goal: complete turn for prompt %q: %w", result.PromptID, err)
+	}
+	return checkpoint, nil
 }
 
 func matchingBlockedReport(checkpoint Checkpoint, promptID string) bool {

@@ -343,6 +343,39 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should attribute a control-fenced prompt to the Goal control actor", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-control-fence-actor")
+		ctx := testutil.Context(t)
+		promptID := "goal-prompt-control-fence-actor"
+		ticket := prepareGoalRuntimePrompt(t, globalDB, key, taskRunID, promptID, now)
+		if err := globalDB.FencePreparedPrompt(ctx, goal.FencePreparedPromptRequest{
+			Key:                  key,
+			ExpectedControlEpoch: 1,
+			ExpectedBindingEpoch: 1,
+			TaskRunID:            taskRunID,
+			QueueEntryID:         ticket.QueueEntryID,
+			PromptID:             promptID,
+			Outcome:              looppkg.ActionPromptOutcomeControlFenced,
+			Disposition:          looppkg.ActionDispositionPaused,
+			Cause:                looppkg.ReasonCodeGoalPromptFenced,
+		}); err != nil {
+			t.Fatalf("FencePreparedPrompt(control) error = %v", err)
+		}
+		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: key.WorkspaceID,
+			RunID:       key.LoopRunID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		statusEvent := loopEventPayloadForKind(t, events, loopRunEventGoalStatusChanged)
+		if statusEvent["actor_kind"] != "system" || statusEvent["actor_id"] != "goal-control" {
+			t.Fatalf("control-fenced Goal status actor = %#v", statusEvent)
+		}
+	})
+
 	t.Run("Should linearize one work claim before effect and settle its authoritative judge", func(t *testing.T) {
 		t.Parallel()
 

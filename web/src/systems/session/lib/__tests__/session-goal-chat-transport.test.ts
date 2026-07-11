@@ -110,4 +110,16 @@ describe("createGoalAwareFetch", () => {
     );
     expect(onResult).not.toHaveBeenCalled();
   });
+
+  it("Should preserve a malformed JSON response without consuming its body", async () => {
+    const response = new Response("{not-json", {
+      headers: { "content-type": "application/json" },
+    });
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({ fetch: vi.fn(async () => response), onResult });
+
+    await expect(goalFetch("/prompt", { method: "POST" })).resolves.toBe(response);
+    await expect(response.text()).resolves.toBe("{not-json");
+    expect(onResult).not.toHaveBeenCalled();
+  });
 });

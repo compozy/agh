@@ -88,6 +88,11 @@ func GoalCommandResultPayloadFromSession(result *session.GoalCommandResult) (con
 	payload.Snapshot = snapshot
 	if result.ReplacedRunID != nil {
 		value := strings.TrimSpace(*result.ReplacedRunID)
+		if value == "" {
+			return contract.GoalCommandResult{}, goalContractValidationError(
+				"Goal replacement run ID must not be blank",
+			)
+		}
 		payload.ReplacedRunID = &value
 	}
 	if err := validateGoalCommandResultPayload(payload); err != nil {
@@ -127,25 +132,44 @@ func validateGoalCommandResultPayload(result contract.GoalCommandResult) error {
 	hasSnapshot := result.Snapshot != nil
 	hasReason := result.ReasonCode != nil
 	hasReplaced := result.ReplacedRunID != nil && strings.TrimSpace(*result.ReplacedRunID) != ""
-	valid := false
 	switch result.Outcome {
 	case contract.GoalOutcomeStarted, contract.GoalOutcomeStatus,
 		contract.GoalOutcomePaused, contract.GoalOutcomeResumed:
-		valid = hasSnapshot && !hasReason && !hasReplaced
+		if !hasSnapshot || hasReason || hasReplaced {
+			return goalContractValidationError(fmt.Sprintf(
+				"Goal %s result requires a snapshot and no reason or replacement run ID",
+				result.Outcome,
+			))
+		}
 	case contract.GoalOutcomeReplaced:
-		valid = hasSnapshot && !hasReason && hasReplaced
+		if !hasSnapshot || hasReason || !hasReplaced {
+			return goalContractValidationError(
+				"Goal replaced result requires a snapshot and replacement run ID without a reason",
+			)
+		}
 	case contract.GoalOutcomeCleared:
-		valid = !hasSnapshot && !hasReason && !hasReplaced
+		if hasSnapshot || hasReason || hasReplaced {
+			return goalContractValidationError(
+				"Goal cleared result cannot include a snapshot, reason, or replacement run ID",
+			)
+		}
 	case contract.GoalOutcomeError:
 		if !hasReason || hasReplaced {
-			break
+			return goalContractValidationError(
+				"Goal error result requires a reason and no replacement run ID",
+			)
 		}
 		requiresSnapshot := *result.ReasonCode == contract.GoalReasonReplaceRequired ||
 			*result.ReasonCode == contract.GoalReasonReplaceStale
-		valid = hasSnapshot == requiresSnapshot
-	}
-	if !valid {
-		return fmt.Errorf("%w: Goal command result field presence is invalid", looppkg.ErrValidation)
+		if hasSnapshot != requiresSnapshot {
+			return goalContractValidationError(fmt.Sprintf(
+				"Goal error reason %q requires current snapshot: %t",
+				*result.ReasonCode,
+				requiresSnapshot,
+			))
+		}
+	default:
+		return goalContractValidationError(fmt.Sprintf("Goal command outcome is invalid: %q", result.Outcome))
 	}
 	return nil
 }

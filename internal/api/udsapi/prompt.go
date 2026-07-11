@@ -33,7 +33,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
 	if err != nil {
-		core.RespondError(c, http.StatusForbidden, err, false)
+		core.RespondError(c, core.StatusForTaskError(err), err, false)
 		return
 	}
 

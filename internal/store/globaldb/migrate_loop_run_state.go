@@ -32,7 +32,7 @@ func migrateLoopRunStateSchema(ctx context.Context, conn *sql.Conn) (err error) 
 			sql:  `ALTER TABLE task_runs ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0`,
 		},
 	}); err != nil {
-		return err
+		return fmt.Errorf("store: add loop run state migration columns: %w", err)
 	}
 	for _, statement := range loopRunStateSchemaStatements() {
 		if _, err := conn.ExecContext(ctx, statement); err != nil {

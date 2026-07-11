@@ -3082,6 +3082,30 @@ func TestWaitForPromptDrains(t *testing.T) {
 			t.Fatalf("WaitForPromptDrains() error = %v", err)
 		}
 	})
+
+	t.Run("Should make shutdown wait for every tracked prompt drain", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		finishDrain := h.manager.trackPromptDrain()
+		shutdownDone := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+			defer cancel()
+			shutdownDone <- h.manager.Shutdown(ctx)
+		}()
+
+		select {
+		case err := <-shutdownDone:
+			t.Fatalf("Shutdown() returned before prompt drain completed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		finishDrain()
+		if err := <-shutdownDone; err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
 }
 
 func TestNormalizeEventSetsTimestampOnlyWhenZero(t *testing.T) {

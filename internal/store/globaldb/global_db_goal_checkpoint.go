@@ -38,10 +38,11 @@ func (g *GlobalDB) CreateCheckpoint(
 		if err := validateGoalRunWorkspace(ctx, exec, checkpoint.Key); err != nil {
 			return err
 		}
+		statusBeforePause := checkpoint.Status
 		if err := projectPendingPauseToNewGoalCheckpoint(ctx, exec, &checkpoint); err != nil {
 			return err
 		}
-		if _, err := exec.ExecContext(
+		result, err := exec.ExecContext(
 			ctx,
 			`INSERT INTO loop_goal_checkpoints (
 				loop_run_id, generation, node_id, item_index, control_epoch,
@@ -60,10 +61,14 @@ func (g *GlobalDB) CreateCheckpoint(
 				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 			) ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING`,
 			goalCheckpointInsertArgs(checkpoint)...,
-		); err != nil {
+		)
+		if err != nil {
 			return fmt.Errorf("store: insert goal checkpoint: %w", err)
 		}
-		var err error
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("store: inspect inserted goal checkpoint: %w", err)
+		}
 		persisted, err = loadGoalCheckpointWithExecutor(ctx, exec, checkpoint.Key)
 		if err != nil {
 			return err
@@ -71,6 +76,19 @@ func (g *GlobalDB) CreateCheckpoint(
 		if persisted.TurnLimit != checkpoint.TurnLimit ||
 			persisted.ContextNudgeRatio != checkpoint.ContextNudgeRatio {
 			return goalControlStaleError("checkpoint already exists with different pinned policy")
+		}
+		if affected == 1 && statusBeforePause != checkpoint.Status {
+			return appendGoalStatusChangedEvent(
+				ctx,
+				exec,
+				checkpoint.Key,
+				statusBeforePause,
+				checkpoint.Status,
+				checkpoint.ControlCause,
+				checkpoint.ControlActorKind,
+				checkpoint.ControlActorID,
+				checkpoint.UpdatedAt,
+			)
 		}
 		return nil
 	})
@@ -103,6 +121,9 @@ func projectPendingPauseToNewGoalCheckpoint(
 	checkpoint.ControlActorKind = actorKind
 	checkpoint.ControlActorID = actorID
 	checkpoint.ControlRequestedAt = &requestedAt
+	checkpoint.Phase = goalCheckpointPhaseAwaitingControl
+	checkpoint.Status = goalStatusPaused
+	checkpoint.ControlCause = loop.ReasonCode(loop.TransitionCausePauseBoundary)
 	return validateGoalCheckpointControl(*checkpoint)
 }
 

@@ -102,6 +102,7 @@ function SessionPageContent({
   agentName,
   sessionId,
   session,
+  workspaceId,
   onDeleteSuccess,
 }: SessionPageContentProps) {
   const page = useSessionDetailPage({ sessionId, session, onDeleteSuccess });
@@ -124,7 +125,7 @@ function SessionPageContent({
         ) : null}
         <SessionThread
           sessionId={sessionId}
-          workspaceId={session.workspace_id}
+          workspaceId={workspaceId}
           agentName={agentName}
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleStop}
@@ -291,6 +292,7 @@ interface SessionPageContentProps {
   agentName: string;
   sessionId: string;
   session: SessionPayload;
+  workspaceId: string;
   onDeleteSuccess: () => void;
 }
 
@@ -398,6 +400,7 @@ function SessionPageWithWorkspace({
         agentName={resolvedAgentName}
         sessionId={id}
         session={session}
+        workspaceId={sessionWorkspaceId}
         onDeleteSuccess={() => {
           void navigate({ to: "/agents/$name", params: { name: resolvedAgentName } });
         }}

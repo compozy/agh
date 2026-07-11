@@ -46,6 +46,8 @@ func (d *Daemon) bootGoalSessionOutboxRelay(
 	relay := &goalSessionOutboxRelay{
 		store: store, appender: appender, cleanupStore: cleanupStore, stopper: stopper,
 		logger: state.logger, now: d.now,
+		batchSize:    state.cfg.Goals.OutboxBatchSize,
+		pollInterval: state.cfg.Goals.OutboxPollInterval,
 	}
 	go func() {
 		defer close(done)

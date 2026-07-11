@@ -19,7 +19,11 @@ const (
 
 // Valid reports whether the value is one of the five ACP stop reasons.
 func (r PromptStopReason) Valid() bool {
-	switch PromptStopReason(strings.TrimSpace(string(r))) {
+	raw := string(r)
+	if raw != strings.TrimSpace(raw) {
+		return false
+	}
+	switch r {
 	case PromptStopReasonEndTurn,
 		PromptStopReasonMaxTokens,
 		PromptStopReasonMaxTurnRequests,

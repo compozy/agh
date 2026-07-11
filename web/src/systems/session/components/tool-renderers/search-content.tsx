@@ -33,7 +33,7 @@ export function SearchContent({ message }: { message: UIMessage }) {
               key={line}
               className="flex items-center gap-2 border-t border-line px-3 py-1 text-form-label first:border-t-0"
             >
-              <FileText className="size-3 shrink-0 text-subtle" />
+              <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" />
               <span className="truncate font-mono text-subtle" title={line}>
                 {shortenPath(line)}
               </span>

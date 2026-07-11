@@ -135,7 +135,18 @@ func (s *daemonLoopAPIService) sessionGoalOrigin(
 		)
 	}
 	info, err := s.sessionStatus.Status(ctx, strings.TrimSpace(sessionID))
-	if err != nil || info == nil || info.State != session.StateActive {
+	if err != nil {
+		if errors.Is(err, store.ErrSessionNotFound) {
+			return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+				session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil
+		}
+		return looppkg.RunOrigin{}, store.SessionCreationProfile{}, "", fmt.Errorf(
+			"daemon: read Goal origin session %q: %w",
+			sessionID,
+			err,
+		)
+	}
+	if info == nil || info.State != session.StateActive {
 		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil
 	}

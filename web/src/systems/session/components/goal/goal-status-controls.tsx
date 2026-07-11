@@ -3,11 +3,8 @@ import { CheckCircle2, FilePenLine, Pause, Play, RefreshCw, X } from "lucide-rea
 
 import { Button, Spinner } from "@agh/ui";
 
-import type {
-  GoalComposerAffordance,
-  GoalControlAction,
-  GoalStatusChipProps,
-} from "./goal-status-types";
+import type { GoalControlAction } from "@/systems/loops";
+import type { GoalComposerAffordance, GoalStatusChipProps } from "./goal-status-types";
 
 function prefillCommand(affordance: GoalComposerAffordance): string {
   if (affordance.kind === "replace") {

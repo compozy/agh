@@ -68,7 +68,12 @@ export function createGoalAwareFetch({
       return response;
     }
 
-    const payload: unknown = await response.clone().json();
+    let payload: unknown;
+    try {
+      payload = await response.clone().json();
+    } catch {
+      return response;
+    }
     if (!isGoalCommandResult(payload)) {
       return response;
     }

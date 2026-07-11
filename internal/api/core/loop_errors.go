@@ -45,9 +45,10 @@ func (e *LoopLintFailedError) Error() string {
 // StatusForLoopError maps loop-domain failures to transport statuses.
 func StatusForLoopError(err error) int {
 	var lintErr *LoopLintFailedError
+	if status := StatusForTaskError(err); status != http.StatusInternalServerError {
+		return status
+	}
 	switch {
-	case err == nil:
-		return http.StatusOK
 	case errors.As(err, &lintErr):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, ErrLoopVersionConflict),

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	core "github.com/compozy/agh/internal/api/core"
@@ -24,7 +25,7 @@ func (s *daemonLoopAPIService) ListGoalTurns(
 	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
-		return session.GoalTurnPage{}, err
+		return session.GoalTurnPage{}, fmt.Errorf("daemon: normalize Goal turns workspace %q: %w", workspaceID, err)
 	}
 	page, err := s.goalPersistence.ListGoalTurns(ctx, goalpkg.TurnQuery{
 		WorkspaceID: ws,
@@ -35,7 +36,7 @@ func (s *daemonLoopAPIService) ListGoalTurns(
 		Limit:       query.Limit,
 	})
 	if err != nil {
-		return session.GoalTurnPage{}, err
+		return session.GoalTurnPage{}, fmt.Errorf("daemon: list Goal turns for run %q: %w", runID, err)
 	}
 	turns := make([]session.GoalTurn, 0, len(page.Turns))
 	for _, turn := range page.Turns {

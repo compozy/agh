@@ -69,7 +69,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
 | `[loops.defaults.delivery]`          | Global/workspace seed defaults for delivery loops.                              | iteration cap 50, no-progress window 3, gate revisions 10, fan-out 4                             |
 | `[loops.defaults.watch]`             | Global/workspace seed defaults for watch loops.                                 | no iteration cap, no-progress window 2, fan-out 2                                                |
-| `[goals]`                            | Global/workspace defaults for newly started Goals.                              | 20 turns, context nudge ratio 0.8                                                                |
+| `[goals]`                            | Goal defaults and durable session-event relay controls.                         | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                         |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                           | block recurrence limit 2                                                                         |
 | `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace |
 | `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5                     |
@@ -523,6 +523,9 @@ on_exceeded = "halt"
 # Defaults for newly started Goals. Active Runs keep their pinned values.
 max_turns = 20
 context_nudge_ratio = 0.8
+# Durable session-event relay controls. Applied when the daemon starts.
+outbox_batch_size = 50
+outbox_poll_interval = "100ms"
 
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
@@ -1338,15 +1341,19 @@ effective config materialized at start.
 
 ## `[goals]`
 
-`[goals]` defines global or workspace defaults for newly started Goals. Both paths are mutable
-through `agh config set` and the native config tools. Writes return
-`lifecycle="restart-required"`; restarting activates the desired values for later starts without
-rewriting active Runs or their checkpoints.
+`[goals]` defines global or workspace defaults for newly started Goals. Its global configuration
+also controls the daemon-wide durable Goal session-event relay. All four paths are mutable through
+`agh config set` and the native config tools. Writes return `lifecycle="restart-required"`;
+restarting activates Goal defaults for later starts and applies global relay settings without
+rewriting active Runs or their checkpoints. Workspace overlays affect Goal defaults only because
+one relay serves every workspace in the daemon.
 
-| Field                 | Type    | Default | Valid values        | Description                                                                |
-| --------------------- | ------- | ------- | ------------------- | -------------------------------------------------------------------------- |
-| `max_turns`           | integer | `20`    | Positive integer.   | Turn limit written into a new synthetic Goal definition.                   |
-| `context_nudge_ratio` | number  | `0.8`   | `0.0` through `1.0` | Context threshold pinned to the Run and copied into every Goal checkpoint. |
+| Field                  | Type     | Default | Valid values          | Description                                                                  |
+| ---------------------- | -------- | ------- | --------------------- | ---------------------------------------------------------------------------- |
+| `max_turns`            | integer  | `20`    | Positive integer.     | Turn limit written into a new synthetic Goal definition.                     |
+| `context_nudge_ratio`  | number   | `0.8`   | `0.0` through `1.0`   | Context threshold pinned to the Run and copied into every Goal checkpoint.   |
+| `outbox_batch_size`    | integer  | `50`    | `1` through `200`     | Global maximum pending projections and cleanup obligations claimed per pass. |
+| `outbox_poll_interval` | duration | `100ms` | Positive Go duration. | Global delay between durable relay passes.                                   |
 
 `context_nudge_ratio = 0.0` is explicit and disables context nudging. A config change cannot alter
 the ratio of an existing Run, including after daemon restart or a later generation.
@@ -1360,6 +1367,8 @@ The CLI and native-tool mutation allowlists contain exactly these Goal paths:
 
 - `goals.max_turns` — integer
 - `goals.context_nudge_ratio` — number
+- `goals.outbox_batch_size` — integer
+- `goals.outbox_poll_interval` — duration
 
 ```bash
 # Global desired state

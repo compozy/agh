@@ -23,7 +23,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   };
 });
 
-const { SessionGoalHeader } = await import("../goal/session-goal-header");
+const { SessionGoalHeaderContainer } = await import("../goal/session-goal-header-container");
 
 const WORKSPACE_ID = "ws_1";
 const SESSION_ID = "session_1";
@@ -118,7 +118,7 @@ function renderHeader(setComposerText = vi.fn()) {
   const result = render(
     <QueryClientProvider client={queryClient}>
       <SessionComposerPrefillProvider setComposerText={setComposerText}>
-        <SessionGoalHeader sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
+        <SessionGoalHeaderContainer sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
       </SessionComposerPrefillProvider>
     </QueryClientProvider>
   );

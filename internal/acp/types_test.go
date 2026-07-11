@@ -468,3 +468,23 @@ func TestPromptSyntheticMetaNormalizeAndValidate(t *testing.T) {
 		t.Fatal("Validate(empty) error = nil, want validation failure")
 	}
 }
+
+func TestPromptStopReasonShouldRequireExactWireValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept a canonical stop reason", func(t *testing.T) {
+		t.Parallel()
+
+		if !PromptStopReasonEndTurn.Valid() {
+			t.Fatal("PromptStopReasonEndTurn.Valid() = false, want true")
+		}
+	})
+
+	t.Run("Should reject whitespace around a stop reason", func(t *testing.T) {
+		t.Parallel()
+
+		if PromptStopReason(" end_turn ").Valid() {
+			t.Fatal("PromptStopReason(whitespace).Valid() = true, want false")
+		}
+	})
+}

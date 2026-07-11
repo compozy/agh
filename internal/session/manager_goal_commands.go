@@ -89,7 +89,7 @@ func goalErrorDecision(reason GoalReasonCode) GoalDispatchDecision {
 	return GoalDispatchDecision{
 		Kind: GoalDispatchRespond,
 		Result: &GoalCommandResult{
-			Outcome: GoalOutcomeError, ReasonCode: new(reason),
+			Outcome: GoalOutcomeError, ReasonCode: &reason,
 		},
 	}
 }

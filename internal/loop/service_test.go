@@ -1604,7 +1604,8 @@ func (s *fakeLoopStore) ClearInlineGoal(
 	defer s.mu.Unlock()
 	var newest *loop.Run
 	for _, candidate := range s.runs {
-		if candidate.WorkspaceID != request.WorkspaceID || candidate.Origin.Kind != loop.RunOriginSession ||
+		if candidate.WorkspaceID != request.WorkspaceID || candidate.Origin == nil ||
+			candidate.Origin.Kind != loop.RunOriginSession ||
 			candidate.Origin.SessionID != request.OriginSessionID {
 			continue
 		}

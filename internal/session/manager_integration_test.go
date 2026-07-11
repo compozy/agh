@@ -5,6 +5,8 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -26,7 +28,22 @@ import (
 func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	h := newHarness(t)
 
-	session := createSession(t, h)
+	sessionCWD := filepath.Join(h.workspace, "nested-session-cwd")
+	if err := os.MkdirAll(sessionCWD, 0o755); err != nil {
+		t.Fatalf("MkdirAll(session CWD) error = %v", err)
+	}
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder",
+		Name:      "session",
+		Workspace: h.workspaceID,
+		CWD:       sessionCWD,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if got := h.driver.startCalls[0].Cwd; got != sessionCWD {
+		t.Fatalf("Create() CWD = %q, want %q", got, sessionCWD)
+	}
 	firstPrompt, err := h.manager.Prompt(testutil.Context(t), session.ID, "first")
 	if err != nil {
 		t.Fatalf("Prompt(first) error = %v", err)
@@ -43,6 +60,9 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)
+	}
+	if got := h.driver.startCalls[1].Cwd; got != sessionCWD {
+		t.Fatalf("Resume() CWD = %q, want persisted %q", got, sessionCWD)
 	}
 
 	secondPrompt, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "second")

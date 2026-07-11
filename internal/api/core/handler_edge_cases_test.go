@@ -292,6 +292,14 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 		Context:         session.GoalContextSnapshot{State: "unknown", NudgeRatio: 0},
 	}
 	replacedRunID := "run-old"
+	blankRunID := "   "
+	used, size, ratio := int64(10), int64(20), 1.1
+	reportedAt := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	invalidContextSnapshot := *snapshot
+	invalidContextSnapshot.Context = session.GoalContextSnapshot{
+		State: "known", Used: &used, Size: &size, Ratio: &ratio, ReportedAt: &reportedAt,
+		NudgeRatio: 0.8,
+	}
 	replaceRequired := session.GoalReasonReplaceRequired
 	replaceStale := session.GoalReasonReplaceStale
 	notActive := session.GoalReasonNotActive
@@ -301,6 +309,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 		result     *session.GoalCommandResult
 		wantStatus int
 		wantError  bool
+		wantErrMsg string
 	}{
 		{
 			name:       "Should map started to accepted",
@@ -355,14 +364,35 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			wantStatus: http.StatusUnprocessableEntity,
 		},
 		{
-			name:      "Should reject started without a snapshot",
-			result:    &session.GoalCommandResult{Outcome: session.GoalOutcomeStarted},
-			wantError: true,
+			name:       "Should reject started without a snapshot",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStarted},
+			wantError:  true,
+			wantErrMsg: "Goal started result requires a snapshot",
 		},
 		{
-			name:      "Should reject stale replace without a current snapshot",
-			result:    &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &replaceStale},
-			wantError: true,
+			name:       "Should reject stale replace without a current snapshot",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &replaceStale},
+			wantError:  true,
+			wantErrMsg: `Goal error reason "goal_replace_stale" requires current snapshot: true`,
+		},
+		{
+			name: "Should reject a whitespace-only replacement run ID",
+			result: &session.GoalCommandResult{
+				Outcome:       session.GoalOutcomeReplaced,
+				Snapshot:      snapshot,
+				ReplacedRunID: &blankRunID,
+			},
+			wantError:  true,
+			wantErrMsg: "Goal replacement run ID must not be blank",
+		},
+		{
+			name: "Should reject a known context ratio above one",
+			result: &session.GoalCommandResult{
+				Outcome:  session.GoalOutcomeStatus,
+				Snapshot: &invalidContextSnapshot,
+			},
+			wantError:  true,
+			wantErrMsg: "known Goal context requires valid usage metrics",
 		},
 	}
 	for _, tt := range tests {
@@ -376,6 +406,9 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 				if err == nil {
 					t.Fatal("PromptResponseFromSession() error = nil")
 				}
+				if !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Fatalf("PromptResponseFromSession() error = %v, want substring %q", err, tt.wantErrMsg)
+				}
 				return
 			}
 			if err != nil {
@@ -384,8 +417,20 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			if status != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", status, tt.wantStatus)
 			}
-			if _, ok := body.(contract.GoalCommandResult); !ok {
+			result, ok := body.(contract.GoalCommandResult)
+			if !ok {
 				t.Fatalf("body type = %T, want contract.GoalCommandResult", body)
+			}
+			if result.Outcome != contract.GoalCommandOutcome(tt.result.Outcome) {
+				t.Fatalf("body outcome = %q, want %q", result.Outcome, tt.result.Outcome)
+			}
+			if (result.ReasonCode == nil) != (tt.result.ReasonCode == nil) ||
+				(result.ReasonCode != nil && string(*result.ReasonCode) != string(*tt.result.ReasonCode)) {
+				t.Fatalf("body reason = %v, want %v", result.ReasonCode, tt.result.ReasonCode)
+			}
+			if (result.ReplacedRunID == nil) != (tt.result.ReplacedRunID == nil) ||
+				(result.ReplacedRunID != nil && *result.ReplacedRunID != strings.TrimSpace(*tt.result.ReplacedRunID)) {
+				t.Fatalf("body replaced_run_id = %v, want %v", result.ReplacedRunID, tt.result.ReplacedRunID)
 			}
 		})
 	}

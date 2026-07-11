@@ -81,8 +81,15 @@ func fencePreparedGoalPromptWithExecutor(
 		return err
 	}
 	return appendGoalStatusChangedEvent(
-		ctx, exec, req.Key, checkpoint.Status, goalStatus, req.Cause, "system", "goal-budget", now,
+		ctx, exec, req.Key, checkpoint.Status, goalStatus, req.Cause, "system", goalFenceActorID(req), now,
 	)
+}
+
+func goalFenceActorID(req goal.FencePreparedPromptRequest) string {
+	if req.Outcome == looppkg.ActionPromptOutcomeControlFenced {
+		return "goal-control"
+	}
+	return "goal-budget"
 }
 
 func validatePreparedGoalFenceCheckpoint(

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
@@ -18,7 +19,7 @@ func newGoalRunPolicyResolver(
 	) (*looppkg.GoalRunPolicy, error) {
 		cfg, err := resolveLoopServiceConfig(ctx, homePaths, workspaceResolver, workspaceID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("daemon: resolve Goal policy for workspace %q: %w", workspaceID, err)
 		}
 		return &looppkg.GoalRunPolicy{
 			ContextNudgeRatio: cfg.Goals.ContextNudgeRatio,

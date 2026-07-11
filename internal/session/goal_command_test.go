@@ -26,6 +26,13 @@ func TestGoalCommandParserShouldRecognizeOnlyAuthenticatedIngressGrammar(t *test
 			wantObjective: "ship release",
 		},
 		{
+			name:          "Should parse an explicit set objective without preserving the verb",
+			message:       "/goal set ship release",
+			wantMatched:   true,
+			wantVerb:      "set",
+			wantObjective: "ship release",
+		},
+		{
 			name:          "Should parse expected replacement",
 			message:       "/goal replace run-1 ship safer",
 			wantMatched:   true,
@@ -53,6 +60,12 @@ func TestGoalCommandParserShouldRecognizeOnlyAuthenticatedIngressGrammar(t *test
 		{
 			name:        "Should reject missing objective",
 			message:     "/goal",
+			wantMatched: true,
+			wantReason:  GoalReasonObjectiveRequired,
+		},
+		{
+			name:        "Should reject an explicit set without an objective",
+			message:     "/goal set",
 			wantMatched: true,
 			wantReason:  GoalReasonObjectiveRequired,
 		},

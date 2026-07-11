@@ -34,7 +34,7 @@ func (m *Manager) persistAdvertisedCommandsFromEvent(
 	commands := normalizeAdvertisedCommands(event.AvailableCommands.Values())
 	for _, command := range commands {
 		if err := command.Validate(); err != nil {
-			return err
+			return fmt.Errorf("session: validate advertised command %q: %w", command.Name, err)
 		}
 	}
 	session.replaceAdvertisedCommands(commands, event.Timestamp)

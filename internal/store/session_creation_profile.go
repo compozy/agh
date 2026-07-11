@@ -75,14 +75,18 @@ func (p SessionCreationProfile) Validate() error {
 	if p.Version != SessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
 	}
-	for name, value := range map[string]string{
-		"agent_name":   p.AgentName,
-		"provider":     p.Provider,
-		"workspace_id": p.WorkspaceID,
-		"cwd":          p.CWD,
-	} {
-		if value == "" {
-			return fmt.Errorf("store: session creation profile %s is required", name)
+	required := []struct {
+		name  string
+		value string
+	}{
+		{name: "agent_name", value: p.AgentName},
+		{name: "provider", value: p.Provider},
+		{name: "workspace_id", value: p.WorkspaceID},
+		{name: "cwd", value: p.CWD},
+	}
+	for _, field := range required {
+		if field.value == "" {
+			return fmt.Errorf("store: session creation profile %s is required", field.name)
 		}
 	}
 	switch p.SandboxMode {

@@ -64,20 +64,10 @@ describe("loopsKeys", () => {
         status: "running",
         origin: "session",
         origin_session: "session_1",
-        live: "true",
+        live: true,
         limit: 20,
       })
-    ).toEqual([
-      "loops",
-      "runs",
-      "ws_a",
-      "delivery",
-      "running",
-      "session",
-      "session_1",
-      "true",
-      "20",
-    ]);
+    ).toEqual(["loops", "runs", "ws_a", "delivery", "running", "session", "session_1", true, "20"]);
     expect(loopsKeys.runs("ws_a")).toEqual(["loops", "runs", "ws_a", "", "", "", "", "", ""]);
     expect(loopsKeys.runs("ws_a", { loop: "delivery" })).not.toEqual(
       loopsKeys.runs("ws_a", { loop: "watch" })
