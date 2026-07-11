@@ -1,8 +1,8 @@
 # state.yaml — Schema Reference
 
 Authoritative schema for `.compozy/tasks/<slug>/state.yaml`. The file is the
-orchestration layer that lets `cy-loop-tasks` resume mid-flight on every
-agent restart. The file is mutated **only** by:
+orchestration layer that lets `cy-loop-tasks` continue across iterations and
+resume mid-flight if a session ends. The file is mutated **only** by:
 
 - `.agents/skills/compozy/cy-loop-tasks/scripts/init-state.py` (bootstrap)
 - `.agents/skills/compozy/cy-loop-tasks/scripts/update-state.py` (every iteration)
