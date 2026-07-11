@@ -18,23 +18,26 @@ export const Route = createFileRoute("/_app/agents")({
 function AgentsFleetRoute() {
   const page = useAgentsFleetPage(Route.useSearch());
 
-  useTopbarSlot({
-    count: page.hasChildMatch || page.isFirstRunEmpty ? undefined : page.fleetTotal,
-    actions:
-      page.hasChildMatch || page.isFirstRunEmpty ? undefined : (
-        <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
-          <Button
-            data-testid="agents-topbar-create"
-            onClick={page.openCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            New agent
-          </Button>
-        </div>
-      ),
-  });
+  useTopbarSlot(
+    page.hasChildMatch
+      ? null
+      : {
+          count: page.isFirstRunEmpty ? undefined : page.fleetTotal,
+          actions: page.isFirstRunEmpty ? undefined : (
+            <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
+              <Button
+                data-testid="agents-topbar-create"
+                onClick={page.openCreate}
+                size="sm"
+                type="button"
+              >
+                <Plus aria-hidden="true" className="size-3" />
+                New agent
+              </Button>
+            </div>
+          ),
+        }
+  );
 
   if (page.hasChildMatch) {
     return <Outlet />;

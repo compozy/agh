@@ -33,11 +33,23 @@ export interface TopbarSlotProviderProps {
 }
 
 function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
-  const [slot, setSlotState] = React.useState<TopbarSlotValue | null>(null);
-  const setSlot = React.useCallback((next: TopbarSlotValue | null) => {
-    setSlotState(prev => (isSameTopbarSlot(prev, next) ? prev : next));
+  const [active, setActive] = React.useState<{
+    owner: object;
+    slot: TopbarSlotValue | null;
+  } | null>(null);
+  const setSlot = React.useCallback((owner: object, next: TopbarSlotValue | null) => {
+    setActive(prev => {
+      if (prev?.owner === owner && isSameTopbarSlot(prev.slot, next)) return prev;
+      return { owner, slot: next };
+    });
   }, []);
-  const value = React.useMemo<TopbarSlotContextValue>(() => ({ slot, setSlot }), [slot, setSlot]);
+  const clearSlot = React.useCallback((owner: object) => {
+    setActive(prev => (prev?.owner === owner ? null : prev));
+  }, []);
+  const value = React.useMemo<TopbarSlotContextValue>(
+    () => ({ slot: active?.slot ?? null, setSlot, clearSlot }),
+    [active, setSlot, clearSlot]
+  );
   return <TopbarSlotContext.Provider value={value}>{children}</TopbarSlotContext.Provider>;
 }
 

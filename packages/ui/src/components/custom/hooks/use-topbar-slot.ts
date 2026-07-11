@@ -33,7 +33,8 @@ export interface TopbarSlotValue {
 
 export interface TopbarSlotContextValue {
   slot: TopbarSlotValue | null;
-  setSlot: (slot: TopbarSlotValue | null) => void;
+  setSlot: (owner: object, slot: TopbarSlotValue | null) => void;
+  clearSlot: (owner: object) => void;
 }
 
 export const TopbarSlotContext = React.createContext<TopbarSlotContextValue | null>(null);
@@ -78,17 +79,23 @@ export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue |
 export function useTopbarSlot(slot: TopbarSlotValue | null): void {
   const ctx = React.use(TopbarSlotContext);
   const setSlot = ctx?.setSlot;
+  const clearSlot = ctx?.clearSlot;
+  const ownerRef = React.useRef<object>({});
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
   const signature = slotKey(slot);
   React.useEffect(() => {
-    if (!setSlot) return;
-    setSlot(slotRef.current);
-  }, [setSlot, signature]);
+    if (!setSlot || !clearSlot) return;
+    if (slotRef.current === null) {
+      clearSlot(ownerRef.current);
+      return;
+    }
+    setSlot(ownerRef.current, slotRef.current);
+  }, [setSlot, clearSlot, signature]);
   React.useEffect(() => {
-    if (!setSlot) return;
-    return () => setSlot(null);
-  }, [setSlot]);
+    if (!clearSlot) return;
+    return () => clearSlot(ownerRef.current);
+  }, [clearSlot]);
 }
 
 export function useTopbarSlotValue(): TopbarSlotValue | null {

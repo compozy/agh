@@ -7,11 +7,18 @@ const { mockUseBlocker, mockProceed, mockReset } = vi.hoisted(() => {
   return {
     mockProceed,
     mockReset,
-    mockUseBlocker: vi.fn(() => ({
-      status: "idle" as "idle" | "blocked",
-      proceed: mockProceed,
-      reset: mockReset,
-    })),
+    mockUseBlocker: vi.fn(
+      (_options: {
+        shouldBlockFn: () => boolean;
+        disabled?: boolean;
+        enableBeforeUnload?: boolean;
+        withResolver?: boolean;
+      }) => ({
+        status: "idle" as "idle" | "blocked",
+        proceed: mockProceed,
+        reset: mockReset,
+      })
+    ),
   };
 });
 
@@ -80,5 +87,19 @@ describe("useUnsavedGuard", () => {
     expect(result.current.status).toBe("idle");
     expect(result.current.proceed).toBeUndefined();
     expect(result.current.reset).toBeUndefined();
+  });
+
+  it("Should keep the blocker predicate stable while the dirty state is unchanged", () => {
+    const { rerender } = renderHook(
+      ({ dirty }) => useUnsavedGuard({ dirty, entityName: "coder" }),
+      { initialProps: { dirty: true } }
+    );
+    const firstPredicate = mockUseBlocker.mock.calls.at(-1)?.[0].shouldBlockFn;
+
+    rerender({ dirty: true });
+
+    const secondPredicate = mockUseBlocker.mock.calls.at(-1)?.[0].shouldBlockFn;
+    expect(secondPredicate).toBe(firstPredicate);
+    expect(secondPredicate?.()).toBe(true);
   });
 });

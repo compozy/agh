@@ -149,6 +149,14 @@ test.describe("seeded agent detail", () => {
     await expect(appPage.getByTestId("agent-settings-unsaved")).toBeVisible();
     await expect(appPage.getByTestId("agent-settings-page-actions")).toBeVisible();
 
+    await appPage.evaluate(() => window.history.back());
+    await expect(appPage.getByTestId("unsaved-guard-dialog")).toBeVisible();
+    await appPage.getByTestId("unsaved-guard-keep-editing").click();
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe("/agents/agent-detail-primary/settings");
+    await expect(prompt).toHaveValue("Updated prompt for settings journey.");
+
     const saveResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PUT" &&
@@ -328,8 +336,8 @@ test.describe("fleet scan journey", () => {
     await expect(ui.agentRow("fleet-ops")).toHaveCount(0);
 
     await appPage.getByTestId("agent-fleet-filters-add").click();
-    await appPage.getByRole("menuitem", { name: "Category" }).click();
-    await appPage.getByRole("menuitem", { name: "Engineering / Release" }).click();
+    await appPage.getByRole("option", { name: "Category" }).click();
+    await appPage.getByRole("option", { name: "Engineering / Release" }).click();
     await expect
       .poll(() => new URL(appPage.url()).searchParams.get("category"))
       .toBe("Engineering / Release");
@@ -346,18 +354,21 @@ test.describe("fleet scan journey", () => {
 });
 
 test.describe("empty-fleet first-contact journey", () => {
-  test.use({
-    runtimeOptions: {
-      seed: {
-        mockAgents: [],
-      },
-    },
-  });
-
-  test("operator sees first-run empty copy and can open New agent", async ({ appPage }) => {
+  test("operator sees first-run empty copy and can open New agent", async ({
+    appPage,
+    runtime,
+  }) => {
+    await appPage.route("**/api/agents**", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ agents: [] }),
+      });
+    });
+    await ensureGlobalWorkspace(runtime);
+    await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
     const ui = sessionLifecycleSelectors(appPage);
     await useGlobalWorkspaceIfPrompted(ui);
-    await appPage.getByTestId("nav-agents").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
     await expect(appPage.getByTestId("agent-fleet-empty")).toBeVisible();

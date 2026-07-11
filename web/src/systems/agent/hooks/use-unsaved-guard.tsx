@@ -25,8 +25,9 @@ export function useUnsavedGuard({
   dirty,
   entityName,
 }: UseUnsavedGuardOptions): UseUnsavedGuardResult {
+  const shouldBlock = useCallback(() => dirty, [dirty]);
   const blocker = useBlocker({
-    shouldBlockFn: () => dirty,
+    shouldBlockFn: shouldBlock,
     withResolver: true,
     disabled: !dirty,
     enableBeforeUnload: dirty,
