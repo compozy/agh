@@ -161,6 +161,7 @@ type stubSettingsService struct {
 	ListCollectionFn            func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
 	PutCollectionItemFn         func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionItemFn       func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
+	ApplyModelCurationFn        func(context.Context, settingspkg.ProviderModelCurationRequest) (settingspkg.ProviderModelCurationResult, error)
 	DeleteCollectionItemFn      func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
 	ApplyCollectionDeleteFn     func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
 	ReloadFn                    func(context.Context) (settingspkg.ApplyResult, error)
@@ -249,6 +250,16 @@ func (s *stubSettingsService) ApplyCollectionItem(
 		return settingsTestApplyResultForScope(settingspkg.SectionName(req.Collection), req.Scope, req.WorkspaceID), nil
 	}
 	return s.ApplyCollectionItemFn(ctx, req)
+}
+
+func (s *stubSettingsService) ApplyProviderModelCuration(
+	ctx context.Context,
+	req settingspkg.ProviderModelCurationRequest,
+) (settingspkg.ProviderModelCurationResult, error) {
+	if s.ApplyModelCurationFn == nil {
+		return settingspkg.ProviderModelCurationResult{}, nil
+	}
+	return s.ApplyModelCurationFn(ctx, req)
 }
 
 func (s *stubSettingsService) DeleteCollectionItem(

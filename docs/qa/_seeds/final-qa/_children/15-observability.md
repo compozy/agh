@@ -84,8 +84,8 @@ QA), not pytest-style assertions. Every scenario:
   lanes use `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`, while `native_cli`
   lanes with `home_policy=operator` preserve the operator `HOME` unless the
   scenario explicitly validates isolated provider-home behavior.
-- Uses real Claude Code (`claude-opus-4-7[1m]` for primary lifecycle stress;
-  `claude-sonnet-4-6` for spawned children where indicated) as the
+- Uses real Claude Code (`claude-opus-4-8` for primary lifecycle stress;
+  `claude-sonnet-5` for spawned children where indicated) as the
   subprocess driver. Cross-driver parity with OpenClaw / Hermes is already
   covered by child 03; this child does not re-run that matrix unless a
   scenario explicitly tags `provider_parity: required`.
@@ -105,7 +105,7 @@ The surrounding daemon, observer, store, and logger remain real.
 
 | Mode               | When                                                                                                | Driver                                                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `real-claude-code` | Default for any scenario that needs a real LLM round-trip (tool dispatch, hook fire, transcript).  | `claude-opus-4-7[1m]`; spawned children may be `claude-sonnet-4-6`.                                                          |
+| `real-claude-code` | Default for any scenario that needs a real LLM round-trip (tool dispatch, hook fire, transcript).  | `claude-opus-4-8`; spawned children may be `claude-sonnet-5`.                                                          |
 | `mock-acp` (gate)  | Determinism gate for race-sensitive scenarios (OBS-04, OBS-13, OBS-15) so the assertions are stable. | `internal/e2elane` mock ACP server. Daemon, observer, persistence, SSE, redaction, logger remain real production code paths. |
 
 ## 5. Preconditions (apply to every scenario)

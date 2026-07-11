@@ -200,6 +200,9 @@ func renderAgentDef(name string, agent AgentFixture, command string, providerNam
 	if model := strings.TrimSpace(agent.Model); model != "" {
 		builder.WriteString("model: " + model + "\n")
 	}
+	if effort := strings.TrimSpace(agent.ReasoningEffort); effort != "" {
+		builder.WriteString("reasoning_effort: " + effort + "\n")
+	}
 	if permissions := strings.TrimSpace(agent.Permissions); permissions != "" {
 		builder.WriteString("permissions: " + permissions + "\n")
 	}

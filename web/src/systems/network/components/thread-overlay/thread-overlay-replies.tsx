@@ -4,7 +4,7 @@ import { Separator } from "@agh/ui";
 
 import type { NetworkConversationMessage } from "../../types";
 import type { HoverToolbarHandlers } from "../timeline/hover-toolbar";
-import { Timeline } from "../timeline/timeline";
+import { MessageTimeline } from "../timeline/timeline";
 
 export interface ThreadOverlayRepliesProps {
   messages: ReadonlyArray<NetworkConversationMessage>;
@@ -43,7 +43,7 @@ export function ThreadOverlayReplies({
         label={replyLabel}
         labelClassName="text-subtle"
       />
-      <Timeline
+      <MessageTimeline
         ariaLabel="Thread replies"
         asScrollContainer={false}
         density="overlay"

@@ -1,11 +1,6 @@
 import { memo, useMemo } from "react";
 
-import {
-  CodeBlock,
-  CopyIconButton,
-  ToolCallRow as PrimitiveToolCallRow,
-  type ToolCallStatus,
-} from "@agh/ui";
+import { CodeBlock, CopyIconButton, ToolCallRow, type ToolCallStatus } from "@agh/ui";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
 import {
@@ -17,7 +12,7 @@ import {
 import type { UIMessage } from "../types";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 
-export interface ToolCallRowProps {
+export interface SessionToolCallRowProps {
   message: UIMessage;
   defaultExpanded?: boolean;
   /**
@@ -78,12 +73,12 @@ function progressLabelFor(
  * language via `deriveToolRowStatus`: pending / running / failed / success /
  * empty, with neutral→success promotion gated on `turnSettled`.
  */
-export const ToolCallRow = memo(
-  function ToolCallRow({
+export const SessionToolCallRow = memo(
+  function SessionToolCallRow({
     message,
     defaultExpanded = false,
     turnSettled = false,
-  }: ToolCallRowProps) {
+  }: SessionToolCallRowProps) {
     const { status, runtimeError } = deriveToolRowStatus({
       toolError: message.toolError,
       toolResult: message.toolResult,
@@ -102,7 +97,7 @@ export const ToolCallRow = memo(
     const errorMessage = status === "failed" ? errorText : undefined;
     return (
       <div data-testid="tool-call-row">
-        <PrimitiveToolCallRow
+        <ToolCallRow
           toolName={progressLabel}
           icon={toolIcon}
           preview={compactSummary}
@@ -121,7 +116,7 @@ export const ToolCallRow = memo(
             />
           </div>
           {inputJson ? (
-            <PrimitiveToolCallRow.Input>
+            <ToolCallRow.Input>
               <CodeBlock
                 code={inputJson}
                 language="json"
@@ -129,14 +124,14 @@ export const ToolCallRow = memo(
                 showPrompt={false}
                 copyable={false}
               />
-            </PrimitiveToolCallRow.Input>
+            </ToolCallRow.Input>
           ) : null}
           {hasOutput ? (
-            <PrimitiveToolCallRow.Output>
+            <ToolCallRow.Output>
               <ExpandedToolContent message={message} />
-            </PrimitiveToolCallRow.Output>
+            </ToolCallRow.Output>
           ) : null}
-        </PrimitiveToolCallRow>
+        </ToolCallRow>
       </div>
     );
   },

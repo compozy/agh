@@ -3,8 +3,16 @@ import { describe, expect, it } from "vitest";
 import { deriveActiveSessionOptions } from "../lib/derive-active-session-options";
 import type { ProviderModelPayload } from "../types";
 
+const visibleCatalogFlags = {
+  curated: true,
+  deprecated: false,
+  featured: false,
+  hidden: false,
+} satisfies Pick<ProviderModelPayload, "curated" | "deprecated" | "featured" | "hidden">;
+
 const codexCatalog: ProviderModelPayload[] = [
   {
+    ...visibleCatalogFlags,
     provider_id: "codex",
     model_id: "gpt-5.4",
     display_name: "GPT-5.4",
@@ -26,6 +34,7 @@ const codexCatalog: ProviderModelPayload[] = [
     default_reasoning_effort: "medium",
   },
   {
+    ...visibleCatalogFlags,
     provider_id: "codex",
     model_id: "gpt-5.5",
     display_name: "GPT-5.5",
@@ -47,6 +56,7 @@ const codexCatalog: ProviderModelPayload[] = [
     default_reasoning_effort: "medium",
   },
   {
+    ...visibleCatalogFlags,
     provider_id: "codex",
     model_id: "gpt-5.4-mini",
     display_name: "GPT-5.4 Mini",
@@ -124,6 +134,33 @@ describe("deriveActiveSessionOptions", () => {
     expect(result.reasoningOptions.map(option => option.value)).toEqual(["low", "medium", "high"]);
     expect(result.reasoningOverrideAvailable).toBe(false);
     expect(result.defaultReasoning).toBe("medium");
+    // No ACP config option and no adapter-advertised source → catalog authority.
+    expect(result.reasoningSource).toBe("catalog");
+    expect(result.reasoningOptions.every(option => option.source === "catalog")).toBe(true);
+  });
+
+  it("Should mark reasoningSource acp when the selected catalog row is adapter-advertised", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          ...visibleCatalogFlags,
+          provider_id: "claude",
+          model_id: "claude-sonnet-5",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          sources: [],
+          supports_reasoning: true,
+          reasoning_efforts: ["low", "medium", "high"],
+          reasoning_source: "acp",
+        },
+      ],
+      selectedModel: "claude-sonnet-5",
+    });
+
+    expect(result.reasoningSupported).toBe(true);
+    expect(result.reasoningSource).toBe("acp");
+    expect(result.reasoningOptions.every(option => option.source === "acp")).toBe(true);
   });
 
   it("Should derive reasoning options from an enriched catalog row", () => {
@@ -157,6 +194,7 @@ describe("deriveActiveSessionOptions", () => {
     const result = deriveActiveSessionOptions({
       catalog: [
         {
+          ...visibleCatalogFlags,
           provider_id: "custom",
           model_id: "custom-chat-model",
           availability_state: "unknown",
@@ -197,6 +235,8 @@ describe("deriveActiveSessionOptions", () => {
       { value: "high", label: "High", source: "acp" },
     ]);
     expect(result.defaultReasoning).toBe("high");
+    // A live ACP config option is authoritative for the source.
+    expect(result.reasoningSource).toBe("acp");
   });
 
   it("Should treat catalog rows as the only authority when ACP exposes no values for reasoning", () => {

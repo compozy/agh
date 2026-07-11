@@ -1063,6 +1063,12 @@
             "sourceType": "github",
             "computedHash": "c1d5c6ac38aa0f71662c5550fe02c3db8b313affd31345d95a9eba56c5b06f49"
         },
+        "writing-agents-md": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/writing-agents-md/SKILL.md",
+            "computedHash": "77bb8a200de3e0a34fd3768d96eb00ee025d67086d798a8d076f4d6acb4d5510"
+        },
         "writing-clearly-and-concisely": {
             "source": "pedronauck/skills",
             "sourceType": "github",

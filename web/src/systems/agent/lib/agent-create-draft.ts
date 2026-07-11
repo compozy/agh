@@ -1,4 +1,5 @@
-import type { ProviderSelectOption } from "@/systems/runtime";
+import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import type { RuntimeProviderOption } from "@/systems/runtime";
 
 import type { CreateAgentParams } from "../types";
 
@@ -13,6 +14,7 @@ export interface AgentCreateDialogDraft {
   categoryPath: string;
   provider: string;
   model: string;
+  reasoningEffort: ReasoningEffort | "";
   command: string;
   prompt: string;
   permissions: AgentCreatePermissionChoice;
@@ -24,7 +26,7 @@ export interface AgentCreateDialogDraft {
 
 export interface AgentCreateValidationContext {
   hasActiveWorkspace: boolean;
-  providerOptions: readonly ProviderSelectOption[];
+  providerOptions: readonly RuntimeProviderOption[];
   providersError: string | null;
   providersLoading: boolean;
 }
@@ -41,6 +43,7 @@ export type AgentCreateFieldKey =
   | "scope"
   | "categoryPath"
   | "provider"
+  | "reasoningEffort"
   | "prompt"
   | "tools"
   | "toolsets"
@@ -63,6 +66,7 @@ export function createDefaultAgentCreateDraft(hasActiveWorkspace: boolean): Agen
     categoryPath: "",
     provider: "",
     model: "",
+    reasoningEffort: "",
     command: "",
     prompt: "",
     permissions: "",
@@ -83,6 +87,7 @@ export function updateAgentCreateScope(
     scope,
     provider: "",
     model: "",
+    reasoningEffort: "",
   };
 }
 
@@ -162,7 +167,7 @@ export function validateAgentCreateDraft(
   }
 
   const provider = draft.provider.trim();
-  const providerKnown = context.providerOptions.some(option => option.name === provider);
+  const providerKnown = context.providerOptions.some(option => option.id === provider);
   if (context.providersLoading) {
     fields.provider = "Provider options are still loading.";
   } else if (context.providersError) {
@@ -173,6 +178,13 @@ export function validateAgentCreateDraft(
     fields.provider = "Choose a provider.";
   } else if (!providerKnown) {
     fields.provider = "Choose a provider from this scope.";
+  }
+
+  // Fail closed on an off-contract effort: a corrupted/foreign draft carrying a
+  // value like "ultra" must be rejected here, never silently stripped at the wire
+  // boundary. Empty is the canonical "provider default" and stays valid.
+  if (draft.reasoningEffort !== "" && !isReasoningEffort(draft.reasoningEffort)) {
+    fields.reasoningEffort = "Choose a valid reasoning effort.";
   }
 
   if (draft.prompt.trim().length === 0) {
@@ -188,7 +200,7 @@ export function validateAgentCreateDraft(
 
   const stepValidity: Record<AgentCreateStep, boolean> = {
     basics: !fields.name && !fields.scope && !fields.categoryPath,
-    runtime: !fields.provider,
+    runtime: !fields.provider && !fields.reasoningEffort,
     instructions: !fields.prompt,
     access: !fields.tools && !fields.toolsets && !fields.denyTools,
   };
@@ -217,6 +229,10 @@ export function buildCreateAgentParams(
   const provider = draft.provider.trim();
   const prompt = draft.prompt.trim();
   const model = draft.model.trim();
+  // `validateAgentCreateDraft` already fails closed on any off-contract effort, so
+  // a corrupted draft never reaches this line (canSubmit is false → null above).
+  // The guard here only normalizes "" (provider default) to the omitted form below.
+  const reasoningEffort = isReasoningEffort(draft.reasoningEffort) ? draft.reasoningEffort : "";
   const command = draft.command.trim();
   const tools = normalizeOrderedTokens(draft.tools);
   const toolsets = normalizeOrderedTokens(draft.toolsets);
@@ -233,6 +249,7 @@ export function buildCreateAgentParams(
       prompt,
       ...(command.length > 0 ? { command } : {}),
       ...(model.length > 0 ? { model } : {}),
+      ...(reasoningEffort !== "" ? { reasoning_effort: reasoningEffort } : {}),
       ...(tools.length > 0 ? { tools } : {}),
       ...(toolsets.length > 0 ? { toolsets } : {}),
       ...(denyTools.length > 0 ? { deny_tools: denyTools } : {}),

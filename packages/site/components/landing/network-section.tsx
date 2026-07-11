@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { NetworkProtocolVisual } from "./network-protocol-visual";
-import { CodeBlock } from "./primitives/code-block";
+import { LandingCodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
@@ -103,7 +103,7 @@ export function NetworkSection() {
             <ArrowUpRight aria-hidden className="size-4" />
           </Link>
         </div>
-        <CodeBlock code={NETWORK_CODE} caption="agh network" shell />
+        <LandingCodeBlock code={NETWORK_CODE} caption="agh network" shell />
       </div>
     </SectionFrame>
   );

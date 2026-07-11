@@ -1,63 +1,63 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import type { ProviderSummary } from "@/systems/providers";
-
 import type { OnboardingDefaultModelApi } from "../../hooks/use-onboarding-default-model";
 import type { OnboardingWorkspacesApi } from "../../hooks/use-onboarding-workspaces";
 import { StepDefaultModel } from "../step-default-model";
 import { StepWorkspaces } from "../step-workspaces";
 
-function provider(name: string, displayName: string): ProviderSummary {
-  return {
-    name,
-    display_name: displayName,
-    default: false,
-    auth_status: {
-      env_policy: "filtered",
-      home_policy: "operator",
-      mode: "native_cli",
-      state: "ready",
-    },
-  };
-}
-
 const noop = () => {};
 
 const baseModel: OnboardingDefaultModelApi = {
-  providers: [
-    provider("claude", "Claude Code"),
-    provider("codex", "Codex"),
-    provider("gemini", "Gemini CLI"),
-    provider("openclaw", "OpenClaw"),
-  ],
   providersLoading: false,
   providersError: null,
-  provider: "claude",
-  model: "claude-opus-4-7",
-  reasoning: "high",
+  runtimeValue: { provider: "claude", model: "claude-opus-4-8", reasoning_effort: "high" },
+  runtimeProviders: [
+    { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
+    { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
+    { id: "gemini", name: "Gemini CLI", runtime_provider: "gemini" },
+    { id: "openclaw", name: "OpenClaw", runtime_provider: "openclaw" },
+  ],
+  runtimeModels: [
+    {
+      id: "claude-opus-4-8",
+      provider: "claude",
+      name: "Claude Opus 4.8",
+      efforts: ["low", "medium", "high", "xhigh", "max"],
+      availability: "live",
+      curated: true,
+      context_window: 1_000_000,
+      cost_input: 5,
+      cost_output: 25,
+      supports_tools: true,
+      reasoning_source: "catalog",
+    },
+    {
+      id: "claude-sonnet-5",
+      provider: "claude",
+      name: "Claude Sonnet 5",
+      efforts: ["low", "medium", "high", "xhigh", "max"],
+      availability: "live",
+      curated: true,
+      featured: true,
+      context_window: 1_000_000,
+      cost_input: 3,
+      cost_output: 15,
+      supports_tools: true,
+      reasoning_source: "catalog",
+    },
+  ],
   authMode: "native_cli",
   envVar: "",
   apiKey: "",
-  modelOptions: [
-    { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
-    { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-  ],
-  reasoningOptions: [
-    { value: "low", label: "Low", source: "catalog" },
-    { value: "medium", label: "Medium", source: "catalog" },
-    { value: "high", label: "High", source: "catalog" },
-    { value: "xhigh", label: "Extra high · deepest", source: "catalog" },
-  ],
-  reasoningSupported: true,
-  defaultReasoning: "medium",
   catalogLoading: false,
+  catalogLoaded: true,
+  catalogRefreshing: false,
   catalogError: null,
   configurationError: null,
   isValid: true,
   isCommitting: false,
-  onProviderChange: noop,
-  onModelChange: noop,
-  onReasoningChange: noop,
+  onRuntimeChange: noop,
+  onRefreshCatalog: noop,
   onAuthModeChange: noop,
   onEnvVarChange: noop,
   onApiKeyChange: noop,

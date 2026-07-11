@@ -157,7 +157,7 @@ export {
   SessionResumeFailure,
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
-export { ToolCallRow, type ToolCallRowProps } from "./components/tool-call-card";
+export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,
   type SessionChatRuntimeProviderProps,

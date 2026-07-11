@@ -2502,6 +2502,8 @@ export interface ModelSourceListParams {
   include_stale?: boolean;
 }
 
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface ModelCatalogCostPayload {
   input_per_million?: number;
   output_per_million?: number;
@@ -2522,9 +2524,13 @@ export interface ModelSourceRow {
   max_output_tokens?: number;
   supports_tools?: boolean;
   supports_reasoning?: boolean;
-  reasoning_efforts?: string[];
-  default_reasoning_effort?: string;
+  reasoning_efforts?: ReasoningEffort[];
+  default_reasoning_effort?: ReasoningEffort;
   cost?: ModelCatalogCostPayload;
+  deprecated?: boolean;
+  hidden?: boolean;
+  featured?: boolean;
+  release_date?: string;
   last_error?: string;
 }
 
@@ -3401,6 +3407,8 @@ export interface ModelCatalogSourceRefPayload {
   last_error?: string;
 }
 
+export type ReasoningSource = "acp" | "catalog";
+
 export interface ProviderModelPayload {
   provider_id: string;
   model_id: string;
@@ -3415,9 +3423,15 @@ export interface ProviderModelPayload {
   max_output_tokens?: number;
   supports_tools?: boolean;
   supports_reasoning?: boolean;
-  reasoning_efforts?: string[];
-  default_reasoning_effort?: string;
+  reasoning_efforts?: ReasoningEffort[];
+  default_reasoning_effort?: ReasoningEffort;
   cost?: ModelCatalogCostPayload;
+  curated: boolean;
+  deprecated: boolean;
+  hidden: boolean;
+  featured: boolean;
+  release_date?: string;
+  reasoning_source?: ReasoningSource;
   last_error?: string;
 }
 
@@ -4109,7 +4123,7 @@ export interface SessionsCreateParams {
   prompt?: string;
   provider?: string;
   model?: string;
-  reasoning_effort?: string;
+  reasoning_effort?: ReasoningEffort;
   workspace?: string;
 }
 

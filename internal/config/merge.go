@@ -164,13 +164,7 @@ type providerModelsOverlay struct {
 	Default   *string                        `toml:"default"`
 	Curated   []ProviderModelConfig          `toml:"curated"`
 	Discovery providerModelsDiscoveryOverlay `toml:"discovery"`
-}
-
-type providerModelsDiscoveryOverlay struct {
-	Enabled  *bool   `toml:"enabled"`
-	Command  *string `toml:"command"`
-	Endpoint *string `toml:"endpoint"`
-	Timeout  *string `toml:"timeout"`
+	Reasoning providerReasoningOverlay       `toml:"reasoning"`
 }
 
 type modelCatalogOverlay struct {
@@ -894,21 +888,7 @@ func (o providerModelsOverlay) Apply(dst *ProviderModelsConfig) {
 		dst.Curated = cloneProviderModelConfigs(o.Curated)
 	}
 	o.Discovery.Apply(&dst.Discovery)
-}
-
-func (o providerModelsDiscoveryOverlay) Apply(dst *ProviderModelsDiscoveryConfig) {
-	if o.Enabled != nil {
-		dst.Enabled = new(*o.Enabled)
-	}
-	if o.Command != nil {
-		dst.Command = *o.Command
-	}
-	if o.Endpoint != nil {
-		dst.Endpoint = *o.Endpoint
-	}
-	if o.Timeout != nil {
-		dst.Timeout = *o.Timeout
-	}
+	o.Reasoning.applyTo(&dst.Reasoning)
 }
 
 func (o modelCatalogOverlay) Apply(dst *ModelCatalogConfig) {

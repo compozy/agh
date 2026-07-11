@@ -93,8 +93,11 @@ func TestLiveProviderSources(t *testing.T) {
 		if row.DisplayName != "Claude Sonnet 4.6" {
 			t.Fatalf("DisplayName = %q, want Claude Sonnet 4.6", row.DisplayName)
 		}
-		if !slices.Equal(row.ReasoningEfforts, []ReasoningEffort{ReasoningEffortLow, ReasoningEffortXHigh}) {
-			t.Fatalf("ReasoningEfforts = %#v, want low/xhigh only", row.ReasoningEfforts)
+		if !slices.Equal(
+			row.ReasoningEfforts,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortMax, ReasoningEffortXHigh},
+		) {
+			t.Fatalf("ReasoningEfforts = %#v, want low/max/xhigh", row.ReasoningEfforts)
 		}
 	})
 
@@ -647,6 +650,39 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		}
 		if got, want := source.ProviderIDs(), []string{"openai"}; !slices.Equal(got, want) {
 			t.Fatalf("ProviderIDs() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should retain an owned provider config snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		enabled := true
+		hidden := false
+		provider := boundSecretProvider("OPENAI_API_KEY", "env:OPENAI_API_KEY")
+		provider.Models.Discovery.Enabled = &enabled
+		provider.Models.Discovery.Endpoint = "https://api.openai.test/v1/models"
+		provider.Models.Curated = []aghconfig.ProviderModelConfig{{
+			ID:     "gpt-test",
+			Hidden: &hidden,
+		}}
+		source := newLiveSourceForTest(t, "openai", provider, LiveProviderSourcesConfig{
+			BaseEnv:        []string{"PATH=/bin"},
+			SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "sk-test"},
+		})
+		enabled = false
+		hidden = true
+		provider.Models.Discovery.Endpoint = "https://mutated.invalid/models"
+
+		target, err := source.discoveryTarget()
+		if err != nil {
+			t.Fatalf("discoveryTarget() error = %v", err)
+		}
+		if got, want := target.endpoint, "https://api.openai.test/v1/models"; got != want {
+			t.Fatalf("snapshot discovery endpoint = %q, want %q", got, want)
+		}
+		model := source.provider.Models.Curated[0]
+		if model.Hidden == nil || *model.Hidden {
+			t.Fatalf("snapshot curated hidden = %v, want false", model.Hidden)
 		}
 	})
 }

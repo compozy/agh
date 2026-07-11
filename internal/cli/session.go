@@ -101,7 +101,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
   agh session new --workspace checkout-api --agent reviewer --name review-api
 
   # Override provider, model, and reasoning effort for this session only
-  agh session new --provider codex --model gpt-5.4 --reasoning-effort high
+  agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
 
   # Auto-register an absolute workspace path before creating the session
   agh session new --cwd "$PWD" --agent reviewer`,
@@ -120,7 +120,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				AgentName:       agentName,
 				Provider:        strings.TrimSpace(provider),
 				Model:           strings.TrimSpace(model),
-				ReasoningEffort: strings.TrimSpace(reasoningEffort),
+				ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(reasoningEffort)),
 				Name:            name,
 				Workspace:       workspace,
 				WorkspacePath:   workspacePath,
@@ -144,7 +144,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		&reasoningEffort,
 		"reasoning-effort",
 		"",
-		"Optional reasoning effort hint (minimal|low|medium|high|xhigh) for providers that support it",
+		"Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it",
 	)
 	return cmd
 }

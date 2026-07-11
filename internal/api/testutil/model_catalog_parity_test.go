@@ -1,6 +1,7 @@
 package testutil_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -12,12 +13,15 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/httpapi"
 	"github.com/compozy/agh/internal/api/testutil"
 	"github.com/compozy/agh/internal/api/udsapi"
 	"github.com/compozy/agh/internal/cli"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
 	"github.com/compozy/agh/internal/modelcatalog"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,8 +34,8 @@ func TestModelCatalogTransportParity(t *testing.T) {
 		service := &parityModelCatalogService{
 			models: []modelcatalog.Model{parityCatalogModel("codex", "gpt-5.4")},
 		}
-		httpEngine := newParityHTTPRouter(t, service)
-		udsEngine := newParityUDSRouter(t, service)
+		httpEngine := newParityHTTPRouter(t, service, nil)
+		udsEngine := newParityUDSRouter(t, service, nil)
 
 		httpResp := performParityRequest(t, httpEngine, http.MethodGet, "/api/model-catalog/providers/codex/models")
 		udsResp := performParityRequest(t, udsEngine, http.MethodGet, "/api/model-catalog/providers/codex/models")
@@ -84,9 +88,65 @@ func TestModelCatalogTransportParity(t *testing.T) {
 			t.Fatalf("OpenAI model = %#v, want native catalog identity %#v", openAIModel, nativeModel)
 		}
 	})
+
+	t.Run("Should return identical curation JSON for HTTP UDS and CLI contracts", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &parityModelCatalogService{}
+		model := parityCatalogModel("codex", "gpt-5.6-sol")
+		model.Hidden = true
+		model.DefaultReasoningEffort = new(modelcatalog.ReasoningEffortMax)
+		settingsService := &parityModelCurationService{
+			result: settingspkg.ProviderModelCurationResult{
+				Model: model,
+				Apply: settingspkg.ApplyResult{
+					Applied: true,
+					Record: settingspkg.ApplyRecord{
+						ID:         "cfgapp-parity",
+						Lifecycle:  lifecycle.Live,
+						Generation: 7,
+						ActiveHash: "sha256:parity",
+					},
+				},
+			},
+		}
+		httpEngine := newParityHTTPRouter(t, catalog, settingsService)
+		udsEngine := newParityUDSRouter(t, catalog, settingsService)
+		body := []byte(`{"model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max"}`)
+		path := "/api/model-catalog/providers/codex/models/curate"
+		httpResp := performParityJSONRequest(t, httpEngine, http.MethodPost, path, body)
+		udsResp := performParityJSONRequest(t, udsEngine, http.MethodPost, path, body)
+		if httpResp.Code != http.StatusOK || udsResp.Code != http.StatusOK {
+			t.Fatalf(
+				"statuses = http:%d uds:%d, want 200; http=%s uds=%s",
+				httpResp.Code,
+				udsResp.Code,
+				httpResp.Body.String(),
+				udsResp.Body.String(),
+			)
+		}
+		if got, want := httpResp.Body.String(), udsResp.Body.String(); got != want {
+			t.Fatalf("HTTP body = %s, want UDS body %s", got, want)
+		}
+		var cliRecord cli.ProviderModelCurationRecord
+		if err := json.Unmarshal(httpResp.Body.Bytes(), &cliRecord); err != nil {
+			t.Fatalf("json.Unmarshal(curation as CLI record) error = %v", err)
+		}
+		if !cliRecord.Model.Hidden || cliRecord.Model.DefaultReasoningEffort == nil ||
+			*cliRecord.Model.DefaultReasoningEffort != "max" || !cliRecord.Apply.Applied {
+			t.Fatalf("CLI curation record = %#v, want hidden max applied", cliRecord)
+		}
+		if settingsService.calls != 2 {
+			t.Fatalf("ApplyProviderModelCuration calls = %d, want 2", settingsService.calls)
+		}
+	})
 }
 
-func newParityHTTPRouter(t *testing.T, service *parityModelCatalogService) http.Handler {
+func newParityHTTPRouter(
+	t *testing.T,
+	service *parityModelCatalogService,
+	settings core.SettingsService,
+) http.Handler {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -109,13 +169,18 @@ func newParityHTTPRouter(t *testing.T, service *parityModelCatalogService) http.
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
 		httpapi.WithModelCatalogService(service),
+		httpapi.WithSettingsService(settings),
 	); err != nil {
 		t.Fatalf("httpapi.New() error = %v", err)
 	}
 	return engine
 }
 
-func newParityUDSRouter(t *testing.T, service *parityModelCatalogService) http.Handler {
+func newParityUDSRouter(
+	t *testing.T,
+	service *parityModelCatalogService,
+	settings core.SettingsService,
+) http.Handler {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -134,6 +199,7 @@ func newParityUDSRouter(t *testing.T, service *parityModelCatalogService) http.H
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
 		udsapi.WithModelCatalogService(service),
+		udsapi.WithSettingsService(settings),
 	); err != nil {
 		t.Fatalf("udsapi.New() error = %v", err)
 	}
@@ -144,6 +210,22 @@ func performParityRequest(t *testing.T, handler http.Handler, method string, pat
 	t.Helper()
 
 	request := httptest.NewRequestWithContext(context.Background(), method, path, http.NoBody)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func performParityJSONRequest(
+	t *testing.T,
+	handler http.Handler,
+	method string,
+	path string,
+	body []byte,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	request := httptest.NewRequestWithContext(context.Background(), method, path, bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
@@ -170,6 +252,20 @@ func newShortParityHomePaths(t *testing.T) aghconfig.HomePaths {
 
 type parityModelCatalogService struct {
 	models []modelcatalog.Model
+}
+
+type parityModelCurationService struct {
+	core.SettingsService
+	result settingspkg.ProviderModelCurationResult
+	calls  int
+}
+
+func (s *parityModelCurationService) ApplyProviderModelCuration(
+	_ context.Context,
+	_ settingspkg.ProviderModelCurationRequest,
+) (settingspkg.ProviderModelCurationResult, error) {
+	s.calls++
+	return s.result, nil
 }
 
 func (s *parityModelCatalogService) ListModels(

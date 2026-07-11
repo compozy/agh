@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -32,34 +33,37 @@ import (
 )
 
 type stubSettingsService struct {
-	GetSectionFn        func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
-	UpdateSectionFn     func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
-	ApplySectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
-	ListCollectionFn    func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
-	PutCollectionItemFn func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
-	ApplyCollectionFn   func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
-	DeleteItemFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
-	ApplyDeleteFn       func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
-	ReloadFn            func(context.Context) (settingspkg.ApplyResult, error)
-	ListApplyRecordsFn  func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
+	GetSectionFn         func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
+	UpdateSectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ApplySectionFn       func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
+	ListCollectionFn     func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
+	PutCollectionItemFn  func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	ApplyCollectionFn    func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
+	ApplyModelCurationFn func(context.Context, settingspkg.ProviderModelCurationRequest) (settingspkg.ProviderModelCurationResult, error)
+	DeleteItemFn         func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
+	ApplyDeleteFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
+	ReloadFn             func(context.Context) (settingspkg.ApplyResult, error)
+	ListApplyRecordsFn   func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 
 	LastGetSectionRequest     settingspkg.SectionRequest
 	LastUpdateSectionRequest  settingspkg.SectionUpdateRequest
 	LastListCollectionRequest settingspkg.CollectionRequest
 	LastPutCollectionRequest  settingspkg.CollectionItemPutRequest
+	LastModelCurationRequest  settingspkg.ProviderModelCurationRequest
 	LastDeleteRequest         settingspkg.CollectionItemDeleteRequest
 	LastApplyRecordFilter     settingspkg.ApplyRecordFilter
 
-	GetSectionCalls        int
-	UpdateSectionCalls     int
-	ApplySectionCalls      int
-	ListCollectionCalls    int
-	PutCollectionItemCalls int
-	ApplyCollectionCalls   int
-	DeleteItemCalls        int
-	ApplyDeleteCalls       int
-	ReloadCalls            int
-	ListApplyRecordsCalls  int
+	GetSectionCalls         int
+	UpdateSectionCalls      int
+	ApplySectionCalls       int
+	ListCollectionCalls     int
+	PutCollectionItemCalls  int
+	ApplyCollectionCalls    int
+	ApplyModelCurationCalls int
+	DeleteItemCalls         int
+	ApplyDeleteCalls        int
+	ReloadCalls             int
+	ListApplyRecordsCalls   int
 }
 
 func (s *stubSettingsService) GetSection(
@@ -146,6 +150,18 @@ func (s *stubSettingsService) ApplyCollectionItem(
 		return applyResultFromMutation(result), nil
 	}
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
+}
+
+func (s *stubSettingsService) ApplyProviderModelCuration(
+	ctx context.Context,
+	req settingspkg.ProviderModelCurationRequest,
+) (settingspkg.ProviderModelCurationResult, error) {
+	s.ApplyModelCurationCalls++
+	s.LastModelCurationRequest = req
+	if s.ApplyModelCurationFn != nil {
+		return s.ApplyModelCurationFn(ctx, req)
+	}
+	return settingspkg.ProviderModelCurationResult{}, nil
 }
 
 func (s *stubSettingsService) DeleteCollectionItem(
@@ -505,6 +521,11 @@ func TestStatusForSettingsError(t *testing.T) {
 			name: "settings forbidden sentinel",
 			err:  fmt.Errorf("%w: %s", settingspkg.ErrForbidden, "settings mutations are forbidden for this transport"),
 			want: http.StatusForbidden,
+		},
+		{
+			name: "Should map model catalog unavailability to 503",
+			err:  fmt.Errorf("settings projection: %w", modelcatalog.ErrAllSourcesFailed),
+			want: http.StatusServiceUnavailable,
 		},
 	}
 
@@ -1535,7 +1556,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 								ID:                     "gpt-5.4",
 								DisplayName:            "GPT-5.4",
 								SupportsReasoning:      new(true),
-								ReasoningEfforts:       []string{"low", "high"},
+								ReasoningEfforts:       []contract.ReasoningEffort{"low", "high"},
 								DefaultReasoningEffort: "high",
 							},
 							{ID: "gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"},
@@ -1550,6 +1571,10 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							Required:  true,
 						},
 					},
+				},
+				ModelCuration: &contract.ProviderModelCurationRequest{
+					ModelID:                "gpt-5.4",
+					DefaultReasoningEffort: new(modelcatalog.ReasoningEffortMax),
 				},
 			},
 			assert: func(t *testing.T, service *stubSettingsService) {
@@ -1572,6 +1597,17 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 				}
 				if got, want := model.DefaultReasoningEffort, "high"; got != want {
 					t.Fatalf("Provider.Models.Curated[0].DefaultReasoningEffort = %q, want %q", got, want)
+				}
+				curation := service.LastPutCollectionRequest.ProviderModelCuration
+				if curation == nil || curation.ProviderID != "openai" || curation.ModelID != "gpt-5.4" {
+					t.Fatalf("ProviderModelCuration = %#v", curation)
+				}
+				if curation.DefaultReasoningEffort == nil ||
+					*curation.DefaultReasoningEffort != modelcatalog.ReasoningEffortMax {
+					t.Fatalf(
+						"ProviderModelCuration.DefaultReasoningEffort = %v, want max",
+						curation.DefaultReasoningEffort,
+					)
 				}
 			},
 			assertResponse: assertAppliedSettingsMutation,
@@ -1758,6 +1794,66 @@ func assertAppliedSettingsMutation(t *testing.T, resp *httptest.ResponseRecorder
 	testutil.DecodeJSONResponse(t, resp, &payload)
 	if !payload.Applied || payload.Lifecycle != contract.SettingsApplyLifecycleLive {
 		t.Fatalf("settings mutation payload = %#v, want live", payload)
+	}
+}
+
+func TestPutSettingsProviderPreservesModelCurationDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		code string
+	}{
+		{name: "Should preserve model_not_found", code: diagnosticcontract.CodeModelNotFound},
+		{
+			name: "Should preserve reasoning_effort_unsupported",
+			code: diagnosticcontract.CodeReasoningEffortUnsupported,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cause := errors.New("provider model curation rejected")
+			item := diagnostics.NewItem(
+				"provider.models."+tc.code,
+				tc.code,
+				diagnosticcontract.CategoryProvider,
+				"Provider model curation rejected",
+				cause.Error(),
+				diagnosticcontract.SeverityError,
+				diagnosticcontract.FreshnessLive,
+			)
+			service := &stubSettingsService{
+				ApplyCollectionFn: func(
+					context.Context,
+					settingspkg.CollectionItemPutRequest,
+				) (settingspkg.ApplyResult, error) {
+					return settingspkg.ApplyResult{}, diagnostics.NewStructuredError(item, cause)
+				},
+			}
+			fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+			body := mustJSON(t, contract.PutSettingsProviderRequest{
+				Settings: contract.SettingsProviderSettingsPayload{Command: "claude-acp"},
+				ModelCuration: &contract.ProviderModelCurationRequest{
+					ModelID: "claude-sonnet-5",
+				},
+			})
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPut,
+				"/api/settings/providers/claude",
+				body,
+			)
+			if got, want := resp.Code, http.StatusUnprocessableEntity; got != want {
+				t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+			}
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if payload.Diagnostic == nil || payload.Diagnostic.Code != tc.code {
+				t.Fatalf("diagnostic = %#v, want code %q", payload.Diagnostic, tc.code)
+			}
+		})
 	}
 }
 

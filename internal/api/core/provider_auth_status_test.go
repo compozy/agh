@@ -31,7 +31,7 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 					Providers: []settingspkg.ProviderItem{{
 						Name: "codex",
 						Settings: settingspkg.ProviderSettings{
-							Command: "npx -y @zed-industries/codex-acp@latest",
+							Command: "npx -y @agentclientprotocol/codex-acp@latest",
 						},
 						CommandAvailable: true,
 						AuthStatus: settingspkg.ProviderAuthStatus{

@@ -415,6 +415,141 @@ func TestCreateSessionProviderAuthFailureReturnsDiagnostic(t *testing.T) {
 	})
 }
 
+func TestCreateSessionNegotiationFailuresReturnStableDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		code      string
+		stage     string
+		requested string
+	}{
+		{
+			name:      "Should return model_unavailable",
+			code:      acp.NegotiationCodeModelUnavailable,
+			stage:     "model",
+			requested: "missing-model",
+		},
+		{
+			name:      "Should return reasoning_option_missing",
+			code:      acp.NegotiationCodeReasoningOptionMissing,
+			stage:     "reasoning effort",
+			requested: "max",
+		},
+		{
+			name:      "Should return reasoning_effort_unsupported",
+			code:      acp.NegotiationCodeReasoningEffortUnsupported,
+			stage:     "reasoning effort",
+			requested: "max",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			negotiationErr := &acp.NegotiationError{
+				Code:         tc.code,
+				Stage:        tc.stage,
+				Requested:    tc.requested,
+				ValidChoices: []string{"high", "low"},
+			}
+			item := diagnostics.NewItem(
+				"provider.negotiation."+tc.code,
+				tc.code,
+				contract.CategoryProvider,
+				"Provider configuration is unavailable",
+				negotiationErr.Error(),
+				contract.SeverityError,
+				contract.FreshnessLive,
+				diagnostics.WithEvidence(map[string]any{
+					"requested":     tc.requested,
+					"valid_choices": []string{"high", "low"},
+				}),
+			)
+			manager := testutil.StubSessionManager{
+				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+					return nil, diagnostics.NewStructuredError(item, negotiationErr)
+				},
+			}
+			fixture := newHandlerFixture(
+				t,
+				manager,
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
+			)
+
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/sessions",
+				[]byte(
+					`{"agent_name":"coder","provider":"codex","workspace":"alpha","model":"gpt-5.6-sol","reasoning_effort":"max"}`,
+				),
+			)
+			if response.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+			}
+			if payload.Diagnostic == nil || payload.Diagnostic.Code != tc.code {
+				t.Fatalf("payload.Diagnostic = %#v, want code %q", payload.Diagnostic, tc.code)
+			}
+			if payload.Diagnostic.Evidence["requested"] != tc.requested {
+				t.Fatalf("diagnostic evidence = %#v, want requested %q", payload.Diagnostic.Evidence, tc.requested)
+			}
+		})
+	}
+
+	t.Run("Should return reasoning_effort_unsupported for an unknown effort value", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+				t.Fatal("session manager Create() called after request validation failed")
+				return nil, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions",
+			[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha","reasoning_effort":"ultra"}`),
+		)
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+		}
+		if payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != contract.CodeReasoningEffortUnsupported {
+			t.Fatalf(
+				"payload.Diagnostic = %#v, want code %q",
+				payload.Diagnostic,
+				contract.CodeReasoningEffortUnsupported,
+			)
+		}
+		if got, want := payload.Diagnostic.Evidence["requested"], "ultra"; got != want {
+			t.Fatalf("diagnostic requested evidence = %#v, want %q", got, want)
+		}
+	})
+}
+
 func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 	t.Parallel()
 
@@ -1429,14 +1564,15 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
 			Agent: contract.CreateAgentPayload{
-				Name:         "pricing_strategist",
-				Provider:     "claude",
-				Model:        "claude-sonnet-4-6",
-				Tools:        []string{"builtin__shell"},
-				Permissions:  contract.SettingsPermissionModeApproveReads,
-				CategoryPath: []string{"Strategy"},
-				Skills:       &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-skill"}},
-				Prompt:       "You own pricing strategy.",
+				Name:            "pricing_strategist",
+				Provider:        "claude",
+				Model:           "claude-sonnet-5",
+				ReasoningEffort: "max",
+				Tools:           []string{"builtin__shell"},
+				Permissions:     contract.SettingsPermissionModeApproveReads,
+				CategoryPath:    []string{"Strategy"},
+				Skills:          &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-skill"}},
+				Prompt:          "You own pricing strategy.",
 			},
 		})
 
@@ -1451,7 +1587,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Name != "pricing_strategist" || payload.Agent.Provider != "claude" {
+		if payload.Agent.Name != "pricing_strategist" || payload.Agent.Provider != "claude" ||
+			payload.Agent.ReasoningEffort != "max" {
 			t.Fatalf("created agent payload = %#v, want pricing strategist", payload.Agent)
 		}
 		path := filepath.Join(
@@ -1471,6 +1608,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
 		if loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
+			loaded.ReasoningEffort != "max" ||
 			len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "legacy-skill" {
 			t.Fatalf("loaded agent = %#v, want permissions and disabled skill", loaded)
 		}
@@ -1610,6 +1748,18 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 						Provider:    "codex",
 						Permissions: "maybe",
 						Prompt:      "Prompt.",
+					},
+				},
+			},
+			{
+				name: "invalid reasoning effort",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:            "bad_reasoning",
+						Provider:        "codex",
+						ReasoningEffort: "ultra",
+						Prompt:          "Prompt.",
 					},
 				},
 			},

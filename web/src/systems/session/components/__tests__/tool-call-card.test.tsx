@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { UIMessage } from "../../types";
-import { ToolCallRow } from "../tool-call-card";
+import { SessionToolCallRow } from "../tool-call-card";
 
 function makeToolMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
@@ -40,34 +40,34 @@ function queryBody(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-row-body"]');
 }
 
-describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
+describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("Should surface the tense-aware verb (not the raw tool name) in the row heading slot", () => {
-    render(<ToolCallRow message={makeToolMessage()} />);
+    render(<SessionToolCallRow message={makeToolMessage()} />);
     // Read fixture is in-flight (no result) → active verb.
     expect(queryToolName()).toHaveTextContent("Reading...");
     expect(queryToolName()).not.toHaveTextContent("Read file");
   });
 
   it("Should render the mapped per-tool icon and never the terminal fallback for a known tool", () => {
-    render(<ToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
+    render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
     const iconClass = queryIcon()?.getAttribute("class") ?? "";
     expect(iconClass).toContain("lucide-file-text");
     expect(iconClass).not.toContain("lucide-terminal");
   });
 
   it("Should show the compact input summary in the row preview slot", () => {
-    render(<ToolCallRow message={makeToolMessage()} />);
+    render(<SessionToolCallRow message={makeToolMessage()} />);
     expect(queryPreview()).toHaveTextContent("/src/main.ts");
   });
 
   it("Should map Bash command summaries to the row preview slot", () => {
     const longCommand = "agh tool invoke agh__tool_info --input " + '{"tool_id":"agh__skill_view"}';
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({
           toolName: "Bash",
           toolInput: { command: longCommand },
@@ -82,13 +82,13 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should render the pending row state (muted, no glyph) for an in-flight tool with empty input", () => {
-    render(<ToolCallRow message={makeToolMessage({ toolInput: {} })} />);
+    render(<SessionToolCallRow message={makeToolMessage({ toolInput: {} })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("pending");
     expect(queryStatusIndicator()).toBeNull();
   });
 
   it("Should map an in-flight tool with input to the running row state with a Spinner", () => {
-    render(<ToolCallRow message={makeToolMessage()} />);
+    render(<SessionToolCallRow message={makeToolMessage()} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("running");
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
@@ -99,7 +99,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should map meaningful output to the success row state (Check, success tone)", () => {
-    render(<ToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
+    render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "file" } })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("success");
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("success");
@@ -110,7 +110,9 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should render the empty row state (Minus, faint tone) for empty output mid-stream", () => {
-    render(<ToolCallRow message={makeToolMessage({ toolResult: {} })} turnSettled={false} />);
+    render(
+      <SessionToolCallRow message={makeToolMessage({ toolResult: {} })} turnSettled={false} />
+    );
     expect(queryRoot()?.getAttribute("data-status")).toBe("empty");
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("empty");
@@ -120,17 +122,17 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
 
   it("Should promote a neutral tool to success only once the turn settles, never before", () => {
     const message = makeToolMessage({ toolResult: {} });
-    const { rerender } = render(<ToolCallRow message={message} turnSettled={false} />);
+    const { rerender } = render(<SessionToolCallRow message={message} turnSettled={false} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("empty");
 
-    rerender(<ToolCallRow message={message} turnSettled />);
+    rerender(<SessionToolCallRow message={message} turnSettled />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("success");
     expect(queryStatusIndicator()?.getAttribute("aria-label")).toBe("Done");
   });
 
   it("Should map a runtime error to failed, a danger heading, and the real error detail (not the verb)", () => {
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({ toolResult: { error: "not found" }, toolError: true })}
       />
     );
@@ -149,7 +151,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
 
   it("Should flag error-shaped output as failed while keeping the heading neutral (not a runtime error)", () => {
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({
           toolName: "Bash",
           toolInput: { command: "deploy" },
@@ -166,7 +168,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should toggle the inline Input body by click and keyboard", () => {
-    render(<ToolCallRow message={makeToolMessage()} />);
+    render(<SessionToolCallRow message={makeToolMessage()} />);
     const trigger = screen.getByRole("button");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(queryBody()).toBeNull();
@@ -184,7 +186,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should keep the body open when interacting inside it so text selection stays safe", () => {
-    render(<ToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
+    render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
     const trigger = screen.getByRole("button");
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -201,7 +203,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
 
   it("Should render the existing Output dispatcher inside the inline body", () => {
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({
           toolName: "Bash",
           toolInput: { command: "printf abc" },
@@ -218,7 +220,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
 
   it("Should preserve the Edit output renderer inside the inline body", () => {
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({
           toolName: "Edit",
           toolInput: {
@@ -241,7 +243,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
 
   it("Should keep MCP and dynamic tools on the generic output renderer", () => {
     render(
-      <ToolCallRow
+      <SessionToolCallRow
         message={makeToolMessage({
           toolName: "mcp__context7__resolve-library-id",
           toolInput: { libraryName: "react" },
@@ -258,7 +260,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
   });
 
   it("Should keep Output absent while the tool is still running", () => {
-    render(<ToolCallRow message={makeToolMessage()} />);
+    render(<SessionToolCallRow message={makeToolMessage()} />);
     fireEvent.click(screen.getByRole("button"));
 
     expect(document.querySelector('[data-slot="tool-call-row-output"]')).toBeNull();
@@ -270,7 +272,7 @@ describe("Session ToolCallRow — wraps <ToolCallRow> from @agh/ui", () => {
       configurable: true,
       value: { writeText },
     });
-    render(<ToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
+    render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
 
     fireEvent.click(screen.getByRole("button"));
     fireEvent.click(screen.getByRole("button", { name: "Copy tool payload" }));

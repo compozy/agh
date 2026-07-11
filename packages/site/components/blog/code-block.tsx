@@ -4,11 +4,11 @@ import { cn } from "@agh/ui";
 import { AlertTriangle, Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 
-export interface CodeBlockProps extends ComponentProps<"pre"> {
+export interface BlogCodeBlockProps extends ComponentProps<"pre"> {
   "data-language"?: string;
 }
 
-export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
+export function BlogCodeBlock({ className, children, ...props }: BlogCodeBlockProps) {
   const ref = useRef<HTMLPreElement>(null);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");

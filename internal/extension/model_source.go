@@ -201,6 +201,10 @@ func (s *ModelSource) validateRow(
 	if err := validateModelSourceMetadata(index, row); err != nil {
 		return modelcatalog.ModelRow{}, false, err
 	}
+	releaseDate, err := modelSourceReleaseDate(index, row.ReleaseDate)
+	if err != nil {
+		return modelcatalog.ModelRow{}, false, err
+	}
 	efforts, defaultEffort, err := modelSourceReasoning(index, row.ReasoningEfforts, row.DefaultReasoningEffort)
 	if err != nil {
 		return modelcatalog.ModelRow{}, false, err
@@ -227,6 +231,10 @@ func (s *ModelSource) validateRow(
 		SupportsReasoning:      row.SupportsReasoning,
 		ReasoningEfforts:       efforts,
 		DefaultReasoningEffort: defaultEffort,
+		Deprecated:             row.Deprecated,
+		Hidden:                 row.Hidden,
+		Featured:               row.Featured,
+		ReleaseDate:            releaseDate,
 		LastError:              strings.TrimSpace(row.LastError),
 	}
 	if row.Cost != nil {
@@ -234,6 +242,17 @@ func (s *ModelSource) validateRow(
 		modelRow.CostOutputPerMillion = row.Cost.OutputPerMillion
 	}
 	return modelRow, true, nil
+}
+
+func modelSourceReleaseDate(index int, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	releaseDate, err := modelcatalog.NormalizeReleaseDate(*value)
+	if err != nil {
+		return nil, fmt.Errorf("extension: model source row %d: %w", index, err)
+	}
+	return releaseDate, nil
 }
 
 func (s *ModelSource) validateRowIdentity(
@@ -316,13 +335,13 @@ func validateModelSourceCost(index int, cost apicontract.ModelCatalogCostPayload
 
 func modelSourceReasoning(
 	index int,
-	values []string,
-	defaultValue *string,
+	values []modelcatalog.ReasoningEffort,
+	defaultValue *modelcatalog.ReasoningEffort,
 ) ([]modelcatalog.ReasoningEffort, *modelcatalog.ReasoningEffort, error) {
 	efforts := make([]modelcatalog.ReasoningEffort, 0, len(values))
 	seen := make(map[modelcatalog.ReasoningEffort]struct{}, len(values))
 	for _, value := range values {
-		effort, err := parseModelSourceReasoningEffort(value)
+		effort, err := parseModelSourceReasoningEffort(string(value))
 		if err != nil {
 			return nil, nil, fmt.Errorf("extension: model source row %d: %w", index, err)
 		}
@@ -339,7 +358,7 @@ func modelSourceReasoning(
 	if defaultValue == nil {
 		return efforts, nil, nil
 	}
-	defaultEffort, err := parseModelSourceReasoningEffort(*defaultValue)
+	defaultEffort, err := parseModelSourceReasoningEffort(string(*defaultValue))
 	if err != nil {
 		return nil, nil, fmt.Errorf("extension: model source row %d default_reasoning_effort: %w", index, err)
 	}
@@ -357,16 +376,10 @@ func modelSourceReasoning(
 
 func parseModelSourceReasoningEffort(value string) (modelcatalog.ReasoningEffort, error) {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
-	switch modelcatalog.ReasoningEffort(trimmed) {
-	case modelcatalog.ReasoningEffortMinimal,
-		modelcatalog.ReasoningEffortLow,
-		modelcatalog.ReasoningEffortMedium,
-		modelcatalog.ReasoningEffortHigh,
-		modelcatalog.ReasoningEffortXHigh:
-		return modelcatalog.ReasoningEffort(trimmed), nil
-	default:
+	if !modelcatalog.IsValidEffort(trimmed) {
 		return "", fmt.Errorf("reasoning effort %q is not supported", value)
 	}
+	return modelcatalog.ReasoningEffort(trimmed), nil
 }
 
 func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncontract.ModelSourceRow {
@@ -382,7 +395,11 @@ func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncon
 		cloned[index].MaxOutputTokens = cloneModelSourceInt64Pointer(src[index].MaxOutputTokens)
 		cloned[index].SupportsTools = cloneModelSourceBoolPointer(src[index].SupportsTools)
 		cloned[index].SupportsReasoning = cloneModelSourceBoolPointer(src[index].SupportsReasoning)
-		cloned[index].ReasoningEfforts = append([]string(nil), src[index].ReasoningEfforts...)
+		cloned[index].Deprecated = cloneModelSourceBoolPointer(src[index].Deprecated)
+		cloned[index].Hidden = cloneModelSourceBoolPointer(src[index].Hidden)
+		cloned[index].Featured = cloneModelSourceBoolPointer(src[index].Featured)
+		cloned[index].ReleaseDate = cloneModelSourceStringPointer(src[index].ReleaseDate)
+		cloned[index].ReasoningEfforts = append([]apicontract.ReasoningEffort(nil), src[index].ReasoningEfforts...)
 		if src[index].DefaultReasoningEffort != nil {
 			value := *src[index].DefaultReasoningEffort
 			cloned[index].DefaultReasoningEffort = &value
@@ -395,6 +412,14 @@ func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncon
 		}
 	}
 	return cloned
+}
+
+func cloneModelSourceStringPointer(src *string) *string {
+	if src == nil {
+		return nil
+	}
+	value := *src
+	return &value
 }
 
 func cloneModelSourceBoolPointer(src *bool) *bool {

@@ -130,7 +130,7 @@ function NetworkSettingsPage() {
         />
       }
     >
-      <OperationalLinksRow />
+      <OperationalLinksSection />
       <RuntimeStatusSection runtime={runtime} />
       <ListenerSection
         draft={draft}
@@ -148,7 +148,7 @@ function NetworkSettingsPage() {
   );
 }
 
-function OperationalLinksRow() {
+function OperationalLinksSection() {
   return (
     <Section divided label="Operational" note="inspect channels, peers, and live message flow">
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">

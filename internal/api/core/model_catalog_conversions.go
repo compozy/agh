@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	taskActionList = "list"
+	openAIModelObjectValue = "model"
+	taskActionList         = "list"
 )
 
 func ProviderModelListPayloadFromModels(models []modelcatalog.Model) contract.ProviderModelListResponse {
@@ -36,8 +37,14 @@ func ProviderModelPayloadFromModel(model modelcatalog.Model) contract.ProviderMo
 		MaxOutputTokens:        model.MaxOutputTokens,
 		SupportsTools:          model.SupportsTools,
 		SupportsReasoning:      model.SupportsReasoning,
-		ReasoningEfforts:       reasoningEffortStrings(model.ReasoningEfforts),
-		DefaultReasoningEffort: reasoningEffortStringPtr(model.DefaultReasoningEffort),
+		ReasoningEfforts:       append([]contract.ReasoningEffort(nil), model.ReasoningEfforts...),
+		DefaultReasoningEffort: model.DefaultReasoningEffort,
+		Curated:                model.Curated,
+		Deprecated:             model.Deprecated,
+		Hidden:                 model.Hidden,
+		Featured:               model.Featured,
+		ReleaseDate:            optionalModelCatalogString(model.ReleaseDate),
+		ReasoningSource:        model.ReasoningSource,
 		LastError:              modelcatalog.RedactString(model.LastError),
 	}
 	if model.CostInputPerMillion != nil || model.CostOutputPerMillion != nil {
@@ -100,7 +107,7 @@ func OpenAIModelListPayloadFromModels(models []modelcatalog.Model) contract.Open
 func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelPayload {
 	return contract.OpenAIModelPayload{
 		ID:      model.ModelID,
-		Object:  "model",
+		Object:  openAIModelObjectValue,
 		Created: 0,
 		OwnedBy: model.ProviderID,
 		AGH: contract.OpenAIModelAGHPayload{
@@ -117,8 +124,8 @@ func OpenAIModelPayloadFromModel(model modelcatalog.Model) contract.OpenAIModelP
 			MaxOutputTokens:        model.MaxOutputTokens,
 			SupportsTools:          model.SupportsTools,
 			SupportsReasoning:      model.SupportsReasoning,
-			ReasoningEfforts:       reasoningEffortStrings(model.ReasoningEfforts),
-			DefaultReasoningEffort: reasoningEffortStringPtr(model.DefaultReasoningEffort),
+			ReasoningEfforts:       append([]contract.ReasoningEffort(nil), model.ReasoningEfforts...),
+			DefaultReasoningEffort: model.DefaultReasoningEffort,
 			Cost:                   costPayloadFromModel(model),
 			LastError:              modelcatalog.RedactString(model.LastError),
 		},
@@ -143,20 +150,11 @@ func sourceIDsFromRefs(refs []modelcatalog.SourceRef) []string {
 	return ids
 }
 
-func reasoningEffortStrings(efforts []modelcatalog.ReasoningEffort) []string {
-	values := make([]string, 0, len(efforts))
-	for _, effort := range efforts {
-		values = append(values, string(effort))
+func optionalModelCatalogString(value *string) string {
+	if value == nil {
+		return ""
 	}
-	return values
-}
-
-func reasoningEffortStringPtr(effort *modelcatalog.ReasoningEffort) *string {
-	if effort == nil {
-		return nil
-	}
-	value := string(*effort)
-	return &value
+	return *value
 }
 
 func modelCatalogTimeString(value time.Time) string {

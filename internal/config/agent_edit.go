@@ -77,19 +77,20 @@ func agentDefFromParsedFile(
 	parsed parsedAgentDef,
 ) (AgentDef, error) {
 	agent := AgentDef{
-		Name:         NormalizeAgentName(parsed.Name),
-		Provider:     strings.TrimSpace(parsed.Provider),
-		Command:      strings.TrimSpace(parsed.Command),
-		Model:        strings.TrimSpace(parsed.Model),
-		Tools:        normalizeAgentToolPatterns(parsed.Tools),
-		Toolsets:     normalizeAgentToolsetRefs(parsed.Toolsets),
-		DenyTools:    normalizeAgentToolPatterns(parsed.DenyTools),
-		Permissions:  strings.TrimSpace(parsed.Permissions),
-		Skills:       normalizeAgentSkillsConfig(parsed.Skills),
-		CategoryPath: normalizeAgentCategoryPath(parsed.CategoryPath),
-		MCPServers:   cloneMCPServers(parsed.MCPServers),
-		Prompt:       strings.TrimSpace(parts.Body),
-		SourcePath:   filepath.Clean(path),
+		Name:            NormalizeAgentName(parsed.Name),
+		Provider:        strings.TrimSpace(parsed.Provider),
+		Command:         strings.TrimSpace(parsed.Command),
+		Model:           strings.TrimSpace(parsed.Model),
+		ReasoningEffort: strings.TrimSpace(parsed.ReasoningEffort),
+		Tools:           normalizeAgentToolPatterns(parsed.Tools),
+		Toolsets:        normalizeAgentToolsetRefs(parsed.Toolsets),
+		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
+		Permissions:     strings.TrimSpace(parsed.Permissions),
+		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
+		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
+		MCPServers:      cloneMCPServers(parsed.MCPServers),
+		Prompt:          strings.TrimSpace(parts.Body),
+		SourcePath:      filepath.Clean(path),
 	}
 	if len(parsed.Hooks) == 0 {
 		return agent, nil
@@ -111,6 +112,7 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Provider = strings.TrimSpace(agent.Provider)
 	parsed.Command = strings.TrimSpace(agent.Command)
 	parsed.Model = strings.TrimSpace(agent.Model)
+	parsed.ReasoningEffort = strings.TrimSpace(agent.ReasoningEffort)
 	parsed.Tools = cloneStrings(agent.Tools)
 	parsed.Toolsets = cloneStrings(agent.Toolsets)
 	parsed.DenyTools = cloneStrings(agent.DenyTools)

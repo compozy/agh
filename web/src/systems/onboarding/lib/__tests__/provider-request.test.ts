@@ -1,17 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import type { SettingsProviderRequest } from "@/systems/settings";
+
 import { buildOnboardingProviderRequest } from "../provider-request";
 
-const baseSettings = {
+const baseSettings: NonNullable<SettingsProviderRequest["settings"]> = {
   command: "npx claude",
   display_name: "Claude Code",
-  models: { default: "claude-sonnet-4-6", curated: [{ id: "claude-sonnet-4-6" }] },
+  models: {
+    default: "claude-sonnet-5",
+    curated: [
+      {
+        id: "claude-sonnet-5",
+        display_name: "Claude Sonnet 5",
+        reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+      },
+    ],
+  },
 };
 
 describe("buildOnboardingProviderRequest", () => {
   it("persists the chosen default model and reasoning while preserving existing settings", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       reasoning: "xhigh",
       authMode: "native_cli",
       envVar: "",
@@ -19,17 +30,18 @@ describe("buildOnboardingProviderRequest", () => {
       provider: "claude",
     });
     expect(body.settings?.command).toBe("npx claude");
-    expect(body.settings?.models?.default).toBe("claude-opus-4-7");
+    expect(body.settings?.models?.default).toBe("claude-opus-4-8");
     const curated = body.settings?.models?.curated ?? [];
-    const opus = curated.find(entry => entry.id === "claude-opus-4-7");
-    expect(opus?.default_reasoning_effort).toBe("xhigh");
-    // existing curated entry preserved
-    expect(curated.some(entry => entry.id === "claude-sonnet-4-6")).toBe(true);
+    expect(curated).toEqual([{ id: "claude-sonnet-5" }, { id: "claude-opus-4-8" }]);
+    expect(body.model_curation).toEqual({
+      model_id: "claude-opus-4-8",
+      default_effort: "xhigh",
+    });
   });
 
-  it("updates an existing curated entry's reasoning in place", () => {
+  it("emits reasoning as explicit curation intent without copying merged enrichment", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       reasoning: "high",
       authMode: "native_cli",
       envVar: "",
@@ -37,13 +49,16 @@ describe("buildOnboardingProviderRequest", () => {
       provider: "claude",
     });
     const curated = body.settings?.models?.curated ?? [];
-    expect(curated).toHaveLength(1);
-    expect(curated[0]?.default_reasoning_effort).toBe("high");
+    expect(curated).toEqual([{ id: "claude-sonnet-5" }]);
+    expect(body.model_curation).toEqual({
+      model_id: "claude-sonnet-5",
+      default_effort: "high",
+    });
   });
 
   it("sets native_cli auth without credential slots or secrets", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       reasoning: "",
       authMode: "native_cli",
       envVar: "ANTHROPIC_API_KEY",
@@ -71,7 +86,7 @@ describe("buildOnboardingProviderRequest", () => {
         ],
       },
       {
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         reasoning: "",
         authMode: "native_cli",
         envVar: "",
@@ -86,7 +101,7 @@ describe("buildOnboardingProviderRequest", () => {
 
   it("binds an env-var reference without a secret value when no key is provided", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       reasoning: "",
       authMode: "bound_secret",
       envVar: "ANTHROPIC_API_KEY",
@@ -101,7 +116,7 @@ describe("buildOnboardingProviderRequest", () => {
   it("rejects bound_secret when no target environment variable is known", () => {
     expect(() =>
       buildOnboardingProviderRequest(baseSettings, {
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         reasoning: "",
         authMode: "bound_secret",
         envVar: "",
@@ -126,7 +141,7 @@ describe("buildOnboardingProviderRequest", () => {
         ],
       },
       {
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-8",
         reasoning: "",
         authMode: "bound_secret",
         envVar: "",
@@ -140,7 +155,7 @@ describe("buildOnboardingProviderRequest", () => {
 
   it("stores a provided API key as a vault-backed secret", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
       reasoning: "",
       authMode: "bound_secret",
       envVar: "ANTHROPIC_API_KEY",

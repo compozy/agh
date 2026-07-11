@@ -31,6 +31,8 @@ export interface ActiveSessionDerivedOptions {
   modelOverrideAvailable: boolean;
   reasoningOverrideAvailable: boolean;
   defaultReasoning: string | null;
+  /** Source of the advertised reasoning options (`acp` config option vs catalog). */
+  reasoningSource: "acp" | "catalog";
 }
 
 export interface DeriveOptionsInput {
@@ -54,6 +56,11 @@ export function deriveActiveSessionOptions(input: DeriveOptionsInput): ActiveSes
     acpReasoningOption,
     input.selectedModel ?? null
   );
+  const reasoningSource = resolveReasoningSource(
+    input.catalog,
+    acpReasoningOption,
+    input.selectedModel ?? null
+  );
   return {
     modelOptions,
     reasoningOptions,
@@ -61,7 +68,22 @@ export function deriveActiveSessionOptions(input: DeriveOptionsInput): ActiveSes
     modelOverrideAvailable: acpModelOption !== undefined,
     reasoningOverrideAvailable: acpReasoningOption !== undefined,
     defaultReasoning,
+    reasoningSource,
   };
+}
+
+function resolveReasoningSource(
+  catalog: ProviderModelPayload[],
+  acpOption: ACPConfigOption | undefined,
+  selectedModel: string | null
+): "acp" | "catalog" {
+  if (acpOption) return "acp";
+  const targetModel = selectedModel?.trim();
+  if (targetModel) {
+    const matched = catalog.find(model => model.model_id === targetModel);
+    if (matched?.reasoning_source === "acp") return "acp";
+  }
+  return "catalog";
 }
 
 function findConfigOption(
@@ -142,10 +164,11 @@ function buildReasoningOptions(
   if (efforts.length === 0) {
     return [];
   }
+  const source = matched.reasoning_source === "acp" ? "acp" : "catalog";
   return efforts.map<ReasoningOption>(effort => ({
     value: effort,
     label: effort,
-    source: "catalog",
+    source,
   }));
 }
 

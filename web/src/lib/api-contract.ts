@@ -67,6 +67,24 @@ export type OperationRequestBody<Id extends OperationId> = OperationRequestBodyF
   Id
 >;
 
+export type ReasoningEffort = NonNullable<
+  OperationRequestBody<"createSession">["reasoning_effort"]
+>;
+
+const reasoningEffortMembership = {
+  none: true,
+  minimal: true,
+  low: true,
+  medium: true,
+  high: true,
+  xhigh: true,
+  max: true,
+} satisfies Record<ReasoningEffort, true>;
+
+export function isReasoningEffort(value: string): value is ReasoningEffort {
+  return Object.hasOwn(reasoningEffortMembership, value);
+}
+
 export type OperationQuery<Id extends OperationId> = OperationQueryFor<aghOperations, Id>;
 
 export type OperationPath<Id extends OperationId> = OperationPathFor<aghOperations, Id>;

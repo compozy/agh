@@ -1,4 +1,4 @@
 {
     "title": "Models",
-    "pages": ["index", "list", "refresh", "status"]
+    "pages": ["index", "list", "refresh", "set", "status"]
 }

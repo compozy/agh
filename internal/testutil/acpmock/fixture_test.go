@@ -203,6 +203,13 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 				},
 			},
 		},
+		{
+			AgentName:         "gamma",
+			SessionID:         "sess-3",
+			ProtocolMethod:    "session/set_config_option",
+			ConfigOptionID:    "reasoning_effort",
+			ConfigOptionValue: "max",
+		},
 	}
 
 	data, err := json.Marshal(want[0])
@@ -213,7 +220,12 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(second) error = %v", err)
 	}
-	if err := os.WriteFile(path, append(append(data, '\n'), append(second, '\n')...), 0o600); err != nil {
+	third, err := json.Marshal(want[2])
+	if err != nil {
+		t.Fatalf("json.Marshal(third) error = %v", err)
+	}
+	encoded := append(append(append(append(append(data, '\n'), second...), '\n'), third...), '\n')
+	if err := os.WriteFile(path, encoded, 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 
@@ -223,6 +235,10 @@ func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ReadDiagnostics() = %#v, want %#v", got, want)
+	}
+	protocol := ProtocolDiagnostics(got)
+	if len(protocol) != 1 || !reflect.DeepEqual(protocol[0], want[2]) {
+		t.Fatalf("ProtocolDiagnostics() = %#v, want %#v", protocol, want[2:])
 	}
 }
 
@@ -787,9 +803,17 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 	t.Run("Should render agent def uses default prompt", func(t *testing.T) {
 		t.Parallel()
 
-		content := renderAgentDef("mock-alpha", AgentFixture{Provider: "claude"}, "node driver.js", "claude")
+		content := renderAgentDef(
+			"mock-alpha",
+			AgentFixture{Provider: "claude", ReasoningEffort: "max"},
+			"node driver.js",
+			"claude",
+		)
 		if !strings.Contains(content, "You are mock-alpha.") {
 			t.Fatalf("renderAgentDef() = %q, want default prompt", content)
+		}
+		if !strings.Contains(content, "reasoning_effort: max") {
+			t.Fatalf("renderAgentDef() = %q, want reasoning effort", content)
 		}
 	})
 

@@ -98,6 +98,8 @@ const (
 	CodeIdentityStale                 = "identity_stale"
 	CodeIdentityUnauthorized          = "identity_unauthorized"
 	CodeMarketplaceUnavailable        = "marketplace_unavailable"
+	CodeModelNotFound                 = "model_not_found"
+	CodeModelUnavailable              = "model_unavailable"
 	CodeMCPAuthRequired               = "mcp_auth_required"
 	CodeMCPServerReady                = "mcp_server_ready"
 	CodeMCPServerUnavailable          = "mcp_server_unavailable"
@@ -121,6 +123,8 @@ const (
 	CodeProviderPermissionDenied      = "provider_permission_denied"
 	CodeProviderRateLimited           = "provider_rate_limited"
 	CodeProviderTransientFailure      = "provider_transient_failure"
+	CodeReasoningEffortUnsupported    = "reasoning_effort_unsupported"
+	CodeReasoningOptionMissing        = "reasoning_option_missing"
 	CodeRetryChainTooDeep             = "retry_chain_too_deep"
 	CodeSchedulerReady                = "scheduler_ready"
 	CodeSchedulerPaused               = "scheduler_paused"
@@ -202,6 +206,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeIdentityStale, Category: CategorySession},
 	{Code: CodeIdentityUnauthorized, Category: CategorySession},
 	{Code: CodeMarketplaceUnavailable, Category: CategoryExtension},
+	{Code: CodeModelNotFound, Category: CategoryProvider},
+	{Code: CodeModelUnavailable, Category: CategoryProvider},
 	{Code: CodeMCPAuthRequired, Category: CategoryMCP},
 	{Code: CodeMCPServerReady, Category: CategoryMCP},
 	{Code: CodeMCPServerUnavailable, Category: CategoryMCP},
@@ -225,6 +231,8 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderPermissionDenied, Category: CategoryProvider},
 	{Code: CodeProviderRateLimited, Category: CategoryProvider},
 	{Code: CodeProviderTransientFailure, Category: CategoryProvider},
+	{Code: CodeReasoningEffortUnsupported, Category: CategoryProvider},
+	{Code: CodeReasoningOptionMissing, Category: CategoryProvider},
 	{Code: CodeRetryChainTooDeep, Category: CategoryTask},
 	{Code: CodeSchedulerReady, Category: CategoryTask},
 	{Code: CodeSchedulerPaused, Category: CategoryTask},

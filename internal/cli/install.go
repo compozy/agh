@@ -86,7 +86,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
   agh install
 
   # Bootstrap non-interactively for automation
-  agh install --provider codex --model gpt-5.4 -o json`,
+  agh install --provider codex --model gpt-5.6-sol -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			homePaths, err := deps.resolveHome()
 			if err != nil {

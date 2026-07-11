@@ -200,9 +200,15 @@ func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.
 		MaxOutputTokens:        model.MaxOutputTokens,
 		SupportsTools:          model.SupportsTools,
 		SupportsReasoning:      model.SupportsReasoning,
-		ReasoningEfforts:       hostAPIReasoningEffortStrings(model.ReasoningEfforts),
-		DefaultReasoningEffort: hostAPIReasoningEffortStringPtr(model.DefaultReasoningEffort),
+		ReasoningEfforts:       append([]apicontract.ReasoningEffort(nil), model.ReasoningEfforts...),
+		DefaultReasoningEffort: model.DefaultReasoningEffort,
 		Cost:                   hostAPICostPayloadFromModel(model),
+		Curated:                model.Curated,
+		Deprecated:             model.Deprecated,
+		Hidden:                 model.Hidden,
+		Featured:               model.Featured,
+		ReleaseDate:            hostAPIOptionalModelCatalogString(model.ReleaseDate),
+		ReasoningSource:        model.ReasoningSource,
 		LastError:              modelcatalog.RedactString(model.LastError),
 	}
 }
@@ -254,20 +260,11 @@ func hostAPICostPayloadFromModel(model modelcatalog.Model) *apicontract.ModelCat
 	}
 }
 
-func hostAPIReasoningEffortStrings(efforts []modelcatalog.ReasoningEffort) []string {
-	values := make([]string, 0, len(efforts))
-	for _, effort := range efforts {
-		values = append(values, string(effort))
+func hostAPIOptionalModelCatalogString(value *string) string {
+	if value == nil {
+		return ""
 	}
-	return values
-}
-
-func hostAPIReasoningEffortStringPtr(effort *modelcatalog.ReasoningEffort) *string {
-	if effort == nil {
-		return nil
-	}
-	value := string(*effort)
-	return &value
+	return *value
 }
 
 func hostAPIModelCatalogTimeString(value time.Time) string {

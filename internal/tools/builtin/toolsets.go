@@ -78,6 +78,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDProviderModelsList.String(),
 			toolspkg.ToolIDProviderModelsRefresh.String(),
 			toolspkg.ToolIDProviderModelsStatus.String(),
+			toolspkg.ToolIDProviderModelsCurate.String(),
 		},
 	},
 	{

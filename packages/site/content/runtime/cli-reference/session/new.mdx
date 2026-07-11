@@ -21,7 +21,7 @@ agh session new [flags]
   agh session new --workspace checkout-api --agent reviewer --name review-api
 
   # Override provider, model, and reasoning effort for this session only
-  agh session new --provider codex --model gpt-5.4 --reasoning-effort high
+  agh session new --provider codex --model gpt-5.6-sol --reasoning-effort max
 
   # Auto-register an absolute workspace path before creating the session
   agh session new --cwd "$PWD" --agent reviewer
@@ -37,7 +37,7 @@ agh session new [flags]
       --model string              Optional model override for this session
       --name string               Optional session label
       --provider string           Optional provider override for this session
-      --reasoning-effort string   Optional reasoning effort hint (minimal|low|medium|high|xhigh) for providers that support it
+      --reasoning-effort string   Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it
       --workspace string          Registered workspace name or ID
 ```
 

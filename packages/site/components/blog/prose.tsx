@@ -179,13 +179,13 @@ export function Callout({ tone = "accent", eyebrow, children, className }: Callo
   );
 }
 
-export interface WireCardRow {
+export interface BlogWireCardRow {
   label: string;
   value: string;
   tone?: "neutral" | "accent" | "success" | "danger" | "warning" | "info";
 }
 
-const wireValueToneClass: Record<NonNullable<WireCardRow["tone"]>, string> = {
+const wireValueToneClass: Record<NonNullable<BlogWireCardRow["tone"]>, string> = {
   neutral: "text-fg",
   accent: "text-accent",
   success: "text-success",
@@ -194,13 +194,13 @@ const wireValueToneClass: Record<NonNullable<WireCardRow["tone"]>, string> = {
   info: "text-info",
 };
 
-export interface WireCardProps {
+export interface BlogWireCardProps {
   kind: string;
-  rows: WireCardRow[];
+  rows: BlogWireCardRow[];
   protocol?: string;
 }
 
-export function WireCard({ kind, rows, protocol = "v0" }: WireCardProps) {
+export function BlogWireCard({ kind, rows, protocol = "v0" }: BlogWireCardProps) {
   return (
     <div className="mt-7 max-w-wire-card-max overflow-hidden rounded-md border border-line bg-canvas-soft">
       <Eyebrow className="block border-b border-line bg-rail px-3 py-1.5 text-subtle">

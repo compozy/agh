@@ -455,8 +455,29 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
       display_name: "Claude Code",
       models: {
-        default: "claude-sonnet-4-6",
-        curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+        default: "claude-sonnet-5",
+        curated: [
+          {
+            id: "claude-fable-5",
+            supports_reasoning: true,
+            reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+            default_reasoning_effort: "high",
+          },
+          {
+            id: "claude-opus-4-8",
+            supports_reasoning: true,
+            reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+            default_reasoning_effort: "high",
+          },
+          {
+            id: "claude-sonnet-5",
+            supports_reasoning: true,
+            reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+            default_reasoning_effort: "high",
+          },
+          { id: "claude-haiku-4-5-20251001", supports_reasoning: true },
+        ],
+        reasoning: { apply: "acp_option" },
       },
       harness: "acp",
       auth_mode: "native_cli",
@@ -485,8 +506,14 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       settings: {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         models: {
-          default: "claude-sonnet-4-6",
-          curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+          default: "claude-sonnet-5",
+          curated: [
+            { id: "claude-fable-5" },
+            { id: "claude-opus-4-8" },
+            { id: "claude-sonnet-5" },
+            { id: "claude-haiku-4-5-20251001" },
+          ],
+          reasoning: { apply: "acp_option" },
         },
         auth_mode: "native_cli",
         env_policy: "filtered",
@@ -500,18 +527,30 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     default: false,
     command_available: true,
     settings: {
-      command: "npx -y @zed-industries/codex-acp@latest",
+      command: "npx -y @agentclientprotocol/codex-acp@latest",
       models: {
-        default: "gpt-5.4",
+        default: "gpt-5.6-sol",
         curated: [
           {
-            id: "gpt-5.4",
+            id: "gpt-5.6-sol",
             supports_reasoning: true,
-            reasoning_efforts: ["low", "medium", "high"],
+            reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
             default_reasoning_effort: "medium",
           },
-          { id: "gpt-5.4-mini" },
+          {
+            id: "gpt-5.6-terra",
+            supports_reasoning: true,
+            reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+            default_reasoning_effort: "medium",
+          },
+          {
+            id: "gpt-5.6-luna",
+            supports_reasoning: true,
+            reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+            default_reasoning_effort: "medium",
+          },
         ],
+        reasoning: { apply: "acp_option" },
       },
       harness: "acp",
       auth_mode: "native_cli",

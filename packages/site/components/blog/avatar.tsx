@@ -1,18 +1,18 @@
 import { cn } from "@agh/ui";
 
-export interface AvatarProps {
+export interface BlogAvatarProps {
   initial: string;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
 
-const sizeClass: Record<NonNullable<AvatarProps["size"]>, string> = {
+const sizeClass: Record<NonNullable<BlogAvatarProps["size"]>, string> = {
   sm: "size-7 text-xs",
   md: "size-9 text-sm",
   lg: "size-11 text-base",
 };
 
-export function Avatar({ initial, size = "sm", className }: AvatarProps) {
+export function BlogAvatar({ initial, size = "sm", className }: BlogAvatarProps) {
   return (
     <span
       aria-hidden

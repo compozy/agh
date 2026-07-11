@@ -34,7 +34,7 @@ function str(value: unknown): string {
   return "";
 }
 
-function FieldLabel({ field }: { field: TextFieldSpec | NumberFieldSpec | SelectFieldSpec }) {
+function FieldSpecLabel({ field }: { field: TextFieldSpec | NumberFieldSpec | SelectFieldSpec }) {
   const optional = "optionalLabel" in field ? field.optionalLabel : undefined;
   const required = "required" in field ? field.required : false;
   return (
@@ -219,7 +219,7 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   if (field.type === "select") {
     return (
       <div>
-        <FieldLabel field={field} />
+        <FieldSpecLabel field={field} />
         <NativeSelect
           value={str(getAtPath(raw, field.path))}
           disabled={disabled}
@@ -245,7 +245,7 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
     const over = field.ceiling !== undefined && Number.isFinite(numeric) && numeric > field.ceiling;
     return (
       <div>
-        <FieldLabel field={field} />
+        <FieldSpecLabel field={field} />
         <div className="flex items-center gap-2.5">
           <input
             type="number"
@@ -332,7 +332,7 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   }
   return (
     <div>
-      <FieldLabel field={field} />
+      <FieldSpecLabel field={field} />
       <TextControl {...props} field={field} />
       {field.hint ? (
         <p className="mt-1.5 text-[11px] leading-relaxed text-subtle">{field.hint}</p>

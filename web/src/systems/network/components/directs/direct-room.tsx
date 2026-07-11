@@ -7,7 +7,7 @@ import type { NetworkPresence, NetworkPresenceState } from "../../types";
 import { DetailComposer } from "../composer/detail-composer";
 import { ConversationError } from "../empty-states/conversation-error";
 import { DirectEmpty } from "../empty-states/direct-empty";
-import { Timeline } from "../timeline/timeline";
+import { MessageTimeline } from "../timeline/timeline";
 import { MessageAvatar } from "../timeline/message-avatar";
 import { useMessageCopyActions } from "../timeline/use-message-copy-actions";
 import { WorkBanner } from "../work/work-banner";
@@ -124,7 +124,7 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
           />
         </div>
       ) : isResolvingDetail ? (
-        <Timeline
+        <MessageTimeline
           ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
           density="channel"
           isLoading
@@ -139,7 +139,7 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
             workingCount={openWork.workingCount}
           />
 
-          <Timeline
+          <MessageTimeline
             ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
             density="channel"
             emptyState={<DirectEmpty />}

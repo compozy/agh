@@ -1039,41 +1039,200 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 func TestStartUsesSetConfigOptionForReasoningEffortWhenAvailable(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-set-config-reasoning.jsonl")
-	proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
-		ReasoningEffort: "high",
-		Env:             helperEnvWithCapture("config_options", "", captureFile),
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should apply reasoning effort through session/set_config_option", func(t *testing.T) {
+		t.Parallel()
 
-	request := decodeCapturedSetSessionConfigOptionRequest(
-		t,
-		captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
-	)
-	if got := request.ConfigID; got != "reasoning_effort" {
-		t.Fatalf("set-config config id = %q, want reasoning_effort", got)
-	}
-	if got := request.Value; got != "high" {
-		t.Fatalf("set-config value = %q, want high", got)
-	}
-	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-set-config-reasoning.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			ReasoningEffort: "high",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			Env:             helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if got := request.ConfigID; got != "reasoning_effort" {
+			t.Fatalf("set-config config id = %q, want reasoning_effort", got)
+		}
+		if got := request.Value; got != "high" {
+			t.Fatalf("set-config value = %q, want high", got)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "high", "high")
+	})
 }
 
-func TestStartDoesNotInventReasoningConfigOptionWhenAbsent(t *testing.T) {
+func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-no-reasoning-config.jsonl")
-	proc := startHelperProcess(t, driver, "config_options_no_reasoning", "", StartOpts{
-		ReasoningEffort: "xhigh",
-		Env:             helperEnvWithCapture("config_options_no_reasoning", "", captureFile),
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should return a typed error without launching the provider", func(t *testing.T) {
+		t.Parallel()
 
-	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-		t.Fatal("set_config_option was sent without a reasoning config option")
+		launcher := &recordingLauncher{err: errors.New("provider must not launch")}
+		driver := New(WithLauncher(launcher))
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         "helper",
+			Cwd:             t.TempDir(),
+			Permissions:     aghconfig.PermissionModeApproveAll,
+			ReasoningEffort: "high",
+			ProviderConfig: &aghconfig.ProviderConfig{Models: aghconfig.ProviderModelsConfig{
+				Reasoning: aghconfig.ProviderReasoningConfig{Apply: aghconfig.ReasoningApplyNone},
+			}},
+		})
+		if proc != nil {
+			t.Fatal("Start() process != nil, want no launched process")
+		}
+		var negotiationErr *NegotiationError
+		if !errors.As(err, &negotiationErr) || negotiationErr.Code != NegotiationCodeReasoningOptionMissing {
+			t.Fatalf("Start() error = %v, want reasoning_option_missing NegotiationError", err)
+		}
+		if _, called := launcher.lastSpec(); called {
+			t.Fatal("provider launcher was called before reasoning strategy validation")
+		}
+	})
+}
+
+func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"} {
+		t.Run("Should pass through "+effort, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), "session-reasoning-"+effort+".jsonl")
+			proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+				ReasoningEffort: effort,
+				ProviderConfig:  reasoningACPProviderConfig(),
+				Env:             helperEnvWithCapture("config_options", "", captureFile),
+			})
+			defer stopProcess(t, driver, proc)
+
+			request := decodeCapturedSetSessionConfigOptionRequest(
+				t,
+				captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+			)
+			if got := request.Value; got != effort {
+				t.Fatalf("set-config value = %q, want %q", got, effort)
+			}
+		})
 	}
+}
+
+func TestStartDistinguishesProviderDefaultFromExplicitNone(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip effort RPC for empty provider default", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-default-reasoning.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			ProviderConfig: reasoningACPProviderConfig(),
+			Env:            helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for empty provider-default effort")
+		}
+	})
+
+	t.Run("Should send explicit none when advertised", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-none-reasoning.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			ReasoningEffort: "none",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			Env:             helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if got, want := request.Value, "none"; got != want {
+			t.Fatalf("set-config value = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestStartAppliesModelBeforeModelSpecificReasoning(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply mode then model then refreshed model-specific effort", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-model-specific-reasoning.jsonl")
+		proc := startHelperProcess(t, driver, "model_specific_config_options", "", StartOpts{
+			Permissions:     aghconfig.PermissionModeApproveAll,
+			PreferredModel:  "other-model",
+			ReasoningEffort: "max",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			Env:             helperEnvWithCapture("model_specific_config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+		got := captureNegotiationSequence(t, captureFile)
+		want := []string{"mode:bypassPermissions", "model:other-model", "effort:max"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("negotiation sequence = %#v, want %#v", got, want)
+		}
+
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		if got, want := len(requests), 2; got != want {
+			t.Fatalf("set_config_option request count = %d, want %d", got, want)
+		}
+		modelRequest := decodeCapturedSetSessionConfigOptionRequest(t, requests[0])
+		reasoningRequest := decodeCapturedSetSessionConfigOptionRequest(t, requests[1])
+		if modelRequest.ConfigID != "model" || modelRequest.Value != "other-model" {
+			t.Fatalf("first set-config request = %#v, want model=other-model", modelRequest)
+		}
+		if reasoningRequest.ConfigID != "effort" || reasoningRequest.Value != "max" {
+			t.Fatalf("second set-config request = %#v, want effort=max", reasoningRequest)
+		}
+	})
+}
+
+func TestStartRejectsReasoningEffortWhenConfigOptionIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail before prompting when the effort option is absent", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-no-reasoning-config.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Permissions:     aghconfig.PermissionModeApproveAll,
+			ReasoningEffort: "xhigh",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			Env:             helperEnvWithCapture("config_options_no_reasoning", "", captureFile),
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want reasoning_option_missing")
+		}
+		var negotiationErr *NegotiationError
+		if !errors.As(err, &negotiationErr) || negotiationErr.Code != NegotiationCodeReasoningOptionMissing {
+			t.Fatalf("Start() error = %v, want reasoning_option_missing NegotiationError", err)
+		}
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent without a reasoning config option")
+		}
+	})
 }
 
 func TestStartRejectsPreferredModelWhenModelConfigOptionIsAbsent(t *testing.T) {
@@ -1113,7 +1272,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 	tests := []struct {
 		name            string
 		opts            StartOpts
-		wantError       string
+		wantCode        string
 		forbiddenMethod string
 	}{
 		{
@@ -1121,7 +1280,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			opts: StartOpts{
 				PreferredModel: "missing-model",
 			},
-			wantError:       `model "missing-model" is not available in config option "model"`,
+			wantCode:        NegotiationCodeModelUnavailable,
 			forbiddenMethod: acpsdk.AgentMethodSessionSetConfigOption,
 		},
 		{
@@ -1129,7 +1288,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			opts: StartOpts{
 				ReasoningEffort: "turbo",
 			},
-			wantError:       `reasoning effort "turbo" is not available in config option "reasoning_effort"`,
+			wantCode:        NegotiationCodeReasoningEffortUnsupported,
 			forbiddenMethod: acpsdk.AgentMethodSessionSetConfigOption,
 		},
 	}
@@ -1149,6 +1308,9 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			}
 			opts.PreferredModel = tc.opts.PreferredModel
 			opts.ReasoningEffort = tc.opts.ReasoningEffort
+			if opts.ReasoningEffort != "" {
+				opts.ProviderConfig = reasoningACPProviderConfig()
+			}
 			proc, err := driver.Start(testutil.Context(t), opts)
 			if proc != nil {
 				defer stopProcess(t, driver, proc)
@@ -1156,8 +1318,9 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 			if err == nil {
 				t.Fatal("Start() error = nil, want unavailable config option error")
 			}
-			if !strings.Contains(err.Error(), tc.wantError) {
-				t.Fatalf("Start() error = %v, want containing %q", err, tc.wantError)
+			var negotiationErr *NegotiationError
+			if !errors.As(err, &negotiationErr) || negotiationErr.Code != tc.wantCode {
+				t.Fatalf("Start() error = %v, want NegotiationError code %q", err, tc.wantCode)
 			}
 			if captureMethodExists(t, captureFile, tc.forbiddenMethod) {
 				t.Fatalf("forbidden method %q was sent after unavailable config value", tc.forbiddenMethod)
@@ -1759,6 +1922,9 @@ func startHelperProcess(
 	opts.Launcher = overrides.Launcher
 	opts.ToolHost = overrides.ToolHost
 	opts.ToolGateway = overrides.ToolGateway
+	opts.ProviderName = overrides.ProviderName
+	opts.ProviderConfig = overrides.ProviderConfig
+	opts.ProviderAuthEnv = overrides.ProviderAuthEnv
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {
@@ -2058,6 +2224,41 @@ func captureRequestParamsForMethod(t *testing.T, path string, method string) []m
 	return matches
 }
 
+func captureNegotiationSequence(t *testing.T, path string) []string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+	sequence := make([]string, 0, 3)
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var envelope capturedRequestEnvelope
+		if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+			t.Fatalf("json.Unmarshal(captured envelope) error = %v", err)
+		}
+		var params map[string]json.RawMessage
+		switch envelope.Method {
+		case acpsdk.AgentMethodSessionSetMode:
+			if err := json.Unmarshal(envelope.Params, &params); err != nil {
+				t.Fatalf("json.Unmarshal(set-mode params) error = %v", err)
+			}
+			request := decodeCapturedSetSessionModeRequest(t, params)
+			sequence = append(sequence, "mode:"+request.ModeID)
+		case acpsdk.AgentMethodSessionSetConfigOption:
+			if err := json.Unmarshal(envelope.Params, &params); err != nil {
+				t.Fatalf("json.Unmarshal(set-config params) error = %v", err)
+			}
+			request := decodeCapturedSetSessionConfigOptionRequest(t, params)
+			sequence = append(sequence, request.ConfigID+":"+request.Value)
+		}
+	}
+	return sequence
+}
+
 func decodeCapturedNewSessionRequest(t *testing.T, params map[string]json.RawMessage) capturedNewSessionRequest {
 	t.Helper()
 
@@ -2242,8 +2443,15 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 	if a.scenario == "config_options" ||
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
+		a.scenario == "model_specific_config_options" ||
 		a.scenario == "config_option_update" {
 		configOptions := helperConfigOptions("new-model", "medium")
+		if a.scenario == "model_specific_config_options" {
+			configOptions = append(
+				helperModelConfigOptions("new-model"),
+				helperSelectConfigOption("effort", "Reasoning effort", "low", "low"),
+			)
+		}
 		if a.scenario == "config_options_no_model" {
 			configOptions = []acpsdk.SessionConfigOption{
 				helperSelectConfigOption(
@@ -2260,9 +2468,13 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 			configOptions = helperModelConfigOptions("new-model")
 		}
 		a.setHelperConfigOptions(configOptions)
+		modes := helperModeState("new-mode")
+		if a.scenario == "model_specific_config_options" {
+			modes = helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions")
+		}
 		return acpsdk.NewSessionResponse{
 			SessionId:     "sess-new",
-			Modes:         helperModeState("new-mode"),
+			Modes:         modes,
 			ConfigOptions: configOptions,
 		}, nil
 	}
@@ -2568,6 +2780,15 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	if request.ValueId != nil {
 		configID := string(request.ValueId.ConfigId)
 		value := acpsdk.SessionConfigValueId(strings.TrimSpace(string(request.ValueId.Value)))
+		if a.scenario == "model_specific_config_options" && configID == "model" {
+			a.configOptions = append(
+				helperModelConfigOptions(string(value)),
+				helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
+			)
+			return acpsdk.SetSessionConfigOptionResponse{
+				ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
+			}, nil
+		}
 		for index := range a.configOptions {
 			if a.configOptions[index].Select == nil || string(a.configOptions[index].Select.Id) != configID {
 				continue
@@ -2593,12 +2814,22 @@ func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.
 		"Reasoning effort",
 		reasoningCurrent,
 		"minimal",
+		"none",
 		"low",
 		"medium",
 		"high",
 		"xhigh",
+		"max",
 	))
 	return options
+}
+
+func reasoningACPProviderConfig() *aghconfig.ProviderConfig {
+	return &aghconfig.ProviderConfig{
+		Models: aghconfig.ProviderModelsConfig{
+			Reasoning: aghconfig.ProviderReasoningConfig{Apply: aghconfig.ReasoningApplyACPOption},
+		},
+	}
 }
 
 func helperModelConfigOptions(current string) []acpsdk.SessionConfigOption {

@@ -72,49 +72,6 @@ func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
 	return nativeMemoryActorKind(taskpkg.ActorKind(actorKind).Normalize())
 }
 
-type daemonNativeToolsDeps struct {
-	Registry            func() toolspkg.Registry
-	Config              aghconfig.Config
-	Skills              core.SkillsRegistry
-	Sessions            core.SessionManager
-	Workspaces          core.WorkspaceService
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	ModelCatalog        core.ModelCatalogService
-	Network             core.NetworkService
-	NetworkStore        core.NetworkStore
-	Tasks               taskpkg.Manager
-	MemoryStore         *memorypkg.Store
-	MemoryToolWrites    memoryToolWriteRecorder
-	DreamTrigger        core.DreamTrigger
-	MemoryExtractor     core.MemoryExtractorService
-	MemoryProviders     core.MemoryProviderService
-	MemorySessionLedger core.MemorySessionLedgerService
-	Bridges             core.BridgeService
-	HomePaths           aghconfig.HomePaths
-	Observer            core.Observer
-	HookBindings        hookBindingPublisher
-	AgentCatalog        core.AgentCatalog
-	HeartbeatStatus     core.HeartbeatStatusService
-	HeartbeatWake       core.HeartbeatWakeService
-	SessionHealth       core.SessionHealthReader
-	WakeEvents          core.HeartbeatWakeEventReader
-	Automation          core.AutomationManager
-	AutomationRuntime   func() core.AutomationManager
-	ExtensionRegistry   *extensionpkg.Registry
-	ExtensionRuntime    func() extensionRuntime
-	ExtensionMarket     aghconfig.ExtensionsMarketplaceConfig
-	ExtensionSources    extensionMarketplaceSourceLoader
-	ExtensionEvents     store.EventSummaryStore
-	AgentSkills         agentSkillPublisher
-	ToolMCP             toolMCPPublisher
-	MCPAuth             func() toolspkg.MCPAuthStatusProvider
-	BundleResources     bundleResourcePublisher
-	LoopResources       loopResourcePublisher
-	BundleService       func() core.BundleService
-	Loops               func() core.LoopService
-	Resources           core.ResourceService
-}
-
 type daemonNativeTools struct {
 	deps *daemonNativeToolsDeps
 }
@@ -259,6 +216,7 @@ func (d *Daemon) nativeToolsDeps(
 		Workspaces:          state.workspaceResolver,
 		WorkspaceResolver:   state.workspaceResolver,
 		ModelCatalog:        state.deps.ModelCatalog,
+		Settings:            func() core.SettingsService { return state.deps.Settings },
 		Network:             state.deps.Network,
 		NetworkStore:        state.registry,
 		Tasks:               state.deps.Tasks,
@@ -462,7 +420,6 @@ type nativeToolAvailabilitySet struct {
 	workspaces          toolspkg.NativeAvailabilityFunc
 	workspaceDetails    toolspkg.NativeAvailabilityFunc
 	agentCreate         toolspkg.NativeAvailabilityFunc
-	providerModels      toolspkg.NativeAvailabilityFunc
 	tasks               toolspkg.NativeAvailabilityFunc
 	taskNotifications   toolspkg.NativeAvailabilityFunc
 	memory              toolspkg.NativeAvailabilityFunc
@@ -502,7 +459,10 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		bindings,
 		n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails, availability.agentCreate),
 	)
-	addNativeToolBindings(bindings, n.providerModelToolBindings(availability.providerModels))
+	addNativeToolBindings(bindings, n.providerModelToolBindings(
+		n.providerModelReadAvailability(),
+		n.providerModelMutationAvailability(),
+	))
 	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
 	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
 		store:         availability.memoryAdminStore,
@@ -555,7 +515,6 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		agentCreate: n.dependencyAvailability(func() bool {
 			return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
 		}),
-		providerModels: n.dependencyAvailability(func() bool { return n.deps.ModelCatalog != nil }),
 		taskNotifications: n.dependencyAvailability(func() bool {
 			return n.deps.Tasks != nil && n.deps.Bridges != nil
 		}),

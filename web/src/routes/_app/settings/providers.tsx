@@ -127,7 +127,7 @@ function ProvidersSettingsPage() {
   return (
     <PageShell slug="providers" banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}>
       {page.lastAction ? (
-        <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+        <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
       <Section
@@ -284,7 +284,7 @@ function ProviderDeleteDialog({
   );
 }
 
-function ActionResultBanner({
+function LastActionAlert({
   action,
   onDismiss,
 }: {

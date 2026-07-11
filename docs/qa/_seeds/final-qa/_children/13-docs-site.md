@@ -145,7 +145,7 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 | Mode               | When                                                                                              | Driver                                                                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mock-acp`         | **Default for this child.** Every static-build, codegen-drift, link-crawl, and CSS-scrape scenario | No daemon needed. Operates on `packages/site/out/` after `make site-build` and on `openapi/agh.json` + cobra export.                                    |
-| `real-claude-code` | **Only DOC-19** when proving (or refuting) a live-prompt embed surface                            | Real `claude-opus-4-7[1m]` ACP subprocess against an isolated daemon; the site does NOT today host an interactive embed, so the scenario asserts that. |
+| `real-claude-code` | **Only DOC-19** when proving (or refuting) a live-prompt embed surface                            | Real `claude-opus-4-8` ACP subprocess against an isolated daemon; the site does NOT today host an interactive embed, so the scenario asserts that. |
 
 Bootstrap and isolation discipline (mandatory):
 

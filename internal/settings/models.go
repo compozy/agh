@@ -164,21 +164,6 @@ const (
 	SourceKindWorkspaceAgentFile SourceKind = "workspace-agent-file"
 )
 
-// Service is the daemon-facing settings orchestration boundary.
-type Service interface {
-	GetSection(ctx context.Context, req SectionRequest) (SectionEnvelope, error)
-	UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error)
-	ApplySection(ctx context.Context, req SectionUpdateRequest) (ApplyResult, error)
-	ListCollection(ctx context.Context, req CollectionRequest) (CollectionEnvelope, error)
-	PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error)
-	ApplyCollectionItem(ctx context.Context, req CollectionItemPutRequest) (ApplyResult, error)
-	DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error)
-	ApplyCollectionDelete(ctx context.Context, req CollectionItemDeleteRequest) (ApplyResult, error)
-	Reload(ctx context.Context) (ApplyResult, error)
-	ActiveConfig(ctx context.Context) (aghconfig.Config, error)
-	ListApplyRecords(ctx context.Context, filter ApplyRecordFilter) ([]ApplyRecord, error)
-}
-
 // SectionRequest identifies one section read.
 type SectionRequest struct {
 	Section     SectionName
@@ -209,14 +194,15 @@ type CollectionRequest struct {
 // CollectionItemPutRequest identifies one collection upsert.
 type CollectionItemPutRequest struct {
 	CollectionRequest
-	Name            string
-	Target          TargetSelector
-	Provider        *ProviderSettings
-	ProviderSecrets []ProviderSecretWrite
-	MCPServer       *aghconfig.MCPServer
-	MCPSecrets      MCPSecretValues
-	Sandbox         *aghconfig.SandboxProfile
-	Hook            *hookspkg.HookDecl
+	Name                  string
+	Target                TargetSelector
+	Provider              *ProviderSettings
+	ProviderModelCuration *ProviderModelCurationRequest
+	ProviderSecrets       []ProviderSecretWrite
+	MCPServer             *aghconfig.MCPServer
+	MCPSecrets            MCPSecretValues
+	Sandbox               *aghconfig.SandboxProfile
+	Hook                  *hookspkg.HookDecl
 }
 
 // CollectionItemDeleteRequest identifies one collection delete.
@@ -782,73 +768,6 @@ func cloneProviderSettings(value ProviderSettings) ProviderSettings {
 	value.Models = cloneProviderModelsConfig(value.Models)
 	value.CredentialSlots = append([]aghconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
 	return value
-}
-
-func cloneProviderModelsConfig(value aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
-	return aghconfig.ProviderModelsConfig{
-		Default:   value.Default,
-		Curated:   cloneProviderModelConfigs(value.Curated),
-		Discovery: cloneProviderModelsDiscoveryConfig(value.Discovery),
-	}
-}
-
-func cloneProviderModelsDiscoveryConfig(
-	value aghconfig.ProviderModelsDiscoveryConfig,
-) aghconfig.ProviderModelsDiscoveryConfig {
-	return aghconfig.ProviderModelsDiscoveryConfig{
-		Enabled:  cloneBoolPtr(value.Enabled),
-		Command:  value.Command,
-		Endpoint: value.Endpoint,
-		Timeout:  value.Timeout,
-	}
-}
-
-func cloneProviderModelConfigs(values []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
-	if values == nil {
-		return nil
-	}
-	cloned := make([]aghconfig.ProviderModelConfig, len(values))
-	for idx, value := range values {
-		cloned[idx] = aghconfig.ProviderModelConfig{
-			ID:                     value.ID,
-			DisplayName:            value.DisplayName,
-			ContextWindow:          cloneInt64Ptr(value.ContextWindow),
-			MaxInputTokens:         cloneInt64Ptr(value.MaxInputTokens),
-			MaxOutputTokens:        cloneInt64Ptr(value.MaxOutputTokens),
-			SupportsTools:          cloneBoolPtr(value.SupportsTools),
-			SupportsReasoning:      cloneBoolPtr(value.SupportsReasoning),
-			ReasoningEfforts:       cloneStringSlicePreserveNil(value.ReasoningEfforts),
-			DefaultReasoningEffort: value.DefaultReasoningEffort,
-			CostInputPerMillion:    cloneFloat64Ptr(value.CostInputPerMillion),
-			CostOutputPerMillion:   cloneFloat64Ptr(value.CostOutputPerMillion),
-		}
-	}
-	return cloned
-}
-
-func cloneInt64Ptr(value *int64) *int64 {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
-}
-
-func cloneFloat64Ptr(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
-}
-
-func cloneStringSlicePreserveNil(value []string) []string {
-	if value == nil {
-		return nil
-	}
-	cloned := make([]string, len(value))
-	copy(cloned, value)
-	return cloned
 }
 
 func cloneBoolPtr(value *bool) *bool {

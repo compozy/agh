@@ -2068,6 +2068,87 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	if got, want := liveCompleted.Type, "task.run_completed"; got != want {
 		t.Fatalf("liveCompleted.Type = %q, want %q", got, want)
 	}
+
+	t.Run("Should publish committed recovery lifecycle events exactly once", func(t *testing.T) {
+		attentionTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Stream recovered task",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(attention) error = %v", err)
+		}
+
+		var latestBlock taskpkg.TaskBlock
+		for idx := range 3 {
+			latestBlock, err = manager.BlockTask(ctx, taskpkg.BlockRequest{
+				TaskID: attentionTask.ID,
+				Kind:   taskpkg.BlockKindNeedsInput,
+				Reason: fmt.Sprintf("stream escalation %d", idx),
+			}, actor)
+			if err != nil {
+				t.Fatalf("BlockTask(%d) error = %v", idx, err)
+			}
+			if idx < 2 {
+				if _, err := manager.ClearTaskBlock(
+					ctx,
+					attentionTask.ID,
+					latestBlock.ID,
+					"resolved",
+					actor,
+				); err != nil {
+					t.Fatalf("ClearTaskBlock(%d) error = %v", idx, err)
+				}
+			}
+		}
+		if _, err := manager.ClearTaskBlock(
+			ctx,
+			attentionTask.ID,
+			latestBlock.ID,
+			"resolved final",
+			actor,
+		); err != nil {
+			t.Fatalf("ClearTaskBlock(final) error = %v", err)
+		}
+
+		view, err := manager.GetTask(ctx, attentionTask.ID, actor)
+		if err != nil {
+			t.Fatalf("GetTask(attention) error = %v", err)
+		}
+		if view.Task.NeedsAttention == nil {
+			t.Fatal("GetTask(attention).NeedsAttention = nil, want escalation")
+		}
+		recoveryCtx, recoveryCancel := context.WithCancel(ctx)
+		defer recoveryCancel()
+		recoveryStream, err := manager.Stream(
+			recoveryCtx,
+			attentionTask.ID,
+			taskpkg.StreamQuery{AfterSequence: view.Task.LatestEventSeq},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("Stream(recovery) error = %v", err)
+		}
+
+		if _, err := manager.RecoverTask(ctx, attentionTask.ID, "operator recovered", actor); err != nil {
+			t.Fatalf("RecoverTask() error = %v", err)
+		}
+		recoveredEvent := awaitIntegrationTaskStreamEvent(t, recoveryStream)
+		if got, want := recoveredEvent.Type, eventspkg.TaskRecovered; got != want {
+			t.Fatalf("recoveredEvent.Type = %q, want %q", got, want)
+		}
+		statusEvent := awaitIntegrationTaskStreamEvent(t, recoveryStream)
+		if got, want := statusEvent.Type, "task.status_changed"; got != want {
+			t.Fatalf("statusEvent.Type = %q, want %q", got, want)
+		}
+		if statusEvent.Sequence <= recoveredEvent.Sequence {
+			t.Fatalf(
+				"statusEvent.Sequence = %d, want > recovered sequence %d",
+				statusEvent.Sequence,
+				recoveredEvent.Sequence,
+			)
+		}
+		assertNoIntegrationTaskStreamEvent(t, recoveryStream, 150*time.Millisecond)
+	})
 }
 
 func TestTaskManagerBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {

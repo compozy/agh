@@ -230,14 +230,16 @@ test("operator manages Skills against a real daemon and proves next-session prom
   await browserArtifacts.persist(appPage);
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
-    skills_active_tab: "installed",
+    pathname: `/skills/${contextSkillName}`,
     skills_content_visible: true,
     skills_detail_visible: true,
     skills_enabled_state: "enabled",
-    skills_search_active: true,
-    skills_selected_item: contextSkillName,
-    skills_view_visible: true,
+    skills_item_count: 0,
+    skills_search_active: false,
+    skills_view_visible: false,
   });
+  expect(routeState.skills_active_tab).toBeUndefined();
+  expect(routeState.skills_selected_item).toBeUndefined();
 
   const baselineSession = await createSessionThroughBrowser(
     appPage,
@@ -267,7 +269,7 @@ test("operator manages Skills against a real daemon and proves next-session prom
     "skill context before disable"
   );
 
-  await appPage.goto(runtime.url(`/skills?skill=${contextSkillName}&content=${contextSkillName}`), {
+  await appPage.goto(runtime.url(`/skills/${encodeURIComponent(contextSkillName)}`), {
     waitUntil: "domcontentloaded",
   });
   await expect(skillsUI.enabledToggle).toContainText("Enabled");
@@ -313,7 +315,7 @@ test("operator manages Skills against a real daemon and proves next-session prom
     "skill context after disable"
   );
 
-  await appPage.goto(runtime.url(`/skills?skill=${contextSkillName}`), {
+  await appPage.goto(runtime.url(`/skills/${encodeURIComponent(contextSkillName)}`), {
     waitUntil: "domcontentloaded",
   });
   await expect(skillsUI.enabledToggle).toContainText("Disabled");
@@ -359,20 +361,6 @@ test("operator manages Skills against a real daemon and proves next-session prom
   await expect(skillsUI.marketplaceSearchPrompt).toBeVisible();
   await skillsUI.marketplaceSearchInput.fill("browser-marketplace");
   await expect(skillsUI.marketplaceSearchInput).toHaveValue("browser-marketplace");
-  await expect
-    .poll(async () => {
-      if (await skillsUI.marketplaceGrid.isVisible()) {
-        return "grid";
-      }
-      if (await skillsUI.marketplaceEmpty.isVisible()) {
-        return "empty";
-      }
-      if (await skillsUI.marketplaceError.isVisible()) {
-        return "error";
-      }
-      return (await skillsUI.marketplaceLoading.isVisible()) ? "loading" : "pending";
-    })
-    .toMatch(/grid|empty|error/);
   const marketplaceInstalledRow = skillsUI.marketplaceRow("browser-marketplace-skill");
   await expect(marketplaceInstalledRow).toBeVisible();
   await expect(
@@ -430,8 +418,8 @@ async function assertSkillsViewportMatrix(
   ];
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await expect(ui.shell).toBeVisible();
-    await expect(ui.listPanel).toBeVisible();
+    await expect(ui.shell).toBeHidden();
+    await expect(ui.listPanel).toBeHidden();
     await expect(ui.detailPanel).toBeVisible();
     await expect(ui.contentBody).toBeVisible();
     await browserArtifacts.captureScreenshot(`skills-${viewport.name}-detail`, page);

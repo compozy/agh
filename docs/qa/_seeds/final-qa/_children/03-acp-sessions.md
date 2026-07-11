@@ -62,7 +62,7 @@ ACP-supported subagent commands (the binaries that a real-LLM scenario must exer
 | `claude` | `npx -y @agentclientprotocol/claude-agent-acp@latest` | Claude Code |
 | `openclaw` | `openclaw acp` | OpenClaw |
 | `hermes` | `hermes acp` | Hermes |
-| `codex` | `npx -y @zed-industries/codex-acp@latest` | Codex |
+| `codex` | `npx -y @agentclientprotocol/codex-acp@latest` | Codex |
 | `gemini` | `gemini --acp` | Gemini CLI |
 
 Every scenario below names the provider explicitly so the QA runner picks the right binary path.

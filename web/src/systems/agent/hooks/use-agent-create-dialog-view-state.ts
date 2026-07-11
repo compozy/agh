@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { ProviderSelectOption } from "@/systems/runtime";
+import type { RuntimeProviderOption } from "@/systems/runtime";
 
 import {
   validateAgentCreateDraft,
@@ -21,7 +21,7 @@ interface AgentCreateDialogViewStateArgs {
   initialStep: AgentCreateStep;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  providerOptions: ProviderSelectOption[];
+  providerOptions: RuntimeProviderOption[];
   providersError: string | null;
   providersLoading: boolean;
 }
@@ -68,7 +68,7 @@ function useAgentCreateDialogViewState({
   const nextStep =
     currentIndex < AGENT_CREATE_STEPS.length - 1 ? AGENT_CREATE_STEPS[currentIndex + 1] : undefined;
   const canAdvance = validation.stepValidity[step];
-  const activeProvider = providerOptions.find(option => option.name === draft.provider);
+  const activeProvider = providerOptions.find(option => option.id === draft.provider);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -95,7 +95,7 @@ function visibleAgentCreateErrors(
   draft: AgentCreateDialogDraft,
   errors: Record<string, string | undefined>,
   context: {
-    providerOptions: readonly ProviderSelectOption[];
+    providerOptions: readonly RuntimeProviderOption[];
     providersError: string | null;
     providersLoading: boolean;
   }
@@ -111,6 +111,7 @@ function visibleAgentCreateErrors(
       draft.provider.trim().length > 0
         ? errors.provider
         : undefined,
+    reasoningEffort: draft.reasoningEffort !== "" ? errors.reasoningEffort : undefined,
     prompt: draft.prompt.trim().length > 0 ? errors.prompt : undefined,
     tools: draft.tools.length > 0 ? errors.tools : undefined,
     toolsets: draft.toolsets.length > 0 ? errors.toolsets : undefined,

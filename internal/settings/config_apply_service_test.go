@@ -2,12 +2,16 @@ package settings
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store/globaldb"
 )
 
@@ -77,6 +81,67 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		if got, want := records[0].Actor, "http"; got != want {
 			t.Fatalf("Actor = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should return provider snapshots without shared nested state", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[providers.custom]
+command = "custom-acp"
+session_mcp = true
+
+[providers.custom.models]
+default = "custom-model"
+
+[providers.custom.models.discovery]
+enabled = true
+command = "custom-acp models"
+
+[providers.custom.models.reasoning]
+apply = "acp_option"
+
+[[providers.custom.models.curated]]
+id = "custom-model"
+reasoning_efforts = ["low", "max"]
+hidden = false
+release_date = "2026-07-10"
+`)
+		service := testService(t, homePaths, Dependencies{})
+
+		first, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(first) error = %v", err)
+		}
+		provider := first.Providers["custom"]
+		provider.Models.Curated[0].ReasoningEfforts[0] = "mutated"
+		*provider.Models.Curated[0].Hidden = true
+		*provider.Models.Discovery.Enabled = false
+		*provider.SessionMCP = false
+
+		second, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(second) error = %v", err)
+		}
+		provider = second.Providers["custom"]
+		if got, want := provider.Models.Curated[0].ReasoningEfforts, []string{
+			"low",
+			string(modelcatalog.ReasoningEffortMax),
+		}; !slices.Equal(got, want) {
+			t.Fatalf("second reasoning efforts = %#v, want %#v", got, want)
+		}
+		if provider.Models.Curated[0].Hidden == nil || *provider.Models.Curated[0].Hidden {
+			t.Fatalf("second hidden = %#v, want explicit false", provider.Models.Curated[0].Hidden)
+		}
+		if provider.Models.Discovery.Enabled == nil || !*provider.Models.Discovery.Enabled {
+			t.Fatalf("second discovery enabled = %#v, want true", provider.Models.Discovery.Enabled)
+		}
+		if provider.SessionMCP == nil || !*provider.SessionMCP {
+			t.Fatalf("second session_mcp = %#v, want true", provider.SessionMCP)
 		}
 	})
 }
@@ -208,6 +273,414 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 	})
 }
 
+func TestConfigApplyServiceAppliesProviderModelOnlyChangesLive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reconcile the catalog without requiring a daemon restart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+			ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+				"codex": {{ProviderID: "codex", ModelID: "gpt-5.6-terra", Curated: true}},
+			}},
+			RuntimeApplier: applier,
+		})
+		result, err := service.ApplyCollectionItem(
+			WithMutationSource(ctx, "http"),
+			CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "codex",
+				Provider: &ProviderSettings{
+					ModelsSet: true,
+					Models: aghconfig.ProviderModelsConfig{
+						Default: "gpt-5.6-terra",
+						Reasoning: aghconfig.ProviderReasoningConfig{
+							Apply: aghconfig.ReasoningApplyACPOption,
+						},
+						Curated: []aghconfig.ProviderModelConfig{{
+							ID: "gpt-5.6-terra",
+							ReasoningEfforts: []string{
+								"none",
+								"low",
+								"medium",
+								"high",
+								"xhigh",
+								string(modelcatalog.ReasoningEffortMax),
+							},
+							DefaultReasoningEffort: "high",
+						}},
+					},
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplyCollectionItem(provider models) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("apply result = %#v, want applied live without restart", result)
+		}
+		if got, want := result.Record.Lifecycle, lifecycle.Live; got != want {
+			t.Fatalf("Lifecycle = %q, want %q", got, want)
+		}
+		if got, want := result.Record.Status, lifecycle.StatusApplied; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		provider, err := active.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if got, want := provider.Models.Default, "gpt-5.6-terra"; got != want {
+			t.Fatalf("active codex model default = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestReloadChangedPathsSeparatesProviderModelsFromRestartRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	baseProvider := aghconfig.ProviderConfig{
+		Command: "codex",
+		Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-sol"},
+	}
+	tests := []struct {
+		name            string
+		desiredProvider aghconfig.ProviderConfig
+		want            []string
+	}{
+		{
+			name: "Should emit only the live model path for model-only changes",
+			desiredProvider: aghconfig.ProviderConfig{
+				Command: "codex",
+				Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
+			},
+			want: []string{"providers.codex.models"},
+		},
+		{
+			name: "Should emit restart and live paths for mixed provider changes",
+			desiredProvider: aghconfig.ProviderConfig{
+				Command: "codex-browser",
+				Models:  aghconfig.ProviderModelsConfig{Default: "gpt-5.6-terra"},
+			},
+			want: []string{"providers.codex", "providers.codex.models"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			current := &aghconfig.Config{Providers: map[string]aghconfig.ProviderConfig{"codex": baseProvider}}
+			desired := &aghconfig.Config{
+				Providers: map[string]aghconfig.ProviderConfig{"codex": tt.desiredProvider},
+			}
+			if got := reloadChangedPaths(current, desired); !slices.Equal(got, tt.want) {
+				t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist exact curation and return the reconciled catalog row", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, _, applier := providerModelCurationTestService(t)
+		hidden := true
+		featured := false
+		deprecated := false
+		defaultEffort := modelcatalog.ReasoningEffortMax
+		result, err := service.ApplyProviderModelCuration(
+			WithMutationSource(context.Background(), "cli"),
+			ProviderModelCurationRequest{
+				ProviderID:             "codex",
+				ModelID:                "gpt-5.6-sol",
+				Hidden:                 &hidden,
+				Featured:               &featured,
+				Deprecated:             &deprecated,
+				DefaultReasoningEffort: &defaultEffort,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplyProviderModelCuration() error = %v", err)
+		}
+		if applier.err != nil {
+			t.Fatalf("runtime applier reconciliation error = %v", applier.err)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		if !result.Apply.Applied || result.Apply.RestartRequired {
+			t.Fatalf("apply result = %#v, want live applied curation", result.Apply)
+		}
+		if got, want := result.Apply.Record.Lifecycle, lifecycle.Live; got != want {
+			t.Fatalf("Lifecycle = %q, want %q", got, want)
+		}
+		if !result.Model.Hidden || result.Model.Featured || result.Model.Deprecated {
+			t.Fatalf("effective curation flags = %#v, want hidden only", result.Model)
+		}
+		if result.Model.DefaultReasoningEffort == nil ||
+			*result.Model.DefaultReasoningEffort != modelcatalog.ReasoningEffortMax {
+			t.Fatalf("DefaultReasoningEffort = %#v, want max", result.Model.DefaultReasoningEffort)
+		}
+
+		configText := readFile(t, homePaths.ConfigFile)
+		for _, want := range []string{
+			`[[providers.codex.models.curated]]`,
+			`id = "gpt-5.6-sol"`,
+			`hidden = true`,
+			`default_reasoning_effort = "max"`,
+		} {
+			if !strings.Contains(configText, want) {
+				t.Fatalf("config is missing %q:\n%s", want, configText)
+			}
+		}
+		if strings.Contains(configText, `featured = true`) || strings.Contains(configText, `deprecated = true`) {
+			t.Fatalf("config persisted false curation flags as true:\n%s", configText)
+		}
+		for _, forbidden := range []string{
+			`display_name =`,
+			`context_window =`,
+			`max_output_tokens =`,
+			`supports_tools =`,
+			`reasoning_efforts =`,
+			`cost_input_per_million =`,
+			`cost_output_per_million =`,
+			`release_date =`,
+		} {
+			if strings.Contains(configText, forbidden) {
+				t.Fatalf("config froze catalog enrichment %q:\n%s", forbidden, configText)
+			}
+		}
+	})
+
+	t.Run("Should preserve only pre-existing operator-authored model metadata", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, _, applier := providerModelCurationTestService(t)
+		writeFile(t, homePaths.ConfigFile, readFile(t, homePaths.ConfigFile)+`
+
+[[providers.codex.models.curated]]
+id = "gpt-5.6-sol"
+display_name = "Operator Sol"
+context_window = 4242
+reasoning_efforts = ["low", "max"]
+featured = true
+`)
+		hidden := true
+		if _, err := service.ApplyProviderModelCuration(
+			WithMutationSource(context.Background(), "cli"),
+			ProviderModelCurationRequest{
+				ProviderID: "codex",
+				ModelID:    "gpt-5.6-sol",
+				Hidden:     &hidden,
+			},
+		); err != nil {
+			t.Fatalf("ApplyProviderModelCuration() error = %v", err)
+		}
+		if applier.err != nil {
+			t.Fatalf("runtime applier reconciliation error = %v", applier.err)
+		}
+
+		configText := readFile(t, homePaths.ConfigFile)
+		for _, want := range []string{
+			`display_name = "Operator Sol"`,
+			`context_window = 4242`,
+			`reasoning_efforts = ["low", "max"]`,
+			`featured = true`,
+			`hidden = true`,
+		} {
+			if !strings.Contains(configText, want) {
+				t.Fatalf("config is missing preserved operator field %q:\n%s", want, configText)
+			}
+		}
+		for _, forbidden := range []string{
+			`display_name = "GPT-5.6 Sol"`,
+			`max_output_tokens = 128000`,
+			`cost_input_per_million = 5`,
+			`release_date = "2026-06-26"`,
+		} {
+			if strings.Contains(configText, forbidden) {
+				t.Fatalf("config replaced operator row with catalog enrichment %q:\n%s", forbidden, configText)
+			}
+		}
+	})
+
+	t.Run("Should preserve pending restart-required provider fields while applying models live", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "cli")
+		service, homePaths, _, applier := providerModelCurationTestService(t)
+		initialActive, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(initial) error = %v", err)
+		}
+		initialProvider, err := initialActive.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(initial codex) error = %v", err)
+		}
+
+		const pendingCommand = "codex-pending-restart"
+		pending, err := service.ApplyCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "codex",
+			Provider:          &ProviderSettings{Command: pendingCommand},
+		})
+		if err != nil {
+			t.Fatalf("ApplyCollectionItem(pending command) error = %v", err)
+		}
+		if pending.Applied || !pending.RestartRequired ||
+			pending.Record.Status != lifecycle.StatusBlocked {
+			t.Fatalf("pending command apply = %#v, want blocked restart-required result", pending)
+		}
+
+		hidden := true
+		curated, err := service.ApplyProviderModelCuration(ctx, ProviderModelCurationRequest{
+			ProviderID: "codex",
+			ModelID:    "gpt-5.6-sol",
+			Hidden:     &hidden,
+		})
+		if err != nil {
+			t.Fatalf("ApplyProviderModelCuration() error = %v", err)
+		}
+		if !curated.Apply.Applied || curated.Apply.RestartRequired ||
+			curated.Apply.Record.Lifecycle != lifecycle.Live {
+			t.Fatalf("curation apply = %#v, want live applied result", curated.Apply)
+		}
+		if applier.err != nil {
+			t.Fatalf("runtime applier reconciliation error = %v", applier.err)
+		}
+		if curated.Apply.Record.DesiredHash == curated.Apply.Record.ActiveHash {
+			t.Fatalf(
+				"curation hashes = desired %q active %q, want pending restart drift",
+				curated.Apply.Record.DesiredHash,
+				curated.Apply.Record.ActiveHash,
+			)
+		}
+		if len(applier.snapshots) != 1 {
+			t.Fatalf("runtime snapshots = %d, want 1", len(applier.snapshots))
+		}
+		runtimeProvider, err := applier.snapshots[0].ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(runtime codex) error = %v", err)
+		}
+		if runtimeProvider.Command != initialProvider.Command {
+			t.Fatalf(
+				"runtime command = %q, want prior active command %q",
+				runtimeProvider.Command,
+				initialProvider.Command,
+			)
+		}
+		assertProviderModelHidden(t, runtimeProvider.Models, "gpt-5.6-sol")
+
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(after curation) error = %v", err)
+		}
+		activeProvider, err := active.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(active codex) error = %v", err)
+		}
+		if activeProvider.Command != initialProvider.Command {
+			t.Fatalf("active command = %q, want %q", activeProvider.Command, initialProvider.Command)
+		}
+		assertProviderModelHidden(t, activeProvider.Models, "gpt-5.6-sol")
+
+		desired, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(desired) error = %v", err)
+		}
+		desiredProvider, err := desired.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(desired codex) error = %v", err)
+		}
+		if desiredProvider.Command != pendingCommand {
+			t.Fatalf("desired command = %q, want pending %q", desiredProvider.Command, pendingCommand)
+		}
+		assertProviderModelHidden(t, desiredProvider.Models, "gpt-5.6-sol")
+
+		reload, err := service.Reload(ctx)
+		if err != nil {
+			t.Fatalf("Reload() error = %v", err)
+		}
+		if reload.Applied || !reload.RestartRequired || reload.Record.Status != lifecycle.StatusBlocked {
+			t.Fatalf("Reload() = %#v, want pending restart-required result", reload)
+		}
+	})
+
+	t.Run("Should reject an unknown canonical model without writing config", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, _, applier := providerModelCurationTestService(t)
+		before := readFile(t, homePaths.ConfigFile)
+		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+			ProviderID: "codex",
+			ModelID:    "gpt-sol",
+		})
+		if err == nil {
+			t.Fatal("ApplyProviderModelCuration(unknown) error = nil, want model_not_found")
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeModelNotFound {
+			t.Fatalf("diagnostic = %#v, %v; want model_not_found", item, ok)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != before {
+			t.Fatalf("unknown-model curation changed config:\n%s", got)
+		}
+		if applier.calls != 0 {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", applier.calls)
+		}
+	})
+
+	t.Run("Should reject a canonical effort outside the model subset", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, _, applier := providerModelCurationTestService(t)
+		before := readFile(t, homePaths.ConfigFile)
+		unsupported := modelcatalog.ReasoningEffortMinimal
+		_, err := service.ApplyProviderModelCuration(context.Background(), ProviderModelCurationRequest{
+			ProviderID:             "codex",
+			ModelID:                "gpt-5.6-sol",
+			DefaultReasoningEffort: &unsupported,
+		})
+		if err == nil {
+			t.Fatal("ApplyProviderModelCuration(minimal) error = nil, want reasoning_effort_unsupported")
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeReasoningEffortUnsupported {
+			t.Fatalf("diagnostic = %#v, %v; want reasoning_effort_unsupported", item, ok)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != before {
+			t.Fatalf("unsupported-effort curation changed config:\n%s", got)
+		}
+		if applier.calls != 0 {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", applier.calls)
+		}
+	})
+}
+
 func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing.T) {
 	t.Parallel()
 
@@ -223,7 +696,7 @@ func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing
 		}
 		t.Cleanup(func() {
 			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -284,7 +757,7 @@ func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -381,7 +854,7 @@ func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -457,7 +930,7 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 		}
 		t.Cleanup(func() {
 			if err := db.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
+				t.Errorf("Close() error = %v", err)
 			}
 		})
 
@@ -486,6 +959,155 @@ func TestConfigApplyServiceFailedRecordsPreserveLifecycleIntent(t *testing.T) {
 type fakeConfigRuntimeApplier struct {
 	failures []ApplyFailure
 	calls    int
+}
+
+type providerModelCurationRuntimeApplier struct {
+	catalog   *settingsModelCatalogStub
+	calls     int
+	err       error
+	snapshots []aghconfig.Config
+}
+
+func (a *providerModelCurationRuntimeApplier) ApplyActiveConfig(
+	_ context.Context,
+	cfg *aghconfig.Config,
+) []ApplyFailure {
+	a.calls++
+	if cfg == nil {
+		return a.fail(fmt.Errorf("active config is nil"))
+	}
+	a.snapshots = append(a.snapshots, cloneActiveConfig(cfg))
+	provider, err := cfg.ResolveProvider("codex")
+	if err != nil {
+		return a.fail(err)
+	}
+	var curated *aghconfig.ProviderModelConfig
+	for index := range provider.Models.Curated {
+		if provider.Models.Curated[index].ID == "gpt-5.6-sol" {
+			curated = &provider.Models.Curated[index]
+			break
+		}
+	}
+	if curated == nil {
+		return a.fail(fmt.Errorf("curated config row gpt-5.6-sol is missing"))
+	}
+	a.catalog.mu.Lock()
+	defer a.catalog.mu.Unlock()
+	models := a.catalog.models["codex"]
+	for index := range models {
+		if models[index].ModelID != curated.ID {
+			continue
+		}
+		if curated.Hidden != nil {
+			models[index].Hidden = *curated.Hidden
+		}
+		if curated.Featured != nil {
+			models[index].Featured = *curated.Featured
+		}
+		if curated.Deprecated != nil {
+			models[index].Deprecated = *curated.Deprecated
+		}
+		models[index].Curated = !models[index].Hidden && !models[index].Deprecated
+		if curated.DefaultReasoningEffort != "" {
+			effort := modelcatalog.ReasoningEffort(curated.DefaultReasoningEffort)
+			models[index].DefaultReasoningEffort = &effort
+		}
+		a.catalog.models["codex"] = models
+		return nil
+	}
+	return a.fail(fmt.Errorf("catalog row gpt-5.6-sol is missing"))
+}
+
+func (a *providerModelCurationRuntimeApplier) fail(err error) []ApplyFailure {
+	a.err = err
+	return []ApplyFailure{{
+		Subsystem: "model_catalog",
+		Diagnostic: diagnostics.NewItem(
+			"config.apply.model_catalog_sync_failed",
+			diagnosticcontract.CodeConfigPartialFailure,
+			diagnosticcontract.CategoryConfig,
+			"Model catalog sync failed",
+			err.Error(),
+			diagnosticcontract.SeverityError,
+			diagnosticcontract.FreshnessLive,
+		),
+	}}
+}
+
+func assertProviderModelHidden(
+	t *testing.T,
+	models aghconfig.ProviderModelsConfig,
+	modelID string,
+) {
+	t.Helper()
+	for _, model := range models.Curated {
+		if model.ID == modelID {
+			if model.Hidden == nil || !*model.Hidden {
+				t.Fatalf("provider model %q hidden = false, want true", modelID)
+			}
+			return
+		}
+	}
+	t.Fatalf("provider model %q is missing from curated config", modelID)
+}
+
+func providerModelCurationTestService(
+	t *testing.T,
+) (Service, aghconfig.HomePaths, *settingsModelCatalogStub, *providerModelCurationRuntimeApplier) {
+	t.Helper()
+
+	ctx := context.Background()
+	homePaths := testHomePaths(t)
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(ctx); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
+	defaultEffort := modelcatalog.ReasoningEffortMedium
+	contextWindow := int64(1_050_000)
+	maxOutputTokens := int64(128_000)
+	supportsTools := true
+	costInput := 5.0
+	costOutput := 30.0
+	releaseDate := "2026-06-26"
+	catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+		"codex": {
+			{
+				ProviderID:  "codex",
+				ModelID:     "gpt-5.6-sol",
+				DisplayName: "GPT-5.6 Sol",
+				ReasoningEfforts: []modelcatalog.ReasoningEffort{
+					modelcatalog.ReasoningEffortNone,
+					modelcatalog.ReasoningEffortLow,
+					modelcatalog.ReasoningEffortMedium,
+					modelcatalog.ReasoningEffortHigh,
+					modelcatalog.ReasoningEffortXHigh,
+					modelcatalog.ReasoningEffortMax,
+				},
+				DefaultReasoningEffort: &defaultEffort,
+				ContextWindow:          &contextWindow,
+				MaxOutputTokens:        &maxOutputTokens,
+				SupportsTools:          &supportsTools,
+				CostInputPerMillion:    &costInput,
+				CostOutputPerMillion:   &costOutput,
+				Featured:               true,
+				Curated:                true,
+				ReleaseDate:            &releaseDate,
+			},
+		},
+	}}
+	applier := &providerModelCurationRuntimeApplier{catalog: catalog}
+	service := testService(t, homePaths, Dependencies{
+		ModelCatalog:   catalog,
+		RuntimeApplier: applier,
+		ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+	})
+	return service, homePaths, catalog, applier
 }
 
 func (f *fakeConfigRuntimeApplier) ApplyActiveConfig(

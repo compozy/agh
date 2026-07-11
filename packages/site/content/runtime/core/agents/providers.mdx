@@ -31,8 +31,8 @@ The built-in registry lives in `internal/config/provider.go`.
 
 | Provider ID         | Harness  | Runtime provider    | Command                                                          | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
-| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-4-6`         | `native_cli`   | provider login       |
-| `codex`             | `acp`    | `codex`             | `npx -y @zed-industries/codex-acp@latest`                        | `gpt-5.4`                   | `native_cli`   | provider login       |
+| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-5`           | `native_cli`   | provider login       |
+| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                   | `gpt-5.6-sol`               | `native_cli`   | provider login       |
 | `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                   | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
 | `opencode`          | `acp`    | `opencode`          | `npx -y opencode-ai@latest acp`                                  | none                        | `native_cli`   | provider login       |
 | `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | `native_cli`   | provider login       |
@@ -120,11 +120,9 @@ names are accepted only when they have a `[providers.<name>]` entry.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
 `claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
-resolve to their canonical provider IDs. Provider-scoped model aliases resolve the same way: `sonnet`,
-`opus`, and `haiku` under `claude`; `gpt5`, `gpt-5`, and `mini` under `codex`;
-`kimi` under `moonshot`; `glm` under `zai`; `grok` under `xai`; `qwen` under `qwen-code`; and
-`opus` under `vercel-ai-gateway`. AGH stores and displays the resolved provider/model IDs in session
-diagnostics and catalog rows.
+resolve to their canonical provider IDs. Model IDs do not alias: configuration, catalog rows,
+session diagnostics, CLI, and ACP negotiation use the exact canonical model ID. A shorthand or
+unknown model ID never resolves to the provider default.
 
 The old `providers.<id>.aliases` config key was removed for v1. Reference providers by canonical
 name only; config files that set `aliases = [...]` under a provider are rejected during load.
@@ -153,32 +151,54 @@ reasoning controls inside a running session.
 | `models.curated[].max_output_tokens`        | integer | no                          | Maximum output tokens.                                                                                                            |
 | `models.curated[].supports_tools`           | bool    | no                          | Whether the model supports tool calls.                                                                                            |
 | `models.curated[].supports_reasoning`       | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
-| `models.curated[].reasoning_efforts`        | array   | no                          | Allowed reasoning levels (`minimal`, `low`, `medium`, `high`, `xhigh`). Blank entries are rejected.                               |
+| `models.curated[].reasoning_efforts`        | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
 | `models.curated[].default_reasoning_effort` | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
 | `models.curated[].cost_input_per_million`   | number  | no                          | Display-only input cost per million tokens.                                                                                       |
 | `models.curated[].cost_output_per_million`  | number  | no                          | Display-only output cost per million tokens.                                                                                      |
+| `models.curated[].deprecated`               | bool    | no                          | Marks a row deprecated; curated view excludes it. Omit to inherit lower-source metadata; explicit `false` clears it.              |
+| `models.curated[].hidden`                   | bool    | no                          | Operator curation flag; curated view always excludes hidden rows. Omit to inherit; explicit `false` clears it.                    |
+| `models.curated[].featured`                 | bool    | no                          | Promotes a row into the curated candidate set. Omit to inherit; explicit `false` clears a lower-source feature flag.              |
+| `models.curated[].release_date`             | string  | no                          | Optional `YYYY-MM` or `YYYY-MM-DD` release metadata used for ordering.                                                            |
+| `models.reasoning.apply`                    | string  | no                          | `acp_option` applies effort through ACP; `none` exposes no selectable effort strategy.                                            |
 | `models.discovery.enabled`                  | bool    | no                          | Enables the side-effect-free discovery adapter for this provider. Defaults to `false` for providers without a built-in safe path. |
 | `models.discovery.command`                  | string  | required for some providers | Side-effect-free discovery command (mutually exclusive with `endpoint` unless the adapter documents both).                        |
 | `models.discovery.endpoint`                 | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
 | `models.discovery.timeout`                  | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
 
+Provider Settings PUTs distinguish omission from an explicit membership change. If
+`models.curated` is omitted, AGH preserves the server-owned raw membership even when catalog sources
+are temporarily unavailable. A present empty array is an explicit membership clear and fails with
+`503 Service Unavailable` when AGH cannot enumerate the authoritative catalog. Entries in a PUT are
+membership IDs only; use the request-level `model_curation` object or the atomic curation endpoint to
+set `hidden`, `featured`, `deprecated`, or a default reasoning effort without copying merged catalog
+metadata into `config.toml`.
+
 Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
 When a discovery path is unavailable or fails, the model catalog records a source status and falls
 back to stale or lower-priority rows; session creation never depends on a successful discovery.
 
-Session creation can override `provider`, `model`, and `reasoning_effort` for one launch. `model` is
-free-form: `models.curated` is operator metadata, not an allowlist, so a manual model ID outside the
-curated list is accepted. Reasoning effort is validated against `minimal`, `low`, `medium`, `high`,
-and `xhigh`. The effective model catalog uses explicit source/config `reasoning_efforts` when they
-exist, supplies the canonical effort list when a model advertises `supports_reasoning` without levels,
-and applies the same fallback to known GPT and Claude model families when upstream metadata is
-incomplete; explicit `supports_reasoning=false` disables that fallback. After the session starts, AGH
-switches to active ACP `configOptions` for live model and reasoning controls. Agents that do not
-advertise a model config option keep the launch/default model when no model override is requested.
-If a session requests a model override and the agent does not advertise a model config option,
-session start or resume fails with an explicit error; AGH does not call a legacy model-switch RPC.
-The catalog informs pre-session selection, while live ACP options govern controls inside the
-running session.
+Session creation can override `provider`, `model`, and `reasoning_effort` for one launch. Authoring
+accepts a custom model ID as a candidate because `models.curated` is metadata, not an allowlist. The
+active ACP adapter must still advertise or accept that exact ID; otherwise start fails with
+`model_unavailable` instead of falling back.
+
+`modelcatalog.ReasoningEffort` is the single enum:
+`none | minimal | low | medium | high | xhigh | max`. Each model exposes only its actual subset.
+Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
+levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
+
+Claude and Codex built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
+providers default to `none` unless explicitly configured. Strategy `none` means AGH has no effort
+application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
+the active model advertises it.
+
+Negotiation order is deterministic: session mode, model, the refreshed config-option snapshot
+returned by that model change, reasoning effort, then the first prompt. Empty effort sends no RPC;
+explicit `none` does. The live ACP snapshot is authoritative even when its effort set is empty.
+Missing or unsupported model/reasoning options fail before the first prompt with stable diagnostics.
+
+See [Provider Model Catalog](/runtime/core/agents/model-catalog) for the curated Claude/Codex seeds,
+curated/all views, curation surfaces, and error codes.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through
@@ -207,15 +227,20 @@ auth_status_command = "claude auth status"
 auth_login_command = "claude auth login"
 
 [providers.claude.models]
-default = "claude-sonnet-4-6"
+default = "claude-sonnet-5"
+
+[providers.claude.models.reasoning]
+apply = "acp_option"
 
 [[providers.claude.models.curated]]
-id = "claude-sonnet-4-6"
-display_name = "Claude Sonnet 4.6"
+id = "claude-sonnet-5"
+display_name = "Claude Sonnet 5"
 
 [[providers.claude.models.curated]]
-id = "claude-haiku-4-5"
-display_name = "Claude Haiku 4.5"
+id = "claude-fable-5"
+display_name = "Claude Fable 5"
+featured = true
+release_date = "2026-06-09"
 
 [[providers.claude.mcp_servers]]
 name = "github"

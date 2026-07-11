@@ -36,6 +36,7 @@ const (
 	cliDurationMSKey   = "duration_ms"
 	cliDurationValue   = "Duration"
 	cliHashValue       = "Hash"
+	cliLifecycleValue  = "Lifecycle"
 	cliNextActionValue = "Next Action"
 	cliPIDKey          = "pid"
 	cliPIDValue        = "PID"

@@ -24,10 +24,6 @@ const (
 	providerClaudeCodeAlias            = "claude-code"
 	providerGeminiKey                  = "gemini"
 	modelClaudeOpus47ID                = "claude-opus-4-7"
-	modelClaudeHaiku45ID               = "claude-haiku-4-5"
-	modelClaudeOpusAlias               = "opus"
-	modelClaudeSonnetAlias             = "sonnet"
-	providerClaudeSonnet46Value        = "claude-sonnet-4-6"
 	providerClineKey                   = "cline"
 	providerCodexKey                   = "codex"
 	providerDevstralMediumLatestValue  = "devstral-medium-latest"
@@ -35,11 +31,6 @@ const (
 	providerGlm46Path                  = "glm-4.6"
 	providerGooseKey                   = "goose"
 	providerGrokAlias                  = "grok"
-	modelGPT54ID                       = "gpt-5.4"
-	modelGPT54MiniID                   = "gpt-5.4-mini"
-	modelGPT5Alias                     = "gpt-5"
-	modelGPT5CompactAlias              = "gpt5"
-	modelMiniAlias                     = "mini"
 	providerGrok4FastNonReasoningValue = "grok-4-fast-non-reasoning"
 	providerGroqKey                    = "groq"
 	providerHermesKey                  = "hermes"
@@ -140,6 +131,7 @@ type ProviderModelsConfig struct {
 	Default   string                        `toml:"default,omitempty"`
 	Curated   []ProviderModelConfig         `toml:"curated,omitempty"`
 	Discovery ProviderModelsDiscoveryConfig `toml:"discovery,omitempty"`
+	Reasoning ProviderReasoningConfig       `toml:"reasoning,omitempty"`
 }
 
 // ProviderModelsDiscoveryConfig describes optional side-effect-free model discovery.
@@ -163,6 +155,10 @@ type ProviderModelConfig struct {
 	DefaultReasoningEffort string   `toml:"default_reasoning_effort,omitempty"`
 	CostInputPerMillion    *float64 `toml:"cost_input_per_million,omitempty"`
 	CostOutputPerMillion   *float64 `toml:"cost_output_per_million,omitempty"`
+	Deprecated             *bool    `toml:"deprecated,omitempty"`
+	Hidden                 *bool    `toml:"hidden,omitempty"`
+	Featured               *bool    `toml:"featured,omitempty"`
+	ReleaseDate            string   `toml:"release_date,omitempty"`
 }
 
 // ModelCatalogConfig controls daemon-owned model catalog sources.
@@ -257,6 +253,7 @@ type ResolvedAgent struct {
 	Command         string
 	DisplayName     string
 	Model           string
+	ReasoningEffort string
 	Tools           []string
 	Toolsets        []string
 	DenyTools       []string
@@ -274,6 +271,7 @@ type ResolvedAgent struct {
 	SessionMCP      bool
 	CredentialSlots []ProviderCredentialSlot
 	MCPServers      []MCPServer
+	Reasoning       ProviderReasoningConfig
 	Prompt          string
 }
 
@@ -335,81 +333,20 @@ var builtinProviderAliases = map[string]string{
 	"mistral-ai":                 providerMistralKey,
 }
 
-var builtinProviderModelAliases = map[string]map[string]string{
-	providerClaudeKey: {
-		"haiku":                modelClaudeHaiku45ID,
-		modelClaudeOpusAlias:   modelClaudeOpus47ID,
-		modelClaudeSonnetAlias: providerClaudeSonnet46Value,
-	},
-	providerCodexKey: {
-		modelGPT5Alias:        modelGPT54ID,
-		modelGPT5CompactAlias: modelGPT54ID,
-		modelMiniAlias:        modelGPT54MiniID,
-	},
-	providerGeminiKey: {
-		providerGeminiKey: providerGemini31ProPreviewPath,
-		"pro":             providerGemini31ProPreviewPath,
-	},
-	providerMoonshotKey: {
-		providerKimiAlias: providerKimiK2ThinkingValue,
-	},
-	providerQwenCodeValue: {
-		providerQwenAlias: providerQwen36PlusPath,
-	},
-	providerVercelAIGatewayValue: {
-		modelClaudeOpusAlias: providerAnthropicClaudeOpus47Path,
-	},
-	providerXaiKey: {
-		providerGrokAlias: providerGrok4FastNonReasoningValue,
-	},
-	providerZaiKey: {
-		"glm": providerGlm46Path,
-	},
-}
-
 var builtinProviders = map[string]ProviderConfig{
 	providerClaudeKey: {
 		Command:      claudeProviderCommand,
 		DisplayName:  "Claude Code",
 		Harness:      ProviderHarnessACP,
 		AuthLoginCmd: "claude auth login",
-		Models: ProviderModelsConfig{
-			Default: providerClaudeSonnet46Value,
-			Curated: []ProviderModelConfig{
-				{ID: modelClaudeOpus47ID, DisplayName: "Claude Opus 4.7"},
-				{ID: providerClaudeSonnet46Value, DisplayName: "Claude Sonnet 4.6"},
-				{ID: modelClaudeHaiku45ID, DisplayName: "Claude Haiku 4.5"},
-			},
-		},
+		Models:       builtinClaudeModelsConfig(),
 	},
 	providerCodexKey: {
-		Command:      "npx -y @zed-industries/codex-acp@latest",
+		Command:      "npx -y @agentclientprotocol/codex-acp@latest",
 		DisplayName:  "Codex",
 		Harness:      ProviderHarnessACP,
 		AuthLoginCmd: "codex login",
-		Models: ProviderModelsConfig{
-			Default: modelGPT54ID,
-			Curated: []ProviderModelConfig{
-				{
-					ID:                     modelGPT54ID,
-					DisplayName:            "GPT-5.4",
-					SupportsTools:          new(true),
-					SupportsReasoning:      new(true),
-					ReasoningEfforts:       []string{"minimal", "low", providerMediumKey, providerHighKey, "xhigh"},
-					DefaultReasoningEffort: providerMediumKey,
-				},
-				{
-					ID:                     modelGPT54MiniID,
-					DisplayName:            "GPT-5.4 Mini",
-					SupportsTools:          new(true),
-					SupportsReasoning:      new(true),
-					ReasoningEfforts:       []string{"minimal", "low", providerMediumKey, providerHighKey, "xhigh"},
-					DefaultReasoningEffort: providerMediumKey,
-				},
-				{ID: "gpt-5.3", DisplayName: "GPT-5.3"},
-				{ID: "gpt-5.3-mini", DisplayName: "GPT-5.3 Mini"},
-			},
-		},
+		Models:       builtinCodexModelsConfig(),
 	},
 	providerGeminiKey: {
 		Command:     "gemini --acp",
@@ -643,38 +580,6 @@ func CanonicalProviderName(name string) string {
 	return trimmed
 }
 
-// CanonicalProviderModelName resolves small built-in provider-scoped model aliases.
-func CanonicalProviderModelName(providerName string, modelName string) string {
-	trimmedModel := strings.TrimSpace(modelName)
-	if trimmedModel == "" {
-		return ""
-	}
-	canonicalProvider := CanonicalProviderName(providerName)
-	if aliases, ok := builtinProviderModelAliases[canonicalProvider]; ok {
-		if canonicalModel, found := aliases[strings.ToLower(trimmedModel)]; found {
-			return canonicalModel
-		}
-	}
-	return trimmedModel
-}
-
-func canonicalConfiguredProviderModelName(
-	providerName string,
-	models ProviderModelsConfig,
-	modelName string,
-) string {
-	trimmedModel := strings.TrimSpace(modelName)
-	if trimmedModel == "" {
-		return ""
-	}
-	for _, curated := range models.Curated {
-		if strings.TrimSpace(curated.ID) == trimmedModel {
-			return trimmedModel
-		}
-	}
-	return CanonicalProviderModelName(providerName, trimmedModel)
-}
-
 func apiKeyCredentialSlot(targetEnv string) ProviderCredentialSlot {
 	return apiKeyCredentialSlotWithRequired(targetEnv, true)
 }
@@ -697,6 +602,9 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	}
 
 	resolved, hasBuiltin := builtinProviders[providerName]
+	if hasBuiltin {
+		resolved = cloneProvider(resolved)
+	}
 	if c != nil {
 		if override, ok := c.Providers[providerName]; ok {
 			resolved = mergeProvider(resolved, override)
@@ -711,11 +619,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 			return ProviderConfig{}, newUnknownProviderError(providerName)
 		}
 	}
-	resolved.Models.Default = canonicalConfiguredProviderModelName(
-		providerName,
-		resolved.Models,
-		resolved.Models.Default,
-	)
+	resolved.Models.Default = strings.TrimSpace(resolved.Models.Default)
 
 	if err := validateResolvedProvider(providerName, resolved); err != nil {
 		return ProviderConfig{}, fmt.Errorf("%w: %w", ErrProviderUnavailable, err)
@@ -768,7 +672,6 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	if model == "" {
 		model = strings.TrimSpace(provider.Models.Default)
 	}
-	model = canonicalConfiguredProviderModelName(providerName, provider.Models, model)
 	if model == "" && provider.RequiresRuntimeModel() {
 		return ResolvedAgent{}, fmt.Errorf(
 			"agent model is required when provider %q has no default model",
@@ -813,6 +716,7 @@ func resolvedAgentFromProvider(
 		Command:         command,
 		DisplayName:     provider.DisplayName,
 		Model:           model,
+		ReasoningEffort: strings.TrimSpace(agent.ReasoningEffort),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
@@ -830,6 +734,7 @@ func resolvedAgentFromProvider(
 		SessionMCP:      provider.SessionMCPEnabled(),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 		MCPServers:      mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
+		Reasoning:       provider.Models.Reasoning,
 		Prompt:          agent.Prompt,
 	}
 }
@@ -870,6 +775,7 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 	sessionAgent.Provider = override
 	sessionAgent.Command = ""
 	sessionAgent.Model = ""
+	sessionAgent.ReasoningEffort = ""
 	if model != "" {
 		sessionAgent.Model = model
 	}
@@ -945,6 +851,9 @@ func mergeProviderModels(base ProviderModelsConfig, override ProviderModelsConfi
 	if !providerModelsDiscoveryConfigIsZero(override.Discovery) {
 		merged.Discovery = mergeProviderModelsDiscovery(merged.Discovery, override.Discovery)
 	}
+	if !providerReasoningConfigIsZero(override.Reasoning) {
+		merged.Reasoning = mergeProviderReasoning(merged.Reasoning, override.Reasoning)
+	}
 	return merged
 }
 
@@ -971,7 +880,8 @@ func mergeProviderModelsDiscovery(
 func providerModelsConfigIsZero(value ProviderModelsConfig) bool {
 	return strings.TrimSpace(value.Default) == "" &&
 		value.Curated == nil &&
-		providerModelsDiscoveryConfigIsZero(value.Discovery)
+		providerModelsDiscoveryConfigIsZero(value.Discovery) &&
+		providerReasoningConfigIsZero(value.Reasoning)
 }
 
 func providerModelsDiscoveryConfigIsZero(value ProviderModelsDiscoveryConfig) bool {
@@ -1184,43 +1094,6 @@ func (p ProviderConfig) SessionMCPEnabled() bool {
 		return true
 	}
 	return *p.SessionMCP
-}
-
-// Validate reports whether the provider model block is usable.
-func (m ProviderModelsConfig) Validate(path string) error {
-	if strings.TrimSpace(m.Default) == "" && m.Default != "" {
-		return fmt.Errorf("%s.default must not be whitespace-only", path)
-	}
-	seen := make(map[string]struct{}, len(m.Curated))
-	for idx, model := range m.Curated {
-		modelPath := fmt.Sprintf("%s.curated[%d]", path, idx)
-		id := strings.TrimSpace(model.ID)
-		if id == "" {
-			return fmt.Errorf("%s.id is required", modelPath)
-		}
-		if _, ok := seen[id]; ok {
-			return fmt.Errorf("%s.id duplicates %q", modelPath, id)
-		}
-		seen[id] = struct{}{}
-		efforts := make(map[string]struct{}, len(model.ReasoningEfforts))
-		for effortIdx, effort := range model.ReasoningEfforts {
-			trimmed := strings.TrimSpace(effort)
-			if trimmed == "" {
-				return fmt.Errorf("%s.reasoning_efforts[%d] is required", modelPath, effortIdx)
-			}
-			if _, ok := efforts[trimmed]; ok {
-				return fmt.Errorf("%s.reasoning_efforts[%d] duplicates %q", modelPath, effortIdx, trimmed)
-			}
-			efforts[trimmed] = struct{}{}
-		}
-		defaultEffort := strings.TrimSpace(model.DefaultReasoningEffort)
-		if defaultEffort != "" && len(efforts) > 0 {
-			if _, ok := efforts[defaultEffort]; !ok {
-				return fmt.Errorf("%s.default_reasoning_effort must be listed in reasoning_efforts", modelPath)
-			}
-		}
-	}
-	return m.Discovery.Validate(path + ".discovery")
 }
 
 // Validate reports whether the discovery source config is usable.
@@ -1713,6 +1586,7 @@ func cloneProviderModelsConfig(src ProviderModelsConfig) ProviderModelsConfig {
 		Default:   src.Default,
 		Curated:   cloneProviderModelConfigs(src.Curated),
 		Discovery: cloneProviderModelsDiscoveryConfig(src.Discovery),
+		Reasoning: src.Reasoning,
 	}
 }
 
@@ -1745,6 +1619,10 @@ func cloneProviderModelConfigs(src []ProviderModelConfig) []ProviderModelConfig 
 			DefaultReasoningEffort: model.DefaultReasoningEffort,
 			CostInputPerMillion:    cloneFloat64Ref(model.CostInputPerMillion),
 			CostOutputPerMillion:   cloneFloat64Ref(model.CostOutputPerMillion),
+			Deprecated:             cloneBoolRef(model.Deprecated),
+			Hidden:                 cloneBoolRef(model.Hidden),
+			Featured:               cloneBoolRef(model.Featured),
+			ReleaseDate:            model.ReleaseDate,
 		}
 	}
 	return cloned

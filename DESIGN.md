@@ -649,6 +649,9 @@ draw fake logos with generic SVG shapes.
 
 These are semantic contracts. Pixel recipes live in
 `packages/ui/src/components/**/*.tsx` and the generated token tables above.
+The full primitive inventory is `packages/ui/src/index.ts` — reuse before
+creating: redefining an exported name in `web/` or `packages/site/` fails the
+`compozy-ui-reuse/no-shadow-ui-primitive` lint gate.
 
 - `<Button>`: primary/default is the accent action; neutral is the filled
   secondary action; ghost is for low-chrome commands. New callsites should not

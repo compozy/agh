@@ -1,10 +1,11 @@
+import type { ReasoningEffort } from "@/lib/api-contract";
 import type { SettingsProviderRequest } from "@/systems/settings";
 
 import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
 
 export interface ProviderRequestInputs {
   model: string;
-  reasoning: string;
+  reasoning: ReasoningEffort | "";
   authMode: OnboardingAuthMode;
   envVar: string;
   apiKey: string;
@@ -19,27 +20,17 @@ function existingApiKeyTargetEnv(current: ProviderSettings): string {
   return slot?.target_env?.trim() ?? "";
 }
 
-function buildProviderModels(
-  current: ProviderSettings,
-  model: string,
-  reasoning: string
-): ProviderModelsPayload {
+function buildProviderModels(current: ProviderSettings, model: string): ProviderModelsPayload {
   const base = current.models ?? {};
+  const curated = (base.curated ?? []).map(entry => ({ id: entry.id }));
+  if (model.length > 0 && !curated.some(entry => entry.id === model)) {
+    curated.push({ id: model });
+  }
   const models: ProviderModelsPayload = {
     ...base,
+    ...(base.curated !== undefined || model.length > 0 ? { curated } : {}),
     ...(model.length > 0 ? { default: model } : {}),
   };
-  if (model.length === 0 || reasoning.length === 0) {
-    return models;
-  }
-  const curated = [...(base.curated ?? [])];
-  const index = curated.findIndex(entry => entry.id === model);
-  if (index >= 0) {
-    curated[index] = { ...curated[index], default_reasoning_effort: reasoning };
-  } else {
-    curated.push({ id: model, default_reasoning_effort: reasoning, supports_reasoning: true });
-  }
-  models.curated = curated;
   return models;
 }
 
@@ -52,13 +43,20 @@ export function buildOnboardingProviderRequest(
 ): SettingsProviderRequest {
   const settings: ProviderSettings = {
     ...current,
-    models: buildProviderModels(current, inputs.model, inputs.reasoning),
+    models: buildProviderModels(current, inputs.model),
     auth_mode: inputs.authMode,
   };
+  const request: SettingsProviderRequest = { settings };
+  if (inputs.model.length > 0 && inputs.reasoning !== "") {
+    request.model_curation = {
+      model_id: inputs.model,
+      default_effort: inputs.reasoning,
+    };
+  }
 
   if (inputs.authMode !== "bound_secret") {
     delete settings.credential_slots;
-    return { settings };
+    return request;
   }
 
   const targetEnv = inputs.envVar.trim() || existingApiKeyTargetEnv(current);
@@ -77,12 +75,10 @@ export function buildOnboardingProviderRequest(
     },
   ];
   if (!hasKey) {
-    return { settings };
+    return request;
   }
-  return {
-    settings,
-    secrets: [
-      { name: "api_key", secret_ref: secretRef, kind: "api_key", value: inputs.apiKey.trim() },
-    ],
-  };
+  request.secrets = [
+    { name: "api_key", secret_ref: secretRef, kind: "api_key", value: inputs.apiKey.trim() },
+  ];
+  return request;
 }

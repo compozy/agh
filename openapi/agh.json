@@ -7318,6 +7318,15 @@
                                                             "type": "string"
                                                         },
                                                         "reasoning_effort": {
+                                                            "enum": [
+                                                                "none",
+                                                                "minimal",
+                                                                "low",
+                                                                "medium",
+                                                                "high",
+                                                                "xhigh",
+                                                                "max"
+                                                            ],
                                                             "type": "string"
                                                         },
                                                         "sandbox": {
@@ -11275,6 +11284,18 @@
                                                     "provider": {
                                                         "type": "string"
                                                     },
+                                                    "reasoning_effort": {
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
+                                                        "type": "string"
+                                                    },
                                                     "tools": {
                                                         "items": {
                                                             "type": "string"
@@ -11410,6 +11431,18 @@
                                                 "type": "string"
                                             },
                                             "provider": {
+                                                "type": "string"
+                                            },
+                                            "reasoning_effort": {
+                                                "enum": [
+                                                    "none",
+                                                    "minimal",
+                                                    "low",
+                                                    "medium",
+                                                    "high",
+                                                    "xhigh",
+                                                    "max"
+                                                ],
                                                 "type": "string"
                                             },
                                             "skills": {
@@ -11589,6 +11622,18 @@
                                                     "type": "string"
                                                 },
                                                 "provider": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "tools": {
@@ -23501,6 +23546,18 @@
                                                     "type": "string"
                                                 },
                                                 "provider": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "tools": {
@@ -55352,6 +55409,15 @@
                         }
                     },
                     {
+                        "description": "Catalog view; defaults to curated",
+                        "in": "query",
+                        "name": "view",
+                        "schema": {
+                            "enum": ["curated", "all"],
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Filter by catalog source id",
                         "in": "query",
                         "name": "source_id",
@@ -55413,12 +55479,32 @@
                                                         },
                                                         "type": "object"
                                                     },
+                                                    "curated": {
+                                                        "type": "boolean"
+                                                    },
                                                     "default_reasoning_effort": {
-                                                        "nullable": true,
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
                                                         "type": "string"
+                                                    },
+                                                    "deprecated": {
+                                                        "type": "boolean"
                                                     },
                                                     "display_name": {
                                                         "type": "string"
+                                                    },
+                                                    "featured": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "hidden": {
+                                                        "type": "boolean"
                                                     },
                                                     "last_error": {
                                                         "type": "string"
@@ -55441,11 +55527,27 @@
                                                     },
                                                     "reasoning_efforts": {
                                                         "items": {
+                                                            "enum": [
+                                                                "none",
+                                                                "minimal",
+                                                                "low",
+                                                                "medium",
+                                                                "high",
+                                                                "xhigh",
+                                                                "max"
+                                                            ],
                                                             "type": "string"
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "reasoning_source": {
+                                                        "enum": ["acp", "catalog"],
+                                                        "type": "string"
+                                                    },
                                                     "refreshed_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "release_date": {
                                                         "type": "string"
                                                     },
                                                     "sources": {
@@ -55495,6 +55597,10 @@
                                                 "required": [
                                                     "availability_state",
                                                     "available",
+                                                    "curated",
+                                                    "deprecated",
+                                                    "featured",
+                                                    "hidden",
                                                     "model_id",
                                                     "provider_id",
                                                     "sources",
@@ -56129,6 +56235,15 @@
                         }
                     },
                     {
+                        "description": "Catalog view; defaults to curated",
+                        "in": "query",
+                        "name": "view",
+                        "schema": {
+                            "enum": ["curated", "all"],
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Filter by catalog source id",
                         "in": "query",
                         "name": "source_id",
@@ -56190,12 +56305,32 @@
                                                         },
                                                         "type": "object"
                                                     },
+                                                    "curated": {
+                                                        "type": "boolean"
+                                                    },
                                                     "default_reasoning_effort": {
-                                                        "nullable": true,
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
                                                         "type": "string"
+                                                    },
+                                                    "deprecated": {
+                                                        "type": "boolean"
                                                     },
                                                     "display_name": {
                                                         "type": "string"
+                                                    },
+                                                    "featured": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "hidden": {
+                                                        "type": "boolean"
                                                     },
                                                     "last_error": {
                                                         "type": "string"
@@ -56218,11 +56353,27 @@
                                                     },
                                                     "reasoning_efforts": {
                                                         "items": {
+                                                            "enum": [
+                                                                "none",
+                                                                "minimal",
+                                                                "low",
+                                                                "medium",
+                                                                "high",
+                                                                "xhigh",
+                                                                "max"
+                                                            ],
                                                             "type": "string"
                                                         },
                                                         "type": "array"
                                                     },
+                                                    "reasoning_source": {
+                                                        "enum": ["acp", "catalog"],
+                                                        "type": "string"
+                                                    },
                                                     "refreshed_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "release_date": {
                                                         "type": "string"
                                                     },
                                                     "sources": {
@@ -56272,6 +56423,10 @@
                                                 "required": [
                                                     "availability_state",
                                                     "available",
+                                                    "curated",
+                                                    "deprecated",
+                                                    "featured",
+                                                    "hidden",
                                                     "model_id",
                                                     "provider_id",
                                                     "sources",
@@ -56539,6 +56694,632 @@
                     }
                 },
                 "summary": "List provider model catalog entries for one provider",
+                "tags": ["providers"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/model-catalog/providers/{provider_id}/models/curate": {
+            "post": {
+                "operationId": "curateProviderModel",
+                "parameters": [
+                    {
+                        "description": "AGH provider id",
+                        "in": "path",
+                        "name": "provider_id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "default_effort": {
+                                        "enum": [
+                                            "none",
+                                            "minimal",
+                                            "low",
+                                            "medium",
+                                            "high",
+                                            "xhigh",
+                                            "max"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "deprecated": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "featured": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "hidden": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                    },
+                                    "model_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["model_id"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "apply": {
+                                            "properties": {
+                                                "active_config_hash": {
+                                                    "type": "string"
+                                                },
+                                                "active_generation": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "agent_name": {
+                                                    "type": "string"
+                                                },
+                                                "applied": {
+                                                    "type": "boolean"
+                                                },
+                                                "apply_record_id": {
+                                                    "type": "string"
+                                                },
+                                                "lifecycle": {
+                                                    "enum": [
+                                                        "live",
+                                                        "live-add",
+                                                        "live-remove-if-unused",
+                                                        "restart-required",
+                                                        "session-rebind"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "next_action": {
+                                                    "enum": [
+                                                        "none",
+                                                        "restart-daemon",
+                                                        "new-session",
+                                                        "retry"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "partial_failures": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "diagnostic": {
+                                                                "properties": {
+                                                                    "category": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "data_freshness": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "doc_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "evidence": {
+                                                                        "additionalProperties": {},
+                                                                        "type": "object"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "message": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "severity": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "suggested_command": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "title": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "category",
+                                                                    "code",
+                                                                    "data_freshness",
+                                                                    "id",
+                                                                    "message",
+                                                                    "severity",
+                                                                    "title"
+                                                                ],
+                                                                "type": "object"
+                                                            },
+                                                            "subsystem": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["diagnostic", "subsystem"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "restart_required": {
+                                                    "type": "boolean"
+                                                },
+                                                "restart_scope": {
+                                                    "type": "string"
+                                                },
+                                                "scope": {
+                                                    "enum": ["global", "workspace", "agent"],
+                                                    "type": "string"
+                                                },
+                                                "section": {
+                                                    "type": "string"
+                                                },
+                                                "skipped": {
+                                                    "type": "boolean"
+                                                },
+                                                "skipped_reason": {
+                                                    "type": "string"
+                                                },
+                                                "warnings": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                },
+                                                "write_target": {
+                                                    "enum": [
+                                                        "global-config",
+                                                        "workspace-config",
+                                                        "global-mcp-sidecar",
+                                                        "workspace-mcp-sidecar",
+                                                        "global-agent-file",
+                                                        "workspace-agent-file"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "active_config_hash",
+                                                "active_generation",
+                                                "applied",
+                                                "apply_record_id",
+                                                "lifecycle",
+                                                "next_action"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "model": {
+                                            "properties": {
+                                                "availability_state": {
+                                                    "type": "string"
+                                                },
+                                                "available": {
+                                                    "nullable": true,
+                                                    "type": "boolean"
+                                                },
+                                                "context_window": {
+                                                    "format": "int64",
+                                                    "nullable": true,
+                                                    "type": "integer"
+                                                },
+                                                "cost": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "input_per_million": {
+                                                            "format": "double",
+                                                            "nullable": true,
+                                                            "type": "number"
+                                                        },
+                                                        "output_per_million": {
+                                                            "format": "double",
+                                                            "nullable": true,
+                                                            "type": "number"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "curated": {
+                                                    "type": "boolean"
+                                                },
+                                                "default_reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "deprecated": {
+                                                    "type": "boolean"
+                                                },
+                                                "display_name": {
+                                                    "type": "string"
+                                                },
+                                                "featured": {
+                                                    "type": "boolean"
+                                                },
+                                                "hidden": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_error": {
+                                                    "type": "string"
+                                                },
+                                                "max_input_tokens": {
+                                                    "format": "int64",
+                                                    "nullable": true,
+                                                    "type": "integer"
+                                                },
+                                                "max_output_tokens": {
+                                                    "format": "int64",
+                                                    "nullable": true,
+                                                    "type": "integer"
+                                                },
+                                                "model_id": {
+                                                    "type": "string"
+                                                },
+                                                "provider_id": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_efforts": {
+                                                    "items": {
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "reasoning_source": {
+                                                    "enum": ["acp", "catalog"],
+                                                    "type": "string"
+                                                },
+                                                "refreshed_at": {
+                                                    "type": "string"
+                                                },
+                                                "release_date": {
+                                                    "type": "string"
+                                                },
+                                                "sources": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "last_error": {
+                                                                "type": "string"
+                                                            },
+                                                            "priority": {
+                                                                "type": "integer"
+                                                            },
+                                                            "refreshed_at": {
+                                                                "type": "string"
+                                                            },
+                                                            "source_id": {
+                                                                "type": "string"
+                                                            },
+                                                            "source_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "stale": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "priority",
+                                                            "source_id",
+                                                            "source_kind",
+                                                            "stale"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "stale": {
+                                                    "type": "boolean"
+                                                },
+                                                "supports_reasoning": {
+                                                    "nullable": true,
+                                                    "type": "boolean"
+                                                },
+                                                "supports_tools": {
+                                                    "nullable": true,
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "availability_state",
+                                                "available",
+                                                "curated",
+                                                "deprecated",
+                                                "featured",
+                                                "hidden",
+                                                "model_id",
+                                                "provider_id",
+                                                "sources",
+                                                "stale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["apply", "model"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid curation payload"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Unknown model or unsupported effort"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Model catalog unavailable"
+                    }
+                },
+                "summary": "Curate one provider model through the live settings lifecycle",
                 "tags": ["providers"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -61691,7 +62472,15 @@
                                                                 "type": "object"
                                                             },
                                                             "default_reasoning_effort": {
-                                                                "nullable": true,
+                                                                "enum": [
+                                                                    "none",
+                                                                    "minimal",
+                                                                    "low",
+                                                                    "medium",
+                                                                    "high",
+                                                                    "xhigh",
+                                                                    "max"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "display_name": {
@@ -61718,6 +62507,15 @@
                                                             },
                                                             "reasoning_efforts": {
                                                                 "items": {
+                                                                    "enum": [
+                                                                        "none",
+                                                                        "minimal",
+                                                                        "low",
+                                                                        "medium",
+                                                                        "high",
+                                                                        "xhigh",
+                                                                        "max"
+                                                                    ],
                                                                     "type": "string"
                                                                 },
                                                                 "type": "array"
@@ -73121,6 +73919,15 @@
                                                         "type": "string"
                                                     },
                                                     "reasoning_effort": {
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
                                                         "type": "string"
                                                     },
                                                     "sandbox": {
@@ -73374,6 +74181,15 @@
                                         "type": "string"
                                     },
                                     "reasoning_effort": {
+                                        "enum": [
+                                            "none",
+                                            "minimal",
+                                            "low",
+                                            "medium",
+                                            "high",
+                                            "xhigh",
+                                            "max"
+                                        ],
                                         "type": "string"
                                     },
                                     "workspace": {
@@ -73768,6 +74584,15 @@
                                                     "type": "string"
                                                 },
                                                 "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "sandbox": {
@@ -74521,6 +75346,15 @@
                                                     "type": "string"
                                                 },
                                                 "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "sandbox": {
@@ -84466,10 +85300,31 @@
                                                                                             "type": "number"
                                                                                         },
                                                                                         "default_reasoning_effort": {
+                                                                                            "enum": [
+                                                                                                "none",
+                                                                                                "minimal",
+                                                                                                "low",
+                                                                                                "medium",
+                                                                                                "high",
+                                                                                                "xhigh",
+                                                                                                "max"
+                                                                                            ],
                                                                                             "type": "string"
+                                                                                        },
+                                                                                        "deprecated": {
+                                                                                            "nullable": true,
+                                                                                            "type": "boolean"
                                                                                         },
                                                                                         "display_name": {
                                                                                             "type": "string"
+                                                                                        },
+                                                                                        "featured": {
+                                                                                            "nullable": true,
+                                                                                            "type": "boolean"
+                                                                                        },
+                                                                                        "hidden": {
+                                                                                            "nullable": true,
+                                                                                            "type": "boolean"
                                                                                         },
                                                                                         "id": {
                                                                                             "type": "string"
@@ -84486,9 +85341,21 @@
                                                                                         },
                                                                                         "reasoning_efforts": {
                                                                                             "items": {
+                                                                                                "enum": [
+                                                                                                    "none",
+                                                                                                    "minimal",
+                                                                                                    "low",
+                                                                                                    "medium",
+                                                                                                    "high",
+                                                                                                    "xhigh",
+                                                                                                    "max"
+                                                                                                ],
                                                                                                 "type": "string"
                                                                                             },
                                                                                             "type": "array"
+                                                                                        },
+                                                                                        "release_date": {
+                                                                                            "type": "string"
                                                                                         },
                                                                                         "supports_reasoning": {
                                                                                             "nullable": true,
@@ -84526,6 +85393,18 @@
                                                                                         "type": "string"
                                                                                     }
                                                                                 },
+                                                                                "type": "object"
+                                                                            },
+                                                                            "reasoning": {
+                                                                                "nullable": true,
+                                                                                "properties": {
+                                                                                    "apply": {
+                                                                                        "type": "string"
+                                                                                    }
+                                                                                },
+                                                                                "required": [
+                                                                                    "apply"
+                                                                                ],
                                                                                 "type": "object"
                                                                             }
                                                                         },
@@ -84659,10 +85538,31 @@
                                                                                     "type": "number"
                                                                                 },
                                                                                 "default_reasoning_effort": {
+                                                                                    "enum": [
+                                                                                        "none",
+                                                                                        "minimal",
+                                                                                        "low",
+                                                                                        "medium",
+                                                                                        "high",
+                                                                                        "xhigh",
+                                                                                        "max"
+                                                                                    ],
                                                                                     "type": "string"
+                                                                                },
+                                                                                "deprecated": {
+                                                                                    "nullable": true,
+                                                                                    "type": "boolean"
                                                                                 },
                                                                                 "display_name": {
                                                                                     "type": "string"
+                                                                                },
+                                                                                "featured": {
+                                                                                    "nullable": true,
+                                                                                    "type": "boolean"
+                                                                                },
+                                                                                "hidden": {
+                                                                                    "nullable": true,
+                                                                                    "type": "boolean"
                                                                                 },
                                                                                 "id": {
                                                                                     "type": "string"
@@ -84679,9 +85579,21 @@
                                                                                 },
                                                                                 "reasoning_efforts": {
                                                                                     "items": {
+                                                                                        "enum": [
+                                                                                            "none",
+                                                                                            "minimal",
+                                                                                            "low",
+                                                                                            "medium",
+                                                                                            "high",
+                                                                                            "xhigh",
+                                                                                            "max"
+                                                                                        ],
                                                                                         "type": "string"
                                                                                     },
                                                                                     "type": "array"
+                                                                                },
+                                                                                "release_date": {
+                                                                                    "type": "string"
                                                                                 },
                                                                                 "supports_reasoning": {
                                                                                     "nullable": true,
@@ -84717,6 +85629,16 @@
                                                                                 "type": "string"
                                                                             }
                                                                         },
+                                                                        "type": "object"
+                                                                    },
+                                                                    "reasoning": {
+                                                                        "nullable": true,
+                                                                        "properties": {
+                                                                            "apply": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": ["apply"],
                                                                         "type": "object"
                                                                     }
                                                                 },
@@ -85485,10 +86407,31 @@
                                                                                         "type": "number"
                                                                                     },
                                                                                     "default_reasoning_effort": {
+                                                                                        "enum": [
+                                                                                            "none",
+                                                                                            "minimal",
+                                                                                            "low",
+                                                                                            "medium",
+                                                                                            "high",
+                                                                                            "xhigh",
+                                                                                            "max"
+                                                                                        ],
                                                                                         "type": "string"
+                                                                                    },
+                                                                                    "deprecated": {
+                                                                                        "nullable": true,
+                                                                                        "type": "boolean"
                                                                                     },
                                                                                     "display_name": {
                                                                                         "type": "string"
+                                                                                    },
+                                                                                    "featured": {
+                                                                                        "nullable": true,
+                                                                                        "type": "boolean"
+                                                                                    },
+                                                                                    "hidden": {
+                                                                                        "nullable": true,
+                                                                                        "type": "boolean"
                                                                                     },
                                                                                     "id": {
                                                                                         "type": "string"
@@ -85505,9 +86448,21 @@
                                                                                     },
                                                                                     "reasoning_efforts": {
                                                                                         "items": {
+                                                                                            "enum": [
+                                                                                                "none",
+                                                                                                "minimal",
+                                                                                                "low",
+                                                                                                "medium",
+                                                                                                "high",
+                                                                                                "xhigh",
+                                                                                                "max"
+                                                                                            ],
                                                                                             "type": "string"
                                                                                         },
                                                                                         "type": "array"
+                                                                                    },
+                                                                                    "release_date": {
+                                                                                        "type": "string"
                                                                                     },
                                                                                     "supports_reasoning": {
                                                                                         "nullable": true,
@@ -85543,6 +86498,16 @@
                                                                                     "type": "string"
                                                                                 }
                                                                             },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "reasoning": {
+                                                                            "nullable": true,
+                                                                            "properties": {
+                                                                                "apply": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": ["apply"],
                                                                             "type": "object"
                                                                         }
                                                                     },
@@ -85676,10 +86641,31 @@
                                                                                 "type": "number"
                                                                             },
                                                                             "default_reasoning_effort": {
+                                                                                "enum": [
+                                                                                    "none",
+                                                                                    "minimal",
+                                                                                    "low",
+                                                                                    "medium",
+                                                                                    "high",
+                                                                                    "xhigh",
+                                                                                    "max"
+                                                                                ],
                                                                                 "type": "string"
+                                                                            },
+                                                                            "deprecated": {
+                                                                                "nullable": true,
+                                                                                "type": "boolean"
                                                                             },
                                                                             "display_name": {
                                                                                 "type": "string"
+                                                                            },
+                                                                            "featured": {
+                                                                                "nullable": true,
+                                                                                "type": "boolean"
+                                                                            },
+                                                                            "hidden": {
+                                                                                "nullable": true,
+                                                                                "type": "boolean"
                                                                             },
                                                                             "id": {
                                                                                 "type": "string"
@@ -85696,9 +86682,21 @@
                                                                             },
                                                                             "reasoning_efforts": {
                                                                                 "items": {
+                                                                                    "enum": [
+                                                                                        "none",
+                                                                                        "minimal",
+                                                                                        "low",
+                                                                                        "medium",
+                                                                                        "high",
+                                                                                        "xhigh",
+                                                                                        "max"
+                                                                                    ],
                                                                                     "type": "string"
                                                                                 },
                                                                                 "type": "array"
+                                                                            },
+                                                                            "release_date": {
+                                                                                "type": "string"
                                                                             },
                                                                             "supports_reasoning": {
                                                                                 "nullable": true,
@@ -85734,6 +86732,16 @@
                                                                             "type": "string"
                                                                         }
                                                                     },
+                                                                    "type": "object"
+                                                                },
+                                                                "reasoning": {
+                                                                    "nullable": true,
+                                                                    "properties": {
+                                                                        "apply": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["apply"],
                                                                     "type": "object"
                                                                 }
                                                             },
@@ -86003,6 +87011,40 @@
                         "application/json": {
                             "schema": {
                                 "properties": {
+                                    "model_curation": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "default_effort": {
+                                                "enum": [
+                                                    "none",
+                                                    "minimal",
+                                                    "low",
+                                                    "medium",
+                                                    "high",
+                                                    "xhigh",
+                                                    "max"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "deprecated": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                            },
+                                            "featured": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                            },
+                                            "hidden": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                            },
+                                            "model_id": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["model_id"],
+                                        "type": "object"
+                                    },
                                     "secrets": {
                                         "items": {
                                             "properties": {
@@ -86104,10 +87146,31 @@
                                                                     "type": "number"
                                                                 },
                                                                 "default_reasoning_effort": {
+                                                                    "enum": [
+                                                                        "none",
+                                                                        "minimal",
+                                                                        "low",
+                                                                        "medium",
+                                                                        "high",
+                                                                        "xhigh",
+                                                                        "max"
+                                                                    ],
                                                                     "type": "string"
+                                                                },
+                                                                "deprecated": {
+                                                                    "nullable": true,
+                                                                    "type": "boolean"
                                                                 },
                                                                 "display_name": {
                                                                     "type": "string"
+                                                                },
+                                                                "featured": {
+                                                                    "nullable": true,
+                                                                    "type": "boolean"
+                                                                },
+                                                                "hidden": {
+                                                                    "nullable": true,
+                                                                    "type": "boolean"
                                                                 },
                                                                 "id": {
                                                                     "type": "string"
@@ -86124,9 +87187,21 @@
                                                                 },
                                                                 "reasoning_efforts": {
                                                                     "items": {
+                                                                        "enum": [
+                                                                            "none",
+                                                                            "minimal",
+                                                                            "low",
+                                                                            "medium",
+                                                                            "high",
+                                                                            "xhigh",
+                                                                            "max"
+                                                                        ],
                                                                         "type": "string"
                                                                     },
                                                                     "type": "array"
+                                                                },
+                                                                "release_date": {
+                                                                    "type": "string"
                                                                 },
                                                                 "supports_reasoning": {
                                                                     "nullable": true,
@@ -86162,6 +87237,16 @@
                                                                 "type": "string"
                                                             }
                                                         },
+                                                        "type": "object"
+                                                    },
+                                                    "reasoning": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "apply": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["apply"],
                                                         "type": "object"
                                                     }
                                                 },
@@ -129775,6 +130860,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -130344,6 +131431,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -130443,6 +131532,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131019,6 +132110,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131118,6 +132211,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131217,6 +132312,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131463,6 +132560,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131562,6 +132661,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131661,6 +132762,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -131760,6 +132863,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132011,6 +133116,8 @@
                                                             "tool_denied",
                                                             "tool_approval_required",
                                                             "tool_invalid_input",
+                                                            "model_not_found",
+                                                            "reasoning_effort_unsupported",
                                                             "tool_result_too_large",
                                                             "tool_backend_failed",
                                                             "tool_canceled",
@@ -132328,6 +133435,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132427,6 +133536,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132526,6 +133637,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132625,6 +133738,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132724,6 +133839,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132823,6 +133940,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -132922,6 +134041,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -133021,6 +134142,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -133324,6 +134447,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -133633,6 +134758,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -133732,6 +134859,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -133831,6 +134960,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -137243,6 +138374,18 @@
                                                     "provider": {
                                                         "type": "string"
                                                     },
+                                                    "reasoning_effort": {
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
+                                                        "type": "string"
+                                                    },
                                                     "tools": {
                                                         "items": {
                                                             "type": "string"
@@ -137666,6 +138809,15 @@
                                                         "type": "string"
                                                     },
                                                     "reasoning_effort": {
+                                                        "enum": [
+                                                            "none",
+                                                            "minimal",
+                                                            "low",
+                                                            "medium",
+                                                            "high",
+                                                            "xhigh",
+                                                            "max"
+                                                        ],
                                                         "type": "string"
                                                     },
                                                     "sandbox": {
@@ -150601,6 +151753,15 @@
                                                                 "type": "string"
                                                             },
                                                             "reasoning_effort": {
+                                                                "enum": [
+                                                                    "none",
+                                                                    "minimal",
+                                                                    "low",
+                                                                    "medium",
+                                                                    "high",
+                                                                    "xhigh",
+                                                                    "max"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "sandbox": {
@@ -151559,6 +152720,15 @@
                                                                 "type": "string"
                                                             },
                                                             "reasoning_effort": {
+                                                                "enum": [
+                                                                    "none",
+                                                                    "minimal",
+                                                                    "low",
+                                                                    "medium",
+                                                                    "high",
+                                                                    "xhigh",
+                                                                    "max"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "sandbox": {
@@ -152540,6 +153710,15 @@
                                                                 "type": "string"
                                                             },
                                                             "reasoning_effort": {
+                                                                "enum": [
+                                                                    "none",
+                                                                    "minimal",
+                                                                    "low",
+                                                                    "medium",
+                                                                    "high",
+                                                                    "xhigh",
+                                                                    "max"
+                                                                ],
                                                                 "type": "string"
                                                             },
                                                             "sandbox": {
@@ -159589,6 +160768,15 @@
                                                     "type": "string"
                                                 },
                                                 "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "sandbox": {
@@ -160517,6 +161705,15 @@
                                                     "type": "string"
                                                 },
                                                 "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
                                                     "type": "string"
                                                 },
                                                 "sandbox": {
@@ -164188,6 +165385,15 @@
                                                             "type": "string"
                                                         },
                                                         "reasoning_effort": {
+                                                            "enum": [
+                                                                "none",
+                                                                "minimal",
+                                                                "low",
+                                                                "medium",
+                                                                "high",
+                                                                "xhigh",
+                                                                "max"
+                                                            ],
                                                             "type": "string"
                                                         },
                                                         "sandbox": {
@@ -167529,6 +168735,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -168118,6 +169326,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",
@@ -168217,6 +169427,8 @@
                                                         "tool_denied",
                                                         "tool_approval_required",
                                                         "tool_invalid_input",
+                                                        "model_not_found",
+                                                        "reasoning_effort_unsupported",
                                                         "tool_result_too_large",
                                                         "tool_backend_failed",
                                                         "tool_canceled",

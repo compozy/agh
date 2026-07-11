@@ -206,7 +206,7 @@ func NewLiveProviderSource(
 	}
 	return &LiveProviderSource{
 		providerID:      trimmedProviderID,
-		provider:        provider,
+		provider:        aghconfig.CloneProviderConfig(provider),
 		adapter:         adapter,
 		sourceID:        sourceID,
 		homePaths:       cfg.HomePaths,
@@ -954,20 +954,11 @@ func normalizedDefaultReasoningEffort(raw string) *ReasoningEffort {
 }
 
 func normalizeReasoningEffort(raw string) (ReasoningEffort, bool) {
-	switch ReasoningEffort(strings.ToLower(strings.TrimSpace(raw))) {
-	case ReasoningEffortMinimal:
-		return ReasoningEffortMinimal, true
-	case ReasoningEffortLow:
-		return ReasoningEffortLow, true
-	case ReasoningEffortMedium:
-		return ReasoningEffortMedium, true
-	case ReasoningEffortHigh:
-		return ReasoningEffortHigh, true
-	case ReasoningEffortXHigh:
-		return ReasoningEffortXHigh, true
-	default:
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if !IsValidEffort(normalized) {
 		return "", false
 	}
+	return ReasoningEffort(normalized), true
 }
 
 func livePricePerMillion(values ...json.RawMessage) *float64 {

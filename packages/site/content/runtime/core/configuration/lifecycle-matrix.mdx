@@ -39,6 +39,8 @@ description: Generated AGH config lifecycle matrix for live apply, session rebin
 | `observability.*`                  | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `permissions.*`                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `providers.*`                      | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `providers.*.models`               | `live`             | `live`             | `none`                                  |
+| `providers.*.models.*`             | `live`             | `live`             | `none`                                  |
 | `sandboxes.*`                      | `session-rebind`   | `session-rebind`   | `new-session`                           |
 | `session.*`                        | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `skills.*`                         | `restart-required` | `restart-required` | `restart-daemon`                        |

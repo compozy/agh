@@ -319,7 +319,7 @@ openclaw runs three provider modes against the same scenario file:
 `env.providerMode === 'live-frontier'` (or `requiredProvider`) at flow start
 and skip / fail otherwise. Example: `anthropic-opus-api-key-smoke.md` lines
 36-53 fail fast if the live primary provider is not Anthropic, the model is
-not `claude-opus-4-6`, or `ANTHROPIC_API_KEY` is missing.
+not `claude-opus-4-8`, or `ANTHROPIC_API_KEY` is missing.
 
 **When mocks are mandated**: scenarios that test runtime retry/recovery
 behavior (e.g. `empty-response-recovery-replay-safe-read.md`) gate on

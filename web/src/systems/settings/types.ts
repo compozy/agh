@@ -70,7 +70,6 @@ export type ProviderDraft = {
   display_name: string;
   model_default: string;
   curated_models: string;
-  curated_snapshot: SettingsProviderModelRequest[];
   target_env: string;
   harness: string;
   runtime_provider: string;

@@ -8,15 +8,55 @@ import {
   type AgentCreateDialogDraft,
   type AgentCreateStep,
 } from "@/systems/agent";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { workspaceDetailFixture } from "@/systems/workspace/mocks";
 
-const providerOptions = workspaceDetailFixture.providers ?? [];
+const providerOptions: RuntimeProviderOption[] = (workspaceDetailFixture.providers ?? []).map(
+  provider => ({
+    id: provider.name,
+    name: provider.display_name?.trim() || provider.name,
+    ...(provider.harness?.trim() ? { harness: provider.harness.trim() } : {}),
+    runtime_provider: provider.runtime_provider?.trim() || provider.name,
+  })
+);
+
+const modelProvider = providerOptions[0]?.id ?? "codex";
+
+const runtimeModels: RuntimeModelOption[] = [
+  {
+    id: "gpt-5.6-sol",
+    provider: modelProvider,
+    name: "GPT-5.6 Sol",
+    efforts: ["low", "medium", "high", "xhigh", "max"],
+    availability: "live",
+    curated: true,
+    featured: true,
+    context_window: 1_050_000,
+    cost_input: 5,
+    cost_output: 30,
+    supports_tools: true,
+    reasoning_source: "acp",
+  },
+  {
+    id: "gpt-5.6-luna",
+    provider: modelProvider,
+    name: "GPT-5.6 Luna",
+    efforts: ["low", "high"],
+    availability: "live",
+    curated: true,
+    context_window: 1_050_000,
+    cost_input: 1,
+    cost_output: 6,
+    supports_tools: true,
+  },
+];
 
 const validDraft: AgentCreateDialogDraft = {
   ...createDefaultAgentCreateDraft(true),
   name: "release-captain",
-  provider: "codex",
-  model: "gpt-5.4",
+  provider: modelProvider,
+  model: "gpt-5.6-sol",
+  reasoningEffort: "high",
   prompt: "Own release readiness, canary evidence, and rollback guardrails.",
   permissions: "approve-reads",
   tools: ["agh__skill_view"],
@@ -57,14 +97,18 @@ function AgentCreateDialogHarness({
       isSubmitting={isSubmitting}
       modelCatalogError={null}
       modelCatalogLoading={false}
-      modelOptions={["gpt-5.4", "gpt-5.4-mini", "claude-sonnet-4-6"]}
+      modelCatalogLoaded={true}
+      modelCatalogRefreshing={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
+      onOpenProviderSettings={fn()}
+      onRefreshCatalog={fn()}
       onSubmit={fn()}
       open
       providerOptions={providerOptions}
       providersError={null}
       providersLoading={false}
+      runtimeModels={runtimeModels}
       submitError={submitError}
       workspaceName={workspaceDetailFixture.workspace.name}
     />

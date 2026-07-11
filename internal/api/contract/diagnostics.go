@@ -85,6 +85,8 @@ const (
 	CodeIdentityStale                 = diagnosticcontract.CodeIdentityStale
 	CodeIdentityUnauthorized          = diagnosticcontract.CodeIdentityUnauthorized
 	CodeMarketplaceUnavailable        = diagnosticcontract.CodeMarketplaceUnavailable
+	CodeModelNotFound                 = diagnosticcontract.CodeModelNotFound
+	CodeModelUnavailable              = diagnosticcontract.CodeModelUnavailable
 	CodeMCPAuthRequired               = diagnosticcontract.CodeMCPAuthRequired
 	CodeMCPServerReady                = diagnosticcontract.CodeMCPServerReady
 	CodeMCPServerUnavailable          = diagnosticcontract.CodeMCPServerUnavailable
@@ -108,6 +110,8 @@ const (
 	CodeProviderPermissionDenied      = diagnosticcontract.CodeProviderPermissionDenied
 	CodeProviderRateLimited           = diagnosticcontract.CodeProviderRateLimited
 	CodeProviderTransientFailure      = diagnosticcontract.CodeProviderTransientFailure
+	CodeReasoningEffortUnsupported    = diagnosticcontract.CodeReasoningEffortUnsupported
+	CodeReasoningOptionMissing        = diagnosticcontract.CodeReasoningOptionMissing
 	CodeRetryChainTooDeep             = diagnosticcontract.CodeRetryChainTooDeep
 	CodeSchedulerReady                = diagnosticcontract.CodeSchedulerReady
 	CodeSchedulerPaused               = diagnosticcontract.CodeSchedulerPaused

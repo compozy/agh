@@ -267,6 +267,10 @@ type SettingsService interface {
 		ctx context.Context,
 		req settingspkg.CollectionItemPutRequest,
 	) (settingspkg.ApplyResult, error)
+	ApplyProviderModelCuration(
+		ctx context.Context,
+		req settingspkg.ProviderModelCurationRequest,
+	) (settingspkg.ProviderModelCurationResult, error)
 	DeleteCollectionItem(
 		ctx context.Context,
 		req settingspkg.CollectionItemDeleteRequest,

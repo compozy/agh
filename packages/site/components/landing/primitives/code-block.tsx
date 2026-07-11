@@ -5,7 +5,7 @@ import { AlertTriangle, Check, Copy } from "lucide-react";
 import { Button, Eyebrow } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
 
-interface CodeBlockProps {
+interface LandingCodeBlockProps {
   code: string;
   language?: string;
   copyable?: boolean;
@@ -15,14 +15,14 @@ interface CodeBlockProps {
   shell?: boolean;
 }
 
-export function CodeBlock({
+export function LandingCodeBlock({
   code,
   language,
   copyable = true,
   caption,
   className,
   shell = false,
-}: CodeBlockProps) {
+}: LandingCodeBlockProps) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

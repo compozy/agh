@@ -3,7 +3,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { buttonVariants } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
-import { CodeBlock } from "./primitives/code-block";
+import { LandingCodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
@@ -150,7 +150,7 @@ export function InstallSection() {
             hidden={t.id !== tab}
             className="mt-4"
           >
-            <CodeBlock code={t.command} caption={t.note} shell />
+            <LandingCodeBlock code={t.command} caption={t.note} shell />
           </div>
         ))}
       </div>
@@ -174,7 +174,7 @@ export function InstallSection() {
                 </div>
               </div>
               <div className="ml-11">
-                <CodeBlock code={item.code} copyable caption="shell" shell />
+                <LandingCodeBlock code={item.code} copyable caption="shell" shell />
               </div>
             </div>
           ))}

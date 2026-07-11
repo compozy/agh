@@ -226,20 +226,23 @@ Workspace overlay layout: `<workspace>/.agh/config.toml`, `<workspace>/.agh/agen
 
 The bullets below are assertions made in code or docs that today have **no end-to-end real-LLM-or-real-daemon test**.
 
+The prior per-agent model-override gap is now covered by
+`internal/daemon/daemon_mock_agents_integration_test.go`, which starts a real daemon against the ACP mock and proves the
+resolved `AGENT.md` model and reasoning effort reach ACP in protocol order before the first prompt.
+
 1. **Hot-apply for `skills.disabled_skills`** — `classify.go:90-95` declares `applied_now`, but no scenario verifies that an active skill becomes invisible to a running ACP agent inside the same session without a restart.
 2. **Restart-required for everything else under `skills.*`** — no scenario forces the API to flag `restart_required: true` and then verifies that a process-level restart picks up the new value while a non-restart leaves the running agent on the old value.
 3. **Workspace overlay precedence inside a live session** — no test runs the same `defaults.provider` declared in global → workspace and proves the per-workspace session uses the workspace value.
 4. **Multi-workspace memory + skill isolation** — `workspace/resolver.go` keys cache by ID, but no test starts session A in workspace A and session B in workspace B simultaneously and proves no cross-talk in agents/skills/memory/provider catalog.
-5. **Per-agent `model = X` override actually reaches the spawned ACP subprocess** — `AgentDef.Model` is honored only if downstream resolvers consume it. There is no end-to-end test that Claude is invoked with model `claude-opus-4-6` when AGENT.md says so.
-6. **Secret never appears in any operator-visible surface** — partially proven in unit tests (CLI vault PUT, settings projection), but no scenario walks every surface (`agh config list`, `agh config show`, `/api/settings/...`, `/api/vault/secrets`, SSE log tail, daemon log file, `agh sessions logs`) and asserts a known fake secret string is absent everywhere.
-7. **Vault unification flow** — vault namespaces (`providers`, `bridges`, `automation`, `mcp`, `hooks`, `extensions`, `sandbox`, `sessions`) all share one store, but the audit story is not end-to-end proved: a `GET /api/vault/secrets/metadata` for one namespace must not leak presence of refs in another namespace beyond what the prefix filter allows.
-8. **Default-value drift** — there is no test that fails when `config.toml` (operator-shipped reference) declares a default that disagrees with `DefaultWithHome(...)`. Today the example `config.toml` (`/Users/pedronauck/Dev/compozy/agh/config.toml`) sets `claude.default_model = "claude-sonnet-4-20250514"`, the built-in declares `"claude-sonnet-4-6"` (`provider.go:166-173`); only one of these is current.
-9. **Concurrent `agh config set` against the same key** — no scenario runs two concurrent CLI invocations against the same `AGH_HOME` and verifies a defined ordering or a clean rejection. Standing directive forbids parallelizing config writes against one isolated QA home; this should be an enforcement test, not a documentation rule.
-10. **TOML invariant: comment-preserving editor never silently drops user comments** — `OverlayEditor` claims comment preservation; no test runs a config.toml with header / inline / trailing comments through `SetValue`/`Delete` and asserts byte-for-byte preservation outside the targeted region.
-11. **`.env` repair never widens scope** — `RepairDotEnvFile` (`dotenv.go:92-160`) refuses symlinks, dirs, and unsupported syntax. No scenario verifies the temp-file fallback survives a crash mid-rename (the os.CreateTemp + os.Rename pattern at `dotenv.go:480-540`).
-12. **Workspace path with spaces / unicode / symlinks pointing outside an approved root** — root canonicalization is `EvalSymlinks + Abs` (`resolver_crud.go:329-339`) but no scenario proves a symlink workspace pointing to `/private/var/folders/...` (the macOS canonicalization quirk called out in `internal/CLAUDE.md:57`) round-trips identically.
-13. **Frontmatter with BOM, mixed CRLF/LF in body, embedded tabs in key** — `frontmatter_test.go` covers LF/CRLF normalization, but no test injects a BOM (UTF-8 0xEF,0xBB,0xBF) at byte 0; this is a real failure mode for files saved by Windows editors.
-14. **Provider config secret resolves through real vault** — the provider credential slot's `secret_ref = "vault:providers/..."` path is documented; no scenario writes a real vault secret, starts a real provider session, and proves the env var is set in the spawned subprocess.
+5. **Secret never appears in any operator-visible surface** — partially proven in unit tests (CLI vault PUT, settings projection), but no scenario walks every surface (`agh config list`, `agh config show`, `/api/settings/...`, `/api/vault/secrets`, SSE log tail, daemon log file, `agh sessions logs`) and asserts a known fake secret string is absent everywhere.
+6. **Vault unification flow** — vault namespaces (`providers`, `bridges`, `automation`, `mcp`, `hooks`, `extensions`, `sandbox`, `sessions`) all share one store, but the audit story is not end-to-end proved: a `GET /api/vault/secrets/metadata` for one namespace must not leak presence of refs in another namespace beyond what the prefix filter allows.
+7. **Default-value drift** — there is no test that fails when `config.toml` (operator-shipped reference) declares a default that disagrees with `DefaultWithHome(...)`. The example and builtin currently agree on `claude-sonnet-5`; a guard must keep them aligned as model defaults change.
+8. **Concurrent `agh config set` against the same key** — no scenario runs two concurrent CLI invocations against the same `AGH_HOME` and verifies a defined ordering or a clean rejection. Standing directive forbids parallelizing config writes against one isolated QA home; this should be an enforcement test, not a documentation rule.
+9. **TOML invariant: comment-preserving editor never silently drops user comments** — `OverlayEditor` claims comment preservation; no test runs a config.toml with header / inline / trailing comments through `SetValue`/`Delete` and asserts byte-for-byte preservation outside the targeted region.
+10. **`.env` repair never widens scope** — `RepairDotEnvFile` (`dotenv.go:92-160`) refuses symlinks, dirs, and unsupported syntax. No scenario verifies the temp-file fallback survives a crash mid-rename (the os.CreateTemp + os.Rename pattern at `dotenv.go:480-540`).
+11. **Workspace path with spaces / unicode / symlinks pointing outside an approved root** — root canonicalization is `EvalSymlinks + Abs` (`resolver_crud.go:329-339`) but no scenario proves a symlink workspace pointing to `/private/var/folders/...` (the macOS canonicalization quirk called out in `internal/CLAUDE.md:57`) round-trips identically.
+12. **Frontmatter with BOM, mixed CRLF/LF in body, embedded tabs in key** — `frontmatter_test.go` covers LF/CRLF normalization, but no test injects a BOM (UTF-8 0xEF,0xBB,0xBF) at byte 0; this is a real failure mode for files saved by Windows editors.
+13. **Provider config secret resolves through real vault** — the provider credential slot's `secret_ref = "vault:providers/..."` path is documented; no scenario writes a real vault secret, starts a real provider session, and proves the env var is set in the spawned subprocess.
 
 ## 4. Real-LLM / Real-Agent Scenarios (CFG-01 .. CFG-16)
 
@@ -552,7 +555,7 @@ steps:
   - "Parse repo-rooted config.toml via aghconfig.ApplyConfigOverlayFile(repo/config.toml, &empty)"
   - "Diff the two — every overlapping field must agree"
 expected:
-  - "Test fails today on claude.default_model ('claude-sonnet-4-20250514' in example vs 'claude-sonnet-4-6' in builtin) — fix repo example or fix the builtin, then keep test green"
+  - "Test passes with the current claude-sonnet-5 default and fails on any future example-vs-builtin disagreement"
 evidence:
   - "Diff output captured"
 failure_signatures:
@@ -761,14 +764,14 @@ live: true
 provider: claude,codex
 preconditions:
   - Two AGENT.md files under workspace cfg15:
-    * /tmp/cfg15/.agh/agents/op-x/AGENT.md  with provider: claude, model: claude-sonnet-4-6
-    * /tmp/cfg15/.agh/agents/op-y/AGENT.md  with provider: codex,  model: gpt-5.4-mini
+    * /tmp/cfg15/.agh/agents/op-x/AGENT.md  with provider: claude, model: claude-sonnet-5
+    * /tmp/cfg15/.agh/agents/op-y/AGENT.md  with provider: codex,  model: gpt-5.6-luna
 steps:
   - "agh sessions start --agent op-x --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
   - "agh sessions start --agent op-y --workspace cfg15 --message 'What model identifier are you running under? Reply with only that string.'"
 expected:
-  - "op-x reply matches 'claude-sonnet-4-6' (or the official model self-id) — proves AGENT.md model field reached the runtime"
-  - "op-y reply matches the gpt-5.4-mini family"
+  - "op-x reply matches 'claude-sonnet-5' (or the official model self-id) — proves AGENT.md model field reached the runtime"
+  - "op-y reply matches the gpt-5.6-luna family"
   - "Daemon log shows ResolvedAgent.Model = AGENT.md value (not the provider default)"
 evidence:
   - "Two transcripts"
@@ -887,7 +890,7 @@ Per `agh-qa-bootstrap` and the worktree-isolation directive:
   - `overlap-skill` (CFG-06) — three copies, each with a tier-self-identifying prompt.
   - `secret-a-skill`, `secret-b-skill` (CFG-08) — workspace-only.
 - **Fixture agents**:
-  - `op-x` (claude / claude-sonnet-4-6) and `op-y` (codex / gpt-5.4-mini) — CFG-15.
+  - `op-x` (claude / claude-sonnet-5) and `op-y` (codex / gpt-5.6-luna) — CFG-15.
   - Malformed AGENT.md set (no fence / unterminated / BOM / embedded tab) — CFG-12.
 - **Real Claude Code subagent** — for CFG-04, CFG-06, CFG-08, CFG-10,
   CFG-11, CFG-15. ACP runtime:
@@ -895,7 +898,7 @@ Per `agh-qa-bootstrap` and the worktree-isolation directive:
   `provider.go:166`). Direct `claude` auth comes from the effective Claude
   home for the lane: operator `HOME` by default, or isolated `PROVIDER_HOME`
   only for explicit isolated-home scenarios.
-- **Real Codex subagent** — for CFG-15. ACP runtime: `npx -y @zed-industries/codex-acp@latest` (per `provider.go:174`). Lab-key sourced from `PROVIDER_CODEX_HOME`.
+- **Real Codex subagent** — for CFG-15. ACP runtime: `npx -y @agentclientprotocol/codex-acp@latest` (per the current builtin provider config). Lab-key sourced from `PROVIDER_CODEX_HOME`.
 - **A workspace `.env`** — `/tmp/cfg16/.env` for CFG-16.
 - **Per-lane artifact directory** — `.artifacts/qa/cfg-<run-id>/` containing one `<scenario>-{report,summary,observed-events,output}.{md,json,json,log}` quartet per the openclaw four-artifact contract.
 

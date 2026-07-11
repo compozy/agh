@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -121,7 +122,10 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 	t.Run("Should update current select values", func(t *testing.T) {
 		t.Parallel()
 
+		diagnosticsPath := filepath.Join(t.TempDir(), "config-options.jsonl")
 		agent := &mockAgent{
+			agent:           acpmock.AgentFixture{Name: "config-options"},
+			diagnosticsPath: diagnosticsPath,
 			configTemplate: sessionConfigOptionsFromFixture([]acpmock.SessionConfigOptionFixture{
 				{
 					ID:      "model",
@@ -157,6 +161,17 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			"qa-browser-model-alt",
 		); got != want {
 			t.Fatalf("CurrentValue = %q, want %q", got, want)
+		}
+		records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics() error = %v", err)
+		}
+		protocol := acpmock.ProtocolDiagnostics(records)
+		if len(protocol) != 1 ||
+			protocol[0].ProtocolMethod != acpsdk.AgentMethodSessionSetConfigOption ||
+			protocol[0].ConfigOptionID != "model" ||
+			protocol[0].ConfigOptionValue != "qa-browser-model-alt" {
+			t.Fatalf("protocol diagnostics = %#v, want model set_config_option record", protocol)
 		}
 
 		_, err = agent.SetSessionConfigOption(

@@ -196,36 +196,7 @@ func cloneSandboxResolved(src sandbox.Resolved) sandbox.Resolved {
 }
 
 func cloneProviders(src map[string]aghconfig.ProviderConfig) map[string]aghconfig.ProviderConfig {
-	if len(src) == 0 {
-		return map[string]aghconfig.ProviderConfig{}
-	}
-
-	cloned := make(map[string]aghconfig.ProviderConfig, len(src))
-	for name, provider := range src {
-		cloned[name] = cloneProvider(provider)
-	}
-	return cloned
-}
-
-func cloneProvider(src aghconfig.ProviderConfig) aghconfig.ProviderConfig {
-	return aghconfig.ProviderConfig{
-		Command:         src.Command,
-		DisplayName:     src.DisplayName,
-		Models:          cloneProviderModelsConfig(src.Models),
-		Harness:         src.Harness,
-		RuntimeProvider: src.RuntimeProvider,
-		Transport:       src.Transport,
-		BaseURL:         src.BaseURL,
-		AuthMode:        src.AuthMode,
-		EnvPolicy:       src.EnvPolicy,
-		HomePolicy:      src.HomePolicy,
-		NoneSecurity:    src.NoneSecurity,
-		AuthStatusCmd:   src.AuthStatusCmd,
-		AuthLoginCmd:    src.AuthLoginCmd,
-		SessionMCP:      cloneBoolPtr(src.SessionMCP),
-		CredentialSlots: append([]aghconfig.ProviderCredentialSlot(nil), src.CredentialSlots...),
-		MCPServers:      cloneMCPServers(src.MCPServers),
-	}
+	return aghconfig.CloneProviderConfigs(src)
 }
 
 func cloneBoolPtr(src *bool) *bool {
@@ -234,64 +205,6 @@ func cloneBoolPtr(src *bool) *bool {
 	}
 	value := *src
 	return &value
-}
-
-func cloneInt64Ptr(src *int64) *int64 {
-	if src == nil {
-		return nil
-	}
-	value := *src
-	return &value
-}
-
-func cloneFloat64Ptr(src *float64) *float64 {
-	if src == nil {
-		return nil
-	}
-	value := *src
-	return &value
-}
-
-func cloneProviderModelsConfig(src aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
-	return aghconfig.ProviderModelsConfig{
-		Default:   src.Default,
-		Curated:   cloneProviderModelConfigs(src.Curated),
-		Discovery: cloneProviderModelsDiscoveryConfig(src.Discovery),
-	}
-}
-
-func cloneProviderModelsDiscoveryConfig(
-	src aghconfig.ProviderModelsDiscoveryConfig,
-) aghconfig.ProviderModelsDiscoveryConfig {
-	return aghconfig.ProviderModelsDiscoveryConfig{
-		Enabled:  cloneBoolPtr(src.Enabled),
-		Command:  src.Command,
-		Endpoint: src.Endpoint,
-		Timeout:  src.Timeout,
-	}
-}
-
-func cloneProviderModelConfigs(src []aghconfig.ProviderModelConfig) []aghconfig.ProviderModelConfig {
-	if src == nil {
-		return nil
-	}
-	cloned := make([]aghconfig.ProviderModelConfig, len(src))
-	for idx, model := range src {
-		cloned[idx] = aghconfig.ProviderModelConfig{
-			ID:                     model.ID,
-			DisplayName:            model.DisplayName,
-			ContextWindow:          cloneInt64Ptr(model.ContextWindow),
-			MaxInputTokens:         cloneInt64Ptr(model.MaxInputTokens),
-			MaxOutputTokens:        cloneInt64Ptr(model.MaxOutputTokens),
-			SupportsTools:          cloneBoolPtr(model.SupportsTools),
-			SupportsReasoning:      cloneBoolPtr(model.SupportsReasoning),
-			ReasoningEfforts:       append([]string(nil), model.ReasoningEfforts...),
-			DefaultReasoningEffort: model.DefaultReasoningEffort,
-			CostInputPerMillion:    cloneFloat64Ptr(model.CostInputPerMillion),
-			CostOutputPerMillion:   cloneFloat64Ptr(model.CostOutputPerMillion),
-		}
-	}
-	return cloned
 }
 
 func cloneModelCatalogConfig(src aghconfig.ModelCatalogConfig) aghconfig.ModelCatalogConfig {

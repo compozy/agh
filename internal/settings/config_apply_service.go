@@ -55,7 +55,7 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	expected := applyCollectionLifecycle(MutationResult{}, req.Collection, "put", before)
+	expected := applyCollectionLifecycle(MutationResult{}, req.Collection, collectionMutationPut, before)
 	result, err := s.PutCollectionItem(ctx, req)
 	if err != nil {
 		return s.recordFailedApply(
@@ -67,7 +67,10 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 			err,
 		)
 	}
-	result = applyCollectionLifecycle(result, req.Collection, "put", before)
+	result = applyCollectionLifecycle(result, req.Collection, collectionMutationPut, before)
+	if req.Collection == CollectionProviders && result.Lifecycle == lifecycle.Live {
+		return s.recordProviderModelsMutationApply(ctx, result, req.Name)
+	}
 	return s.recordMutationApply(ctx, result)
 }
 
@@ -79,7 +82,7 @@ func (s *service) ApplyCollectionDelete(
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()
 
-	expected := applyCollectionLifecycle(MutationResult{}, req.Collection, "delete", true)
+	expected := applyCollectionLifecycle(MutationResult{}, req.Collection, collectionMutationDelete, true)
 	result, err := s.DeleteCollectionItem(ctx, req)
 	if err != nil {
 		return s.recordFailedApply(
@@ -91,7 +94,7 @@ func (s *service) ApplyCollectionDelete(
 			err,
 		)
 	}
-	result = applyCollectionLifecycle(result, req.Collection, "delete", true)
+	result = applyCollectionLifecycle(result, req.Collection, collectionMutationDelete, true)
 	return s.recordMutationApply(ctx, result)
 }
 
@@ -113,7 +116,15 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 	}
 
 	configLifecycle := classifyReloadLifecycle(&state.config, &desiredConfig)
-	record, plan, err := s.persistRuntimeApply(ctx, &state, desiredHash, &desiredConfig, configLifecycle, false)
+	record, plan, err := s.persistRuntimeApply(
+		ctx,
+		&state,
+		desiredHash,
+		desiredHash,
+		&desiredConfig,
+		configLifecycle,
+		false,
+	)
 	if err != nil {
 		return ApplyResult{}, err
 	}
@@ -175,28 +186,14 @@ func (s *service) recordMutationApply(ctx context.Context, result MutationResult
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	configLifecycle := mutationLifecycle(result)
-	noChanges := mutationResultHasNoChanges(result)
-	record, plan, err := s.persistRuntimeApply(ctx, &state, desiredHash, &desiredConfig, configLifecycle, noChanges)
-	if err != nil {
-		return ApplyResult{}, err
-	}
-	return ApplyResult{
-		Record:          record,
-		Section:         result.Section,
-		Scope:           result.Scope,
-		WriteTarget:     result.WriteTarget,
-		WorkspaceID:     result.WorkspaceID,
-		AgentName:       result.AgentName,
-		Applied:         plan.applied,
-		NextAction:      lifecycle.NextActionForLifecycle(configLifecycle, plan.status),
-		RestartRequired: configLifecycle == lifecycle.RestartRequired,
-		RestartScope:    restartScopeForLifecycle(configLifecycle),
-		Warnings:        append([]string(nil), result.Warnings...),
-		PartialFailures: plan.partialFailures,
-		Skipped:         noChanges,
-		SkippedReason:   skippedReason(noChanges),
-	}, nil
+	return s.recordProjectedMutationApply(
+		ctx,
+		result,
+		&state,
+		desiredHash,
+		desiredHash,
+		&desiredConfig,
+	)
 }
 
 func (s *service) recordFailedApply(
@@ -444,11 +441,12 @@ func (s *service) persistRuntimeApply(
 	ctx context.Context,
 	state *activeSnapshot,
 	desiredHash string,
-	desiredConfig *aghconfig.Config,
+	nextActiveHash string,
+	nextActiveConfig *aghconfig.Config,
 	configLifecycle lifecycle.Lifecycle,
 	noChanges bool,
 ) (ApplyRecord, runtimeApplyPlan, error) {
-	plan := newRuntimeApplyPlan(state, desiredHash, configLifecycle, noChanges)
+	plan := newRuntimeApplyPlan(state, nextActiveHash, configLifecycle, noChanges)
 	pending, err := s.createPendingApplyRecord(ctx, applyRecordInput{
 		desiredHash: desiredHash,
 		activeHash:  state.hash,
@@ -459,7 +457,7 @@ func (s *service) persistRuntimeApply(
 		return ApplyRecord{}, runtimeApplyPlan{}, err
 	}
 	if plan.applied && !noChanges {
-		plan.partialFailures = s.reconcileRuntimeConfig(ctx, desiredConfig, configLifecycle)
+		plan.partialFailures = s.reconcileRuntimeConfig(ctx, nextActiveConfig, configLifecycle)
 		if len(plan.partialFailures) > 0 {
 			plan.status = lifecycle.StatusFailed
 			plan.activeHash = state.hash
@@ -484,7 +482,7 @@ func (s *service) persistRuntimeApply(
 		return ApplyRecord{}, runtimeApplyPlan{}, err
 	}
 	if plan.applied && !noChanges {
-		s.advanceActiveConfig(desiredConfig, desiredHash, plan.generation)
+		s.advanceActiveConfig(nextActiveConfig, nextActiveHash, plan.generation)
 	}
 	return record, plan, nil
 }
@@ -549,36 +547,6 @@ func requiresRuntimeReconcile(configLifecycle lifecycle.Lifecycle) bool {
 	default:
 		return false
 	}
-}
-
-func applyCollectionLifecycle(
-	result MutationResult,
-	collection CollectionName,
-	operation string,
-	existedBefore bool,
-) MutationResult {
-	configLifecycle := lifecycle.RestartRequired
-	switch collection {
-	case CollectionProviders, CollectionMCPServers:
-		if operation == "put" && !existedBefore {
-			configLifecycle = lifecycle.LiveAdd
-		}
-		if operation == "delete" {
-			configLifecycle = lifecycle.LiveRemoveIfUnused
-		}
-	case CollectionSandboxes:
-		configLifecycle = lifecycle.SessionRebind
-	case CollectionHooks:
-		configLifecycle = lifecycle.RestartRequired
-	}
-	result.Lifecycle = configLifecycle
-	result.DiffClass = lifecycle.DiffClass(configLifecycle)
-	classification := classificationFromLifecycle(configLifecycle, lifecycle.DiffClass(configLifecycle))
-	result.Behavior = classification.Behavior
-	result.Applied = classification.Applied
-	result.RestartRequired = classification.RestartRequired
-	result.RestartScope = classification.RestartScope
-	return result
 }
 
 func (s *service) classifySectionApplyRequest(
@@ -705,9 +673,7 @@ func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []
 	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
-	if !reflect.DeepEqual(current.Providers, desired.Providers) {
-		changed = append(changed, "providers.*")
-	}
+	changed = append(changed, diffProviderSettings(current.Providers, desired.Providers)...)
 	if !reflect.DeepEqual(current.MCPServers, desired.MCPServers) {
 		changed = append(changed, "mcp-servers.*")
 	}
@@ -742,7 +708,7 @@ func automationSettingsFromConfig(cfg *aghconfig.Config) AutomationSettings {
 
 func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
 	cloned := *cfg
-	cloned.Providers = mapsClone(cfg.Providers)
+	cloned.Providers = aghconfig.CloneProviderConfigs(cfg.Providers)
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)

@@ -137,6 +137,7 @@ vi.mock("@/systems/agent", () => ({
     providersError: null,
     modelOptions: [],
     modelCatalogLoading: false,
+    modelCatalogLoaded: true,
     modelCatalogError: null,
     submitError: null,
     isSubmitting: false,

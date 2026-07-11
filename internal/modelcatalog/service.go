@@ -2,7 +2,6 @@ package modelcatalog
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -23,6 +22,8 @@ type CatalogService struct {
 	store          Store
 	sources        []Source
 	sourceByID     map[string]Source
+	mergeMu        sync.RWMutex
+	mergeOptions   MergeOptions
 	lockMu         sync.Mutex
 	refreshFlights map[string]*refreshFlight
 	onFlightWait   func(providerID string)
@@ -38,7 +39,7 @@ type refreshFlight struct {
 var _ Service = (*CatalogService)(nil)
 
 // NewService creates a model catalog service from a store and source list.
-func NewService(store Store, sources []Source) (*CatalogService, error) {
+func NewService(store Store, sources []Source, mergeOptions MergeOptions) (*CatalogService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("model catalog store is required")
 	}
@@ -70,6 +71,7 @@ func NewService(store Store, sources []Source) (*CatalogService, error) {
 		store:          store,
 		sources:        normalizedSources,
 		sourceByID:     sourceByID,
+		mergeOptions:   cloneMergeOptions(mergeOptions),
 		refreshFlights: make(map[string]*refreshFlight),
 	}, nil
 }
@@ -82,29 +84,58 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 	now := defaultNow(opts.Now)
 	listOpts := opts
 	listOpts.Now = now
-	rows, err := s.store.ListRows(ctx, listOpts)
+	projectionOpts := listOpts
+	projectionOpts.SourceID = ""
+	rows, err := s.store.ListRows(ctx, projectionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list stored rows: %w", err)
+	}
+	needsRefresh := len(rows) == 0
+	if strings.TrimSpace(listOpts.SourceID) != "" {
+		sourceRows, sourceErr := s.store.ListRows(ctx, listOpts)
+		if sourceErr != nil {
+			return nil, fmt.Errorf("model catalog: list stored source rows: %w", sourceErr)
+		}
+		needsRefresh = len(sourceRows) == 0
 	}
 
 	var refreshStatuses []SourceStatus
 	var refreshErr error
-	if opts.Refresh || (len(rows) == 0 && len(s.sources) > 0) {
+	if opts.Refresh || (needsRefresh && len(s.sources) > 0) {
 		refreshStatuses, refreshErr = s.Refresh(ctx, RefreshOptions{
 			ProviderID: opts.ProviderID,
 			SourceID:   opts.SourceID,
 			Force:      opts.Refresh,
 			Now:        now,
 		})
-		rows, err = s.store.ListRows(ctx, listOpts)
+		rows, err = s.store.ListRows(ctx, projectionOpts)
 		if err != nil {
 			return nil, fmt.Errorf("model catalog: list stored rows after refresh: %w", err)
 		}
 	}
-	if len(rows) == 0 && refreshErr != nil && !hasStaleFailureStatus(refreshStatuses) {
+	s.mergeMu.RLock()
+	mergeOptions := cloneMergeOptions(s.mergeOptions)
+	s.mergeMu.RUnlock()
+	models := MergeRows(rows, mergeOptions)
+	models, err = applyCatalogView(models, opts.View)
+	if err != nil {
+		return nil, err
+	}
+	models = filterModelsBySource(models, opts.SourceID)
+	if len(models) == 0 && refreshErr != nil && !hasStaleFailureStatus(refreshStatuses) {
 		return nil, refreshErr
 	}
-	return MergeRows(rows), nil
+	return models, nil
+}
+
+// UpdateMergeOptions replaces provider capability inputs for subsequent projections.
+func (s *CatalogService) UpdateMergeOptions(options MergeOptions) {
+	if s == nil {
+		return
+	}
+	s.mergeMu.Lock()
+	s.mergeOptions = cloneMergeOptions(options)
+	s.mergeMu.Unlock()
 }
 
 // Refresh updates registered sources and returns their latest statuses.
@@ -121,6 +152,11 @@ func (s *CatalogService) Refresh(ctx context.Context, opts RefreshOptions) ([]So
 	if providerKey == "" {
 		return s.refreshAllProviders(ctx, sources, opts, now)
 	}
+	ownedSourceIDs, err := s.storedSourceIDsForProvider(ctx, providerKey, now)
+	if err != nil {
+		return nil, err
+	}
+	sources = filterSourcesByProvider(sources, providerKey, ownedSourceIDs)
 	scopeKey := refreshFlightScopeKey(providerKey, opts)
 
 	return s.withRefreshFlight(ctx, providerKey, scopeKey, func() ([]SourceStatus, error) {
@@ -137,206 +173,11 @@ func (s *CatalogService) ListSourceStatus(ctx context.Context, providerID string
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list source status: %w", err)
 	}
+	statuses = filterStatusesByProviderOwnership(statuses, s.sourceByID, strings.TrimSpace(providerID))
 	for index := range statuses {
 		statuses[index].LastError = RedactString(statuses[index].LastError)
 	}
 	return statuses, nil
-}
-
-func (s *CatalogService) refreshSources(
-	ctx context.Context,
-	sources []Source,
-	opts RefreshOptions,
-	now time.Time,
-) ([]SourceStatus, error) {
-	statuses := make([]SourceStatus, 0, len(sources))
-	var degradedErrs []error
-	successes := 0
-	failures := 0
-	staleFallbacks := 0
-	for _, source := range sources {
-		sourceStatuses, outcome, err := s.refreshSource(ctx, source, opts, now)
-		statuses = append(statuses, sourceStatuses...)
-		if err != nil {
-			if outcome == refreshOutcomeStale {
-				degradedErrs = append(degradedErrs, err)
-			} else if !errors.Is(err, ErrSourceDisabled) {
-				failures++
-			}
-		}
-		switch outcome {
-		case refreshOutcomeSuccess:
-			successes++
-		case refreshOutcomeStale:
-			staleFallbacks++
-		}
-	}
-	if len(degradedErrs) > 0 {
-		return statuses, errors.Join(degradedErrs...)
-	}
-	if successes == 0 && staleFallbacks == 0 && failures > 0 {
-		return statuses, fmt.Errorf("%w (%d failed)", ErrAllSourcesFailed, failures)
-	}
-	return statuses, nil
-}
-
-func (s *CatalogService) refreshAllProviders(
-	ctx context.Context,
-	sources []Source,
-	opts RefreshOptions,
-	now time.Time,
-) ([]SourceStatus, error) {
-	statuses := make([]SourceStatus, 0)
-	var firstErr error
-	var degradedErrs []error
-	successes := 0
-
-	for _, source := range sources {
-		providers := sourceProviders(source)
-		if len(providers) == 0 {
-			sourceStatuses, err := s.refreshSources(ctx, []Source{source}, opts, now)
-			statuses = append(statuses, sourceStatuses...)
-			if err != nil {
-				if hasStaleFailureStatus(sourceStatuses) {
-					degradedErrs = append(degradedErrs, err)
-				} else if firstErr == nil {
-					firstErr = err
-				}
-			} else {
-				successes++
-			}
-			continue
-		}
-
-		for _, providerID := range providers {
-			providerOpts := opts
-			providerOpts.ProviderID = providerID
-			providerOpts.SourceID = source.ID()
-			scopeKey := refreshFlightScopeKey(providerID, providerOpts)
-			sourceStatuses, err := s.withRefreshFlight(ctx, providerID, scopeKey, func() ([]SourceStatus, error) {
-				return s.refreshSources(ctx, []Source{source}, providerOpts, now)
-			})
-			statuses = append(statuses, sourceStatuses...)
-			if err != nil {
-				if hasStaleFailureStatus(sourceStatuses) {
-					degradedErrs = append(degradedErrs, err)
-				} else if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			successes++
-		}
-	}
-
-	if len(degradedErrs) > 0 {
-		return statuses, errors.Join(degradedErrs...)
-	}
-	if successes == 0 && firstErr != nil {
-		return statuses, firstErr
-	}
-	return statuses, nil
-}
-
-type refreshOutcome int
-
-const (
-	refreshOutcomeEmpty refreshOutcome = iota
-	refreshOutcomeSuccess
-	refreshOutcomeStale
-)
-
-func (s *CatalogService) refreshSource(
-	ctx context.Context,
-	source Source,
-	opts RefreshOptions,
-	now time.Time,
-) ([]SourceStatus, refreshOutcome, error) {
-	if !opts.Force &&
-		strings.TrimSpace(opts.ProviderID) != "" &&
-		sourceHasFreshStatus(ctx, s.store, source, opts.ProviderID, now) {
-		statuses, err := s.store.ListSourceStatus(ctx, opts.ProviderID)
-		if err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: load fresh source status: %w", err)
-		}
-		return filterStatusesBySource(statuses, source.ID()), refreshOutcomeSuccess, nil
-	}
-
-	rows, err := source.ListModels(ctx, ListOptions{
-		ProviderID:   opts.ProviderID,
-		SourceID:     source.ID(),
-		Refresh:      true,
-		IncludeAll:   true,
-		IncludeStale: true,
-		Now:          now,
-	})
-	if err != nil {
-		return s.recordSourceFailure(ctx, source, opts.ProviderID, rows, now, err)
-	}
-	statuses, err := s.persistSourceRows(ctx, source, opts.ProviderID, rows, now, false, "")
-	if err != nil {
-		return nil, refreshOutcomeEmpty, err
-	}
-	if len(rows) > 0 {
-		return statuses, refreshOutcomeSuccess, nil
-	}
-	return statuses, refreshOutcomeEmpty, nil
-}
-
-func (s *CatalogService) recordSourceFailure(
-	ctx context.Context,
-	source Source,
-	providerID string,
-	rows []ModelRow,
-	now time.Time,
-	sourceErr error,
-) ([]SourceStatus, refreshOutcome, error) {
-	if errors.Is(sourceErr, ErrSourceDisabled) {
-		statuses, err := s.persistDisabledSource(ctx, source, providerID, now)
-		return statuses, refreshOutcomeEmpty, err
-	}
-	redacted := sourceErrorText(sourceErr)
-	if len(rows) > 0 {
-		staleRows := markRowsStale(rows, redacted)
-		statuses, err := s.persistSourceRows(ctx, source, providerID, staleRows, now, true, redacted)
-		if err != nil {
-			return nil, refreshOutcomeEmpty, err
-		}
-		return statuses, refreshOutcomeStale, sourceErr
-	}
-
-	providers, err := s.providersForSource(ctx, source, providerID, now)
-	if err != nil {
-		return nil, refreshOutcomeEmpty, err
-	}
-	statuses := make([]SourceStatus, 0, len(providers))
-	staleCount := 0
-	for _, provider := range providers {
-		previous, err := s.store.ListRows(ctx, ListOptions{
-			ProviderID:   provider,
-			SourceID:     source.ID(),
-			IncludeAll:   true,
-			IncludeStale: true,
-			Now:          now,
-		})
-		if err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: load stale rows for %q: %w", source.ID(), err)
-		}
-		staleRows := markRowsStale(previous, redacted)
-		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		s.preserveLastSuccess(ctx, provider, &status)
-		if err := s.store.ReplaceSourceRows(ctx, source.ID(), provider, staleRows, status); err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: persist failed source status: %w", err)
-		}
-		if len(staleRows) > 0 {
-			staleCount += len(staleRows)
-		}
-		statuses = append(statuses, status)
-	}
-	if staleCount > 0 {
-		return statuses, refreshOutcomeStale, sourceErr
-	}
-	return statuses, refreshOutcomeEmpty, sourceErr
 }
 
 func (s *CatalogService) persistSourceRows(
@@ -413,9 +254,13 @@ func (s *CatalogService) providersForSource(
 		return []string{trimmed}, nil
 	}
 	if lister, ok := source.(sourceProviderLister); ok {
-		providers := normalizedProviderIDs(lister.ProviderIDs())
-		if len(providers) > 0 {
-			return providers, nil
+		currentProviders := normalizedProviderIDs(lister.ProviderIDs())
+		if len(currentProviders) > 0 {
+			storedProviders, err := s.storedProvidersForSource(ctx, source, now)
+			if err != nil {
+				return nil, err
+			}
+			return normalizedProviderIDs(append(currentProviders, storedProviders...)), nil
 		}
 	}
 	providers, err := s.storedProvidersForSource(ctx, source, now)
@@ -471,78 +316,6 @@ func (s *CatalogService) selectSources(sourceID string) ([]Source, error) {
 		return nil, fmt.Errorf("%w: %q", ErrSourceNotRegistered, trimmed)
 	}
 	return []Source{source}, nil
-}
-
-func (s *CatalogService) withRefreshFlight(
-	ctx context.Context,
-	providerID string,
-	scopeKey string,
-	fn func() ([]SourceStatus, error),
-) ([]SourceStatus, error) {
-	for {
-		s.lockMu.Lock()
-		flight := s.refreshFlights[providerID]
-		if flight == nil {
-			flight = &refreshFlight{
-				scopeKey: scopeKey,
-				done:     make(chan struct{}),
-			}
-			s.refreshFlights[providerID] = flight
-			s.lockMu.Unlock()
-
-			flight.statuses, flight.err = fn()
-			s.lockMu.Lock()
-			close(flight.done)
-			delete(s.refreshFlights, providerID)
-			s.lockMu.Unlock()
-			return cloneSourceStatuses(flight.statuses), flight.err
-		}
-		s.lockMu.Unlock()
-		if hook := s.onFlightWait; hook != nil {
-			hook(providerID)
-		}
-		select {
-		case <-flight.done:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-		if flight.scopeKey == scopeKey {
-			return cloneSourceStatuses(flight.statuses), flight.err
-		}
-	}
-}
-
-func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
-	return fmt.Sprintf("%s\x00%s\x00%t", providerKey, strings.TrimSpace(opts.SourceID), opts.Force)
-}
-
-func sourceHasFreshStatus(ctx context.Context, store Store, source Source, providerID string, now time.Time) bool {
-	if ttlProvider, ok := source.(sourceTTLProvider); !ok || ttlProvider.TTL() <= 0 {
-		return false
-	}
-	statuses, err := store.ListSourceStatus(ctx, providerID)
-	if err != nil {
-		return false
-	}
-	for _, status := range statuses {
-		if status.SourceID != source.ID() {
-			continue
-		}
-		return status.RefreshState == RefreshStateSucceeded &&
-			!status.NextRefresh.IsZero() &&
-			status.NextRefresh.After(now)
-	}
-	return false
-}
-
-func filterStatusesBySource(statuses []SourceStatus, sourceID string) []SourceStatus {
-	filtered := make([]SourceStatus, 0, len(statuses))
-	for _, status := range statuses {
-		if status.SourceID == sourceID {
-			filtered = append(filtered, status)
-		}
-	}
-	return filtered
 }
 
 func normalizeSourceRow(source Source, row ModelRow, now time.Time, stale bool, lastError string) ModelRow {
@@ -629,54 +402,6 @@ func groupRowsByProvider(source Source, rows []ModelRow) map[string][]ModelRow {
 func providerKeys(grouped map[string][]ModelRow) []string {
 	providers := make([]string, 0, len(grouped))
 	for providerID := range grouped {
-		providers = append(providers, providerID)
-	}
-	sort.Strings(providers)
-	return providers
-}
-
-func markRowsStale(rows []ModelRow, lastError string) []ModelRow {
-	staleRows := make([]ModelRow, 0, len(rows))
-	for _, row := range rows {
-		stale := row
-		stale.Stale = true
-		stale.LastError = RedactString(lastError)
-		staleRows = append(staleRows, stale)
-	}
-	return staleRows
-}
-
-func cloneSourceStatuses(statuses []SourceStatus) []SourceStatus {
-	return append([]SourceStatus(nil), statuses...)
-}
-
-func hasStaleFailureStatus(statuses []SourceStatus) bool {
-	for _, status := range statuses {
-		if status.Stale && status.RefreshState == RefreshStateFailed && status.RowCount > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func sourceProviders(source Source) []string {
-	lister, ok := source.(sourceProviderLister)
-	if !ok {
-		return nil
-	}
-	return normalizedProviderIDs(lister.ProviderIDs())
-}
-
-func normalizedProviderIDs(providerIDs []string) []string {
-	providerSet := make(map[string]struct{}, len(providerIDs))
-	for _, providerID := range providerIDs {
-		trimmed := strings.TrimSpace(providerID)
-		if trimmed != "" {
-			providerSet[trimmed] = struct{}{}
-		}
-	}
-	providers := make([]string, 0, len(providerSet))
-	for providerID := range providerSet {
 		providers = append(providers, providerID)
 	}
 	sort.Strings(providers)

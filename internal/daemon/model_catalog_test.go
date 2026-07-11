@@ -12,6 +12,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -33,19 +34,63 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 
 		ctx := testutil.Context(t)
-		if _, err := httpDeps.ModelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
-			ProviderID: "codex",
-			SourceID:   modelcatalog.SourceIDBuiltin,
-			Force:      true,
-		}); err != nil {
-			t.Fatalf("ModelCatalog.Refresh(builtin) error = %v", err)
-		}
 		models, err := httpDeps.ModelCatalog.ListModels(ctx, modelcatalog.ListOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ModelCatalog.ListModels(codex) error = %v", err)
 		}
-		if !containsCatalogModel(models, "codex", "gpt-5.4") {
-			t.Fatalf("ModelCatalog.ListModels(codex) missing builtin gpt-5.4 row: %#v", models)
+		if !containsCatalogModel(models, "codex", "gpt-5.6-sol") {
+			t.Fatalf("ModelCatalog.ListModels(codex) missing builtin gpt-5.6-sol row: %#v", models)
+		}
+	})
+
+	t.Run("Should rehydrate explicit curation before the first client list", func(t *testing.T) {
+		t.Parallel()
+
+		_, httpDeps, _ := bootModelCatalogTestDaemonWithSetup(
+			t,
+			func(cfg *aghconfig.Config) {
+				provider := cfg.Providers["codex"]
+				provider.Models = aghconfig.ProviderModelsConfig{
+					Default: "operator-default-only",
+					Curated: []aghconfig.ProviderModelConfig{{ID: "gpt-5.6-sol"}},
+				}
+				if cfg.Providers == nil {
+					cfg.Providers = make(map[string]aghconfig.ProviderConfig)
+				}
+				cfg.Providers["codex"] = provider
+			},
+			seedPreExplicitCurationRows,
+		)
+
+		ctx := testutil.Context(t)
+		curated, err := httpDeps.ModelCatalog.ListModels(ctx, modelcatalog.ListOptions{ProviderID: "codex"})
+		if err != nil {
+			t.Fatalf("ModelCatalog.ListModels(curated) error = %v", err)
+		}
+		sol, ok := findCatalogModel(curated, "gpt-5.6-sol")
+		if !ok || !sol.ExplicitlyCurated || !sol.Curated {
+			t.Fatalf("curated gpt-5.6-sol = %#v, want explicit curated row", sol)
+		}
+		if containsCatalogModel(curated, "codex", "operator-default-only") {
+			t.Fatalf("curated models = %#v, want default-only config row excluded", curated)
+		}
+		if containsCatalogModel(curated, "codex", "provider-live-only") {
+			t.Fatalf("curated models = %#v, want live-only row excluded", curated)
+		}
+
+		all, err := httpDeps.ModelCatalog.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: "codex",
+			View:       modelcatalog.CatalogViewAll,
+		})
+		if err != nil {
+			t.Fatalf("ModelCatalog.ListModels(all) error = %v", err)
+		}
+		defaultOnly, ok := findCatalogModel(all, "operator-default-only")
+		if !ok || defaultOnly.ExplicitlyCurated || defaultOnly.Curated {
+			t.Fatalf("all default-only model = %#v, want non-explicit non-curated row", defaultOnly)
+		}
+		if _, ok := findCatalogModel(all, "provider-live-only"); !ok {
+			t.Fatalf("all models = %#v, want live-only row preserved", all)
 		}
 	})
 
@@ -371,6 +416,16 @@ func bootModelCatalogTestDaemon(
 ) (*Daemon, RuntimeDeps, RuntimeDeps) {
 	t.Helper()
 
+	return bootModelCatalogTestDaemonWithSetup(t, mutate, nil)
+}
+
+func bootModelCatalogTestDaemonWithSetup(
+	t *testing.T,
+	mutate func(*aghconfig.Config),
+	setup func(*testing.T, aghconfig.HomePaths),
+) (*Daemon, RuntimeDeps, RuntimeDeps) {
+	t.Helper()
+
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Memory.Enabled = false
@@ -380,6 +435,9 @@ func bootModelCatalogTestDaemon(
 	cfg.ModelCatalog.Sources.ModelsDev.Enabled = &modelsDevEnabled
 	if mutate != nil {
 		mutate(&cfg)
+	}
+	if setup != nil {
+		setup(t, homePaths)
 	}
 
 	daemonInstance := newTestDaemon(t, homePaths, &cfg)
@@ -412,6 +470,96 @@ func bootModelCatalogTestDaemon(
 	return daemonInstance, httpDeps, udsDeps
 }
 
+func seedPreExplicitCurationRows(t *testing.T, homePaths aghconfig.HomePaths) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	refreshedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	persist := func(
+		sourceID string,
+		kind modelcatalog.SourceKind,
+		priority int,
+		rows []modelcatalog.ModelRow,
+	) {
+		t.Helper()
+		if err := db.ReplaceSourceRows(ctx, sourceID, "codex", rows, modelcatalog.SourceStatus{
+			SourceID:     sourceID,
+			SourceKind:   kind,
+			ProviderID:   "codex",
+			Priority:     priority,
+			LastRefresh:  refreshedAt,
+			LastSuccess:  refreshedAt,
+			RefreshState: modelcatalog.RefreshStateSucceeded,
+			RowCount:     len(rows),
+		}); err != nil {
+			t.Fatalf("ReplaceSourceRows(%s) error = %v", sourceID, err)
+		}
+	}
+	persist(
+		modelcatalog.SourceIDBuiltin,
+		modelcatalog.SourceKindBuiltin,
+		modelcatalog.PriorityBuiltin,
+		[]modelcatalog.ModelRow{
+			{
+				ProviderID:  "codex",
+				ModelID:     "gpt-5.6-sol",
+				DisplayName: "stale builtin row",
+				SourceID:    modelcatalog.SourceIDBuiltin,
+				SourceKind:  modelcatalog.SourceKindBuiltin,
+				Priority:    modelcatalog.PriorityBuiltin,
+				RefreshedAt: refreshedAt,
+			},
+		},
+	)
+	persist(
+		modelcatalog.SourceIDConfig,
+		modelcatalog.SourceKindConfig,
+		modelcatalog.PriorityConfig,
+		[]modelcatalog.ModelRow{
+			{
+				ProviderID:  "codex",
+				ModelID:     "operator-default-only",
+				SourceID:    modelcatalog.SourceIDConfig,
+				SourceKind:  modelcatalog.SourceKindConfig,
+				Priority:    modelcatalog.PriorityConfig,
+				RefreshedAt: refreshedAt,
+			},
+			{
+				ProviderID:  "codex",
+				ModelID:     "gpt-5.6-sol",
+				SourceID:    modelcatalog.SourceIDConfig,
+				SourceKind:  modelcatalog.SourceKindConfig,
+				Priority:    modelcatalog.PriorityConfig,
+				RefreshedAt: refreshedAt,
+			},
+		})
+	available := true
+	liveSourceID := modelcatalog.SourceKindProviderLiveID("codex")
+	persist(
+		liveSourceID,
+		modelcatalog.SourceKindProviderLive,
+		modelcatalog.PriorityProviderLive,
+		[]modelcatalog.ModelRow{
+			{
+				ProviderID:  "codex",
+				ModelID:     "provider-live-only",
+				SourceID:    liveSourceID,
+				SourceKind:  modelcatalog.SourceKindProviderLive,
+				Priority:    modelcatalog.PriorityProviderLive,
+				Available:   &available,
+				RefreshedAt: refreshedAt,
+			},
+		},
+	)
+	if err := db.Close(ctx); err != nil {
+		t.Fatalf("CloseGlobalDB() error = %v", err)
+	}
+}
+
 func containsCatalogModel(models []modelcatalog.Model, providerID string, modelID string) bool {
 	for _, model := range models {
 		if model.ProviderID == providerID && model.ModelID == modelID {
@@ -419,6 +567,15 @@ func containsCatalogModel(models []modelcatalog.Model, providerID string, modelI
 		}
 	}
 	return false
+}
+
+func findCatalogModel(models []modelcatalog.Model, modelID string) (modelcatalog.Model, bool) {
+	for _, model := range models {
+		if model.ModelID == modelID {
+			return model, true
+		}
+	}
+	return modelcatalog.Model{}, false
 }
 
 func findSourceStatus(

@@ -105,13 +105,14 @@ export function useOnboardingChat(): OnboardingChatApi {
     }
     creatingRef.current = true;
     setError(null);
+    const reasoningEffort = draft.reasoning === "" ? undefined : draft.reasoning;
     try {
       const created = await createSession.mutateAsync({
         agent_name: ONBOARDING_AGENT_NAME,
         workspace_path: firstWorkspace.path,
         ...(draft.provider.length > 0 ? { provider: draft.provider } : {}),
         ...(draft.model.length > 0 ? { model: draft.model } : {}),
-        ...(draft.reasoning.length > 0 ? { reasoning_effort: draft.reasoning } : {}),
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       });
       const workspaceId = created.workspace_id ?? "";
       if (workspaceId.length === 0) {

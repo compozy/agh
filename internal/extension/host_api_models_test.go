@@ -25,6 +25,7 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		available := true
 		cost := 2.5
 		defaultEffort := modelcatalog.ReasoningEffortHigh
+		releaseDate := "2026-06-26"
 		service := &fakeHostAPIModelCatalogService{
 			models: []modelcatalog.Model{
 				{
@@ -47,6 +48,12 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 					DefaultReasoningEffort: &defaultEffort,
 					CostInputPerMillion:    &cost,
 					CostOutputPerMillion:   &cost,
+					Curated:                true,
+					Deprecated:             true,
+					Hidden:                 true,
+					Featured:               true,
+					ReleaseDate:            &releaseDate,
+					ReasoningSource:        modelcatalog.ReasoningSourceACP,
 					LastError:              "model failed with api_key=sk-host-secret-token",
 				},
 			},
@@ -88,6 +95,10 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		}
 		if model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != "high" {
 			t.Fatalf("models/list default reasoning effort = %#v, want high", model.DefaultReasoningEffort)
+		}
+		if !model.Curated || !model.Deprecated || !model.Hidden || !model.Featured ||
+			model.ReleaseDate != releaseDate || model.ReasoningSource != modelcatalog.ReasoningSourceACP {
+			t.Fatalf("models/list curation metadata = %#v, want complete daemon projection", model)
 		}
 		assertRedactedHostAPIModelPayload(t, model.LastError, "sk-host-secret-token")
 		assertRedactedHostAPIModelPayload(t, model.Sources[0].LastError, "oauth-host-secret-token")
@@ -452,8 +463,12 @@ func TestHostAPIModelHelpersShouldHandleEmptyValues(t *testing.T) {
 		if got := hostAPICostPayloadFromModel(modelcatalog.Model{}); got != nil {
 			t.Fatalf("hostAPICostPayloadFromModel(empty) = %#v, want nil", got)
 		}
-		if got := hostAPIReasoningEffortStringPtr(nil); got != nil {
-			t.Fatalf("hostAPIReasoningEffortStringPtr(nil) = %#v, want nil", got)
+		payload := hostAPIProviderModelPayloadFromModel(modelcatalog.Model{})
+		if payload.DefaultReasoningEffort != nil {
+			t.Fatalf(
+				"hostAPIProviderModelPayloadFromModel(empty).DefaultReasoningEffort = %#v, want nil",
+				payload.DefaultReasoningEffort,
+			)
 		}
 	})
 }

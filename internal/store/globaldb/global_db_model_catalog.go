@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store"
@@ -123,6 +122,14 @@ func listModelCatalogRows(
 			default_reasoning_effort,
 			cost_input_per_million,
 			cost_output_per_million,
+			explicitly_curated,
+			deprecated,
+			hidden,
+			featured,
+			deprecated_set,
+			hidden_set,
+			featured_set,
+			release_date,
 			last_error
 		FROM model_catalog_rows`
 	where, args := modelCatalogRowFilterClauses(opts, "")
@@ -350,11 +357,21 @@ func normalizeModelCatalogRow(
 	}
 	normalized.DisplayName = strings.TrimSpace(normalized.DisplayName)
 	normalized.LastError = strings.TrimSpace(normalized.LastError)
+	if normalized.ReleaseDate != nil {
+		releaseDate, err := modelcatalog.NormalizeReleaseDate(*normalized.ReleaseDate)
+		if err != nil {
+			return modelcatalog.ModelRow{}, err
+		}
+		normalized.ReleaseDate = releaseDate
+	}
 	if normalized.DefaultReasoningEffort != nil {
 		effort := modelcatalog.ReasoningEffort(strings.TrimSpace(string(*normalized.DefaultReasoningEffort)))
-		if effort == "" {
+		switch {
+		case effort == "":
 			normalized.DefaultReasoningEffort = nil
-		} else {
+		case !modelcatalog.IsValidEffort(string(effort)):
+			return modelcatalog.ModelRow{}, fmt.Errorf("default reasoning effort %q is unsupported", effort)
+		default:
 			normalized.DefaultReasoningEffort = &effort
 		}
 	}
@@ -362,6 +379,9 @@ func normalizeModelCatalogRow(
 		trimmed := modelcatalog.ReasoningEffort(strings.TrimSpace(string(effort)))
 		if trimmed == "" {
 			return modelcatalog.ModelRow{}, fmt.Errorf("reasoning effort %d is required", index)
+		}
+		if !modelcatalog.IsValidEffort(string(trimmed)) {
+			return modelcatalog.ModelRow{}, fmt.Errorf("reasoning effort %d value %q is unsupported", index, trimmed)
 		}
 		normalized.ReasoningEfforts[index] = trimmed
 	}
@@ -445,8 +465,16 @@ func insertModelCatalogRow(ctx context.Context, exec modelCatalogSQLExecutor, ro
 			default_reasoning_effort,
 			cost_input_per_million,
 			cost_output_per_million,
+			explicitly_curated,
+			deprecated,
+			hidden,
+			featured,
+			deprecated_set,
+			hidden_set,
+			featured_set,
+			release_date,
 			last_error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.SourceID,
 		row.ProviderID,
 		row.ModelID,
@@ -465,6 +493,14 @@ func insertModelCatalogRow(ctx context.Context, exec modelCatalogSQLExecutor, ro
 		nullableReasoningEffort(row.DefaultReasoningEffort),
 		store.NullableFloat64(row.CostInputPerMillion),
 		store.NullableFloat64(row.CostOutputPerMillion),
+		boolToSQLiteInt(row.ExplicitlyCurated),
+		boolPointerToSQLiteInt(row.Deprecated),
+		boolPointerToSQLiteInt(row.Hidden),
+		boolPointerToSQLiteInt(row.Featured),
+		boolToSQLiteInt(row.Deprecated != nil),
+		boolToSQLiteInt(row.Hidden != nil),
+		boolToSQLiteInt(row.Featured != nil),
+		nullableStringPtr(row.ReleaseDate),
 		row.LastError,
 	); err != nil {
 		return fmt.Errorf(
@@ -560,71 +596,11 @@ func listModelCatalogReasoningEfforts(
 }
 
 func scanModelCatalogRow(scanner interface{ Scan(dest ...any) error }) (modelcatalog.ModelRow, error) {
-	var (
-		row                       modelcatalog.ModelRow
-		sourceKind                string
-		availableRaw              sql.NullInt64
-		staleRaw                  int
-		refreshedAtRaw            string
-		expiresAtRaw              string
-		contextWindowRaw          sql.NullInt64
-		maxInputTokensRaw         sql.NullInt64
-		maxOutputTokensRaw        sql.NullInt64
-		supportsToolsRaw          sql.NullInt64
-		supportsReasoningRaw      sql.NullInt64
-		defaultReasoningEffortRaw sql.NullString
-		costInputPerMillionRaw    sql.NullFloat64
-		costOutputPerMillionRaw   sql.NullFloat64
-	)
-	if err := scanner.Scan(
-		&row.SourceID,
-		&row.ProviderID,
-		&row.ModelID,
-		&sourceKind,
-		&row.Priority,
-		&availableRaw,
-		&staleRaw,
-		&refreshedAtRaw,
-		&expiresAtRaw,
-		&row.DisplayName,
-		&contextWindowRaw,
-		&maxInputTokensRaw,
-		&maxOutputTokensRaw,
-		&supportsToolsRaw,
-		&supportsReasoningRaw,
-		&defaultReasoningEffortRaw,
-		&costInputPerMillionRaw,
-		&costOutputPerMillionRaw,
-		&row.LastError,
-	); err != nil {
+	scan := modelCatalogRowScan{}
+	if err := scanner.Scan(scan.destinations()...); err != nil {
 		return modelcatalog.ModelRow{}, fmt.Errorf("store: scan model catalog row: %w", err)
 	}
-	row.SourceKind = modelcatalog.SourceKind(sourceKind)
-	available, err := nullableSQLiteIntToBool(availableRaw, "available")
-	if err != nil {
-		return modelcatalog.ModelRow{}, err
-	}
-	row.Available = available
-	row.Stale = staleRaw != 0
-	if row.RefreshedAt, err = parseOptionalModelCatalogTimestamp(refreshedAtRaw, "refreshed_at"); err != nil {
-		return modelcatalog.ModelRow{}, err
-	}
-	if row.ExpiresAt, err = parseOptionalModelCatalogTimestamp(expiresAtRaw, "expires_at"); err != nil {
-		return modelcatalog.ModelRow{}, err
-	}
-	row.ContextWindow = store.NullInt64(contextWindowRaw)
-	row.MaxInputTokens = store.NullInt64(maxInputTokensRaw)
-	row.MaxOutputTokens = store.NullInt64(maxOutputTokensRaw)
-	if row.SupportsTools, err = nullableSQLiteIntToBool(supportsToolsRaw, "supports_tools"); err != nil {
-		return modelcatalog.ModelRow{}, err
-	}
-	if row.SupportsReasoning, err = nullableSQLiteIntToBool(supportsReasoningRaw, "supports_reasoning"); err != nil {
-		return modelcatalog.ModelRow{}, err
-	}
-	row.DefaultReasoningEffort = nullReasoningEffort(defaultReasoningEffortRaw)
-	row.CostInputPerMillion = store.NullFloat64(costInputPerMillionRaw)
-	row.CostOutputPerMillion = store.NullFloat64(costOutputPerMillionRaw)
-	return row, nil
+	return scan.modelRow()
 }
 
 func scanModelCatalogSourceStatus(scanner interface{ Scan(dest ...any) error }) (modelcatalog.SourceStatus, error) {
@@ -689,152 +665,4 @@ func modelCatalogRowFilterClauses(opts modelcatalog.ListOptions, alias string) (
 		where = append(where, column("stale")+" = 0")
 	}
 	return where, args
-}
-
-func (g *GlobalDB) withModelCatalogImmediateTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec modelCatalogSQLExecutor) error,
-) (err error) {
-	conn, err := g.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close %s transaction connection: %w", action, closeErr)
-		}
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, action))
-		}
-	}()
-
-	if err := run(conn); err != nil {
-		return err
-	}
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-	finished = true
-	return nil
-}
-
-func (g *GlobalDB) withModelCatalogReadTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec modelCatalogSQLExecutor) error,
-) (err error) {
-	conn, err := g.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close %s transaction connection: %w", action, closeErr)
-		}
-	}()
-
-	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return fmt.Errorf("store: begin %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone && err == nil {
-				err = fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr)
-			}
-		}
-	}()
-
-	if err := run(tx); err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-	finished = true
-	return nil
-}
-
-func modelCatalogKey(sourceID string, providerID string, modelID string) modelCatalogRowKey {
-	return modelCatalogRowKey{
-		sourceID:   sourceID,
-		providerID: providerID,
-		modelID:    modelID,
-	}
-}
-
-func boolToSQLiteInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
-}
-
-func nullableBoolToSQLiteInt(value *bool) any {
-	if value == nil {
-		return nil
-	}
-	return boolToSQLiteInt(*value)
-}
-
-func nullableSQLiteIntToBool(value sql.NullInt64, field string) (*bool, error) {
-	if !value.Valid {
-		return nil, nil
-	}
-	switch value.Int64 {
-	case 0:
-		converted := false
-		return &converted, nil
-	case 1:
-		converted := true
-		return &converted, nil
-	default:
-		return nil, fmt.Errorf("store: model catalog %s boolean value %d is invalid", field, value.Int64)
-	}
-}
-
-func nullableReasoningEffort(value *modelcatalog.ReasoningEffort) any {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(string(*value))
-	if trimmed == "" {
-		return nil
-	}
-	return trimmed
-}
-
-func nullReasoningEffort(value sql.NullString) *modelcatalog.ReasoningEffort {
-	if !value.Valid {
-		return nil
-	}
-	trimmed := strings.TrimSpace(value.String)
-	if trimmed == "" {
-		return nil
-	}
-	effort := modelcatalog.ReasoningEffort(trimmed)
-	return &effort
-}
-
-func parseOptionalModelCatalogTimestamp(value string, field string) (time.Time, error) {
-	parsed, err := store.ParseNullableTimestamp(value)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("store: parse model catalog %s: %w", field, err)
-	}
-	if parsed == nil {
-		return time.Time{}, nil
-	}
-	return *parsed, nil
 }

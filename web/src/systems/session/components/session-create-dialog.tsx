@@ -1,5 +1,4 @@
-import { RefreshCw } from "lucide-react";
-import { useMemo, type FormEvent } from "react";
+import { type FormEvent } from "react";
 
 import {
   Button,
@@ -12,24 +11,18 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  FieldTitle,
   Spinner,
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
 import {
-  modelAvailabilityLabel,
-  modelAvailabilityTone,
-  type ModelOption,
-  type ReasoningOption,
-} from "@/systems/model-catalog";
-import {
-  ModelCommandSelect,
-  ProviderCommandSelect,
-  ReasoningCommandSelect,
-  type ModelSelectOption,
-  type ReasoningSelectOption,
+  RuntimeSelector,
+  type RuntimeModelOption,
+  type RuntimeProviderOption,
+  type RuntimeSelectorValue,
 } from "@/systems/runtime";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -37,27 +30,22 @@ export interface SessionCreateDialogProps {
   agents: AgentPayload[];
   workspace: WorkspacePayload | undefined;
   selectedAgentName: string;
-  selectedProvider: string;
-  selectedProviderOption: SessionProviderOption | undefined;
-  selectedModel: string;
-  selectedReasoning: string;
-  modelOptions: ModelOption[];
-  reasoningOptions: ReasoningOption[];
-  reasoningSupported: boolean;
+  runtimeValue: RuntimeSelectorValue;
+  runtimeProviders: RuntimeProviderOption[];
+  runtimeModels: RuntimeModelOption[];
   catalogStale: boolean;
   catalogLoading: boolean;
+  catalogLoaded: boolean;
   catalogError: string | null;
   catalogRefreshing: boolean;
   catalogRefreshError: string | null;
-  defaultReasoning: string | null;
-  providerOptions: SessionProviderOption[];
   providersLoading: boolean;
   providersError: string | null;
+  hasProviderOptions: boolean;
   onAgentChange: (agentName: string) => void;
-  onProviderChange: (provider: string) => void;
-  onModelChange: (model: string) => void;
-  onReasoningChange: (effort: string) => void;
+  onRuntimeChange: (next: RuntimeSelectorValue) => void;
   onCatalogRefresh: () => void;
+  onOpenProviderSettings: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
   submitError: string | null;
@@ -69,59 +57,40 @@ function SessionCreateDialog({
   agents,
   workspace,
   selectedAgentName,
-  selectedProvider,
-  selectedProviderOption,
-  selectedModel,
-  selectedReasoning,
-  modelOptions,
-  reasoningOptions,
-  reasoningSupported,
+  runtimeValue,
+  runtimeProviders,
+  runtimeModels,
   catalogStale,
   catalogLoading,
+  catalogLoaded,
   catalogError,
   catalogRefreshing,
   catalogRefreshError,
-  defaultReasoning,
-  providerOptions,
   providersLoading,
   providersError,
+  hasProviderOptions,
   onAgentChange,
-  onProviderChange,
-  onModelChange,
-  onReasoningChange,
+  onRuntimeChange,
   onCatalogRefresh,
+  onOpenProviderSettings,
   onSubmit,
   isSubmitting,
   submitError,
 }: SessionCreateDialogProps) {
   const trimmedSelectedAgentName = selectedAgentName.trim();
-  const trimmedSelectedProvider = selectedProvider.trim();
   const workspaceSelected = workspace !== undefined;
   const activeAgent = workspaceSelected
     ? agents.find(agent => agent.name === trimmedSelectedAgentName)
     : undefined;
   const activeAgentProvider = activeAgent?.provider.trim() ?? "";
-  const activeAgentModel =
-    activeAgentProvider === trimmedSelectedProvider ? (activeAgent?.model?.trim() ?? "") : "";
   const hasAgents = agents.length > 0;
-  const hasProviderOptions = providerOptions.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
-  const hasSelectedProvider = providerOptions.some(
-    option => option.name === trimmedSelectedProvider
-  );
-  const activeProvider = selectedProviderOption ?? undefined;
+  const hasSelectedProvider = runtimeProviders.some(option => option.id === runtimeValue.provider);
   const agentPlaceholder = !workspaceSelected
     ? "Select a workspace first"
     : hasAgents
       ? "Select an agent"
       : "No agents available";
-  const providerPlaceholder = !workspaceSelected
-    ? "Select a workspace first"
-    : providersLoading
-      ? "Loading providers…"
-      : hasProviderOptions
-        ? "Select a provider"
-        : "No providers available";
   const canSubmit =
     !isSubmitting &&
     !providersLoading &&
@@ -144,32 +113,6 @@ function SessionCreateDialog({
     onOpenChange(nextOpen);
   };
 
-  const refreshDisabled =
-    !hasSelectedProvider || isSubmitting || catalogRefreshing || catalogLoading;
-
-  const modelSelectOptions = useMemo<ModelSelectOption[]>(
-    () =>
-      modelOptions.map(option => ({
-        id: option.id,
-        label: option.displayName,
-        availability: {
-          label: modelAvailabilityLabel(option.availabilityState),
-          tone: modelAvailabilityTone(option.availabilityState),
-          state: option.availabilityState,
-        },
-      })),
-    [modelOptions]
-  );
-  const reasoningSelectOptions = useMemo<ReasoningSelectOption[]>(
-    () =>
-      reasoningOptions.map(option => ({
-        value: option.value,
-        label: option.label,
-        source: option.source,
-      })),
-    [reasoningOptions]
-  );
-
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
@@ -182,7 +125,7 @@ function SessionCreateDialog({
           <DialogTitle>Start a new session</DialogTitle>
           <DialogDescription>
             {workspaceSelected
-              ? `Pick the agent and provider runtime for this session in ${workspace.name}.`
+              ? `Pick the agent and runtime for this session in ${workspace.name}.`
               : "Choose an active workspace before starting a session."}
           </DialogDescription>
         </DialogHeader>
@@ -215,33 +158,38 @@ function SessionCreateDialog({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="session-create-provider">Provider</FieldLabel>
+              <FieldTitle id="session-create-runtime-label">Runtime</FieldTitle>
               <FieldDescription>
-                Override the runtime for this session only. The agent default is preselected when it
-                matches a provider visible in this workspace.
+                Provider, model, and reasoning effort for this session. The agent default is
+                preselected; override any axis for this session only.
               </FieldDescription>
-              <ProviderCommandSelect
-                options={providerOptions}
-                value={workspaceSelected ? trimmedSelectedProvider || null : null}
-                onChange={next => onProviderChange(next ?? "")}
+              <RuntimeSelector
+                value={runtimeValue}
+                onChange={onRuntimeChange}
+                providers={runtimeProviders}
+                models={runtimeModels}
+                loading={catalogLoading}
+                catalogLoaded={catalogLoaded}
+                refreshing={catalogRefreshing}
+                onRefreshCatalog={onCatalogRefresh}
+                onOpenProviderSettings={onOpenProviderSettings}
+                ariaLabelledby="session-create-runtime-label"
+                catalogStatus={
+                  <CatalogStatusLine
+                    loading={catalogLoading}
+                    refreshing={catalogRefreshing}
+                    stale={catalogStale}
+                    error={catalogError}
+                    refreshError={catalogRefreshError}
+                    optionCount={runtimeModels.length}
+                  />
+                }
                 disabled={
                   !workspaceSelected || providersLoading || !hasProviderOptions || isSubmitting
                 }
-                triggerId="session-create-provider"
-                triggerTestId="session-create-provider-select"
-                placeholder={providerPlaceholder}
+                triggerId="session-create-runtime"
+                triggerTestId="session-create-runtime-select"
               />
-              {activeProvider ? (
-                <div
-                  className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-eyebrow text-subtle"
-                  data-testid="session-create-provider-runtime"
-                >
-                  <span>{activeProvider.harness ?? "acp"}</span>
-                  {activeProvider.runtime_provider ? (
-                    <span>{activeProvider.runtime_provider}</span>
-                  ) : null}
-                </div>
-              ) : null}
               {providersError ? (
                 <p
                   className="mt-1 text-xs text-danger"
@@ -260,83 +208,6 @@ function SessionCreateDialog({
                 </p>
               ) : null}
             </Field>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="session-create-model">Model</FieldLabel>
-                <FieldDescription>
-                  Override the model for this session, or inherit the provider default.
-                </FieldDescription>
-                <ModelCommandSelect
-                  options={modelSelectOptions}
-                  defaultModel={activeAgentModel || null}
-                  value={selectedModel}
-                  onChange={onModelChange}
-                  disabled={!workspaceSelected || !hasSelectedProvider || isSubmitting}
-                  triggerId="session-create-model"
-                  triggerTestId="session-create-model-select"
-                />
-                <CatalogStatusLine
-                  loading={catalogLoading}
-                  refreshing={catalogRefreshing}
-                  stale={catalogStale}
-                  error={catalogError}
-                  refreshError={catalogRefreshError}
-                  optionCount={modelOptions.length}
-                />
-                {hasSelectedProvider ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={onCatalogRefresh}
-                    disabled={refreshDisabled}
-                    data-testid="session-create-catalog-refresh"
-                    aria-label="Refresh provider model catalog"
-                    className="mt-1 w-fit"
-                  >
-                    <RefreshCw
-                      aria-hidden="true"
-                      className={catalogRefreshing ? "size-3 animate-spin" : "size-3"}
-                    />
-                    Refresh catalog
-                  </Button>
-                ) : null}
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="session-create-reasoning">Reasoning effort</FieldLabel>
-                <FieldDescription>
-                  Hint reasoning depth when the selected provider supports it.
-                </FieldDescription>
-                <ReasoningCommandSelect
-                  options={reasoningSelectOptions}
-                  value={selectedReasoning}
-                  onChange={onReasoningChange}
-                  disabled={
-                    !workspaceSelected ||
-                    !hasSelectedProvider ||
-                    !reasoningSupported ||
-                    isSubmitting
-                  }
-                  disabledHint={
-                    hasSelectedProvider && !reasoningSupported
-                      ? "Selected model does not advertise reasoning effort"
-                      : undefined
-                  }
-                  triggerId="session-create-reasoning"
-                  triggerTestId="session-create-reasoning-select"
-                />
-                {defaultReasoning ? (
-                  <p
-                    className="mt-1 text-xs text-subtle"
-                    data-testid="session-create-reasoning-default"
-                  >
-                    Default reasoning: {defaultReasoning}
-                  </p>
-                ) : null}
-              </Field>
-            </div>
 
             {submitError ? (
               <p
@@ -389,52 +260,44 @@ function CatalogStatusLine({
 }: CatalogStatusLineProps) {
   if (refreshError) {
     return (
-      <p
-        className="mt-1 text-xs text-danger"
-        data-testid="session-create-catalog-refresh-error"
-        role="alert"
-      >
+      <span className="text-danger" data-testid="session-create-catalog-refresh-error" role="alert">
         {refreshError}
-      </p>
+      </span>
     );
   }
   if (error) {
     return (
-      <p
-        className="mt-1 text-xs text-danger"
-        data-testid="session-create-catalog-error"
-        role="alert"
-      >
-        {error}. Type a model name to continue.
-      </p>
+      <span className="text-danger" data-testid="session-create-catalog-error" role="alert">
+        {error}. Type a model ID to continue.
+      </span>
     );
   }
   if (refreshing) {
     return (
-      <p className="mt-1 text-xs text-subtle" data-testid="session-create-catalog-refreshing">
+      <span className="text-subtle" data-testid="session-create-catalog-refreshing">
         Refreshing model catalog…
-      </p>
+      </span>
     );
   }
   if (loading) {
     return (
-      <p className="mt-1 text-xs text-subtle" data-testid="session-create-catalog-loading">
+      <span className="text-subtle" data-testid="session-create-catalog-loading">
         Loading provider models…
-      </p>
+      </span>
     );
   }
   if (stale) {
     return (
-      <p className="mt-1 text-xs text-warning" data-testid="session-create-catalog-stale">
-        Some models are stale , refresh to confirm availability.
-      </p>
+      <span className="text-warning" data-testid="session-create-catalog-stale">
+        Some models are stale — refresh to confirm availability.
+      </span>
     );
   }
   if (optionCount === 0) {
     return (
-      <p className="mt-1 text-xs text-subtle" data-testid="session-create-catalog-empty">
-        No catalog models , type a model name to continue.
-      </p>
+      <span className="text-subtle" data-testid="session-create-catalog-empty">
+        No catalog models — type an exact model ID to continue.
+      </span>
     );
   }
   return null;

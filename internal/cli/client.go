@@ -60,12 +60,7 @@ type DaemonClient interface {
 	ResetOnboarding(ctx context.Context) (contract.OnboardingStatusResponse, error)
 	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
 	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
-	ListProviderModels(ctx context.Context, query ProviderModelListQuery) (ProviderModelListRecord, error)
-	RefreshProviderModels(ctx context.Context, providerID string, request ProviderModelRefreshRequest) (
-		ProviderModelRefreshRecord,
-		error,
-	)
-	ProviderModelStatus(ctx context.Context, providerID string) (ProviderModelStatusRecord, error)
+	ProviderModelClient
 	ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error)
 	GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error)
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
@@ -6289,51 +6284,4 @@ func taskBridgeNotificationSubscriptionValues(query TaskBridgeNotificationSubscr
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	return values
-}
-
-func readAPIError(response *http.Response) error {
-	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
-		return fmt.Errorf("cli: read api error response: %w", err)
-	}
-	return readAPIErrorBody(response.StatusCode, response.Status, body)
-}
-
-func readAPIErrorBody(statusCode int, status string, body []byte) error {
-	var payload struct {
-		Error string `json:"error"`
-	}
-	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
-		return errors.New(redactToolDiagnostic(payload.Error))
-	}
-	var memoryPayload contract.MemoryErrorPayload
-	if len(body) > 0 && json.Unmarshal(body, &memoryPayload) == nil &&
-		strings.TrimSpace(memoryPayload.Code) != "" {
-		message := strings.TrimSpace(memoryPayload.Message)
-		if message == "" {
-			message = strings.TrimSpace(memoryPayload.Code)
-		}
-		return fmt.Errorf("%s: %s", strings.TrimSpace(memoryPayload.Code), redactToolDiagnostic(message))
-	}
-	var toolPayload contract.ToolErrorResponse
-	if len(body) > 0 && json.Unmarshal(body, &toolPayload) == nil && toolPayload.Error.Code != "" {
-		return newToolAPIError(statusCode, status, toolPayload)
-	}
-
-	message := strings.TrimSpace(string(body))
-	if message == "" {
-		message = status
-	}
-	message = redactToolDiagnostic(message)
-	if strings.TrimSpace(status) == "" {
-		return errors.New(message)
-	}
-	return fmt.Errorf("daemon api %s: %s", status, message)
-}
-
-func drainResponseBody(method string, path string, body io.Reader) error {
-	if _, err := io.Copy(io.Discard, body); err != nil {
-		return fmt.Errorf("cli: drain %s %s response: %w", method, path, err)
-	}
-	return nil
 }

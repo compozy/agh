@@ -150,7 +150,7 @@ function HooksExtensionsSettingsPage() {
       banner={bannerProps ? <RestartBanner {...bannerProps} /> : null}
     >
       {page.lastAction ? (
-        <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+        <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
       <TransportParityBanner parity={transportParity} />
@@ -1302,7 +1302,7 @@ function SaveControls({ state, error, warnings, onSave, onReset }: SaveControlsP
   );
 }
 
-function ActionResultBanner({
+function LastActionAlert({
   action,
   onDismiss,
 }: {

@@ -52,6 +52,9 @@ func (m *Service) recordTaskEvent(
 	if err := m.store.CreateTaskEvent(ctx, event); err != nil {
 		return err
 	}
+	if _, ok := m.store.(EventCommitObserverStore); ok {
+		return nil
+	}
 
 	postCommitCtx := context.Background()
 	if ctx != nil {
@@ -62,9 +65,22 @@ func (m *Service) recordTaskEvent(
 		m.emitTaskLiveEventBestEffort(postCommitCtx, event.ID)
 		return nil
 	}
-	m.notifyTaskObserverBestEffort(postCommitCtx, record)
-	m.emitTaskLiveRecordBestEffort(postCommitCtx, record)
+	m.publishCommittedTaskEvent(postCommitCtx, record)
 	return nil
+}
+
+// OnTaskEvent receives records from stores that own post-commit publication.
+func (m *Service) OnTaskEvent(ctx context.Context, record EventRecord) {
+	postCommitCtx := context.Background()
+	if ctx != nil {
+		postCommitCtx = context.WithoutCancel(ctx)
+	}
+	m.publishCommittedTaskEvent(postCommitCtx, record)
+}
+
+func (m *Service) publishCommittedTaskEvent(ctx context.Context, record EventRecord) {
+	m.notifyTaskObserverBestEffort(ctx, record)
+	m.emitTaskLiveRecordBestEffort(ctx, record)
 }
 
 func isTransactionalWatchTaskEvent(eventType string) bool {

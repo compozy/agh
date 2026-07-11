@@ -59,10 +59,16 @@ wall_clock_sec = 0
 on_exceeded = "halt"
 
 [providers.claude.models]
-default = "claude-sonnet-4-6"
+default = "claude-sonnet-5"
+
+[providers.claude.models.reasoning]
+apply = "acp_option"
 
 [providers.codex.models]
-default = "gpt-5.4"
+default = "gpt-5.6-sol"
+
+[providers.codex.models.reasoning]
+apply = "acp_option"
 
 [providers.gemini.models]
 default = "gemini-3.1-pro-preview"

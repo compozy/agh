@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Database, ShieldCheck, Terminal } from "lucide-react";
-import { CodeBlock } from "./primitives/code-block";
+import { LandingCodeBlock } from "./primitives/code-block";
 import { FeatureCard } from "./primitives/feature-card";
 import { SectionFrame } from "./primitives/section-frame";
 import { Eyebrow } from "@agh/ui";
@@ -84,7 +84,7 @@ export function RuntimeSection() {
             ))}
           </div>
 
-          <CodeBlock code={RUNTIME_CODE} caption="agh session" shell />
+          <LandingCodeBlock code={RUNTIME_CODE} caption="agh session" shell />
         </div>
       </div>
     </SectionFrame>

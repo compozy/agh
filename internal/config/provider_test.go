@@ -7,7 +7,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/compozy/agh/internal/reasoning"
 )
+
+const expectedCodexModelsReleaseDate = "2026-06-26"
 
 func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 	t.Parallel()
@@ -36,7 +40,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			command:      "npx -y @agentclientprotocol/claude-agent-acp@latest",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
-			defaultModel: "claude-sonnet-4-6",
+			defaultModel: modelClaudeSonnet5ID,
 			loginCommand: "claude auth login",
 		},
 		{
@@ -47,10 +51,10 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		},
 		{
 			name:         "codex",
-			command:      "npx -y @zed-industries/codex-acp@latest",
+			command:      "npx -y @agentclientprotocol/codex-acp@latest",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
-			defaultModel: "gpt-5.4",
+			defaultModel: modelGPT56SolID,
 			loginCommand: "codex login",
 		},
 		{
@@ -286,6 +290,145 @@ func providerCuratedModelsContain(models []ProviderModelConfig, id string) bool 
 	return false
 }
 
+func TestBuiltinProviderModelCatalogMatchesCurrentContract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		models ProviderModelsConfig
+	}{
+		{
+			name: "claude",
+			models: ProviderModelsConfig{
+				Default: modelClaudeSonnet5ID,
+				Reasoning: ProviderReasoningConfig{
+					Apply: ReasoningApplyACPOption,
+				},
+				Curated: []ProviderModelConfig{
+					{
+						ID:                     modelClaudeFable5ID,
+						DisplayName:            "Claude Fable 5",
+						ContextWindow:          new(int64(1_000_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "high",
+						CostInputPerMillion:    new(10.0),
+						CostOutputPerMillion:   new(50.0),
+						Featured:               new(true),
+						ReleaseDate:            "2026-06-09",
+					},
+					{
+						ID:                     modelClaudeOpus48ID,
+						DisplayName:            "Claude Opus 4.8",
+						ContextWindow:          new(int64(1_000_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "high",
+						CostInputPerMillion:    new(5.0),
+						CostOutputPerMillion:   new(25.0),
+						Featured:               new(false),
+					},
+					{
+						ID:                     modelClaudeSonnet5ID,
+						DisplayName:            "Claude Sonnet 5",
+						ContextWindow:          new(int64(1_000_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "high",
+						CostInputPerMillion:    new(3.0),
+						CostOutputPerMillion:   new(15.0),
+						Featured:               new(false),
+					},
+					{
+						ID:                   modelClaudeHaiku45CurrentID,
+						DisplayName:          "Claude Haiku 4.5",
+						ContextWindow:        new(int64(200_000)),
+						MaxOutputTokens:      new(int64(64_000)),
+						SupportsTools:        new(true),
+						SupportsReasoning:    new(true),
+						CostInputPerMillion:  new(1.0),
+						CostOutputPerMillion: new(5.0),
+					},
+				},
+			},
+		},
+		{
+			name: "codex",
+			models: ProviderModelsConfig{
+				Default: modelGPT56SolID,
+				Reasoning: ProviderReasoningConfig{
+					Apply: ReasoningApplyACPOption,
+				},
+				Curated: []ProviderModelConfig{
+					{
+						ID:                     modelGPT56SolID,
+						DisplayName:            "GPT-5.6 Sol",
+						ContextWindow:          new(int64(1_050_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"none", "low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "medium",
+						CostInputPerMillion:    new(5.0),
+						CostOutputPerMillion:   new(30.0),
+						Featured:               new(true),
+						ReleaseDate:            expectedCodexModelsReleaseDate,
+					},
+					{
+						ID:                     modelGPT56TerraID,
+						DisplayName:            "GPT-5.6 Terra",
+						ContextWindow:          new(int64(1_050_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"none", "low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "medium",
+						CostInputPerMillion:    new(2.5),
+						CostOutputPerMillion:   new(15.0),
+						Featured:               new(false),
+						ReleaseDate:            expectedCodexModelsReleaseDate,
+					},
+					{
+						ID:                     modelGPT56LunaID,
+						DisplayName:            "GPT-5.6 Luna",
+						ContextWindow:          new(int64(1_050_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"none", "low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "medium",
+						CostInputPerMillion:    new(1.0),
+						CostOutputPerMillion:   new(6.0),
+						Featured:               new(false),
+						ReleaseDate:            expectedCodexModelsReleaseDate,
+					},
+				},
+			},
+		},
+	}
+
+	providers := BuiltinProviders()
+	for _, tc := range tests {
+		t.Run("Should expose exact current "+tc.name+" model metadata", func(t *testing.T) {
+			t.Parallel()
+
+			provider, ok := providers[tc.name]
+			if !ok {
+				t.Fatalf("BuiltinProviders() missing %q", tc.name)
+			}
+			if !reflect.DeepEqual(provider.Models, tc.models) {
+				t.Fatalf("BuiltinProviders()[%q].Models = %#v, want %#v", tc.name, provider.Models, tc.models)
+			}
+		})
+	}
+}
+
 func TestRepoRootConfigProviderDefaultsMatchBuiltinRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -325,7 +468,7 @@ func TestBuiltinProviderCommandsUseLatestDriverPackages(t *testing.T) {
 
 	packagePrefixes := []string{
 		"@agentclientprotocol/claude-agent-acp@",
-		"@zed-industries/codex-acp@",
+		"@agentclientprotocol/codex-acp@",
 		"pi-acp@",
 		"opencode-ai@",
 		"cline@",
@@ -427,6 +570,24 @@ func TestProviderConfigOverrideMergesWithBuiltins(t *testing.T) {
 	}
 	if slots := provider.EffectiveCredentialSlots(); len(slots) != 0 {
 		t.Fatalf("ResolveProvider() CredentialSlots = %#v, want no native CLI slots", slots)
+	}
+	provider.Models.Curated[0].ID = "mutated"
+	provider.Models.Curated[0].ReasoningEfforts[0] = "mutated"
+	if provider.Models.Curated[0].Featured != nil {
+		*provider.Models.Curated[0].Featured = false
+	}
+
+	second, err := cfg.ResolveProvider("claude")
+	if err != nil {
+		t.Fatalf("ResolveProvider(second) error = %v", err)
+	}
+	builtin := BuiltinProviders()["claude"]
+	for _, candidate := range []ProviderConfig{second, builtin} {
+		model := candidate.Models.Curated[0]
+		if model.ID != "claude-fable-5" || model.ReasoningEfforts[0] != "low" ||
+			model.Featured == nil || !*model.Featured {
+			t.Fatalf("builtin provider changed through resolved clone: %#v", model)
+		}
 	}
 }
 
@@ -785,6 +946,54 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	if resolved.Model != "agent-model" {
 		t.Fatalf("ResolveAgent() Model = %q, want %q", resolved.Model, "agent-model")
 	}
+}
+
+func TestResolveAgentReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the agent reasoning default for its provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		resolved, err := cfg.ResolveAgent(AgentDef{
+			Name:            "coder",
+			Provider:        "claude",
+			ReasoningEffort: providerReasoningMaxKey,
+			Prompt:          "prompt",
+		})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got, want := resolved.ReasoningEffort, providerReasoningMaxKey; got != want {
+			t.Fatalf("ResolveAgent() ReasoningEffort = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should clear the agent reasoning default when the provider changes", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(AgentDef{
+			Name:            "coder",
+			Provider:        "claude",
+			ReasoningEffort: providerReasoningMaxKey,
+			Prompt:          "prompt",
+		}, "codex", "gpt-5.6-terra")
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		if got := resolved.ReasoningEffort; got != "" {
+			t.Fatalf("ResolveSessionAgentWithRuntime() ReasoningEffort = %q, want empty", got)
+		}
+	})
 }
 
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
@@ -1288,6 +1497,25 @@ default_reasoning_effort = "high"
 `,
 			wantErr: `providers.codex.models.curated[0].default_reasoning_effort must be listed in reasoning_efforts`,
 		},
+		{
+			name: "Should reject reasoning effort IDs with surrounding whitespace",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+reasoning_efforts = [" high "]
+`,
+			wantErr: `providers.codex.models.curated[0].reasoning_efforts[0]`,
+		},
+		{
+			name: "Should reject default reasoning effort with surrounding whitespace",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+reasoning_efforts = ["high"]
+default_reasoning_effort = " high "
+`,
+			wantErr: `providers.codex.models.curated[0].default_reasoning_effort`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1311,6 +1539,33 @@ default_reasoning_effort = "high"
 			}
 		})
 	}
+
+	t.Run("Should reject a non-canonical configured reasoning effort", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+reasoning_efforts = ["ultra"]
+`)
+
+		_, err = LoadForHome(homePaths, withoutDotEnv())
+		var invalid *reasoning.InvalidEffortError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("LoadForHome() error = %T %v, want *reasoning.InvalidEffortError", err, err)
+		}
+		if invalid.Path != "providers.codex.models.curated[0].reasoning_efforts[0]" ||
+			invalid.Value != "ultra" {
+			t.Fatalf("InvalidEffortError = %#v, want curated effort path and ultra value", invalid)
+		}
+	})
 }
 
 func TestLoadRejectsRemovedProviderKeys(t *testing.T) {

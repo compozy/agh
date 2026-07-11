@@ -60,7 +60,10 @@ Fresh daemon boot registers the operator `$HOME` as the default workspace throug
 
 The managed `onboarding` agent is internal to first-run setup and is not granted the full workspace or coordination toolsets. It receives only `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`.
 
-Provider model tools: `agh__provider_models_list`, `agh__provider_models_refresh`, `agh__provider_models_status`.
+Provider model tools: `agh__provider_models_list`, `agh__provider_models_curate`, `agh__provider_models_refresh`, `agh__provider_models_status`.
+
+`agh__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `agh provider models list` and `agh provider models list --all`. `agh__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `agh provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
+For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
 
 ## Skills And Memory Tools
 

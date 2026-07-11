@@ -10,14 +10,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/tools"
 )
 
 const (
@@ -312,7 +309,7 @@ func (g *generator) resolveNamedTSType(t reflect.Type) (string, bool, error) {
 		return name, true, nil
 	}
 	if shouldAutoEmitNamedType(t) || isEnumType(t) {
-		name := t.Name()
+		name := generatedTypeName(t)
 		g.typeNames[t] = name
 		if shouldAutoEmitNamedType(t) {
 			g.queued[name] = t
@@ -404,33 +401,6 @@ func primitiveKindTSType(kind reflect.Kind) (string, bool) {
 func isEnumType(t reflect.Type) bool {
 	_, ok := enumValuesRegistry[t]
 	return ok
-}
-
-var enumValuesRegistry = map[reflect.Type][]string{
-	reflect.TypeFor[apicontract.AuthoredValidationStatus]():         apicontract.AuthoredValidationStatusValues(),
-	reflect.TypeFor[apicontract.AuthoredDiagnosticSeverity]():       apicontract.AuthoredDiagnosticSeverityValues(),
-	reflect.TypeFor[apicontract.AgentSoulRevisionAction]():          apicontract.AgentSoulRevisionActionValues(),
-	reflect.TypeFor[apicontract.HeartbeatRevisionOperation]():       apicontract.HeartbeatRevisionOperationValues(),
-	reflect.TypeFor[apicontract.HeartbeatActorKind]():               apicontract.HeartbeatActorKindValues(),
-	reflect.TypeFor[apicontract.SessionHealthState]():               apicontract.SessionHealthStateValues(),
-	reflect.TypeFor[apicontract.SessionHealthStatus]():              apicontract.SessionHealthStatusValues(),
-	reflect.TypeFor[apicontract.SessionHealthIneligibilityReason](): apicontract.SessionHealthIneligibilityReasonValues(),
-	reflect.TypeFor[apicontract.HeartbeatWakeSource]():              apicontract.HeartbeatWakeSourceValues(),
-	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
-	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
-	reflect.TypeFor[extensionprotocol.HostAPIMethod]():              hostAPIMethodValues(),
-	reflect.TypeFor[hooks.HookEvent]():                              hookEventValues(),
-	reflect.TypeFor[hooks.HookEventFamily]():                        hookEventFamilyValues(),
-	reflect.TypeFor[hooks.HookMode]():                               hookModeValues(),
-	reflect.TypeFor[hooks.HookRunOutcome]():                         hookOutcomeValues(),
-	reflect.TypeFor[hooks.HookSkillSource]():                        hookSkillSourceValues(),
-	reflect.TypeFor[hooks.HookExecutorKind]():                       hookExecutorKindValues(),
-	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),
-	reflect.TypeFor[memcontract.Type]():                             memoryTypeValues(),
-	reflect.TypeFor[memcontract.Scope]():                            memoryScopeValues(),
-	reflect.TypeFor[session.State]():                                sessionStateValues(),
-	reflect.TypeFor[store.StopReason]():                             stopReasonValues(),
-	reflect.TypeFor[tools.ToolSource]():                             toolSourceValues(),
 }
 
 func enumUnionForType(t reflect.Type) string {

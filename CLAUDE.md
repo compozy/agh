@@ -61,6 +61,7 @@ AGH Impact Audit:
 
 `packages/ui/src/tokens.css` is the canonical token source; `DESIGN.md` (repo root) is its generated spec + rationale. Full grammar (flat depth model, signal palette, type stack) lives in `DESIGN.md` — pull from there, never invent.
 
+- <critical>**Reuse before create (any UI surface):** `packages/ui/src/index.ts` is the primitive inventory — check it before authoring any component and import from `@agh/ui` instead of redefining. Shadowing an exported name in `web/`/`packages/site` is a blocked lint error (`compozy-ui-reuse/no-shadow-ui-primitive`); domain variants take domain-prefixed names (`SessionToolCallRow`); new generic primitives land in `packages/ui` (story + test), domain composites in `web/src/systems/<domain>/`.</critical>
 - Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
 - Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
 - **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
@@ -113,7 +114,7 @@ AGH Impact Audit:
 | Copy / public product language        | `copywriting` + `documentation-writer`                                                   | `seo-audit`                           |
 | Skill / agent-md authoring            | `skill-best-practices` + `agent-md-refactor`                                             |                                       |
 | UI / Design (any surface)             | `agh-design` + `ui-craft` + `impeccable`                                                 | `agh-ui-screenshot`                   |
-| UI verification / visual diff         | `agh-ui-screenshot`                                                                      |                                       |
+| UI verification / visual diff         | `agh-ui-screenshot` + `impeccable`                                                       |                                       |
 
 Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`.
 
@@ -164,7 +165,7 @@ Repo layout — **open the surface's instructions file before working in it**:
 | `internal/`     | Go runtime daemon (ACP, SQLite, autonomy kernel, HTTP/UDS, network) | `internal/CLAUDE.md`      |
 | `web/`          | React 19 SPA (Vite, TanStack, Tailwind, shadcn)                     | `web/CLAUDE.md`           |
 | `packages/site` | Fumadocs documentation site (Bun)                                   | `packages/site/CLAUDE.md` |
-| `packages/ui`   | Shared UI primitives (`@agh/ui`) for `web/` + `packages/site`       | `web/CLAUDE.md`           |
+| `packages/ui`   | Shared UI primitives (`@agh/ui`) for `web/` + `packages/site`       | `packages/ui/CLAUDE.md`   |
 
 ## Coding Style
 
@@ -185,7 +186,7 @@ Any SQLite column/index/constraint change → activate `agh-schema-migration`; u
 
 - `standing_directives.md` — active engineering posture (SD-001..011); read before a TechSpec or architecture pivot.
 - `spec-authoring-playbook.md` — mandatory preflight for `cy-create-prd`/`techspec`/`tasks` (enforced by `cy-spec-preflight`).
-- `lessons/` (`L-001..021` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
+- `lessons/` (`L-001..031` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
 - `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
 - `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.
 

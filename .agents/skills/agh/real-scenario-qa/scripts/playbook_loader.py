@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 
-PLAYBOOKS_REL = ".agents/skills/real-scenario-qa/references/playbooks"
-SCHEMA_REL = ".agents/skills/real-scenario-qa/references/playbook-schema.json"
-FORBIDDEN_REL = ".agents/skills/real-scenario-qa/references/forbidden-prompt-phrases.md"
+PLAYBOOKS_REL = ".agents/skills/agh/real-scenario-qa/references/playbooks"
+SCHEMA_REL = ".agents/skills/agh/real-scenario-qa/references/playbook-schema.json"
+FORBIDDEN_REL = ".agents/skills/agh/real-scenario-qa/references/forbidden-prompt-phrases.md"
 
 _FENCE_RE = re.compile(r"```json\s*\n(.*?)\n```", re.DOTALL)
 DELIVERABLE_EXTENSIONS = {

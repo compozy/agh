@@ -51,6 +51,9 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 
 		requiredSnippets := []string{
 			generatedHeader,
+			`export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";`,
+			"reasoning_effort?: ReasoningEffort;",
+			"reasoning_efforts?: ReasoningEffort[];",
 			"export interface HookPayloadByEvent {\n",
 			"export interface HookPatchByEvent {\n",
 			"export interface HostAPIMethodMap {\n",

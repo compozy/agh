@@ -8,6 +8,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/compozy/agh/internal/frontmatter"
+	"github.com/compozy/agh/internal/reasoning"
 	"github.com/goccy/go-yaml"
 )
 
@@ -16,6 +17,7 @@ func TestParseAgentDefValidFrontmatterAndBody(t *testing.T) {
 name: coder
 provider: claude
 model: claude-opus
+reasoning_effort: max
 tools: ["agh__skill_view", "mcp__github__*"]
 toolsets: ["agh__catalog"]
 deny_tools: ["agh__task_*"]
@@ -32,7 +34,8 @@ You are a senior Go engineer.
 		t.Fatalf("ParseAgentDef() error = %v", err)
 	}
 
-	if agent.Name != "coder" || agent.Provider != "claude" || agent.Model != "claude-opus" {
+	if agent.Name != "coder" || agent.Provider != "claude" || agent.Model != "claude-opus" ||
+		agent.ReasoningEffort != providerReasoningMaxKey {
 		t.Fatalf("ParseAgentDef() = %#v", agent)
 	}
 	if len(agent.Tools) != 2 {
@@ -242,7 +245,7 @@ You write reliable code.
 	}
 }
 
-func TestParseAgentDefMissingRequiredFields(t *testing.T) {
+func TestParseAgentDefValidationFailures(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -268,11 +271,32 @@ provider: claude
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if _, err := ParseAgentDef([]byte(tt.content)); err == nil {
 				t.Fatal("ParseAgentDef() error = nil, want non-nil")
 			}
 		})
 	}
+
+	t.Run("Should reject a non-canonical reasoning effort", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ParseAgentDef([]byte(`---
+name: coder
+provider: claude
+reasoning_effort: ultra
+---
+
+prompt`))
+		var invalid *reasoning.InvalidEffortError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("ParseAgentDef() error = %T %v, want *reasoning.InvalidEffortError", err, err)
+		}
+		if invalid.Path != "agent.reasoning_effort" || invalid.Value != "ultra" {
+			t.Fatalf("InvalidEffortError = %#v, want agent reasoning path and ultra value", invalid)
+		}
+	})
 }
 
 func TestParseAgentDefAllowsMissingProvider(t *testing.T) {

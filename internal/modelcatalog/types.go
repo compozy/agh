@@ -45,22 +45,6 @@ const (
 	PriorityBuiltin = 10
 )
 
-// ReasoningEffort identifies one normalized model reasoning level.
-type ReasoningEffort string
-
-const (
-	// ReasoningEffortMinimal is the smallest supported reasoning level.
-	ReasoningEffortMinimal ReasoningEffort = "minimal"
-	// ReasoningEffortLow is the low reasoning level.
-	ReasoningEffortLow ReasoningEffort = "low"
-	// ReasoningEffortMedium is the medium reasoning level.
-	ReasoningEffortMedium ReasoningEffort = "medium"
-	// ReasoningEffortHigh is the high reasoning level.
-	ReasoningEffortHigh ReasoningEffort = "high"
-	// ReasoningEffortXHigh is the extra-high reasoning level.
-	ReasoningEffortXHigh ReasoningEffort = "xhigh"
-)
-
 // RefreshState identifies one source refresh lifecycle state.
 type RefreshState string
 
@@ -93,10 +77,21 @@ const (
 	AvailabilityStateUnknown AvailabilityState = "unknown"
 )
 
+// CatalogView identifies the public catalog projection to return.
+type CatalogView string
+
+const (
+	// CatalogViewCurated returns the default operator-facing model set.
+	CatalogViewCurated CatalogView = "curated"
+	// CatalogViewAll returns every current model, including hidden and deprecated rows.
+	CatalogViewAll CatalogView = "all"
+)
+
 // ListOptions filters persisted catalog source rows.
 type ListOptions struct {
 	ProviderID   string
 	SourceID     string
+	View         CatalogView
 	Refresh      bool
 	IncludeAll   bool
 	IncludeStale bool
@@ -133,6 +128,11 @@ type ModelRow struct {
 	DefaultReasoningEffort *ReasoningEffort
 	CostInputPerMillion    *float64
 	CostOutputPerMillion   *float64
+	ExplicitlyCurated      bool
+	Deprecated             *bool
+	Hidden                 *bool
+	Featured               *bool
+	ReleaseDate            *string
 	LastError              string
 }
 
@@ -165,6 +165,13 @@ type Model struct {
 	DefaultReasoningEffort *ReasoningEffort
 	CostInputPerMillion    *float64
 	CostOutputPerMillion   *float64
+	ExplicitlyCurated      bool
+	Curated                bool
+	Deprecated             bool
+	Hidden                 bool
+	Featured               bool
+	ReleaseDate            *string
+	ReasoningSource        ReasoningSource
 	LastError              string
 }
 

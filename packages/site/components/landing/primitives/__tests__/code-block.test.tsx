@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CodeBlock } from "../code-block";
+import { LandingCodeBlock } from "../code-block";
 
 async function clickCopyButton() {
   await act(async () => {
@@ -10,7 +10,7 @@ async function clickCopyButton() {
   });
 }
 
-describe("CodeBlock", () => {
+describe("LandingCodeBlock", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -27,7 +27,7 @@ describe("CodeBlock", () => {
       configurable: true,
     });
 
-    render(<CodeBlock code="agh daemon start" />);
+    render(<LandingCodeBlock code="agh daemon start" />);
 
     await clickCopyButton();
 
@@ -47,7 +47,7 @@ describe("CodeBlock", () => {
       configurable: true,
     });
 
-    render(<CodeBlock code="agh daemon start" />);
+    render(<LandingCodeBlock code="agh daemon start" />);
 
     await clickCopyButton();
 

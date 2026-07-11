@@ -16,6 +16,9 @@ const browserLifecycleFixture = path.resolve(
   "testdata",
   "browser_session_lifecycle_fixture.json"
 );
+const mockAgentProvider = "acpmock";
+const reasoningCatalogModel = "qa-browser-model-alt";
+const reasoningCatalogModelLabel = "QA Browser Model Alt";
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -112,5 +115,90 @@ test.describe("seeded agent detail", () => {
 
     await trigger.click();
     await expect(secondary).toHaveAttribute("data-checked", "true");
+  });
+
+  test("operator creates an agent with a persisted model and reasoning default", async ({
+    appPage,
+    runtime,
+  }) => {
+    if (!runtime.paths) {
+      throw new Error("agent create browser test requires launch-mode runtime paths");
+    }
+
+    await ensureGlobalWorkspace(runtime);
+    const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+    await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
+
+    await appPage.getByTestId("sidebar-create-agent").click();
+    await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
+    await appPage.getByTestId("agent-create-name").fill("reasoning-default-agent");
+    await appPage.getByTestId("agent-create-next").click();
+    await expect(appPage.getByTestId("agent-create-runtime")).toBeVisible();
+
+    const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
+    await runtimeTrigger.locator('button[data-focus="model"]').first().click();
+    await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+    await appPage
+      .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
+      .click();
+
+    const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
+    await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
+    await reasoningStrip.locator('button[data-rz="high"]').click();
+    await appPage.keyboard.press("Escape");
+    await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
+    await expect(runtimeTrigger.locator('button[data-focus="reasoning"]')).toContainText("High");
+
+    await appPage.getByTestId("agent-create-next").click();
+    await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
+    await appPage.getByTestId("agent-create-next").click();
+    await expect(appPage.getByTestId("agent-create-access")).toBeVisible();
+
+    const createRequestPromise = appPage.waitForRequest(
+      request => request.method() === "POST" && request.url().endsWith("/api/agents")
+    );
+    const createResponsePromise = appPage.waitForResponse(
+      response => response.request().method() === "POST" && response.url().endsWith("/api/agents")
+    );
+    await appPage.getByTestId("submit-agent-create").click();
+
+    const createRequest = await createRequestPromise;
+    const createResponse = await createResponsePromise;
+    expect(createRequest.postDataJSON()).toMatchObject({
+      scope: "workspace",
+      workspace: workspace.id,
+      agent: {
+        name: "reasoning-default-agent",
+        provider: mockAgentProvider,
+        model: reasoningCatalogModel,
+        reasoning_effort: "high",
+        prompt: "Keep runtime selection truthful.",
+      },
+    });
+    expect(createResponse.ok()).toBe(true);
+
+    const created = (await createResponse.json()) as {
+      agent: { name: string; provider: string; model?: string; reasoning_effort?: string };
+    };
+    expect(created.agent).toMatchObject({
+      name: "reasoning-default-agent",
+      provider: mockAgentProvider,
+      model: reasoningCatalogModel,
+      reasoning_effort: "high",
+    });
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe("/agents/reasoning-default-agent");
+
+    const rehydrated = await runtime.requestJSON<{
+      agent: { name: string; provider: string; model?: string; reasoning_effort?: string };
+    }>(`/api/agents/reasoning-default-agent?workspace=${encodeURIComponent(workspace.id)}`);
+    expect(rehydrated.agent).toMatchObject({
+      name: "reasoning-default-agent",
+      provider: mockAgentProvider,
+      model: reasoningCatalogModel,
+      reasoning_effort: "high",
+    });
   });
 });

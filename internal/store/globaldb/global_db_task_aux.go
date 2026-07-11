@@ -1153,43 +1153,6 @@ func (g *GlobalDB) normalizeTaskRunIdempotencyForCreate(
 	return normalized, nil
 }
 
-func (g *GlobalDB) withTaskImmediateTransaction(
-	ctx context.Context,
-	action string,
-	run func(exec taskSQLExecutor) error,
-) (err error) {
-	conn, err := g.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("store: open connection for %s: %w", action, err)
-	}
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	rollbackCtx := context.WithoutCancel(ctx)
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
-	}
-
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackImmediate(rollbackCtx, conn, action))
-		}
-	}()
-
-	if err := run(conn); err != nil {
-		return err
-	}
-
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("store: commit %s transaction: %w", action, err)
-	}
-
-	finished = true
-	return nil
-}
-
 func (g *GlobalDB) ensureTaskExistsWithExecutor(ctx context.Context, exec taskSQLExecutor, taskID string) error {
 	trimmedID, err := requireTaskValue(taskID, "task id")
 	if err != nil {

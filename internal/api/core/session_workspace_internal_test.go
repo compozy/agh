@@ -3,11 +3,15 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
 
+	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -58,16 +62,24 @@ func TestSessionWorkspaceHelpers(t *testing.T) {
 				err,
 			)
 		}
-		if err := validateCreateSessionRuntimeOverrides(
+		err := validateCreateSessionRuntimeOverrides(
 			"core-test",
 			"codex",
 			"",
-			"unsupported",
-		); !errors.Is(err, session.ErrInvalidRuntimeOverride) {
+			"ultra",
+		)
+		if !errors.Is(err, session.ErrInvalidRuntimeOverride) {
 			t.Fatalf(
 				"validateCreateSessionRuntimeOverrides(reasoning enum) error = %v, want ErrInvalidRuntimeOverride",
 				err,
 			)
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeReasoningEffortUnsupported {
+			t.Fatalf("reasoning enum diagnostic = %#v, want reasoning_effort_unsupported; err=%v", item, err)
+		}
+		if got, want := statusForSessionError(err), http.StatusUnprocessableEntity; got != want {
+			t.Fatalf("statusForSessionError(reasoning enum) = %d, want %d", got, want)
 		}
 		if err := validateCreateSessionRuntimeOverrides("core-test", "codex", "gpt-5.4", "high"); err != nil {
 			t.Fatalf("validateCreateSessionRuntimeOverrides(valid) error = %v", err)
@@ -176,6 +188,17 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForSessionError(aghconfig.ErrProviderUnavailable); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(provider unavailable) = %d, want %d", got, http.StatusBadRequest)
 	}
+	t.Run("Should map negotiation errors to unprocessable entity", func(t *testing.T) {
+		t.Parallel()
+
+		if got := statusForSessionError(fmt.Errorf("wrapped: %w", &acp.NegotiationError{
+			Code:      acp.NegotiationCodeModelUnavailable,
+			Stage:     "model",
+			Requested: "missing-model",
+		})); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(negotiation) = %d, want %d", got, http.StatusUnprocessableEntity)
+		}
+	})
 	if got := statusForSessionError(session.ErrInvalidRuntimeOverride); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(invalid runtime override) = %d, want %d", got, http.StatusBadRequest)
 	}

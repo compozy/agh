@@ -67,7 +67,7 @@ function VaultPage() {
       banner={
         page.lastAction ? (
           <div className="px-9 pt-4">
-            <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
+            <LastActionAlert action={page.lastAction} onDismiss={page.dismissLastAction} />
           </div>
         ) : null
       }
@@ -319,7 +319,7 @@ function VaultDeleteDialog({
   );
 }
 
-function ActionResultBanner({
+function LastActionAlert({
   action,
   onDismiss,
 }: {

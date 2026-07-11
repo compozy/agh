@@ -13,7 +13,7 @@ import { MessageRowCollapsed } from "./message-row-collapsed";
 import { MessageRowSystem } from "./message-row-system";
 import { NewDivider } from "./new-divider";
 
-export interface TimelineProps {
+export interface MessageTimelineProps {
   messages: ReadonlyArray<NetworkConversationMessage>;
   isLoading?: boolean;
   emptyState?: React.ReactNode;
@@ -65,7 +65,7 @@ function TimelineSkeleton({ density }: TimelineSkeletonProps) {
   );
 }
 
-export function Timeline({
+export function MessageTimeline({
   messages,
   isLoading = false,
   emptyState,
@@ -80,7 +80,7 @@ export function Timeline({
   onRetryOptimistic,
   onDiscardOptimistic,
   onWorkChipClick,
-}: TimelineProps) {
+}: MessageTimelineProps) {
   const entries = useMemo(
     () => buildTimelineEntries({ messages, now, lastReadAt }),
     [messages, now, lastReadAt]

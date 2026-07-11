@@ -17,5 +17,5 @@ export { MessageRowSystem } from "./message-row-system";
 export type { MessageRowSystemProps } from "./message-row-system";
 export { NewDivider } from "./new-divider";
 export type { NewDividerProps } from "./new-divider";
-export { Timeline } from "./timeline";
-export type { TimelineProps } from "./timeline";
+export { MessageTimeline } from "./timeline";
+export type { MessageTimelineProps } from "./timeline";

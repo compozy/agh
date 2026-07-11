@@ -11,18 +11,33 @@ import (
 	"github.com/compozy/agh/internal/acp"
 )
 
-// DiagnosticsRecord captures one prompt execution emitted by the ACP mock driver.
+// DiagnosticsRecord captures one protocol, lifecycle, or prompt event emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
-	AgentName      string             `json:"agent_name"`
-	SessionID      string             `json:"session_id"`
-	LifecycleEvent string             `json:"lifecycle_event,omitempty"`
-	MCPServers     []acpsdk.McpServer `json:"mcp_servers,omitempty"`
-	PromptIndex    int                `json:"prompt_index"`
-	Prompt         string             `json:"prompt"`
-	PromptMeta     acp.PromptMeta     `json:"prompt_meta"`
-	TurnName       string             `json:"turn_name,omitempty"`
-	Match          TurnMatch          `json:"match"`
-	Steps          []DiagnosticsStep  `json:"steps"`
+	AgentName         string             `json:"agent_name"`
+	SessionID         string             `json:"session_id"`
+	ProtocolMethod    string             `json:"protocol_method,omitempty"`
+	ConfigOptionID    string             `json:"config_option_id,omitempty"`
+	ConfigOptionValue string             `json:"config_option_value,omitempty"`
+	LifecycleEvent    string             `json:"lifecycle_event,omitempty"`
+	MCPServers        []acpsdk.McpServer `json:"mcp_servers,omitempty"`
+	PromptIndex       int                `json:"prompt_index"`
+	Prompt            string             `json:"prompt"`
+	PromptMeta        acp.PromptMeta     `json:"prompt_meta"`
+	TurnName          string             `json:"turn_name,omitempty"`
+	Match             TurnMatch          `json:"match"`
+	Steps             []DiagnosticsStep  `json:"steps"`
+}
+
+// ProtocolDiagnostics returns diagnostics emitted when the driver receives ACP protocol methods.
+func ProtocolDiagnostics(records []DiagnosticsRecord) []DiagnosticsRecord {
+	filtered := make([]DiagnosticsRecord, 0, len(records))
+	for _, record := range records {
+		if strings.TrimSpace(record.ProtocolMethod) == "" {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	return filtered
 }
 
 // DiagnosticsStep captures one executed fixture step with any observed runtime outputs.

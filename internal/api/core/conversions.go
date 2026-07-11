@@ -56,7 +56,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		AgentName:       info.AgentName,
 		Provider:        info.Provider,
 		Model:           strings.TrimSpace(info.Model),
-		ReasoningEffort: strings.TrimSpace(info.ReasoningEffort),
+		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
 		WorkspaceID:     ref.WorkspaceID,
 		WorkspacePath:   ref.WorkspacePath,
 		Channel:         info.Channel,
@@ -383,53 +383,6 @@ func SessionRepairPayloadFromResult(result *session.RepairResult) contract.Sessi
 		Issues:    issues,
 		Actions:   actions,
 		Persisted: result.Persisted,
-	}
-}
-
-// AgentPayloadFromDef converts an agent definition into the shared payload.
-func AgentPayloadFromDef(agent aghconfig.AgentDef) contract.AgentPayload {
-	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
-	for _, server := range agent.MCPServers {
-		redacted := aghconfig.RedactedMCPServer(server)
-
-		mcpServers = append(mcpServers, contract.AgentMCPServerJSON{
-			Name:      redacted.Name,
-			Transport: string(redacted.Transport),
-			Command:   redacted.Command,
-			Args:      append([]string(nil), redacted.Args...),
-			Env:       redacted.Env,
-			SecretEnv: redacted.SecretEnv,
-			URL:       redacted.URL,
-			Auth:      settingsMCPAuthConfigPayload(redacted.Auth),
-		})
-	}
-
-	return contract.AgentPayload{
-		Name:         agent.Name,
-		Provider:     agent.Provider,
-		Command:      agent.Command,
-		Model:        agent.Model,
-		Tools:        append([]string(nil), agent.Tools...),
-		Toolsets:     append([]string(nil), agent.Toolsets...),
-		DenyTools:    append([]string(nil), agent.DenyTools...),
-		Permissions:  agent.Permissions,
-		CategoryPath: append([]string(nil), agent.CategoryPath...),
-		MCPServers:   mcpServers,
-		Prompt:       agent.Prompt,
-	}
-}
-
-// AgentPayloadFromDiagnostic converts a malformed workspace agent diagnostic into a payload row.
-func AgentPayloadFromDiagnostic(diagnostic workspacepkg.AgentDiagnostic) contract.AgentPayload {
-	return contract.AgentPayload{
-		Name:     diagnostic.Name,
-		Provider: "",
-		Prompt:   "",
-		Diagnostics: []contract.AgentDiagnosticPayload{{
-			Path:      diagnostic.Path,
-			ErrorKind: diagnostic.ErrorKind,
-			Message:   diagnostic.Message,
-		}},
 	}
 }
 
@@ -2415,70 +2368,6 @@ func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contrac
 		AuthLoginCmd:    strings.TrimSpace(value.AuthLoginCmd),
 		CredentialSlots: settingsProviderCredentialSlotPayloads(value.CredentialSlots),
 	}
-}
-
-func settingsProviderModelsPayload(
-	value aghconfig.ProviderModelsConfig,
-) *contract.SettingsProviderModelsPayload {
-	if providerModelsConfigIsEmpty(value) {
-		return nil
-	}
-	return &contract.SettingsProviderModelsPayload{
-		Default:   strings.TrimSpace(value.Default),
-		Curated:   settingsProviderModelPayloads(value.Curated),
-		Discovery: settingsProviderModelsDiscoveryPayload(value.Discovery),
-	}
-}
-
-func settingsProviderModelsDiscoveryPayload(
-	value aghconfig.ProviderModelsDiscoveryConfig,
-) *contract.SettingsProviderModelsDiscoveryPayload {
-	if value.Enabled == nil &&
-		strings.TrimSpace(value.Command) == "" &&
-		strings.TrimSpace(value.Endpoint) == "" &&
-		strings.TrimSpace(value.Timeout) == "" {
-		return nil
-	}
-	return &contract.SettingsProviderModelsDiscoveryPayload{
-		Enabled:  cloneBoolPtr(value.Enabled),
-		Command:  strings.TrimSpace(value.Command),
-		Endpoint: strings.TrimSpace(value.Endpoint),
-		Timeout:  strings.TrimSpace(value.Timeout),
-	}
-}
-
-func settingsProviderModelPayloads(
-	values []aghconfig.ProviderModelConfig,
-) []contract.SettingsProviderModelPayload {
-	if values == nil {
-		return nil
-	}
-	payloads := make([]contract.SettingsProviderModelPayload, 0, len(values))
-	for _, value := range values {
-		payloads = append(payloads, contract.SettingsProviderModelPayload{
-			ID:                     strings.TrimSpace(value.ID),
-			DisplayName:            strings.TrimSpace(value.DisplayName),
-			ContextWindow:          cloneInt64Ptr(value.ContextWindow),
-			MaxInputTokens:         cloneInt64Ptr(value.MaxInputTokens),
-			MaxOutputTokens:        cloneInt64Ptr(value.MaxOutputTokens),
-			SupportsTools:          cloneBoolPtr(value.SupportsTools),
-			SupportsReasoning:      cloneBoolPtr(value.SupportsReasoning),
-			ReasoningEfforts:       cloneStrings(value.ReasoningEfforts),
-			DefaultReasoningEffort: strings.TrimSpace(value.DefaultReasoningEffort),
-			CostInputPerMillion:    cloneFloat64Ptr(value.CostInputPerMillion),
-			CostOutputPerMillion:   cloneFloat64Ptr(value.CostOutputPerMillion),
-		})
-	}
-	return payloads
-}
-
-func providerModelsConfigIsEmpty(value aghconfig.ProviderModelsConfig) bool {
-	return strings.TrimSpace(value.Default) == "" &&
-		value.Curated == nil &&
-		value.Discovery.Enabled == nil &&
-		strings.TrimSpace(value.Discovery.Command) == "" &&
-		strings.TrimSpace(value.Discovery.Endpoint) == "" &&
-		strings.TrimSpace(value.Discovery.Timeout) == ""
 }
 
 func settingsProviderCredentialSlotPayloads(

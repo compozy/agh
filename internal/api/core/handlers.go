@@ -137,7 +137,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 	if err := h.validateCreateSessionRequest(req); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
+		h.respondError(c, statusForCreateSessionValidationError(err), err)
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		AgentName:       req.AgentName,
 		Provider:        strings.TrimSpace(req.Provider),
 		Model:           strings.TrimSpace(req.Model),
-		ReasoningEffort: strings.TrimSpace(req.ReasoningEffort),
+		ReasoningEffort: strings.TrimSpace(string(req.ReasoningEffort)),
 		Name:            req.Name,
 		Workspace:       strings.TrimSpace(req.Workspace),
 		WorkspacePath:   strings.TrimSpace(req.WorkspacePath),
@@ -684,53 +684,6 @@ func (h *BaseHandlers) createAgentDraftAndPath(
 		return aghconfig.AgentDefinitionDraft{}, "", err
 	}
 	return draft, path, nil
-}
-
-func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
-	agent := req.Agent
-	agentName := aghconfig.NormalizeAgentName(agent.Name)
-	if agentName == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
-			errCreateAgentRequestInvalid,
-			errors.New("agent.name is required"),
-		)
-	}
-	if err := aghconfig.ValidatePublicAgentName(agentName); err != nil {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
-			errCreateAgentRequestInvalid,
-			aghconfig.ErrInvalidAgentDefinition,
-			err,
-		)
-	}
-	if strings.TrimSpace(agent.Provider) == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
-			errCreateAgentRequestInvalid,
-			errors.New("agent.provider is required"),
-		)
-	}
-	if strings.TrimSpace(agent.Prompt) == "" {
-		return aghconfig.AgentDefinitionDraft{}, errors.Join(
-			errCreateAgentRequestInvalid,
-			errors.New("agent.prompt is required"),
-		)
-	}
-	disabledSkills := []string(nil)
-	if agent.Skills != nil {
-		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
-	}
-	return aghconfig.AgentDefinitionDraft{
-		Name:         agentName,
-		Provider:     agent.Provider,
-		Command:      agent.Command,
-		Model:        agent.Model,
-		Tools:        append([]string(nil), agent.Tools...),
-		Toolsets:     append([]string(nil), agent.Toolsets...),
-		DenyTools:    append([]string(nil), agent.DenyTools...),
-		Permissions:  string(agent.Permissions),
-		Skills:       aghconfig.AgentSkillsConfig{Disabled: disabledSkills},
-		CategoryPath: append([]string(nil), agent.CategoryPath...),
-		Prompt:       agent.Prompt,
-	}, nil
 }
 
 func (h *BaseHandlers) createAgentDefinitionPath(

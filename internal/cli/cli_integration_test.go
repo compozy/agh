@@ -3609,6 +3609,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		session.WithSoulRunActivityChecker(integrationSoulRunActivityChecker{}),
 		session.WithSessionHealthStore(registry),
 		session.WithSessionHealthConfig(d.cfg.Agents.Heartbeat),
+		session.WithSessionCatalog(registry),
 	)
 	if err != nil {
 		return fmt.Errorf("new session manager: %w", err)

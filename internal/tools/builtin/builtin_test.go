@@ -64,6 +64,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDProviderModelsList,
 			toolspkg.ToolIDProviderModelsRefresh,
 			toolspkg.ToolIDProviderModelsStatus,
+			toolspkg.ToolIDProviderModelsCurate,
 			toolspkg.ToolIDMemoryList,
 			toolspkg.ToolIDMemoryShow,
 			toolspkg.ToolIDMemorySearch,
@@ -280,6 +281,23 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if _, ok := schema.Properties["refresh"]; ok {
 			t.Fatalf("provider_models_list input schema exposes refresh: %s", string(descriptor.InputSchema))
 		}
+		if _, ok := schema.Properties["view"]; !ok {
+			t.Fatalf("provider_models_list input schema omits view: %s", string(descriptor.InputSchema))
+		}
+
+		curate := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsCurate]
+		var curateSchema struct {
+			Required   []string                   `json:"required"`
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(curate.InputSchema, &curateSchema); err != nil {
+			t.Fatalf("provider_models_curate input schema unmarshal error = %v", err)
+		}
+		if !slices.Contains(curateSchema.Required, "provider_id") ||
+			!slices.Contains(curateSchema.Required, "model_id") ||
+			curateSchema.Properties["default_effort"] == nil {
+			t.Fatalf("provider_models_curate schema = %#v, want required identity and default_effort", curateSchema)
+		}
 	})
 
 	t.Run("Should classify read mutating open world and destructive risk flags", func(t *testing.T) {
@@ -415,6 +433,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			descriptors[toolspkg.ToolIDProviderModelsStatus],
 			toolspkg.RiskRead,
 			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDProviderModelsCurate],
+			toolspkg.RiskMutating,
+			false,
 			false,
 			false,
 		)
@@ -773,6 +799,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			{id: toolspkg.ToolIDBundlesActivate, capability: "bundles.write"},
 			{id: toolspkg.ToolIDResourcesList, capability: "resources.read"},
 			{id: toolspkg.ToolIDResourcesSnapshot, capability: "resources.read"},
+			{id: toolspkg.ToolIDProviderModelsCurate, capability: "providers.models.write"},
 		}
 		for _, tc := range cases {
 			descriptor, ok := descriptors[tc.id]
@@ -1002,6 +1029,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(provider_models) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDProviderModelsCurate,
 			toolspkg.ToolIDProviderModelsList,
 			toolspkg.ToolIDProviderModelsRefresh,
 			toolspkg.ToolIDProviderModelsStatus,

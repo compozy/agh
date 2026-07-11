@@ -11,6 +11,8 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -169,7 +171,11 @@ func statusForSessionError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, aghconfig.ErrProviderUnavailable):
 		return http.StatusBadRequest
+	case isProviderNegotiationFailure(err):
+		return http.StatusUnprocessableEntity
 	case isProviderAuthFailure(err):
+		return http.StatusUnprocessableEntity
+	case isReasoningEffortUnsupportedFailure(err):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, session.ErrInvalidRuntimeOverride):
 		return http.StatusBadRequest
@@ -193,9 +199,26 @@ func statusForSessionError(err error) int {
 	}
 }
 
+func statusForCreateSessionValidationError(err error) int {
+	if isReasoningEffortUnsupportedFailure(err) {
+		return http.StatusUnprocessableEntity
+	}
+	return http.StatusBadRequest
+}
+
+func isReasoningEffortUnsupportedFailure(err error) bool {
+	item, ok := diagnostics.ItemFromError(err)
+	return ok && item.Code == diagnosticcontract.CodeReasoningEffortUnsupported
+}
+
 func isProviderAuthFailure(err error) bool {
 	var failure *acp.FailureError
 	return errors.As(err, &failure) && failure != nil && failure.Kind == store.FailureProviderAuth
+}
+
+func isProviderNegotiationFailure(err error) bool {
+	var negotiationErr *acp.NegotiationError
+	return errors.As(err, &negotiationErr) && negotiationErr != nil
 }
 
 func prefixedError(prefix string, message string) error {

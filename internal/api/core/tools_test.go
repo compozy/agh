@@ -393,6 +393,79 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 			t.Fatalf("tool error leaked raw backend detail: %s", resp.Body.String())
 		}
 	})
+
+	t.Run("Should expose provider model input errors as safe 422 payloads", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name    string
+			code    toolspkg.ErrorCode
+			message string
+		}{
+			{
+				name:    "Should expose model_not_found",
+				code:    toolspkg.ErrorCodeModelNotFound,
+				message: "provider model not found",
+			},
+			{
+				name:    "Should expose reasoning_effort_unsupported",
+				code:    toolspkg.ErrorCodeReasoningEffortUnsupported,
+				message: "reasoning effort unsupported",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				registry := newAPITestToolRegistry(t, false)
+				registry.setCallError(
+					toolspkg.ToolIDSkillView,
+					toolspkg.NewToolError(
+						tc.code,
+						toolspkg.ToolIDSkillView,
+						"internal provider model detail agh_claim_secret",
+						toolspkg.ErrToolInvalidInput,
+					),
+				)
+				homePaths, cfg := testutil.NewDisabledNetworkHomeConfig(t)
+				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+					TransportName:      "api-core-test",
+					Sessions:           testutil.StubSessionManager{},
+					Observer:           testutil.StubObserver{},
+					Tasks:              testutil.StubTaskManager{},
+					Workspaces:         testutil.StubWorkspaceService{},
+					Tools:              registry,
+					Toolsets:           registry,
+					ToolApprovals:      toolspkg.NewApprovalTokenStore(time.Minute),
+					HomePaths:          homePaths,
+					Config:             cfg,
+					Logger:             testutil.DiscardLogger(),
+					StartedAt:          time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC),
+					Now:                func() time.Time { return time.Date(2026, 4, 29, 12, 0, 1, 0, time.UTC) },
+					PollInterval:       time.Millisecond,
+					StreamDone:         make(chan struct{}),
+					MaskInternalErrors: false,
+				})
+				resp := performRequest(
+					t,
+					newToolCoreEngine(t, handlers),
+					http.MethodPost,
+					"/tools/agh__skill_view/invoke",
+					[]byte(`{"input":{"name":"test"}}`),
+				)
+				if got, want := resp.Code, http.StatusUnprocessableEntity; got != want {
+					t.Fatalf("invoke status = %d, want %d; body=%s", got, want, resp.Body.String())
+				}
+				var payload contract.ToolErrorResponse
+				decodeToolJSON(t, resp.Body.Bytes(), &payload)
+				if payload.Error.Code != tc.code || payload.Error.Message != tc.message {
+					t.Fatalf("tool error payload = %#v, want %s/%q", payload, tc.code, tc.message)
+				}
+				if strings.Contains(resp.Body.String(), "agh_claim_secret") {
+					t.Fatalf("tool error leaked raw provider model detail: %s", resp.Body.String())
+				}
+			})
+		}
+	})
 }
 
 func TestSessionToolHandlersUseResolvedRouteScope(t *testing.T) {
@@ -548,6 +621,7 @@ type apiTestToolRegistry struct {
 	registry        *toolspkg.RuntimeRegistry
 	mu              sync.Mutex
 	calls           map[toolspkg.ToolID]int
+	callErrors      map[toolspkg.ToolID]error
 	lastListScope   toolspkg.Scope
 	lastCallScope   toolspkg.Scope
 	lastCallRequest toolspkg.CallRequest
@@ -585,7 +659,10 @@ func newAPITestToolRegistry(
 	if err != nil {
 		t.Fatalf("NewToolsetCatalog() error = %v", err)
 	}
-	wrapper := &apiTestToolRegistry{calls: make(map[toolspkg.ToolID]int)}
+	wrapper := &apiTestToolRegistry{
+		calls:      make(map[toolspkg.ToolID]int),
+		callErrors: make(map[toolspkg.ToolID]error),
+	}
 	provider := &apiTestToolProvider{
 		source:  source,
 		handles: make(map[toolspkg.ToolID]*apiTestToolHandle),
@@ -596,7 +673,11 @@ func newAPITestToolRegistry(
 			call: func(_ context.Context, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
 				wrapper.mu.Lock()
 				wrapper.calls[req.ToolID]++
+				callErr := wrapper.callErrors[req.ToolID]
 				wrapper.mu.Unlock()
+				if callErr != nil {
+					return toolspkg.ToolResult{}, callErr
+				}
 				return toolspkg.ToolResult{
 					Content:    []toolspkg.ToolContent{{Type: "text", Text: "ok"}},
 					Structured: json.RawMessage(`{"ok":true}`),
@@ -685,6 +766,12 @@ func (r *apiTestToolRegistry) callCount(id toolspkg.ToolID) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.calls[id]
+}
+
+func (r *apiTestToolRegistry) setCallError(id toolspkg.ToolID, err error) {
+	r.mu.Lock()
+	r.callErrors[id] = err
+	r.mu.Unlock()
 }
 
 func (r *apiTestToolRegistry) lastCall() (toolspkg.Scope, toolspkg.CallRequest) {

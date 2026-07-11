@@ -199,6 +199,48 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			t.Fatalf("meta.ReasoningEffort = %q, want high", meta.ReasoningEffort)
 		}
 	})
+
+	t.Run("Should resolve the agent reasoning default into StartOpts and persisted session state", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for idx := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[idx].Name == "coder" {
+				resolvedWorkspace.Agents[idx].ReasoningEffort = "max"
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if got, want := opts.ReasoningEffort, "max"; got != want {
+				t.Fatalf("StartOpts.ReasoningEffort = %q, want %q", got, want)
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-agent-reasoning"), nil
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "agent-reasoning-default",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		if got, want := session.Info().ReasoningEffort, "max"; got != want {
+			t.Fatalf("session.Info().ReasoningEffort = %q, want %q", got, want)
+		}
+		if got, want := readMeta(t, session.MetaPath()).ReasoningEffort, "max"; got != want {
+			t.Fatalf("meta.ReasoningEffort = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {

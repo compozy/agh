@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -614,6 +615,25 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 		}
 		if strings.Contains(err.Error(), "raw-pkce") || strings.Contains(err.Error(), "raw-refresh") {
 			t.Fatalf("readAPIErrorBody(tool error) error = %q, want sensitive values redacted", err.Error())
+		}
+	})
+
+	t.Run("Should preserve actionable diagnostics from shared API errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := readAPIErrorBody(
+			http.StatusUnprocessableEntity,
+			"422 Unprocessable Entity",
+			[]byte(
+				`{"error":"provider model not found","diagnostic":{"id":"provider.models.model_not_found","code":"model_not_found","category":"provider","title":"Provider model not found","message":"Choose a current model.","severity":"error","freshness":"live"}}`,
+			),
+		)
+		if err == nil {
+			t.Fatal("readAPIErrorBody(diagnostic) error = nil")
+		}
+		item, ok := diagnosticspkg.ItemFromError(err)
+		if !ok || item.Code != contract.CodeModelNotFound {
+			t.Fatalf("diagnostic = %#v, %v; want model_not_found", item, ok)
 		}
 	})
 }

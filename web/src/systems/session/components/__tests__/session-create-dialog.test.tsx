@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 import type { AgentPayload } from "@/systems/agent";
-import type { ModelOption } from "@/systems/model-catalog";
-import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
 
@@ -23,43 +23,28 @@ const workspace: WorkspacePayload = {
   updated_at: "2026-04-20T10:00:00Z",
 };
 
-const providerOptions: SessionProviderOption[] = [
-  {
-    name: "claude",
-    display_name: "Claude Code",
-    harness: "acp",
-    runtime_provider: "claude",
-  },
-  {
-    name: "codex",
-    display_name: "Codex",
-  },
-  {
-    name: "openrouter",
-    display_name: "OpenRouter",
-    harness: "pi_acp",
-    runtime_provider: "openrouter",
-  },
+const runtimeProviders: RuntimeProviderOption[] = [
+  { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
+  { id: "codex", name: "Codex", runtime_provider: "codex" },
+  { id: "openrouter", name: "OpenRouter", harness: "pi_acp", runtime_provider: "openrouter" },
 ];
 
-const codexModelOptions: ModelOption[] = [
+const runtimeModels: RuntimeModelOption[] = [
   {
     id: "gpt-5.4",
-    displayName: "GPT-5.4",
-    availabilityState: "available_live",
-    available: true,
-    stale: false,
-    refreshedAt: "2026-05-07T10:00:00Z",
-    source: "catalog",
+    provider: "codex",
+    name: "GPT-5.4",
+    efforts: ["low", "medium", "high"],
+    availability: "live",
+    curated: true,
   },
   {
     id: "gpt-5.4-mini",
-    displayName: "GPT-5.4 Mini",
-    availabilityState: "available_stale",
-    available: true,
-    stale: true,
-    refreshedAt: "2026-05-06T10:00:00Z",
-    source: "catalog",
+    provider: "codex",
+    name: "GPT-5.4 Mini",
+    efforts: [],
+    availability: "stale",
+    curated: true,
   },
 ];
 
@@ -72,37 +57,28 @@ function getDialogBackdrop(): HTMLElement {
 }
 
 function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCreateDialogProps {
-  const selectedProvider = overrides.selectedProvider ?? "claude";
-  const fallbackProviderOption =
-    overrides.providerOptions?.find(option => option.name === selectedProvider) ??
-    providerOptions.find(option => option.name === selectedProvider);
   return {
     open: true,
     onOpenChange: vi.fn(),
     agents,
     workspace,
     selectedAgentName: "claude-agent",
-    selectedProvider,
-    selectedProviderOption: fallbackProviderOption,
-    selectedModel: "",
-    selectedReasoning: "",
-    modelOptions: [],
-    reasoningOptions: [],
-    reasoningSupported: false,
+    runtimeValue: { provider: "claude", model: "", reasoning_effort: "" },
+    runtimeProviders,
+    runtimeModels: [],
     catalogStale: false,
     catalogLoading: false,
+    catalogLoaded: true,
     catalogError: null,
     catalogRefreshing: false,
     catalogRefreshError: null,
-    defaultReasoning: null,
-    providerOptions,
     providersLoading: false,
     providersError: null,
+    hasProviderOptions: true,
     onAgentChange: vi.fn(),
-    onProviderChange: vi.fn(),
-    onModelChange: vi.fn(),
-    onReasoningChange: vi.fn(),
+    onRuntimeChange: vi.fn(),
     onCatalogRefresh: vi.fn(),
+    onOpenProviderSettings: vi.fn(),
     onSubmit: vi.fn(),
     isSubmitting: false,
     submitError: null,
@@ -110,224 +86,81 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
   };
 }
 
+function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
+  return render(
+    <UIProvider reducedMotion="always">
+      <SessionCreateDialog {...makeProps(overrides)} />
+    </UIProvider>
+  );
+}
+
+async function openRuntimePopup(user: ReturnType<typeof userEvent.setup>) {
+  const segment = document.querySelector<HTMLElement>(
+    '[data-testid="session-create-runtime-select"] button[data-focus="model"]'
+  );
+  if (!segment) throw new Error("Runtime selector model segment not found");
+  await user.click(segment);
+  return screen.findByTestId("runtime-selector-popup");
+}
+
 describe("SessionCreateDialog", () => {
-  it("Should render the provider picker with the selected provider in the trigger", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog {...makeProps()} />
-      </UIProvider>
-    );
+  it("Should render the runtime selector wired to the selected provider", () => {
+    renderDialog();
 
     expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-xl");
-    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-120");
-
-    const trigger = screen.getByTestId("session-create-provider-select");
-    expect(trigger).toBeEnabled();
+    const trigger = screen.getByTestId("session-create-runtime-select");
     expect(trigger).toHaveTextContent("Claude Code");
-    expect(screen.getByTestId("session-create-provider-runtime")).toHaveTextContent("acp");
+    expect(trigger).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("Should preselect the incoming agent name in the agent picker trigger", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog {...makeProps({ selectedAgentName: "codex-agent" })} />
-      </UIProvider>
-    );
+    renderDialog({ selectedAgentName: "codex-agent" });
 
-    const trigger = screen.getByTestId("session-create-agent-select");
-    expect(trigger).toHaveTextContent("codex-agent");
+    expect(screen.getByTestId("session-create-agent-select")).toHaveTextContent("codex-agent");
   });
 
   it("Should call onAgentChange when the operator picks a different agent", async () => {
     const user = userEvent.setup();
     const onAgentChange = vi.fn();
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog {...makeProps({ onAgentChange })} />
-      </UIProvider>
-    );
+    renderDialog({ onAgentChange });
 
     await user.click(screen.getByTestId("session-create-agent-select"));
     await user.click(screen.getByTestId("agent-command-item-codex-agent"));
     expect(onAgentChange).toHaveBeenCalledWith("codex-agent");
   });
 
-  it("Should call onProviderChange when the operator picks a different provider", async () => {
+  it("Should surface a stale catalog notice inside the selector without blocking submit", async () => {
     const user = userEvent.setup();
-    const onProviderChange = vi.fn();
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog {...makeProps({ onProviderChange })} />
-      </UIProvider>
-    );
+    renderDialog({ runtimeModels, catalogStale: true });
 
-    await user.click(screen.getByTestId("session-create-provider-select"));
-    await user.click(screen.getByTestId("provider-command-item-codex"));
-    expect(onProviderChange).toHaveBeenCalledWith("codex");
-  });
-
-  it("Should let the operator select a catalog model and reasoning effort", async () => {
-    const user = userEvent.setup();
-    const onModelChange = vi.fn();
-    const onReasoningChange = vi.fn();
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "codex-agent",
-            selectedProvider: "codex",
-            modelOptions: codexModelOptions,
-            onModelChange,
-            onReasoningChange,
-            reasoningSupported: true,
-            reasoningOptions: [
-              { value: "low", label: "Low", source: "catalog" },
-              { value: "medium", label: "Medium", source: "catalog" },
-              { value: "high", label: "High", source: "catalog" },
-            ],
-          })}
-        />
-      </UIProvider>
-    );
-
-    await user.click(screen.getByTestId("session-create-model-select"));
-    await user.click(screen.getByTestId("model-command-item-gpt-5.4-mini"));
-    expect(onModelChange).toHaveBeenCalledWith("gpt-5.4-mini");
-
-    await user.click(screen.getByTestId("session-create-reasoning-select"));
-    await user.click(screen.getByTestId("reasoning-command-item-high"));
-    expect(onReasoningChange).toHaveBeenCalledWith("high");
-  });
-
-  it("Should render distinct availability badges for each catalog state", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "codex-agent",
-            selectedProvider: "codex",
-            modelOptions: [
-              {
-                id: "gpt-live",
-                displayName: "GPT live",
-                availabilityState: "available_live",
-                available: true,
-                stale: false,
-                source: "catalog",
-              },
-              {
-                id: "gpt-stale",
-                displayName: "GPT stale",
-                availabilityState: "available_stale",
-                available: true,
-                stale: true,
-                source: "catalog",
-              },
-              {
-                id: "gpt-down",
-                displayName: "GPT down",
-                availabilityState: "unavailable_live",
-                available: false,
-                stale: false,
-                source: "catalog",
-              },
-              {
-                id: "gpt-down-stale",
-                displayName: "GPT down stale",
-                availabilityState: "unavailable_stale",
-                available: false,
-                stale: true,
-                source: "catalog",
-              },
-              {
-                id: "gpt-unknown",
-                displayName: "GPT unknown",
-                availabilityState: "unknown",
-                available: null,
-                stale: false,
-                source: "catalog",
-              },
-            ],
-          })}
-        />
-      </UIProvider>
-    );
-
-    fireEvent.click(screen.getByTestId("session-create-model-select"));
-    expect(screen.getByTestId("model-command-item-gpt-live-availability")).toHaveTextContent(
-      "live"
-    );
-    expect(screen.getByTestId("model-command-item-gpt-stale-availability")).toHaveTextContent(
-      "stale"
-    );
-    expect(screen.getByTestId("model-command-item-gpt-down-availability")).toHaveTextContent(
-      "unavailable"
-    );
-    expect(screen.getByTestId("model-command-item-gpt-down-stale-availability")).toHaveTextContent(
-      "stale · unavailable"
-    );
-    expect(screen.getByTestId("model-command-item-gpt-unknown-availability")).toHaveTextContent(
-      "unknown"
-    );
-  });
-
-  it("Should surface stale catalog state without blocking submit", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "codex-agent",
-            selectedProvider: "codex",
-            modelOptions: codexModelOptions,
-            catalogStale: true,
-          })}
-        />
-      </UIProvider>
-    );
-
+    await openRuntimePopup(user);
     expect(screen.getByTestId("session-create-catalog-stale")).toHaveTextContent(
       "Some models are stale"
     );
     expect(screen.getByTestId("session-create-dialog-submit")).toBeEnabled();
   });
 
-  it("Should surface catalog source errors without hiding manual entry", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "codex-agent",
-            selectedProvider: "codex",
-            modelOptions: [],
-            catalogError: "catalog upstream failed",
-          })}
-        />
-      </UIProvider>
-    );
+  it("Should surface catalog source errors inside the selector while keeping it usable", async () => {
+    const user = userEvent.setup();
+    renderDialog({ runtimeModels: [], catalogError: "catalog upstream failed" });
 
+    await openRuntimePopup(user);
     expect(screen.getByTestId("session-create-catalog-error")).toHaveTextContent(
       "catalog upstream failed"
     );
-    expect(screen.getByTestId("session-create-model-select")).toBeEnabled();
+    expect(screen.getByTestId("session-create-runtime-select")).not.toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 
   it("Should expose a refresh control that triggers onCatalogRefresh", async () => {
     const onCatalogRefresh = vi.fn();
     const user = userEvent.setup();
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "codex-agent",
-            selectedProvider: "codex",
-            modelOptions: codexModelOptions,
-            onCatalogRefresh,
-          })}
-        />
-      </UIProvider>
-    );
+    renderDialog({ runtimeModels, onCatalogRefresh });
 
-    await user.click(screen.getByTestId("session-create-catalog-refresh"));
+    await openRuntimePopup(user);
+    await user.click(screen.getByTestId("runtime-selector-refresh"));
     expect(onCatalogRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -340,29 +173,29 @@ describe("SessionCreateDialog", () => {
   });
 
   it("Should disable submit when no providers are available and surface an empty-state note", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            providerOptions: [],
-            selectedProvider: "",
-            selectedProviderOption: undefined,
-          })}
-        />
-      </UIProvider>
-    );
+    renderDialog({
+      runtimeProviders: [],
+      hasProviderOptions: false,
+      runtimeValue: { provider: "", model: "", reasoning_effort: "" },
+    });
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
     expect(screen.getByTestId("session-create-providers-empty")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-providers-empty").className).toContain("text-xs");
   });
 
-  it("Should surface submitError when creation fails", () => {
-    render(
-      <SessionCreateDialog
-        {...makeProps({ submitError: "Server rejected the session", isSubmitting: false })}
-      />
+  it("Should surface providersError when the workspace provider list fails to load", () => {
+    renderDialog({
+      providersError: "Unable to load provider options for this workspace.",
+    });
+
+    expect(screen.getByTestId("session-create-providers-error")).toHaveTextContent(
+      "Unable to load provider options for this workspace."
     );
+  });
+
+  it("Should surface submitError when creation fails", () => {
+    render(<SessionCreateDialog {...makeProps({ submitError: "Server rejected the session" })} />);
 
     expect(screen.getByTestId("session-create-submit-error")).toHaveTextContent(
       "Server rejected the session"
@@ -370,82 +203,57 @@ describe("SessionCreateDialog", () => {
   });
 
   it("Should disable submit when the current selections are no longer available", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            selectedAgentName: "missing-agent",
-            selectedProvider: "missing-provider",
-            selectedProviderOption: undefined,
-          })}
-        />
-      </UIProvider>
-    );
+    renderDialog({
+      selectedAgentName: "missing-agent",
+      runtimeValue: { provider: "missing-provider", model: "", reasoning_effort: "" },
+    });
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
-  it("Should show provider-loading state and disable the picker while loading", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            providerOptions: [],
-            providersLoading: true,
-            selectedProvider: "",
-            selectedProviderOption: undefined,
-          })}
-        />
-      </UIProvider>
-    );
+  it("Should disable the runtime selector while providers are loading", () => {
+    renderDialog({
+      runtimeProviders: [],
+      hasProviderOptions: false,
+      providersLoading: true,
+      runtimeValue: { provider: "", model: "", reasoning_effort: "" },
+    });
 
-    const picker = screen.getByTestId("session-create-provider-select");
-    expect(picker).toBeDisabled();
-    expect(picker).toHaveTextContent("Loading providers…");
+    expect(screen.getByTestId("session-create-runtime-select")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
   it("Should disable both pickers until a workspace is selected", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            workspace: undefined,
-            selectedAgentName: "claude-agent",
-            selectedProvider: "claude",
-            selectedProviderOption: undefined,
-          })}
-        />
-      </UIProvider>
-    );
+    renderDialog({
+      workspace: undefined,
+      selectedAgentName: "claude-agent",
+      runtimeValue: { provider: "claude", model: "", reasoning_effort: "" },
+    });
 
     expect(screen.getByTestId("session-create-agent-select")).toBeDisabled();
     expect(screen.getByTestId("session-create-agent-select")).toHaveTextContent(
       "Select a workspace first"
     );
     expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
-
-    const providerPicker = screen.getByTestId("session-create-provider-select");
-    expect(providerPicker).toBeDisabled();
-    expect(providerPicker).toHaveTextContent("Select a workspace first");
-    expect(screen.queryByTestId("session-create-provider-runtime")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-create-runtime-select")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();
   });
 
   it("Should not render blank agent provider metadata for inherited providers", () => {
-    render(
-      <UIProvider reducedMotion="always">
-        <SessionCreateDialog
-          {...makeProps({
-            agents: [{ name: "general", provider: "", prompt: "help" }],
-            selectedAgentName: "general",
-            selectedProvider: "codex",
-          })}
-        />
-      </UIProvider>
-    );
+    renderDialog({
+      agents: [{ name: "general", provider: "", prompt: "help" }],
+      selectedAgentName: "general",
+      runtimeValue: { provider: "codex", model: "", reasoning_effort: "" },
+    });
 
     expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-create-provider-select")).toHaveTextContent("Codex");
+    expect(screen.getByTestId("session-create-runtime-select")).toHaveTextContent("Codex");
   });
 
   it("Should block backdrop dismissal while submit is in flight", () => {

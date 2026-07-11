@@ -40,8 +40,8 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   settings: {
     command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
     models: {
-      default: "claude-sonnet-4-6",
-      curated: [{ id: "claude-sonnet-4-6" }, { id: "claude-haiku-4-5" }],
+      default: "claude-sonnet-5",
+      curated: [{ id: "claude-sonnet-5" }, { id: "claude-haiku-4-5-20251001" }],
     },
     auth_mode: "native_cli",
     env_policy: "filtered",
@@ -57,7 +57,7 @@ const claudeEntry: SettingsProviderCollection["providers"][number] = {
   fallback: {
     settings: {
       command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-      models: { default: "claude-sonnet-4-6" },
+      models: { default: "claude-sonnet-5" },
     },
     source: { kind: "builtin-provider", scope: "global" },
   },
@@ -68,42 +68,37 @@ const codexEntry: SettingsProviderCollection["providers"][number] = {
   default: false,
   command_available: true,
   settings: {
-    command: "npx -y @zed-industries/codex-acp@latest",
+    command: "npx -y @agentclientprotocol/codex-acp@latest",
     models: {
-      default: "gpt-5.4",
+      default: "gpt-5.6-sol",
       curated: [
         {
-          id: "gpt-5.4",
+          id: "gpt-5.6-sol",
           supports_reasoning: true,
-          reasoning_efforts: ["low", "medium", "high"],
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+          default_reasoning_effort: "medium",
         },
-        { id: "gpt-5.4-mini" },
+        {
+          id: "gpt-5.6-terra",
+          supports_reasoning: true,
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+          default_reasoning_effort: "medium",
+        },
+        {
+          id: "gpt-5.6-luna",
+          supports_reasoning: true,
+          reasoning_efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+          default_reasoning_effort: "medium",
+        },
       ],
+      reasoning: { apply: "acp_option" },
     },
-    auth_mode: "bound_secret",
+    auth_mode: "native_cli",
     env_policy: "filtered",
     home_policy: "operator",
-    credential_slots: [
-      {
-        name: "api_key",
-        target_env: "OPENAI_API_KEY",
-        secret_ref: "env:OPENAI_API_KEY",
-        kind: "api_key",
-        required: true,
-      },
-    ],
+    auth_status_command: "codex auth status",
+    auth_login_command: "codex login",
   },
-  credentials: [
-    {
-      name: "api_key",
-      target_env: "OPENAI_API_KEY",
-      secret_ref: "env:OPENAI_API_KEY",
-      kind: "api_key",
-      required: true,
-      present: false,
-      source: "env",
-    },
-  ],
   source_metadata: {
     available_targets: ["global-config"],
     effective_source: { kind: "builtin-provider", scope: "global" },
@@ -155,9 +150,9 @@ describe("useSettingsProvidersPage", () => {
 
     expect(result.current.counts).toEqual({
       total: 2,
-      installed: 1,
+      installed: 2,
       binaryMissing: 0,
-      unconfigured: 1,
+      unconfigured: 0,
     });
   });
 
@@ -214,8 +209,8 @@ describe("useSettingsProvidersPage", () => {
       entry: expect.objectContaining({ name: "claude" }),
       draft: expect.objectContaining({
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
-        model_default: "claude-sonnet-4-6",
-        curated_models: "claude-sonnet-4-6\nclaude-haiku-4-5",
+        model_default: "claude-sonnet-5",
+        curated_models: "claude-sonnet-5\nclaude-haiku-4-5-20251001",
         target_env: "",
         auth_mode: "native_cli",
         env_policy: "filtered",
@@ -253,7 +248,7 @@ describe("useSettingsProvidersPage", () => {
       result.current.updateDraft(draft => ({
         ...draft,
         model_default: "claude-haiku",
-        curated_models: "claude-haiku\nclaude-sonnet-4-6",
+        curated_models: "claude-haiku\nclaude-sonnet-5",
       }));
     });
     act(() => {
@@ -269,7 +264,7 @@ describe("useSettingsProvidersPage", () => {
         command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
         models: {
           default: "claude-haiku",
-          curated: [{ id: "claude-haiku" }, { id: "claude-sonnet-4-6" }],
+          curated: [{ id: "claude-haiku" }, { id: "claude-sonnet-5" }],
         },
         harness: "acp",
         auth_mode: "native_cli",
@@ -301,8 +296,8 @@ describe("useSettingsProvidersPage", () => {
       settings: {
         command: "npx -y pi-acp@latest",
         models: {
-          default: "openai/gpt-5.4",
-          curated: [{ id: "openai/gpt-5.4", supports_reasoning: true }],
+          default: "openai/gpt-5.6-sol",
+          curated: [{ id: "openai/gpt-5.6-sol", supports_reasoning: true }],
         },
         harness: "pi_acp",
         runtime_provider: "openrouter",
@@ -380,7 +375,7 @@ describe("useSettingsProvidersPage", () => {
         command: "npx -y pi-acp@latest",
         models: {
           default: "anthropic/claude-sonnet",
-          curated: [{ id: "openai/gpt-5.4", supports_reasoning: true }],
+          curated: [{ id: "openai/gpt-5.6-sol" }],
         },
         harness: "pi_acp",
         runtime_provider: "openrouter",
@@ -440,7 +435,7 @@ describe("useSettingsProvidersPage", () => {
         ...draft,
         name: "openrouter",
         command: "npx -y pi-acp@latest",
-        model_default: "openai/gpt-5.4",
+        model_default: "openai/gpt-5.6-sol",
         target_env: "OPENROUTER_API_KEY",
         harness: "pi_acp",
         runtime_provider: "openrouter",
@@ -461,7 +456,7 @@ describe("useSettingsProvidersPage", () => {
       settings: {
         command: "npx -y pi-acp@latest",
         models: {
-          default: "openai/gpt-5.4",
+          default: "openai/gpt-5.6-sol",
           curated: [],
         },
         harness: "pi_acp",
@@ -490,7 +485,7 @@ describe("useSettingsProvidersPage", () => {
     });
   });
 
-  it("Should preserve curated metadata when re-saving with the same model ids", async () => {
+  it("Should send membership ids without copying merged catalog metadata", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
@@ -523,31 +518,17 @@ describe("useSettingsProvidersPage", () => {
 
     expect(putSettingsProvider).toHaveBeenCalledWith("codex", {
       settings: {
-        command: "npx -y @zed-industries/codex-acp@latest",
+        command: "npx -y @agentclientprotocol/codex-acp@latest",
         models: {
-          default: "gpt-5.4",
-          curated: [
-            {
-              id: "gpt-5.4",
-              supports_reasoning: true,
-              reasoning_efforts: ["low", "medium", "high"],
-            },
-            { id: "gpt-5.4-mini" },
-          ],
+          default: "gpt-5.6-sol",
+          curated: [{ id: "gpt-5.6-sol" }, { id: "gpt-5.6-terra" }, { id: "gpt-5.6-luna" }],
         },
         harness: "acp",
-        auth_mode: "bound_secret",
+        auth_mode: "native_cli",
         env_policy: "filtered",
         home_policy: "operator",
-        credential_slots: [
-          {
-            name: "api_key",
-            target_env: "OPENAI_API_KEY",
-            secret_ref: "env:OPENAI_API_KEY",
-            kind: "api_key",
-            required: true,
-          },
-        ],
+        auth_status_command: "codex auth status",
+        auth_login_command: "codex login",
       },
     });
   });

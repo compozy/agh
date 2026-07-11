@@ -28,7 +28,7 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Section label="Runtime">
+      <InspectSection label="Runtime">
         <Row label="Command">
           <CommandBlock value={provider.settings.command ?? null} />
         </Row>
@@ -38,10 +38,10 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
             runtime={provider.settings.runtime_provider ?? null}
           />
         </Row>
-      </Section>
+      </InspectSection>
 
       {defaultModel || curated.length > 0 ? (
-        <Section label="Models">
+        <InspectSection label="Models">
           {defaultModel ? (
             <Row label="Default">
               <code
@@ -66,10 +66,10 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
               </ul>
             </Row>
           ) : null}
-        </Section>
+        </InspectSection>
       ) : null}
 
-      <Section label="Authentication">
+      <InspectSection label="Authentication">
         <Row label="Mode">
           <code className="font-mono text-small-body text-fg" data-testid="inspect-auth-mode">
             {provider.settings.auth_mode ?? "—"}
@@ -93,30 +93,30 @@ export function ProviderInspectView({ provider }: ProviderInspectViewProps) {
             />
           </Row>
         ) : null}
-      </Section>
+      </InspectSection>
 
       {hasCredentials ? (
-        <Section label={`Credentials (${credentials.length || credentialSlots.length})`}>
+        <InspectSection label={`Credentials (${credentials.length || credentialSlots.length})`}>
           <CredentialList slots={credentialSlots} credentials={credentials} />
-        </Section>
+        </InspectSection>
       ) : null}
 
-      <Section label="Source">
+      <InspectSection label="Source">
         <SettingsSourceBadge
           data-testid="inspect-source"
           source={provider.source_metadata.effective_source}
           shadowed={provider.source_metadata.shadowed_sources ?? []}
         />
-      </Section>
+      </InspectSection>
 
-      <Section label="Catalog">
+      <InspectSection label="Catalog">
         <CatalogList providerId={provider.name} enabled={provider.command_available} />
-      </Section>
+      </InspectSection>
     </div>
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function InspectSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2.5" data-section={label.toLowerCase()}>
       <Eyebrow className="text-subtle">{label}</Eyebrow>
