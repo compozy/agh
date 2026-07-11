@@ -1,26 +1,14 @@
 ---
-title: "agh agent create"
-description: "Create a global or workspace-local agent definition"
+title: "agh agent duplicate"
+description: "Duplicate an agent definition without exposing secrets"
 ---
 
-## agh agent create
+## agh agent duplicate
 
-Create a global or workspace-local agent definition
-
-```
-agh agent create <name> [flags]
-```
-
-### Examples
+Duplicate an agent definition without exposing secrets
 
 ```
-  agh agent create pricing_strategist \
-    --workspace ~/dev/ad8 \
-    --provider claude \
-    --model claude-sonnet-5 \
-    --reasoning-effort max \
-    --prompt "You own pricing strategy." \
-    -o json
+agh agent duplicate <source> <new-name> [flags]
 ```
 
 ### Options
@@ -29,16 +17,17 @@ agh agent create <name> [flags]
       --category stringArray      Agent category path segment (repeatable)
       --command string            Optional provider command override
       --deny-tool stringArray     Denied tool pattern (repeatable)
-  -h, --help                      help for create
+  -h, --help                      help for duplicate
       --model string              Optional provider model
       --permissions string        Optional permission mode
       --prompt string             Agent system prompt body
       --prompt-file string        Read the agent system prompt body from a file
       --provider string           Provider name for sessions using this agent
       --reasoning-effort string   Optional default reasoning effort
+      --scope string              Target scope: global or workspace (default: source origin)
       --tool stringArray          Allowed tool pattern (repeatable)
       --toolset stringArray       Allowed toolset reference (repeatable)
-      --workspace string          Workspace id, name, or path to create the agent under
+      --workspace string          Resolve the source or target workspace
 ```
 
 ### Options inherited from parent commands
@@ -60,5 +49,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent create <name> -o json
+agh agent duplicate <source> <new-name> -o json
 ```

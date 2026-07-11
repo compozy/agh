@@ -8,9 +8,53 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
 )
+
+type daemonAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.ErrorPayload
+}
+
+func (e *daemonAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	if message := strings.TrimSpace(e.payload.Error); message != "" {
+		return message
+	}
+	return strings.TrimSpace(e.status)
+}
+
+func (e *daemonAPIError) cliExitCode() int {
+	if e == nil {
+		return 1
+	}
+	switch e.statusCode {
+	case http.StatusBadRequest, http.StatusConflict:
+		return agentidentity.ExitIdentityInvalid
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return agentidentity.ExitUnauthorized
+	case http.StatusUnprocessableEntity:
+		return agentidentity.ExitConfigInvalid
+	case http.StatusNotFound, http.StatusGone, http.StatusRequestTimeout,
+		http.StatusTooManyRequests, http.StatusInternalServerError,
+		http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return agentidentity.ExitUnavailable
+	default:
+		return 1
+	}
+}
+
+func (e *daemonAPIError) errorPayload() contract.ErrorPayload {
+	if e == nil {
+		return contract.ErrorPayload{}
+	}
+	return e.payload
+}
 
 func readAPIError(response *http.Response) error {
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
@@ -23,11 +67,12 @@ func readAPIError(response *http.Response) error {
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	var payload contract.ErrorPayload
 	if len(body) > 0 && json.Unmarshal(body, &payload) == nil && strings.TrimSpace(payload.Error) != "" {
-		cause := errors.New(redactToolDiagnostic(payload.Error))
+		payload.Error = redactToolDiagnostic(payload.Error)
+		cause := errors.New(payload.Error)
 		if payload.Diagnostic != nil {
 			return diagnosticspkg.NewStructuredError(*payload.Diagnostic, cause)
 		}
-		return cause
+		return &daemonAPIError{statusCode: statusCode, status: status, payload: payload}
 	}
 	var memoryPayload contract.MemoryErrorPayload
 	if len(body) > 0 && json.Unmarshal(body, &memoryPayload) == nil &&
@@ -48,10 +93,14 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		message = status
 	}
 	message = redactToolDiagnostic(message)
-	if strings.TrimSpace(status) == "" {
-		return errors.New(message)
+	if strings.TrimSpace(status) != "" {
+		message = fmt.Sprintf("daemon api %s: %s", status, message)
 	}
-	return fmt.Errorf("daemon api %s: %s", status, message)
+	return &daemonAPIError{
+		statusCode: statusCode,
+		status:     status,
+		payload:    contract.ErrorPayload{Error: message},
+	}
 }
 
 func drainResponseBody(method string, path string, body io.Reader) error {

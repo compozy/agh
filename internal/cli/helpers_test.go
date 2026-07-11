@@ -169,6 +169,10 @@ type stubClient struct {
 	) error
 	listAgentsFn                func(context.Context, AgentQuery) ([]AgentRecord, error)
 	getAgentFn                  func(context.Context, string, AgentQuery) (AgentRecord, error)
+	createAgentFn               func(context.Context, contract.CreateAgentRequest) (AgentRecord, error)
+	updateAgentFn               func(context.Context, string, contract.UpdateAgentRequest) (AgentRecord, error)
+	deleteAgentFn               func(context.Context, string, string) (contract.DeleteAgentResponse, error)
+	duplicateAgentFn            func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error)
 	getAgentSoulFn              func(context.Context, string, AgentQuery) (AgentSoulRecord, error)
 	validateAgentSoulFn         func(context.Context, string, AgentSoulValidateRequest) (AgentSoulRecord, error)
 	putAgentSoulFn              func(context.Context, string, AgentSoulPutRequest) (AgentSoulMutationRecord, error)
@@ -1559,6 +1563,46 @@ func (s *stubClient) GetAgent(ctx context.Context, name string, query AgentQuery
 		return s.getAgentFn(ctx, name, query)
 	}
 	return AgentRecord{}, errors.New("unexpected GetAgent call")
+}
+
+func (s *stubClient) CreateAgent(ctx context.Context, request contract.CreateAgentRequest) (AgentRecord, error) {
+	if s.createAgentFn != nil {
+		return s.createAgentFn(ctx, request)
+	}
+	return AgentRecord{}, errors.New("unexpected CreateAgent call")
+}
+
+func (s *stubClient) UpdateAgent(
+	ctx context.Context,
+	name string,
+	request contract.UpdateAgentRequest,
+) (AgentRecord, error) {
+	if s.updateAgentFn != nil {
+		return s.updateAgentFn(ctx, name, request)
+	}
+	return AgentRecord{}, errors.New("unexpected UpdateAgent call")
+}
+
+func (s *stubClient) DeleteAgent(
+	ctx context.Context,
+	name string,
+	workspace string,
+) (contract.DeleteAgentResponse, error) {
+	if s.deleteAgentFn != nil {
+		return s.deleteAgentFn(ctx, name, workspace)
+	}
+	return contract.DeleteAgentResponse{}, errors.New("unexpected DeleteAgent call")
+}
+
+func (s *stubClient) DuplicateAgent(
+	ctx context.Context,
+	name string,
+	request contract.DuplicateAgentRequest,
+) (AgentRecord, error) {
+	if s.duplicateAgentFn != nil {
+		return s.duplicateAgentFn(ctx, name, request)
+	}
+	return AgentRecord{}, errors.New("unexpected DuplicateAgent call")
 }
 
 func (s *stubClient) GetAgentSoul(

@@ -36,8 +36,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 	if workspaceRef != "" {
 		if h.Workspaces == nil {
 			return resolvedAgentDefinition{}, fmt.Errorf(
-				"%s: %w",
-				h.transportName(),
+				"api: %w",
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}
@@ -57,8 +56,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			}, nil
 		}
 		return resolvedAgentDefinition{}, fmt.Errorf(
-			"%s: agent %q is not available in workspace %q: %w",
-			h.transportName(),
+			"api: agent %q is not available in workspace %q: %w",
 			target,
 			workspaceRef,
 			workspacepkg.ErrAgentNotAvailable,
@@ -111,8 +109,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 		}
 		if h.Workspaces == nil {
 			return "", "", "", fmt.Errorf(
-				"%s: %w",
-				h.transportName(),
+				"api: %w",
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}

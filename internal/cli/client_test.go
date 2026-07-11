@@ -134,6 +134,106 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 	})
 }
 
+func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantMethod string
+		wantPath   string
+		wantQuery  string
+		response   string
+		run        func(t *testing.T, client *unixSocketClient)
+	}{
+		{
+			name:       "Should create an agent through the daemon",
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/agents",
+			response:   `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-1","prompt":"Code."}}`,
+			run: func(t *testing.T, client *unixSocketClient) {
+				t.Helper()
+				agent, err := client.CreateAgent(t.Context(), contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{Name: "coder", Provider: "fake", Prompt: "Code."},
+				})
+				if err != nil || agent.DefinitionDigest != "digest-1" {
+					t.Fatalf("CreateAgent() = %#v, %v", agent, err)
+				}
+			},
+		},
+		{
+			name:       "Should update an agent with a digest request",
+			wantMethod: http.MethodPut,
+			wantPath:   "/api/agents/coder",
+			response:   `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-2","prompt":"Review."}}`,
+			run: func(t *testing.T, client *unixSocketClient) {
+				t.Helper()
+				agent, err := client.UpdateAgent(t.Context(), "coder", contract.UpdateAgentRequest{
+					ExpectedDigest: "digest-1",
+					Agent:          contract.CreateAgentPayload{Name: "coder", Provider: "fake", Prompt: "Review."},
+				})
+				if err != nil || agent.DefinitionDigest != "digest-2" {
+					t.Fatalf("UpdateAgent() = %#v, %v", agent, err)
+				}
+			},
+		},
+		{
+			name:       "Should delete an agent in workspace scope",
+			wantMethod: http.MethodDelete,
+			wantPath:   "/api/agents/coder",
+			wantQuery:  "workspace=ws-1",
+			response:   `{"name":"coder","origin":"workspace","unshadowed_origin":"global"}`,
+			run: func(t *testing.T, client *unixSocketClient) {
+				t.Helper()
+				result, err := client.DeleteAgent(t.Context(), "coder", "ws-1")
+				if err != nil || result.UnshadowedOrigin != contract.AgentOriginGlobal {
+					t.Fatalf("DeleteAgent() = %#v, %v", result, err)
+				}
+			},
+		},
+		{
+			name:       "Should duplicate an agent server side",
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/agents/coder/duplicate",
+			response:   `{"agent":{"name":"reviewer","provider":"fake","origin":"global","definition_digest":"digest-copy","prompt":"Review."}}`,
+			run: func(t *testing.T, client *unixSocketClient) {
+				t.Helper()
+				agent, err := client.DuplicateAgent(t.Context(), "coder", contract.DuplicateAgentRequest{
+					Name: "reviewer",
+				})
+				if err != nil || agent.Name != "reviewer" {
+					t.Fatalf("DuplicateAgent() = %#v, %v", agent, err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &unixSocketClient{
+				socketPath: "/tmp/agh.sock",
+				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != tt.wantMethod || req.URL.Path != tt.wantPath || req.URL.RawQuery != tt.wantQuery {
+						t.Fatalf(
+							"request = %s %s?%s, want %s %s?%s",
+							req.Method,
+							req.URL.Path,
+							req.URL.RawQuery,
+							tt.wantMethod,
+							tt.wantPath,
+							tt.wantQuery,
+						)
+					}
+					return newHTTPResponse(http.StatusOK, tt.response), nil
+				})},
+			}
+			tt.run(t, client)
+		})
+	}
+}
+
 func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	t.Parallel()
 

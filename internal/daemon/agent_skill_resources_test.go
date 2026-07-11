@@ -741,6 +741,25 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 	}
 }
 
+func TestAgentDefinitionSyncRuntimeWiring(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inject the boot publisher into both server transports", func(t *testing.T) {
+		t.Parallel()
+
+		_, httpDeps, udsDeps := bootModelCatalogTestDaemon(t, nil)
+		if httpDeps.AgentDefinitionSync == nil {
+			t.Fatal("HTTP RuntimeDeps AgentDefinitionSync = nil, want boot publisher")
+		}
+		if udsDeps.AgentDefinitionSync == nil {
+			t.Fatal("UDS RuntimeDeps AgentDefinitionSync = nil, want boot publisher")
+		}
+		if httpDeps.AgentDefinitionSync != udsDeps.AgentDefinitionSync {
+			t.Fatal("HTTP and UDS received different agent definition sync publishers")
+		}
+	})
+}
+
 func agentSkillSyncStores(
 	t *testing.T,
 ) (

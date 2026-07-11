@@ -77,6 +77,7 @@ type commandDeps struct {
 	newMCPAuthClient            newMCPAuthClientFunc
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
+	inputIsTerminal             func(io.Reader) bool
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -204,6 +205,12 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
 		return marshalGoalCommandExecutionError(args, goalErr)
 	}
+	if apiErr, ok := errors.AsType[interface {
+		error
+		errorPayload() contract.ErrorPayload
+	}](err); ok {
+		return marshalDaemonAPIExecutionError(args, apiErr.errorPayload())
+	}
 	if !isStructuredAgentCommandError(err) {
 		return marshalDiagnosticExecutionError(args, err)
 	}
@@ -221,6 +228,24 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 			return nil, false
 		}
 		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func marshalDaemonAPIExecutionError(args []string, payload contract.ErrorPayload) ([]byte, bool) {
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		encoded, err := json.Marshal(payload)
+		return encoded, err == nil
+	case OutputJSONL:
+		encoded, err := json.Marshal(struct {
+			Type  string                `json:"type"`
+			Error contract.ErrorPayload `json:"error"`
+		}{Type: automationErrorKey, Error: payload})
+		return append(encoded, '\n'), err == nil
+	case OutputToon:
+		return []byte(renderToonObject("error", []string{"message"}, []string{payload.Error})), true
 	default:
 		return nil, false
 	}
@@ -349,6 +374,9 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	}
 	if d.lookPath == nil {
 		d.lookPath = exec.LookPath
+	}
+	if d.inputIsTerminal == nil {
+		d.inputIsTerminal = supportBundleInputIsTerminal
 	}
 	if d.spawnDetached == nil {
 		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {

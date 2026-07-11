@@ -459,7 +459,7 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	workspaceRef string,
 ) ([]AgentCatalogEntry, string, []workspacepkg.AgentDiagnostic, error) {
 	if h.Workspaces == nil {
-		return nil, "", nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
+		return nil, "", nil, fmt.Errorf("api: %w", workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {
@@ -482,7 +482,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 ) (AgentCatalogEntry, error) {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
-		return AgentCatalogEntry{}, fmt.Errorf("%s: agent name is required: %w", h.transportName(), os.ErrNotExist)
+		return AgentCatalogEntry{}, fmt.Errorf("api: agent name is required: %w", os.ErrNotExist)
 	}
 
 	entries, workspaceID, _, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
@@ -498,8 +498,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 		}
 	}
 	return AgentCatalogEntry{}, fmt.Errorf(
-		"%s: agent %q is not available in workspace %q: %w",
-		h.transportName(),
+		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
 		strings.TrimSpace(workspaceRef),
 		workspacepkg.ErrAgentNotAvailable,

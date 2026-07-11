@@ -1223,7 +1223,7 @@ func supportsDaemonManagedConfigSet(path []string, target aghconfig.WriteTarget)
 	return target.Scope() == aghconfig.WriteScopeGlobal &&
 		len(path) == 2 &&
 		path[0] == configSkillsKey &&
-		path[1] == "disabled_skills"
+		path[1] == agentDisabledSkillsKey
 }
 
 func settingsSkillsPayloadFromConfig(cfg aghconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {

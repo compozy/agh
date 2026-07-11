@@ -1,26 +1,14 @@
 ---
-title: "agh agent create"
-description: "Create a global or workspace-local agent definition"
+title: "agh agent update"
+description: "Update an agent definition for future sessions"
 ---
 
-## agh agent create
+## agh agent update
 
-Create a global or workspace-local agent definition
-
-```
-agh agent create <name> [flags]
-```
-
-### Examples
+Update an agent definition for future sessions
 
 ```
-  agh agent create pricing_strategist \
-    --workspace ~/dev/ad8 \
-    --provider claude \
-    --model claude-sonnet-5 \
-    --reasoning-effort max \
-    --prompt "You own pricing strategy." \
-    -o json
+agh agent update <name> [flags]
 ```
 
 ### Options
@@ -29,7 +17,8 @@ agh agent create <name> [flags]
       --category stringArray      Agent category path segment (repeatable)
       --command string            Optional provider command override
       --deny-tool stringArray     Denied tool pattern (repeatable)
-  -h, --help                      help for create
+      --expected-digest string    Definition digest from the last read
+  -h, --help                      help for update
       --model string              Optional provider model
       --permissions string        Optional permission mode
       --prompt string             Agent system prompt body
@@ -38,7 +27,7 @@ agh agent create <name> [flags]
       --reasoning-effort string   Optional default reasoning effort
       --tool stringArray          Allowed tool pattern (repeatable)
       --toolset stringArray       Allowed toolset reference (repeatable)
-      --workspace string          Workspace id, name, or path to create the agent under
+      --workspace string          Resolve the effective agent from a workspace
 ```
 
 ### Options inherited from parent commands
@@ -60,5 +49,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh agent create <name> -o json
+agh agent update <name> -o json
 ```

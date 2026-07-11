@@ -89,7 +89,10 @@ func TestToonOutputProducesToonDocument(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand() error = %v", err)
 		}
-		if !strings.Contains(stdout, "agents[1]{name,provider,model,category,tool_count,permissions}:") {
+		if !strings.Contains(
+			stdout,
+			"agents[1]{name,provider,model,category,origin,workspace_id,disabled_skills,definition_digest,tool_count,permissions}:",
+		) {
 			t.Fatalf("toon output = %q, want TOON header", stdout)
 		}
 	})

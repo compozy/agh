@@ -437,7 +437,7 @@ func agentMeBundle(record AgentMeRecord) outputBundle {
 				agentKernelAgentNameKey,
 				cliProviderKey,
 				agentKernelModelKey,
-				"workspace_id",
+				automationWorkspaceIDKey,
 				"workspace_root",
 			}, []string{
 				record.Self.SessionID,

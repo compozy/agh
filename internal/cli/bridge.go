@@ -684,7 +684,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 				{Label: bundlePlatformValue, Value: stringOrDash(item.Platform)},
 				{Label: bridgeExtensionValue, Value: stringOrDash(item.ExtensionName)},
 				{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
-				{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
+				{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
 				{Label: bridgeEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
 				{Label: automationStatusValue, Value: stringOrDash(string(item.Status))},
 				{

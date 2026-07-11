@@ -1611,8 +1611,7 @@ func (d *Daemon) configureExtensionResourcePublishers(
 	if err != nil {
 		return err
 	}
-	state.agentSkillResources = agentSkillResources
-	state.deps.SkillResources = agentSkillResources
+	wireAgentSkillResources(state, agentSkillResources)
 	toolMCPResources, err := d.newToolMCPPublisher(state, extRegistry)
 	if err != nil {
 		return err

@@ -1,4 +1,14 @@
 {
     "title": "Agent",
-    "pages": ["index", "create", "info", "list", "heartbeat", "soul"]
+    "pages": [
+        "index",
+        "create",
+        "delete",
+        "duplicate",
+        "info",
+        "list",
+        "update",
+        "heartbeat",
+        "soul"
+    ]
 }

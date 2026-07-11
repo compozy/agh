@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -65,6 +66,12 @@ func agentSessionLookup(client DaemonClient) agentidentity.SessionLookup {
 func cliExitCodeForError(err error) int {
 	if err == nil {
 		return 0
+	}
+	if apiErr, ok := errors.AsType[interface {
+		error
+		cliExitCode() int
+	}](err); ok {
+		return apiErr.cliExitCode()
 	}
 	code := agentidentity.ExitCodeForError(err)
 	if code == agentidentity.ExitUnavailable {
