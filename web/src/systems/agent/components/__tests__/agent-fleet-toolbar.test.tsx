@@ -64,8 +64,11 @@ describe("AgentFleetToolbar", () => {
         draftQuery=""
         onDraftQueryChange={vi.fn()}
         onFiltersChange={onFiltersChange}
+        onViewChange={vi.fn()}
         search={{}}
         searchInputRef={createRef<HTMLInputElement>()}
+        showFacets
+        view="rows"
       />
     );
 
@@ -74,5 +77,43 @@ describe("AgentFleetToolbar", () => {
 
     await user.click(screen.getByTestId("mock-set-status"));
     expect(onFiltersChange).toHaveBeenLastCalledWith({ category: undefined, status: "active" });
+  });
+
+  it("Should expose the view toggle when facets are shown and hide it otherwise", async () => {
+    const user = userEvent.setup();
+    const onViewChange = vi.fn();
+    const { rerender } = render(
+      <AgentFleetToolbar
+        categoryOptions={["Ops"]}
+        draftQuery=""
+        onDraftQueryChange={vi.fn()}
+        onFiltersChange={vi.fn()}
+        onViewChange={onViewChange}
+        search={{}}
+        searchInputRef={createRef<HTMLInputElement>()}
+        showFacets
+        view="rows"
+      />
+    );
+
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
+    await user.click(screen.getByTestId("listing-view-cards"));
+    expect(onViewChange).toHaveBeenCalledWith("cards");
+
+    rerender(
+      <AgentFleetToolbar
+        categoryOptions={["Ops"]}
+        draftQuery=""
+        onDraftQueryChange={vi.fn()}
+        onFiltersChange={vi.fn()}
+        onViewChange={onViewChange}
+        search={{}}
+        searchInputRef={createRef<HTMLInputElement>()}
+        showFacets={false}
+        view="rows"
+      />
+    );
+    expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("agent-fleet-filters")).not.toBeInTheDocument();
   });
 });

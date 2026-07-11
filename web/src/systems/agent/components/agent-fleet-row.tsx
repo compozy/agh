@@ -1,22 +1,28 @@
 import { Link } from "@tanstack/react-router";
 
-import { ListingRow, OwnerAvatar, Pill, cn } from "@agh/ui";
+import { KindIcon, ListingRow, Pill, cn, providerKindIconRegistry } from "@agh/ui";
 
 import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 
 export interface AgentFleetRowProps {
   row: AgentFleetRowModel;
+  newSessionDisabled?: boolean;
+  onNewSession: (agentName: string) => void;
 }
 
-function AgentFleetRow({ row }: AgentFleetRowProps) {
+function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
   const { agent, signals, meta, ariaLabel, hasDiagnostics, sessionsAvailable } = row;
   const sessionsTone =
     sessionsAvailable && signals && signals.active > 0 ? "text-success" : "text-muted";
 
   return (
-    <ListingRow data-testid={`agent-fleet-row-${agent.name}`} data-agent={agent.name}>
+    <ListingRow
+      className="max-[920px]:grid-cols-[34px_minmax(0,1fr)] max-[920px]:gap-x-3 max-[920px]:gap-y-2"
+      data-agent={agent.name}
+      data-testid={`agent-fleet-row-${agent.name}`}
+    >
       <ListingRow.Link
-        className="col-span-3 grid-cols-[34px_minmax(0,1fr)_auto]"
         render={
           <Link
             to="/agents/$name"
@@ -26,8 +32,14 @@ function AgentFleetRow({ row }: AgentFleetRowProps) {
           />
         }
       >
-        <ListingRow.Icon className="bg-transparent p-0">
-          <OwnerAvatar ownerKind="agent" ownerId={agent.name} name={agent.name} size="default" />
+        <ListingRow.Icon className="bg-elevated p-0 text-fg">
+          <KindIcon
+            className="size-[18px]"
+            kind={agent.provider}
+            registry={providerKindIconRegistry}
+            size="sm"
+            tone="default"
+          />
         </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
@@ -35,31 +47,36 @@ function AgentFleetRow({ row }: AgentFleetRowProps) {
           </ListingRow.Name>
           <ListingRow.Meta className="font-mono text-badge text-muted">{meta}</ListingRow.Meta>
         </ListingRow.Main>
-        <ListingRow.Trail className="justify-self-end gap-2">
-          <span
-            aria-hidden="true"
-            className={cn("font-mono text-badge tabular-nums", sessionsTone)}
-            data-testid={`agent-fleet-sessions-${agent.name}`}
-          >
-            {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "—"}
-          </span>
-          {sessionsAvailable && signals ? (
-            <Pill
-              size="sm"
-              tone={signals.status === "active" ? "success" : "neutral"}
-              data-testid={`agent-fleet-status-${agent.name}`}
-            >
-              <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
-              {signals.status === "active" ? "Active" : "Idle"}
-            </Pill>
-          ) : null}
-          {hasDiagnostics ? (
-            <Pill tone="warning" size="sm" data-testid={`agent-fleet-invalid-${agent.name}`}>
-              Invalid
-            </Pill>
-          ) : null}
-        </ListingRow.Trail>
       </ListingRow.Link>
+      <ListingRow.Trail className="gap-2.5 max-[920px]:col-span-2 max-[920px]:col-start-2 max-[920px]:justify-self-start">
+        <span
+          aria-hidden="true"
+          className={cn("font-mono text-badge tabular-nums", sessionsTone)}
+          data-testid={`agent-fleet-sessions-${agent.name}`}
+        >
+          {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "—"}
+        </span>
+        {sessionsAvailable && signals ? (
+          <Pill
+            size="sm"
+            tone={signals.status === "active" ? "success" : "neutral"}
+            data-testid={`agent-fleet-status-${agent.name}`}
+          >
+            <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
+            {signals.status === "active" ? "Active" : "Idle"}
+          </Pill>
+        ) : null}
+        {hasDiagnostics ? (
+          <Pill tone="warning" size="sm" data-testid={`agent-fleet-invalid-${agent.name}`}>
+            Invalid
+          </Pill>
+        ) : null}
+        <AgentFleetNewSessionButton
+          agentName={agent.name}
+          disabled={newSessionDisabled}
+          onNewSession={onNewSession}
+        />
+      </ListingRow.Trail>
     </ListingRow>
   );
 }

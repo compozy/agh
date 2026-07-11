@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
+import type { ListingViewMode } from "@agh/ui";
+
 import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
 import { useAgents } from "@/systems/agent/hooks/use-agents";
 import {
@@ -11,7 +13,7 @@ import {
   hasActiveAgentFleetFilters,
   type AgentsFleetSearch,
 } from "@/systems/agent/lib/agent-fleet-search";
-import { useSessions } from "@/systems/session";
+import { useSessionCreate, useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
@@ -31,6 +33,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const workspaceId = activeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
+  const sessionCreate = useSessionCreate();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [draftQuery, setDraftQuery] = useState(search.q ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,6 +46,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const sessionsAvailable = !sessionsQuery.isError;
   const sessions = sessionsAvailable ? (sessionsQuery.data ?? []) : null;
   const sessionsPartial = agentsQuery.isSuccess && sessionsQuery.isError;
+  const view: ListingViewMode = search.view ?? "rows";
 
   useEffect(() => {
     if (debounceRef.current) {
@@ -106,11 +110,30 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     [updateSearch]
   );
 
+  const setView = useCallback(
+    (nextView: ListingViewMode) => {
+      updateSearch(current => ({
+        ...current,
+        view: nextView === "rows" ? undefined : nextView,
+      }));
+    },
+    [updateSearch]
+  );
+
   const clearFilters = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setDraftQuery("");
-    updateSearch(() => ({}));
+    updateSearch(current => ({
+      view: current.view,
+    }));
   }, [updateSearch]);
+
+  const openNewSession = useCallback(
+    (agentName: string) => {
+      sessionCreate.openForAgent(agentName);
+    },
+    [sessionCreate]
+  );
 
   const categoryOptions = useMemo(() => collectAgentCategoryOptions(agents), [agents]);
   const rows = useMemo(
@@ -128,6 +151,8 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const isFirstRunEmpty = !isLoading && !agentsQuery.isError && agents.length === 0;
   const isFilteredEmpty =
     !isLoading && !agentsQuery.isError && agents.length > 0 && rows.length === 0 && filtersActive;
+  const showFacets =
+    !isLoading && !isFirstRunEmpty && !(agentsQuery.isError && agents.length === 0);
 
   return {
     hasChildMatch,
@@ -141,14 +166,19 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     search,
     draftQuery,
     searchInputRef,
+    view,
     setDraftQuery: setDraftQueryAndDebounce,
     setFilters,
+    setView,
     clearFilters,
     openCreate: openDialog,
+    openNewSession,
+    newSessionDisabled: !sessionCreate.hasActiveWorkspace,
     isLoading,
     isFirstRunEmpty,
     isFilteredEmpty,
     sessionsPartial,
+    showFacets,
     agentsError: agentsQuery.error,
     retryAgents: () => {
       void agentsQuery.refetch();

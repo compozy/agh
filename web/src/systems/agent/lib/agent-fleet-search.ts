@@ -1,4 +1,6 @@
-import { normalizeListingSearchValue } from "@/lib/listing-search";
+import type { ListingViewMode } from "@agh/ui";
+
+import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 
 import type { AgentFleetStatus } from "./fleet-signals";
 
@@ -6,6 +8,7 @@ export interface AgentsFleetSearch {
   q?: string;
   category?: string;
   status?: AgentFleetStatus;
+  view?: ListingViewMode;
 }
 
 export function parseAgentFleetStatusFilter(value: unknown): AgentFleetStatus | undefined {
@@ -21,6 +24,7 @@ export function validateAgentsFleetSearch(search: Record<string, unknown>): Agen
     q: normalizeListingSearchValue(search.q),
     category: parseAgentFleetCategoryFilter(search.category),
     status: parseAgentFleetStatusFilter(search.status),
+    view: parseListingView(search.view),
   };
 }
 

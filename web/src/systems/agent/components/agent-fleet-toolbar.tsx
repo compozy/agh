@@ -1,7 +1,14 @@
 import { ListFilter } from "lucide-react";
 import { useMemo, type RefObject } from "react";
 
-import { Button, Filters, ListingToolbar, SearchInput, type Filter } from "@agh/ui";
+import {
+  Button,
+  Filters,
+  ListingToolbar,
+  SearchInput,
+  type Filter,
+  type ListingViewMode,
+} from "@agh/ui";
 
 import {
   agentFleetFiltersToChips,
@@ -15,8 +22,11 @@ export interface AgentFleetToolbarProps {
   draftQuery: string;
   categoryOptions: readonly string[];
   searchInputRef: RefObject<HTMLInputElement | null>;
+  showFacets: boolean;
+  view: ListingViewMode;
   onDraftQueryChange: (next: string) => void;
   onFiltersChange: (next: Pick<AgentsFleetSearch, "category" | "status">) => void;
+  onViewChange: (next: ListingViewMode) => void;
 }
 
 function AgentFleetToolbar({
@@ -24,8 +34,11 @@ function AgentFleetToolbar({
   draftQuery,
   categoryOptions,
   searchInputRef,
+  showFacets,
+  view,
   onDraftQueryChange,
   onFiltersChange,
+  onViewChange,
 }: AgentFleetToolbarProps) {
   const fields = useMemo(() => buildAgentFleetFilterFields(categoryOptions), [categoryOptions]);
   const chips = useMemo(() => agentFleetFiltersToChips(search), [search]);
@@ -46,29 +59,36 @@ function AgentFleetToolbar({
           placeholder="Search agents"
           value={draftQuery}
         />
-        <ListingToolbar.Filters>
-          <Filters<string>
-            allowMultiple={false}
-            data-testid="agent-fleet-filters"
-            fields={fields}
-            filters={chips}
-            onChange={handleFiltersChange}
-            size="sm"
-            trigger={
-              <Button
-                aria-label="Add filter"
-                data-testid="agent-fleet-filters-add"
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <ListFilter aria-hidden="true" className="size-3" />
-                Filter
-              </Button>
-            }
-          />
-        </ListingToolbar.Filters>
+        {showFacets ? (
+          <ListingToolbar.Filters>
+            <Filters<string>
+              allowMultiple={false}
+              data-testid="agent-fleet-filters"
+              fields={fields}
+              filters={chips}
+              onChange={handleFiltersChange}
+              size="sm"
+              trigger={
+                <Button
+                  aria-label="Add filter"
+                  data-testid="agent-fleet-filters-add"
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <ListFilter aria-hidden="true" className="size-3" />
+                  Filter
+                </Button>
+              }
+            />
+          </ListingToolbar.Filters>
+        ) : null}
       </ListingToolbar.Leading>
+      {showFacets ? (
+        <ListingToolbar.Trailing>
+          <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+        </ListingToolbar.Trailing>
+      ) : null}
     </ListingToolbar>
   );
 }

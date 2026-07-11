@@ -45,7 +45,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Fleet listing at /agents — six deterministic states for design-parity screenshots (loading, loaded, first-run empty, filtered empty, agents error, sessions partial).",
+          "Fleet listing at /agents — deterministic states for design-parity screenshots (loading, loaded rows/cards, first-run empty, filtered empty, agents error, sessions partial).",
       },
     },
   },
@@ -58,6 +58,15 @@ export const Loaded: Story = {
   args: {},
   parameters: {
     ...appRouteParameters("/agents"),
+    ...storybookMswParameters({ agent: loadedAgentHandlers }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const LoadedCards: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/agents?view=cards"),
     ...storybookMswParameters({ agent: loadedAgentHandlers }),
   },
   render: () => <StorybookWorkspaceSetup />,

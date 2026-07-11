@@ -238,6 +238,14 @@ test.describe("fleet scan journey", () => {
     await expect(ui.agentRow("fleet-release")).toBeVisible();
     await expect(ui.agentRow("fleet-ops")).toBeVisible();
 
+    await appPage.getByTestId("listing-view-cards").click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBe("cards");
+    await expect(appPage.getByTestId("agent-fleet-card-grid")).toBeVisible();
+    await expect(appPage.getByTestId("agent-fleet-card-fleet-release")).toBeVisible();
+    await appPage.getByTestId("listing-view-rows").click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBeNull();
+    await expect(ui.agentRow("fleet-release")).toBeVisible();
+
     await appPage.getByTestId("agent-fleet-search").fill("release");
     await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("release");
     await expect(ui.agentRow("fleet-release")).toBeVisible();

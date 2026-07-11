@@ -12,6 +12,7 @@ export interface AgentFleetRowModel {
   agent: AgentPayload;
   signals: AgentFleetSignals | null;
   meta: string;
+  cardMeta: string;
   ariaLabel: string;
   hasDiagnostics: boolean;
   sessionsAvailable: boolean;
@@ -67,6 +68,20 @@ export function formatAgentFleetMeta(agent: AgentPayload): string {
   const category = formatCategoryMetaSegment(agent.category_path);
   if (category) segments.push(category);
   if (agent.provider) segments.push(agent.provider);
+  if (agent.model) segments.push(agent.model);
+  segments.push(formatAgentOriginLabel(agent.origin));
+  return segments.join(META_SEPARATOR);
+}
+
+/** Card eyebrow: category (or provider) · model · origin — keeps definition truth without decorative chrome. */
+export function formatAgentFleetCardMeta(agent: AgentPayload): string {
+  const segments: string[] = [];
+  const category = formatCategoryMetaSegment(agent.category_path);
+  if (category) {
+    segments.push(category);
+  } else if (agent.provider) {
+    segments.push(agent.provider);
+  }
   if (agent.model) segments.push(agent.model);
   segments.push(formatAgentOriginLabel(agent.origin));
   return segments.join(META_SEPARATOR);
@@ -146,6 +161,7 @@ export function projectAgentFleetRows(input: {
       agent,
       signals,
       meta: formatAgentFleetMeta(agent),
+      cardMeta: formatAgentFleetCardMeta(agent),
       ariaLabel: formatAgentFleetAriaLabel(agent, signals, sessionsAvailable),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable,

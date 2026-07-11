@@ -213,6 +213,21 @@ vi.mock("@/systems/agent/components/agent-create-host", () => ({
   AgentCreateHostProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+const mockOpenNewSession = vi.fn();
+
+vi.mock("@/systems/session", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/session")>();
+  return {
+    ...actual,
+    useSessionCreate: () => ({
+      openForAgent: mockOpenNewSession,
+      isCreating: false,
+      pendingAgentName: null,
+      hasActiveWorkspace: true,
+    }),
+  };
+});
+
 import { Route } from "../agents";
 
 const AgentsPage = routeComponent(Route);
@@ -246,6 +261,7 @@ describe("Agents fleet route", () => {
     sessionsRequestCount = 0;
     mockActiveWorkspaceId = "ws_test";
     mockOpenCreate.mockReset();
+    mockOpenNewSession.mockReset();
     routerState.navigateMock.mockReset();
     routerState.searchParams = {};
     routerState.childMatches = [];
@@ -272,23 +288,70 @@ describe("Agents fleet route", () => {
     expect(sessionsRequestCount).toBe(0);
   });
 
-  it("Should render skeleton then loaded rows and navigate on row click", async () => {
+  it("Should render skeleton then loaded rows with sibling new-session action", async () => {
     const user = userEvent.setup();
     agentsDelayMs = 30;
     render(<AgentsPage />);
     expect(screen.getByTestId("agent-fleet-loading")).toBeInTheDocument();
     expect(screen.getByTestId("agent-fleet-toolbar")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
 
     const list = await screen.findByTestId("agent-fleet-list");
+    expect(screen.getByTestId("agents-page-head")).toHaveTextContent("Operate");
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
     const row = within(list).getByTestId("agent-fleet-row-code-reviewer");
     const link = within(row).getByTestId("agent-fleet-row-link-code-reviewer");
     expect(link).toHaveAttribute("aria-label", "code-reviewer, Idle, 0 of 1 sessions active");
     expect(within(row).getAllByRole("link")).toHaveLength(1);
-    expect(within(row).queryAllByRole("button")).toHaveLength(0);
-    expect(link).toContainElement(screen.getByTestId("agent-fleet-sessions-code-reviewer"));
-    await user.click(screen.getByTestId("agent-fleet-status-code-reviewer"));
+    const newSession = within(row).getByTestId("agent-fleet-new-session-code-reviewer");
+    expect(newSession).toBeInTheDocument();
+    expect(link).not.toContainElement(newSession);
+    expect(link).not.toContainElement(screen.getByTestId("agent-fleet-sessions-code-reviewer"));
+    await user.click(newSession);
+    expect(mockOpenNewSession).toHaveBeenCalledWith("code-reviewer");
     expect(link).toHaveAttribute("href", "/agents/code-reviewer");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ name: "code-reviewer" }));
+  });
+
+  it("Should persist view=cards and keep origin plus full aria on cards", async () => {
+    const user = userEvent.setup();
+    render(<AgentsPage />);
+    await screen.findByTestId("agent-fleet-list");
+
+    await user.click(screen.getByTestId("listing-view-cards"));
+    await waitFor(() => {
+      expect(getValidatedSearch()).toMatchObject({ view: "cards" });
+    });
+
+    expect(await screen.findByTestId("agent-fleet-card-grid")).toBeInTheDocument();
+    const card = screen.getByTestId("agent-fleet-card-triage-bot");
+    expect(within(card).getByTestId("agent-fleet-card-meta-triage-bot")).toHaveTextContent(
+      "Workspace"
+    );
+    const cardLink = within(card).getByTestId("agent-fleet-card-link-triage-bot");
+    expect(cardLink).toHaveAttribute("aria-label", "triage-bot, Idle, 0 of 0 sessions active");
+    const cardNewSession = within(card).getByTestId("agent-fleet-new-session-triage-bot");
+    expect(cardLink).not.toContainElement(cardNewSession);
+
+    routerState.searchParams = { view: "cards" };
+    act(() => {
+      for (const listener of routerState.searchListeners) {
+        listener(getValidatedSearch());
+      }
+    });
+    expect(screen.getByTestId("agent-fleet-card-grid")).toBeInTheDocument();
+  });
+
+  it("Should preserve card geometry while a restored cards view is loading", async () => {
+    agentsDelayMs = 30;
+    routerState.searchParams = { view: "cards" };
+
+    render(<AgentsPage />);
+
+    const loading = screen.getByTestId("agent-fleet-loading");
+    expect(loading).toHaveAttribute("aria-label", "Loading agents");
+    expect(loading.children).toHaveLength(6);
+    expect(await screen.findByTestId("agent-fleet-card-grid")).toBeInTheDocument();
   });
 
   it("Should AND-compose search and filters through URL state", async () => {
@@ -364,18 +427,26 @@ describe("Agents fleet route", () => {
     render(<AgentsPage />);
     expect(await screen.findByTestId("agent-fleet-filtered-empty")).toBeInTheDocument();
     expect(screen.getByText("No agents match")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try a different search or clear the active filters.")
+    ).toBeInTheDocument();
     await user.click(screen.getByTestId("agent-fleet-clear-filters"));
     expect(routerState.navigateMock).toHaveBeenCalled();
   });
 
-  it("Should name the agents failure and retry", async () => {
+  it("Should keep page head and search when agents fail, without view toggle", async () => {
     const user = userEvent.setup();
     mockAgents = [];
     agentsShouldError = true;
     render(<AgentsPage />);
     expect(await screen.findByTestId("agent-fleet-error")).toBeInTheDocument();
+    expect(screen.getByTestId("agents-page-head")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-fleet-search")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-view-toggle")).not.toBeInTheDocument();
     expect(screen.getByText("Couldn't load agents")).toBeInTheDocument();
-    expect(screen.getByText("agents unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("The agents request failed. Check the daemon connection and try again.")
+    ).toBeInTheDocument();
     agentsShouldError = false;
     mockAgents = [agent({ name: "recovered" })];
     await user.click(screen.getByTestId("agent-fleet-error-retry"));
@@ -443,6 +514,11 @@ describe("Agents fleet route", () => {
 
     await waitFor(() => expect(search).toHaveValue("release"));
     await new Promise(resolve => setTimeout(resolve, 250));
-    expect(getValidatedSearch()).toEqual({ q: "release", category: undefined, status: undefined });
+    expect(getValidatedSearch()).toEqual({
+      q: "release",
+      category: undefined,
+      status: undefined,
+      view: undefined,
+    });
   });
 });

@@ -135,6 +135,7 @@ export {
   collectAgentCategoryOptions,
   compareAgentNamesStable,
   formatAgentFleetAriaLabel,
+  formatAgentFleetCardMeta,
   formatAgentFleetMeta,
   formatAgentOriginLabel,
   formatCategoryMetaSegment,
@@ -224,5 +225,10 @@ export {
 } from "./components/agent-create-host";
 export { useAgentCreateHost } from "./hooks/use-agent-create-host";
 export { AgentFleetRow, type AgentFleetRowProps } from "./components/agent-fleet-row";
+export { AgentFleetCard, type AgentFleetCardProps } from "./components/agent-fleet-card";
+export {
+  AgentFleetNewSessionButton,
+  type AgentFleetNewSessionButtonProps,
+} from "./components/agent-fleet-new-session-button";
 export { AgentFleetToolbar, type AgentFleetToolbarProps } from "./components/agent-fleet-toolbar";
 export { AgentFleetList, type AgentFleetListProps } from "./components/agent-fleet-list";
