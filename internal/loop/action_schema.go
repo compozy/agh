@@ -12,7 +12,15 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
+const jsonSchemaEnumKey = "enum"
+
 func validateRunAgentStructured(schema dsl.Schema, result ActionPromptResult) (json.RawMessage, error) {
+	return ValidateActionStructured(schema, result)
+}
+
+// ValidateActionStructured applies the Loop-owned generation-output schema validator.
+// Child action executors use this seam instead of owning a second schema implementation.
+func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (json.RawMessage, error) {
 	if len(schema) == 0 {
 		if len(bytes.TrimSpace(result.Structured)) > 0 {
 			return cloneRawMessage(result.Structured), nil
@@ -112,7 +120,7 @@ func isFullJSONSchema(schema map[string]any) bool {
 		"dependentRequired":     {},
 		"dependentSchemas":      {},
 		"description":           {},
-		"enum":                  {},
+		jsonSchemaEnumKey:       {},
 		"examples":              {},
 		"exclusiveMaximum":      {},
 		"exclusiveMinimum":      {},

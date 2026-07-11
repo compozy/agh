@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -368,85 +367,6 @@ func (g *GlobalDB) MarkTaskNeedsAttention(
 		return taskpkg.Task{}, err
 	}
 	return g.updateTaskNeedsAttention(ctx, normalized)
-}
-
-// ClearTaskNeedsAttention clears the task-level escalation metadata columns.
-func (g *GlobalDB) ClearTaskNeedsAttention(
-	ctx context.Context,
-	mutation taskpkg.NeedsAttentionClearMutation,
-) (taskpkg.Task, error) {
-	if err := g.checkReady(ctx, "clear task needs attention"); err != nil {
-		return taskpkg.Task{}, err
-	}
-	trimmedTaskID, err := requireTaskValue(mutation.TaskID, "task id")
-	if err != nil {
-		return taskpkg.Task{}, err
-	}
-	clearedAt := mutation.ClearedAt.UTC()
-	if clearedAt.IsZero() {
-		clearedAt = g.now().UTC()
-	}
-	clearedBy := mutation.ClearedBy
-	clearedBy.Kind = clearedBy.Kind.Normalize()
-	clearedBy.Ref = strings.TrimSpace(clearedBy.Ref)
-	if err := clearedBy.Validate("task.needs_attention_cleared_by"); err != nil {
-		return taskpkg.Task{}, err
-	}
-	origin := mutation.Origin
-	origin.Kind = origin.Kind.Normalize()
-	origin.Ref = strings.TrimSpace(origin.Ref)
-	if err := origin.Validate("task.needs_attention_clear_origin"); err != nil {
-		return taskpkg.Task{}, err
-	}
-	var updated taskpkg.Task
-	if err := g.withTaskImmediateTransaction(ctx, "clear task needs attention", func(exec taskSQLExecutor) error {
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE tasks
-			    SET needs_attention_reason = NULL,
-			        needs_attention_at = NULL,
-			        needs_attention_by_kind = NULL,
-			        needs_attention_by_ref = NULL,
-			        updated_at = ?
-			  WHERE id = ? AND needs_attention_at IS NOT NULL`,
-			store.FormatTimestamp(clearedAt),
-			trimmedTaskID,
-		)
-		if err != nil {
-			return fmt.Errorf("store: clear task needs attention %q: %w", trimmedTaskID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: rows affected for task needs attention clear %q: %w", trimmedTaskID, err)
-		}
-		if affected == 0 {
-			if _, loadErr := g.getTaskWithExecutor(ctx, exec, trimmedTaskID); loadErr != nil {
-				return loadErr
-			}
-			return fmt.Errorf(
-				"%w: task %q is not escalated",
-				taskpkg.ErrInvalidStatusTransition,
-				trimmedTaskID,
-			)
-		}
-		updated, err = g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
-		if err != nil {
-			return err
-		}
-		return appendTaskEventPayloadWithExecutor(
-			ctx,
-			exec,
-			updated.ID,
-			"",
-			string(hookspkg.HookTaskRecovered),
-			taskpkg.ActorContext{Actor: clearedBy, Origin: origin, Authority: taskpkg.Authority{Write: true}},
-			clearedAt,
-			taskRecoveredWatchEventPayload{At: clearedAt},
-		)
-	}); err != nil {
-		return taskpkg.Task{}, err
-	}
-	return updated, nil
 }
 
 // SetTaskWakeCreator writes the per-task creator wake opt-in flag.

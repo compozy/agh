@@ -15,6 +15,7 @@ type actionRegistryConfig struct {
 	runAgent      ActionExecutor
 	runLoop       ActionExecutor
 	transform     ActionExecutor
+	goal          ActionExecutor
 	sessionBinder ActionSessionBinder
 	loopStarter   ActionLoopStarter
 	eventReader   ActionEventRangeReader
@@ -43,6 +44,13 @@ func WithActionRunLoopExecutor(executor ActionExecutor) ActionRegistryOption {
 func WithActionTransformExecutor(executor ActionExecutor) ActionRegistryOption {
 	return func(cfg *actionRegistryConfig) {
 		cfg.transform = executor
+	}
+}
+
+// WithActionGoalExecutor wires the Goal convergence executor without importing the child package.
+func WithActionGoalExecutor(executor ActionExecutor) ActionRegistryOption {
+	return func(cfg *actionRegistryConfig) {
+		cfg.goal = executor
 	}
 }
 
@@ -87,6 +95,7 @@ type ActionRegistry struct {
 	runAgent  ActionExecutor
 	runLoop   ActionExecutor
 	transform ActionExecutor
+	goal      ActionExecutor
 	events    ActionEventRangeReader
 	channel   ChannelResultHarvester
 }
@@ -127,6 +136,7 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 		runAgent:  cfg.runAgent,
 		runLoop:   cfg.runLoop,
 		transform: cfg.transform,
+		goal:      cfg.goal,
 		events:    cfg.eventReader,
 		channel:   cfg.channel,
 	}, nil
@@ -135,6 +145,26 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 // Resolve returns the executor for a scoped action kind. Reserved kinds win before
 // falling through to the existing RuntimeRegistry.
 func (r *ActionRegistry) Resolve(ctx context.Context, scope tools.Scope, kind string) (ActionExecutor, error) {
+	return r.resolve(ctx, scope, kind, nil, false)
+}
+
+// ResolvePinned returns an executor only when an open tool still matches the Run-owned schema contract.
+func (r *ActionRegistry) ResolvePinned(
+	ctx context.Context,
+	scope tools.Scope,
+	kind string,
+	expected *ToolSchemaSnapshot,
+) (ActionExecutor, error) {
+	return r.resolve(ctx, scope, kind, expected, true)
+}
+
+func (r *ActionRegistry) resolve(
+	ctx context.Context,
+	scope tools.Scope,
+	kind string,
+	expected *ToolSchemaSnapshot,
+	requirePinned bool,
+) (ActionExecutor, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: resolve action context is required", ErrValidation)
 	}
@@ -146,13 +176,28 @@ func (r *ActionRegistry) Resolve(ctx context.Context, scope tools.Scope, kind st
 		return r.runLoop, nil
 	case dsl.ActionTransform:
 		return r.transform, nil
+	case dsl.ActionGoal:
+		if r.goal == nil {
+			return nil, reasonError(
+				ReasonCodeActionDependencyMissing,
+				ErrActionDependencyMissing,
+				map[string]string{actionDependencyMetaKey: "goal_executor"},
+			)
+		}
+		return r.goal, nil
 	}
 	id := tools.ToolID(trimmed)
 	if err := id.Validate(); err != nil {
 		return nil, unknownActionKindError(trimmed, err)
 	}
-	if _, err := r.runtime.Get(ctx, scope, id); err != nil {
+	view, err := r.runtime.Get(ctx, scope, id)
+	if err != nil {
 		return nil, unknownActionKindError(trimmed, err)
+	}
+	if requirePinned {
+		if err := validatePinnedActionContract(trimmed, view.Descriptor, expected); err != nil {
+			return nil, err
+		}
 	}
 	return &ToolCallActionExecutor{
 		runtime:     r.runtime,
@@ -160,6 +205,30 @@ func (r *ActionRegistry) Resolve(ctx context.Context, scope tools.Scope, kind st
 		eventReader: r.events,
 		channel:     r.channel,
 	}, nil
+}
+
+func validatePinnedActionContract(
+	kind string,
+	descriptor tools.Descriptor,
+	expected *ToolSchemaSnapshot,
+) error {
+	if expected != nil && strings.TrimSpace(expected.ToolID) == kind &&
+		strings.TrimSpace(expected.InputSchemaDigest) == strings.TrimSpace(descriptor.InputSchemaDigest) &&
+		strings.TrimSpace(expected.OutputSchemaDigest) == strings.TrimSpace(descriptor.OutputSchemaDigest) {
+		return nil
+	}
+	meta := map[string]string{actionKindMetaKey: kind}
+	if expected != nil {
+		meta["expected_input_schema_digest"] = strings.TrimSpace(expected.InputSchemaDigest)
+		meta["expected_output_schema_digest"] = strings.TrimSpace(expected.OutputSchemaDigest)
+	}
+	meta["current_input_schema_digest"] = strings.TrimSpace(descriptor.InputSchemaDigest)
+	meta["current_output_schema_digest"] = strings.TrimSpace(descriptor.OutputSchemaDigest)
+	return reasonError(
+		ReasonCodeActionContractStale,
+		fmt.Errorf("%w: action tool contract changed after Start", ErrActionSchemaInvalid),
+		meta,
+	)
 }
 
 func unknownActionKindError(kind string, err error) error {

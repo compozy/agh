@@ -31,6 +31,15 @@ func appendTaskEventWithExecutor(
 	exec taskSQLExecutor,
 	insert EventRecordInsert,
 ) error {
+	_, err := appendTaskEventRecordWithExecutor(ctx, exec, insert)
+	return err
+}
+
+func appendTaskEventRecordWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	insert EventRecordInsert,
+) (taskpkg.EventRecord, error) {
 	event := normalizeTaskEventRecord(taskpkg.Event{
 		ID:        insert.ID,
 		TaskID:    insert.TaskID,
@@ -45,19 +54,19 @@ func appendTaskEventWithExecutor(
 		event.Timestamp = time.Now().UTC()
 	}
 	if err := event.Validate(); err != nil {
-		return err
+		return taskpkg.EventRecord{}, err
 	}
 
 	if err := ensureTaskEventTaskExists(ctx, exec, event.TaskID); err != nil {
-		return err
+		return taskpkg.EventRecord{}, err
 	}
 	if strings.TrimSpace(event.RunID) != "" {
 		runTaskID, err := taskEventRunTaskID(ctx, exec, event.RunID)
 		if err != nil {
-			return err
+			return taskpkg.EventRecord{}, err
 		}
 		if runTaskID != event.TaskID {
-			return fmt.Errorf(
+			return taskpkg.EventRecord{}, fmt.Errorf(
 				"%w: task_event.run_id %q does not belong to task %q",
 				taskpkg.ErrValidation,
 				event.RunID,
@@ -68,7 +77,7 @@ func appendTaskEventWithExecutor(
 
 	nextSequence, err := nextTaskEventSequenceWithExecutor(ctx, exec)
 	if err != nil {
-		return err
+		return taskpkg.EventRecord{}, err
 	}
 	if _, err := exec.ExecContext(
 		ctx,
@@ -87,11 +96,11 @@ func appendTaskEventWithExecutor(
 		nullableTaskJSON(event.Payload),
 		store.FormatTimestamp(event.Timestamp),
 	); err != nil {
-		return fmt.Errorf("store: create task event %q: %w", event.ID, err)
+		return taskpkg.EventRecord{}, fmt.Errorf("store: create task event %q: %w", event.ID, err)
 	}
 	collectTaskEvent(exec, taskpkg.EventRecord{Sequence: nextSequence, Event: event})
 
-	return nil
+	return taskpkg.EventRecord{Sequence: nextSequence, Event: event}, nil
 }
 
 func appendTaskEventPayloadWithExecutor(
@@ -104,14 +113,37 @@ func appendTaskEventPayloadWithExecutor(
 	timestamp time.Time,
 	payload any,
 ) error {
+	_, err := appendTaskEventPayloadRecordWithExecutor(
+		ctx,
+		exec,
+		taskID,
+		runID,
+		eventType,
+		actor,
+		timestamp,
+		payload,
+	)
+	return err
+}
+
+func appendTaskEventPayloadRecordWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	runID string,
+	eventType string,
+	actor taskpkg.ActorContext,
+	timestamp time.Time,
+	payload any,
+) (taskpkg.EventRecord, error) {
 	if err := actor.Validate(); err != nil {
-		return err
+		return taskpkg.EventRecord{}, err
 	}
 	rawPayload, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("store: marshal task event %q payload: %w", eventType, err)
+		return taskpkg.EventRecord{}, fmt.Errorf("store: marshal task event %q payload: %w", eventType, err)
 	}
-	return appendTaskEventWithExecutor(ctx, exec, EventRecordInsert{
+	return appendTaskEventRecordWithExecutor(ctx, exec, EventRecordInsert{
 		ID:        store.NewID("evt"),
 		TaskID:    taskID,
 		RunID:     runID,

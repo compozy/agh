@@ -66,11 +66,18 @@ func evaluateWatchEventsNode(
 	if runtime.ledger == nil || runtime.cursorReader == nil {
 		return output, watchEventsBlockedTerminal(watchEventsLedgerUnavailableCode), nil
 	}
-	state, terminal, err := recoverWatchEventsState(ctx, run, output, node, runtime)
+	state, terminal, err := recoverWatchEventsState(
+		ctx,
+		run,
+		output,
+		node,
+		resolved.WatchEventsContracts,
+		runtime,
+	)
 	if err != nil || terminal != nil {
 		return output, terminal, err
 	}
-	query, err := watchEventsQuery(run, state)
+	query, err := watchEventsQuery(run, state, resolved.WatchEventsContracts)
 	if err != nil {
 		return output, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil
 	}
@@ -192,7 +199,7 @@ func rowMatchesWatchEventsSubscriptions(
 	row WatchEvent,
 ) (bool, WatchEvent, error) {
 	for idx, subscription := range subscriptions {
-		contract, ok := SupportedWatchEvents()[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
+		contract, ok := resolved.WatchEventsContracts[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
 		if !ok {
 			return false, WatchEvent{}, fmt.Errorf(
 				"%w: watch-events kind is unsupported: %q",

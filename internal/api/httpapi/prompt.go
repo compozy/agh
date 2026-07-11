@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/session"
@@ -39,25 +38,28 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	if !ok {
 		return
 	}
+	caller, err := h.PromptCallerForWorkspace(c, c.Param("workspace_id"))
+	if err != nil {
+		core.RespondError(c, http.StatusForbidden, err, true)
+		return
+	}
 
 	executionCtx := context.WithoutCancel(c.Request.Context())
 	deliveryCtx, cancelDelivery := context.WithCancel(c.Request.Context())
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
-		Message:         message,
-		Mode:            session.BusyInputMode(req.Mode),
-		DeliveryContext: deliveryCtx,
+		Message:           message,
+		Mode:              session.BusyInputMode(req.Mode),
+		DeliveryContext:   deliveryCtx,
+		Caller:            caller,
+		AllowGoalCommands: true,
 	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
 	if result.Events == nil {
-		status := http.StatusOK
-		if result.Queued || result.Staged {
-			status = http.StatusAccepted
-		}
-		c.JSON(status, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+		core.RespondPromptResult(c, result, true)
 		return
 	}
 	events := result.Events
@@ -80,27 +82,9 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			cancelDelivery()
-			return
-		case <-h.StreamDoneChannel():
-			cancelDelivery()
-			return
-		case event, ok := <-events:
-			if !ok {
-				if err := streamEncoder.Finish(writer, acp.AgentEvent{}); err != nil {
-					return
-				}
-				return
-			}
-			if err := streamEncoder.Emit(writer, event); err != nil {
-				cancelDelivery()
-				return
-			}
-		}
-	}
+	core.DeliverPromptEventStream(
+		c.Request.Context(), h.StreamDoneChannel(), events, cancelDelivery, streamEncoder, writer,
+	)
 }
 
 func (h *Handlers) interruptSessionPrompt(c *gin.Context) {
@@ -113,7 +97,7 @@ func (h *Handlers) interruptSessionPrompt(c *gin.Context) {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+	core.RespondPromptResult(c, result, true)
 }
 
 func (h *Handlers) steerSessionPrompt(c *gin.Context) {
@@ -135,7 +119,7 @@ func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
-	c.JSON(http.StatusAccepted, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+	core.RespondPromptResult(c, result, true)
 }
 
 func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
@@ -153,7 +137,7 @@ func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
-	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+	core.RespondPromptResult(c, result, true)
 }
 
 func extractPromptMessage(req contract.SendPromptRequest) (string, error) {

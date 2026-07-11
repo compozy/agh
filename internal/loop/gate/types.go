@@ -94,6 +94,7 @@ type GateInput struct {
 	ToolCallCorrelationID    string
 	ToolSensitiveInputFields []string
 	JudgeModel               string
+	JudgeUsageReporter       JudgeUsageReporter
 }
 
 // HumanDecision captures one human gate decision made through a trusted actor context.
@@ -137,19 +138,21 @@ const (
 
 // CriterionResult is the observable per-criterion outcome for SSE/UI consumers.
 type CriterionResult struct {
-	ID             string              `json:"id"`
-	Type           dsl.CriterionType   `json:"type"`
-	Outcome        VerdictOutcome      `json:"outcome"`
-	Passed         bool                `json:"passed"`
-	Broken         bool                `json:"broken,omitempty"`
-	ExitCode       *int                `json:"exit_code,omitempty"`
-	Stdout         string              `json:"stdout,omitempty"`
-	Stderr         string              `json:"stderr,omitempty"`
-	Confidence     *float64            `json:"confidence,omitempty"`
-	Evidence       json.RawMessage     `json:"evidence,omitempty"`
-	BlockingIssues []BlockingIssue     `json:"blocking_issues,omitempty"`
-	Warnings       []DiagnosticWarning `json:"warnings,omitempty"`
-	Payload        json.RawMessage     `json:"payload,omitempty"`
+	ID                  string              `json:"id"`
+	Type                dsl.CriterionType   `json:"type"`
+	Outcome             VerdictOutcome      `json:"outcome"`
+	Passed              bool                `json:"passed"`
+	Broken              bool                `json:"broken,omitempty"`
+	ExitCode            *int                `json:"exit_code,omitempty"`
+	Stdout              string              `json:"stdout,omitempty"`
+	Stderr              string              `json:"stderr,omitempty"`
+	Confidence          *float64            `json:"confidence,omitempty"`
+	Evidence            json.RawMessage     `json:"evidence,omitempty"`
+	BlockingIssues      []BlockingIssue     `json:"blocking_issues,omitempty"`
+	Warnings            []DiagnosticWarning `json:"warnings,omitempty"`
+	Payload             json.RawMessage     `json:"payload,omitempty"`
+	judgeTokensUsed     int64
+	judgeTokensReported bool
 }
 
 // BlockingIssue is the structured blocker ID shape from ADR-022.
@@ -247,7 +250,24 @@ type JudgeRequest struct {
 
 // JudgeResponse is the raw judge response payload.
 type JudgeResponse struct {
-	Raw string
+	Raw            string
+	TokensUsed     int64
+	TokensReported bool
+}
+
+// JudgeUsageReporter receives one aggregate cumulative token total for a gate evaluation.
+type JudgeUsageReporter interface {
+	ReportJudgeTokensUsed(int64)
+}
+
+// JudgeUsageReporterFunc adapts a function to JudgeUsageReporter.
+type JudgeUsageReporterFunc func(int64)
+
+// ReportJudgeTokensUsed implements JudgeUsageReporter.
+func (f JudgeUsageReporterFunc) ReportJudgeTokensUsed(tokens int64) {
+	if f != nil {
+		f(tokens)
+	}
 }
 
 // ToolCaller is the tools/call subset used by extension gate checks.

@@ -1,5 +1,23 @@
 package contract
 
+// LoopRunEventKind is the public loop run event stream vocabulary.
+type LoopRunEventKind string
+
+const (
+	LoopRunEventNodeRunning       LoopRunEventKind = "node_running"
+	LoopRunEventNodeSucceeded     LoopRunEventKind = "node_succeeded"
+	LoopRunEventNodeFailed        LoopRunEventKind = "node_failed"
+	LoopRunEventGateVerdict       LoopRunEventKind = "gate_verdict"
+	LoopRunEventGenerationStarted LoopRunEventKind = "generation_started"
+	LoopRunEventChannelMsg        LoopRunEventKind = "channel_msg"
+	LoopRunEventTokenTick         LoopRunEventKind = "token_tick"
+	LoopRunEventNeedsApproval     LoopRunEventKind = "needs_approval"
+	LoopRunEventStatusChanged     LoopRunEventKind = "status_changed"
+	LoopRunEventGoalTurnStarted   LoopRunEventKind = "goal_turn_started"
+	LoopRunEventGoalTurnCompleted LoopRunEventKind = "goal_turn_completed"
+	LoopRunEventGoalStatusChanged LoopRunEventKind = "goal_status_changed"
+)
+
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
 func LoopRunStatusValues() []string {
 	return []string{
@@ -52,6 +70,9 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventTokenTick),
 		string(LoopRunEventNeedsApproval),
 		string(LoopRunEventStatusChanged),
+		string(LoopRunEventGoalTurnStarted),
+		string(LoopRunEventGoalTurnCompleted),
+		string(LoopRunEventGoalStatusChanged),
 	}
 }
 
@@ -65,5 +86,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventGateVerdict),
 		string(LoopRunEventGenerationStarted),
 		string(LoopRunEventNeedsApproval),
+		string(LoopRunEventGoalStatusChanged),
 	}
 }

@@ -14,45 +14,9 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/procutil"
-	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/workref"
-	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
-
-type sessionStartSpec struct {
-	sessionID              string
-	sandboxID              string
-	sandbox                *store.SessionSandboxMeta
-	sessionName            string
-	agentName              string
-	provider               string
-	model                  string
-	reasoningEffort        string
-	permissions            aghconfig.PermissionMode
-	sandboxDisabled        bool
-	workspace              workspacepkg.ResolvedWorkspace
-	channel                string
-	promptOverlay          string
-	sessionType            Type
-	lineage                *store.SessionLineage
-	allowedToolsOverride   []string
-	postEvent              hookspkg.HookEvent
-	startAction            string
-	cleanupSessionDir      bool
-	includePromptUpdatedAt bool
-	preserveStopReason     bool
-	clearEventStoreOnOpen  bool
-	createdAt              time.Time
-	acpSessionID           string
-	stopReason             store.StopReason
-	stopDetail             string
-	failure                *store.SessionFailure
-	soulSnapshotID         string
-	soulDigest             string
-	parentSoulDigest       string
-	soulSnapshot           *soul.Snapshot
-}
 
 type sessionStartRuntime struct {
 	agent               aghconfig.ResolvedAgent
@@ -67,64 +31,10 @@ type sessionStartStorage struct {
 	recorder   EventRecorder
 }
 
-func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
-	opts, err := m.dispatchSessionPreCreate(ctx, opts)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-
-	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	sandboxDisabled, err := applyCreateSandboxOverride(&resolvedWorkspace, opts)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-
-	agentName, err := aghconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
-	if err != nil {
-		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
-	}
-
-	sessionID := strings.TrimSpace(m.newSessionID())
-	if sessionID == "" {
-		return sessionStartSpec{}, errors.New("session: session id generator returned empty id")
-	}
-	sandboxID := strings.TrimSpace(m.newSandboxID())
-	if sandboxID == "" {
-		return sessionStartSpec{}, errors.New("session: sandbox id generator returned empty id")
-	}
-	lineage, err := m.normalizeCreateLineage(ctx, sessionID, opts.Type, opts.Lineage)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-
-	return sessionStartSpec{
-		sessionID:       sessionID,
-		sandboxID:       sandboxID,
-		sessionName:     strings.TrimSpace(opts.Name),
-		agentName:       strings.TrimSpace(agentName),
-		provider:        strings.TrimSpace(opts.Provider),
-		model:           strings.TrimSpace(opts.Model),
-		reasoningEffort: strings.TrimSpace(opts.ReasoningEffort),
-		permissions:     opts.Permissions,
-		sandboxDisabled: sandboxDisabled,
-		workspace:       resolvedWorkspace,
-		channel:         strings.TrimSpace(opts.Channel),
-		promptOverlay:   strings.TrimSpace(opts.PromptOverlay),
-		sessionType:     normalizeSessionType(opts.Type),
-		lineage:         lineage,
-		allowedToolsOverride: append(
-			[]string(nil),
-			opts.AllowedToolsOverride...,
-		),
-		parentSoulDigest:  strings.TrimSpace(opts.ParentSoulDigest),
-		postEvent:         hookspkg.HookSessionPostCreate,
-		startAction:       "create",
-		cleanupSessionDir: true,
-	}, nil
-}
+const (
+	sessionStartActionCreate = "create"
+	sessionStartActionResume = "resume"
+)
 
 func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta) (sessionStartSpec, error) {
 	meta, err := m.dispatchSessionPreResume(ctx, meta)
@@ -138,41 +48,47 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	}
 
 	return sessionStartSpec{
-		sessionID:              meta.ID,
-		sandboxID:              sessionSandboxID(meta.Sandbox),
-		sandbox:                cloneSessionSandboxMeta(meta.Sandbox),
-		sandboxDisabled:        meta.Sandbox == nil,
-		sessionName:            meta.Name,
-		agentName:              meta.AgentName,
-		provider:               strings.TrimSpace(meta.Provider),
-		model:                  strings.TrimSpace(meta.Model),
-		reasoningEffort:        strings.TrimSpace(meta.ReasoningEffort),
-		permissions:            aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
-		workspace:              resolvedWorkspace,
-		channel:                strings.TrimSpace(meta.Channel),
-		sessionType:            normalizeSessionType(Type(meta.SessionType)),
-		lineage:                store.NormalizeSessionLineage(meta.ID, meta.Lineage),
-		postEvent:              hookspkg.HookSessionPostResume,
-		startAction:            "resume",
-		includePromptUpdatedAt: true,
-		preserveStopReason:     sessionMetaStopReason(meta) == store.StopAgentCrashed,
-		createdAt:              meta.CreatedAt,
-		acpSessionID:           derefString(meta.ACPSessionID),
-		stopReason:             sessionMetaStopReason(meta),
-		stopDetail:             strings.TrimSpace(meta.StopDetail),
-		failure:                store.CloneSessionFailure(meta.Failure),
-		soulSnapshotID:         strings.TrimSpace(meta.SoulSnapshotID),
-		soulDigest:             strings.TrimSpace(meta.SoulDigest),
-		parentSoulDigest:       strings.TrimSpace(meta.ParentSoulDigest),
+		sessionID:               meta.ID,
+		sandboxID:               sessionSandboxID(meta.Sandbox),
+		sandbox:                 cloneSessionSandboxMeta(meta.Sandbox),
+		sandboxDisabled:         meta.Sandbox == nil,
+		sessionName:             meta.Name,
+		agentName:               meta.AgentName,
+		provider:                strings.TrimSpace(meta.Provider),
+		model:                   strings.TrimSpace(meta.Model),
+		reasoningEffort:         strings.TrimSpace(meta.ReasoningEffort),
+		permissions:             aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
+		workspace:               resolvedWorkspace,
+		channel:                 strings.TrimSpace(meta.Channel),
+		cwd:                     resolvedWorkspace.RootDir,
+		sessionType:             normalizeSessionType(Type(meta.SessionType)),
+		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
+		postEvent:               hookspkg.HookSessionPostResume,
+		startAction:             sessionStartActionResume,
+		includePromptUpdatedAt:  true,
+		preserveStopReason:      sessionMetaStopReason(meta) == store.StopAgentCrashed,
+		createdAt:               meta.CreatedAt,
+		acpSessionID:            derefString(meta.ACPSessionID),
+		stopReason:              sessionMetaStopReason(meta),
+		stopDetail:              strings.TrimSpace(meta.StopDetail),
+		failure:                 store.CloneSessionFailure(meta.Failure),
+		soulSnapshotID:          strings.TrimSpace(meta.SoulSnapshotID),
+		soulDigest:              strings.TrimSpace(meta.SoulDigest),
+		parentSoulDigest:        strings.TrimSpace(meta.ParentSoulDigest),
+		creationProfile:         cloneCreationProfile(meta.CreationProfile),
+		creationOptions:         cloneCreationOptions(meta.CreationOptions),
+		creationIdentity:        creationIdentityFromMeta(meta),
+		creationIdentityPinned:  meta.CreationProfile != nil,
+		creationIdentityEnabled: meta.CreationProfile != nil,
+		advertisedCommands:      store.CloneSessionAdvertisedCommands(meta.AdvertisedCommands),
 	}, nil
 }
 
 func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *Session, err error) {
 	now := m.now()
 
-	runtime, err := m.prepareSessionStartRuntime(ctx, spec, now)
+	runtime, err := m.prepareSessionStartRuntimeAndIdentity(ctx, spec, now)
 	if err != nil {
-		spec.startLogger(m).Warn("session.start.runtime_prepare_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}
 	defer func() {
@@ -210,23 +126,12 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 
 	session := spec.newStartingSession(runtime.agent, storage, now)
 	defer cleanupProviderRedactionsOnStartError(session, &err)
+	if err := m.restoreAdvertisedCommands(ctx, session); err != nil {
+		return nil, err
+	}
 
-	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
-	startOpts, err = m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
+	startOpts, err := m.prepareSessionLaunch(ctx, spec, session, &runtime)
 	if err != nil {
-		return nil, m.failSessionStart(ctx, spec, session, "session provider startup failed", err)
-	}
-	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
-	if err != nil {
-		return nil, m.failSessionStart(ctx, spec, session, "session sandbox startup failed", err)
-	}
-	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
-	if err != nil {
-		return nil, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
-	}
-	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
-	if err := m.persistSessionMetadataOnly(session); err != nil {
-		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
 		return nil, err
 	}
 
@@ -248,6 +153,76 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	}
 
 	return session, nil
+}
+
+func (m *Manager) prepareSessionLaunch(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	session *Session,
+	runtime *sessionStartRuntime,
+) (acp.StartOpts, error) {
+	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
+	startOpts, err := m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, m.failSessionStart(
+			ctx,
+			spec,
+			session,
+			"session provider startup failed",
+			err,
+		)
+	}
+	startOpts, err = m.prepareSandboxForStart(ctx, spec, session, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, m.failSessionStart(
+			ctx,
+			spec,
+			session,
+			"session sandbox startup failed",
+			err,
+		)
+	}
+	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
+	}
+	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
+	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
+		return acp.StartOpts{}, m.failSessionStart(
+			ctx,
+			spec,
+			session,
+			"session creation identity changed",
+			err,
+		)
+	}
+	if err := m.persistSessionMetadataOnly(session); err != nil {
+		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
+		return acp.StartOpts{}, err
+	}
+	return startOpts, nil
+}
+
+func (m *Manager) prepareSessionStartRuntimeAndIdentity(
+	ctx context.Context,
+	spec *sessionStartSpec,
+	now time.Time,
+) (sessionStartRuntime, error) {
+	runtime, err := m.prepareSessionStartRuntime(ctx, spec, now)
+	if err != nil {
+		spec.startLogger(m).Warn(
+			"session.start.runtime_prepare_failed",
+			"phase",
+			spec.startAction,
+			"error",
+			err,
+		)
+		return sessionStartRuntime{}, err
+	}
+	if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
+		return sessionStartRuntime{}, err
+	}
+	return runtime, nil
 }
 
 func cleanupProviderRedactionsOnStartError(session *Session, err *error) {
@@ -513,47 +488,6 @@ func clearSessionStartRecorder(ctx context.Context, recorder EventRecorder, dbPa
 	return nil
 }
 
-func (s *sessionStartSpec) newStartingSession(
-	resolved aghconfig.ResolvedAgent,
-	storage sessionStartStorage,
-	now time.Time,
-) *Session {
-	createdAt := s.createdAt
-	if createdAt.IsZero() {
-		createdAt = now
-	}
-
-	return &Session{
-		ID:                   s.sessionID,
-		Name:                 s.sessionName,
-		AgentName:            resolved.Name,
-		Provider:             strings.TrimSpace(resolved.Provider),
-		Model:                strings.TrimSpace(resolved.Model),
-		ReasoningEffort:      strings.TrimSpace(s.reasoningEffort),
-		WorkspaceID:          s.workspace.ID,
-		Workspace:            s.workspace.RootDir,
-		Channel:              s.channel,
-		Type:                 normalizeSessionType(s.sessionType),
-		Lineage:              store.CloneSessionLineage(s.lineage),
-		State:                StateStarting,
-		stopReason:           s.stopReason,
-		stopDetail:           s.stopDetail,
-		failure:              store.CloneSessionFailure(s.failure),
-		ACPSessionID:         s.acpSessionID,
-		Sandbox:              cloneSessionSandboxMeta(s.sandbox),
-		SoulSnapshotID:       s.soulSnapshotID,
-		SoulDigest:           s.soulDigest,
-		ParentSoulDigest:     s.parentSoulDigest,
-		CreatedAt:            createdAt,
-		UpdatedAt:            now,
-		sessionDir:           storage.sessionDir,
-		metaPath:             storage.metaPath,
-		dbPath:               storage.dbPath,
-		recorder:             storage.recorder,
-		sandboxDestroyOnStop: !s.sandboxDisabled && s.workspace.Sandbox.DestroyOnStop,
-	}
-}
-
 func (m *Manager) normalizeCreateLineage(
 	ctx context.Context,
 	sessionID string,
@@ -639,7 +573,7 @@ func (m *Manager) sessionStartOpts(
 	return acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
-		Cwd:             s.workspace.RootDir,
+		Cwd:             s.cwd,
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
 		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
 		MCPServers:      mcpServers,

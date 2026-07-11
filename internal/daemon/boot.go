@@ -126,6 +126,8 @@ type bootState struct {
 	skillsDone             chan struct{}
 	loopsCancel            context.CancelFunc
 	loopsDone              chan struct{}
+	goalOutboxCancel       context.CancelFunc
+	goalOutboxDone         chan struct{}
 	startedAt              time.Time
 	info                   Info
 	deps                   RuntimeDeps
@@ -201,40 +203,6 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
-	return nil
-}
-
-func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	steps := []func() error{
-		func() error { return d.bootConfig(state, cleanup) },
-		func() error { return d.bootPromptProviders(ctx, state) },
-		func() error { return d.bootRuntime(ctx, state, cleanup) },
-		func() error { return d.bootSessionRepair(ctx, state) },
-		func() error { return d.bootTasks(ctx, state) },
-		func() error { return d.bootSpawnReaper(ctx, state, cleanup) },
-		func() error { return d.bootScheduler(ctx, state, cleanup) },
-		func() error { return d.bootNetwork(ctx, state, cleanup) },
-		func() error { return d.bootHooks(ctx, state, cleanup) },
-		func() error { return d.bootToolRegistry(ctx, state) },
-		func() error { return d.bootCoordinator(ctx, state, cleanup) },
-		func() error { return d.bootTaskRoles(ctx, state) },
-		func() error { return d.bootAutomation(ctx, state, cleanup) },
-		func() error { return d.bootBundles(ctx, state) },
-		func() error { return d.bootResourceReconcile(ctx, state, cleanup) },
-		func() error { return d.bootExtensions(ctx, state, cleanup) },
-		func() error { return d.bootSettings(ctx, state) },
-		func() error { return d.bootSupportBundles(state) },
-		func() error { return d.bootServers(ctx, state, cleanup) },
-		func() error { return d.bootFinalize(ctx, state) },
-	}
-	for _, step := range steps {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("daemon: boot canceled: %w", err)
-		}
-		if err := step(); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -1948,6 +1916,11 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 		return err
 	}
 	state.deps.Loops = loopAPI
+	if installer, ok := state.sessions.(goalCommandHandlerInstaller); ok {
+		if handler, handlerOK := loopAPI.(session.GoalCommandHandler); handlerOK {
+			installer.SetGoalCommandHandler(handler)
+		}
+	}
 
 	httpServer, err := d.httpFactory(ctx, state.deps)
 	if err != nil {
@@ -2186,63 +2159,6 @@ func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 		}
 	}
 	return nil
-}
-
-func (d *Daemon) publishBootState(state *bootState) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.config = state.cfg
-	d.logger = state.logger
-	d.closeLogger = state.closeLogger
-	d.booting = false
-	d.lock = state.lock
-	d.harnessResolver = state.harnessResolver
-	d.registry = state.registry
-	d.memoryStore = state.memoryStore
-	d.memoryProviderRegistry = state.memoryProviderRegistry
-	d.memoryExtractor = state.memoryExtractor
-	d.localMemoryProvider = nil
-	if state.localMemoryProvider != nil {
-		d.localMemoryProvider = state.localMemoryProvider
-	}
-	d.modelCatalog = state.modelCatalog
-	d.situationContext = state.situationContext
-	d.sessions = state.sessions
-	d.tasks = state.tasks
-	d.coordinator = state.coordinator
-	d.spawnReaper = state.spawnReaper
-	d.scheduler = state.scheduler
-	d.network = state.network
-	d.toolRegistry = state.toolRegistry
-	d.hooks = state.hooks
-	d.extensions = state.currentExtensionRuntime()
-	d.bridges = state.bridges
-	d.observer = state.observer
-	d.resourceReconcile = state.resourceReconcile
-	d.agentCatalog = state.agentCatalog
-	d.soulCatalog = state.soulCatalog
-	d.heartbeatCatalog = state.heartbeatCatalog
-	d.toolCatalog = state.toolCatalog
-	d.mcpServerCatalog = state.mcpServerCatalog
-	d.loopCatalog = state.loopCatalog
-	d.automation = state.automation
-	d.httpServer = state.httpServer
-	d.udsServer = state.udsServer
-	d.dreamRuntime = state.dreamRuntime
-	d.workspaceResolver = state.workspaceResolver
-	d.sandboxRegistry = state.sandboxRegistry
-	d.skillsRegistry = state.skillsRegistry
-	d.skillsCancel = state.skillsCancel
-	d.skillsDone = state.skillsDone
-	d.loopsCancel = state.loopsCancel
-	d.loopsDone = state.loopsDone
-	d.startedAt = state.startedAt
-	d.info = state.info
-	if !d.readyClosed {
-		close(d.readyCh)
-		d.readyClosed = true
-	}
 }
 
 func (d *Daemon) skillsRegistryConfig(cfg *aghconfig.Config) skills.RegistryConfig {

@@ -665,7 +665,7 @@ func migrateSandboxColumnNames(ctx context.Context, tx *sql.Tx) error {
 		"workspaces": {
 			{oldName: "environment_ref", newName: migrateWorkspaceSandboxRefKey},
 		},
-		"sessions": {
+		columnSessions: {
 			{oldName: "environment_id", newName: migrateWorkspaceSandboxIDKey},
 			{oldName: "environment_backend", newName: migrateWorkspaceSandboxBackendKey},
 			{oldName: "environment_profile", newName: migrateWorkspaceSandboxProfileKey},

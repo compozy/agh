@@ -1,34 +1,17 @@
 package loop
 
 import (
-	"context"
-	"errors"
 	"fmt"
 
 	"github.com/compozy/agh/internal/loop/dsl"
 )
 
-func (r *CoordinatorRunner) resolveCoordinatorEffectiveConfig(
-	ctx context.Context,
-	run Run,
-	resolved *ResolvedDefinition,
-) (EffectiveConfig, error) {
-	stored, err := r.store.GetLoopConfig(ctx, run.WorkspaceID, run.LoopName)
-	if err != nil && !errors.Is(err, ErrConfigNotFound) {
-		return EffectiveConfig{}, err
+func pinnedEffectiveConfig(resolved *ResolvedDefinition) (EffectiveConfig, error) {
+	if resolved == nil {
+		return EffectiveConfig{}, fmt.Errorf("%w: resolved definition is required", ErrValidation)
 	}
-	if errors.Is(err, ErrConfigNotFound) {
-		stored = nil
-	}
-	defaults := DefaultLoopDefaults()
-	if r.defaultsResolver != nil {
-		defaults, err = r.defaultsResolver(ctx, run.WorkspaceID)
-		if err != nil {
-			return EffectiveConfig{}, fmt.Errorf("resolve loop defaults: %w", err)
-		}
-	}
-	effective, err := ResolveEffectiveConfig(resolved, defaults, stored, LoopConfig{})
-	if err != nil {
+	effective := cloneEffectiveConfig(resolved.EffectiveConfig)
+	if err := validateEffectiveConfig(effective); err != nil {
 		return EffectiveConfig{}, err
 	}
 	return effective, nil

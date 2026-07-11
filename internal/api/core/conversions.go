@@ -55,29 +55,30 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		ID:              info.ID,
-		Name:            info.Name,
-		AgentName:       info.AgentName,
-		Provider:        info.Provider,
-		Model:           strings.TrimSpace(info.Model),
-		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-		WorkspaceID:     ref.WorkspaceID,
-		WorkspacePath:   ref.WorkspacePath,
-		Channel:         info.Channel,
-		Type:            info.Type,
-		State:           info.State,
-		Badge:           session.BadgeForInfo(info),
-		Attachable:      session.AttachableForInfo(info, now),
-		AttachedTo:      strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt: cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch: info.TranscriptEpoch,
-		StopReason:      info.StopReason,
-		StopDetail:      info.StopDetail,
-		Failure:         SessionFailurePayloadFromStore(info.Failure),
-		ACPSessionID:    info.ACPSessionID,
-		Lineage:         contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:       info.CreatedAt,
-		UpdatedAt:       info.UpdatedAt,
+		ID:                info.ID,
+		Name:              info.Name,
+		AgentName:         info.AgentName,
+		Provider:          info.Provider,
+		Model:             strings.TrimSpace(info.Model),
+		ReasoningEffort:   contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
+		WorkspaceID:       ref.WorkspaceID,
+		WorkspacePath:     ref.WorkspacePath,
+		Channel:           info.Channel,
+		Type:              info.Type,
+		State:             info.State,
+		Badge:             session.BadgeForInfo(info),
+		Attachable:        session.AttachableForInfo(info, now),
+		AttachedTo:        strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:   cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:   info.TranscriptEpoch,
+		StopReason:        info.StopReason,
+		StopDetail:        info.StopDetail,
+		Failure:           SessionFailurePayloadFromStore(info.Failure),
+		ACPSessionID:      info.ACPSessionID,
+		AvailableCommands: availableCommandPayloads(info.AdvertisedCommands),
+		Lineage:           contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:         info.CreatedAt,
+		UpdatedAt:         info.UpdatedAt,
 	}
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
@@ -326,6 +327,7 @@ func SessionEventPayloadFromEvent(event store.SessionEvent, info *session.Info) 
 		WorkspacePath:    ref.WorkspacePath,
 		EventCorrelation: sessionEventCorrelation(event),
 		Content:          PayloadJSON(event.Content),
+		Goal:             sessionEventGoalPromptMeta(event.Content),
 		Timestamp:        event.Timestamp,
 	}
 	if info != nil && info.Lineage != nil {
@@ -389,29 +391,6 @@ func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []contract.AgentPayload 
 		payload = append(payload, AgentPayloadFromDef(agent))
 	}
 	return payload
-}
-
-// AgentEventPayloadFromEvent converts an agent event into the shared raw-stream payload.
-func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
-	return contract.AgentEventPayload{
-		Type:       event.Type,
-		SessionID:  event.SessionID,
-		TurnID:     event.TurnID,
-		RequestID:  event.RequestID,
-		Timestamp:  event.Timestamp,
-		Text:       event.Text,
-		Title:      event.Title,
-		ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason,
-		Action:     event.Action,
-		Resource:   event.Resource,
-		Decision:   event.Decision,
-		Error:      event.Error,
-		Failure:    SessionFailurePayloadFromStore(event.Failure),
-		Usage:      TokenUsagePayloadFromUsage(event.Usage),
-		Runtime:    runtimeActivityPayloadFromEvent(event.Runtime),
-		Raw:        payloadJSONBytes(event.Raw),
-	}
 }
 
 // TokenUsagePayloadFromUsage converts token usage info into the shared payload.

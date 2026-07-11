@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -35,9 +36,31 @@ func (e *Evaluator) Evaluate(ctx context.Context, gate Gate, in GateInput) (Verd
 		result := e.evaluateCriterion(ctx, gate, criterion, in)
 		results = append(results, result)
 	}
+	if err := reportAggregateJudgeUsage(in.JudgeUsageReporter, results); err != nil {
+		return Verdict{}, err
+	}
 	verdict := e.aggregate(gate, in, results)
 	verdict.Route = e.route(gate, verdict, in)
 	return verdict, nil
+}
+
+func reportAggregateJudgeUsage(reporter JudgeUsageReporter, results []CriterionResult) error {
+	var total int64
+	reported := false
+	for _, result := range results {
+		if !result.judgeTokensReported {
+			continue
+		}
+		reported = true
+		if result.judgeTokensUsed > 0 && total > math.MaxInt64-result.judgeTokensUsed {
+			return wrapInvalidGate("aggregate judge token usage overflows int64")
+		}
+		total += result.judgeTokensUsed
+	}
+	if reported && reporter != nil {
+		reporter.ReportJudgeTokensUsed(total)
+	}
+	return nil
 }
 
 func (e *Evaluator) validateGate(gate Gate, in GateInput) error {

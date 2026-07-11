@@ -21,16 +21,26 @@ const (
 	loopRunEventTokenTick         = "token_tick"
 	loopRunEventNeedsApproval     = "needs_approval"
 	loopRunEventStatusChanged     = "status_changed"
+	loopRunEventGoalTurnStarted   = "goal_turn_started"
+	loopRunEventGoalTurnCompleted = "goal_turn_completed"
+	loopRunEventGoalStatusChanged = "goal_status_changed"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
 	loopTokenTickMinInterval    = 5 * time.Second
 
 	loopRunEventPayloadKeyGeneration = "generation"
+	loopRunEventPayloadKeyFrom       = "from"
+	loopRunEventPayloadKeyTo         = "to"
+	loopRunEventPayloadKeyCause      = "cause"
+	loopRunEventPayloadKeyActorKind  = "actor_kind"
+	loopRunEventPayloadKeyActorID    = "actor_id"
 	loopRunEventPayloadKeyItemIndex  = "item_index"
 	loopRunEventPayloadKeyNodeID     = "node_id"
+	loopRunEventPayloadKeyPromptID   = "prompt_id"
 	loopRunEventPayloadKeyReason     = "reason"
 	loopRunEventPayloadKeyRole       = "role"
+	loopRunEventPayloadKeyStopReason = "stop_reason"
 	loopRunEventPayloadKeySummary    = "summary"
 	loopRunEventPayloadKeyStatus     = "status"
 	loopRunEventPayloadKeyTaskID     = "task_id"
@@ -38,7 +48,9 @@ const (
 	loopRunEventPayloadKeyTerminal   = "terminal"
 	loopRunEventPayloadKeyText       = "text"
 	loopRunEventPayloadKeyTitle      = "title"
+	loopRunEventPayloadKeyType       = "type"
 	loopRunEventPayloadKeyValue      = "value"
+	loopRunEventPayloadKeyVerdict    = "verdict"
 	loopRunEventVerdictRevise        = "revise"
 	loopRunApprovalFactLabelKey      = "label"
 	loopRunNodeOutputRunning         = "running"
@@ -58,10 +70,10 @@ func appendLoopRunStatusEvent(
 		return nil
 	}
 	return appendLoopRunEventWithExecutor(ctx, exec, runID, ws, loopRunEventStatusChanged, map[string]string{
-		"from":                       string(from),
-		"to":                         string(to),
+		loopRunEventPayloadKeyFrom:   string(from),
+		loopRunEventPayloadKeyTo:     string(to),
 		loopRunEventPayloadKeyStatus: string(to),
-		"cause":                      string(cause),
+		loopRunEventPayloadKeyCause:  string(cause),
 	}, at)
 }
 
@@ -74,28 +86,41 @@ func appendLoopRunEventWithExecutor(
 	payload any,
 	at time.Time,
 ) error {
+	_, err := appendLoopRunEventWithSequence(ctx, exec, runID, ws, kind, payload, at)
+	return err
+}
+
+func appendLoopRunEventWithSequence(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID looppkg.RunID,
+	ws looppkg.WorkspaceID,
+	kind string,
+	payload any,
+	at time.Time,
+) (int64, error) {
 	runID = looppkg.RunID(strings.TrimSpace(string(runID)))
 	ws = looppkg.WorkspaceID(strings.TrimSpace(string(ws)))
 	kind = strings.TrimSpace(kind)
 	if runID == "" {
-		return fmt.Errorf("%w: loop event run_id is required", looppkg.ErrValidation)
+		return 0, fmt.Errorf("%w: loop event run_id is required", looppkg.ErrValidation)
 	}
 	if ws == "" {
-		return fmt.Errorf("%w: loop event workspace_id is required", looppkg.ErrValidation)
+		return 0, fmt.Errorf("%w: loop event workspace_id is required", looppkg.ErrValidation)
 	}
 	if !loopRunEventKindValid(kind) {
-		return fmt.Errorf("%w: loop run event kind is invalid: %q", looppkg.ErrValidation, kind)
+		return 0, fmt.Errorf("%w: loop run event kind is invalid: %q", looppkg.ErrValidation, kind)
 	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 	payloadJSON, err := normalizeLoopRunEventPayload(kind, payload)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	seq, err := nextLoopRunEventSequence(ctx, exec, runID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	_, err = exec.ExecContext(
 		ctx,
@@ -110,9 +135,9 @@ func appendLoopRunEventWithExecutor(
 		store.FormatTimestamp(at),
 	)
 	if err != nil {
-		return fmt.Errorf("store: insert loop run event %q: %w", kind, err)
+		return 0, fmt.Errorf("store: insert loop run event %q: %w", kind, err)
 	}
-	return nil
+	return seq, nil
 }
 
 func nextLoopRunEventSequence(
@@ -144,7 +169,10 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventChannelMsg,
 		loopRunEventTokenTick,
 		loopRunEventNeedsApproval,
-		loopRunEventStatusChanged:
+		loopRunEventStatusChanged,
+		loopRunEventGoalTurnStarted,
+		loopRunEventGoalTurnCompleted,
+		loopRunEventGoalStatusChanged:
 		return true
 	default:
 		return false

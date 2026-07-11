@@ -137,6 +137,8 @@ const healSchedulerPauseUpdatedAtSQL = `UPDATE scheduler_pause
 	  AND updated_at NOT LIKE '%T%'
 	  AND strftime('%Y-%m-%dT%H:%M:%S', updated_at) IS NOT NULL`
 
+const migrationNameHealSchedulerPause = "heal_scheduler_pause_updated_at"
+
 func migrateHealSchedulerPauseUpdatedAt(ctx context.Context, tx *sql.Tx) error {
 	if _, err := tx.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
 		return fmt.Errorf("store: heal scheduler pause updated_at: %w", err)

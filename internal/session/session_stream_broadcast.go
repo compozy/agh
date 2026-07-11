@@ -220,16 +220,25 @@ func (m *Manager) publishSessionEvent(ctx context.Context, session *Session, eve
 	if m == nil || session == nil {
 		return
 	}
-	if event.SessionID == "" {
-		event.SessionID = session.ID
+	m.publishSessionEventByID(ctx, session.ID, event)
+}
+
+func (m *Manager) publishSessionEventByID(ctx context.Context, sessionID string, event store.SessionEvent) {
+	if m == nil {
+		return
 	}
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return
+	}
+	event.SessionID = target
 	m.streamEventsMu.Lock()
 	broadcaster := m.streamEvents
 	m.streamEventsMu.Unlock()
 	if broadcaster == nil || !broadcaster.publish(event) {
 		return
 	}
-	m.emitStreamDiagnostic(ctx, session.ID, eventspkg.SessionStreamOverflowFallback, event.Sequence)
+	m.emitStreamDiagnostic(ctx, target, eventspkg.SessionStreamOverflowFallback, event.Sequence)
 }
 
 func (m *Manager) emitStreamDiagnostic(ctx context.Context, sessionID string, eventType string, sequence int64) {

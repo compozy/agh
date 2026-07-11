@@ -62,10 +62,8 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create task manager: %w", err)
 	}
-	if err := installLoopNativeHookObserver(state, manager, store, d.now); err != nil {
-		return err
-	}
-	if err := installLoopWatchEventsObserver(ctx, state, manager, store, d.now); err != nil {
+	coordinatorBackstop := newLoopCoordinatorBootGate(schedulerTaskSource{manager: manager, store: store})
+	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
 		return err
 	}
 	loopActions, err := installLoopActionRuntime(state, manager, store, coordinatorRunner, d.now)
@@ -88,6 +86,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		networkTaskStatus,
 		loopActions,
 		reviewRequests,
+		coordinatorBackstop,
 	)
 
 	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
@@ -104,6 +103,20 @@ func recoverInstalledTaskRuntime(
 		return err
 	}
 	return recoverDetachedHarnessReentry(ctx, reentry)
+}
+
+func installLoopTaskObservers(
+	ctx context.Context,
+	state *bootState,
+	manager *taskpkg.Service,
+	store taskStore,
+	backstop loopCoordinatorBackstopRunner,
+	now func() time.Time,
+) error {
+	if err := installLoopNativeHookObserver(state, manager, store, backstop, now); err != nil {
+		return err
+	}
+	return installLoopWatchEventsObserver(ctx, state, manager, store, backstop, now)
 }
 
 func installLoopActionRuntime(
@@ -127,6 +140,7 @@ func installLoopNativeHookObserver(
 	state *bootState,
 	manager *taskpkg.Service,
 	store taskStore,
+	backstop loopCoordinatorBackstopRunner,
 	now func() time.Time,
 ) error {
 	if state == nil || state.notifier == nil || manager == nil {
@@ -142,7 +156,7 @@ func installLoopNativeHookObserver(
 	observer, err := newLoopNativeHookObserver(
 		loopStore,
 		state.notifier,
-		schedulerTaskSource{manager: manager, store: store},
+		backstop,
 		now,
 	)
 	if err != nil {
@@ -159,6 +173,7 @@ func installLoopWatchEventsObserver(
 	state *bootState,
 	manager *taskpkg.Service,
 	store taskStore,
+	backstop loopCoordinatorBackstopRunner,
 	now func() time.Time,
 ) error {
 	if state == nil || state.notifier == nil || manager == nil {
@@ -175,7 +190,7 @@ func installLoopWatchEventsObserver(
 	}
 	observer, err := newLoopWatchEventsObserver(
 		watchStore,
-		schedulerTaskSource{manager: manager, store: store},
+		backstop,
 		now,
 	)
 	if err != nil {
@@ -207,6 +222,7 @@ func installTaskRuntime(
 	networkTaskStatus *networkTaskStatusObserver,
 	loopActions *loopActionRuntime,
 	reviewRequests *runReviewRequestedForwarder,
+	coordinatorBackstop *loopCoordinatorBootGate,
 ) {
 	state.tasks = &taskRuntime{
 		manager:             manager,
@@ -217,6 +233,7 @@ func installTaskRuntime(
 		bridgeNotifications: bridgeNotifications,
 		networkTaskStatus:   networkTaskStatus,
 		loopActions:         loopActions,
+		coordinatorBackstop: coordinatorBackstop,
 	}
 	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager
@@ -293,7 +310,19 @@ func recoverBootTaskRuns(
 			)
 		}
 	}
-	started, err := (schedulerTaskSource{manager: manager, store: store}).RunLoopCoordinatorBackstop(
+	return nil
+}
+
+func startBootLoopCoordinators(ctx context.Context, state *bootState) error {
+	if state == nil || state.tasks == nil || state.tasks.coordinatorBackstop == nil {
+		return nil
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+	if err != nil {
+		return fmt.Errorf("daemon: derive loop coordinator boot actor: %w", err)
+	}
+	state.tasks.coordinatorBackstop.Activate()
+	started, err := state.tasks.coordinatorBackstop.RunLoopCoordinatorBackstop(
 		ctx,
 		time.Now().UTC(),
 		actor,

@@ -130,131 +130,6 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	return m.submitPromptRequest(ctx, req)
 }
 
-func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
-	session, err := m.lookupPromptSession(ctx, req.target)
-	if err != nil {
-		return nil, err
-	}
-
-	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, req.turnSource, req.message)
-	if err != nil {
-		return nil, err
-	}
-	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
-	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
-		return nil, err
-	}
-
-	proc, err := session.beginExclusivePromptSetup()
-	if err != nil {
-		return nil, err
-	}
-	defer session.finishPromptSetup()
-	session.setCurrentTurnID(req.turnID)
-	session.setCurrentTurnSource(turnState.turnSource)
-	session.setCurrentPromptMeta(req.meta)
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx)
-	session.setCurrentPromptCancel(cancelPromptExecution)
-	clearTurnSource := true
-	defer func() {
-		if clearTurnSource {
-			cancelPromptExecution()
-			session.clearCurrentTurnID()
-			session.clearCurrentTurnSource()
-			session.clearCurrentPromptMeta()
-			session.clearCurrentPromptCancel()
-		}
-	}()
-
-	recordReq := req
-	recordReq.message = message
-	if err := m.recordPromptInputEvent(ctx, session, recordReq); err != nil {
-		return nil, err
-	}
-
-	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
-		return nil, err
-	}
-	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, m.supervision)
-	activity.start()
-	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
-		TurnID:                    req.turnID,
-		Message:                   dispatchMessage,
-		Meta:                      req.meta,
-		ActivityReporter:          activity.report,
-		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
-	})
-	if err != nil {
-		cancelPromptExecution()
-		activity.stop()
-		activity.finish(m.now())
-		return nil, fmt.Errorf("session: prompt session %q: %w", req.target, err)
-	}
-
-	clearTurnSource = false
-	lifecycleCtx := m.fallbackLifecycleContext()
-	deliveryCtx := req.deliveryCtx
-	if deliveryCtx == nil {
-		deliveryCtx = ctx
-	}
-	out := m.startPromptPump(
-		lifecycleCtx,
-		deliveryCtx,
-		session,
-		turnState,
-		source,
-		activity,
-		cancelPromptExecution,
-	)
-	return out, nil
-}
-
-func (m *Manager) startPromptPump(
-	lifecycleCtx context.Context,
-	callerCtx context.Context,
-	session *Session,
-	turnState *promptTurnDispatchState,
-	source <-chan acp.AgentEvent,
-	activity *promptActivitySupervisor,
-	cancelPromptExecution context.CancelFunc,
-) <-chan acp.AgentEvent {
-	out := make(chan acp.AgentEvent, m.promptBufSize)
-	finishDrain := m.trackPromptDrain()
-	go func() {
-		defer finishDrain()
-		m.pumpPrompt(
-			lifecycleCtx,
-			callerCtx,
-			session,
-			turnState,
-			source,
-			activity.eventsChannel(),
-			out,
-			activity,
-			cancelPromptExecution,
-		)
-	}()
-	return out
-}
-
-func (m *Manager) promptDispatchMessage(ctx context.Context, session *Session, message string) (string, error) {
-	if m.inputAugmenter == nil {
-		return message, nil
-	}
-	augmented, err := m.inputAugmenter(ctx, session, message)
-	if err != nil {
-		return "", fmt.Errorf("session: augment prompt input: %w", err)
-	}
-	if strings.TrimSpace(augmented) == "" {
-		return message, nil
-	}
-	return augmented, nil
-}
-
 func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
 	if ctx == nil {
 		return promptRequest{}, errors.New("session: prompt context is required")
@@ -376,6 +251,9 @@ func (m *Manager) recordPromptInputEvent(
 	if req.turnSource == TurnSourceSynthetic {
 		event.Type = acp.EventTypeSyntheticReentry
 		event.Synthetic = clonePromptSyntheticMeta(req.meta.Synthetic)
+		if event.Synthetic != nil {
+			event.Synthetic.Goal = nil
+		}
 	}
 	event = m.normalizeEvent(session, req.turnID, event)
 	if err := m.recordEvent(ctx, session, event); err != nil {
@@ -613,22 +491,6 @@ func (m *Manager) flushPromptChunkCoalescer(
 	return m.handlePromptPumpChunkBatch(ctx, deliveryCtx, session, turnState, out, loop, events)
 }
 
-func (m *Manager) promptExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	var base context.Context
-	if ctx != nil {
-		base = context.WithoutCancel(ctx)
-	}
-	if base == nil {
-		base = m.fallbackLifecycleContext()
-	}
-	executionCtx, cancel := context.WithCancel(base)
-	lifecycleStop := context.AfterFunc(m.fallbackLifecycleContext(), cancel)
-	return executionCtx, func() {
-		lifecycleStop()
-		cancel()
-	}
-}
-
 func (m *Manager) stopSessionAfterFatalPromptFailure(
 	ctx context.Context,
 	session *Session,
@@ -857,7 +719,7 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
 	}
-	m.notifyAgentEvent(ctx, session, normalized)
+	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)
 	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {
 		m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 	}
@@ -1056,6 +918,7 @@ func (m *Manager) finishPromptTurnIfNeeded(
 
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {
 	normalized := event
+	normalized.Goal = acp.CloneGoalPromptMeta(event.Goal)
 	if strings.TrimSpace(normalized.TurnID) == "" {
 		normalized.TurnID = turnID
 	}
@@ -1063,6 +926,9 @@ func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.Agen
 		normalized.Timestamp = m.now()
 	}
 	if session != nil {
+		if normalized.Goal == nil {
+			normalized.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
+		}
 		info := session.Info()
 		if strings.TrimSpace(normalized.SessionID) == "" {
 			normalized.SessionID = info.ACPSessionID
@@ -1097,6 +963,9 @@ func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.A
 	}
 
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
+	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
+		return err
+	}
 
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
@@ -1137,6 +1006,11 @@ func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEven
 	}
 
 	enriched := event
+	if enriched.Goal == nil {
+		enriched.Goal = goalPromptMetaFromPromptMeta(session.CurrentPromptMeta())
+	} else {
+		enriched.Goal = acp.CloneGoalPromptMeta(enriched.Goal)
+	}
 	correlation := enriched.Normalize()
 	meta := session.CurrentPromptMeta().Normalize()
 	if meta.Synthetic != nil {

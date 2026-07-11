@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,6 +15,7 @@ import (
 const (
 	repairContentKey = "content"
 	repairTypeKey    = "type"
+	repairStatusKey  = "status"
 )
 
 const (
@@ -492,39 +492,6 @@ func (m *Manager) repairActionEvent(meta store.SessionMeta, action RepairAction)
 		return acp.AgentEvent{}, fmt.Errorf("session: unknown repair action %q", action.Code)
 	}
 	return event, nil
-}
-
-func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessage, error) {
-	metadata := map[string]any{
-		"agh": map[string]any{
-			"repair":   true,
-			"toolName": strings.TrimSpace(toolName),
-		},
-	}
-	payload := map[string]any{
-		"sessionUpdate": "tool_call_update",
-		"status":        "failed",
-		"toolCallId":    strings.TrimSpace(toolCallID),
-		"rawOutput": map[string]string{
-			"stderr": repairInterruptedToolMessage,
-			"error":  repairInterruptedToolMessage,
-		},
-		repairContentKey: []map[string]any{
-			{
-				repairTypeKey: repairContentKey,
-				repairContentKey: map[string]string{
-					repairTypeKey:            hookMessageDeltaTypeText,
-					hookMessageDeltaTypeText: repairInterruptedToolMessage,
-				},
-			},
-		},
-		"_meta": metadata,
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("session: marshal interrupted tool result: %w", err)
-	}
-	return data, nil
 }
 
 func (m *Manager) notifyRepairEvent(ctx context.Context, sessionID string, event acp.AgentEvent) {

@@ -213,6 +213,17 @@ func appendReadyNodeRunsControlAware(
 			return err
 		}
 		runID := coordinatorNodeRunID(run.ID, generation, node.ID, output.ItemIndex)
+		idempotencyKey := coordinatorNodeIdempotencyKey(run.ID, generation, node.ID, output.ItemIndex)
+		if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+			runID = GoalSegmentRunID(run.ID, generation, node.ID, output.ItemIndex, initialGoalSegmentEpoch)
+			idempotencyKey = GoalSegmentIdempotencyKey(
+				run.ID,
+				generation,
+				node.ID,
+				output.ItemIndex,
+				initialGoalSegmentEpoch,
+			)
+		}
 		output.Status = generationOutputEnqueued
 		output.TaskRunID = runID
 		key := generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}
@@ -220,17 +231,12 @@ func appendReadyNodeRunsControlAware(
 			outputs[idx] = output
 		}
 		plan.NodeRuns = append(plan.NodeRuns, task.EnqueueSpec{
-			TaskID:    coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
-			RunID:     runID,
-			RunKind:   task.RunKindWorker,
-			LoopRunID: string(run.ID),
-			IdempotencyKey: coordinatorNodeIdempotencyKey(
-				run.ID,
-				generation,
-				node.ID,
-				output.ItemIndex,
-			),
-			Metadata: metadata,
+			TaskID:         coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex),
+			RunID:          runID,
+			RunKind:        task.RunKindWorker,
+			LoopRunID:      string(run.ID),
+			IdempotencyKey: idempotencyKey,
+			Metadata:       metadata,
 		})
 	}
 	return nil

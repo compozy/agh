@@ -708,7 +708,7 @@ func renderMemoryTranscript(snapshot memcontract.TranscriptSnapshot) string {
 	for _, message := range snapshot.Messages {
 		role := strings.TrimSpace(message.Role)
 		if role == "" {
-			role = "unknown"
+			role = daemonUnknownValue
 		}
 		if _, err := fmt.Fprintf(
 			&buf,

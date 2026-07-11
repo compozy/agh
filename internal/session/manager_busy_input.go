@@ -25,9 +25,11 @@ const promptEvidenceQueueGenerationKey = "queue_generation"
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
-	Message         string
-	Mode            BusyInputMode
-	DeliveryContext context.Context
+	Message           string
+	Mode              BusyInputMode
+	DeliveryContext   context.Context
+	Caller            PromptCaller
+	AllowGoalCommands bool
 }
 
 // SendPromptResult reports whether input streamed immediately or was staged.
@@ -46,6 +48,7 @@ type SendPromptResult struct {
 	Queued                     bool
 	CanceledQueuedEntries      int
 	FallbackModeIfNoToolResult string
+	Goal                       *GoalCommandResult
 }
 
 // SendPrompt submits a user-facing prompt and applies busy-input policy when a turn is active.
@@ -72,7 +75,28 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	rejectIfBusy := false
+	if opts.AllowGoalCommands {
+		decision, handled, dispatchErr := m.dispatchGoalCommand(ctx, session, opts)
+		if dispatchErr != nil {
+			return SendPromptResult{}, dispatchErr
+		}
+		if handled {
+			switch decision.Kind {
+			case GoalDispatchRespond:
+				return SendPromptResult{Status: managedInputOwnerGoal, Goal: decision.Result}, nil
+			case GoalDispatchPrompt:
+				req.message = decision.RewrittenMessage
+				rejectIfBusy = decision.BusyPolicy == goalBusyPolicyRejectIfBusy
+			default:
+				return SendPromptResult{}, errors.New("session: Goal dispatcher returned an invalid decision")
+			}
+		}
+	}
 	if session.IsPrompting() {
+		if rejectIfBusy {
+			return goalDraftBusyResult(), nil
+		}
 		switch mode {
 		case BusyInputModeQueue:
 			return m.enqueueBusyPrompt(ctx, session, req)
@@ -85,6 +109,9 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 
 	events, err := m.submitPromptRequest(ctx, req)
 	if err != nil {
+		if rejectIfBusy && errors.Is(err, ErrPromptInProgress) {
+			return goalDraftBusyResult(), nil
+		}
 		return SendPromptResult{}, err
 	}
 	return SendPromptResult{
@@ -319,146 +346,6 @@ func (m *Manager) interruptAndSubmitPrompt(
 		Interrupted:           true,
 		CanceledQueuedEntries: canceled,
 	}, nil
-}
-
-func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
-	target, session, entry, ok := m.claimNextQueuedInputPrompt(sessionID)
-	if !ok {
-		return
-	}
-	if entry.Mode == store.SessionInputQueueModeSteer {
-		m.emitQueuedSteerFallback(session, entry)
-	}
-	req, ok := m.newQueuedInputPromptRequest(session, target, entry)
-	if !ok {
-		return
-	}
-	events, err := m.submitPromptRequest(m.fallbackLifecycleContext(), req)
-	if err != nil {
-		m.handleQueuedInputDispatchError(session, target, entry, req, err)
-		return
-	}
-	m.acceptQueuedInputDispatch(session, target, entry, req)
-	go m.drainQueuedInputEvents(target, events)
-}
-
-func (m *Manager) claimNextQueuedInputPrompt(
-	sessionID string,
-) (string, *Session, store.SessionInputQueueEntry, bool) {
-	if m == nil || m.inputQueue == nil {
-		return "", nil, store.SessionInputQueueEntry{}, false
-	}
-	target := strings.TrimSpace(sessionID)
-	if target == "" {
-		return "", nil, store.SessionInputQueueEntry{}, false
-	}
-	session, err := m.lookupPromptSession(m.fallbackLifecycleContext(), target)
-	if err != nil || session.IsPrompting() {
-		return "", nil, store.SessionInputQueueEntry{}, false
-	}
-	entry, ok, err := m.inputQueue.ClaimNext(m.fallbackLifecycleContext(), target)
-	if err != nil {
-		m.sessionLogger(session).Warn("session: claim queued input failed", "error", err)
-		return "", nil, store.SessionInputQueueEntry{}, false
-	}
-	return target, session, entry, ok
-}
-
-func (m *Manager) emitQueuedSteerFallback(session *Session, entry store.SessionInputQueueEntry) {
-	evidence := queueEntryEvidence(entry, 0)
-	evidence["fallback_to_queue"] = true
-	m.emitTranscriptMarker(
-		m.fallbackLifecycleContext(),
-		session,
-		session.CurrentTurnID(),
-		transcript.MarkerPromptSteered,
-		"Staged steering input fell back to queued dispatch.",
-		evidence,
-	)
-}
-
-func (m *Manager) newQueuedInputPromptRequest(
-	session *Session,
-	target string,
-	entry store.SessionInputQueueEntry,
-) (promptRequest, bool) {
-	meta, err := normalizePromptMeta(
-		TurnSourceUser,
-		acp.PromptMeta{TurnSource: string(TurnSourceUser)},
-		promptSubmissionPathUserFacing,
-	)
-	if err != nil {
-		m.sessionLogger(session).Warn(
-			"session: normalize queued input metadata failed",
-			"entry_id",
-			entry.ID,
-			"error",
-			err,
-		)
-		return promptRequest{}, false
-	}
-	return promptRequest{
-		turnID:     m.newPromptTurnID(),
-		target:     target,
-		message:    entry.Text,
-		turnSource: TurnSourceUser,
-		meta:       meta,
-	}, true
-}
-
-func (m *Manager) handleQueuedInputDispatchError(
-	session *Session,
-	target string,
-	entry store.SessionInputQueueEntry,
-	req promptRequest,
-	cause error,
-) {
-	if errors.Is(cause, ErrPromptInProgress) {
-		if err := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.ID); err != nil {
-			m.sessionLogger(session).Warn("session: release queued input failed", "entry_id", entry.ID, "error", err)
-		}
-		return
-	}
-	if err := m.inputQueue.MarkFailed(m.fallbackLifecycleContext(), target, entry.ID, cause.Error()); err != nil {
-		m.sessionLogger(session).Warn("session: mark queued input failed", "entry_id", entry.ID, "error", err)
-	}
-	m.emitTranscriptMarker(
-		m.fallbackLifecycleContext(),
-		session,
-		req.turnID,
-		transcript.MarkerPromptDropped,
-		"Queued input failed before dispatch.",
-		queueEntryEvidence(entry, 0),
-	)
-	m.startNextQueuedInputPrompt(target)
-}
-
-func (m *Manager) acceptQueuedInputDispatch(
-	session *Session,
-	target string,
-	entry store.SessionInputQueueEntry,
-	req promptRequest,
-) {
-	if err := m.inputQueue.MarkSent(m.fallbackLifecycleContext(), target, entry.ID); err != nil {
-		m.sessionLogger(session).Warn("session: mark queued input sent failed", "entry_id", entry.ID, "error", err)
-	}
-	m.emitTranscriptMarker(
-		m.fallbackLifecycleContext(),
-		session,
-		req.turnID,
-		transcript.MarkerPromptAccepted,
-		"Queued input accepted for dispatch.",
-		queueEntryEvidence(entry, 0),
-	)
-}
-
-func (m *Manager) drainQueuedInputEvents(sessionID string, events <-chan acp.AgentEvent) {
-	finishDrain := m.trackPromptDrain()
-	defer finishDrain()
-	for range events {
-		continue
-	}
-	m.startNextQueuedInputPrompt(sessionID)
 }
 
 func (m *Manager) normalizeBusyInputMode(mode BusyInputMode) (BusyInputMode, error) {

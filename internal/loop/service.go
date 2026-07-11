@@ -6,12 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/loop/dsl"
 	storepkg "github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/task"
 )
 
 var _ Service = (*service)(nil)
@@ -31,26 +29,38 @@ const (
 type service struct {
 	store            Store
 	resolver         DefinitionResolver
+	goalPolicy       GoalRunPolicyResolver
 	hooks            HookDispatcher
 	defaults         LoopDefaults
 	defaultsResolver DefaultsResolver
+	goalRunActivator GoalRunActivator
+	goalLeaseRevoker GoalPromptLeaseRevoker
 	now              func() time.Time
 	newRunID         func() RunID
 }
 
 // NewService creates the loop aggregate service.
-func NewService(loopStore Store, resolver DefinitionResolver, opts ...Option) (Service, error) {
+func NewService(
+	loopStore Store,
+	resolver DefinitionResolver,
+	goalPolicy GoalRunPolicyResolver,
+	opts ...Option,
+) (Service, error) {
 	if loopStore == nil {
 		return nil, fmt.Errorf("%w: loop store is required", ErrValidation)
 	}
 	if resolver == nil {
 		return nil, fmt.Errorf("%w: loop definition resolver is required", ErrValidation)
 	}
+	if goalPolicy == nil {
+		return nil, fmt.Errorf("%w: Goal run policy resolver is required", ErrValidation)
+	}
 	svc := &service{
-		store:    loopStore,
-		resolver: resolver,
-		defaults: DefaultLoopDefaults(),
-		now:      func() time.Time { return time.Now().UTC() },
+		store:      loopStore,
+		resolver:   resolver,
+		goalPolicy: goalPolicy,
+		defaults:   DefaultLoopDefaults(),
+		now:        func() time.Time { return time.Now().UTC() },
 		newRunID: func() RunID {
 			return RunID(storepkg.NewID("looprun"))
 		},
@@ -65,67 +75,6 @@ func NewService(loopStore Store, resolver DefinitionResolver, opts ...Option) (S
 		return nil, fmt.Errorf("%w: loop run ID factory is required", ErrValidation)
 	}
 	return svc, nil
-}
-
-func (s *service) Start(
-	ctx context.Context,
-	ws WorkspaceID,
-	name string,
-	inputs Inputs,
-	actor task.ActorContext,
-) (*Run, error) {
-	if err := actor.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: actor context: %w", ErrValidation, err)
-	}
-	resolved, loopName, err := s.resolveDefinition(ctx, ws, name)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.ensureAncestry(ctx, inputs.ParentLoopRunID, loopName); err != nil {
-		return nil, err
-	}
-	resolvedInputs, err := ResolveInputs(resolved.Definition, inputs)
-	if err != nil {
-		return nil, err
-	}
-	effective, err := s.effectiveConfig(ctx, ws, loopName, resolved, inputs.ConfigOverrides)
-	if err != nil {
-		return nil, err
-	}
-	now := s.now().UTC()
-	run := Run{
-		ID:                  s.newRunID(),
-		WorkspaceID:         ws,
-		LoopName:            loopName,
-		Status:              StatusRunning,
-		Generation:          0,
-		ReattemptStrategy:   effective.ReattemptStrategy,
-		CreatedAt:           now,
-		StartedAt:           now,
-		LastProgressAt:      now,
-		StartedBy:           actor.Actor,
-		StartedOrigin:       actor.Origin,
-		DefinitionVersion:   resolved.DefinitionVersion,
-		DefinitionDigest:    resolved.DefinitionDigest,
-		DefinitionSnapshot:  cloneRawMessage(resolved.DefinitionSnapshotJSON),
-		ActiveHumanCriteria: json.RawMessage(`[]`),
-		StartMetadata:       cloneStartMetadata(inputs.StartMetadata),
-		ConsecutiveFailures: 0,
-		IterationCap:        effective.IterationCap,
-		BudgetTokens:        effective.BudgetTokens,
-		BudgetWallSec:       effective.BudgetWallSec,
-		BudgetOnExceeded:    effective.BudgetOnExceeded,
-		TokensUsed:          0,
-		ParentLoopRunID:     inputs.ParentLoopRunID,
-		PauseRequested:      false,
-		Inputs:              resolvedInputs,
-	}
-	created, err := s.store.CreateLoopRunForStart(ctx, run, resolved.Defaults.Concurrency)
-	if err != nil {
-		return nil, err
-	}
-	s.dispatchLoopStarted(ctx, created, actor)
-	return &created, nil
 }
 
 func (s *service) DryRun(
@@ -163,139 +112,6 @@ func cloneStartMetadata(metadata map[string]any) map[string]any {
 	cloned := make(map[string]any, len(metadata))
 	maps.Copy(cloned, metadata)
 	return cloned
-}
-
-func (s *service) Stop(ctx context.Context, ws WorkspaceID, runID RunID, reason StopReason) error {
-	if reason == "" {
-		reason = StopReasonOperator
-	}
-	if reason != StopReasonOperator {
-		return fmt.Errorf("%w: stop reason is invalid: %q", ErrValidation, reason)
-	}
-	run, err := s.store.GetLoopRun(ctx, ws, runID)
-	if err != nil {
-		return err
-	}
-	if run.Status.Terminal() {
-		return reasonError(
-			ReasonCodeTerminalRun,
-			ErrInvalidTransition,
-			map[string]string{reasonMetaRunID: string(runID), reasonMetaStatus: string(run.Status)},
-		)
-	}
-	return s.Transition(ctx, runID, StatusFailed, TransitionCauseOperatorStop)
-}
-
-func (s *service) Pause(ctx context.Context, ws WorkspaceID, runID RunID) error {
-	run, err := s.store.GetLoopRun(ctx, ws, runID)
-	if err != nil {
-		return err
-	}
-	if run.Status != StatusRunning {
-		return reasonError(
-			ReasonCodeInvalidStatusTransition,
-			ErrInvalidTransition,
-			map[string]string{reasonMetaFrom: string(run.Status), reasonMetaTo: string(StatusPaused)},
-		)
-	}
-	if run.PauseRequested {
-		return nil
-	}
-	return s.store.SetLoopRunPauseRequested(ctx, ws, runID, true)
-}
-
-func (s *service) Resume(ctx context.Context, ws WorkspaceID, runID RunID) error {
-	run, err := s.store.GetLoopRun(ctx, ws, runID)
-	if err != nil {
-		return err
-	}
-	switch run.Status {
-	case StatusRunning:
-		if !run.PauseRequested {
-			return nil
-		}
-		return s.store.SetLoopRunPauseRequested(ctx, ws, runID, false)
-	case StatusPaused:
-		if err := s.Transition(ctx, runID, StatusRunning, TransitionCauseOperatorResume); err != nil {
-			return err
-		}
-		return s.store.SetLoopRunPauseRequested(ctx, ws, runID, false)
-	default:
-		return reasonError(
-			ReasonCodeInvalidStatusTransition,
-			ErrInvalidTransition,
-			map[string]string{reasonMetaFrom: string(run.Status), reasonMetaTo: string(StatusRunning)},
-		)
-	}
-}
-
-func (s *service) Approve(
-	ctx context.Context,
-	ws WorkspaceID,
-	runID RunID,
-	gateID NodeID,
-	decision GateDecision,
-	actor task.ActorContext,
-) error {
-	if gateID == "" {
-		return fmt.Errorf("%w: gate id is required", ErrValidation)
-	}
-	if err := actor.Validate(); err != nil {
-		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
-	}
-	run, err := s.store.GetLoopRun(ctx, ws, runID)
-	if err != nil {
-		return err
-	}
-	if run.Status != StatusNeedsApproval {
-		return reasonError(
-			ReasonCodeInvalidStatusTransition,
-			ErrInvalidTransition,
-			map[string]string{reasonMetaFrom: string(run.Status), reasonMetaTo: string(StatusRunning)},
-		)
-	}
-	if strings.TrimSpace(string(run.ActiveGateID)) != strings.TrimSpace(string(gateID)) {
-		return reasonError(
-			ReasonCodeInvalidStatusTransition,
-			ErrInvalidTransition,
-			map[string]string{
-				reasonMetaRunID:  string(runID),
-				"active_gate_id": strings.TrimSpace(string(run.ActiveGateID)),
-				"gate_id":        strings.TrimSpace(string(gateID)),
-			},
-		)
-	}
-	switch decision {
-	case GateDecisionApprove, GateDecisionRequestChanges:
-		if gateID == BudgetGateID && decision == GateDecisionRequestChanges {
-			return fmt.Errorf("%w: budget gate only accepts approve or reject", ErrValidation)
-		}
-		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
-			return err
-		}
-		return s.Transition(ctx, runID, StatusRunning, TransitionCauseApproval)
-	case GateDecisionReject:
-		if err := s.recordGateDecision(ctx, run, gateID, decision, actor); err != nil {
-			return err
-		}
-		return s.Transition(ctx, runID, StatusBlocked, TransitionCauseGateRejected)
-	default:
-		return fmt.Errorf("%w: gate decision is invalid: %q", ErrValidation, decision)
-	}
-}
-
-func (s *service) recordGateDecision(
-	ctx context.Context,
-	run Run,
-	gateID NodeID,
-	decision GateDecision,
-	actor task.ActorContext,
-) error {
-	records, err := gateDecisionRecords(run, gateID, decision, actor, s.now().UTC())
-	if err != nil {
-		return err
-	}
-	return s.store.RecordLoopGateDecisions(ctx, records)
 }
 
 func (s *service) Configure(

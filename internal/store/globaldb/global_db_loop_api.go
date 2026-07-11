@@ -27,9 +27,14 @@ func (g *GlobalDB) ListLoopRuns(ctx context.Context, query looppkg.RunListQuery)
 		store.StringClause("workspace_id", string(normalized.WorkspaceID)),
 		store.StringClause("loop_name", normalized.LoopName),
 		store.StringClause("status", string(normalized.Status)),
+		store.StringClause("origin_kind", normalized.OriginKind),
+		store.StringClause("origin_session_id", normalized.OriginSessionID),
 		store.TimeClause("created_at", ">=", normalized.CreatedAfter),
 	}
 	where, args := store.BuildClauses(clauses...)
+	if normalized.Live != nil {
+		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
+	}
 	// #nosec G202 -- SELECT columns are a package constant; dynamic filters are parameterized.
 	sqlText := store.AppendWhere(loopRunAPIListSelectSQL, where) +
 		` ORDER BY created_at DESC, id DESC LIMIT ?`
@@ -190,6 +195,8 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.LoopName = strings.TrimSpace(query.LoopName)
 	normalized.Status = looppkg.Status(strings.TrimSpace(string(query.Status)))
+	normalized.OriginKind = strings.TrimSpace(query.OriginKind)
+	normalized.OriginSessionID = strings.TrimSpace(query.OriginSessionID)
 	normalized.CreatedAfter = query.CreatedAfter.UTC()
 	if normalized.WorkspaceID == "" {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
@@ -197,8 +204,32 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 	if normalized.Status != "" && !normalized.Status.Valid() {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: loop status is invalid: %q", looppkg.ErrValidation, query.Status)
 	}
+	if normalized.OriginKind != "" && normalized.OriginKind != string(looppkg.RunOriginCatalog) &&
+		normalized.OriginKind != string(looppkg.RunOriginSession) {
+		return looppkg.RunListQuery{}, fmt.Errorf(
+			"%w: loop run origin is invalid: %q",
+			looppkg.ErrValidation,
+			query.OriginKind,
+		)
+	}
+	if normalized.OriginSessionID != "" {
+		if normalized.OriginKind == string(looppkg.RunOriginCatalog) {
+			return looppkg.RunListQuery{}, fmt.Errorf(
+				"%w: origin_session requires session origin",
+				looppkg.ErrValidation,
+			)
+		}
+		normalized.OriginKind = string(looppkg.RunOriginSession)
+	}
 	normalized.Limit = normalizeLoopAPILimit(normalized.Limit)
 	return normalized, nil
+}
+
+func loopRunLiveFilterSQL(live bool) string {
+	if live {
+		return "status IN ('queued','running','watching','needs-approval','paused')"
+	}
+	return "status IN ('done','no-op','blocked','failed','exhausted','stalled')"
 }
 
 func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQuery, error) {

@@ -23,17 +23,19 @@ const (
 	ActionRunLoop ActionKind = "run-loop"
 	// ActionTransform reshapes data in daemon.
 	ActionTransform ActionKind = "transform"
+	// ActionGoal advances a durable convergence cycle.
+	ActionGoal ActionKind = "goal"
 )
 
 // ReservedActionKinds returns the reserved first-party action kinds.
 func ReservedActionKinds() []ActionKind {
-	return []ActionKind{ActionRunAgent, ActionRunLoop, ActionTransform}
+	return []ActionKind{ActionRunAgent, ActionRunLoop, ActionTransform, ActionGoal}
 }
 
 // IsReservedActionKind reports whether kind is first-party and not a ToolID.
 func IsReservedActionKind(kind string) bool {
 	switch ActionKind(kind) {
-	case ActionRunAgent, ActionRunLoop, ActionTransform:
+	case ActionRunAgent, ActionRunLoop, ActionTransform, ActionGoal:
 		return true
 	default:
 		return false

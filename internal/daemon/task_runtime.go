@@ -43,5 +43,7 @@ type taskRuntime struct {
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver
 	networkTaskStatus   *networkTaskStatusObserver
 	loopActions         *loopActionRuntime
+	coordinatorBackstop *loopCoordinatorBootGate
+	activation          atomic.Pointer[taskRunActivationDispatcher]
 	roles               atomic.Pointer[taskRoleRuntime]
 }

@@ -225,9 +225,8 @@ func watchEventsGapQuery(
 ) (looppkg.WatchEventsQuery, error) {
 	streams := map[string]int64{}
 	kindSet := map[string]struct{}{}
-	supported := looppkg.SupportedWatchEvents()
 	for _, ref := range subscription.Subscriptions {
-		contract, ok := supported[hooks.HookEvent(strings.TrimSpace(ref.Kind))]
+		contract, ok := subscription.Contracts[hooks.HookEvent(strings.TrimSpace(ref.Kind))]
 		if !ok {
 			return looppkg.WatchEventsQuery{}, fmt.Errorf(
 				"%w: watch-events kind is unsupported: %q",

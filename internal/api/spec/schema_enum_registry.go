@@ -17,7 +17,7 @@ import (
 	"github.com/compozy/agh/internal/tools"
 )
 
-var schemaEnumValues = map[reflect.Type][]string{
+var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[automationpkg.Scope]():                       automationScopeValues(),
 	reflect.TypeFor[automationpkg.JobSource]():                   automationSourceValues(),
 	reflect.TypeFor[automationpkg.ScheduleMode]():                automationScheduleModeValues(),
@@ -126,4 +126,4 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[tools.ErrorCode]():                           toolErrorCodeValues(),
 	reflect.TypeFor[tools.ToolCallEventKind]():                   toolCallEventKindValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():           hostAPIMethodValues(),
-}
+})

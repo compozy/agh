@@ -56,6 +56,7 @@ type SessionManager interface {
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
+	LatestSessionEventByType(ctx context.Context, id string, eventType string) (*store.SessionEvent, error)
 	History(ctx context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptPage(ctx context.Context, id string, query transcript.PageQuery) (transcript.Page, error)
 	TranscriptChanges(ctx context.Context, id string, query transcript.ChangeQuery) (transcript.ChangePage, error)

@@ -1,11 +1,11 @@
 package loop
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/dsl/refs"
 )
@@ -60,21 +60,22 @@ func (e *LintFailedError) Error() string {
 
 // ResolvedDefinition is the publish-time artifact hydrated by runtime execution.
 type ResolvedDefinition struct {
-	Definition             dsl.Definition
-	DefinitionVersion      int
-	DefinitionDigest       string
-	DefinitionSnapshotJSON json.RawMessage
-	Templates              map[string]*refs.Template
-	Conditions             map[string]*refs.Condition
-	ToolSchemas            map[string]ToolSchemaSnapshot
-	Defaults               ResolvedDefaults
+	Definition           dsl.Definition
+	DefinitionVersion    int
+	Templates            map[string]*refs.Template
+	Conditions           map[string]*refs.Condition
+	ToolSchemas          map[string]ToolSchemaSnapshot
+	WatchEventsContracts map[hooks.HookEvent]WatchEventsContract
+	Defaults             ResolvedDefaults
+	EffectiveConfig      EffectiveConfig
+	compiled             bool
 }
 
 // ResolvedDefaults records defaults folded at compile time.
 type ResolvedDefaults struct {
-	FanOutBatchSize int
-	RunLoopMode     dsl.RunLoopMode
-	Concurrency     dsl.ConcurrencyPolicy
+	FanOutBatchSize int                   `json:"fan_out_batch_size"`
+	RunLoopMode     dsl.RunLoopMode       `json:"run_loop_mode"`
+	Concurrency     dsl.ConcurrencyPolicy `json:"concurrency"`
 }
 
 // Compile lints, parses templates/CEL, snapshots tool schemas, and folds defaults.
@@ -94,19 +95,18 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 		Templates:   map[string]*refs.Template{},
 		Conditions:  map[string]*refs.Condition{},
 		ToolSchemas: map[string]ToolSchemaSnapshot{},
+		WatchEventsContracts: referencedWatchEventsContracts(
+			def,
+			SupportedWatchEvents(),
+		),
 		Defaults: ResolvedDefaults{
 			FanOutBatchSize: 1,
 			RunLoopMode:     dsl.RunLoopAwait,
 			Concurrency:     def.Concurrency,
 		},
-	}
-	snapshotJSON, digest, err := DefinitionSnapshotJSON(resolved.Definition)
-	if err != nil {
-		return nil, err
+		compiled: true,
 	}
 	resolved.DefinitionVersion = resolved.Definition.Meta.Version
-	resolved.DefinitionDigest = digest
-	resolved.DefinitionSnapshotJSON = snapshotJSON
 
 	if err := compileContract(resolved, def, ctx, ctx.namespace(false, false)); err != nil {
 		return nil, err
@@ -165,6 +165,18 @@ func foldGraphNodeDefaults(nodes []dsl.Node) {
 					node.Params = dsl.NodeParams{}
 				}
 				node.Params["mode"] = string(dsl.RunLoopAwait)
+			}
+		}
+		if node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+			if node.Session == nil {
+				node.Session = &dsl.SessionSpec{Mode: dsl.SessionModeContinuous}
+			}
+			var params dsl.GoalParams
+			if err := node.Params.Decode(&params); err == nil && params.OnExhausted == "" {
+				if node.Params == nil {
+					node.Params = dsl.NodeParams{}
+				}
+				node.Params["on_exhausted"] = dsl.GoalOnExhaustedHalt
 			}
 		}
 		if node.Body != nil {

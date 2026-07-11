@@ -44,6 +44,7 @@ func newAutomationLoopStarter(
 	service, err := looppkg.NewService(
 		loopStore,
 		resolver,
+		newGoalRunPolicyResolver(homePaths, workspaceResolver),
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
 	)
 	if err != nil {

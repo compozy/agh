@@ -49,6 +49,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		pending:               make(map[string]struct{}),
 		finalizing:            make(map[string]chan struct{}),
 		promptDrains:          make(map[chan struct{}]struct{}),
+		managedInputLeases:    make(map[string]managedInputLease),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
 		syntheticDispatching:  make(map[string]bool),
 		soulLocks:             make(map[string]chan struct{}),

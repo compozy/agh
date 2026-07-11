@@ -14,9 +14,10 @@ import (
 )
 
 type coordinatorActionRunMetadata struct {
-	Generation int    `json:"generation"`
-	NodeID     string `json:"node_id"`
-	ItemIndex  int    `json:"item_index"`
+	Generation       int    `json:"generation"`
+	NodeID           string `json:"node_id"`
+	ItemIndex        int    `json:"item_index"`
+	GoalSegmentEpoch int64  `json:"goal_segment_epoch,omitempty"`
 }
 
 type coordinatorActionRunContext struct {
@@ -26,6 +27,11 @@ type coordinatorActionRunContext struct {
 	node      dsl.Node
 	meta      coordinatorActionRunMetadata
 }
+
+// CoordinatorControlKindLoopAction identifies a Loop-owned action-control completion envelope.
+const CoordinatorControlKindLoopAction = "loop_action"
+
+const coordinatorControlKindLoopAction = CoordinatorControlKindLoopAction
 
 // ExecuteActionRun executes one queued loop action node run through the configured action registry.
 func (r *CoordinatorRunner) ExecuteActionRun(
@@ -69,15 +75,59 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	executor, err := r.actionRegistry.Resolve(ctx, input.ToolScope, actionCtx.node.Kind)
+	input.UsageReporter = actionUsageReporterFromContext(ctx)
+	input.PersistedTaskTokensUsed = taskRun.TokensUsed
+	executor, err := r.resolvePinnedActionExecutor(ctx, input.ToolScope, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	raw, err := executor.Execute(ctx, actionCtx.node, input)
+	return executeActionTaskRun(ctx, executor, actionCtx.node, input)
+}
+
+func (r *CoordinatorRunner) resolvePinnedActionExecutor(
+	ctx context.Context,
+	scope tools.Scope,
+	actionCtx *coordinatorActionRunContext,
+) (ActionExecutor, error) {
+	var pinnedSchema *ToolSchemaSnapshot
+	if !dsl.IsReservedActionKind(actionCtx.node.Kind) {
+		snapshot, ok := actionCtx.resolved.ToolSchemas[actionCtx.node.Kind]
+		if !ok {
+			return nil, reasonError(
+				ReasonCodeActionContractStale,
+				fmt.Errorf("%w: pinned action schema is missing", ErrActionSchemaInvalid),
+				map[string]string{actionKindMetaKey: actionCtx.node.Kind},
+			)
+		}
+		pinnedSchema = &snapshot
+	}
+	return r.actionRegistry.ResolvePinned(
+		ctx,
+		scope,
+		actionCtx.node.Kind,
+		pinnedSchema,
+	)
+}
+
+func executeActionTaskRun(
+	ctx context.Context,
+	executor ActionExecutor,
+	node dsl.Node,
+	input ActionExecutionInput,
+) (task.RunResult, error) {
+	raw, err := executor.Execute(ctx, node, input)
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	output, err := executor.Harvest(ctx, raw, actionCtx.node)
+	if raw.Control != nil {
+		if err := raw.Control.Validate(); err != nil {
+			return task.RunResult{}, err
+		}
+		if raw.Control.Disposition != ActionDispositionSucceeded {
+			return actionControlTaskRunResult(raw)
+		}
+	}
+	output, err := executor.Harvest(ctx, raw, node)
 	if err != nil {
 		return task.RunResult{}, err
 	}
@@ -86,6 +136,20 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		return task.RunResult{}, err
 	}
 	return task.RunResult{Value: payload, TokensUsed: raw.TokensUsed}, nil
+}
+
+func actionControlTaskRunResult(raw ActionRawResult) (task.RunResult, error) {
+	payload, err := json.Marshal(raw.Control)
+	if err != nil {
+		return task.RunResult{}, fmt.Errorf("loop: marshal action coordinator control: %w", err)
+	}
+	return task.RunResult{
+		TokensUsed: raw.TokensUsed,
+		CoordinatorControl: &task.CoordinatorControlResult{
+			Kind:    coordinatorControlKindLoopAction,
+			Payload: payload,
+		},
+	}, nil
 }
 
 // ActionRunTimeout returns the parsed node timeout for one queued loop action run.
@@ -131,6 +195,12 @@ func (r *CoordinatorRunner) resolveActionRun(
 	if err != nil {
 		return coordinatorActionRunContext{}, err
 	}
+	if dsl.ActionKind(node.Kind) == dsl.ActionGoal && meta.GoalSegmentEpoch < 1 {
+		return coordinatorActionRunContext{}, fmt.Errorf(
+			"%w: Goal action task metadata requires goal_segment_epoch",
+			ErrValidation,
+		)
+	}
 	return coordinatorActionRunContext{
 		loopRun:   loopRun,
 		resolved:  resolved,
@@ -164,18 +234,24 @@ func actionExecutionInput(
 		return ActionExecutionInput{}, err
 	}
 	return ActionExecutionInput{
-		WorkspaceID:   loopRun.WorkspaceID,
-		LoopRunID:     loopRun.ID,
-		Generation:    meta.Generation,
-		NodeID:        node.ID,
-		ItemIndex:     meta.ItemIndex,
-		Namespace:     namespace,
-		Contract:      &resolved.Definition.Contract,
-		ToolScope:     actionToolScope(loopRun, actor),
-		Actor:         actor,
-		CorrelationID: strings.TrimSpace(taskRun.ID),
-		WorkerModel:   effective.ModelDefaults.Worker,
-		JudgeModel:    effective.ModelDefaults.Judge,
+		WorkspaceID:              loopRun.WorkspaceID,
+		LoopRunID:                loopRun.ID,
+		Generation:               meta.Generation,
+		NodeID:                   node.ID,
+		ItemIndex:                meta.ItemIndex,
+		Namespace:                namespace,
+		Contract:                 &resolved.Definition.Contract,
+		ToolScope:                actionToolScope(loopRun, actor),
+		Actor:                    actor,
+		CorrelationID:            strings.TrimSpace(taskRun.ID),
+		WorkerModel:              effective.ModelDefaults.Worker,
+		JudgeModel:               effective.ModelDefaults.Judge,
+		OriginSessionID:          loopRun.Origin.SessionID,
+		OriginCreationProfileRef: loopRun.Origin.CreationProfileRef,
+		OriginPolicySpecDigest:   loopRun.Origin.PolicySpecDigest,
+		OriginCreationDigest:     loopRun.Origin.CreationDigest,
+		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
+		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
 	}, nil
 }
 
@@ -183,7 +259,7 @@ func (r *CoordinatorRunner) resolvedLoopForAction(
 	ctx context.Context,
 	loopRun Run,
 ) (*ResolvedDefinition, EffectiveConfig, error) {
-	resolved, err := r.resolver.ResolveLoop(ctx, loopRun.WorkspaceID, loopRun.LoopName)
+	resolved, err := r.resolvePinnedDefinition(ctx, loopRun)
 	if err != nil {
 		return nil, EffectiveConfig{}, err
 	}
@@ -191,7 +267,7 @@ func (r *CoordinatorRunner) resolvedLoopForAction(
 	if err != nil {
 		return nil, EffectiveConfig{}, err
 	}
-	effective, err := r.resolveCoordinatorEffectiveConfig(ctx, loopRun, resolved)
+	effective, err := pinnedEffectiveConfig(resolved)
 	if err != nil {
 		return nil, EffectiveConfig{}, err
 	}
@@ -213,6 +289,12 @@ func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRu
 	if meta.ItemIndex < 0 {
 		return coordinatorActionRunMetadata{}, fmt.Errorf(
 			"%w: action item_index must be zero or positive",
+			ErrValidation,
+		)
+	}
+	if meta.GoalSegmentEpoch < 0 {
+		return coordinatorActionRunMetadata{}, fmt.Errorf(
+			"%w: action goal_segment_epoch must be zero or positive",
 			ErrValidation,
 		)
 	}

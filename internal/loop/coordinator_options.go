@@ -51,13 +51,6 @@ func WithCoordinatorActionRegistry(registry *ActionRegistry) CoordinatorRunnerOp
 	}
 }
 
-// WithCoordinatorDefaultsResolver injects workspace-aware `[loops.defaults.*]` resolution.
-func WithCoordinatorDefaultsResolver(resolver DefaultsResolver) CoordinatorRunnerOption {
-	return func(r *CoordinatorRunner) {
-		r.defaultsResolver = resolver
-	}
-}
-
 // WithCoordinatorWatchSilenceWindow overrides the watch-source inactivity window.
 func WithCoordinatorWatchSilenceWindow(window time.Duration) CoordinatorRunnerOption {
 	return func(r *CoordinatorRunner) {

@@ -26,87 +26,6 @@ type loopPromptSessionManager interface {
 	CancelPrompt(ctx context.Context, id string) error
 }
 
-type loopActionSessionBinder struct {
-	sessions            loopPromptSessionManager
-	globalWorkspacePath string
-	policyGate          *loopSessionPolicyGate
-}
-
-var _ looppkg.ActionSessionBinder = (*loopActionSessionBinder)(nil)
-
-func (b *loopActionSessionBinder) BindActionSession(
-	ctx context.Context,
-	req looppkg.ActionSessionBindRequest,
-) (looppkg.ActionSessionBinding, error) {
-	if b == nil || b.sessions == nil {
-		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action sessions are unavailable")
-	}
-	agent := strings.TrimSpace(req.Agent)
-	if agent == "" {
-		return looppkg.ActionSessionBinding{}, fmt.Errorf("%w: run-agent agent is required", looppkg.ErrValidation)
-	}
-	opts := session.CreateOpts{
-		AgentName:     agent,
-		Model:         strings.TrimSpace(req.Model),
-		Name:          loopRuntimeSessionName("action", agent, req.Handle),
-		Channel:       loopRuntimeSessionChannel(req.WorkspaceID, req.Handle),
-		PromptOverlay: strings.TrimSpace(req.ContractBlock),
-		Type:          session.SessionTypeSystem,
-	}
-	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
-		opts.Workspace = workspaceID
-	} else if strings.TrimSpace(b.globalWorkspacePath) != "" {
-		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
-	} else {
-		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action workspace is required")
-	}
-	if err := b.policyGate.apply(ctx, &opts, agent, req.AllowedTools); err != nil {
-		return looppkg.ActionSessionBinding{}, err
-	}
-	created, err := b.sessions.Create(ctx, opts)
-	if err != nil {
-		return looppkg.ActionSessionBinding{}, err
-	}
-	if created == nil {
-		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action session create returned nil")
-	}
-	info := created.Info()
-	if info == nil {
-		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action session create returned nil info")
-	}
-	return looppkg.ActionSessionBinding{
-		SessionID: strings.TrimSpace(info.ID),
-		Handle:    strings.TrimSpace(req.Handle),
-		Isolated:  req.Isolated,
-	}, nil
-}
-
-func (b *loopActionSessionBinder) PromptActionSession(
-	ctx context.Context,
-	binding looppkg.ActionSessionBinding,
-	req looppkg.ActionPromptRequest,
-) (looppkg.ActionPromptResult, error) {
-	if b == nil || b.sessions == nil {
-		return looppkg.ActionPromptResult{}, errors.New("daemon: loop action sessions are unavailable")
-	}
-	return collectLoopPromptResult(
-		ctx,
-		b.sessions,
-		strings.TrimSpace(binding.SessionID),
-		req,
-	)
-}
-
-func (b *loopActionSessionBinder) CancelActionSession(
-	ctx context.Context,
-	binding looppkg.ActionSessionBinding,
-) error {
-	if b == nil || b.sessions == nil {
-		return nil
-	}
-	return b.sessions.CancelPrompt(ctx, strings.TrimSpace(binding.SessionID))
-}
-
 type loopGateJudgeRunner struct {
 	sessions            loopPromptSessionManager
 	globalWorkspacePath string
@@ -158,7 +77,9 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 	if err != nil {
 		return gate.JudgeResponse{}, err
 	}
-	return gate.JudgeResponse{Raw: result.Text}, nil
+	return gate.JudgeResponse{
+		Raw: result.Text, TokensUsed: result.TokensUsed, TokensReported: result.TokensReported,
+	}, nil
 }
 
 type loopGateCommandRunner struct{}
@@ -290,6 +211,7 @@ func collectLoopPromptResult(
 	}
 	var text strings.Builder
 	var tokensUsed int64
+	tokensReported := false
 	for event := range events {
 		if strings.TrimSpace(event.Text) != "" {
 			if text.Len() > 0 {
@@ -299,14 +221,16 @@ func collectLoopPromptResult(
 		}
 		if tokens, ok := loopPromptTokensUsed(event.Usage); ok {
 			tokensUsed = tokens
+			tokensReported = true
 			if req.UsageReporter != nil {
 				req.UsageReporter.ReportActionTokensUsed(tokens)
 			}
 		}
 	}
 	return looppkg.ActionPromptResult{
-		Text:       text.String(),
-		TokensUsed: tokensUsed,
+		Text:           text.String(),
+		TokensUsed:     tokensUsed,
+		TokensReported: tokensReported,
 	}, nil
 }
 
@@ -315,16 +239,19 @@ func loopPromptTokensUsed(usage *acp.TokenUsage) (int64, bool) {
 		return 0, false
 	}
 	if usage.TotalTokens != nil {
-		return *usage.TotalTokens, *usage.TotalTokens > 0
+		return max(*usage.TotalTokens, 0), true
+	}
+	if usage.InputTokens == nil && usage.OutputTokens == nil {
+		return 0, false
 	}
 	var total int64
 	if usage.InputTokens != nil {
-		total += *usage.InputTokens
+		total += max(*usage.InputTokens, 0)
 	}
 	if usage.OutputTokens != nil {
-		total += *usage.OutputTokens
+		total += max(*usage.OutputTokens, 0)
 	}
-	return total, total > 0
+	return total, true
 }
 
 func loopRuntimeSessionName(kind string, agent string, suffix string) string {

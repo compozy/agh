@@ -44,17 +44,17 @@ func upsertLoopDefinitionSnapshot(
 	if usedAt.IsZero() {
 		usedAt = run.CreatedAt.UTC()
 	}
-	_, err := exec.ExecContext(
+	result, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO loop_definition_snapshots (
 			workspace_id, definition_digest, definition_version, definition_json, byte_size,
 			created_at, last_used_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(workspace_id, definition_digest) DO UPDATE SET
-			definition_version = excluded.definition_version,
-			definition_json = excluded.definition_json,
-			byte_size = excluded.byte_size,
-			last_used_at = excluded.last_used_at`,
+			last_used_at = excluded.last_used_at
+		WHERE loop_definition_snapshots.definition_version = excluded.definition_version
+		  AND loop_definition_snapshots.definition_json = excluded.definition_json
+		  AND loop_definition_snapshots.byte_size = excluded.byte_size`,
 		string(run.WorkspaceID),
 		run.DefinitionDigest,
 		run.DefinitionVersion,
@@ -65,6 +65,17 @@ func upsertLoopDefinitionSnapshot(
 	)
 	if err != nil {
 		return fmt.Errorf("store: upsert loop definition snapshot %q: %w", run.DefinitionDigest, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: inspect loop definition snapshot %q upsert: %w", run.DefinitionDigest, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf(
+			"%w: loop definition snapshot %q already has different content",
+			looppkg.ErrValidation,
+			run.DefinitionDigest,
+		)
 	}
 	return nil
 }

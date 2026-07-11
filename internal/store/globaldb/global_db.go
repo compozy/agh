@@ -70,8 +70,6 @@ const (
 	globalDBWorkspaceKey                            = "workspace"
 )
 
-const globalMemoryEventWriteCommitted = "memory.write.committed"
-
 var taskTableIndexStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(scope);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);`,

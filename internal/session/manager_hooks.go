@@ -30,24 +30,6 @@ const (
 	hookMessageDeltaTypeThought = "thought"
 )
 
-type promptTurnDispatchState struct {
-	session     *Session
-	turnID      string
-	turnSource  TurnSource
-	inputClass  string
-	userMessage string
-	messageSeq  int
-	turnEnded   bool
-	openMessage *promptMessageDispatchState
-}
-
-type promptMessageDispatchState struct {
-	id      string
-	role    string
-	text    strings.Builder
-	lastRaw json.RawMessage
-}
-
 func newPromptTurnDispatchState(
 	session *Session,
 	turnID string,

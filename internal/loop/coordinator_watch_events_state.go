@@ -17,21 +17,22 @@ func recoverWatchEventsState(
 	run Run,
 	output GenerationOutput,
 	node dsl.Node,
+	contracts map[hooks.HookEvent]WatchEventsContract,
 	runtime coordinatorWatchEventsRuntime,
 ) (watchpkg.EventsPendingState, *task.CoordinatorTerminal, error) {
 	if state, ok, err := watchpkg.EventsPendingFromOutputRef(output.OutputRef); err != nil {
 		return watchpkg.EventsPendingState{}, nil, err
 	} else if ok {
-		if err := validateWatchEventsPendingState(state); err != nil {
+		if err := validateWatchEventsPendingState(state, contracts); err != nil {
 			return watchpkg.EventsPendingState{}, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil
 		}
 		return state, nil, nil
 	}
-	subscriptions, err := watchEventsSubscriptionsFromNode(node)
+	subscriptions, err := watchEventsSubscriptionsFromNode(node, contracts)
 	if err != nil {
 		return watchpkg.EventsPendingState{}, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil
 	}
-	streams, kinds, err := watchEventsInitialStreamsAndKinds(subscriptions, run.Inputs)
+	streams, kinds, err := watchEventsInitialStreamsAndKinds(subscriptions, run.Inputs, contracts)
 	if err != nil {
 		return watchpkg.EventsPendingState{}, watchEventsBlockedTerminal(watchEventsSpecInvalidReason), nil
 	}
@@ -51,15 +52,17 @@ func recoverWatchEventsState(
 	return watchpkg.EventsPendingState{Subscriptions: subscriptions, Cursors: cursors}, nil, nil
 }
 
-func watchEventsSubscriptionsFromNode(node dsl.Node) ([]watchpkg.EventSubscriptionRef, error) {
+func watchEventsSubscriptionsFromNode(
+	node dsl.Node,
+	contracts map[hooks.HookEvent]WatchEventsContract,
+) ([]watchpkg.EventSubscriptionRef, error) {
 	if len(node.Events) == 0 {
 		return nil, fmt.Errorf("%w: watch-events node %q requires subscriptions", ErrValidation, node.ID)
 	}
-	supported := SupportedWatchEvents()
 	subscriptions := make([]watchpkg.EventSubscriptionRef, 0, len(node.Events))
 	for _, subscription := range node.Events {
 		kind := hooks.HookEvent(strings.TrimSpace(subscription.Kind))
-		if _, ok := supported[kind]; !ok {
+		if _, ok := contracts[kind]; !ok {
 			return nil, fmt.Errorf("%w: watch-events kind is unsupported: %q", ErrValidation, subscription.Kind)
 		}
 		subscriptions = append(subscriptions, watchpkg.EventSubscriptionRef{
@@ -70,11 +73,14 @@ func watchEventsSubscriptionsFromNode(node dsl.Node) ([]watchpkg.EventSubscripti
 	return subscriptions, nil
 }
 
-func validateWatchEventsPendingState(state watchpkg.EventsPendingState) error {
+func validateWatchEventsPendingState(
+	state watchpkg.EventsPendingState,
+	contracts map[hooks.HookEvent]WatchEventsContract,
+) error {
 	if len(state.Subscriptions) == 0 {
 		return fmt.Errorf("%w: watch-events pending subscriptions are required", ErrValidation)
 	}
-	kinds, err := watchEventsLedgerKinds(state.Subscriptions)
+	kinds, err := watchEventsLedgerKinds(state.Subscriptions, contracts)
 	if err != nil {
 		return err
 	}
@@ -87,7 +93,7 @@ func validateWatchEventsPendingState(state watchpkg.EventsPendingState) error {
 		}
 	}
 	for _, kind := range kinds {
-		if !watchEventsPendingStateHasCursorForKind(state, kind) {
+		if !watchEventsPendingStateHasCursorForKind(state, kind, contracts) {
 			return fmt.Errorf("%w: watch-events cursor for kind %q is required", ErrValidation, kind)
 		}
 	}
@@ -97,12 +103,13 @@ func validateWatchEventsPendingState(state watchpkg.EventsPendingState) error {
 func watchEventsInitialStreamsAndKinds(
 	subscriptions []watchpkg.EventSubscriptionRef,
 	inputs map[string]any,
+	contracts map[hooks.HookEvent]WatchEventsContract,
 ) (map[string]int64, []string, error) {
-	streams, err := watchEventsInitialStreams(subscriptions, inputs)
+	streams, err := watchEventsInitialStreams(subscriptions, inputs, contracts)
 	if err != nil {
 		return nil, nil, err
 	}
-	kinds, err := watchEventsLedgerKinds(subscriptions)
+	kinds, err := watchEventsLedgerKinds(subscriptions, contracts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -112,11 +119,11 @@ func watchEventsInitialStreamsAndKinds(
 func watchEventsInitialStreams(
 	subscriptions []watchpkg.EventSubscriptionRef,
 	inputs map[string]any,
+	contracts map[hooks.HookEvent]WatchEventsContract,
 ) (map[string]int64, error) {
-	supported := SupportedWatchEvents()
 	streams := map[string]int64{}
 	for _, subscription := range subscriptions {
-		contract, ok := supported[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
+		contract, ok := contracts[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
 		if !ok {
 			return nil, fmt.Errorf("%w: watch-events kind is unsupported: %q", ErrValidation, subscription.Kind)
 		}
@@ -163,11 +170,13 @@ func watchEventsStreamsForSubscription(
 	return streams, nil
 }
 
-func watchEventsLedgerKinds(subscriptions []watchpkg.EventSubscriptionRef) ([]string, error) {
-	supported := SupportedWatchEvents()
+func watchEventsLedgerKinds(
+	subscriptions []watchpkg.EventSubscriptionRef,
+	contracts map[hooks.HookEvent]WatchEventsContract,
+) ([]string, error) {
 	kindSet := map[string]struct{}{}
 	for _, subscription := range subscriptions {
-		contract, ok := supported[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
+		contract, ok := contracts[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
 		if !ok {
 			return nil, fmt.Errorf("%w: watch-events kind is unsupported: %q", ErrValidation, subscription.Kind)
 		}
@@ -185,10 +194,13 @@ func watchEventsLedgerKinds(subscriptions []watchpkg.EventSubscriptionRef) ([]st
 	return kinds, nil
 }
 
-func watchEventsPendingStateHasCursorForKind(state watchpkg.EventsPendingState, ledgerKind string) bool {
-	supported := SupportedWatchEvents()
+func watchEventsPendingStateHasCursorForKind(
+	state watchpkg.EventsPendingState,
+	ledgerKind string,
+	contracts map[hooks.HookEvent]WatchEventsContract,
+) bool {
 	for _, subscription := range state.Subscriptions {
-		contract, ok := supported[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
+		contract, ok := contracts[hooks.HookEvent(strings.TrimSpace(subscription.Kind))]
 		if !ok || !slices.Contains(contract.LedgerTypes, ledgerKind) {
 			continue
 		}
@@ -201,8 +213,12 @@ func watchEventsPendingStateHasCursorForKind(state watchpkg.EventsPendingState, 
 	return false
 }
 
-func watchEventsQuery(run Run, state watchpkg.EventsPendingState) (WatchEventsQuery, error) {
-	kinds, err := watchEventsLedgerKinds(state.Subscriptions)
+func watchEventsQuery(
+	run Run,
+	state watchpkg.EventsPendingState,
+	contracts map[hooks.HookEvent]WatchEventsContract,
+) (WatchEventsQuery, error) {
+	kinds, err := watchEventsLedgerKinds(state.Subscriptions, contracts)
 	if err != nil {
 		return WatchEventsQuery{}, err
 	}

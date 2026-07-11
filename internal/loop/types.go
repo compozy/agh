@@ -88,6 +88,28 @@ const (
 	CodeDuplicateNodeID = "duplicate_node_id"
 	// CodeUnknownTerminalState reports contract terminal states outside the closed enum.
 	CodeUnknownTerminalState = "unknown_terminal_state"
+	// CodeGoalJudgeRequired reports a Goal without at least one valid supported judge.
+	CodeGoalJudgeRequired = "goal_judge_required"
+	// CodeGoalObjectiveRequired reports a Goal without a non-empty objective.
+	CodeGoalObjectiveRequired = "goal_objective_required"
+	// CodeGoalMaxTurnsRequired reports a Goal without a positive authored turn limit.
+	CodeGoalMaxTurnsRequired = "goal_max_turns_required"
+	// CodeGoalOutputStatusMissingBlocked reports a Goal output schema that cannot represent blocked.
+	CodeGoalOutputStatusMissingBlocked = "goal_output_status_missing_blocked"
+	// CodeGoalOnExhaustedInvalid reports an unsupported Goal exhaustion policy.
+	CodeGoalOnExhaustedInvalid = "goal_on_exhausted_invalid"
+	// CodeGoalHumanJudgeUnsupported reports a human Goal judge, which v1 cannot lease safely.
+	CodeGoalHumanJudgeUnsupported = "goal_human_judge_unsupported"
+	// CodeContinuousForbidsParallel reports a continuous Goal inside parallel fan-out.
+	CodeContinuousForbidsParallel = "continuous_forbids_parallel"
+	// CodeRetryFreshSessionRequiresContinuous reports an invalid fresh-session retry policy.
+	CodeRetryFreshSessionRequiresContinuous = "retry_fresh_session_requires_continuous"
+	// CodeSessionSpecAmbiguous reports a session envelope that is not exactly isolated or continuous.
+	CodeSessionSpecAmbiguous = "session_spec_ambiguous"
+	// CodeContinuousHandleReused reports duplicate continuous Goal display identities.
+	CodeContinuousHandleReused = "continuous_handle_reused"
+	// CodeRetryMaxUnsupported reports the retired retry.max key.
+	CodeRetryMaxUnsupported = "retry_max_unsupported"
 )
 
 // ToolSchemaSnapshot is the pure tool-schema view consumed by lint and compile.

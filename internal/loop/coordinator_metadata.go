@@ -29,6 +29,9 @@ func coordinatorNodeMetadataWithFanOutItem(
 	if hasItem {
 		payload["item"] = item
 	}
+	if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+		payload["goal_segment_epoch"] = initialGoalSegmentEpoch
+	}
 	metadata, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("loop: marshal node metadata for %s: %w", node.ID, err)

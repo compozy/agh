@@ -68,7 +68,21 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
-	return ParseJudgeVerdict(criterion.ID, criterion.Type, response.Raw)
+	if response.TokensUsed < 0 || (!response.TokensReported && response.TokensUsed != 0) {
+		return CriterionResult{
+			ID: criterion.ID, Type: criterion.Type, Outcome: VerdictOutcomeInvalidOutput,
+			BlockingIssues: []BlockingIssue{{
+				ID: "judge_usage_invalid", Note: "judge response token usage is invalid",
+			}},
+			Warnings: []DiagnosticWarning{{
+				Code: "judge_usage_invalid", Message: "judge response token usage is invalid",
+			}},
+		}
+	}
+	result := ParseJudgeVerdict(criterion.ID, criterion.Type, response.Raw)
+	result.judgeTokensUsed = response.TokensUsed
+	result.judgeTokensReported = response.TokensReported
+	return result
 }
 
 func (e *Evaluator) evaluateHuman(gate Gate, criterion dsl.GateCriterion, in GateInput) CriterionResult {

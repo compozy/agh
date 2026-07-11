@@ -12,6 +12,17 @@ type RunAgentParams struct {
 	Extra        map[string]any `json:"-"                       yaml:",inline"`
 }
 
+// GoalParams is the canonical schema for action kind goal.
+type GoalParams struct {
+	Agent        string          `json:"agent"                   yaml:"agent"`
+	Objective    string          `json:"objective"               yaml:"objective"`
+	Judge        []GateCriterion `json:"judge"                   yaml:"judge"`
+	MaxTurns     int             `json:"max_turns"               yaml:"max_turns"`
+	OnExhausted  string          `json:"on_exhausted,omitempty"  yaml:"on_exhausted,omitempty"`
+	OutputSchema *Schema         `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
+	Extra        map[string]any  `json:"-"                       yaml:",inline"`
+}
+
 // RunLoopParams is the canonical schema for action kind run-loop.
 type RunLoopParams struct {
 	Loop   string         `json:"loop"             yaml:"loop"`
@@ -48,12 +59,14 @@ type TransformMapping struct {
 type SessionSpec struct {
 	Handle   string         `json:"handle,omitempty"   yaml:"handle,omitempty"`
 	Isolated bool           `json:"isolated,omitempty" yaml:"isolated,omitempty"`
+	Mode     string         `json:"mode,omitempty"     yaml:"mode,omitempty"`
 	Extra    map[string]any `json:"-"                  yaml:",inline"`
 }
 
 // RetrySpec configures node retry policy.
 type RetrySpec struct {
 	MaxAttempts int            `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	OnFailure   string         `json:"on_failure,omitempty"   yaml:"on_failure,omitempty"`
 	Extra       map[string]any `json:"-"                      yaml:",inline"`
 }
 

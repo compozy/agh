@@ -41,7 +41,7 @@ func (m *Manager) handlePromptPumpChunkBatch(
 	}
 
 	for _, event := range normalized {
-		m.notifyAgentEvent(ctx, session, event)
+		m.notifyManagedPromptEvent(ctx, session, turnState, event)
 		if kind, summary, evidence, ok := promptTranscriptMarker(event); ok {
 			m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
 		}
@@ -89,6 +89,11 @@ func (m *Manager) recordPromptEventBatch(
 	}
 	for _, event := range events {
 		m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
+	}
+	for _, event := range events {
+		if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
+			return err
+		}
 	}
 
 	for _, event := range persisted {

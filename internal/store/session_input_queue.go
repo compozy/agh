@@ -32,22 +32,46 @@ var (
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
-	ID                string
-	SessionID         string
-	Status            string
-	Mode              string
-	Text              string
-	SessionGeneration int64
-	TaskRunID         string
-	RunGeneration     *int64
-	AttemptCount      int
-	EnqueuedAt        time.Time
-	DispatchStartedAt *time.Time
-	SentAt            *time.Time
-	FailedAt          *time.Time
-	FailureSummary    string
-	CanceledAt        *time.Time
-	UpdatedAt         time.Time
+	ID                       string
+	SessionID                string
+	Status                   string
+	Mode                     string
+	Text                     string
+	SessionGeneration        int64
+	TaskRunID                string
+	RunGeneration            *int64
+	LoopRunID                string
+	OwnerKind                string
+	OwnerEpoch               *int64
+	BindingEpoch             *int64
+	PromptID                 string
+	PromptKind               string
+	OperationUsageBaseTokens *int64
+	PromptAttempt            int
+	Dispatchable             bool
+	DispatchTokenHash        string
+	AttemptCount             int
+	EnqueuedAt               time.Time
+	ActivatedAt              *time.Time
+	DispatchStartedAt        *time.Time
+	SentAt                   *time.Time
+	FailedAt                 *time.Time
+	FailureSummary           string
+	CanceledAt               *time.Time
+	FenceKind                string
+	FenceDisposition         string
+	FenceReasonCode          string
+	FencedAt                 *time.Time
+	TerminalEventStartSeq    *int64
+	TerminalEventEndSeq      *int64
+	TerminalKind             string
+	TerminalStopReason       string
+	TerminalDisposition      string
+	TerminalReasonCode       string
+	TerminalTokensReported   bool
+	TerminalTokensUsed       *int64
+	TerminalAt               *time.Time
+	UpdatedAt                time.Time
 }
 
 // SessionInputQueueSummary captures the current generation and pending entries for recap/status reads.
@@ -130,6 +154,15 @@ type SessionInputQueueStore interface {
 		sessionID string,
 		now time.Time,
 	) (SessionInputQueueEntry, bool, error)
+	PeekNextSessionInput(
+		ctx context.Context,
+		sessionID string,
+	) (SessionInputQueueEntry, bool, error)
+	GetSessionInputQueueEntry(
+		ctx context.Context,
+		sessionID string,
+		entryID string,
+	) (SessionInputQueueEntry, error)
 	MarkSessionInputSent(
 		ctx context.Context,
 		sessionID string,

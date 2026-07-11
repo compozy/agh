@@ -54,6 +54,8 @@ const (
 	ReasonCodeActionSchemaInvalid ReasonCode = "action_schema_invalid"
 	// ReasonCodeActionTimeout reports timeout cancellation of an action turn.
 	ReasonCodeActionTimeout ReasonCode = "action_timeout"
+	// ReasonCodeActionContractStale reports runtime tool schemas that differ from the Run snapshot.
+	ReasonCodeActionContractStale ReasonCode = "action_contract_stale"
 )
 
 // ActionExecutor runs one loop action node and converts its raw result into node output.
@@ -64,18 +66,28 @@ type ActionExecutor interface {
 
 // ActionExecutionInput is the loop-owned execution context for one node instance.
 type ActionExecutionInput struct {
-	WorkspaceID   WorkspaceID
-	LoopRunID     RunID
-	Generation    int
-	NodeID        dsl.NodeID
-	ItemIndex     int
-	Namespace     map[string]any
-	Contract      *dsl.Contract
-	ToolScope     tools.Scope
-	Actor         task.ActorContext
-	CorrelationID string
-	WorkerModel   string
-	JudgeModel    string
+	WorkspaceID              WorkspaceID
+	LoopRunID                RunID
+	Generation               int
+	NodeID                   dsl.NodeID
+	ItemIndex                int
+	Namespace                map[string]any
+	Contract                 *dsl.Contract
+	ToolScope                tools.Scope
+	Actor                    task.ActorContext
+	CorrelationID            string
+	WorkerModel              string
+	JudgeModel               string
+	CWD                      string
+	AllowedTools             []string
+	OriginSessionID          string
+	OriginCreationProfileRef string
+	OriginPolicySpecDigest   string
+	OriginCreationDigest     string
+	GoalContextNudgeRatio    *float64
+	UsageReporter            ActionUsageReporter
+	PersistedTaskTokensUsed  int64
+	GoalSegmentEpoch         int64
 }
 
 // ActionRawResult captures backend-specific action output before harvest policy.
@@ -93,6 +105,7 @@ type ActionRawResult struct {
 	Status          string
 	RenderedParams  json.RawMessage
 	RenderedHarvest *dsl.HarvestSpec
+	Control         *ActionControl
 }
 
 // ActionOutput is the typed loop-node output written into generation snapshots.
@@ -176,37 +189,112 @@ type ActionSessionBinder interface {
 
 // ActionSessionBindRequest describes shared-default or isolated run-agent binding.
 type ActionSessionBindRequest struct {
-	WorkspaceID   WorkspaceID
-	Agent         string
-	CWD           string
-	Handle        string
-	ItemIndex     int
-	Isolated      bool
-	Model         string
-	AllowedTools  []string
-	MaxTurns      int
-	ContractBlock string
+	WorkspaceID                    WorkspaceID
+	LoopRunID                      RunID
+	Generation                     int
+	NodeID                         dsl.NodeID
+	ItemIndex                      int
+	Agent                          string
+	CWD                            string
+	Handle                         string
+	Mode                           string
+	OriginSessionID                string
+	TargetBindingEpoch             int64
+	ExpectedControlEpoch           int64
+	ExpectedCheckpointPhase        string
+	ExpectedTaskRunID              string
+	ExpectedQueueEntryID           string
+	ExpectedPromptID               string
+	ExpectedCheckpointBindingEpoch int64
+	ExpectedCheckpointSessionID    string
+	ExpectedCheckpointHandle       string
+	ReseedGrantID                  int64
+	BindingAttemptID               string
+	DesiredSessionID               string
+	PinnedCreationProfileRef       string
+	PinnedCreationDigest           string
+	StaticPolicySpecDigest         string
+	Isolated                       bool
+	Model                          string
+	AllowedTools                   []string
+	MaxTurns                       int
+	ContractBlock                  string
+}
+
+// ActionSessionCreationError carries provider-effect certainty without importing session internals.
+type ActionSessionCreationError struct {
+	EffectKnownFalse bool
+	Code             string
+	Err              error
+}
+
+// Error implements error.
+func (e *ActionSessionCreationError) Error() string {
+	if e == nil || e.Err == nil {
+		return "action session creation failed"
+	}
+	return e.Err.Error()
+}
+
+// Unwrap preserves the provider/session creation cause.
+func (e *ActionSessionCreationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// ActionSessionRetryRequest asks the binder to persist one Goal-owned retry decision.
+type ActionSessionRetryRequest struct {
+	BindRequest           ActionSessionBindRequest
+	FailedBinding         ActionSessionBinding
+	FailureCode           string
+	ExpectedPromptAttempt int
+	RetryWithFreshSession bool
 }
 
 // ActionSessionBinding is the durable session binding returned by the runtime.
 type ActionSessionBinding struct {
-	SessionID string
-	Handle    string
-	SharedKey string
-	Isolated  bool
+	WorkspaceID        WorkspaceID
+	LoopRunID          RunID
+	SessionID          string
+	Handle             string
+	SharedKey          string
+	ControlEpoch       int64
+	BindingEpoch       int64
+	BindingAttemptID   string
+	CreationProfileRef string
+	PolicySpecDigest   string
+	CreationDigest     string
+	State              string
+	Ownership          string
+	Isolated           bool
 }
 
 // ActionPromptRequest is one work-order turn inside a bound run-agent session.
 type ActionPromptRequest struct {
-	Message       string
-	UsageReporter ActionUsageReporter
+	PromptID             string
+	Message              string
+	Kind                 string
+	Owner                ActionPromptOwner
+	UsageBaseTokens      int64
+	UsageBaseReported    bool
+	ContextUsageSequence *int64
+	ContextUsageUsed     *int64
+	UsageReporter        ActionUsageReporter
 }
 
 // ActionPromptResult captures one ACP prompt turn.
 type ActionPromptResult struct {
-	Text          string
-	Structured    json.RawMessage
-	EventStartSeq int64
-	EventEndSeq   int64
-	TokensUsed    int64
+	PromptID         string
+	Outcome          ActionPromptOutcome
+	Text             string
+	Structured       json.RawMessage
+	EventStartSeq    int64
+	EventEndSeq      int64
+	TokensUsed       int64
+	TokensReported   bool
+	StopReason       ActionStopReason
+	FenceDisposition ActionDisposition
+	ReasonCode       ReasonCode
 }
