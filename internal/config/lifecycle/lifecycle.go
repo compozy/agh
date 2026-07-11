@@ -91,6 +91,7 @@ var Matrix = []Rule{
 	{Pattern: "memory.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "goals.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "observability.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

@@ -67,6 +67,7 @@ interface UseSessionLiveTailOptions {
 
 const TRANSCRIPT_SNAPSHOT_EVENT = "transcript_snapshot";
 const TRANSCRIPT_DELTA_EVENT = "transcript_delta";
+const GOAL_SNAPSHOT_CHANGED_EVENT = "goal_snapshot_changed";
 const SESSION_STOPPED_EVENT = "session_stopped";
 const SESSION_DONE_EVENT = "done";
 const STREAM_ERROR_EVENT = "error";
@@ -379,6 +380,13 @@ export function useSessionLiveTail({
       closeCurrentSource("terminal");
       invalidateSessionSurfaces();
     };
+    const handleGoalSnapshotChanged = () => {
+      reconnectAttempt = 0;
+      void queryClient.invalidateQueries({
+        queryKey: sessionKeys.goal(workspaceId, sessionId),
+        exact: true,
+      });
+    };
     const handleError = () => {
       scheduleSurfaceRefresh();
       scheduleReconnect();
@@ -386,6 +394,7 @@ export function useSessionLiveTail({
 
     const snapshotListener = applySnapshot as EventListener;
     const deltaListener = applyDelta as EventListener;
+    const goalSnapshotListener = handleGoalSnapshotChanged as EventListener;
     const terminalListener = handleTerminalEvent as EventListener;
     const streamErrorListener = handleError as EventListener;
 
@@ -403,6 +412,7 @@ export function useSessionLiveTail({
       nextSource.onerror = handleError;
       nextSource.addEventListener(TRANSCRIPT_SNAPSHOT_EVENT, snapshotListener);
       nextSource.addEventListener(TRANSCRIPT_DELTA_EVENT, deltaListener);
+      nextSource.addEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, goalSnapshotListener);
       nextSource.addEventListener(SESSION_STOPPED_EVENT, terminalListener);
       nextSource.addEventListener(SESSION_DONE_EVENT, terminalListener);
       nextSource.addEventListener(STREAM_ERROR_EVENT, streamErrorListener);
@@ -410,6 +420,7 @@ export function useSessionLiveTail({
         if (!nextSource.removeEventListener) return;
         nextSource.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, snapshotListener);
         nextSource.removeEventListener(TRANSCRIPT_DELTA_EVENT, deltaListener);
+        nextSource.removeEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, goalSnapshotListener);
         nextSource.removeEventListener(SESSION_STOPPED_EVENT, terminalListener);
         nextSource.removeEventListener(SESSION_DONE_EVENT, terminalListener);
         nextSource.removeEventListener(STREAM_ERROR_EVENT, streamErrorListener);

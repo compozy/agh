@@ -90,8 +90,7 @@
                                 "action": "block_until_cancel"
                             }
                         }
-                    ],
-                    "stop_reason": "canceled"
+                    ]
                 }
             ]
         }

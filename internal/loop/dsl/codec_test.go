@@ -242,6 +242,84 @@ start: [{ kind: manual }]
 	})
 }
 
+func TestCodecShouldRoundTripGoalEnvelope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve goal session retry params and unknown fields", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := dsl.Parse([]byte(`apiVersion: agh.loop/v1
+kind: Loop
+meta: { name: goal-codec }
+concurrency: forbid
+inputs: {}
+contract:
+  goal: Converge safely
+  definition_of_done: Goal judge approves
+  verification: []
+  terminal_states: [done, blocked, failed]
+  iteration_cap: 3
+  no_progress: { window: 2, hash_fields: [] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: converge
+      class: action
+      kind: goal
+      session: { handle: primary, mode: continuous, x_session: keep }
+      retry: { max_attempts: 2, on_failure: fresh_session, x_retry: keep }
+      params:
+        agent: codex
+        objective: Make verification pass
+        judge:
+          - { id: verify, type: command, check: make verify }
+        max_turns: 10
+        on_exhausted: escalate
+        output_schema:
+          status: { type: string, enum: [complete, blocked] }
+        x_goal: keep
+  edges: []
+start: [{ kind: manual }]
+`))
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		node := def.Graph.Nodes[0]
+		if node.Session == nil || node.Session.Mode != "continuous" || node.Session.Extra["x_session"] != "keep" {
+			t.Fatalf("Session = %#v, want continuous envelope with extra", node.Session)
+		}
+		if node.Retry == nil || node.Retry.MaxAttempts != 2 || node.Retry.OnFailure != "fresh_session" ||
+			node.Retry.Extra["x_retry"] != "keep" {
+			t.Fatalf("Retry = %#v, want max_attempts/on_failure with extra", node.Retry)
+		}
+		var params dsl.GoalParams
+		if err := node.Params.Decode(&params); err != nil {
+			t.Fatalf("Decode(GoalParams) error = %v", err)
+		}
+		if params.Extra["x_goal"] != "keep" || params.Judge[0].Check != "make verify" {
+			t.Fatalf("GoalParams = %#v, want check and preserved extra", params)
+		}
+
+		serialized, err := dsl.Serialize(def)
+		if err != nil {
+			t.Fatalf("Serialize() error = %v", err)
+		}
+		reparsed, err := dsl.Parse(serialized)
+		if err != nil {
+			t.Fatalf("Parse(serialized) error = %v", err)
+		}
+		retry := reparsed.Graph.Nodes[0].Retry
+		if retry == nil || retry.MaxAttempts != 2 || retry.OnFailure != "fresh_session" {
+			t.Fatalf("round-trip Retry = %#v, want retained fields", retry)
+		}
+		for _, fragment := range []string{"kind: goal", "mode: continuous", "max_attempts: 2", "on_failure: fresh_session", "check: make verify"} {
+			if !strings.Contains(string(serialized), fragment) {
+				t.Fatalf("serialized goal missing %q:\n%s", fragment, serialized)
+			}
+		}
+	})
+}
+
 func minimalDefinition(contract string) string {
 	return `apiVersion: agh.loop/v1
 kind: Loop

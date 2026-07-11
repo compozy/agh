@@ -40,6 +40,22 @@ vi.mock("sonner", () => ({
   },
 }));
 
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+  return {
+    ...actual,
+    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+      <a
+        href={typeof to === "string" ? to : "#"}
+        data-params={JSON.stringify(params)}
+        {...(props as Record<string, unknown>)}
+      >
+        {children as React.ReactNode}
+      </a>
+    ),
+  };
+});
+
 // Suite: thread state panes
 // Invariant: ThreadEmpty renders only after the transcript fetch succeeds with zero messages.
 // Boundary IN: SessionThread state branching and readonly row rendering.
@@ -232,6 +248,45 @@ describe("SessionThread transcript states", () => {
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
     expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["goal-work", "Goal work"],
+    ["goal-continuation", "Goal continuation"],
+    ["goal-compaction", "Goal compaction"],
+  ] as const)("Should restore persisted %s prompt identity after reload", async (kind, label) => {
+    const transcript = [
+      {
+        id: `assistant-${kind}`,
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "prompt_started",
+              goal: {
+                kind,
+                run_id: "run_1",
+                node_id: "goal",
+                generation: 2,
+                item_index: 0,
+                turn: 3,
+                prompt_attempt: 1,
+                prompt_id: `prompt-${kind}`,
+              },
+            },
+          },
+          { type: "text", text: `${label} response`, state: "done" },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const notice = await screen.findByTestId("goal-prompt-meta");
+    expect(notice).toHaveTextContent(label);
+    expect(notice).toHaveTextContent("goal · generation 2 · turn 3");
+    expect(within(notice).getByRole("link", { name: "Open run" })).toBeInTheDocument();
   });
 
   it("Should not render beyond the readonly provider's committed message count when transcript grows after reconnect", async () => {

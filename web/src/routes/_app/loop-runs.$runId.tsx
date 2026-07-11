@@ -119,6 +119,12 @@ function LoopRunDetail({ workspaceId, runId }: LoopRunDetailProps) {
             gateVerdicts={page.live.gateVerdicts}
             channelMessages={page.live.channelMessages}
             isLive={page.isLive}
+            goalTurns={page.goalTurns}
+            hasMoreGoalTurns={page.goalTurnsQuery.hasNextPage}
+            isLoadingMoreGoalTurns={page.goalTurnsQuery.isFetchingNextPage}
+            onLoadMoreGoalTurns={() => {
+              void page.goalTurnsQuery.fetchNextPage();
+            }}
           />
         </div>
       </div>

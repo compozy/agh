@@ -33,7 +33,7 @@ function ChangedFileRow({ file }: { file: ChangedFileEntry }) {
       data-testid="changed-file-row"
       className="flex min-w-0 items-center gap-2 px-2.5 py-1 text-small-body"
     >
-      <FileText aria-hidden="true" className="size-3.5 shrink-0 text-faint" strokeWidth={1.75} />
+      <FileText aria-hidden="true" className="size-3.5 shrink-0 text-subtle" strokeWidth={1.75} />
       <span className="flex min-w-0 flex-1 items-baseline" title={file.path}>
         {dir ? <span className="truncate text-subtle">{dir}</span> : null}
         <span className="shrink-0 text-fg">{name}</span>
@@ -64,7 +64,7 @@ export function SessionChangedFilesRowView({
     <div
       data-testid="changed-files-row"
       data-expanded={String(row.expanded)}
-      className="my-1 overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className="my-1 overflow-hidden rounded-md border border-line bg-canvas-soft"
     >
       <button
         ref={ref}
@@ -80,15 +80,17 @@ export function SessionChangedFilesRowView({
         <ChevronRight
           aria-hidden="true"
           className={cn(
-            "size-3 shrink-0 text-faint transition-transform duration-base ease-out motion-reduce:transition-none",
+            "size-3 shrink-0 text-subtle transition-transform duration-base ease-out motion-reduce:transition-none",
             row.expanded ? "rotate-90 text-muted" : null
           )}
           strokeWidth={1.75}
         />
-        <Eyebrow className="min-w-0 flex-1 truncate text-muted group-hover:text-fg">
+        <Eyebrow className="min-w-0 shrink truncate text-muted group-hover:text-fg">
           Edited {fileCount} {fileCount === 1 ? "file" : "files"}
         </Eyebrow>
-        <DiffStat additions={row.additions} deletions={row.deletions} />
+        <span className="ml-auto shrink-0">
+          <DiffStat additions={row.additions} deletions={row.deletions} />
+        </span>
       </button>
       {row.expanded ? (
         <div data-testid="changed-files-list" className="border-t border-line py-0.5">

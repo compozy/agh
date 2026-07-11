@@ -766,12 +766,6 @@ type CancelRun struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
-// RunResult captures the durable JSON result returned by a completed run.
-type RunResult struct {
-	Value      json.RawMessage `json:"value,omitempty"`
-	TokensUsed int64           `json:"tokens_used,omitempty"`
-}
-
 // RunFailure captures the durable failure payload returned by a failed run.
 type RunFailure struct {
 	Error    string          `json:"error"`

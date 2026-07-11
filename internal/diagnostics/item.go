@@ -213,6 +213,8 @@ func RedactValue(value any) any {
 		return Redact(string(typed))
 	case error:
 		return Redact(typed.Error())
+	case json.Number:
+		return typed
 	case fmt.Stringer:
 		return Redact(typed.String())
 	case map[string]any:

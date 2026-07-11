@@ -4,6 +4,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
   sessionDetailOptions,
+  sessionGoalOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
   sessionUsageOptions,
@@ -47,6 +48,13 @@ export function useSession(id: string, workspace?: string | null) {
 export function useSessionById(id: string, workspace: string) {
   const workspaceId = workspace.trim();
   return useQuery(sessionDetailOptions(workspaceId, id));
+}
+
+export function useSessionGoal(workspaceId: string, sessionId: string, enabled = true) {
+  return useQuery({
+    ...sessionGoalOptions(workspaceId, sessionId),
+    enabled: enabled && workspaceId !== "" && sessionId !== "",
+  });
 }
 
 export interface UseSessionLedgerOptions {

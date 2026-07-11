@@ -1,12 +1,12 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
-import { CornerDownRight, ListPlus, Scissors, SendHorizontal, Square } from "lucide-react";
+import { ListPlus, Scissors, SendHorizontal, Square } from "lucide-react";
 import { type KeyboardEvent, useCallback } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@agh/ui";
 import { SessionComposerQueuedPrompts, type QueuedPrompt } from "./session-composer-queued-prompts";
-import { useSessionComposerState } from "./hooks/use-session-composer-state";
+import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
   ThreadContentRail,
@@ -16,7 +16,6 @@ import {
 export type SessionBusyInputHandler = (message: string) => void | Promise<void>;
 
 export interface SessionComposerProps {
-  sessionId: string;
   canPrompt: boolean;
   onCancelPrompt: () => void;
   onQueuePrompt?: SessionBusyInputHandler;
@@ -41,27 +40,25 @@ function describeComposerActionError(error: unknown, fallback: string): string {
 /**
  * The session prompt composer. Idle: an accent Send disc submits to the runtime.
  * While a turn runs the phase changes coherently — Enter queues the draft (with a
- * visible hint), the primary disc becomes a danger Stop, and the AGH-specific
- * Queue/Steer/Interrupt controls stay available. Queued follow-ups render fused
- * onto the composer top with steer/edit/remove actions.
+ * visible hint), the primary disc becomes a danger Stop, and Queue/Interrupt stay
+ * available. Queued follow-ups render fused onto the composer top with
+ * steer/edit/remove actions (steer lives on the queue strip, not as a composer CTA).
  */
 export function SessionComposer({
-  sessionId,
+  composerState,
   contentInset,
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
   onInterruptPrompt,
-  onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
   queuedPrompts = [],
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
-}: SessionComposerProps) {
-  const { clearComposer, setComposerText, composerText, isRunning } =
-    useSessionComposerState(sessionId);
+}: SessionComposerProps & { composerState: SessionComposerState }) {
+  const { clearComposer, setComposerText, composerText, isRunning } = composerState;
   const trimmedComposerText = composerText.trim();
   const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
@@ -158,7 +155,7 @@ export function SessionComposer({
             submitMode="enter"
             onKeyDown={handleInputKeyDown}
             className={cn(
-              "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
+              "min-h-6 w-full resize-none border-none bg-transparent p-0 text-small-body leading-relaxed",
               "text-fg placeholder:text-subtle",
               "outline-none focus-visible:border-transparent focus-visible:ring-0",
               "dark:bg-transparent"
@@ -179,7 +176,7 @@ export function SessionComposer({
                   {allowBusyInput && onQueuePrompt ? (
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.")}
                       disabled={!canSubmitBusyInput}
@@ -189,23 +186,10 @@ export function SessionComposer({
                       Queue
                     </Button>
                   ) : null}
-                  {allowBusyInput && onSteerPrompt ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleBusyInputAction(onSteerPrompt, "Couldn't stage steer.")}
-                      disabled={!canSubmitBusyInput}
-                      data-testid="composer-steer-button"
-                    >
-                      <CornerDownRight className="size-3" />
-                      Steer
-                    </Button>
-                  ) : null}
                   {allowBusyInput && onInterruptPrompt ? (
                     <Button
                       type="button"
-                      variant="destructive"
+                      variant="ghost"
                       size="sm"
                       onClick={() =>
                         handleBusyInputAction(onInterruptPrompt, "Couldn't interrupt prompt.")
@@ -223,25 +207,25 @@ export function SessionComposer({
                     aria-label="Stop generation"
                     data-testid="composer-stop-button"
                     className={cn(
-                      "inline-flex size-9 items-center justify-center rounded-full",
+                      "inline-flex size-button-icon-lg items-center justify-center rounded-full",
                       "bg-danger text-canvas transition-opacity",
                       "hover:opacity-90 focus-visible:outline-none focus-visible:shadow-focus-ring"
                     )}
                   >
-                    <Square className="size-4 fill-current" />
+                    <Square className="size-3.5 fill-current" />
                   </button>
                 </>
               ) : (
                 <ComposerPrimitive.Send
                   aria-label="Send message"
                   className={cn(
-                    "inline-flex size-9 items-center justify-center rounded-full",
+                    "inline-flex size-button-icon-lg items-center justify-center rounded-full",
                     "bg-accent text-accent-ink transition-colors",
                     "hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                   )}
                   data-testid="composer-send-button"
                 >
-                  <SendHorizontal className="size-4" />
+                  <SendHorizontal className="size-3.5" />
                 </ComposerPrimitive.Send>
               )}
             </div>

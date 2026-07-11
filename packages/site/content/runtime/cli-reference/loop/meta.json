@@ -15,6 +15,7 @@
         "runs",
         "status",
         "stop",
+        "turns",
         "validate"
     ]
 }

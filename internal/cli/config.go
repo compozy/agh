@@ -321,7 +321,7 @@ var (
 		"network.greet_interval":                                  configSetInt,
 		"network.max_replay_age":                                  configSetInt,
 		"network.max_queue_depth":                                 configSetInt,
-	}, loopDefaultConfigSetPathKinds())
+	}, loopAndGoalConfigSetPathKinds())
 )
 
 func newConfigCommand(deps commandDeps) *cobra.Command {

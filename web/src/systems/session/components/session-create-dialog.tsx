@@ -116,7 +116,7 @@ function SessionCreateDialog({
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
-        className="text-fg sm:max-w-xl"
+        className="text-fg sm:max-w-(--width-modal-sm)"
         data-testid="session-create-dialog"
         showCloseButton={!isSubmitting}
         unframed
@@ -148,7 +148,7 @@ function SessionCreateDialog({
               />
               {activeAgent && activeAgentProvider.length > 0 ? (
                 <div
-                  className="mt-1 flex items-center gap-1.5 text-xs text-subtle"
+                  className="mt-1 flex items-center gap-1.5 text-form-hint text-subtle"
                   data-testid="session-create-agent-default"
                 >
                   <AgentIcon className="size-3 text-subtle" provider={activeAgentProvider} />
@@ -192,7 +192,7 @@ function SessionCreateDialog({
               />
               {providersError ? (
                 <p
-                  className="mt-1 text-xs text-danger"
+                  className="mt-1 text-form-hint text-danger"
                   data-testid="session-create-providers-error"
                   role="alert"
                 >
@@ -201,7 +201,7 @@ function SessionCreateDialog({
               ) : null}
               {workspaceSelected && !providersLoading && !providersError && !hasProviderOptions ? (
                 <p
-                  className="mt-1 text-xs text-warning"
+                  className="mt-1 text-form-hint text-warning"
                   data-testid="session-create-providers-empty"
                 >
                   No providers are configured for this workspace.
@@ -211,7 +211,7 @@ function SessionCreateDialog({
 
             {submitError ? (
               <p
-                className="text-xs text-danger"
+                className="text-form-hint text-danger"
                 data-testid="session-create-submit-error"
                 role="alert"
               >

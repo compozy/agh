@@ -151,7 +151,7 @@ func FormatTimestamp(value time.Time) string {
 
 // ParseTimestamp parses the canonical SQLite text timestamp.
 func ParseTimestamp(value string) (time.Time, error) {
-	parsed, err := time.Parse(timestampLayout, strings.TrimSpace(value))
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("store: parse timestamp %q: %w", value, err)
 	}

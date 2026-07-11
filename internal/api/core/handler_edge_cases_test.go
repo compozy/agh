@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -193,6 +194,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	t.Parallel()
 
 	usageValue := int64(10)
+	goalTurn := 2
 	agentEvent := core.AgentEventPayloadFromEvent(acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-1",
@@ -207,6 +209,10 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			InputTokens: &usageValue,
 			Timestamp:   time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 		},
+		Goal: &acp.GoalPromptMeta{
+			Kind: "goal-continuation", RunID: "run-goal", NodeID: "converge", Generation: 3,
+			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
+		},
 		Raw: []byte(`{"ok":true}`),
 	})
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
@@ -214,6 +220,22 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	}
 	if agentEvent.Failure == nil || agentEvent.Failure.Kind != store.FailurePermission {
 		t.Fatalf("agent event failure = %#v", agentEvent.Failure)
+	}
+	if agentEvent.Goal == nil || agentEvent.Goal.Kind != contract.GoalPromptContinuation ||
+		agentEvent.Goal.RunID != "run-goal" || agentEvent.Goal.Turn == nil || *agentEvent.Goal.Turn != goalTurn {
+		t.Fatalf("agent event Goal metadata = %#v", agentEvent.Goal)
+	}
+	storedGoalEvent, err := transcript.MarshalAgentEvent(acp.AgentEvent{Goal: &acp.GoalPromptMeta{
+		Kind: "goal-continuation", RunID: "run-goal", NodeID: "converge", Generation: 3,
+		ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
+	}})
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent(Goal) error = %v", err)
+	}
+	sessionEvent := core.SessionEventPayloadFromEvent(store.SessionEvent{Content: storedGoalEvent}, nil)
+	if sessionEvent.Goal == nil || sessionEvent.Goal.Kind != contract.GoalPromptContinuation ||
+		sessionEvent.Goal.PromptID != "goal-prompt-2" {
+		t.Fatalf("session event Goal metadata = %#v", sessionEvent.Goal)
 	}
 	if got := string(agentEvent.Raw); got != `{"ok":true}` {
 		t.Fatalf("agent event raw payload = %s, want valid JSON passthrough", got)
@@ -256,6 +278,116 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	}, "ws_alpha")
 	if len(sessions) != 1 || sessions[0].ID != "sess-1" {
 		t.Fatalf("SessionPayloadsForWorkspace() = %#v", sessions)
+	}
+}
+
+func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testing.T) {
+	t.Parallel()
+
+	snapshot := &session.GoalSnapshot{
+		RunID: "run-1", NodeID: "goal", Objective: "Ship the release",
+		OriginSessionID: "session-1", BoundSessionID: "session-1",
+		Status: "active", RunStatus: "running", TurnsUsed: 0, TurnLimit: 7, Live: true,
+		ContractSummary: "Ship the release",
+		Context:         session.GoalContextSnapshot{State: "unknown", NudgeRatio: 0},
+	}
+	replacedRunID := "run-old"
+	replaceRequired := session.GoalReasonReplaceRequired
+	replaceStale := session.GoalReasonReplaceStale
+	notActive := session.GoalReasonNotActive
+	invalid := session.GoalReasonCommandInvalid
+	tests := []struct {
+		name       string
+		result     *session.GoalCommandResult
+		wantStatus int
+		wantError  bool
+	}{
+		{
+			name:       "Should map started to accepted",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStarted, Snapshot: snapshot},
+			wantStatus: http.StatusAccepted,
+		},
+		{
+			name: "Should map replaced to accepted",
+			result: &session.GoalCommandResult{
+				Outcome:       session.GoalOutcomeReplaced,
+				Snapshot:      snapshot,
+				ReplacedRunID: &replacedRunID,
+			},
+			wantStatus: http.StatusAccepted,
+		},
+		{
+			name:       "Should map status to OK",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStatus, Snapshot: snapshot},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Should map clear to OK",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeCleared},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Should map not active to not found",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &notActive},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "Should map replace required to conflict",
+			result: &session.GoalCommandResult{
+				Outcome:    session.GoalOutcomeError,
+				ReasonCode: &replaceRequired,
+				Snapshot:   snapshot,
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name: "Should map replace stale to conflict",
+			result: &session.GoalCommandResult{
+				Outcome:    session.GoalOutcomeError,
+				ReasonCode: &replaceStale,
+				Snapshot:   snapshot,
+			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "Should map invalid command to unprocessable content",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &invalid},
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "Should reject started without a snapshot",
+			result:    &session.GoalCommandResult{Outcome: session.GoalOutcomeStarted},
+			wantError: true,
+		},
+		{
+			name:      "Should reject stale replace without a current snapshot",
+			result:    &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &replaceStale},
+			wantError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			status, body, err := core.PromptResponseFromSession(
+				session.SendPromptResult{Status: "goal", Goal: tt.result},
+			)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("PromptResponseFromSession() error = nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("PromptResponseFromSession() error = %v", err)
+			}
+			if status != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", status, tt.wantStatus)
+			}
+			if _, ok := body.(contract.GoalCommandResult); !ok {
+				t.Fatalf("body type = %T, want contract.GoalCommandResult", body)
+			}
+		})
 	}
 }
 

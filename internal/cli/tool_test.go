@@ -886,7 +886,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		if !strings.Contains(commandErr.Error(), "tool input is invalid") {
 			t.Fatalf("toolCommandError.Error() = %q, want message", commandErr.Error())
 		}
-		if got := (*toolCommandError)(nil).Error(); got != "<nil>" {
+		if got := (*toolCommandError)(nil).Error(); got != nilToolErrorString {
 			t.Fatalf("nil toolCommandError.Error() = %q, want <nil>", got)
 		}
 		fallbackCommandErr := &toolCommandError{
@@ -968,7 +968,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 	t.Run("Should cover tool api and raw json redaction edge cases", func(t *testing.T) {
 		t.Parallel()
 
-		if got := (*toolAPIError)(nil).Error(); got != "<nil>" {
+		if got := (*toolAPIError)(nil).Error(); got != nilToolErrorString {
 			t.Fatalf("nil toolAPIError.Error() = %q, want <nil>", got)
 		}
 		if got := (*toolAPIError)(nil).Response(); got.Error.Code != "" {

@@ -1006,21 +1006,6 @@ func (r CancelRun) Validate(path string) error {
 	return ValidatePayloadSize(r.Metadata, nestedPath(path, "metadata"))
 }
 
-// Validate reports whether the run result respects the shared result-size guardrail.
-func (r RunResult) Validate(path string) error {
-	if err := ValidateResultSize(r.Value, nestedPath(path, "value")); err != nil {
-		return err
-	}
-	if hasRawClaimTokenField(r.Value) {
-		return fmt.Errorf(
-			"%w: %s must not contain raw lease credentials",
-			ErrValidation,
-			nestedPath(path, "value"),
-		)
-	}
-	return nil
-}
-
 // Validate reports whether the run failure contains a message and bounded metadata.
 func (r RunFailure) Validate(path string) error {
 	if strings.TrimSpace(r.Error) == "" {

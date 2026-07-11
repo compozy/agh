@@ -184,6 +184,15 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ events: sessionEventsFixture });
   }),
+  aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/goal", ({ params }) => {
+    const id = String(params.session_id);
+
+    if (!sessionById.has(id)) {
+      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({ goal: null });
+  }),
   aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/history", ({ params }) => {
     const id = String(params.session_id);
 

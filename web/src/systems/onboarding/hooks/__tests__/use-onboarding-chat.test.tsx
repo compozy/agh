@@ -60,6 +60,7 @@ function sessionPayload(overrides: Partial<SessionPayload> = {}): SessionPayload
     created_at: now,
     updated_at: now,
     ...overrides,
+    available_commands: overrides.available_commands ?? [],
   };
 }
 

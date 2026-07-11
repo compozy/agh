@@ -14,9 +14,18 @@ import (
 )
 
 type LoopRunListQuery struct {
-	LoopName string
-	Status   string
-	Limit    int
+	LoopName      string
+	Status        string
+	Origin        string
+	OriginSession string
+	Limit         int
+}
+
+type GoalTurnListQuery struct {
+	NodeID    string
+	ItemIndex *int
+	AfterSeq  int64
+	Limit     int
 }
 
 type LoopListQuery struct {
@@ -213,6 +222,20 @@ func (c *unixSocketClient) ListLoopRuns(
 	return response, nil
 }
 
+func (c *unixSocketClient) ListGoalTurns(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query GoalTurnListQuery,
+) (contract.GoalTurnPage, error) {
+	var response contract.GoalTurnPage
+	path := loopRunPath(workspaceID, runID) + "/turns"
+	if err := c.doJSON(ctx, http.MethodGet, path, goalTurnValues(query), nil, &response); err != nil {
+		return contract.GoalTurnPage{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) GetLoopRun(
 	ctx context.Context,
 	workspaceID string,
@@ -294,6 +317,29 @@ func loopRunValues(query LoopRunListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.Status); trimmed != "" {
 		values.Set("status", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Origin); trimmed != "" {
+		values.Set("origin", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.OriginSession); trimmed != "" {
+		values.Set("origin_session", trimmed)
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func goalTurnValues(query GoalTurnListQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.NodeID); trimmed != "" {
+		values.Set("node", trimmed)
+	}
+	if query.ItemIndex != nil {
+		values.Set("item", strconv.Itoa(*query.ItemIndex))
+	}
+	if query.AfterSeq > 0 {
+		values.Set("after_seq", strconv.FormatInt(query.AfterSeq, 10))
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

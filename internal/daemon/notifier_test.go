@@ -1510,9 +1510,13 @@ func TestHooksNotifierCoordinatorTerminalObserversAreFailOpen(t *testing.T) {
 }
 
 type recordingLoopHookStore struct {
-	progress   []recordingLoopProgressCall
-	wakes      []recordingLoopWakeCall
-	promotions []recordingLoopPromotionCall
+	progress       []recordingLoopProgressCall
+	wakes          []recordingLoopWakeCall
+	promotions     []recordingLoopPromotionCall
+	outputStatuses map[string]string
+	outputs        []looppkg.GenerationOutput
+	runs           map[string]taskpkg.Run
+	tasks          map[string]taskpkg.Task
 }
 
 type recordingLoopBackstopRunner struct {
@@ -1591,6 +1595,39 @@ func (r *recordingLoopHookStore) PromoteOldestQueuedLoopRun(
 		now:         now,
 	})
 	return taskpkg.Run{ID: "run-promoted", LoopRunID: "queued-loop-run"}, true, nil
+}
+
+func (r *recordingLoopHookStore) LookupLoopGenerationOutputStatus(
+	_ context.Context,
+	loopRunID string,
+	taskRunID string,
+) (string, bool, error) {
+	status, ok := r.outputStatuses[loopRunID+"/"+taskRunID]
+	return status, ok, nil
+}
+
+func (r *recordingLoopHookStore) ListGenerationOutputs(
+	_ context.Context,
+	_ looppkg.RunID,
+	_ int,
+) ([]looppkg.GenerationOutput, error) {
+	return append([]looppkg.GenerationOutput(nil), r.outputs...), nil
+}
+
+func (r *recordingLoopHookStore) GetTaskRun(_ context.Context, id string) (taskpkg.Run, error) {
+	run, ok := r.runs[id]
+	if !ok {
+		return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+	}
+	return run, nil
+}
+
+func (r *recordingLoopHookStore) GetTask(_ context.Context, id string) (taskpkg.Task, error) {
+	taskRecord, ok := r.tasks[id]
+	if !ok {
+		return taskpkg.Task{}, taskpkg.ErrTaskNotFound
+	}
+	return taskRecord, nil
 }
 
 type panickingLoopTerminalObserver struct{}

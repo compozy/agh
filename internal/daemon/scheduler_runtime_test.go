@@ -56,7 +56,7 @@ func TestSchedulerTaskSourcePendingRunsShouldHideLoopActionRuns(t *testing.T) {
 			CreatedAt:         now,
 			LastProgressAt:    now,
 		}
-		applyLoopRunPinningForTest(&seedRun, now)
+		applyLoopRunPinningForTest(t, &seedRun, now)
 		if _, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
@@ -272,7 +272,7 @@ func seedCoordinatorBackstopRun(
 		CreatedAt:         at,
 		LastProgressAt:    at,
 	}
-	applyLoopRunPinningForTest(&loopRun, now)
+	applyLoopRunPinningForTest(t, &loopRun, now)
 	if _, err := db.CreateLoopRunForStart(testutil.Context(t), loopRun, loopdsl.ConcurrencyAllow); err != nil {
 		t.Fatalf("CreateLoopRunForStart(%s/%d) error = %v", prefix, index, err)
 	}
@@ -304,12 +304,13 @@ func parkSchedulerWatchEventsLoopForTest(
 		LastProgressAt:    now,
 		Inputs:            map[string]any{"target_task_id": targetTask.ID},
 	}
-	applyLoopRunPinningForTest(&loopRun, now)
+	resolved := schedulerWatchEventsDefinitionForTest(t)
+	applyResolvedLoopRunPinningForTest(t, &loopRun, now, resolved)
 	created, err := db.CreateLoopRunForStart(ctx, loopRun, loopdsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	runner := newSchedulerWatchEventsCoordinatorForTest(t, db, targetTask.ID)
+	runner := newSchedulerWatchEventsCoordinatorForTest(t, db, targetTask.ID, resolved)
 	actor := schedulerCoordinatorActorContextForTest(t)
 	claim, err := db.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		Scope:            taskpkg.ScopeWorkspace,
@@ -350,7 +351,26 @@ func newSchedulerWatchEventsCoordinatorForTest(
 	t *testing.T,
 	db *globaldb.GlobalDB,
 	targetTaskID string,
+	resolved *looppkg.ResolvedDefinition,
 ) *looppkg.CoordinatorRunner {
+	t.Helper()
+	if resolved == nil {
+		t.Fatal("resolved watch-events Loop definition is required")
+	}
+	runner, err := looppkg.NewCoordinatorRunner(
+		db,
+		db,
+		db,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		looppkg.WithCoordinatorWatchEventsLedger(db),
+	)
+	if err != nil {
+		t.Fatalf("NewCoordinatorRunner(%s) error = %v", targetTaskID, err)
+	}
+	return runner
+}
+
+func schedulerWatchEventsDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
 	t.Helper()
 	resolved, err := looppkg.NewCompiler().Compile(loopdsl.Definition{
 		APIVersion: loopdsl.APIVersion,
@@ -381,22 +401,7 @@ func newSchedulerWatchEventsCoordinatorForTest(
 	if err != nil {
 		t.Fatalf("Compile(watch-events backstop loop) error = %v", err)
 	}
-	runner, err := looppkg.NewCoordinatorRunner(
-		db,
-		db,
-		db,
-		looppkg.DefinitionResolverFunc(
-			func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
-				return resolved, nil
-			},
-		),
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		looppkg.WithCoordinatorWatchEventsLedger(db),
-	)
-	if err != nil {
-		t.Fatalf("NewCoordinatorRunner(%s) error = %v", targetTaskID, err)
-	}
-	return runner
+	return resolved
 }
 
 func appendSchedulerWatchEventForTest(

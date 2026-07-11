@@ -219,10 +219,8 @@ func (t TurnFixture) Validate(path string) error {
 		}
 	}
 	if stopReason := strings.TrimSpace(t.StopReason); stopReason != "" {
-		switch stopReason {
-		case "end_turn", "canceled":
-		default:
-			return fmt.Errorf("acpmock: %s.stop_reason %q is invalid", path, stopReason)
+		if err := validatePromptStopReason(path, stopReason); err != nil {
+			return err
 		}
 	}
 	return nil

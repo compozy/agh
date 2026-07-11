@@ -58,6 +58,10 @@ tokens = 0
 wall_clock_sec = 0
 on_exceeded = "halt"
 
+[goals]
+max_turns = 20
+context_nudge_ratio = 0.8
+
 [providers.claude.models]
 default = "claude-sonnet-5"
 

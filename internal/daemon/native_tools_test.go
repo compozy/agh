@@ -1419,6 +1419,26 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
 		}
 
+		goalResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input:  json.RawMessage(`{"path":"goals.context_nudge_ratio","value":0.0}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set Goal ratio) error = %v", err)
+		}
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after Goal ratio) error = %v", err)
+		}
+		if cfg.Goals.ContextNudgeRatio != 0 {
+			t.Fatalf("Goals.ContextNudgeRatio = %v, want explicit zero", cfg.Goals.ContextNudgeRatio)
+		}
+		requireNativeStructuredContains(t, goalResult, []byte(`"restart-required"`))
+
 		result, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},

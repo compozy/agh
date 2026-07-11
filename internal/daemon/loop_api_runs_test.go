@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -137,6 +138,38 @@ func (s *loopApprovalAggregateStub) Start(
 	return nil, errors.New("unexpected Start call")
 }
 
+func (s *loopApprovalAggregateStub) StartInline(
+	context.Context,
+	looppkg.WorkspaceID,
+	dsl.Definition,
+	looppkg.Inputs,
+	looppkg.RunOrigin,
+	task.ActorContext,
+) (*looppkg.Run, error) {
+	return nil, errors.New("unexpected StartInline call")
+}
+
+func (s *loopApprovalAggregateStub) ReplaceInline(
+	context.Context,
+	looppkg.RunID,
+	looppkg.WorkspaceID,
+	dsl.Definition,
+	looppkg.Inputs,
+	looppkg.RunOrigin,
+	task.ActorContext,
+) (looppkg.InlineReplaceResult, error) {
+	return looppkg.InlineReplaceResult{}, errors.New("unexpected ReplaceInline call")
+}
+
+func (s *loopApprovalAggregateStub) ClearInlineGoal(
+	context.Context,
+	looppkg.WorkspaceID,
+	string,
+	task.ActorContext,
+) error {
+	return errors.New("unexpected ClearInlineGoal call")
+}
+
 func (s *loopApprovalAggregateStub) DryRun(
 	context.Context,
 	looppkg.WorkspaceID,
@@ -151,15 +184,26 @@ func (s *loopApprovalAggregateStub) Stop(
 	looppkg.WorkspaceID,
 	looppkg.RunID,
 	looppkg.StopReason,
+	task.ActorContext,
 ) error {
 	return errors.New("unexpected Stop call")
 }
 
-func (s *loopApprovalAggregateStub) Pause(context.Context, looppkg.WorkspaceID, looppkg.RunID) error {
+func (s *loopApprovalAggregateStub) Pause(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RunID,
+	task.ActorContext,
+) error {
 	return errors.New("unexpected Pause call")
 }
 
-func (s *loopApprovalAggregateStub) Resume(context.Context, looppkg.WorkspaceID, looppkg.RunID) error {
+func (s *loopApprovalAggregateStub) Resume(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RunID,
+	task.ActorContext,
+) error {
 	return errors.New("unexpected Resume call")
 }
 

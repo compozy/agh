@@ -5,7 +5,7 @@ import type { SessionTranscriptThreadStatus } from "@/systems/session";
 
 import { formatMessageError } from "./session-thread-error";
 
-const STATE_PANE_FRAME = "flex size-full w-full min-w-0 items-center justify-center py-12";
+const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
 
 /**
  * Placeholder assistant row — mirrors `AssistantMessage`'s full-width column so the
@@ -13,7 +13,7 @@ const STATE_PANE_FRAME = "flex size-full w-full min-w-0 items-center justify-cen
  */
 function SkeletonAssistantRow() {
   return (
-    <div className="flex w-full min-w-0 py-3" aria-hidden="true">
+    <div className="flex w-full min-w-0 pb-4 pt-1" aria-hidden="true">
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
         <Skeleton className="h-3.5 w-4/5" />
         <Skeleton className="h-3.5 w-full" />
@@ -28,7 +28,7 @@ function SkeletonAssistantRow() {
  */
 function SkeletonUserRow() {
   return (
-    <div className="flex w-full min-w-0 justify-end py-3" aria-hidden="true">
+    <div className="flex w-full min-w-0 justify-end pb-4 pt-1" aria-hidden="true">
       <div
         className={cn(
           "flex w-[min(60%,28rem)] flex-col gap-2 rounded-xl border px-4 py-3",
@@ -70,7 +70,7 @@ export function ThreadEmpty({ agentName }: { agentName: string }) {
     <div className={STATE_PANE_FRAME}>
       <div className="max-w-md text-center">
         <Eyebrow className="text-subtle">{agentName}</Eyebrow>
-        <p className="mt-2 text-sm text-muted">
+        <p className="mt-2 text-small-body text-muted">
           Start a conversation. The assistant thread replays persisted history and continues live
           over the daemon stream.
         </p>
@@ -89,7 +89,7 @@ export function ThreadError({ error, onRetry }: { error: Error | null; onRetry: 
     <div className={STATE_PANE_FRAME}>
       <div className="max-w-md text-center" role="alert" data-testid="thread-transcript-error">
         <Eyebrow className="text-danger">Transcript unavailable</Eyebrow>
-        <p className="mt-2 text-sm text-muted">
+        <p className="mt-2 text-small-body text-muted">
           {detail ? (
             <span data-testid="thread-transcript-error-detail">{detail}</span>
           ) : (

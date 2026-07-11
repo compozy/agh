@@ -288,6 +288,33 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 			t.Fatalf("collectLoopPromptResult() structured = %s, want empty protocol raw ignored", result.Structured)
 		}
 	})
+
+	t.Run("Should preserve a reported zero token total", func(t *testing.T) {
+		t.Parallel()
+
+		zero := int64(0)
+		manager := loopPromptResultSessionManager{events: []acp.AgentEvent{{
+			Usage: &acp.TokenUsage{TotalTokens: &zero},
+		}}}
+		var reported []int64
+		result, err := collectLoopPromptResult(
+			context.Background(),
+			manager,
+			"sess-loop",
+			looppkg.ActionPromptRequest{
+				Message: "loop usage probe",
+				UsageReporter: looppkg.ActionUsageReporterFunc(func(tokens int64) {
+					reported = append(reported, tokens)
+				}),
+			},
+		)
+		if err != nil {
+			t.Fatalf("collectLoopPromptResult() error = %v", err)
+		}
+		if result.TokensUsed != 0 || !result.TokensReported || !slices.Equal(reported, []int64{0}) {
+			t.Fatalf("collected usage = %#v reports = %#v, want reported zero", result, reported)
+		}
+	})
 }
 
 type loopActionBinderSessionManager struct {

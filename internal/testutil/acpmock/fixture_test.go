@@ -315,6 +315,30 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 	}
 }
 
+func TestParseFixtureAcceptsACPStopReasonVocabulary(t *testing.T) {
+	t.Parallel()
+
+	reasons := []acp.PromptStopReason{
+		acp.PromptStopReasonEndTurn,
+		acp.PromptStopReasonMaxTokens,
+		acp.PromptStopReasonMaxTurnRequests,
+		acp.PromptStopReasonRefusal,
+		acp.PromptStopReasonCancelled,
+	}
+	for _, reason := range reasons {
+		t.Run("Should accept "+string(reason), func(t *testing.T) {
+			t.Parallel()
+
+			raw := `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{` +
+				`"match":{"turn_source":"user","user_text":"hi"},"stop_reason":"` + string(reason) +
+				`","steps":[{"kind":"assistant","text":"hi"}]}]}]}`
+			if _, err := ParseFixture([]byte(raw)); err != nil {
+				t.Fatalf("ParseFixture(stop_reason=%q) error = %v", reason, err)
+			}
+		})
+	}
+}
+
 func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	t.Parallel()
 

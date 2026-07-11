@@ -68,6 +68,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				CrashBundlePath: "/tmp/agh-crash.json",
 			},
 			ACPSessionID: "acp-123",
+			AdvertisedCommands: []store.SessionAdvertisedCommand{{
+				Name:        "compact",
+				Description: "Compact context",
+				Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
+			}},
 			Sandbox: &store.SessionSandboxMeta{
 				SandboxID:     "env-1",
 				Backend:       "local",
@@ -144,6 +149,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession {
 			t.Fatalf("caps = %#v", payload.ACPCaps)
+		}
+		if len(payload.AvailableCommands) != 1 || payload.AvailableCommands[0].Name != "compact" ||
+			payload.AvailableCommands[0].Input == nil ||
+			payload.AvailableCommands[0].Input.Hint != "optional focus" {
+			t.Fatalf("payload.AvailableCommands = %#v", payload.AvailableCommands)
 		}
 		if got := payload.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
 			t.Fatalf("supported modes = %#v, want [chat]", got)

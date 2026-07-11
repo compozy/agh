@@ -74,6 +74,7 @@ func Boundaries() error {
 		{"internal/events", "internal/api/core"},
 		{"internal/loop", "internal/api/contract"},
 		{"internal/loop", "internal/api/core"},
+		{"internal/loop", "internal/loop/goal"},
 		{"internal/automation", "internal/loop"},
 		{"internal/automation", "internal/loop/dsl"},
 		{"internal/api/core", "internal/daemon"},

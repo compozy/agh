@@ -17,6 +17,9 @@ export const LOOP_RUNS_ROW_GRID =
 
 /** Trigger line for a run (`schedule`, `cli`). */
 function triggerLabel(run: LoopRun): string {
+  if (run.started_origin_kind === "session") {
+    return run.started_origin_ref ? `session · ${run.started_origin_ref}` : "session";
+  }
   return run.started_origin_kind || run.started_by_kind || "manual";
 }
 

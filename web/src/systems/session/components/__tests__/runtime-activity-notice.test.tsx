@@ -62,8 +62,10 @@ describe("RuntimeActivityNotice", () => {
 
     expect(screen.getByTestId("runtime-activity-notice")).toHaveAttribute("data-tone", "progress");
     expect(screen.getByText("Still working")).toBeInTheDocument();
+    expect(screen.getByText("Still working").className).toContain("text-fg");
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
-    expect(screen.getByTestId("runtime-activity-meta")).toHaveTextContent("11m elapsed, 42s idle");
+    expect(screen.getByTestId("runtime-activity-meta")).toHaveTextContent("11m elapsed · 42s idle");
+    expect(screen.getByTestId("runtime-activity-meta").className).toContain("tabular-nums");
   });
 
   it("renders warnings with alert semantics", () => {

@@ -89,33 +89,6 @@ type toolLifecycle struct {
 	resultIndex int
 }
 
-type canonicalEventPayload struct {
-	Schema    string `json:"schema,omitempty"`
-	Type      string `json:"type,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
-	TurnID    string `json:"turn_id,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
-	store.EventCorrelation
-	Timestamp  time.Time                `json:"timestamp"`
-	Text       string                   `json:"text,omitempty"`
-	Title      string                   `json:"title,omitempty"`
-	ToolName   string                   `json:"tool_name,omitempty"`
-	ToolCallID string                   `json:"tool_call_id,omitempty"`
-	ToolInput  json.RawMessage          `json:"tool_input,omitempty"`
-	ToolResult *ToolResult              `json:"tool_result,omitempty"`
-	ToolError  bool                     `json:"tool_error,omitempty"`
-	StopReason string                   `json:"stop_reason,omitempty"`
-	Action     string                   `json:"action,omitempty"`
-	Resource   string                   `json:"resource,omitempty"`
-	Decision   string                   `json:"decision,omitempty"`
-	Error      string                   `json:"error,omitempty"`
-	Failure    *store.SessionFailure    `json:"failure,omitempty"`
-	Synthetic  *acp.PromptSyntheticMeta `json:"synthetic,omitempty"`
-	Usage      *acp.TokenUsage          `json:"usage,omitempty"`
-	Runtime    *acp.RuntimeActivity     `json:"runtime,omitempty"`
-	Raw        json.RawMessage          `json:"raw,omitempty"`
-}
-
 // Assemble returns the canonical replay transcript for the provided persisted events.
 func Assemble(events []store.SessionEvent) ([]Message, error) {
 	if len(events) == 0 {
@@ -804,25 +777,28 @@ func canonicalPayload(
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.
 func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	payload := canonicalEventPayload{
-		Schema:           CanonicalSchema,
-		Type:             event.Type,
-		SessionID:        event.SessionID,
-		TurnID:           event.TurnID,
-		RequestID:        event.RequestID,
-		EventCorrelation: event.Normalize(),
-		Timestamp:        event.Timestamp,
-		Text:             event.Text,
-		Title:            event.Title,
-		ToolCallID:       event.ToolCallID,
-		StopReason:       event.StopReason,
-		Action:           event.Action,
-		Resource:         event.Resource,
-		Decision:         event.Decision,
-		Error:            event.Error,
-		Failure:          store.CloneSessionFailure(event.Failure),
-		Synthetic:        clonePromptSyntheticMeta(event.Synthetic),
-		Usage:            event.Usage,
-		Runtime:          cloneRuntimeActivity(event.Runtime),
+		Schema:            CanonicalSchema,
+		Type:              event.Type,
+		SessionID:         event.SessionID,
+		TurnID:            event.TurnID,
+		RequestID:         event.RequestID,
+		EventCorrelation:  event.Normalize(),
+		Timestamp:         event.Timestamp,
+		Text:              event.Text,
+		Title:             event.Title,
+		ToolCallID:        event.ToolCallID,
+		StopReason:        event.StopReason,
+		PromptStopReason:  event.PromptStopReason,
+		Action:            event.Action,
+		Resource:          event.Resource,
+		Decision:          event.Decision,
+		Error:             event.Error,
+		Failure:           store.CloneSessionFailure(event.Failure),
+		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
+		Goal:              acp.CloneGoalPromptMeta(event.Goal),
+		AvailableCommands: event.AvailableCommands.Values(),
+		Usage:             event.Usage,
+		Runtime:           cloneRuntimeActivity(event.Runtime),
 	}
 
 	if len(event.Raw) > 0 {
@@ -883,15 +859,20 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Title:            firstNonEmpty(decoded.Title, decoded.ToolName),
 		ToolCallID:       strings.TrimSpace(decoded.ToolCallID),
 		StopReason:       strings.TrimSpace(decoded.StopReason),
+		PromptStopReason: acp.PromptStopReason(strings.TrimSpace(string(decoded.PromptStopReason))),
 		Action:           strings.TrimSpace(decoded.Action),
 		Resource:         strings.TrimSpace(decoded.Resource),
 		Decision:         strings.TrimSpace(decoded.Decision),
 		Error:            strings.TrimSpace(decoded.Error),
 		Failure:          store.CloneSessionFailure(decoded.Failure),
 		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
+		Goal:             acp.CloneGoalPromptMeta(decoded.Goal),
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
+	}
+	if decoded.AvailableCommands != nil || event.Type == acp.EventTypeAvailableCommands {
+		event.AvailableCommands = acp.NewAvailableCommandSet(decoded.AvailableCommands)
 	}
 	return RedactAgentEvent(event), nil
 }

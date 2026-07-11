@@ -525,6 +525,7 @@ type Config struct {
 	Tools         ToolsConfig               `toml:"tools"`
 	Automation    AutomationConfig          `toml:"automation"`
 	Loops         LoopsConfig               `toml:"loops"`
+	Goals         GoalsConfig               `toml:"goals"`
 	Task          TaskConfig                `toml:"task"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Network       NetworkConfig             `toml:"network"`
@@ -741,6 +742,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
 		Loops:   DefaultLoopsConfig(),
+		Goals:   DefaultGoalsConfig(),
 		Task:    DefaultTaskConfig(),
 		Network: DefaultNetworkConfig(),
 		Autonomy: AutonomyConfig{
@@ -954,52 +956,6 @@ func (c *Config) validateCore() error {
 		if err := server.Validate(fmt.Sprintf("mcp_servers[%d]", i)); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (c *Config) validateFeatures(lookup envLookup) error {
-	if err := c.Observability.Validate(); err != nil {
-		return err
-	}
-	if err := c.Log.Validate(); err != nil {
-		return err
-	}
-	if err := c.Memory.Validate(); err != nil {
-		return err
-	}
-	if err := c.Agents.Validate(); err != nil {
-		return err
-	}
-	if err := c.Skills.Validate(); err != nil {
-		return err
-	}
-	if err := c.Extensions.Validate(); err != nil {
-		return err
-	}
-	if err := c.Tools.Validate(c.MCPServers, c.Providers); err != nil {
-		return err
-	}
-	if err := c.ModelCatalog.Validate(); err != nil {
-		return err
-	}
-	if err := c.Automation.validateWithEnv(lookup); err != nil {
-		return fmt.Errorf("validate automation config: %w", err)
-	}
-	if err := c.Loops.Validate(); err != nil {
-		return fmt.Errorf("validate loops config: %w", err)
-	}
-	if err := c.Task.Validate(); err != nil {
-		return fmt.Errorf("validate task config: %w", err)
-	}
-	if err := c.Hooks.Validate(); err != nil {
-		return fmt.Errorf("validate hooks config: %w", err)
-	}
-	if err := c.Network.Validate(); err != nil {
-		return fmt.Errorf("validate network config: %w", err)
-	}
-	if err := c.Autonomy.Validate(c); err != nil {
-		return fmt.Errorf("validate autonomy config: %w", err)
 	}
 	return nil
 }

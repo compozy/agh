@@ -207,7 +207,7 @@ func logsBundle(events []LogEventRecord) outputBundle {
 			logsAgentValue,
 			installProviderValue,
 			"Component",
-			"Outcome",
+			taskOutcomeValue,
 			authoredContextSummaryValue,
 			"Timestamp",
 		},

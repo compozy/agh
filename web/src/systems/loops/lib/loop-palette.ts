@@ -47,6 +47,27 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         }),
       },
       {
+        label: "Goal",
+        kindLabel: "goal",
+        nodeClass: "action",
+        idBase: "goal",
+        hint: "Advances one continuous agent session until an external judge approves or the limit is reached.",
+        buildRaw: id => ({
+          id,
+          class: "action",
+          kind: "goal",
+          params: {
+            agent: "",
+            objective: "",
+            judge: [{ id: "criterion_1", type: "command", check: "" }],
+            max_turns: 20,
+            on_exhausted: "halt",
+          },
+          session: { mode: "continuous" },
+          retry: { max_attempts: 2, on_failure: "fresh_session" },
+        }),
+      },
+      {
         label: "Run loop",
         kindLabel: "run-loop",
         nodeClass: "action",

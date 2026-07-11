@@ -1107,12 +1107,21 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		}
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		loopName := "watch-source-daemon"
+		watchSpec := testWatchLoopSpec(t, loopName)
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{{
 			ID:      loopName,
 			Version: 1,
 			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:    testWatchLoopSpec(t, loopName),
+			Spec:    watchSpec,
 		}})
+		definition, err := daemonLoopDefinitionFromSpec(watchSpec)
+		if err != nil {
+			t.Fatalf("daemonLoopDefinitionFromSpec() error = %v", err)
+		}
+		resolved, err := newLoopCompilerFactory(nil)(ctx).Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(watch Loop pin) error = %v", err)
+		}
 		seedRun := looppkg.Run{
 			ID:                "looprun-watch-daemon",
 			WorkspaceID:       "ws-1",
@@ -1125,7 +1134,7 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 			BudgetOnExceeded:  loopdsl.BudgetExceededHalt,
 			Inputs:            map[string]any{},
 		}
-		applyLoopRunPinningForTest(&seedRun, now)
+		applyResolvedLoopRunPinningForTest(t, &seedRun, now, resolved)
 		if _, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}

@@ -65,4 +65,19 @@ describe("LoopEditorCriteria", () => {
       "criterion_4",
     ]);
   });
+
+  it("Should restrict Goal judge criteria to command, agent-judge, and extension", () => {
+    render(
+      <LoopEditorCriteria
+        value={[{ id: "judge", type: "command", check: "make verify" }]}
+        onChange={() => undefined}
+        allowedTypes={["command", "agent-judge", "extension"]}
+      />
+    );
+    const options = screen
+      .getAllByRole("option")
+      .map(option => (option as HTMLOptionElement).value);
+    expect(options).toEqual(["command", "agent-judge", "extension", "exit_zero", "stdout_match"]);
+    expect(options).not.toContain("human");
+  });
 });

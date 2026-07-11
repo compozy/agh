@@ -10,6 +10,8 @@ import {
   AlertTitle,
 } from "../alert";
 import { Button } from "../button";
+import { Eyebrow } from "../custom/eyebrow";
+import { MonoId } from "../custom/mono-id";
 
 const meta: Meta<typeof Alert> = {
   title: "components/ui/Alert",
@@ -116,14 +118,20 @@ export const WithMetaAndActions: Story = {
         This session was started with a provider that is no longer visible.
       </AlertDescription>
       <AlertMeta>
-        <span>session sess_123</span>
-        <span>agent claude-code</span>
+        <span className="inline-flex items-center gap-x-1.5">
+          <Eyebrow>session</Eyebrow>
+          <MonoId value="sess_123" />
+        </span>
+        <span className="inline-flex items-center gap-x-1.5">
+          <Eyebrow>agent</Eyebrow>
+          <MonoId value="claude-code" />
+        </span>
       </AlertMeta>
       <AlertActions>
         <Button size="sm" variant="ghost">
           Dismiss
         </Button>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="neutral">
           Retry
         </Button>
       </AlertActions>

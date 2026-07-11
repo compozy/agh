@@ -988,15 +988,19 @@ func newCoordinatorRunnerForControlTest(
 	if runs == nil {
 		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
+	defaults := LoopDefaults{
+		Delivery: definitionConfigLayer(resolved.Definition),
+		Watch:    definitionConfigLayer(resolved.Definition),
+	}
+	effective, err := ResolveEffectiveConfig(resolved, defaults, nil, LoopConfig{})
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+	}
+	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun},
+		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
-		DefinitionResolverFunc(
-			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-				return resolved, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	if err != nil {

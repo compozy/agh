@@ -8,6 +8,7 @@ import {
   loopRunsOptions,
   loopsCatalogOptions,
   type LoopCatalogStableFilter,
+  type LoopRunsFilter,
 } from "@/systems/loops";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
@@ -62,9 +63,12 @@ export function preloadLoopConfigureRoute(queryClient: QueryClient, name: string
   ]);
 }
 
-export function preloadLoopRunsRoute(queryClient: QueryClient): Promise<void> {
+export function preloadLoopRunsRoute(
+  queryClient: QueryClient,
+  filters: LoopRunsFilter
+): Promise<void> {
   return withActiveWorkspace(queryClient, workspaceId => [
-    queryClient.ensureQueryData(loopRunsOptions(workspaceId, {})),
+    queryClient.ensureQueryData(loopRunsOptions(workspaceId, filters)),
   ]);
 }
 

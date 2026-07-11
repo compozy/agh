@@ -1145,6 +1145,46 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "index_network_direct_rooms_by_opened_at",
 			checksum: "2026-07-11-index-network-direct-rooms-by-opened-at",
 		},
+		{
+			version:  74,
+			name:     "add_goal_durable_state",
+			checksum: "2026-07-10-add-goal-durable-state",
+		},
+		{
+			version:  75,
+			name:     "add_loop_run_control_actor",
+			checksum: "2026-07-10-add-loop-run-control-actor",
+		},
+		{
+			version:  76,
+			name:     "add_goal_checkpoint_control_cause",
+			checksum: "2026-07-10-add-goal-checkpoint-control-cause",
+		},
+		{
+			version:  77,
+			name:     "add_session_creation_profiles",
+			checksum: "2026-07-10-add-session-creation-profiles",
+		},
+		{
+			version:  78,
+			name:     "add_loop_run_origin_identity",
+			checksum: "2026-07-10-add-loop-run-origin-identity",
+		},
+		{
+			version:  79,
+			name:     "add_goal_recovery_cleanup",
+			checksum: "2026-07-11-add-goal-recovery-cleanup",
+		},
+		{
+			version:  80,
+			name:     "add_goal_binding_replay_fences",
+			checksum: "2026-07-11-add-goal-binding-replay-fences",
+		},
+		{
+			version:  81,
+			name:     "add_goal_adoption_attempt",
+			checksum: "2026-07-11-add-goal-adoption-attempt",
+		},
 	}
 }
 
@@ -2636,6 +2676,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"soul_digest",
 			"parent_soul_digest",
 			sessionInputGenerationColumn,
+			"creation_digest",
+			"policy_spec_digest",
+			"creation_profile_ref",
 		},
 	)
 }
@@ -2886,6 +2929,9 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"attach_expires_at",
 			sessionInputGenerationColumn,
 			"transcript_epoch",
+			"creation_digest",
+			"policy_spec_digest",
+			"creation_profile_ref",
 		},
 	)
 	assertTableColumns(
@@ -4058,6 +4104,9 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"attach_expires_at",
 			sessionInputGenerationColumn,
 			"transcript_epoch",
+			"creation_digest",
+			"policy_spec_digest",
+			"creation_profile_ref",
 		},
 	)
 	assertTableColumns(

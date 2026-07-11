@@ -1,22 +1,30 @@
 import { cva } from "class-variance-authority";
 
+/**
+ * Restrained operator alerts: neutral surface + hairline border; signal color
+ * lives on the leading icon only. Titles stay fg-strong; descriptions stay muted.
+ * Matches web/CLAUDE.md — signal palette is information, never solid semantic banners.
+ */
 const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-small-body has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
+  [
+    "group/alert relative grid w-full gap-x-2.5 gap-y-2 rounded-md border border-line bg-canvas-soft",
+    "px-3.5 py-3 text-left text-small-body text-fg",
+    "has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18",
+    "has-[>svg]:grid-cols-[auto_1fr]",
+    "*:data-[slot=alert-title]:text-fg-strong",
+    "*:data-[slot=alert-description]:text-muted",
+    "*:[svg]:row-span-full *:[svg]:translate-y-0.5 *:[svg:not([class*='size-'])]:size-3.5",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-canvas-soft border-line text-fg",
-        neutral:
-          "border-neutral/20 bg-neutral-tint text-fg *:data-[slot=alert-description]:text-muted",
-        danger:
-          "border-danger/20 bg-danger-tint text-danger *:data-[slot=alert-description]:text-danger/85",
-        warning:
-          "border-warning/20 bg-warning-tint text-warning *:data-[slot=alert-description]:text-warning/85",
-        success:
-          "border-success/20 bg-success-tint text-success *:data-[slot=alert-description]:text-success/85",
-        info: "border-info/20 bg-info-tint text-info *:data-[slot=alert-description]:text-info/85",
-        accent:
-          "border-accent/20 bg-accent-tint text-accent *:data-[slot=alert-description]:text-accent/85",
+        default: "[&>svg]:text-subtle",
+        neutral: "[&>svg]:text-subtle",
+        danger: "[&>svg]:text-danger",
+        warning: "[&>svg]:text-warning",
+        success: "[&>svg]:text-success",
+        info: "[&>svg]:text-info",
+        accent: "[&>svg]:text-accent",
       },
     },
     defaultVariants: {

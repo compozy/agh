@@ -154,6 +154,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
@@ -217,6 +218,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/loop-runs",
 		"GET /api/workspaces/:workspace_id/loop-runs/:run_id",
 		"GET /api/workspaces/:workspace_id/loop-runs/:run_id/events",
+		"GET /api/workspaces/:workspace_id/loop-runs/:run_id/turns",
 		"GET /api/workspaces/:workspace_id/loops",
 		"GET /api/workspaces/:workspace_id/loops/:name",
 		"GET /api/workspaces/:workspace_id/loops/:name/annotations",
@@ -2181,6 +2183,53 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 		}
 		if decoded.Prompt.Status != "queued" || decoded.Prompt.QueueEntryID != "inq-1" || !decoded.Prompt.Queued {
 			t.Fatalf("decoded prompt = %#v, want queued inq-1", decoded.Prompt)
+		}
+	})
+}
+
+func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
+	t.Run("Should return a direct authenticated Goal error body", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		var gotOpts session.SendPromptOpts
+		reason := session.GoalReasonNotActive
+		manager := stubSessionManager{
+			SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
+				}
+				gotOpts = opts
+				return session.SendPromptResult{Status: "goal", Goal: &session.GoalCommandResult{
+					Outcome: session.GoalOutcomeError, ReasonCode: &reason,
+				}}, nil
+			},
+		}
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte(`{"message":"/goal status"}`),
+		)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+		}
+		if got := recorder.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+			t.Fatalf("Content-Type = %q", got)
+		}
+		if !gotOpts.AllowGoalCommands || gotOpts.Caller.Kind != string(taskpkg.ActorKindHuman) ||
+			gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != string(taskpkg.OriginKindHTTP) {
+			t.Fatalf("SendPrompt() authenticated opts = %#v", gotOpts)
+		}
+		var decoded contract.GoalCommandResult
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(Goal result) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if decoded.Outcome != contract.GoalOutcomeError || decoded.ReasonCode == nil ||
+			*decoded.ReasonCode != contract.GoalReasonNotActive {
+			t.Fatalf("Goal result = %#v", decoded)
 		}
 	})
 }

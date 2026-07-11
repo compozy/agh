@@ -118,7 +118,7 @@ func startBootWiredCoordinatorWithTerminalStatus(
 		CreatedAt:         now,
 		LastProgressAt:    now,
 	}
-	applyLoopRunPinningForTest(&loopRun, now)
+	applyLoopRunPinningForTest(t, &loopRun, now)
 	if _, err := db.CreateLoopRunForStart(ctx, loopRun, loopdsl.ConcurrencyAllow); err != nil {
 		t.Fatalf("CreateLoopRunForStart(%q) error = %v", loopRun.ID, err)
 	}

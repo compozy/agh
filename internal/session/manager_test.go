@@ -1889,10 +1889,11 @@ func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testin
 				Text:      "first prompt complete",
 			}
 			events <- acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				TurnID:     req.TurnID,
-				Timestamp:  ts,
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				TurnID:           req.TurnID,
+				Timestamp:        ts,
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}
 		}()
 		return events, nil
@@ -4898,11 +4899,12 @@ func (d *fakeDriver) Prompt(
 			Text:      "reply",
 		}
 		events <- acp.AgentEvent{
-			Type:       acp.EventTypeDone,
-			SessionID:  fakeProc.handle.SessionID,
-			TurnID:     req.TurnID,
-			Timestamp:  ts,
-			StopReason: "end_turn",
+			Type:             acp.EventTypeDone,
+			SessionID:        fakeProc.handle.SessionID,
+			TurnID:           req.TurnID,
+			Timestamp:        ts,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
 			Usage: &acp.TokenUsage{
 				TurnID:      req.TurnID,
 				TotalTokens: &totalTokens,

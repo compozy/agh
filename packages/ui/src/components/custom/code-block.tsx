@@ -126,6 +126,10 @@ function CodeBlock({
         }
         className={cn(
           "overflow-x-auto font-mono text-fg",
+          "[scrollbar-width:thin] [scrollbar-color:var(--color-line-strong)_transparent]",
+          "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5",
+          "[&::-webkit-scrollbar-track]:bg-transparent",
+          "[&::-webkit-scrollbar-thumb]:rounded-pill [&::-webkit-scrollbar-thumb]:bg-line-strong",
           density === "compact"
             ? "px-3 py-2 text-small-body leading-normal"
             : "px-5 py-4 text-card-title leading-relaxed",

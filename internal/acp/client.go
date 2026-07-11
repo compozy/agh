@@ -821,7 +821,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		SessionID:  proc.SessionID,
 		TurnID:     req.TurnID,
 		Timestamp:  timeNowUTC(),
-		StopReason: string(response.StopReason),
+		StopReason: string(response.StopReason), PromptStopReason: PromptStopReason(response.StopReason),
 	}
 	if !usage.IsZero() {
 		doneEvent.Usage = &usage

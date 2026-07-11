@@ -550,10 +550,11 @@ func newHarnessIntegrationManager(
 	deps SessionManagerDeps,
 	resolvedWorkspace workspacepkg.ResolvedWorkspace,
 	driver *harnessIntegrationDriver,
+	extraOpts ...session.Option,
 ) *session.Manager {
 	t.Helper()
 
-	manager, err := session.NewManager(
+	opts := []session.Option{
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
@@ -567,7 +568,9 @@ func newHarnessIntegrationManager(
 		session.WithPromptInputAugmenter(deps.PromptInputAugmenter),
 		session.WithSkillRegistry(deps.SkillRegistry),
 		session.WithMCPResolver(deps.MCPResolver),
-	)
+	}
+	opts = append(opts, extraOpts...)
+	manager, err := session.NewManager(opts...)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
@@ -650,6 +653,8 @@ type harnessIntegrationDriver struct {
 	promptCalls []acp.PromptRequest
 	processes   map[*session.AgentProcess]*harnessIntegrationProcess
 	sequence    int
+	promptHook  func(context.Context, *session.AgentProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error)
+	cancelHook  func(context.Context, *session.AgentProcess) error
 }
 
 type harnessIntegrationProcess struct {
@@ -686,17 +691,21 @@ func (d *harnessIntegrationDriver) Start(_ context.Context, opts acp.StartOpts) 
 }
 
 func (d *harnessIntegrationDriver) Prompt(
-	_ context.Context,
+	ctx context.Context,
 	proc *session.AgentProcess,
 	req acp.PromptRequest,
 ) (<-chan acp.AgentEvent, error) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	if d.processes[proc] == nil {
+		d.mu.Unlock()
 		return nil, fmt.Errorf("test: unknown process")
 	}
 	d.promptCalls = append(d.promptCalls, req)
+	hook := d.promptHook
+	d.mu.Unlock()
+	if hook != nil {
+		return hook(ctx, proc, req)
+	}
 
 	events := make(chan acp.AgentEvent, 2)
 	go func() {
@@ -711,11 +720,12 @@ func (d *harnessIntegrationDriver) Prompt(
 			Text:      "reply",
 		}
 		events <- acp.AgentEvent{
-			Type:       acp.EventTypeDone,
-			SessionID:  proc.SessionID,
-			TurnID:     req.TurnID,
-			Timestamp:  ts,
-			StopReason: "end_turn",
+			Type:             acp.EventTypeDone,
+			SessionID:        proc.SessionID,
+			TurnID:           req.TurnID,
+			Timestamp:        ts,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
 			Usage: &acp.TokenUsage{
 				TurnID:      req.TurnID,
 				TotalTokens: &totalTokens,
@@ -726,7 +736,13 @@ func (d *harnessIntegrationDriver) Prompt(
 	return events, nil
 }
 
-func (d *harnessIntegrationDriver) Cancel(context.Context, *session.AgentProcess) error {
+func (d *harnessIntegrationDriver) Cancel(ctx context.Context, proc *session.AgentProcess) error {
+	d.mu.Lock()
+	hook := d.cancelHook
+	d.mu.Unlock()
+	if hook != nil {
+		return hook(ctx, proc)
+	}
 	return nil
 }
 

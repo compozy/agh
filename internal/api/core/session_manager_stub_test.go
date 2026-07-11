@@ -16,6 +16,7 @@ type sessionManagerStub struct {
 	listPage          func(context.Context, session.ListQuery) (session.ListPage, error)
 	status            func(context.Context, string) (*session.Info, error)
 	events            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	latestEvent       func(context.Context, string, string) (*store.SessionEvent, error)
 	history           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	transcriptPage    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
 	transcriptChanges func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
@@ -80,6 +81,17 @@ func (s sessionManagerStub) Events(
 		return s.events(ctx, id, query)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) LatestSessionEventByType(
+	ctx context.Context,
+	id string,
+	eventType string,
+) (*store.SessionEvent, error) {
+	if s.latestEvent != nil {
+		return s.latestEvent(ctx, id, eventType)
+	}
+	return nil, nil
 }
 
 func (s sessionManagerStub) History(

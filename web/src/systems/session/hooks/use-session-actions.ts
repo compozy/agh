@@ -20,6 +20,7 @@ import type {
   SessionPayload,
   SessionPromptPayload,
   SessionPromptRequest,
+  SessionPromptResult,
   SessionRepairQuery,
 } from "../types";
 
@@ -239,7 +240,7 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
-  return useMutation<SessionPromptPayload, Error, SendSessionPromptParams>({
+  return useMutation<SessionPromptResult, Error, SendSessionPromptParams>({
     mutationFn: ({ id, message, mode }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode }),
     onSettled: (_data, _error, params) => {
@@ -253,7 +254,7 @@ export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
-  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
+  return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
     mutationFn: ({ id, message }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "queue" }),
     onSettled: (_data, _error, params) => {
@@ -267,7 +268,7 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
-  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
+  return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
     mutationFn: ({ id, message }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "interrupt" }),
     onSettled: (_data, _error, params) => {

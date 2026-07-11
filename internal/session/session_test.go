@@ -187,7 +187,7 @@ func TestSessionInfoAndMetaIncludeStopFields(t *testing.T) {
 	})
 }
 
-func TestSessionMetaRoundTripIncludesProvider(t *testing.T) {
+func TestSessionMetadataRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should persist and reload provider in session metadata", func(t *testing.T) {
@@ -225,6 +225,53 @@ func TestSessionMetaRoundTripIncludesProvider(t *testing.T) {
 		}
 		if got := readBack.Provider; got != "codex" {
 			t.Fatalf("ReadSessionMeta().Provider = %q, want %q", got, "codex")
+		}
+	})
+
+	t.Run("Should persist and clone the current advertised command replacement set", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		commands := []store.SessionAdvertisedCommand{{
+			Name:        "compact",
+			Description: "Compact context",
+			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
+		}}
+		session := &Session{
+			ID:                 "sess-commands",
+			AgentName:          "coder",
+			WorkspaceID:        "ws-commands",
+			Workspace:          t.TempDir(),
+			State:              StateActive,
+			AdvertisedCommands: commands,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+
+		meta := session.Meta()
+		info := session.Info()
+		commands[0].Name = "mutated-source"
+		if got := meta.AdvertisedCommands[0].Name; got != "compact" {
+			t.Fatalf("Meta().AdvertisedCommands[0].Name = %q, want compact", got)
+		}
+		if got := info.AdvertisedCommands[0].Name; got != "compact" {
+			t.Fatalf("Info().AdvertisedCommands[0].Name = %q, want compact", got)
+		}
+
+		metaPath := filepath.Join(t.TempDir(), "meta.json")
+		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		readBack, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if !store.SessionAdvertisedCommandsEqual(readBack.AdvertisedCommands[0], meta.AdvertisedCommands[0]) {
+			t.Fatalf(
+				"ReadSessionMeta().AdvertisedCommands = %#v, want %#v",
+				readBack.AdvertisedCommands,
+				meta.AdvertisedCommands,
+			)
 		}
 	})
 }

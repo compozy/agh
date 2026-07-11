@@ -157,6 +157,14 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			wantRestart:      true,
 			wantRestartScope: "daemon",
 		},
+		{
+			name:             "Should report daemon restart for Goal context policy",
+			path:             "goals.context_nudge_ratio",
+			value:            "0.4",
+			wantLifecycle:    "restart-required",
+			wantRestart:      true,
+			wantRestartScope: "daemon",
+		},
 	}
 
 	for _, tt := range tests {

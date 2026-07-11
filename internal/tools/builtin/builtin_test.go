@@ -169,6 +169,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDAutomationTriggersHistory,
 			toolspkg.ToolIDAutomationRunsList,
 			toolspkg.ToolIDAutomationRunsGet,
+			toolspkg.ToolIDGoalGet,
+			toolspkg.ToolIDGoalReport,
 			toolspkg.ToolIDLoopList,
 			toolspkg.ToolIDLoopInspect,
 			toolspkg.ToolIDLoopValidate,
@@ -176,6 +178,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDLoopRun,
 			toolspkg.ToolIDLoopStatus,
 			toolspkg.ToolIDLoopRuns,
+			toolspkg.ToolIDLoopTurns,
 			toolspkg.ToolIDLoopStop,
 			toolspkg.ToolIDLoopPause,
 			toolspkg.ToolIDLoopResume,
@@ -1210,6 +1213,9 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(loops, toolspkg.ToolIDLoopRun) ||
 			!slices.Contains(loops, toolspkg.ToolIDLoopApprove) ||
+			!slices.Contains(loops, toolspkg.ToolIDGoalGet) ||
+			!slices.Contains(loops, toolspkg.ToolIDGoalReport) ||
+			!slices.Contains(loops, toolspkg.ToolIDLoopTurns) ||
 			slices.Contains(loops, toolspkg.ToolID("agh__loop_edit")) {
 			t.Fatalf("loops toolset expansion = %#v, want bounded loop tools without edit", loops)
 		}

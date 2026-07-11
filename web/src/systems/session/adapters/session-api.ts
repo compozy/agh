@@ -9,6 +9,7 @@ import type {
   SessionPayload,
   SessionPromptPayload,
   SessionPromptRequest,
+  SessionPromptResult,
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
@@ -22,6 +23,7 @@ import {
 } from "./session-api-errors";
 
 export { fetchSessions } from "./session-catalog-api";
+export { fetchSessionGoal } from "./session-goal-api";
 export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcript-api";
 export type { SessionStreamCursor } from "./session-transcript-api";
 export { SessionApiError, SessionNotFoundError } from "./session-api-errors";
@@ -147,7 +149,7 @@ export async function sendSessionPrompt(
   id: string,
   params: SessionPromptRequest,
   signal?: AbortSignal
-): Promise<SessionPromptPayload> {
+): Promise<SessionPromptResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
@@ -159,7 +161,8 @@ export async function sendSessionPrompt(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
-  return requireResponseData(data, response, `Failed to send prompt to session "${id}"`).prompt;
+  const result = requireResponseData(data, response, `Failed to send prompt to session "${id}"`);
+  return "prompt" in result ? result.prompt : result;
 }
 
 export async function interruptSessionPrompt(

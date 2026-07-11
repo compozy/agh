@@ -129,9 +129,10 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 			Text:   "text 5",
 		})
 		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
-			Type:       acp.EventTypeDone,
-			TurnID:     "turn-mixed",
-			StopReason: "end_turn",
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-mixed",
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
 		})
 
 		got := promptFrameSignatures(t, writer.String())
@@ -181,9 +182,10 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 			Text:   "answer",
 		})
 		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
-			Type:       acp.EventTypeDone,
-			TurnID:     "turn-reasoning",
-			StopReason: "end_turn",
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-reasoning",
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
 		})
 
 		got := promptFrameSignatures(t, writer.String())

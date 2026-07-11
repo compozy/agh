@@ -752,13 +752,13 @@ describe("compozy-design-system lint plugin", () => {
       });
     });
 
-    it("allows component-internal tokens kept in :root (modal width, PillGroup heights)", async () => {
+    it("allows component-internal tokens kept in :root (modal width, thread column, PillGroup heights)", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",
         rule,
         source: `
           export function View() {
-            return <div className="w-(--width-modal-md) min-h-(--height-pill-group-segment-md)">x</div>;
+            return <div className="w-(--width-modal-md) max-w-(--width-thread-column) min-h-(--height-pill-group-segment-md)">x</div>;
           }
         `,
       });

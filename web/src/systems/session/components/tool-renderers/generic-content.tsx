@@ -26,7 +26,7 @@ export function GenericContent({ message }: { message: UIMessage }) {
   const hasResult = result && (result.stdout || result.content || result.error);
 
   return (
-    <div className="space-y-1.5 text-xs">
+    <div className="space-y-1.5 text-small-body">
       {message.toolInput && (
         <CodeBlock
           code={formatInput(message.toolInput)}

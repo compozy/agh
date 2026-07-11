@@ -515,13 +515,14 @@ func TestWatchEventsEvaluatorHelpers(t *testing.T) {
 	t.Run("Should reject invalid pending state", func(t *testing.T) {
 		t.Parallel()
 
-		err := validateWatchEventsPendingState(watchpkg.EventsPendingState{})
+		contracts := SupportedWatchEvents()
+		err := validateWatchEventsPendingState(watchpkg.EventsPendingState{}, contracts)
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "subscriptions are required") {
 			t.Fatalf("validateWatchEventsPendingState(empty) error = %v, want subscriptions validation", err)
 		}
 		err = validateWatchEventsPendingState(watchpkg.EventsPendingState{
 			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: string(hooks.HookTaskStatusChanged)}},
-		})
+		}, contracts)
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "cursor for kind") {
 			t.Fatalf("validateWatchEventsPendingState(no cursors) error = %v, want cursor validation", err)
 		}
@@ -533,7 +534,7 @@ func TestWatchEventsEvaluatorHelpers(t *testing.T) {
 		_, err := watchEventsQuery(Run{WorkspaceID: "ws-1"}, watchpkg.EventsPendingState{
 			Subscriptions: []watchpkg.EventSubscriptionRef{{Kind: "unknown.event"}},
 			Cursors:       map[string]int64{WatchEventsTaskStream: 1},
-		})
+		}, SupportedWatchEvents())
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), `unsupported: "unknown.event"`) {
 			t.Fatalf("watchEventsQuery(unknown kind) error = %v, want unsupported-kind validation", err)
 		}
@@ -615,17 +616,17 @@ func newWatchCoordinatorRunnerWithGraphForTest(
 	if runs == nil {
 		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
+	resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{Graph: graph})
+	loopRun, snapshot := pinCoordinatorResolvedForTest(
+		t,
+		loopRun,
+		resolved,
+		snapshotEffectiveConfig(),
+	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun},
+		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
-		DefinitionResolverFunc(
-			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-				return &ResolvedDefinition{
-					Definition: dsl.Definition{Graph: graph},
-				}, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchPoller(poller),
 		WithCoordinatorWatchSilenceWindow(2*time.Minute),
@@ -696,15 +697,16 @@ func newWatchEventsCoordinatorRunnerForTest(
 	ledger WatchEventsLedger,
 ) *CoordinatorRunner {
 	t.Helper()
+	loopRun, snapshot := pinCoordinatorResolvedForTest(
+		t,
+		loopRun,
+		resolved,
+		snapshotEffectiveConfig(),
+	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{coordinatorRun.ID: coordinatorRun}},
-		coordinatorRunnerLoopStore{run: loopRun},
+		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
-		DefinitionResolverFunc(
-			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-				return resolved, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchEventsLedger(ledger),
 		WithCoordinatorWatchSilenceWindow(time.Minute),

@@ -663,10 +663,18 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
   // own query invalidation.
   const observerPage = await context.newPage();
   try {
+    const observerStreamReady = observerPage.waitForResponse(response => {
+      const url = new URL(response.url());
+      return (
+        response.request().resourceType() === "eventsource" &&
+        url.pathname === `/api/tasks/${encodeURIComponent(task.id)}/stream`
+      );
+    });
     await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(observerPage);
     const observerBadge = observerPage.getByTestId("tasks-detail-needs-attention");
     await expect(observerBadge).toBeVisible();
+    await observerStreamReady;
 
     const recoverResponse = appPage.waitForResponse(
       response =>

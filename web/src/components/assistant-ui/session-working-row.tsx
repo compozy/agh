@@ -71,7 +71,7 @@ export function WorkingIndicator({
         role="status"
         aria-label="Working"
         data-testid="session-working-row"
-        className="flex items-center gap-2 text-small-body text-subtle"
+        className="flex items-center gap-2 text-small-body text-muted"
       >
         <span>Working…</span>
       </div>
@@ -83,7 +83,7 @@ export function WorkingIndicator({
       role="status"
       aria-label="Working"
       data-testid="session-working-row"
-      className="flex items-center gap-2 text-small-body text-subtle"
+      className="flex items-center gap-2 text-small-body text-muted"
     >
       <TypingDots />
       <span aria-hidden="true" className="tabular-nums">

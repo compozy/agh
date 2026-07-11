@@ -201,6 +201,9 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
+		return marshalGoalCommandExecutionError(args, goalErr)
+	}
 	if !isStructuredAgentCommandError(err) {
 		return marshalDiagnosticExecutionError(args, err)
 	}

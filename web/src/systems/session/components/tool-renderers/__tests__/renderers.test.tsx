@@ -157,8 +157,8 @@ describe("EditContent", () => {
       />
     );
     expect(screen.getByText("/src/app.ts")).toBeInTheDocument();
-    expect(screen.getByText("const x = 1;")).toBeInTheDocument();
-    expect(screen.getByText("const x = 2;")).toBeInTheDocument();
+    expect(screen.getByText("- const x = 1;")).toBeInTheDocument();
+    expect(screen.getByText("+ const x = 2;")).toBeInTheDocument();
   });
 
   it("renders only new string when no old string", () => {
@@ -173,7 +173,7 @@ describe("EditContent", () => {
         })}
       />
     );
-    expect(screen.getByText("export const y = 3;")).toBeInTheDocument();
+    expect(screen.getByText("+ export const y = 3;")).toBeInTheDocument();
   });
 });
 

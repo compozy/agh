@@ -64,6 +64,75 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		}
 	})
 
+	t.Run("Should resolve an open action whose runtime schema matches the Run snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("agh__task_read")
+		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
+			toolID: {Descriptor: tools.Descriptor{
+				ID:                 toolID,
+				InputSchemaDigest:  "input-v1",
+				OutputSchemaDigest: "output-v1",
+			}},
+		}}
+		actions := newActionRegistryForTest(t, registry)
+		expected := &loop.ToolSchemaSnapshot{
+			ToolID:             toolID.String(),
+			InputSchemaDigest:  "input-v1",
+			OutputSchemaDigest: "output-v1",
+		}
+
+		executor, err := actions.ResolvePinned(
+			context.Background(),
+			tools.Scope{WorkspaceID: "ws-1"},
+			toolID.String(),
+			expected,
+		)
+		if err != nil {
+			t.Fatalf("ResolvePinned() error = %v", err)
+		}
+		if _, ok := executor.(*loop.ToolCallActionExecutor); !ok {
+			t.Fatalf("ResolvePinned() executor = %T, want ToolCallActionExecutor", executor)
+		}
+	})
+
+	t.Run("Should reject an open action whose runtime schema drifted after Start", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("agh__task_read")
+		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{
+			toolID: {Descriptor: tools.Descriptor{
+				ID:                 toolID,
+				InputSchemaDigest:  "input-v2",
+				OutputSchemaDigest: "output-v1",
+			}},
+		}}
+		actions := newActionRegistryForTest(t, registry)
+		expected := &loop.ToolSchemaSnapshot{
+			ToolID:             toolID.String(),
+			InputSchemaDigest:  "input-v1",
+			OutputSchemaDigest: "output-v1",
+		}
+
+		_, err := actions.ResolvePinned(
+			context.Background(),
+			tools.Scope{WorkspaceID: "ws-1"},
+			toolID.String(),
+			expected,
+		)
+		if !errors.Is(err, loop.ErrActionSchemaInvalid) {
+			t.Fatalf("ResolvePinned() error = %v, want ErrActionSchemaInvalid", err)
+		}
+		var reason *loop.ReasonError
+		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeActionContractStale {
+			t.Fatalf("ResolvePinned() reason = %#v, want %q", reason, loop.ReasonCodeActionContractStale)
+		}
+		if reason.Meta["expected_input_schema_digest"] != "input-v1" ||
+			reason.Meta["current_input_schema_digest"] != "input-v2" {
+			t.Fatalf("ResolvePinned() metadata = %#v, want pinned/current digests", reason.Meta)
+		}
+	})
+
 	t.Run("Should reject misses deterministically", func(t *testing.T) {
 		t.Parallel()
 

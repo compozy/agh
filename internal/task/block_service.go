@@ -346,7 +346,10 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 	if err != nil {
 		return nil, err
 	}
-	reconciled, err := m.reconcileTaskCascade(ctx, cleared.ID, actor)
+	postCommitCtx := context.WithoutCancel(ctx)
+	m.notifyTaskObserverBestEffort(postCommitCtx, cleared.Event)
+	m.emitTaskLiveRecordBestEffort(postCommitCtx, cleared.Event)
+	reconciled, err := m.reconcileTaskCascade(ctx, cleared.Task.ID, actor)
 	if err != nil {
 		return nil, err
 	}

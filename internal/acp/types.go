@@ -16,7 +16,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	authproviders "github.com/compozy/agh/internal/providers"
 	"github.com/compozy/agh/internal/sandbox"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/toolruntime"
 )
@@ -50,6 +49,8 @@ const (
 	EventTypeDone = "done"
 	// EventTypeError is emitted when prompt processing fails.
 	EventTypeError = "error"
+	// SystemEventTitleAvailableCommandsUpdate replaces the provider-advertised command set.
+	SystemEventTitleAvailableCommandsUpdate = "available_commands_update"
 )
 
 // StartOpts defines how to launch and initialize an ACP agent process.
@@ -227,21 +228,6 @@ type PromptNetworkMeta struct {
 	EstimatedPromptTokens int64    `json:"estimated_prompt_tokens,omitempty"`
 }
 
-// PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
-type PromptSyntheticMeta struct {
-	TaskID               string `json:"task_id,omitempty"`
-	TaskRunID            string `json:"task_run_id,omitempty"`
-	WorkflowID           string `json:"workflow_id,omitempty"`
-	ClaimTokenHash       string `json:"claim_token_hash,omitempty"`
-	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
-	Reason               string `json:"reason,omitempty"`
-	Summary              string `json:"summary,omitempty"`
-	WakeEventID          string `json:"wake_event_id,omitempty"`
-	PolicySnapshotID     string `json:"policy_snapshot_id,omitempty"`
-	PolicyDigest         string `json:"policy_digest,omitempty"`
-	ConfigDigest         string `json:"config_digest,omitempty"`
-}
-
 // Normalize returns a trimmed copy of the prompt metadata.
 func (m PromptMeta) Normalize() PromptMeta {
 	normalized := PromptMeta{
@@ -413,38 +399,6 @@ func normalizePromptMetaStrings(values []string) []string {
 	return normalized
 }
 
-// Normalize returns a trimmed copy of the synthetic metadata.
-func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
-	return PromptSyntheticMeta{
-		TaskID:               strings.TrimSpace(m.TaskID),
-		TaskRunID:            strings.TrimSpace(m.TaskRunID),
-		WorkflowID:           strings.TrimSpace(m.WorkflowID),
-		ClaimTokenHash:       strings.TrimSpace(m.ClaimTokenHash),
-		CoordinatorSessionID: strings.TrimSpace(m.CoordinatorSessionID),
-		Reason:               strings.TrimSpace(m.Reason),
-		Summary:              strings.TrimSpace(m.Summary),
-		WakeEventID:          strings.TrimSpace(m.WakeEventID),
-		PolicySnapshotID:     strings.TrimSpace(m.PolicySnapshotID),
-		PolicyDigest:         strings.TrimSpace(m.PolicyDigest),
-		ConfigDigest:         strings.TrimSpace(m.ConfigDigest),
-	}
-}
-
-// IsZero reports whether the synthetic metadata carries any fields.
-func (m PromptSyntheticMeta) IsZero() bool {
-	normalized := m.Normalize()
-	return normalized == (PromptSyntheticMeta{})
-}
-
-// Validate ensures the synthetic metadata carries the minimum wake-up identity.
-func (m PromptSyntheticMeta) Validate() error {
-	normalized := m.Normalize()
-	if normalized.Reason == "" {
-		return errors.New("acp: synthetic prompt metadata requires a reason")
-	}
-	return nil
-}
-
 // Caps captures the usable capabilities exposed by an ACP agent.
 type Caps struct {
 	SupportsLoadSession bool
@@ -531,30 +485,6 @@ func (u TokenUsage) IsZero() bool {
 		u.ContextSize == nil &&
 		u.CostAmount == nil &&
 		u.CostCurrency == nil
-}
-
-// AgentEvent is the stream item exposed to session/.
-type AgentEvent struct {
-	Type      string
-	SessionID string
-	TurnID    string
-	RequestID string
-	store.EventCorrelation
-	Timestamp      time.Time
-	Text           string
-	Title          string
-	ToolCallID     string
-	ToolPrechecked bool
-	StopReason     string
-	Action         string
-	Resource       string
-	Decision       string
-	Error          string
-	Failure        *store.SessionFailure
-	Synthetic      *PromptSyntheticMeta
-	Usage          *TokenUsage
-	Runtime        *RuntimeActivity
-	Raw            json.RawMessage
 }
 
 // AgentProcess represents one running ACP-backed agent subprocess.

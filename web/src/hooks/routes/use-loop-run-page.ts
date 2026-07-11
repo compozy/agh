@@ -8,11 +8,13 @@ import {
   emptyLoopRunLiveState,
   isTerminalLoopStatus,
   latestGenerationBreadth,
+  mergeGoalTurnTimeline,
   type LoopGateDecision,
   useApproveLoopRun,
   useLoop,
   useLoopRun,
   useLoopStream,
+  useGoalTurns,
   usePauseLoopRun,
   useResumeLoopRun,
   useStopLoopRun,
@@ -43,6 +45,11 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const [live, dispatch] = useReducer(applyLoopEventFrame, undefined, emptyLoopRunLiveState);
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
   useLoopStream(workspaceId, runId, { enabled: isLive, onEvent: dispatch });
+  const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });
+  const goalTurns = useMemo(
+    () => mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns),
+    [goalTurnsQuery.data?.turns, live.goalTurns]
+  );
 
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
@@ -121,6 +128,8 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     contract: definition?.contract,
     loopVersion: run?.definition_version ?? loopQuery.data?.version,
     live,
+    goalTurns,
+    goalTurnsQuery,
     isLive,
     meters,
     timeline,

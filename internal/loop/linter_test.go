@@ -1,6 +1,7 @@
 package loop_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -926,6 +927,175 @@ func TestLinterShouldRejectFileImportParseOutsideJSONAndText(t *testing.T) {
 	}
 }
 
+func TestLinterShouldValidateGoalContractsWithoutMutation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		definition func() dsl.Definition
+		mutate     func(*dsl.Definition)
+		wantCodes  []string
+	}{
+		{name: "Should accept a minimal goal with compiler-owned defaults", definition: validGoalDefinition},
+		{
+			name:       "Should reject a missing objective",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["objective"] = " "
+			},
+			wantCodes: []string{loop.CodeGoalObjectiveRequired},
+		},
+		{
+			name:       "Should reject a missing judge",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["judge"] = []any{}
+			},
+			wantCodes: []string{loop.CodeGoalJudgeRequired},
+		},
+		{
+			name:       "Should reject a human goal judge",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["judge"] = []any{
+					map[string]any{"id": "operator", "type": "human"},
+				}
+			},
+			wantCodes: []string{loop.CodeGoalHumanJudgeUnsupported},
+		},
+		{
+			name:       "Should reject a command judge without check",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["judge"] = []any{
+					map[string]any{"id": "verify", "type": "command", "command": "make verify"},
+				}
+			},
+			wantCodes: []string{loop.CodeGoalJudgeRequired},
+		},
+		{
+			name:       "Should reject a missing positive max turns",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["max_turns"] = 0
+			},
+			wantCodes: []string{loop.CodeGoalMaxTurnsRequired},
+		},
+		{
+			name:       "Should reject output status without blocked",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["output_schema"] = map[string]any{
+					"status": map[string]any{"type": "string", "enum": []any{"complete"}},
+				}
+			},
+			wantCodes: []string{loop.CodeGoalOutputStatusMissingBlocked},
+		},
+		{
+			name:       "Should reject an invalid exhaustion policy",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["on_exhausted"] = "blocked"
+			},
+			wantCodes: []string{loop.CodeGoalOnExhaustedInvalid},
+		},
+		{
+			name:       "Should reject ambiguous session forms",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Session = &dsl.SessionSpec{Isolated: true, Mode: "continuous"}
+			},
+			wantCodes: []string{loop.CodeSessionSpecAmbiguous},
+		},
+		{
+			name:       "Should reject continuous goal parallel fan out",
+			definition: validFanoutGoalDefinition,
+			wantCodes:  []string{loop.CodeContinuousForbidsParallel},
+		},
+		{
+			name:       "Should reject fresh session retry outside continuous mode",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "converge")
+				node.Session = &dsl.SessionSpec{Isolated: true}
+				node.Retry = &dsl.RetrySpec{MaxAttempts: 2, OnFailure: "fresh_session"}
+			},
+			wantCodes: []string{loop.CodeRetryFreshSessionRequiresContinuous},
+		},
+		{
+			name:       "Should reject fresh session retry with one total attempt",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "converge")
+				node.Session = &dsl.SessionSpec{Mode: "continuous"}
+				node.Retry = &dsl.RetrySpec{MaxAttempts: 1, OnFailure: "fresh_session"}
+			},
+			wantCodes: []string{loop.CodeRetryFreshSessionRequiresContinuous},
+		},
+		{
+			name:       "Should reject retired retry max",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "converge")
+				node.Retry = &dsl.RetrySpec{
+					MaxAttempts: 2,
+					OnFailure:   "fresh_session",
+					Extra:       map[string]any{"max": 2},
+				}
+			},
+			wantCodes: []string{loop.CodeRetryMaxUnsupported},
+		},
+		{
+			name:       "Should reject explicit continuous handle reuse",
+			definition: explicitReusedGoalHandleDefinition,
+			wantCodes:  []string{loop.CodeContinuousHandleReused},
+		},
+		{
+			name:       "Should reject implicit and explicit continuous handle reuse",
+			definition: implicitReusedGoalHandleDefinition,
+			wantCodes:  []string{loop.CodeContinuousHandleReused},
+		},
+		{
+			name: "Should accept supported judge kinds and explicit isolated session",
+			definition: func() dsl.Definition {
+				def := validGoalDefinition()
+				node := requireNode(t, &def, "converge")
+				node.Session = &dsl.SessionSpec{Isolated: true}
+				node.Params["judge"] = []any{
+					map[string]any{"id": "rubric", "type": "agent-judge", "rubric": "Be strict"},
+					map[string]any{"id": "policy", "type": "extension", "tool": "ext__policy__check"},
+				}
+				node.Params["on_exhausted"] = "escalate"
+				return def
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			def := tt.definition()
+			if tt.mutate != nil {
+				tt.mutate(&def)
+			}
+			before, err := dsl.Serialize(def)
+			if err != nil {
+				t.Fatalf("Serialize(before) error = %v", err)
+			}
+			errs := loop.NewLinter().Lint(def)
+			requireLintCodes(t, errs, tt.wantCodes...)
+			after, err := dsl.Serialize(def)
+			if err != nil {
+				t.Fatalf("Serialize(after) error = %v", err)
+			}
+			if !bytes.Equal(after, before) {
+				t.Fatalf("Lint() mutated definition\nbefore:\n%s\nafter:\n%s", before, after)
+			}
+		})
+	}
+}
+
 func validDefinition() dsl.Definition {
 	return dsl.Definition{
 		APIVersion:  dsl.APIVersion,
@@ -993,6 +1163,62 @@ func validDefinition() dsl.Definition {
 		},
 		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
 	}
+}
+
+func validGoalDefinition() dsl.Definition {
+	return singleNodeDefinition(validGoalNode("converge", ""))
+}
+
+func validGoalNode(id dsl.NodeID, handle string) dsl.Node {
+	node := dsl.Node{
+		ID:    id,
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionGoal),
+		Params: dsl.NodeParams{
+			"agent":     "codex",
+			"objective": "Make verification pass",
+			"judge": []any{
+				map[string]any{"id": "verify", "type": "command", "check": "make verify"},
+			},
+			"max_turns": 10,
+			"output_schema": map[string]any{
+				"status": map[string]any{
+					"type": "string",
+					"enum": []any{"complete", "blocked"},
+				},
+			},
+		},
+	}
+	if handle != "" {
+		node.Session = &dsl.SessionSpec{Mode: "continuous", Handle: handle}
+	}
+	return node
+}
+
+func validFanoutGoalDefinition() dsl.Definition {
+	def := validDefinition()
+	goal := validGoalNode("agent", "")
+	def.Graph.Nodes[2] = goal
+	def.Contract.NoProgress.HashFields = []string{"nodes.agent.output.status"}
+	return def
+}
+
+func explicitReusedGoalHandleDefinition() dsl.Definition {
+	def := validGoalDefinition()
+	first := &def.Graph.Nodes[0]
+	first.Session = &dsl.SessionSpec{Mode: "continuous", Handle: "shared"}
+	second := validGoalNode("finish", "shared")
+	def.Graph.Nodes = append(def.Graph.Nodes, second)
+	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: first.ID, To: second.ID})
+	return def
+}
+
+func implicitReusedGoalHandleDefinition() dsl.Definition {
+	def := singleNodeDefinition(validGoalNode("shared", ""))
+	second := validGoalNode("finish", "shared")
+	def.Graph.Nodes = append(def.Graph.Nodes, second)
+	def.Graph.Edges = append(def.Graph.Edges, dsl.Edge{From: "shared", To: "finish"})
+	return def
 }
 
 func singleNodeDefinition(node dsl.Node) dsl.Definition {

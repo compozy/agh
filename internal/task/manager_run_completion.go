@@ -40,9 +40,13 @@ func (m *Service) CompleteRun(
 	if err := requireRunTransition(run, TaskRunStatusCompleted); err != nil {
 		return nil, err
 	}
+	storedResult, err := normalizedResult.StoredValue()
+	if err != nil {
+		return nil, err
+	}
 
 	run.Status = TaskRunStatusCompleted
-	run.Result = cloneRawJSON(normalizedResult.Value)
+	run.Result = storedResult
 	run.Error = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}

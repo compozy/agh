@@ -339,6 +339,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     created_at: "2026-04-20T10:00:00Z",
     updated_at: "2026-04-20T11:00:00Z",
     ...overrides,
+    available_commands: overrides.available_commands ?? [],
   };
 }
 

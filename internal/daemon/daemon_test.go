@@ -312,6 +312,46 @@ func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
 	}
 }
 
+func TestLoopCoordinatorBootGate(t *testing.T) {
+	t.Run("Should suppress observer and scheduler activation until reconciliation finishes", func(t *testing.T) {
+		t.Parallel()
+
+		backstop := &recordingLoopBackstopRunner{}
+		gate := newLoopCoordinatorBootGate(backstop)
+		actor, err := taskpkg.DeriveDaemonActorContext("boot-gate-test", "daemon.test")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		now := time.Date(2026, 7, 11, 15, 0, 0, 0, time.UTC)
+
+		started, err := gate.RunLoopCoordinatorBackstop(testutil.Context(t), now, actor)
+		if err != nil {
+			t.Fatalf("observer backstop before activation error = %v", err)
+		}
+		if started != 0 || len(backstop.calls) != 0 {
+			t.Fatalf("observer backstop before activation = (%d, %d calls), want (0, 0)", started, len(backstop.calls))
+		}
+
+		schedulerSource := schedulerTaskSource{coordinatorBackstop: gate}
+		started, err = schedulerSource.RunLoopCoordinatorBackstop(testutil.Context(t), now, actor)
+		if err != nil {
+			t.Fatalf("scheduler backstop before activation error = %v", err)
+		}
+		if started != 0 || len(backstop.calls) != 0 {
+			t.Fatalf("scheduler backstop before activation = (%d, %d calls), want (0, 0)", started, len(backstop.calls))
+		}
+
+		gate.Activate()
+		started, err = schedulerSource.RunLoopCoordinatorBackstop(testutil.Context(t), now, actor)
+		if err != nil {
+			t.Fatalf("scheduler backstop after activation error = %v", err)
+		}
+		if started != 1 || len(backstop.calls) != 1 {
+			t.Fatalf("scheduler backstop after activation = (%d, %d calls), want (1, 1)", started, len(backstop.calls))
+		}
+	})
+}
+
 func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -5064,6 +5104,53 @@ func (f *fakeSessionManager) Events(
 	return filtered, nil
 }
 
+func (f *fakeSessionManager) LatestSessionEventByType(
+	ctx context.Context,
+	id string,
+	eventType string,
+) (*store.SessionEvent, error) {
+	events, err := f.Events(ctx, id, store.EventQuery{Type: eventType, Limit: 1})
+	if err != nil || len(events) == 0 {
+		return nil, err
+	}
+	event := events[0]
+	return &event, nil
+}
+
+func (f *fakeSessionManager) AppendSessionEventIfAbsent(
+	_ context.Context,
+	event session.GoalEvent,
+) error {
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessionEvents == nil {
+		f.sessionEvents = make(map[string][]store.SessionEvent)
+	}
+	for _, existing := range f.sessionEvents[event.SessionID] {
+		if existing.ID != event.EventID {
+			continue
+		}
+		if existing.TurnID == event.SyntheticTurnID &&
+			existing.Type == event.Type &&
+			existing.AgentName == event.AgentName &&
+			existing.Content == string(event.Content) &&
+			existing.Timestamp.Equal(event.CreatedAt) {
+			return nil
+		}
+		return errors.New("fake session manager: event identity collision")
+	}
+	f.nextEventSequence++
+	f.sessionEvents[event.SessionID] = append(f.sessionEvents[event.SessionID], store.SessionEvent{
+		ID: event.EventID, SessionID: event.SessionID, Sequence: f.nextEventSequence,
+		TurnID: event.SyntheticTurnID, Type: event.Type, AgentName: event.AgentName,
+		Content: string(event.Content), Timestamp: event.CreatedAt,
+	})
+	return nil
+}
+
 func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) ([]store.TurnHistory, error) {
 	return nil, nil
 }
@@ -6384,8 +6471,8 @@ func (r *recordingRegistry) ClearTaskBlock(
 func (r *recordingRegistry) ClearTaskNeedsAttention(
 	context.Context,
 	taskpkg.NeedsAttentionClearMutation,
-) (taskpkg.Task, error) {
-	return taskpkg.Task{}, nil
+) (taskpkg.NeedsAttentionClearResult, error) {
+	return taskpkg.NeedsAttentionClearResult{}, nil
 }
 
 func (r *recordingRegistry) ExpireTaskBlocks(

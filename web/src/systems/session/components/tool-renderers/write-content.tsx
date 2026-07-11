@@ -25,9 +25,9 @@ export function WriteContent({ message }: { message: UIMessage }) {
   }
 
   return (
-    <div className="space-y-1.5 text-xs" data-testid="write-content">
-      {filePath && <div className="font-mono text-eyebrow text-subtle">{filePath}</div>}
-      {content && (
+    <div className="space-y-1.5 text-small-body" data-testid="write-content">
+      {filePath ? <div className="font-mono text-form-label text-subtle">{filePath}</div> : null}
+      {content ? (
         <CodeBlock
           code={`${displayContent}${isTruncated ? "\u2026" : ""}`}
           copyable={false}
@@ -35,17 +35,17 @@ export function WriteContent({ message }: { message: UIMessage }) {
           showPrompt={false}
           truncateLines={16}
         />
-      )}
-      {isTruncated && (
+      ) : null}
+      {isTruncated ? (
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="flex items-center gap-1 text-eyebrow text-subtle hover:text-muted transition-colors"
+          className="flex items-center gap-1 text-form-label text-muted hover:text-fg transition-colors"
         >
           <ChevronsUpDown className="size-3" />
           Show full content ({content.length.toLocaleString()} chars)
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

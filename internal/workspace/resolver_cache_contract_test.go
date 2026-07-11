@@ -117,6 +117,35 @@ func TestWorkspaceContractResolverCacheDependencies(t *testing.T) {
 func TestWorkspaceContractConfigClone(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve Loop Goal and task runtime config", func(t *testing.T) {
+		t.Parallel()
+
+		original := aghconfig.Config{
+			Loops: aghconfig.LoopsConfig{
+				Defaults: aghconfig.LoopsDefaultsConfig{
+					Delivery: aghconfig.LoopDefaultConfig{
+						ModelDefaults: aghconfig.LoopModelDefaultsConfig{Judge: "judge-v1"},
+					},
+				},
+			},
+			Goals: aghconfig.GoalsConfig{MaxTurns: 7, ContextNudgeRatio: 0.4},
+			Task: aghconfig.TaskConfig{
+				Orchestration: aghconfig.TaskOrchestrationConfig{SummaryMaxBytes: 4096},
+			},
+		}
+
+		cloned := cloneConfig(&original)
+		if cloned.Loops.Defaults.Delivery.ModelDefaults.Judge != "judge-v1" ||
+			cloned.Goals.MaxTurns != 7 || cloned.Goals.ContextNudgeRatio != 0.4 ||
+			cloned.Task.Orchestration.SummaryMaxBytes != 4096 {
+			t.Fatalf("cloned runtime config = %#v", cloned)
+		}
+		cloned.Goals.MaxTurns = 9
+		if original.Goals.MaxTurns != 7 {
+			t.Fatalf("original Goals.MaxTurns = %d, want 7", original.Goals.MaxTurns)
+		}
+	})
+
 	t.Run("Should deep copy mutable memory extensions and automation config", func(t *testing.T) {
 		t.Parallel()
 

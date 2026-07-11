@@ -82,7 +82,12 @@ Autonomy tools are bound to the caller session. Do not substitute general task m
 
 ## Loop Tools
 
-Toolset `agh__loops` (13 tools) authors, runs, and manages Loops: `agh__loop_list/_inspect/_validate/_status/_runs/_create/_run/_configure/_pause/_resume/_approve/_stop/_delete`. No `agh__loop_edit` — publish via `agh__loop_create` with `expected_version`. `agh__loop_approve` needs `loops.approve` and denies self-approval. Read references/loops.md.
+Toolset `agh__loops` (16 tools):
+`agh__loop_list/_inspect/_validate/_status/_runs/_create/_run/_configure/_pause/_resume/_approve/_stop/_delete`,
+`agh__goal_get`, `agh__goal_report`, and `agh__loop_turns`.
+
+No `agh__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
+binding semantics.
 
 ## Config, Hooks, Automation, Extensions, Bundles, Resources, And MCP Tools
 

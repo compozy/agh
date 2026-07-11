@@ -55,7 +55,7 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
       "/api/vault/secrets?namespace=sessions"
     );
     expect(payload.secrets.some(secret => secret.ref === ref)).toBe(false);
-    await browserArtifacts.captureScreenshot("tc-func-013-vault-table-delete", appPage);
+    await browserArtifacts.captureScreenshot("tc-func-013-vault-list-delete", appPage);
   } finally {
     await deleteVaultSecretIfPresent(
       runtime.url(`/api/vault/secrets?ref=${encodeURIComponent(ref)}`)
@@ -97,11 +97,7 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   await expect(appPage.getByTestId("vault-page-action-result")).toContainText(secretRef);
   await expect(appPage.locator("body")).not.toContainText(secretValue);
 
-  await appPage.getByTestId("vault-list-filters-add").click();
-  const namespaceFilter = appPage.getByRole("option", { name: "Namespace" });
-  await expect(namespaceFilter).toBeVisible();
-  await namespaceFilter.hover();
-  await appPage.getByRole("option", { name: "providers", exact: true }).click();
+  await selectVaultNamespace(appPage, "providers");
   await appPage.getByTestId("vault-page-prefix").fill(secretRef);
   await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(1);
   await expect(appPage.getByTestId("vault-secrets-row")).toContainText(secretRef);
@@ -170,6 +166,15 @@ async function confirmVaultSecretDelete(page: Page, ref: string): Promise<void> 
     await typingInput.fill(ref);
   }
   await page.getByTestId("settings-vault-delete-confirm").click();
+}
+
+async function selectVaultNamespace(page: Page, namespace: string): Promise<void> {
+  await page.getByTestId("vault-list-filters-add").click();
+  const namespaceField = page.getByRole("option", { name: "Namespace", exact: true });
+  await namespaceField.hover();
+  const namespaceOption = page.getByRole("option", { name: namespace, exact: true });
+  await expect(namespaceOption).toBeVisible();
+  await namespaceOption.click();
 }
 
 function assertLaunchRuntime(

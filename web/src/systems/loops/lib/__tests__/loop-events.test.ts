@@ -86,6 +86,76 @@ describe("applyLoopEventFrame", () => {
     expect(state.events[0].message).toBe("gen 2 · failed-only");
   });
 
+  it("Should merge Goal turn start and completion frames by prompt identity", () => {
+    const started = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("goal_turn_started", {
+        seq: 7,
+        generation: 2,
+        node_id: "goal",
+        item_index: 1,
+        turn: 3,
+        prompt_attempt: 1,
+        prompt_id: "prompt_7",
+        session_id: "session_1",
+        binding_handle: "goal:abc",
+        binding_epoch: 2,
+        actor_kind: "agent",
+        actor_id: "implementer",
+      })
+    );
+
+    const completed = applyLoopEventFrame(
+      started,
+      frame(
+        "goal_turn_completed",
+        {
+          seq: 7,
+          generation: 2,
+          node_id: "goal",
+          item_index: 1,
+          turn: 3,
+          prompt_attempt: 1,
+          prompt_id: "prompt_7",
+          session_id: "session_1",
+          result_status: "completed",
+          stop_reason: "end_turn",
+          verdict_outcome: "rejected",
+          blocking_issues: [{ id: "issue_1", note: "Missing evidence" }],
+          evidence_ref: "blob_1",
+          tokens_used: 420,
+        },
+        2
+      )
+    );
+
+    expect(completed.goalTurns).toHaveLength(1);
+    expect(completed.goalTurns[0]).toMatchObject({
+      promptId: "prompt_7",
+      resultStatus: "completed",
+      stopReason: "end_turn",
+      verdictOutcome: "rejected",
+      evidenceRef: "blob_1",
+      tokensUsed: 420,
+    });
+    expect(completed.goalTurns[0].blockingIssues).toEqual([
+      { id: "issue_1", note: "Missing evidence" },
+    ]);
+  });
+
+  it("Should keep Goal status changes in the rail without inventing a turn", () => {
+    const state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("goal_status_changed", { from: "active", to: "complete" })
+    );
+    expect(state.events[0]).toMatchObject({
+      kind: "goal_status_changed",
+      tone: "warn",
+      message: "active → complete",
+    });
+    expect(state.goalTurns).toEqual([]);
+  });
+
   it("Should degrade a malformed frame to a rail line without throwing", () => {
     const state = applyLoopEventFrame(emptyLoopRunLiveState(), frame("gate_verdict", null));
     expect(state.events).toHaveLength(1);

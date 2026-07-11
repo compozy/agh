@@ -351,11 +351,12 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 				Text:      "first prompt reply",
 			}
 			events <- acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				SessionID:  proc.SessionID,
-				TurnID:     req.TurnID,
-				Timestamp:  ts,
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				SessionID:        proc.SessionID,
+				TurnID:           req.TurnID,
+				Timestamp:        ts,
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}
 		}()
 		return events, nil
@@ -736,11 +737,12 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 				Text:      "second chunk",
 			}
 			events <- acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				SessionID:  proc.SessionID,
-				TurnID:     req.TurnID,
-				Timestamp:  ts,
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				SessionID:        proc.SessionID,
+				TurnID:           req.TurnID,
+				Timestamp:        ts,
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}
 		}()
 		return events, nil

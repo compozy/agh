@@ -8,6 +8,14 @@ import { GenericContent } from "./generic-content";
 
 const TRUNCATE_THRESHOLD = 1500;
 
+function prefixDiffLines(source: string, marker: "-" | "+"): string {
+  if (source.length === 0) return "";
+  return source
+    .split("\n")
+    .map(line => `${marker} ${line}`)
+    .join("\n");
+}
+
 export function EditContent({ message }: { message: UIMessage }) {
   const [showFull, setShowFull] = useState(false);
   const filePath = String(
@@ -29,18 +37,25 @@ export function EditContent({ message }: { message: UIMessage }) {
 
   const displayOld = showFull ? oldStr : oldStr.slice(0, TRUNCATE_THRESHOLD);
   const displayNew = showFull ? newStr : newStr.slice(0, TRUNCATE_THRESHOLD);
+  const oldCode = `${prefixDiffLines(displayOld, "-")}${
+    !showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""
+  }`;
+  const newCode = `${prefixDiffLines(displayNew, "+")}${
+    !showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""
+  }`;
 
   return (
-    <div className="space-y-1.5 text-xs" data-testid="edit-content">
-      {filePath && <div className="font-mono text-eyebrow text-subtle">{filePath}</div>}
+    <div className="space-y-1.5 text-small-body" data-testid="edit-content">
+      {filePath ? <div className="font-mono text-form-label text-subtle">{filePath}</div> : null}
       {(oldStr || newStr) && (
         <div className="overflow-hidden rounded-sm">
           {oldStr ? (
             <CodeBlock
-              code={`${displayOld}${!showFull && oldStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
+              code={oldCode}
               density="compact"
               copyable={false}
               showPrompt={false}
+              showLineNumbers
               tone="danger"
               truncateLines={12}
             />
@@ -48,26 +63,27 @@ export function EditContent({ message }: { message: UIMessage }) {
           {oldStr && newStr ? <div className="border-t border-line" /> : null}
           {newStr ? (
             <CodeBlock
-              code={`${displayNew}${!showFull && newStr.length > TRUNCATE_THRESHOLD ? "\u2026" : ""}`}
+              code={newCode}
               density="compact"
               copyable={false}
               showPrompt={false}
+              showLineNumbers
               tone="success"
               truncateLines={12}
             />
           ) : null}
         </div>
       )}
-      {isTruncated && (
+      {isTruncated ? (
         <button
           type="button"
           onClick={() => setShowFull(true)}
-          className="flex items-center gap-1 text-eyebrow text-subtle hover:text-muted transition-colors"
+          className="flex items-center gap-1 text-form-label text-muted hover:text-fg transition-colors"
         >
           <ChevronsUpDown className="size-3" />
           Show full content
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

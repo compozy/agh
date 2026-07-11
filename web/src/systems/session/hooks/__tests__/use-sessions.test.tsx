@@ -13,6 +13,7 @@ vi.mock("../../adapters/session-api", () => ({
   fetchSessionRecap: vi.fn(),
   fetchSessions: vi.fn(),
   fetchSessionEvents: vi.fn(),
+  fetchSessionGoal: vi.fn(),
   fetchSessionHistory: vi.fn(),
   fetchSessionTranscript: vi.fn(),
   SessionApiError: class SessionApiError extends Error {
@@ -55,6 +56,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     state: "active",
     badge: "idle",
     attachable: true,
+    available_commands: [],
     created_at: "2026-04-06T10:00:00Z",
     updated_at: "2026-04-06T10:00:00Z",
     ...overrides,
@@ -252,6 +254,7 @@ describe("useSession", () => {
       state: "active",
       badge: "idle",
       attachable: true,
+      available_commands: [],
       created_at: "2026-04-06T10:00:00Z",
       updated_at: "2026-04-06T10:00:00Z",
     });

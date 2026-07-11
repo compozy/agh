@@ -3,8 +3,10 @@ package core
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/transcript"
 )

@@ -37,6 +37,8 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
    */
   runtimeError?: boolean;
   errorMessage?: React.ReactNode;
+  /** Trailing affordances rendered beside chevron/status (e.g. copy). */
+  actions?: React.ReactNode;
   expanded?: boolean;
   defaultExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -55,7 +57,7 @@ function nativeTitle(value: React.ReactNode): string | undefined {
 
 function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   const iconClass =
-    "size-3.5 shrink-0 text-faint transition-colors group-hover/tool-row:text-muted";
+    "size-3.5 shrink-0 text-subtle transition-colors group-hover/tool-row:text-muted";
   if (icon === undefined) {
     return (
       <TerminalIcon
@@ -147,6 +149,7 @@ function ToolCallRowInner({
   icon,
   runtimeError = false,
   errorMessage,
+  actions,
   expanded,
   defaultExpanded = false,
   onExpandedChange,
@@ -159,6 +162,12 @@ function ToolCallRowInner({
   const expandable = Boolean(errorMessage) || React.Children.toArray(children).length > 0;
   const iconContent = renderToolCallIcon(icon);
   const headingDanger = status === "failed" && runtimeError;
+  const wellTone =
+    status === "failed"
+      ? "bg-danger-tint text-danger"
+      : status === "running"
+        ? "bg-surface-glaze text-muted"
+        : null;
 
   const setExpanded = React.useCallback(
     (next: boolean) => {
@@ -188,7 +197,7 @@ function ToolCallRowInner({
     <>
       <span
         data-slot="tool-call-row-icon-well"
-        className="flex size-5 shrink-0 items-center justify-center"
+        className={cn("flex size-5 shrink-0 items-center justify-center rounded-xs", wellTone)}
       >
         {iconContent}
       </span>
@@ -216,12 +225,23 @@ function ToolCallRowInner({
         )}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-subtle">
+        {actions ? (
+          <span
+            data-slot="tool-call-row-actions"
+            className="flex shrink-0 items-center"
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => event.stopPropagation()}
+            onPointerDown={event => event.stopPropagation()}
+          >
+            {actions}
+          </span>
+        ) : null}
         {expandable ? (
           <ChevronRight
             aria-hidden="true"
             data-slot="tool-call-row-chevron"
             className={cn(
-              "size-3 shrink-0 text-faint transition-transform duration-base ease-out motion-reduce:transition-none",
+              "size-3 shrink-0 text-subtle transition-transform duration-base ease-out motion-reduce:transition-none",
               isExpanded ? "rotate-90 text-muted" : null
             )}
             strokeWidth={1.75}
@@ -272,7 +292,7 @@ function ToolCallRowInner({
           onPointerDown={event => event.stopPropagation()}
         >
           {errorMessage ? (
-            <p data-slot="tool-call-row-error" className="text-small-body text-danger">
+            <p data-slot="tool-call-row-error" className="text-small-body text-muted">
               {errorMessage}
             </p>
           ) : null}

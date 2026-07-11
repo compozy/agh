@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
-  { status: "running", label: "Running", tone: "text-info" },
+  { status: "running", label: "Running", tone: "text-muted" },
   { status: "failed", label: "Error", tone: "text-danger" },
   { status: "success", label: "Done", tone: "text-success" },
-  { status: "empty", label: "Empty", tone: "text-faint" },
+  { status: "empty", label: "Empty", tone: "text-subtle" },
 ];
 
 function classesOf(root: Element): string[] {

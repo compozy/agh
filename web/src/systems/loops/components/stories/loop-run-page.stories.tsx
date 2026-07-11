@@ -111,6 +111,7 @@ const liveState: LoopRunLiveState = {
     ],
   },
   tokensUsed: null,
+  goalTurns: [],
 };
 
 interface RunPageProps {

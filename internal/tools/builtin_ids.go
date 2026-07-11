@@ -256,6 +256,10 @@ const (
 	ToolIDHooksEnable ToolID = "agh__hooks_enable"
 	// ToolIDHooksDisable disables one config-backed hook declaration.
 	ToolIDHooksDisable ToolID = "agh__hooks_disable"
+	// ToolIDGoalGet reads the visible Goal projection for the caller session.
+	ToolIDGoalGet ToolID = "agh__goal_get"
+	// ToolIDGoalReport records one prompt-bound Goal completion or blocker intent.
+	ToolIDGoalReport ToolID = "agh__goal_report"
 	// ToolIDLoopList lists Loop definitions available in a workspace.
 	ToolIDLoopList ToolID = "agh__loop_list"
 	// ToolIDLoopInspect reads one Loop definition and authoring contract.
@@ -270,6 +274,8 @@ const (
 	ToolIDLoopStatus ToolID = "agh__loop_status"
 	// ToolIDLoopRuns lists workspace-scoped Loop runs.
 	ToolIDLoopRuns ToolID = "agh__loop_runs"
+	// ToolIDLoopTurns lists one Loop run's total-order Goal turn audit.
+	ToolIDLoopTurns ToolID = "agh__loop_turns"
 	// ToolIDLoopStop stops one active Loop run.
 	ToolIDLoopStop ToolID = "agh__loop_stop"
 	// ToolIDLoopPause pauses one running Loop at a generation boundary.

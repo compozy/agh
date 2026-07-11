@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -1272,14 +1274,24 @@ func TestGlobalDBTaskNeedsAttentionAndWakeCreator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ClearTaskNeedsAttention() error = %v", err)
 		}
-		if cleared.NeedsAttention != nil {
-			t.Fatalf("cleared NeedsAttention = %#v, want nil", cleared.NeedsAttention)
+		if cleared.Task.NeedsAttention != nil {
+			t.Fatalf("cleared NeedsAttention = %#v, want nil", cleared.Task.NeedsAttention)
 		}
-		if cleared.WakeCreator {
+		if cleared.Task.WakeCreator {
 			t.Fatal("WakeCreator = true after attention clear, want unchanged false")
 		}
-		if !cleared.UpdatedAt.Equal(clearedAt) {
-			t.Fatalf("UpdatedAt after attention clear = %v, want %v", cleared.UpdatedAt, clearedAt)
+		if !cleared.Task.UpdatedAt.Equal(clearedAt) {
+			t.Fatalf("UpdatedAt after attention clear = %v, want %v", cleared.Task.UpdatedAt, clearedAt)
+		}
+		if got, want := cleared.Event.Event.EventType, string(hookspkg.HookTaskRecovered); got != want {
+			t.Fatalf("recovered event type = %q, want %q", got, want)
+		}
+		persistedEvent, err := globalDB.GetTaskEventRecord(ctx, cleared.Event.Event.ID)
+		if err != nil {
+			t.Fatalf("GetTaskEventRecord(recovered) error = %v", err)
+		}
+		if !reflect.DeepEqual(persistedEvent, cleared.Event) {
+			t.Fatalf("persisted recovered event = %#v, want %#v", persistedEvent, cleared.Event)
 		}
 		_, err = globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
 			Origin:    operatorActorContextForTest("operator").Origin,

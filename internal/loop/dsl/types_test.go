@@ -56,11 +56,18 @@ func TestEnumsShouldClassifyLoopKinds(t *testing.T) {
 		t.Parallel()
 
 		reserved := dsl.ReservedActionKinds()
-		if len(reserved) != 3 {
-			t.Fatalf("ReservedActionKinds() len = %d, want 3", len(reserved))
+		if len(reserved) != 4 {
+			t.Fatalf("ReservedActionKinds() len = %d, want 4", len(reserved))
 		}
-		if !dsl.IsReservedActionKind(string(dsl.ActionRunAgent)) {
-			t.Fatalf("IsReservedActionKind(%q) = false, want true", dsl.ActionRunAgent)
+		for _, kind := range []dsl.ActionKind{
+			dsl.ActionRunAgent,
+			dsl.ActionRunLoop,
+			dsl.ActionTransform,
+			dsl.ActionGoal,
+		} {
+			if !dsl.IsReservedActionKind(string(kind)) {
+				t.Fatalf("IsReservedActionKind(%q) = false, want true", kind)
+			}
 		}
 		if dsl.IsReservedActionKind("agh__tool_info") {
 			t.Fatal("IsReservedActionKind(open ToolID) = true, want false")
@@ -149,6 +156,66 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 		}
 		if transformParams.Map["summary"].Template == "" {
 			t.Fatalf("TransformParams.Map = %#v, want summary template", transformParams.Map)
+		}
+	})
+
+	t.Run("Should decode goal params and continuous retry fields", func(t *testing.T) {
+		t.Parallel()
+
+		goal := dsl.NodeParams{
+			"agent":        "codex",
+			"objective":    "Make verification pass",
+			"judge":        []any{map[string]any{"id": "verify", "type": "command", "check": "make verify"}},
+			"max_turns":    12,
+			"on_exhausted": "escalate",
+			"output_schema": map[string]any{
+				"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
+			},
+		}
+		var params dsl.GoalParams
+		if err := goal.Decode(&params); err != nil {
+			t.Fatalf("Decode(GoalParams) error = %v", err)
+		}
+		if params.Agent != "codex" || params.Objective != "Make verification pass" {
+			t.Fatalf("GoalParams = %#v, want decoded agent/objective", params)
+		}
+		if len(params.Judge) != 1 || params.Judge[0].Check != "make verify" {
+			t.Fatalf("GoalParams.Judge = %#v, want command check", params.Judge)
+		}
+		if params.OutputSchema == nil {
+			t.Fatal("GoalParams.OutputSchema = nil, want decoded schema")
+		}
+
+		session := dsl.SessionSpec{Mode: "continuous"}
+		retry := dsl.RetrySpec{MaxAttempts: 2, OnFailure: "fresh_session"}
+		if session.Mode != "continuous" || retry.OnFailure != "fresh_session" {
+			t.Fatalf("session/retry = %#v/%#v, want continuous fresh_session", session, retry)
+		}
+	})
+
+	t.Run("Should derive fixed continuous goal handles", func(t *testing.T) {
+		t.Parallel()
+
+		implicit, err := dsl.DeriveGoalHandle("converge_fix", "", 0)
+		if err != nil {
+			t.Fatalf("DeriveGoalHandle(implicit) error = %v", err)
+		}
+		explicit, err := dsl.DeriveGoalHandle("converge_fix", "  primary  ", 1)
+		if err != nil {
+			t.Fatalf("DeriveGoalHandle(explicit) error = %v", err)
+		}
+		if len(implicit) != len("goal:")+64 || !strings.HasPrefix(implicit, "goal:") {
+			t.Fatalf("implicit handle = %q, want fixed goal sha256 form", implicit)
+		}
+		if implicit == explicit {
+			t.Fatalf("handles = %q, want item/label-specific identities", implicit)
+		}
+		repeated, err := dsl.DeriveGoalHandle("converge_fix", "primary", 1)
+		if err != nil {
+			t.Fatalf("DeriveGoalHandle(repeated) error = %v", err)
+		}
+		if repeated != explicit {
+			t.Fatalf("trimmed handle = %q, want %q", repeated, explicit)
 		}
 	})
 }

@@ -58,6 +58,12 @@ type NeedsAttentionClearMutation struct {
 	Origin    Origin        `json:"origin"`
 }
 
+// NeedsAttentionClearResult is the task projection and exact audit record committed by one clear.
+type NeedsAttentionClearResult struct {
+	Task  Task        `json:"task"`
+	Event EventRecord `json:"event"`
+}
+
 // WakeCreatorMutation captures the per-task creator-wake opt-in flag.
 type WakeCreatorMutation struct {
 	TaskID      string    `json:"task_id"`

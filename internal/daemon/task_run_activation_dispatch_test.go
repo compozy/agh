@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
@@ -67,6 +68,96 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 		if got, want := roles.runIDs(), []string{"run-plain-worker"}; !slices.Equal(got, want) {
 			t.Fatalf("role observer run IDs = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should route a committed Goal successor through the live dispatcher without restart", func(t *testing.T) {
+		t.Parallel()
+
+		run := activationDispatchRun("run-goal-successor", taskpkg.RunKindWorker, "loop-run-1")
+		store := newActivationDispatchStore(run)
+		loops := &activationDispatchObserver{}
+		dispatcher, err := newTaskRunActivationDispatcher(store, nil, loops, nil)
+		if err != nil {
+			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
+		}
+		state := &bootState{tasks: &taskRuntime{}}
+		state.tasks.activation.Store(dispatcher)
+
+		(loopGoalRunActivator{state: state}).ActivateGoalRun(context.Background(), run)
+
+		if got, want := loops.runIDs(), []string{"run-goal-successor"}; !slices.Equal(got, want) {
+			t.Fatalf("loop observer run IDs = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve Goal identity across initial successor and boot activation", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name     string
+			runID    string
+			epoch    int64
+			activate func(*taskRunActivationDispatcher, taskpkg.Run)
+		}{
+			{
+				name: "initial", runID: "run-goal-initial", epoch: 1,
+				activate: func(dispatcher *taskRunActivationDispatcher, run taskpkg.Run) {
+					dispatcher.OnTaskRunEnqueued(context.Background(), activationDispatchPayload(run))
+				},
+			},
+			{
+				name: "live successor", runID: "run-goal-successor-identity", epoch: 2,
+				activate: func(dispatcher *taskRunActivationDispatcher, run taskpkg.Run) {
+					state := &bootState{tasks: &taskRuntime{}}
+					state.tasks.activation.Store(dispatcher)
+					(loopGoalRunActivator{state: state}).ActivateGoalRun(context.Background(), run)
+				},
+			},
+			{
+				name: "boot recovered", runID: "run-goal-recovered", epoch: 3,
+				activate: func(dispatcher *taskRunActivationDispatcher, _ taskpkg.Run) {
+					dispatcher.Recover(context.Background())
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should activate "+tc.name+" through the ordinary dispatcher", func(t *testing.T) {
+				t.Parallel()
+
+				run := activationDispatchGoalRun(t, tc.runID, "loop-run-goal", tc.epoch)
+				store := newActivationDispatchStore(run)
+				loops := &activationDispatchObserver{}
+				dispatcher, err := newTaskRunActivationDispatcher(store, nil, loops, nil)
+				if err != nil {
+					t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
+				}
+
+				tc.activate(dispatcher, run)
+
+				payloads := loops.payloadSnapshot()
+				if len(payloads) != 1 {
+					t.Fatalf("Goal activation payloads = %#v, want one", payloads)
+				}
+				payload := payloads[0]
+				if payload.RunKind == nil || *payload.RunKind != taskpkg.RunKindWorker.String() ||
+					payload.LoopRunID != run.LoopRunID || payload.RunID != run.ID {
+					t.Fatalf("Goal activation payload = %#v", payload)
+				}
+				persisted, err := store.GetTaskRun(context.Background(), run.ID)
+				if err != nil {
+					t.Fatalf("GetTaskRun() error = %v", err)
+				}
+				var metadata activationGoalRunMetadata
+				if err := json.Unmarshal(persisted.Metadata, &metadata); err != nil {
+					t.Fatalf("decode Goal activation metadata error = %v", err)
+				}
+				if persisted.RunKind.Normalize() != taskpkg.RunKindWorker || !persisted.IsLoopWorker() ||
+					metadata.Generation != 1 || metadata.NodeID != "converge" ||
+					metadata.ItemIndex != 0 || metadata.GoalSegmentEpoch != tc.epoch {
+					t.Fatalf("persisted Goal activation = %#v metadata = %#v", persisted, metadata)
+				}
+			})
 		}
 	})
 
@@ -212,6 +303,12 @@ func (o *activationDispatchObserver) runIDs() []string {
 	return ids
 }
 
+func (o *activationDispatchObserver) payloadSnapshot() []hookspkg.TaskRunEnqueuedPayload {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]hookspkg.TaskRunEnqueuedPayload(nil), o.payloads...)
+}
+
 func activationDispatchRun(id string, kind taskpkg.RunKind, loopRunID string) taskpkg.Run {
 	return taskpkg.Run{
 		ID:        id,
@@ -220,4 +317,29 @@ func activationDispatchRun(id string, kind taskpkg.RunKind, loopRunID string) ta
 		RunKind:   kind,
 		LoopRunID: loopRunID,
 	}
+}
+
+func activationDispatchGoalRun(
+	t *testing.T,
+	id string,
+	loopRunID string,
+	epoch int64,
+) taskpkg.Run {
+	t.Helper()
+	metadata, err := json.Marshal(activationGoalRunMetadata{
+		Generation: 1, NodeID: "converge", ItemIndex: 0, GoalSegmentEpoch: epoch,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(Goal metadata) error = %v", err)
+	}
+	run := activationDispatchRun(id, taskpkg.RunKindWorker, loopRunID)
+	run.Metadata = metadata
+	return run
+}
+
+type activationGoalRunMetadata struct {
+	Generation       int    `json:"generation"`
+	NodeID           string `json:"node_id"`
+	ItemIndex        int    `json:"item_index"`
+	GoalSegmentEpoch int64  `json:"goal_segment_epoch"`
 }

@@ -52,6 +52,11 @@ def write_discovery_script(repo_root: Path, payload: dict) -> None:
 
 def main() -> None:
     module = load_bootstrap_module()
+    repo_root = Path(__file__).resolve().parents[5]
+    loader = module.real_scenario_script(repo_root, "playbook_loader.py")
+    if not loader.is_file():
+        raise AssertionError(f"real-scenario sibling path does not resolve: {loader}")
+
     with tempfile.TemporaryDirectory() as raw_dir:
         repo_root = Path(raw_dir)
         if module.discover_project_contract(repo_root) != {}:

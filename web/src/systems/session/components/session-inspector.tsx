@@ -666,7 +666,7 @@ function MemorySection({ memory }: MemorySectionProps) {
       >
         <div
           data-testid="session-inspector-memory-loading"
-          className="flex items-center gap-2 px-1 py-3 text-xs text-subtle"
+          className="flex items-center gap-2 px-1 py-3 text-small-body text-subtle"
         >
           <Spinner aria-hidden="true" />
           Loading session ledger…
@@ -786,7 +786,7 @@ function SessionLedgerMetaPanel({ meta }: SessionLedgerMetaPanelProps) {
             <MetadataList.Term>{item.label}</MetadataList.Term>
             <MetadataList.Value
               className={cn(
-                "min-w-0 flex-1 break-all text-right text-xs text-fg",
+                "min-w-0 flex-1 break-all text-right text-form-label text-fg",
                 item.mono ? "font-mono text-eyebrow" : null
               )}
               data-testid={`session-inspector-memory-meta-${item.testId}-value`}

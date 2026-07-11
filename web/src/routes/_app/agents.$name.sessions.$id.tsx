@@ -124,6 +124,7 @@ function SessionPageContent({
         ) : null}
         <SessionThread
           sessionId={sessionId}
+          workspaceId={session.workspace_id}
           agentName={agentName}
           canPrompt={controls.canPrompt}
           onCancelPrompt={controls.handleStop}

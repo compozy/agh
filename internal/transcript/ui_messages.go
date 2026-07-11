@@ -55,27 +55,6 @@ type UIMessagePart struct {
 	Preliminary bool            `json:"preliminary,omitempty"`
 }
 
-// UIAgentEventPayload mirrors the prompt-stream data payload shape.
-type UIAgentEventPayload struct {
-	Type       string                `json:"type"`
-	SessionID  string                `json:"session_id,omitempty"`
-	TurnID     string                `json:"turn_id,omitempty"`
-	RequestID  string                `json:"request_id,omitempty"`
-	Timestamp  string                `json:"timestamp,omitempty"`
-	Text       string                `json:"text,omitempty"`
-	Title      string                `json:"title,omitempty"`
-	ToolCallID string                `json:"tool_call_id,omitempty"`
-	StopReason string                `json:"stop_reason,omitempty"`
-	Action     string                `json:"action,omitempty"`
-	Resource   string                `json:"resource,omitempty"`
-	Decision   string                `json:"decision,omitempty"`
-	Error      string                `json:"error,omitempty"`
-	Failure    *store.SessionFailure `json:"failure,omitempty"`
-	Usage      *UITokenUsagePayload  `json:"usage,omitempty"`
-	Runtime    *acp.RuntimeActivity  `json:"runtime,omitempty"`
-	Raw        json.RawMessage       `json:"raw,omitempty"`
-}
-
 // UITokenUsagePayload mirrors the prompt-stream token usage payload.
 type UITokenUsagePayload struct {
 	TurnID           string   `json:"turn_id,omitempty"`
@@ -114,33 +93,6 @@ type uiMessageBuilder struct {
 
 type uiToolLifecycle struct {
 	input json.RawMessage
-}
-
-// UIAgentEventPayloadFromEvent converts an ACP event into the prompt-stream data payload.
-func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
-	event = RedactAgentEvent(event)
-	payload := UIAgentEventPayload{
-		Type:       event.Type,
-		SessionID:  event.SessionID,
-		TurnID:     event.TurnID,
-		RequestID:  event.RequestID,
-		Text:       event.Text,
-		Title:      event.Title,
-		ToolCallID: event.ToolCallID,
-		StopReason: event.StopReason,
-		Action:     event.Action,
-		Resource:   event.Resource,
-		Decision:   event.Decision,
-		Error:      event.Error,
-		Failure:    store.CloneSessionFailure(event.Failure),
-		Usage:      uiTokenUsagePayloadFromUsage(event.Usage),
-		Runtime:    cloneRuntimeActivity(event.Runtime),
-		Raw:        payloadJSONBytes(event.Raw),
-	}
-	if !event.Timestamp.IsZero() {
-		payload.Timestamp = event.Timestamp.UTC().Format(time.RFC3339Nano)
-	}
-	return payload
 }
 
 func uiTokenUsagePayloadFromUsage(usage *acp.TokenUsage) *UITokenUsagePayload {
@@ -503,14 +455,30 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 		return nil
 	}
 	return &UIMessage{
-		ID:   inputMessageID(decoded, role),
-		Role: role,
+		ID:       inputMessageID(decoded, role),
+		Role:     role,
+		Metadata: goalUIMessageMetadata(decoded.agent.Goal),
 		Parts: []UIMessagePart{{
 			Type:  uiPartText,
 			Text:  decoded.parsed.Text,
 			State: uiPartStateDone,
 		}},
 	}
+}
+
+func goalUIMessageMetadata(goal *acp.GoalPromptMeta) json.RawMessage {
+	normalized := acp.CloneGoalPromptMeta(goal)
+	if normalized == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(struct {
+		Goal *acp.GoalPromptMeta `json:"goal"`
+	}{Goal: normalized})
+	if err != nil {
+		// GoalPromptMeta contains only JSON-safe scalar fields; this branch is defensive.
+		return nil
+	}
+	return json.RawMessage(encoded)
 }
 
 func runtimeMarkerUIMessage(decoded *decodedStoredEvent, markerText string) UIMessage {
@@ -627,6 +595,7 @@ func fallbackAgentEvent(parsed event, storedEvent store.SessionEvent) acp.AgentE
 			event.Decision = nestedString(payload, "decision")
 			event.Error = firstNonEmpty(nestedString(payload, "error"), event.Error)
 			event.StopReason = nestedString(payload, "stop_reason")
+			event.PromptStopReason = acp.PromptStopReason(nestedString(payload, "prompt_stop_reason"))
 		}
 	}
 

@@ -13,6 +13,7 @@ import {
   type StableSessionRowsState,
 } from "../session-timeline.logic";
 import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
+import type { GoalPromptMeta } from "@/systems/session/types";
 
 // A turn is "working" while it streams: assistant-ui marks the message status
 // `running`, and/or a part is still live — a text/reasoning part in a streaming
@@ -97,6 +98,40 @@ function interruptedTurnIds(
   return ids.size > 0 ? ids : undefined;
 }
 
+function goalPromptMeta(content: unknown): GoalPromptMeta | null {
+  if (!Array.isArray(content)) return null;
+  for (const part of content) {
+    if (!isRecord(part) || !isAghEventPart(part) || !isRecord(part.data)) continue;
+    const goal = part.data.goal;
+    if (!isRecord(goal)) continue;
+    const kind = stringField(goal, "kind");
+    const runId = stringField(goal, "run_id");
+    const nodeId = stringField(goal, "node_id");
+    const promptId = stringField(goal, "prompt_id");
+    if (
+      (kind !== "goal-work" && kind !== "goal-continuation" && kind !== "goal-compaction") ||
+      !runId ||
+      !nodeId ||
+      !promptId
+    ) {
+      continue;
+    }
+    const numberField = (key: string) =>
+      typeof goal[key] === "number" && Number.isFinite(goal[key]) ? goal[key] : 0;
+    return {
+      kind,
+      run_id: runId,
+      node_id: nodeId,
+      generation: numberField("generation"),
+      item_index: numberField("item_index"),
+      turn: typeof goal.turn === "number" && Number.isFinite(goal.turn) ? goal.turn : null,
+      prompt_attempt: numberField("prompt_attempt"),
+      prompt_id: promptId,
+    };
+  }
+  return null;
+}
+
 /**
  * Toggles a disclosure while preserving the reader's viewport anchor: it measures
  * the scroll container before the synchronous state flush, then corrects
@@ -131,6 +166,7 @@ export function useAssistantMessageTimeline() {
       ),
     [message.content, message.id]
   );
+  const goal = useMemo(() => goalPromptMeta(message.content), [message.content]);
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Set<string>>(() => new Set());
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(() => new Set());
   const [expandedChangedFiles, setExpandedChangedFiles] = useState<Set<string>>(() => new Set());
@@ -197,6 +233,7 @@ export function useAssistantMessageTimeline() {
     expandedTurns,
     expandedWorkGroups,
     rows,
+    goal,
     toggleChangedFiles,
     toggleTurn,
     toggleWorkGroup,
@@ -204,6 +241,7 @@ export function useAssistantMessageTimeline() {
     expandedTurns: ReadonlySet<string>;
     expandedWorkGroups: ReadonlySet<string>;
     rows: SessionRow[];
+    goal: GoalPromptMeta | null;
     toggleChangedFiles: (rowId: string, button: HTMLElement | null) => void;
     toggleTurn: (turnId: string, button: HTMLElement | null) => void;
     toggleWorkGroup: (groupId: string, button: HTMLElement | null) => void;

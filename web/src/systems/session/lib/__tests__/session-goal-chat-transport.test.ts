@@ -1,0 +1,113 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { createGoalAwareFetch } from "../session-goal-chat-transport";
+import type { SessionGoalCommandResult } from "../../types";
+
+function result(
+  outcome: SessionGoalCommandResult["outcome"],
+  reasonCode: SessionGoalCommandResult["reason_code"] = null
+): SessionGoalCommandResult {
+  return {
+    outcome,
+    reason_code: reasonCode,
+    replaced_run_id: null,
+    snapshot: null,
+  };
+}
+
+describe("createGoalAwareFetch", () => {
+  it.each([
+    ["started", null],
+    ["status", null],
+    ["error", "goal_replace_required"],
+  ] as const)(
+    "Should settle the %s structured outcome without AI stream decoding",
+    async (outcome, reason) => {
+      const payload = result(outcome, reason);
+      const source = vi.fn(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            status: outcome === "error" ? 409 : outcome === "started" ? 202 : 200,
+            headers: { "content-type": "application/json; charset=utf-8" },
+          })
+      );
+      const onResult = vi.fn();
+      const goalFetch = createGoalAwareFetch({ fetch: source, onResult });
+
+      const response = await goalFetch("/prompt", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [{ role: "user", parts: [{ type: "text", text: "/goal ship it" }] }],
+        }),
+      });
+
+      expect(onResult).toHaveBeenCalledWith(payload, "/goal ship it");
+      if (outcome === "error") {
+        expect(response.status).toBe(409);
+        expect(response.headers.get("content-type")).toContain("text/plain");
+        await expect(response.text()).resolves.toBe("goal_replace_required");
+        return;
+      }
+
+      expect(response.headers.get("content-type")).toBe("text/event-stream");
+      const stream = await response.text();
+      expect(stream).toContain('"type":"start"');
+      expect(stream).toContain('"type":"finish"');
+      expect(stream).not.toContain('"outcome"');
+    }
+  );
+
+  it("Should preserve direct message text for a structured replacement result", async () => {
+    const payload = result("replaced");
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            headers: { "content-type": "application/problem+json" },
+          })
+      ),
+      onResult,
+    });
+
+    await goalFetch("/prompt", {
+      method: "POST",
+      body: JSON.stringify({ message: "/goal replace run_1 ship it" }),
+    });
+    expect(onResult).toHaveBeenCalledWith(payload, "/goal replace run_1 ship it");
+  });
+
+  it("Should return normal and draft streams untouched", async () => {
+    const normal = new Response("data: normal\n\n", {
+      headers: { "content-type": "text/event-stream" },
+    });
+    const draft = new Response("data: draft\n\n", {
+      headers: { "content-type": "text/event-stream" },
+    });
+    const source = vi.fn().mockResolvedValueOnce(normal).mockResolvedValueOnce(draft);
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({ fetch: source, onResult });
+
+    await expect(goalFetch("/prompt", { method: "POST" })).resolves.toBe(normal);
+    await expect(
+      goalFetch("/prompt", {
+        method: "POST",
+        body: JSON.stringify({ message: "/goal draft expand this" }),
+      })
+    ).resolves.toBe(draft);
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
+  it("Should leave unrelated JSON responses untouched", async () => {
+    const response = new Response(JSON.stringify({ prompt: { status: "queued" } }), {
+      headers: { "content-type": "application/json" },
+    });
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({ fetch: vi.fn(async () => response), onResult });
+
+    await expect(goalFetch("/prompt", { method: "POST", body: "not-json" })).resolves.toBe(
+      response
+    );
+    expect(onResult).not.toHaveBeenCalled();
+  });
+});

@@ -107,7 +107,11 @@ describe("SessionCreateDialog", () => {
   it("Should render the runtime selector wired to the selected provider", () => {
     renderDialog();
 
-    expect(screen.getByTestId("session-create-dialog").className).toContain("sm:max-w-xl");
+    expect(screen.getByTestId("session-create-dialog").className).toContain(
+      "sm:max-w-(--width-modal-sm)"
+    );
+    expect(screen.getByTestId("session-create-dialog").className).not.toContain("sm:max-w-120");
+
     const trigger = screen.getByTestId("session-create-runtime-select");
     expect(trigger).toHaveTextContent("Claude Code");
     expect(trigger).not.toHaveAttribute("aria-disabled", "true");
@@ -181,7 +185,9 @@ describe("SessionCreateDialog", () => {
 
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
     expect(screen.getByTestId("session-create-providers-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-providers-empty").className).toContain("text-xs");
+    expect(screen.getByTestId("session-create-providers-empty").className).toContain(
+      "text-form-hint"
+    );
   });
 
   it("Should surface providersError when the workspace provider list fails to load", () => {

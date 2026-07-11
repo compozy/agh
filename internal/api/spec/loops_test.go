@@ -4,8 +4,10 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -105,11 +107,27 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
-				name:       "list runs",
-				path:       "/api/workspaces/{workspace_id}/loop-runs",
+				name:     "list runs",
+				path:     "/api/workspaces/{workspace_id}/loop-runs",
+				method:   "GET",
+				statuses: []int{200, 400, 503, 500},
+				parameters: []string{
+					"workspace_id", "loop", "status", "origin", "origin_session", "live", "limit",
+				},
+			},
+			{
+				name:       "list goal turns",
+				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns",
 				method:     "GET",
-				statuses:   []int{200, 400, 503, 500},
-				parameters: []string{"workspace_id", "loop", "status", "limit"},
+				statuses:   []int{200, 400, 404, 422, 503, 500},
+				parameters: []string{"workspace_id", "run_id", "node", "item", "after_seq", "limit"},
+			},
+			{
+				name:       "get session goal",
+				path:       "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
+				method:     "GET",
+				statuses:   []int{200, 400, 404, 503, 500},
+				parameters: []string{"workspace_id", "session_id"},
 			},
 			{
 				name:       "get run",
@@ -164,7 +182,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				assertLoopResponseStatusesExactly(t, operation, tc.statuses)
 				for _, parameter := range tc.parameters {
 					switch parameter {
-					case "workspace_id", "name", "run_id":
+					case "workspace_id", "name", "run_id", "session_id":
 						assertParameter(t, operation, parameter, openapi3.ParameterInPath, true)
 					case "Last-Event-ID":
 						assertParameter(t, operation, parameter, openapi3.ParameterInHeader, false)
@@ -176,12 +194,12 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		}
 
 		stream := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events", "GET")
-		_ = responseSchema(t, stream, 200, "text/event-stream")
+		responseSchema(t, stream, 200, "text/event-stream")
 
 		patchLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}", "PATCH")
 		patchLintSchema := jsonResponseSchema(t, patchLoop, 422)
 		assertRequired(t, patchLintSchema, "valid")
-		_ = propertySchema(t, patchLintSchema, "errors")
+		propertySchema(t, patchLintSchema, "errors")
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
 		assertRequired(t, jsonResponseSchema(t, runLoop, 422), "error")
@@ -216,13 +234,102 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 		createJobSchema := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/jobs", "POST"))
 		assertNotRequired(t, createJobSchema, "target_kind", "loop_target")
-		_ = propertySchema(t, createJobSchema, "target_kind")
+		propertySchema(t, createJobSchema, "target_kind")
 		loopTargetSchema := propertySchema(t, createJobSchema, "loop_target")
 		assertRequired(t, loopTargetSchema, "workspace_id", "loop_name")
 
 		updateTriggerSchema := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/triggers/{id}", "PATCH"))
 		assertNotRequired(t, updateTriggerSchema, "target_kind", "loop_target")
 	})
+
+	t.Run("Should describe structured Goal prompt outcomes beside ordinary prompt results", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		operation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
+			"POST",
+		)
+		assertLoopResponseStatusesExactly(t, operation, []int{
+			200, 202, 400, 404, 409, 413, 422, 500,
+		})
+		for _, status := range []int{200, 202, 404, 409, 422} {
+			schema := jsonResponseSchema(t, operation, status)
+			if len(schema.OneOf) != 2 {
+				t.Fatalf("prompt response %d oneOf = %#v, want two contracts", status, schema.OneOf)
+			}
+			if !slices.ContainsFunc(schema.OneOf, func(ref *openapi3.SchemaRef) bool {
+				return strings.Contains(ref.Ref, "GoalCommandResult") ||
+					(ref.Value != nil && ref.Value.Properties["outcome"] != nil)
+			}) {
+				t.Fatalf("prompt response %d does not include GoalCommandResult: %#v", status, schema.OneOf)
+			}
+			goalResult := promptGoalResultSchema(t, schema)
+			if reasonCode := propertySchema(t, goalResult, "reason_code"); !reasonCode.Nullable {
+				t.Fatalf("prompt response %d reason_code is not nullable", status)
+			}
+			snapshot := propertySchema(t, goalResult, "snapshot")
+			if !snapshot.Nullable {
+				t.Fatalf("prompt response %d snapshot is not nullable", status)
+			}
+			if cause := propertySchema(t, snapshot, "cause"); !cause.Nullable {
+				t.Fatalf("prompt response %d snapshot cause is not nullable", status)
+			}
+			assertEnumValues(
+				t,
+				propertySchema(t, goalResult, "outcome"),
+				"started", "replaced", "status", "paused", "resumed", "cleared", "error",
+			)
+			assertEnumValues(
+				t,
+				propertySchema(t, snapshot, "status"),
+				"active", "paused", "blocked", "usage-limited", "budget-limited", "complete",
+			)
+		}
+	})
+
+	t.Run("Should close Goal turn result, verdict, and ACP stop vocabularies", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		operation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns",
+			"GET",
+		)
+		turns := propertySchema(t, jsonResponseSchema(t, operation, 200), "turns")
+		if turns.Items == nil || turns.Items.Value == nil {
+			t.Fatal("Goal turns response has no item schema")
+		}
+		turn := turns.Items.Value
+		assertEnumValues(t, propertySchema(t, turn, "result_status"),
+			"completed", "invalid-result", "failed", "ambiguous")
+		assertEnumValues(t, propertySchema(t, turn, "verdict_outcome"),
+			"approved", "rejected", "awaiting_approval", "blocked", "error", "timeout", "invalid_output")
+		assertEnumValues(t, propertySchema(t, turn, "stop_reason"),
+			"end_turn", "max_tokens", "max_turn_requests", "refusal",
+			string(contract.ACPStopReasonCancelled))
+	})
+}
+
+func promptGoalResultSchema(t *testing.T, response *openapi3.Schema) *openapi3.Schema {
+	t.Helper()
+	for _, candidate := range response.OneOf {
+		if candidate != nil && candidate.Value != nil && candidate.Value.Properties["outcome"] != nil {
+			return candidate.Value
+		}
+	}
+	t.Fatal("prompt response has no Goal command result schema")
+	return nil
 }
 
 func assertLoopResponseStatusesExactly(t *testing.T, operation *openapi3.Operation, statuses []int) {

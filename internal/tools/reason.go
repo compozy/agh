@@ -80,6 +80,12 @@ const (
 	ReasonApprovalSelfDenied ReasonCode = "approval_self_denied"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
+	// ReasonGoalNotActive reports that no visible or reportable Goal exists for the caller session.
+	ReasonGoalNotActive ReasonCode = "goal_not_active"
+	// ReasonGoalReportConflict reports a report retry whose status or evidence differs.
+	ReasonGoalReportConflict ReasonCode = "goal_report_conflict"
+	// ReasonGoalEvidenceTooLarge reports inline Goal evidence above the public byte limit.
+	ReasonGoalEvidenceTooLarge ReasonCode = "goal_evidence_too_large"
 	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
 	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
@@ -179,6 +185,9 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonApprovalTokenReplayed:          {},
 	ReasonApprovalSelfDenied:             {},
 	ReasonSessionDenied:                  {},
+	ReasonGoalNotActive:                  {},
+	ReasonGoalReportConflict:             {},
+	ReasonGoalEvidenceTooLarge:           {},
 	ReasonMemorySubagentWriteDenied:      {},
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},

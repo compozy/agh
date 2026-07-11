@@ -7,24 +7,28 @@ structured output. Never guess a schema — resolve `agh__tool_info` for the exa
 
 ## The Tool Set And CLI Verbs
 
-Toolset `agh__loops` — 13 native tools. Every tool has a matching `agh loop` verb; the CLI adds one
-verb (`edit`) that has no native tool.
+Toolset `agh__loops` — 16 native tools. Thirteen definition/run controls have matching `agh loop`
+verbs; `agh__loop_turns` maps to `agh loop turns`; the two session-bound Goal tools use the session
+command/native report surfaces. The CLI adds one verb (`edit`) that has no native tool.
 
-| Native tool           | Mode                            | CLI                  | Purpose                                                         |
-| --------------------- | ------------------------------- | -------------------- | --------------------------------------------------------------- |
-| `agh__loop_list`      | read                            | `agh loop list`      | List Loop definitions in the workspace.                         |
-| `agh__loop_inspect`   | read                            | `agh loop inspect`   | Read one definition: inputs, contract, start bindings, version. |
-| `agh__loop_validate`  | read                            | `agh loop validate`  | Lint + compile a definition without saving.                     |
-| `agh__loop_status`    | read                            | `agh loop status`    | Read one run's status with generation detail.                   |
-| `agh__loop_runs`      | read                            | `agh loop runs`      | List runs in the workspace.                                     |
-| `agh__loop_create`    | mutating                        | `agh loop create`    | Create/fork, or CAS-publish when `expected_version` is set.     |
-| `agh__loop_run`       | mutating                        | `agh loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.         |
-| `agh__loop_configure` | mutating                        | `agh loop configure` | Write per-Loop runtime config overrides.                        |
-| `agh__loop_pause`     | mutating                        | `agh loop pause`     | Request a generation-boundary pause.                            |
-| `agh__loop_resume`    | mutating                        | `agh loop resume`    | Resume a paused or pause-requested run.                         |
-| `agh__loop_approve`   | mutating · **capability-gated** | `agh loop approve`   | Apply one human-gate decision.                                  |
-| `agh__loop_stop`      | destructive                     | `agh loop stop`      | Stop one active run.                                            |
-| `agh__loop_delete`    | destructive                     | `agh loop delete`    | Delete a writable workspace definition.                         |
+| Native tool           | Mode                            | CLI                  | Purpose                                                                      |
+| --------------------- | ------------------------------- | -------------------- | ---------------------------------------------------------------------------- |
+| `agh__loop_list`      | read                            | `agh loop list`      | List Loop definitions in the workspace.                                      |
+| `agh__loop_inspect`   | read                            | `agh loop inspect`   | Read one definition: inputs, contract, start bindings, version.              |
+| `agh__loop_validate`  | read                            | `agh loop validate`  | Lint + compile a definition without saving.                                  |
+| `agh__loop_status`    | read                            | `agh loop status`    | Read one run's status with generation detail.                                |
+| `agh__loop_runs`      | read                            | `agh loop runs`      | List runs in the workspace.                                                  |
+| `agh__loop_create`    | mutating                        | `agh loop create`    | Create/fork, or CAS-publish when `expected_version` is set.                  |
+| `agh__loop_run`       | mutating                        | `agh loop run`       | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
+| `agh__loop_configure` | mutating                        | `agh loop configure` | Write per-Loop runtime config overrides.                                     |
+| `agh__loop_pause`     | mutating                        | `agh loop pause`     | Request a generation-boundary pause.                                         |
+| `agh__loop_resume`    | mutating                        | `agh loop resume`    | Resume a paused or pause-requested run.                                      |
+| `agh__loop_approve`   | mutating · **capability-gated** | `agh loop approve`   | Apply one human-gate decision.                                               |
+| `agh__loop_stop`      | destructive                     | `agh loop stop`      | Stop one active run.                                                         |
+| `agh__loop_delete`    | destructive                     | `agh loop delete`    | Delete a writable workspace definition.                                      |
+| `agh__goal_get`       | read · session-scoped           | `/goal status`       | Read the caller session's visible Goal, including terminal-until-clear.      |
+| `agh__goal_report`    | mutating · prompt-scoped        | —                    | Record one current-prompt `complete` or evidenced `blocked` boundary intent. |
+| `agh__loop_turns`     | read                            | `agh loop turns`     | Read a Run's total-order Goal turn audit with cursor and node/item filters.  |
 
 There is **no `agh__loop_edit` native tool**. Agents edit a definition through the authoring loop
 (validate → dry-run → `agh__loop_create` with `expected_version`) or by a filesystem write. The CLI
@@ -62,6 +66,63 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
 New Loops start as a fork (`agh__loop_create` with `fork_from_name`); there is no blank-canvas
 authoring. Read-only sources — including the default `dev-cycle` Loops — must be forked before you
 adapt them.
+
+## Goal Nodes And Session Commands
+
+A Goal is the reserved action `kind: goal`. Its `params` require `agent`, non-empty `objective`, at
+least one supported `judge`, positive `max_turns`, and an `output_schema` whose `status` enum can
+represent `blocked`. `on_exhausted` is `halt` (default) or `escalate`. Goal v1 judges are `command`
+(`check` required), `agent-judge` (rubric/prompt required), or `extension` (tool required); `human`
+is rejected.
+
+Missing `session` compiles to `mode: continuous`. An isolated session is the other valid strategy;
+the two cannot be combined. Operational retry uses `retry.max_attempts`, which counts total
+pre-submission attempts including the first. `on_failure: fresh_session` requires continuous mode
+and at least two attempts. It applies only when AGH proves the prompt effect never started. AGH
+never replays a prompt after durable start; recovery continuation is a new turn.
+
+Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed grammar:
+
+| Command                                       | Effect                                                                                        |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `/goal <objective>`                           | Start one session-origin Goal; an existing Goal returns `goal_replace_required`.              |
+| `/goal replace <expected-run-id> <objective>` | Compare-and-swap replacement; stale identity returns `goal_replace_stale` without mutation.   |
+| `/goal status`                                | Return the newest visible Goal snapshot.                                                      |
+| `/goal pause`                                 | Persist an actor-aware pause and settle at a safe boundary.                                   |
+| `/goal resume`                                | Resume paused work or approve the active synthetic Goal gate.                                 |
+| `/goal clear`                                 | Revoke live work when needed, then hide the newest projection without deleting its audit.     |
+| `/goal draft <text>`                          | Run one idle-only ordinary streaming turn that proposes objective/clauses without activation. |
+
+Internal, automation, network, extension, and synthetic prompts treat `/goal` text literally.
+Draft never queues, steers, interrupts, or consumes a Goal turn; busy admission returns
+`goal_draft_requires_idle`. Lowercase line-oriented `verify:` and `constraints:` clauses become the
+synthetic agent-judge rubric. `verify:` text is never executed as a command.
+
+Use the current snapshot `run_id` for replacement. If `goal_replace_stale` returns a newer snapshot,
+review it before constructing another command. Terminal `blocked` is not resumable; replace with the
+expected current Run ID or clear it.
+
+Goal context is `known`, `unknown`, or `pending`. `known` carries trustworthy reported usage;
+`unknown` has no percentage; `pending` waits for a strictly newer report after compaction. A
+session-origin Goal requires explicit approval before recovery reseeds into a new bound session.
+The origin session remains the Goal owner; use the new `bound_session_id` for ordinary messages.
+Pause/Resume, approval, and reseed each allocate at most one successor control epoch.
+
+The checkpoint-local approval scopes are narrow: turn exhaustion grants
+`turn-extension/turn-limit`; budget crossed after work grants `budget/settle-current` and cannot
+start new work; budget crossed before work grants `budget/work-and-settle` for one candidate turn
+plus closure; reseed grants `reseed/rotate-binding`; pause grants `plain-resume/reactivate`.
+
+`agh__goal_get` follows an active moved-binding alias and remains readable for terminal state until
+clear. `agh__goal_report` accepts `complete` or `blocked`; blocked requires evidence, evidence is
+limited to 16 KiB, and the daemon revalidates the current prompt/control/binding identity. It records
+a durable boundary intent, not immediate completion or proof of provider-side effect uniqueness.
+Retry of the same intent deduplicates; conflict or revoke fails with a stable reason.
+
+`agh__loop_turns` and `agh loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
+optional node/item filters narrow one instance. `agh loop runs --origin session
+--origin-session <id>` isolates conversational Runs. Turn result, reason, stop reason, verdict,
+evidence, usage, and end time remain nullable until durable evidence exists.
 
 ## Terminal Outcomes And Live States
 
@@ -110,7 +171,7 @@ Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status
 snake_case) so the same ID is valid in both surfaces.
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
-`run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
+`goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
 (`agh__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
 Source kinds: `input`, `file-import`, `watch-source`, `watch-events`. A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion.

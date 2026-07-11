@@ -17,12 +17,17 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Title = redactDisplayString(event.Title)
 	redacted.ToolCallID = redactDisplayString(event.ToolCallID)
 	redacted.StopReason = redactDisplayString(event.StopReason)
+	redacted.PromptStopReason = acp.PromptStopReason(redactDisplayString(string(event.PromptStopReason)))
 	redacted.Action = redactDisplayString(event.Action)
 	redacted.Resource = redactDisplayString(event.Resource)
 	redacted.Decision = redactDisplayString(event.Decision)
 	redacted.Error = redactDisplayString(event.Error)
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)
+	redacted.Goal = redactGoalPromptMeta(event.Goal)
+	if event.AvailableCommands != nil {
+		redacted.AvailableCommands = acp.NewAvailableCommandSet(event.AvailableCommands.Values())
+	}
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
@@ -39,12 +44,14 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.ToolInput = redactRawMessage(payload.ToolInput)
 	payload.ToolResult = redactTranscriptToolResult(payload.ToolResult)
 	payload.StopReason = redactDisplayString(payload.StopReason)
+	payload.PromptStopReason = acp.PromptStopReason(redactDisplayString(string(payload.PromptStopReason)))
 	payload.Action = redactDisplayString(payload.Action)
 	payload.Resource = redactDisplayString(payload.Resource)
 	payload.Decision = redactDisplayString(payload.Decision)
 	payload.Error = redactDisplayString(payload.Error)
 	payload.Failure = redactSessionFailure(payload.Failure)
 	payload.Synthetic = redactPromptSyntheticMeta(payload.Synthetic)
+	payload.Goal = redactGoalPromptMeta(payload.Goal)
 	payload.Runtime = redactRuntimeActivity(payload.Runtime)
 	payload.Raw = redactRawMessage(payload.Raw)
 }
@@ -108,7 +115,19 @@ func redactPromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSynthet
 	redacted.Reason = redactDisplayString(redacted.Reason)
 	redacted.Summary = redactDisplayString(redacted.Summary)
 	redacted.WakeEventID = redactDisplayString(redacted.WakeEventID)
+	redacted.Goal = redactGoalPromptMeta(redacted.Goal)
 	return &redacted
+}
+
+func redactGoalPromptMeta(meta *acp.GoalPromptMeta) *acp.GoalPromptMeta {
+	redacted := acp.CloneGoalPromptMeta(meta)
+	if redacted == nil {
+		return nil
+	}
+	redacted.RunID = redactDisplayString(redacted.RunID)
+	redacted.NodeID = redactDisplayString(redacted.NodeID)
+	redacted.PromptID = redactDisplayString(redacted.PromptID)
+	return redacted
 }
 
 func redactRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {

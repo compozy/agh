@@ -110,6 +110,47 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	})
 }
 
+func TestSessionDBAppendEventIfAbsent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return an identical existing event and reject an ID collision", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-idempotent-event")
+		event := SessionEvent{
+			ID: "goal-snapshot:event-1", TurnID: "goal-snapshot:sess-idempotent-event",
+			Type: "goal_snapshot_changed", AgentName: "system",
+			Content:   `{"session_id":"sess-idempotent-event","revision":1}`,
+			Timestamp: time.Date(2026, 7, 10, 18, 30, 0, 0, time.UTC),
+		}
+		first, err := sessionDB.AppendEventIfAbsent(ctx, event)
+		if err != nil {
+			t.Fatalf("AppendEventIfAbsent(first) error = %v", err)
+		}
+		second, err := sessionDB.AppendEventIfAbsent(ctx, event)
+		if err != nil {
+			t.Fatalf("AppendEventIfAbsent(identical) error = %v", err)
+		}
+		if first.ID != second.ID || first.Sequence != 1 || second.Sequence != 1 ||
+			first.Content != second.Content || !first.Timestamp.Equal(second.Timestamp) {
+			t.Fatalf("idempotent events = %#v / %#v", first, second)
+		}
+		collision := event
+		collision.Content = `{"session_id":"sess-idempotent-event","revision":2}`
+		if _, err := sessionDB.AppendEventIfAbsent(ctx, collision); !errors.Is(err, ErrEventIdentityCollision) {
+			t.Fatalf("AppendEventIfAbsent(collision) error = %v, want %v", err, ErrEventIdentityCollision)
+		}
+		stored, err := sessionDB.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if len(stored) != 1 || stored[0].Content != event.Content {
+			t.Fatalf("stored events = %#v, want one original event", stored)
+		}
+	})
+}
+
 func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
 	t.Parallel()
 

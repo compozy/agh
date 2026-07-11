@@ -13,9 +13,11 @@ interface LoopEditorCriteriaProps {
   onChange: (criteria: Criterion[]) => void;
   suggestions?: readonly LoopReferenceSuggestion[];
   disabled?: boolean;
+  allowedTypes?: readonly CriterionType[];
 }
 
 const CRITERION_TYPES = ["command", "agent-judge", "human", "extension"] as const;
+type CriterionType = (typeof CRITERION_TYPES)[number];
 
 function asCriteria(value: unknown): Criterion[] {
   return Array.isArray(value)
@@ -47,6 +49,7 @@ export function LoopEditorCriteria({
   onChange,
   suggestions = [],
   disabled = false,
+  allowedTypes = CRITERION_TYPES,
 }: LoopEditorCriteriaProps) {
   const criteria = asCriteria(value);
 
@@ -88,6 +91,7 @@ export function LoopEditorCriteria({
             criterion={criterion}
             disabled={disabled}
             suggestions={suggestions}
+            allowedTypes={allowedTypes}
             onChange={patch => update(index, patch)}
           />
         </div>
@@ -113,12 +117,19 @@ interface CriterionBodyProps {
   disabled: boolean;
   suggestions: readonly LoopReferenceSuggestion[];
   onChange: (patch: Record<string, unknown>) => void;
+  allowedTypes: readonly CriterionType[];
 }
 
 const fieldClass =
   "w-full rounded-md border border-line bg-elevated px-2.5 py-1.5 font-mono text-[12px] text-fg outline-none placeholder:text-faint focus:border-line-strong";
 
-function CriterionBody({ criterion, disabled, suggestions, onChange }: CriterionBodyProps) {
+function CriterionBody({
+  criterion,
+  disabled,
+  suggestions,
+  onChange,
+  allowedTypes,
+}: CriterionBodyProps) {
   const type = str(criterion.type) || "command";
   return (
     <div className="flex flex-col gap-2">
@@ -128,7 +139,7 @@ function CriterionBody({ criterion, disabled, suggestions, onChange }: Criterion
         onChange={event => onChange({ type: event.target.value })}
         aria-label="Criterion type"
       >
-        {CRITERION_TYPES.map(option => (
+        {allowedTypes.map(option => (
           <NativeSelectOption key={option} value={option}>
             {option}
           </NativeSelectOption>
