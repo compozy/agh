@@ -1522,7 +1522,7 @@ func pathAgentName(c *gin.Context) string {
 	if c == nil {
 		return ""
 	}
-	return firstNonEmpty(c.Param("name"), c.Param("agent_name"))
+	return strings.TrimSpace(c.Param("name"))
 }
 
 func authoredRouteAgentName(pathName string) (string, error) {

@@ -48,7 +48,7 @@ function activeSession(id = "sess-1"): SessionPayload {
 }
 
 function Harness({ eligible = true }: { eligible?: boolean }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>("sess-1");
   return (
     <AgentHeartbeatOps
       status={status(eligible)}
@@ -70,7 +70,7 @@ function Harness({ eligible = true }: { eligible?: boolean }) {
 const mockWake = vi.fn();
 
 describe("AgentHeartbeatOps", () => {
-  it("Should select the sole active session and wake only when health says it is eligible", async () => {
+  it("Should wake the selected active session only when health says it is eligible", async () => {
     const user = userEvent.setup();
     mockWake.mockReset();
     render(<Harness />);

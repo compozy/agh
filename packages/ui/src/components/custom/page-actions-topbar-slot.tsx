@@ -40,7 +40,7 @@ function PageActionsTopbarSlot({
   saveBlockedCaption,
   saveLabel = "Save changes",
   discardLabel = "Discard",
-  savingLabel = "Saving...",
+  savingLabel = "Saving…",
   className,
   ...props
 }: PageActionsTopbarSlotProps) {

@@ -152,4 +152,27 @@ describe("useAgentInstructionsTab", () => {
     expect(mocks.heartbeatHistoryRefetch).toHaveBeenCalled();
     expect(mocks.statusRefetch).toHaveBeenCalled();
   });
+
+  it("Should derive the sole active wake target and discard a selection that leaves the active set", () => {
+    const first = { ...primarySessionFixture, id: "sess-first", state: "active" as const };
+    const second = { ...primarySessionFixture, id: "sess-second", state: "active" as const };
+    const third = { ...primarySessionFixture, id: "sess-third", state: "active" as const };
+    const { result, rerender } = renderHook(
+      ({ sessions }) =>
+        useAgentInstructionsTab({
+          agent: primaryAgentFixture,
+          file: "heartbeat",
+          workspaceId: "ws-test",
+          sessions,
+        }),
+      { initialProps: { sessions: [first] } }
+    );
+
+    expect(result.current.heartbeat.wakeSessionId).toBe("sess-first");
+
+    act(() => result.current.heartbeat.setWakeSessionId("sess-first"));
+    rerender({ sessions: [second, third] });
+
+    expect(result.current.heartbeat.wakeSessionId).toBeNull();
+  });
 });

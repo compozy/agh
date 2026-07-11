@@ -83,6 +83,9 @@ Use structured CLI output for agent lifecycle work:
     agh agent duplicate <source> <new-name> --workspace <ref> [--scope global|workspace] [overrides] -o json
     agh agent delete <name> --workspace <ref> --yes -o json
 
+Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. On update,
+providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
+
 `update` replaces the complete definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 
 `duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.

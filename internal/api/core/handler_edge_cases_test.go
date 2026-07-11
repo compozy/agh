@@ -985,6 +985,9 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				if !query.Resumable {
 					t.Fatalf("resumable query = false, want true")
 				}
+				if query.AgentName != "coder" {
+					t.Fatalf("agent query = %q, want coder", query.AgentName)
+				}
 				return session.ListPage{Sessions: []*session.Info{
 					{
 						ID:          "sess-user",
@@ -1014,7 +1017,13 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?resumable=true", nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions?resumable=true&agent=coder",
+			nil,
+		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"list resumable sessions status = %d, want %d; body=%s",

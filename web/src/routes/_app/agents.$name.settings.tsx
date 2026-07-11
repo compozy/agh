@@ -25,7 +25,7 @@ const SECTION_LABELS: Record<AgentSettingsSection, string> = {
   instructions: "Instructions",
   access: "Access",
   mcp: "MCP servers",
-  danger: "Danger",
+  danger: "Danger zone",
 };
 
 export const Route = createFileRoute("/_app/agents/$name/settings")({

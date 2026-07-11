@@ -20,10 +20,11 @@ export interface AgentPageStatusPillProps {
 export function AgentPageStatusPill({ activeCount }: AgentPageStatusPillProps) {
   const status =
     activeCount > 0
-      ? { label: "ACTIVE", tone: "success" as const }
-      : { label: "IDLE", tone: "neutral" as const };
+      ? { label: "Active", tone: "success" as const }
+      : { label: "Idle", tone: "neutral" as const };
   return (
-    <Pill mono tone={status.tone} data-testid="agent-page-header-status">
+    <Pill tone={status.tone} data-testid="agent-page-header-status">
+      <Pill.Dot tone={status.tone} size="sm" />
       {status.label}
     </Pill>
   );
@@ -81,7 +82,7 @@ export function AgentPageActions({
       </Button>
       <Button
         type="button"
-        variant="ghost"
+        variant="neutral"
         size="sm"
         onClick={onEditSettings}
         data-testid="agent-page-edit-settings"

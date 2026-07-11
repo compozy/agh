@@ -5,14 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentPageActions, AgentPageMeta, AgentPageStatusPill } from "../agent-page-header";
 
 describe("AgentPageStatusPill", () => {
-  it("Should show ACTIVE when any session is active", () => {
+  it("Should show Active when the exact active count is positive", () => {
     render(<AgentPageStatusPill activeCount={1} />);
-    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("ACTIVE");
+    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("Active");
   });
 
-  it("Should show IDLE when no sessions are active", () => {
+  it("Should show Idle when the exact active count is zero", () => {
     render(<AgentPageStatusPill activeCount={0} />);
-    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("IDLE");
+    expect(screen.getByTestId("agent-page-header-status")).toHaveTextContent("Idle");
   });
 });
 

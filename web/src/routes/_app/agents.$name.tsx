@@ -1,6 +1,15 @@
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 import { AlertCircle, Compass, User2 } from "lucide-react";
-import { Button, Empty, LaneTabs, Skeleton, useTopbarSlot, type LaneTabsItem } from "@agh/ui";
+
+import {
+  Button,
+  Empty,
+  LaneTabs,
+  Skeleton,
+  TabsContent,
+  useTopbarSlot,
+  type LaneTabsItem,
+} from "@agh/ui";
 
 import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
@@ -142,77 +151,77 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
       data-testid="agent-detail-page"
     >
       {page.deleteDialog}
-      <div className="border-b border-line px-6">
-        <LaneTabs
-          ariaLabel="Agent detail panels"
-          className="border-b-0"
-          items={tabItems}
-          onChange={page.setTab}
-          value={search.tab}
-          data-testid="agent-detail-tabs"
-        />
-      </div>
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
-        data-testid="agent-detail-body"
+      <LaneTabs
+        ariaLabel="Agent detail panels"
+        className="min-h-0 flex-1 gap-0"
+        items={tabItems}
+        listClassName="w-full px-6"
+        onChange={page.setTab}
+        value={search.tab}
+        data-testid="agent-detail-tabs"
       >
-        {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
-          <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
-        ) : null}
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5"
+          data-testid="agent-detail-body"
+        >
+          {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
+            <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
+          ) : null}
 
-        {search.tab === "overview" ? (
-          <AgentOverviewTab
-            agent={page.agent}
-            sessions={page.sessions}
-            sessionsTotal={page.sessionsTotal}
-            activeSessionsTotal={page.activeSessionsTotal}
-            resumableSessionsTotal={page.resumableSessionsTotal}
-            lastSessionActivityAt={page.lastSessionActivityAt}
-            sessionsLoading={page.sessionsLoading}
-            sessionsError={page.sessionsError}
-            onViewAllSessions={() => page.setTab("sessions")}
-          />
-        ) : null}
+          <TabsContent value="overview" className="flex flex-col gap-6">
+            <AgentOverviewTab
+              agent={page.agent}
+              sessions={page.sessions}
+              sessionsTotal={page.sessionsTotal}
+              activeSessionsTotal={page.activeSessionsTotal}
+              resumableSessionsTotal={page.resumableSessionsTotal}
+              lastSessionActivityAt={page.lastSessionActivityAt}
+              sessionsLoading={page.sessionsLoading}
+              sessionsError={page.sessionsError}
+              onViewAllSessions={() => page.setTab("sessions")}
+            />
+          </TabsContent>
 
-        {search.tab === "instructions" ? (
-          <AgentInstructionsTab
-            agent={page.agent}
-            file={search.file}
-            onFileChange={page.setFile}
-            onEditAgentPrompt={() => page.onEditSettings("instructions")}
-            workspaceId={activeWorkspaceId}
-            sessions={page.sessions}
-            onNewSession={page.onNewSession}
-          />
-        ) : null}
+          <TabsContent value="instructions" className="flex flex-col gap-6">
+            <AgentInstructionsTab
+              agent={page.agent}
+              file={search.file}
+              onFileChange={page.setFile}
+              onEditAgentPrompt={() => page.onEditSettings("instructions")}
+              workspaceId={activeWorkspaceId}
+              sessions={page.sessions}
+              onNewSession={page.onNewSession}
+            />
+          </TabsContent>
 
-        {search.tab === "configuration" ? (
-          <AgentConfigurationTab
-            agent={page.agent}
-            onEditSection={section => page.onEditSettings(section)}
-          />
-        ) : null}
+          <TabsContent value="configuration" className="flex flex-col gap-6">
+            <AgentConfigurationTab
+              agent={page.agent}
+              onEditSection={section => page.onEditSettings(section)}
+            />
+          </TabsContent>
 
-        {search.tab === "sessions" ? (
-          <AgentSessionsTab
-            agentName={name}
-            sessions={page.sessions}
-            total={page.sessionsTotal}
-            active={page.activeSessionsTotal}
-            resumable={page.resumableSessionsTotal}
-            lastActivityAt={page.lastSessionActivityAt}
-            isLoading={page.sessionsLoading}
-            isError={page.sessionsError}
-            hasMore={page.hasMoreSessions}
-            isLoadingMore={page.isLoadingMoreSessions}
-            onLoadMore={page.onLoadMoreSessions}
-            filter={search.filter}
-            onFilterChange={page.setFilter}
-            onNewSession={page.onNewSession}
-            onClearFilter={() => page.setFilter("all")}
-          />
-        ) : null}
-      </div>
+          <TabsContent value="sessions" className="flex flex-col gap-6">
+            <AgentSessionsTab
+              agentName={name}
+              sessions={page.sessions}
+              total={page.sessionsTotal}
+              active={page.activeSessionsTotal}
+              resumable={page.resumableSessionsTotal}
+              lastActivityAt={page.lastSessionActivityAt}
+              isLoading={page.sessionsLoading}
+              isError={page.sessionsError}
+              hasMore={page.hasMoreSessions}
+              isLoadingMore={page.isLoadingMoreSessions}
+              onLoadMore={page.onLoadMoreSessions}
+              filter={search.filter}
+              onFilterChange={page.setFilter}
+              onNewSession={page.onNewSession}
+              onClearFilter={() => page.setFilter("all")}
+            />
+          </TabsContent>
+        </div>
+      </LaneTabs>
     </div>
   );
 }

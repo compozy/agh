@@ -35,11 +35,11 @@ describe("PageActionsTopbarSlot", () => {
     expect(root?.dataset.dirty).toBe("false");
   });
 
-  it("Should swap the save label to Saving... and disable both buttons while saving", () => {
+  it("Should swap the save label to Saving… and disable both buttons while saving", () => {
     const { container } = render(
       <PageActionsTopbarSlot dirty saving onSave={vi.fn()} onDiscard={vi.fn()} />
     );
-    expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
     const root = container.querySelector<HTMLElement>('[data-slot="page-actions-topbar-slot"]');
     expect(root?.dataset.saving).toBe("true");

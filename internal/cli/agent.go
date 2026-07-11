@@ -44,6 +44,7 @@ const (
 	agentAgentKey          = "agent"
 	agentCategoryKey       = "category"
 	agentCommandKey        = "command"
+	agentDisableSkillFlag  = "disable-skill"
 	agentDisabledSkillsKey = "disabled_skills"
 	agentInfoNameValue     = "info <name>"
 	agentListKey           = "list"

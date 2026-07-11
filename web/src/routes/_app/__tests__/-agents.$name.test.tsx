@@ -212,6 +212,17 @@ describe("Agent detail route", () => {
     expect(slot?.actions).toBeTruthy();
   });
 
+  it("Should associate the active detail tab with its tabpanel", () => {
+    render(<AgentDetailRoute />);
+
+    const tab = screen.getByRole("tab", { name: "Overview" });
+    const panel = screen.getByRole("tabpanel");
+
+    expect(tab).toHaveAttribute("aria-controls", panel.id);
+    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+    expect(panel).toContainElement(screen.getByTestId("agent-overview-tab"));
+  });
+
   it("Should render geometry skeleton while the agent is loading", () => {
     mockUseAgentDetailPage.mockReturnValue(makePage({ agent: undefined, agentLoading: true }));
     render(<AgentDetailRoute />);

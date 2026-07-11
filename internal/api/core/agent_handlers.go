@@ -105,7 +105,7 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	draft, path, err := h.createAgentDraftAndPath(c.Request.Context(), req)
+	draft, path, workspaceID, err := h.createAgentDraftAndPath(c.Request.Context(), req)
 	if err != nil {
 		h.respondError(c, statusForCreateAgentError(err), err)
 		return
@@ -126,18 +126,12 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	}
 	syncStartedAt := time.Now()
 	if err := h.AgentDefinitionSync.Sync(c.Request.Context()); err != nil {
-		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: sync created agent definition: %w", err))
+		syncErr := fmt.Errorf("api: sync created agent definition: %w", err)
+		h.logAgentMutationFailure("create", agent.SourcePath, startedAt, time.Since(syncStartedAt), syncErr)
+		h.respondError(c, http.StatusInternalServerError, syncErr)
 		return
 	}
-	entry := h.agentCatalogEntryFromDef(agent, "")
-	if req.Scope == contract.AgentCreateScopeWorkspace {
-		resolved, err := h.Workspaces.Resolve(c.Request.Context(), req.Workspace)
-		if err != nil {
-			h.respondError(c, StatusForWorkspaceError(err), err)
-			return
-		}
-		entry = h.agentCatalogEntryFromDef(agent, resolved.ID)
-	}
+	entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 	h.logAgentMutation("create", entry, startedAt, time.Since(syncStartedAt))
 	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
 }

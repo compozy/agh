@@ -25,7 +25,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | CH-049 | J-30 / RT-074, RT-075 | Bruno | Feature | Pass | — | — |
 | 2 | CH-050 | J-31 / RT-028, RT-076, RT-077, RT-082 | Sol | Accessibility | Fixed | BUG-0038 | `f7d8a96` |
-| 3 | CH-051 | J-31 / RT-069, RT-078, RT-079, RT-080 | Bruno | Scenario | Fixed | BUG-0035; BUG-0036 | `f7d8a96` |
+| 3 | CH-051 | J-31 + J-32 / RT-069, RT-078, RT-079, RT-080 | Bruno | Scenario | Fixed | BUG-0035; BUG-0036 | `f7d8a96` |
 | 4 | CH-052 | J-32 / RT-029, RT-081 | Ada | Claims | Fixed | BUG-0035 | `f7d8a96` |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`

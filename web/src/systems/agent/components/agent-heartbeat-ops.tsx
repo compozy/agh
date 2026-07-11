@@ -1,5 +1,3 @@
-import { useEffect, useMemo } from "react";
-
 import {
   ActionResultBanner,
   Button,
@@ -41,18 +39,6 @@ export function AgentHeartbeatOps({
   wakeError,
   onNewSession,
 }: AgentHeartbeatOpsProps) {
-  const eligibleIds = useMemo(() => activeSessions.map(session => session.id), [activeSessions]);
-
-  useEffect(() => {
-    if (eligibleIds.length === 1) {
-      onSelectSessionId(eligibleIds[0] ?? null);
-      return;
-    }
-    if (selectedSessionId && !eligibleIds.includes(selectedSessionId)) {
-      onSelectSessionId(null);
-    }
-  }, [eligibleIds, onSelectSessionId, selectedSessionId]);
-
   const minInterval = status?.preferences?.min_interval;
   const activeHours = status?.preferences?.active_hours ?? [];
   const recentWakes = status?.wake_events ?? [];
@@ -112,7 +98,7 @@ export function AgentHeartbeatOps({
 
       <div className="flex flex-col gap-2">
         <p className="eyebrow text-muted">Wake target</p>
-        {eligibleIds.length === 0 ? (
+        {activeSessions.length === 0 ? (
           <div className="flex flex-col gap-2" data-testid="agent-heartbeat-no-session">
             <p className="text-small-body text-muted">
               Wake now needs an active session for this agent.
@@ -135,7 +121,7 @@ export function AgentHeartbeatOps({
             aria-label="Active session for wake"
             data-testid="agent-heartbeat-session-select"
           >
-            {eligibleIds.length > 1 ? (
+            {activeSessions.length > 1 ? (
               <NativeSelectOption value="">Select an active session</NativeSelectOption>
             ) : null}
             {activeSessions.map(session => (

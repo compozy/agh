@@ -391,7 +391,7 @@ describe("Agents fleet route", () => {
     expect(screen.getByTestId("agent-fleet-sessions-notice")).toHaveTextContent(
       "Session status unavailable"
     );
-    expect(screen.getByTestId("agent-fleet-sessions-release-captain")).toHaveTextContent("—");
+    expect(screen.getByTestId("agent-fleet-sessions-release-captain")).toHaveTextContent("--");
     expect(screen.queryByTestId("agent-fleet-status-release-captain")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-fleet-row-link-release-captain")).toHaveAttribute(
       "aria-label",

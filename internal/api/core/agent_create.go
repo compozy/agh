@@ -96,38 +96,70 @@ func createAgentDefinitionPathFor(
 	workspaces WorkspaceService,
 	transportName string,
 ) (string, error) {
+	target, err := createAgentDefinitionTargetFor(ctx, req, homePaths, workspaces, transportName)
+	if err != nil {
+		return "", err
+	}
+	return target.Path, nil
+}
+
+type createAgentDefinitionTarget struct {
+	Path        string
+	WorkspaceID string
+}
+
+func createAgentDefinitionTargetFor(
+	ctx context.Context,
+	req contract.CreateAgentRequest,
+	homePaths aghconfig.HomePaths,
+	workspaces WorkspaceService,
+	transportName string,
+) (createAgentDefinitionTarget, error) {
 	name := aghconfig.NormalizeAgentName(req.Agent.Name)
 	switch req.Scope {
 	case contract.AgentCreateScopeGlobal:
-		return filepath.Join(homePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName), nil
+		return createAgentDefinitionTarget{
+			Path: filepath.Join(homePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName),
+		}, nil
 	case contract.AgentCreateScopeWorkspace:
 		workspaceRef := strings.TrimSpace(req.Workspace)
 		if workspaceRef == "" {
-			return "", errors.Join(
+			return createAgentDefinitionTarget{}, errors.Join(
 				errCreateAgentRequestInvalid,
 				errors.New("workspace is required for workspace-scoped agents"),
 			)
 		}
 		if workspaces == nil {
-			return "", fmt.Errorf("%s: %w", transportName, workspacepkg.ErrWorkspaceResolverUnavailable)
+			return createAgentDefinitionTarget{}, fmt.Errorf(
+				"%s: %w",
+				transportName,
+				workspacepkg.ErrWorkspaceResolverUnavailable,
+			)
 		}
 		resolved, err := workspaces.Resolve(ctx, workspaceRef)
 		if err != nil {
-			return "", err
+			return createAgentDefinitionTarget{}, err
 		}
 		rootDir := strings.TrimSpace(resolved.RootDir)
 		if rootDir == "" {
-			return "", fmt.Errorf("%s: %w", transportName, workspacepkg.ErrWorkspaceRootMissing)
+			return createAgentDefinitionTarget{}, fmt.Errorf(
+				"%s: %w",
+				transportName,
+				workspacepkg.ErrWorkspaceRootMissing,
+			)
 		}
-		return filepath.Join(
-			rootDir,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			name,
-			aghconfig.AgentDefinitionFileName,
-		), nil
+		return createAgentDefinitionTarget{
+			Path: filepath.Join(
+				rootDir,
+				aghconfig.DirName,
+				aghconfig.AgentsDirName,
+				name,
+				aghconfig.AgentDefinitionFileName,
+			),
+			WorkspaceID: strings.TrimSpace(resolved.ID),
+		}, nil
 	default:
-		return "", errors.Join(
+		return createAgentDefinitionTarget{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			fmt.Errorf(
 				"scope must be %q or %q",

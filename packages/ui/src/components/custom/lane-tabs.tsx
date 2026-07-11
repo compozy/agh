@@ -20,6 +20,7 @@ export interface LaneTabsProps<T extends string> extends Omit<
   value: T;
   onChange: (next: T) => void;
   ariaLabel?: string;
+  listClassName?: string;
 }
 
 function LaneTabs<T extends string>({
@@ -27,7 +28,9 @@ function LaneTabs<T extends string>({
   value,
   onChange,
   ariaLabel,
+  listClassName,
   className,
+  children,
   ...props
 }: LaneTabsProps<T>) {
   return (
@@ -38,7 +41,7 @@ function LaneTabs<T extends string>({
       className={className}
       {...props}
     >
-      <TabsList aria-label={ariaLabel}>
+      <TabsList aria-label={ariaLabel} className={listClassName}>
         {items.map(item => (
           <TabsTrigger
             key={item.value}
@@ -51,6 +54,7 @@ function LaneTabs<T extends string>({
           </TabsTrigger>
         ))}
       </TabsList>
+      {children}
     </Tabs>
   );
 }

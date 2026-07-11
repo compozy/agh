@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -231,7 +232,9 @@ func TestAgentCreateCommand(t *testing.T) {
 					t.Fatalf("CreateAgent() scope/workspace = %q/%q", request.Scope, request.Workspace)
 				}
 				if request.Agent.Name != "pricing_strategist" || request.Agent.Provider != "claude" ||
-					request.Agent.ReasoningEffort != "max" || len(request.Agent.Tools) != 1 {
+					request.Agent.ReasoningEffort != "max" || len(request.Agent.Tools) != 1 ||
+					request.Agent.Skills == nil ||
+					!slices.Equal(request.Agent.Skills.Disabled, []string{"legacy-review"}) {
 					t.Fatalf("CreateAgent() request = %#v", request)
 				}
 				return AgentRecord{
@@ -265,6 +268,8 @@ func TestAgentCreateCommand(t *testing.T) {
 			"You own Ad8 pricing strategy.",
 			"--tool",
 			"builtin__shell",
+			"--disable-skill",
+			"legacy-review",
 			"--category",
 			"Strategy",
 			"-o",
@@ -355,7 +360,8 @@ func TestAgentUpdateCommand(t *testing.T) {
 					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
 				}
 				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
-					request.Agent.Skills == nil || len(request.Agent.Skills.Disabled) != 1 {
+					request.Agent.Skills == nil ||
+					!slices.Equal(request.Agent.Skills.Disabled, []string{"security-audit"}) {
 					t.Fatalf("UpdateAgent() agent = %#v", request.Agent)
 				}
 				updated := current
@@ -369,9 +375,52 @@ func TestAgentUpdateCommand(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
 			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
+			"--disable-skill", "security-audit",
 		)
 		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
 			t.Fatalf("agent update = %q, %v", stdout, err)
+		}
+	})
+
+	t.Run("Should clear disabled skills when the flag is explicitly empty", func(t *testing.T) {
+		t.Parallel()
+
+		current := AgentRecord{
+			Name:             "coder",
+			Provider:         "fake",
+			Prompt:           "Code.",
+			DefinitionDigest: "digest-1",
+			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
+		}
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return current, nil
+			},
+			updateAgentFn: func(
+				_ context.Context,
+				_ string,
+				request contract.UpdateAgentRequest,
+			) (AgentRecord, error) {
+				if request.Agent.Skills == nil || len(request.Agent.Skills.Disabled) != 0 {
+					t.Fatalf("UpdateAgent() skills = %#v, want explicit empty disabled list", request.Agent.Skills)
+				}
+				return current, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"update",
+			"coder",
+			"--expected-digest",
+			"digest-1",
+			"--disable-skill",
+			"",
+		)
+		if err != nil {
+			t.Fatalf("agent update clear disabled skills error = %v", err)
 		}
 	})
 
@@ -518,7 +567,9 @@ func TestAgentDuplicateCommand(t *testing.T) {
 					request.Workspace != "ws-1" ||
 					request.Overrides == nil ||
 					request.Overrides.Model != "new" ||
-					request.Overrides.Prompt != "Review." {
+					request.Overrides.Prompt != "Review." ||
+					request.Overrides.Skills == nil ||
+					!slices.Equal(request.Overrides.Skills.Disabled, []string{"legacy-review"}) {
 					t.Fatalf("DuplicateAgent() = %q/%#v", source, request)
 				}
 				return AgentRecord{
@@ -529,7 +580,8 @@ func TestAgentDuplicateCommand(t *testing.T) {
 		})
 		stdout, _, err := executeRootCommand(
 			t, deps, "agent", "duplicate", "coder", "reviewer", "--scope", "workspace",
-			"--workspace", "ws-1", "--model", "new", "--prompt", "Review.", "-o", "json",
+			"--workspace", "ws-1", "--model", "new", "--prompt", "Review.",
+			"--disable-skill", "legacy-review", "-o", "json",
 		)
 		if err != nil || !strings.Contains(stdout, `"name": "reviewer"`) {
 			t.Fatalf("agent duplicate output/error = %q/%v", stdout, err)

@@ -107,8 +107,8 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
       {props.mutationDenied ? (
         <ActionResultBanner
           tone="danger"
-          title="Editing is not permitted"
-          description="The daemon denied this mutation. Fields stay visible but cannot be changed."
+          title="Editing requires an operator token"
+          description="Add an operator token, then reload this page to edit the definition."
           data-testid="agent-settings-mutation-denied"
         />
       ) : null}

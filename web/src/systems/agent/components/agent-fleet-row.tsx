@@ -54,7 +54,7 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
           className={cn("font-mono text-badge tabular-nums", sessionsTone)}
           data-testid={`agent-fleet-sessions-${agent.name}`}
         >
-          {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "—"}
+          {sessionsAvailable && signals ? `● ${signals.active} / ${signals.total}` : "--"}
         </span>
         {sessionsAvailable && signals ? (
           <Pill

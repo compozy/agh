@@ -131,28 +131,30 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	}
 }
 
-func (h *BaseHandlers) globalAgentTwinExists(name string, effectiveSourcePath string) (bool, error) {
+func (h *BaseHandlers) globalAgentTwinExists(name string, effectiveSourcePath string) bool {
 	path := filepath.Join(
 		h.HomePaths.AgentsDir,
 		aghconfig.NormalizeAgentName(name),
 		aghconfig.AgentDefinitionFileName,
 	)
 	if filepath.Clean(path) == filepath.Clean(effectiveSourcePath) {
-		return false, nil
+		return false
 	}
 	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return false
 	}
 	if err != nil {
-		return false, fmt.Errorf("api: inspect global agent twin %q: %w", path, err)
+		h.Logger.Debug("api: global agent twin is unavailable for disclosure", "path", path, "error", err)
+		return false
 	}
 	if !info.Mode().IsRegular() {
-		return false, nil
+		return false
 	}
 	agent, err := aghconfig.LoadAgentDefFile(path)
 	if err != nil {
-		return false, fmt.Errorf("api: load global agent twin %q: %w", path, err)
+		h.Logger.Debug("api: global agent twin is invalid for disclosure", "path", path, "error", err)
+		return false
 	}
-	return aghconfig.NormalizeAgentName(agent.Name) == aghconfig.NormalizeAgentName(name), nil
+	return aghconfig.NormalizeAgentName(agent.Name) == aghconfig.NormalizeAgentName(name)
 }

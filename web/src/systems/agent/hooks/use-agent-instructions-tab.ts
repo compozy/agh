@@ -56,7 +56,17 @@ export function useAgentInstructionsTab({
     () => sessions.filter(session => session.state === "active"),
     [sessions]
   );
-  const [wakeSessionId, setWakeSessionId] = useState<string | null>(null);
+  const [requestedWakeSessionId, setWakeSessionId] = useState<string | null>(null);
+  const wakeSessionId = useMemo(() => {
+    if (activeSessions.length === 1) return activeSessions[0]?.id ?? null;
+    if (
+      requestedWakeSessionId &&
+      activeSessions.some(session => session.id === requestedWakeSessionId)
+    ) {
+      return requestedWakeSessionId;
+    }
+    return null;
+  }, [activeSessions, requestedWakeSessionId]);
 
   const statusQuery = useAgentHeartbeatStatus(
     agent.name,

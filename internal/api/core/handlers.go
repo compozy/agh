@@ -434,17 +434,17 @@ func decodeStrictJSONBody(c *gin.Context, target any) error {
 func (h *BaseHandlers) createAgentDraftAndPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-) (aghconfig.AgentDefinitionDraft, string, error) {
+) (aghconfig.AgentDefinitionDraft, string, string, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", err
+		return aghconfig.AgentDefinitionDraft{}, "", "", err
 	}
 
-	path, err := h.createAgentDefinitionPath(ctx, req)
+	target, err := createAgentDefinitionTargetFor(ctx, req, h.HomePaths, h.Workspaces, h.transportName())
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", err
+		return aghconfig.AgentDefinitionDraft{}, "", "", err
 	}
-	return draft, path, nil
+	return draft, target.Path, target.WorkspaceID, nil
 }
 
 func (h *BaseHandlers) createAgentDefinitionPath(

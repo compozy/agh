@@ -83,7 +83,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	}
 	syncStartedAt := time.Now()
 	if err := h.AgentDefinitionSync.Sync(c.Request.Context()); err != nil {
-		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: sync updated agent definition: %w", err))
+		syncErr := fmt.Errorf("api: sync updated agent definition: %w", err)
+		h.logAgentMutationFailure("update", agent.SourcePath, startedAt, time.Since(syncStartedAt), syncErr)
+		h.respondError(c, http.StatusInternalServerError, syncErr)
 		return
 	}
 	syncDuration := time.Since(syncStartedAt)
@@ -114,11 +116,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		)
 		return
 	}
-	unshadowGlobal, err := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
+	unshadowGlobal := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
 	if err := aghconfig.DeleteAgentDefinition(resolved.Entry.Def.SourcePath); err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -130,6 +128,13 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	}
 	syncDuration := time.Since(syncStartedAt)
 	if mutationErr != nil {
+		h.logAgentMutationFailure(
+			"delete",
+			resolved.Entry.Def.SourcePath,
+			startedAt,
+			syncDuration,
+			mutationErr,
+		)
 		h.respondError(c, http.StatusInternalServerError, mutationErr)
 		return
 	}
@@ -137,13 +142,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	if resolved.Entry.Origin == contract.AgentOriginWorkspace && unshadowGlobal {
 		response.UnshadowedOrigin = contract.AgentOriginGlobal
 	}
-	h.logAgentMutation(
-		"delete",
-		resolved.Entry,
-		startedAt,
-		syncDuration,
-		response.UnshadowedOrigin != "",
-	)
+	h.logAgentDeleteMutation(resolved.Entry, startedAt, syncDuration, response.UnshadowedOrigin != "")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -177,7 +176,11 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	draft := duplicateAgentDraft(source.Entry.Def, req)
+	draft, err := duplicateAgentDraft(source.Entry.Def, req)
+	if err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
 	agent, err := aghconfig.DuplicateAgentDefinition(source.Entry.Def, targetDir, draft)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
@@ -185,7 +188,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 	}
 	syncStartedAt := time.Now()
 	if err := h.AgentDefinitionSync.Sync(c.Request.Context()); err != nil {
-		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: sync duplicated agent definition: %w", err))
+		syncErr := fmt.Errorf("api: sync duplicated agent definition: %w", err)
+		h.logAgentMutationFailure("duplicate", agent.SourcePath, startedAt, time.Since(syncStartedAt), syncErr)
+		h.respondError(c, http.StatusInternalServerError, syncErr)
 		return
 	}
 	syncDuration := time.Since(syncStartedAt)
@@ -202,17 +207,26 @@ func updateAgentDraft(
 	if err != nil {
 		return aghconfig.AgentDefinitionDraft{}, err
 	}
-	currentDraft := aghconfig.AgentDefinitionDraftFromDef(current)
+	currentDraft, err := authoredAgentDraftFromDef(current)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, err
+	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks
 	return draft, nil
 }
 
-func duplicateAgentDraft(source aghconfig.AgentDef, req contract.DuplicateAgentRequest) aghconfig.AgentDefinitionDraft {
-	draft := aghconfig.AgentDefinitionDraftFromDef(source)
+func duplicateAgentDraft(
+	source aghconfig.AgentDef,
+	req contract.DuplicateAgentRequest,
+) (aghconfig.AgentDefinitionDraft, error) {
+	draft, err := authoredAgentDraftFromDef(source)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, err
+	}
 	draft.Name = aghconfig.NormalizeAgentName(req.Name)
 	if req.Overrides == nil {
-		return draft
+		return draft, nil
 	}
 	overrides := req.Overrides
 	if overrides.Provider != "" {
@@ -248,7 +262,27 @@ func duplicateAgentDraft(source aghconfig.AgentDef, req contract.DuplicateAgentR
 	if overrides.Prompt != "" {
 		draft.Prompt = overrides.Prompt
 	}
-	return draft
+	return draft, nil
+}
+
+func authoredAgentDraftFromDef(agent aghconfig.AgentDef) (aghconfig.AgentDefinitionDraft, error) {
+	contents, err := os.ReadFile(agent.SourcePath)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, fmt.Errorf(
+			"api: read authored agent definition %q: %w",
+			agent.SourcePath,
+			err,
+		)
+	}
+	authored, err := aghconfig.ParseAgentDef(contents)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, fmt.Errorf(
+			"api: parse authored agent definition %q: %w",
+			agent.SourcePath,
+			err,
+		)
+	}
+	return aghconfig.AgentDefinitionDraftFromDef(authored), nil
 }
 
 func (h *BaseHandlers) purgeAgentDefinitionHistory(
@@ -288,7 +322,6 @@ func (h *BaseHandlers) logAgentMutation(
 	entry AgentCatalogEntry,
 	startedAt time.Time,
 	syncDuration time.Duration,
-	unshadowed ...bool,
 ) {
 	attributes := []any{
 		handlersOperationKey, "agent." + operation,
@@ -299,10 +332,44 @@ func (h *BaseHandlers) logAgentMutation(
 		"sync_duration_ms", syncDuration.Milliseconds(),
 		"outcome", "success",
 	}
-	if len(unshadowed) > 0 {
-		attributes = append(attributes, "unshadowed", unshadowed[0])
-	}
 	h.Logger.Info("api: agent definition mutation completed", attributes...)
+}
+
+func (h *BaseHandlers) logAgentDeleteMutation(
+	entry AgentCatalogEntry,
+	startedAt time.Time,
+	syncDuration time.Duration,
+	unshadowed bool,
+) {
+	h.Logger.Info(
+		"api: agent definition mutation completed",
+		handlersOperationKey, "agent.delete",
+		"agent_name", entry.Def.Name,
+		"origin", entry.Origin,
+		"workspace_id", entry.WorkspaceID,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"sync_duration_ms", syncDuration.Milliseconds(),
+		"unshadowed", unshadowed,
+		"outcome", "success",
+	)
+}
+
+func (h *BaseHandlers) logAgentMutationFailure(
+	operation string,
+	authoredPath string,
+	startedAt time.Time,
+	syncDuration time.Duration,
+	err error,
+) {
+	h.Logger.Error(
+		"api: agent definition mutation failed after authored state changed",
+		handlersOperationKey, "agent."+operation,
+		"authored_path", authoredPath,
+		"duration_ms", time.Since(startedAt).Milliseconds(),
+		"sync_duration_ms", syncDuration.Milliseconds(),
+		"outcome", "error",
+		"error", err,
+	)
 }
 
 func statusForAgentDefinitionError(err error) int {
