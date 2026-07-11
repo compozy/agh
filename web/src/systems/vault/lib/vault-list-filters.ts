@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
+import type { Filter, FilterFieldsConfig } from "@agh/ui";
 
 import type { VaultNamespaceFilter } from "@/hooks/routes/use-vault-page";
 import { VAULT_NAMESPACES } from "../types";

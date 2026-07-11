@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 
-import { createFilter, type Filter as ReuiFilter } from "@agh/ui/components/reui/filters";
+import { createFilter, type Filter as ReuiFilter } from "@agh/ui";
 
 import type { NetworkLastReadLookupKey } from "./use-last-read";
 import { useLastRead } from "./use-last-read";

@@ -2,7 +2,7 @@ import { ListFilter, Search } from "lucide-react";
 import { useMemo } from "react";
 
 import { Button, InputGroup, InputGroupAddon, InputGroupInput } from "@agh/ui";
-import { Filters, type Filter } from "@agh/ui/components/reui/filters";
+import { Filters, type Filter } from "@agh/ui";
 
 import {
   applyProviderFilterChips,

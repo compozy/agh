@@ -634,12 +634,12 @@ export type {
   TreeItemLabelProps,
   TreeDragLineProps,
 } from "./components/reui/tree";
+export { Filters, createFilter } from "./components/reui/filters";
+export type { Filter, FilterFieldsConfig, FilterFieldConfig } from "./components/reui/filters";
 export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";
 export { Toaster, type ToasterProps } from "./components/sonner";
 export { toast } from "./components/sonner-toast";
 export { DirectionProvider, useDirection } from "./components/direction";
-
-// Animation
 export {
   GithubStars,
   GithubStarsIcon,

@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
+import type { Filter, FilterFieldsConfig } from "@agh/ui";
 
 import type { TaskPriority, TaskStatus } from "../types";
 import { INBOX_UI_LANES, type InboxLaneFilterId, type InboxUiLane } from "./inbox-grouping";

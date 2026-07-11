@@ -5,12 +5,12 @@ import {
   Button,
   Empty,
   Eyebrow,
+  Filters,
   SearchInput,
   Spinner,
   StatusDot,
   Switch,
 } from "@agh/ui";
-import { Filters } from "@agh/ui/components/reui/filters";
 
 import {
   INBOX_GROUPS,

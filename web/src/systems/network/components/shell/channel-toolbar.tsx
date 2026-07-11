@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
   type LaneTabsItem,
 } from "@agh/ui";
-import { Filters, type FilterFieldsConfig } from "@agh/ui/components/reui/filters";
+import { Filters, type FilterFieldsConfig } from "@agh/ui";
 
 import { useNetworkListFiltersContext } from "../../hooks/use-network-list-filters-context";
 import { type NetworkFilterKey, type NetworkListSort } from "../../hooks/use-network-list-filters";
