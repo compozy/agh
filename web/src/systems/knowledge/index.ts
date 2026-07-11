@@ -2,9 +2,11 @@
 export type {
   KnowledgeAgentTier,
   KnowledgeFilter,
+  KnowledgeListFilter,
   KnowledgeMemoryItem,
   KnowledgeScope,
   KnowledgeSelector,
+  ListMemoryDecisionsParams,
   MemoryAgentTier,
   MemoryDecision,
   MemoryDecisionOp,
@@ -17,11 +19,14 @@ export type {
   MemoryEditRequest,
   MemoryEditResponse,
   MemoryHeader,
+  MemoryListPage,
+  MemoryListQuery,
   MemoryReadResponse,
   MemoryScope,
   MemorySearchRequest,
   MemorySearchResponse,
   MemorySearchResult,
+  MemorySort,
   MemoryType,
   MemoryWriteRequest,
   MemoryWriteResponse,
@@ -39,7 +44,6 @@ export {
   searchMemory,
   triggerMemoryDream,
   writeMemory,
-  type ListMemoryDecisionsParams,
 } from "./adapters/knowledge-api";
 
 // Query infrastructure
@@ -89,11 +93,8 @@ export {
   memoryScopeTone,
   memoryTypeTone,
 } from "./lib/knowledge-formatters";
-export {
-  filterKnowledgeMemories,
-  groupKnowledgeMemoriesByScope,
-  sortKnowledgeMemories,
-} from "./lib/knowledge-list";
+export { groupKnowledgeMemoriesByScope } from "./lib/knowledge-list";
+export { DEFAULT_MEMORY_LIST_LIMIT } from "./lib/memory-list-query";
 export {
   KNOWLEDGE_TYPE_TONE,
   knowledgeTypeFor,

@@ -456,10 +456,11 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle(network/threads) error = %v, want nil", err)
 	}
-	var threads []apicontract.NetworkThreadSummaryPayload
+	var threads apicontract.NetworkThreadsResponse
 	decodeResult(t, threadsResult, &threads)
-	if len(threads) != 1 || threads[0].ThreadID != "thread_alpha01" || threads[0].OpenWorkCount != 1 {
-		t.Fatalf("network/threads = %#v, want thread with open work", threads)
+	if len(threads.Threads) != 1 || threads.Threads[0].ThreadID != "thread_alpha01" ||
+		threads.Threads[0].OpenWorkCount != 1 || threads.Page.Total != 1 || threads.Page.Limit != 10 {
+		t.Fatalf("network/threads = %#v, want counted thread page with open work", threads)
 	}
 
 	threadResult, err := handler.Handle(
@@ -486,10 +487,11 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle(network/directs) error = %v, want nil", err)
 	}
-	var directs []apicontract.NetworkDirectRoomPayload
+	var directs apicontract.NetworkDirectRoomsResponse
 	decodeResult(t, directsResult, &directs)
-	if len(directs) != 1 || directs[0].DirectID != directID || directs[0].MessageCount != 1 {
-		t.Fatalf("network/directs = %#v, want one direct summary", directs)
+	if len(directs.Directs) != 1 || directs.Directs[0].DirectID != directID ||
+		directs.Directs[0].MessageCount != 1 || directs.Page.Total != 1 || directs.Page.Limit != 10 {
+		t.Fatalf("network/directs = %#v, want one counted direct summary page", directs)
 	}
 
 	directMessagesResult, err := handler.Handle(
@@ -503,9 +505,10 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle(network/direct/messages) error = %v, want nil", err)
 	}
-	var directMessages []apicontract.NetworkConversationMessagePayload
+	var directMessages apicontract.NetworkDirectRoomMessagesResponse
 	decodeResult(t, directMessagesResult, &directMessages)
-	if len(directMessages) != 1 || directMessages[0].DirectID != directID {
+	if len(directMessages.Messages) != 1 || directMessages.Messages[0].DirectID != directID ||
+		directMessages.Page.Limit != 10 {
 		t.Fatalf("network/direct/messages = %#v, want direct timeline message", directMessages)
 	}
 
@@ -734,8 +737,8 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	if err != nil {
 		t.Fatalf("ListDirectRooms() error = %v", err)
 	}
-	if len(directs) != 1 {
-		t.Fatalf("ListDirectRooms() len = %d, want 1", len(directs))
+	if len(directs.Directs) != 1 {
+		t.Fatalf("ListDirectRooms() len = %d, want 1", len(directs.Directs))
 	}
 }
 
@@ -785,13 +788,13 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 		t.Fatalf("Handle(network/thread/messages) error = %v, want nil", err)
 	}
 
-	var messages []apicontract.NetworkConversationMessagePayload
+	var messages apicontract.NetworkThreadMessagesResponse
 	decodeResult(t, result, &messages)
-	if len(messages) != 1 {
-		t.Fatalf("network/thread/messages len = %d, want 1", len(messages))
+	if len(messages.Messages) != 1 {
+		t.Fatalf("network/thread/messages len = %d, want 1", len(messages.Messages))
 	}
-	if messages[0].MessageID != "msg-thread-root" {
-		t.Fatalf("message_id = %q, want msg-thread-root", messages[0].MessageID)
+	if messages.Messages[0].MessageID != "msg-thread-root" || messages.Page.Limit != 10 {
+		t.Fatalf("network/thread/messages = %#v, want message with applied limit", messages)
 	}
 }
 

@@ -285,9 +285,9 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 
 				var listQuery TaskListQuery
 				deps := newTestDeps(t, &stubClient{
-					listTasksFn: func(_ context.Context, query TaskListQuery) ([]TaskSummaryRecord, error) {
+					listTasksFn: func(_ context.Context, query TaskListQuery) ([]TaskCatalogItemRecord, error) {
 						listQuery = query
-						return []TaskSummaryRecord{sampleTaskSummaryRecord()}, nil
+						return []TaskCatalogItemRecord{sampleTaskCatalogItemRecord()}, nil
 					},
 				})
 
@@ -302,14 +302,14 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--owner-ref", "triage",
 					"--parent", "task-root",
 					"--channel", "builders",
-					"--last", "3",
+					"--limit", "3",
 					"-o", "json",
 				)
 				if err != nil {
 					t.Fatalf("task list error = %v", err)
 				}
 
-				if listQuery.Scope != taskpkg.ScopeWorkspace ||
+				if listQuery.Scope != taskpkg.CatalogScopeWorkspace ||
 					listQuery.Workspace != "alpha" ||
 					listQuery.Status != taskpkg.TaskStatusReady ||
 					listQuery.OwnerKind != taskpkg.OwnerKindPool ||
@@ -320,11 +320,11 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
 				}
 
-				var listed []TaskSummaryRecord
+				var listed TaskListRecord
 				if err := json.Unmarshal([]byte(listJSON), &listed); err != nil {
 					t.Fatalf("json.Unmarshal(task list) error = %v", err)
 				}
-				if len(listed) != 1 || listed[0].ID != "task-1" {
+				if len(listed.Tasks) != 1 || listed.Tasks[0].ID != "task-1" {
 					t.Fatalf("listed tasks = %#v, want one task summary", listed)
 				}
 			},
@@ -2619,8 +2619,8 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			listTasksFn: func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error) {
-				return []TaskSummaryRecord{sampleTaskSummaryRecord()}, nil
+			listTasksFn: func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error) {
+				return []TaskCatalogItemRecord{sampleTaskCatalogItemRecord()}, nil
 			},
 		})
 		toonOut, _, err := executeRootCommand(t, deps, "task", "list", "-o", "toon")
@@ -2732,7 +2732,9 @@ func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseTaskListFilters("", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", 0)
+			_, err := parseTaskListFilters(
+				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", 0,
+			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
 				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
 			}
@@ -2742,6 +2744,24 @@ func TestParseTaskListFiltersRejectsHalfSpecifiedOwnerFilter(t *testing.T) {
 
 func sampleTaskSummaryRecord() TaskSummaryRecord {
 	return TaskSummaryRecord{
+		ID:             "task-1",
+		Identifier:     "OPS-42",
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    "ws-alpha",
+		ParentTaskID:   "task-root",
+		NetworkChannel: "builders",
+		Title:          "Investigate flaky task runs",
+		Status:         taskpkg.TaskStatusReady,
+		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+		CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.create"},
+		CreatedAt:      fixedTestNow,
+		UpdatedAt:      fixedTestNow,
+	}
+}
+
+func sampleTaskCatalogItemRecord() TaskCatalogItemRecord {
+	return TaskCatalogItemRecord{
 		ID:             "task-1",
 		Identifier:     "OPS-42",
 		Scope:          taskpkg.ScopeWorkspace,

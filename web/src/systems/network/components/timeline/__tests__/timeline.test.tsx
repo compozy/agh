@@ -194,6 +194,79 @@ describe("MessageTimeline", () => {
     expect(screen.queryByTestId("network-message-toolbar-copy-text-m1")).toBeNull();
   });
 
+  it("Should load older messages and preserve the reader's scroll anchor", async () => {
+    const user = userEvent.setup();
+    let resolveOlder: (() => void) | undefined;
+    const onLoadOlder = vi.fn(
+      () =>
+        new Promise<void>(resolve => {
+          resolveOlder = resolve;
+        })
+    );
+    const newer = makeMessage({ message_id: "newer", timestamp: "2026-04-17T14:33:00Z" });
+    const older = makeMessage({ message_id: "older", timestamp: "2026-04-17T14:32:00Z" });
+    const { rerender } = render(
+      <MessageTimeline hasOlder messages={[newer]} onLoadOlder={onLoadOlder} />
+    );
+    const timeline = screen.getByTestId("network-timeline");
+    let scrollHeight = 400;
+    Object.defineProperty(timeline, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    timeline.scrollTop = 120;
+
+    await user.click(screen.getByRole("button", { name: "Load older messages" }));
+    expect(onLoadOlder).toHaveBeenCalledTimes(1);
+
+    scrollHeight = 640;
+    rerender(
+      <MessageTimeline hasOlder={false} messages={[older, newer]} onLoadOlder={onLoadOlder} />
+    );
+    resolveOlder?.();
+
+    expect(timeline.scrollTop).toBe(360);
+  });
+
+  it("Should exclude a concurrent live-tail append from the older-page anchor adjustment", async () => {
+    const user = userEvent.setup();
+    const onLoadOlder = vi.fn().mockResolvedValue(undefined);
+    const newer = makeMessage({ message_id: "newer", timestamp: "2026-04-17T14:33:00Z" });
+    const older = makeMessage({ message_id: "older", timestamp: "2026-04-17T14:32:00Z" });
+    const live = makeMessage({ message_id: "live", timestamp: "2026-04-17T14:34:00Z" });
+    const { rerender } = render(
+      <MessageTimeline hasOlder messages={[newer]} onLoadOlder={onLoadOlder} />
+    );
+    const timeline = screen.getByTestId("network-timeline");
+    let scrollHeight = 400;
+    let anchorTop = 120;
+    Object.defineProperty(timeline, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function getTimelineRect(this: HTMLElement) {
+        if (this.dataset.messageId === "newer") {
+          return { top: anchorTop, bottom: anchorTop + 20 } as DOMRect;
+        }
+        return { top: 0, bottom: 400 } as DOMRect;
+      });
+    const anchor = timeline.querySelector<HTMLElement>('[data-message-id="newer"]');
+    expect(anchor).not.toBeNull();
+    timeline.scrollTop = 120;
+
+    await user.click(screen.getByRole("button", { name: "Load older messages" }));
+    scrollHeight = 680;
+    anchorTop = 320;
+    rerender(
+      <MessageTimeline hasOlder={false} messages={[older, newer, live]} onLoadOlder={onLoadOlder} />
+    );
+
+    expect(timeline.scrollTop).toBe(320);
+    rectSpy.mockRestore();
+  });
+
   it("Should not declare any box-shadow on the timeline subtree", () => {
     render(
       <MessageTimeline

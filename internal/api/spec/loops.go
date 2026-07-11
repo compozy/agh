@@ -34,8 +34,15 @@ func loopCatalogOperations() []OperationSpec {
 
 func listLoopsOperation() OperationSpec {
 	return loopOperation(httpMethodGet, loopsPath(), "listLoops", "List Loop catalog entries", nil,
-		[]ParameterSpec{workspaceIDParam()},
-		[]ResponseSpec{ok(contract.LoopsResponse{}), badRequest(), loopUnavailable(), internalError()})
+		append([]ParameterSpec{workspaceIDParam()}, loopCatalogQueryParams()...),
+		[]ResponseSpec{
+			ok(contract.LoopsResponse{}),
+			badRequest(),
+			notFound(specWorkspaceNotFoundDescription),
+			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+			loopUnavailable(),
+			internalError(),
+		})
 }
 
 func createLoopOperation() OperationSpec {

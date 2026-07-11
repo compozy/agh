@@ -14,7 +14,33 @@ import {
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/sessions", () => HttpResponse.json({ sessions: sessionFixtures })),
+  aghApiMock.get("/api/sessions", ({ request }) => {
+    const url = new URL(request.url);
+    const workspace = url.searchParams.get("workspace")?.trim();
+    const agent = url.searchParams.get("agent")?.trim();
+    const state = url.searchParams.get("state")?.trim();
+    const resumable = url.searchParams.get("resumable");
+    const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 50));
+    const sessions = sessionFixtures.filter(session => {
+      if (workspace && session.workspace_id !== workspace && session.workspace_path !== workspace) {
+        return false;
+      }
+      if (agent && session.agent_name !== agent) return false;
+      if (state && session.state !== state) return false;
+      if (resumable === "true" && !session.attachable) return false;
+      return true;
+    });
+    const pageSessions = sessions.slice(0, limit);
+    return HttpResponse.json({
+      sessions: pageSessions,
+      page: {
+        has_more: sessions.length > pageSessions.length,
+        limit,
+        total: sessions.length,
+        ...(sessions.length > pageSessions.length ? { next_cursor: "story-page-2" } : {}),
+      },
+    });
+  }),
   aghApiMock.get("/api/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);
@@ -180,7 +206,13 @@ export const handlers: HttpHandler[] = [
         entries: sessionTranscriptFixture.map((message, index) => ({
           message,
           sequence: index + 1,
+          start_sequence: index + 1,
         })),
+        epoch: 1,
+        generation: 1,
+        has_older: false,
+        limit: 200,
+        max_sequence: sessionTranscriptFixture.length,
       });
     }
   ),

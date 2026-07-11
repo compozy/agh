@@ -63,29 +63,6 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newLoopListCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef string
-	cmd := &cobra.Command{
-		Use:   loopListKey,
-		Short: "List Loop definitions",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
-			if err != nil {
-				return err
-			}
-			response, err := client.ListLoops(cmd.Context(), workspaceID)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, loopOutputBundle(response, fmt.Sprintf("%d loops", len(response.Loops))))
-		},
-	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
-	mustMarkFlagRequired(cmd, loopWorkspaceKey)
-	return cmd
-}
-
 func newLoopInspectCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, name string
 	cmd := &cobra.Command{

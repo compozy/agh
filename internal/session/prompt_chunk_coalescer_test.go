@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,12 +70,13 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		if got, want := countEventType(stored, acp.EventTypeAgentMessage), 1; got != want {
 			t.Fatalf("agent_message stored rows = %d, want %d", got, want)
 		}
-		entries, err := h.manager.Transcript(testutil.Context(t), session.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), session.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript() error = %v", err)
+			t.Fatalf("TranscriptPage() error = %v", err)
 		}
-		if len(entries) == 0 || transcript.UIMessageText(entries[len(entries)-1].Message) != "hello world" {
-			t.Fatalf("Transcript() = %#v, want coalesced assistant content", entries)
+		if len(page.Entries) == 0 ||
+			transcript.UIMessageText(page.Entries[len(page.Entries)-1].Message) != "hello world" {
+			t.Fatalf("TranscriptPage() = %#v, want coalesced assistant content", page.Entries)
 		}
 	})
 
@@ -148,13 +150,16 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish chunk output when batch persistence fails", func(t *testing.T) {
+	t.Run("Should stop without publishing chunks when batch persistence fails", func(t *testing.T) {
 		t.Parallel()
 
 		recordErr := errors.New("batch persist failed")
+		recorder := &failingBatchRecorder{batchErr: recordErr}
 		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
-			return &failingBatchRecorder{batchErr: recordErr}, nil
+			return recorder, nil
 		}))
+		turnEnds := 0
+		h.manager.SetTurnEndNotifier(func(string) { turnEnds++ })
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 2)
 			go func() {
@@ -190,17 +195,85 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		runtimeEvents := collectEvents(t, eventsCh)
-		if got, want := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage), 2; got != want {
-			t.Fatalf("agent_message runtime events = %d, want %d after batch persist failure", got, want)
-		}
-		gotTexts := agentEventTexts(runtimeEvents, acp.EventTypeAgentMessage)
-		wantTexts := []string{"hidden ", "chunk"}
-		if !slices.Equal(gotTexts, wantTexts) {
-			t.Fatalf("agent_message runtime texts = %q, want %q", gotTexts, wantTexts)
+		if len(runtimeEvents) != 0 {
+			t.Fatalf("runtime events = %#v, want none after batch persistence failure", runtimeEvents)
 		}
 		notified := h.notifier.eventsForSession(session.ID)
-		if got, want := countAgentEvents(notified, acp.EventTypeAgentMessage), 2; got != want {
-			t.Fatalf("agent_message notifier events = %d, want %d after batch persist failure", got, want)
+		if got := countAgentEvents(notified, acp.EventTypeAgentMessage); got != 0 {
+			t.Fatalf("agent_message notifier events = %d, want zero after batch persistence failure", got)
+		}
+		if turnEnds != 0 {
+			t.Fatalf("turn end notifications = %d, want zero after persistence failure", turnEnds)
+		}
+		waitForCondition(t, "session stopped after batch persistence failure", func() bool {
+			_, active := h.manager.Get(session.ID)
+			return !active
+		})
+		meta := readMeta(t, session.MetaPath())
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureTransport {
+			t.Fatalf("stopped session failure = %#v, want transport failure", meta.Failure)
+		}
+		stored, queryErr := recorder.Query(testutil.Context(t), store.EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query(reload) error = %v", queryErr)
+		}
+		if got := countEventType(stored, acp.EventTypeAgentMessage); got != 0 {
+			t.Fatalf("reloaded agent_message rows = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should deliver a committed event once when only token usage projection fails", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &failingBatchRecorder{tokenErr: errors.New("token usage unavailable")}
+		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+			return recorder, nil
+		}))
+		totalTokens := int64(2)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			go func() {
+				defer close(events)
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeAgentMessage,
+					SessionID: proc.handle.SessionID,
+					TurnID:    req.TurnID,
+					Text:      "durable",
+					Usage:     &acp.TokenUsage{TurnID: req.TurnID, TotalTokens: &totalTokens},
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID}
+			}()
+			return events, nil
+		}
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		runtimeEvents := collectEvents(t, eventsCh)
+		if got := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage); got != 1 {
+			t.Fatalf("agent_message runtime events = %d, want one committed delivery", got)
+		}
+		_, usageCalls := recorder.callCounts()
+		if usageCalls != 1 {
+			t.Fatalf("token usage calls = %d, want one attempt and no retry", usageCalls)
+		}
+		stored, queryErr := recorder.Query(testutil.Context(t), store.EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query(committed event) error = %v", queryErr)
+		}
+		if got := countEventType(stored, acp.EventTypeAgentMessage); got != 1 {
+			t.Fatalf("committed agent_message rows = %d, want one without retry", got)
+		}
+		if _, active := h.manager.Get(session.ID); !active {
+			t.Fatal("session stopped after auxiliary token usage failure, want active")
 		}
 	})
 }
@@ -243,26 +316,57 @@ func storedTextByType(t *testing.T, events []store.SessionEvent, want string) st
 }
 
 type failingBatchRecorder struct {
-	batchErr error
+	mu         sync.Mutex
+	batchErr   error
+	tokenErr   error
+	failed     bool
+	events     []store.SessionEvent
+	batchCalls int
+	usageCalls int
 }
 
-func (r *failingBatchRecorder) Record(context.Context, store.SessionEvent) error {
+func (r *failingBatchRecorder) Record(_ context.Context, event store.SessionEvent) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.failed {
+		return r.batchErr
+	}
+	event.Sequence = int64(len(r.events) + 1)
+	r.events = append(r.events, event)
 	return nil
 }
 
 func (r *failingBatchRecorder) RecordPersistedBatch(
-	context.Context,
-	[]store.SessionEvent,
+	_ context.Context,
+	events []store.SessionEvent,
 ) ([]store.SessionEvent, error) {
-	return nil, r.batchErr
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.batchCalls++
+	if r.batchErr != nil {
+		r.failed = true
+		return nil, r.batchErr
+	}
+	persisted := make([]store.SessionEvent, len(events))
+	for index := range events {
+		persisted[index] = events[index]
+		persisted[index].Sequence = int64(len(r.events) + 1)
+		r.events = append(r.events, persisted[index])
+	}
+	return persisted, nil
 }
 
 func (r *failingBatchRecorder) RecordTokenUsage(context.Context, store.TokenUsage) error {
-	return nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.usageCalls++
+	return r.tokenErr
 }
 
 func (r *failingBatchRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {
-	return nil, nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]store.SessionEvent(nil), r.events...), nil
 }
 
 func (r *failingBatchRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {
@@ -271,4 +375,10 @@ func (r *failingBatchRecorder) History(context.Context, store.EventQuery) ([]sto
 
 func (r *failingBatchRecorder) Close(context.Context) error {
 	return nil
+}
+
+func (r *failingBatchRecorder) callCounts() (int, int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.batchCalls, r.usageCalls
 }

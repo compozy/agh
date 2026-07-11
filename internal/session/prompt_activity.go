@@ -723,7 +723,7 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 		}
 		if _, err := s.manager.persistSessionHealthForSession(s.ctx, s.session, now, sessionHealthInput{
 			activePrompt: true,
-			attachable:   sessionAttachable(s.session),
+			attachable:   sessionAttachableAt(s.session, now),
 			lastError:    healthError,
 		}); err != nil {
 			s.manager.sessionLogger(s.session).

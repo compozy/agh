@@ -53,10 +53,11 @@ import type {
   MemoryForgetParams,
   NetworkChannelPayload,
   NetworkChannelsParams,
-  NetworkConversationMessagePayload,
+  NetworkDirectRoomMessagesResponse,
   NetworkDirectMessagesParams,
   NetworkDirectResolveParams,
   NetworkDirectRoomPayload,
+  NetworkDirectRoomsResponse,
   NetworkDirectsParams,
   NetworkPeerPayload,
   NetworkPeersParams,
@@ -64,9 +65,11 @@ import type {
   NetworkSendPayload,
   NetworkStatusPayload,
   NetworkThreadMessagesParams,
+  NetworkThreadMessagesResponse,
   NetworkThreadSummaryPayload,
   NetworkThreadTargetParams,
   NetworkThreadsParams,
+  NetworkThreadsResponse,
   NetworkWorkGetParams,
   NetworkWorkPayload,
   SessionsCreateParams,
@@ -163,19 +166,15 @@ export class HostAPI {
     status: () => Promise<NetworkStatusPayload>;
     channels: (params: NetworkChannelsParams) => Promise<NetworkChannelPayload[]>;
     peers: (params: NetworkPeersParams) => Promise<NetworkPeerPayload[]>;
-    threads: (params: NetworkThreadsParams) => Promise<NetworkThreadSummaryPayload[]>;
+    threads: (params: NetworkThreadsParams) => Promise<NetworkThreadsResponse>;
     thread: {
       get: (params: NetworkThreadTargetParams) => Promise<NetworkThreadSummaryPayload>;
-      messages: (
-        params: NetworkThreadMessagesParams
-      ) => Promise<NetworkConversationMessagePayload[]>;
+      messages: (params: NetworkThreadMessagesParams) => Promise<NetworkThreadMessagesResponse>;
     };
-    directs: (params: NetworkDirectsParams) => Promise<NetworkDirectRoomPayload[]>;
+    directs: (params: NetworkDirectsParams) => Promise<NetworkDirectRoomsResponse>;
     direct: {
       resolve: (params: NetworkDirectResolveParams) => Promise<NetworkDirectRoomPayload>;
-      messages: (
-        params: NetworkDirectMessagesParams
-      ) => Promise<NetworkConversationMessagePayload[]>;
+      messages: (params: NetworkDirectMessagesParams) => Promise<NetworkDirectRoomMessagesResponse>;
     };
     work: {
       get: (params: NetworkWorkGetParams) => Promise<NetworkWorkPayload>;

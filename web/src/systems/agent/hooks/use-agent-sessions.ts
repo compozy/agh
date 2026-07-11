@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { useSessions } from "@/systems/session";
 import type { SessionPayload } from "@/systems/session";
 
@@ -9,22 +7,15 @@ interface UseAgentSessionsOptions {
 
 interface UseAgentSessionsResult {
   sessions: SessionPayload[];
+  total: number;
+  activeTotal: number;
+  resumableTotal: number;
+  lastActivityAt: string | null;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  loadMore: () => void;
   isLoading: boolean;
   isError: boolean;
-}
-
-function sessionRecencyTimestamp(session: SessionPayload): number {
-  const candidates = [session.activity?.last_activity_at, session.updated_at, session.created_at];
-  for (const value of candidates) {
-    if (typeof value !== "string" || value.length === 0) continue;
-    const ts = new Date(value).getTime();
-    if (Number.isFinite(ts)) return ts;
-  }
-  return 0;
-}
-
-function compareByRecencyDesc(left: SessionPayload, right: SessionPayload): number {
-  return sessionRecencyTimestamp(right) - sessionRecencyTimestamp(left);
 }
 
 export function useAgentSessions(
@@ -32,20 +23,33 @@ export function useAgentSessions(
   agentName: string | undefined,
   options?: UseAgentSessionsOptions
 ): UseAgentSessionsResult {
-  const enabled = options?.enabled ?? workspaceId !== null;
-  const query = useSessions(workspaceId, { enabled });
-
-  const sessions = useMemo<SessionPayload[]>(() => {
-    if (!query.data || !agentName) return [];
-    return query.data
-      .filter(session => session.agent_name === agentName)
-      .slice()
-      .sort(compareByRecencyDesc);
-  }, [query.data, agentName]);
+  const enabled = (options?.enabled ?? true) && Boolean(workspaceId) && Boolean(agentName);
+  const sessionsQuery = useSessions(workspaceId, {
+    enabled,
+    filters: { agent: agentName, sort: "last_activity" },
+  });
+  const activeQuery = useSessions(workspaceId, {
+    enabled,
+    filters: { agent: agentName, state: "active", limit: 1 },
+  });
+  const resumableQuery = useSessions(workspaceId, {
+    enabled,
+    filters: { agent: agentName, resumable: true, limit: 1 },
+  });
+  const latestSession = sessionsQuery.data?.[0];
 
   return {
-    sessions,
-    isLoading: query.isLoading,
-    isError: query.isError,
+    sessions: sessionsQuery.data ?? [],
+    total: sessionsQuery.total,
+    activeTotal: activeQuery.total,
+    resumableTotal: resumableQuery.total,
+    lastActivityAt: latestSession?.activity?.last_activity_at ?? latestSession?.updated_at ?? null,
+    hasMore: sessionsQuery.hasNextPage,
+    isLoadingMore: sessionsQuery.isFetchingNextPage,
+    loadMore: () => {
+      void sessionsQuery.fetchNextPage();
+    },
+    isLoading: sessionsQuery.isLoading || activeQuery.isLoading || resumableQuery.isLoading,
+    isError: sessionsQuery.isError || activeQuery.isError || resumableQuery.isError,
   };
 }

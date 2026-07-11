@@ -74,19 +74,27 @@ afterEach(() => {
 });
 
 describe("listAutomationJobs", () => {
-  it("calls GET /api/automation/jobs with scope-aware filters", async () => {
-    mockJsonResponse({ jobs: [jobFixture] });
+  it("forwards every stable job filter, package source, enabled state, and cursor", async () => {
+    mockJsonResponse({
+      jobs: [jobFixture],
+      page: { has_more: true, limit: 10, next_cursor: "job-cursor-2", total: 12 },
+    });
 
     const result = await listAutomationJobs({
+      cursor: " job-cursor-1 ",
+      enabled: false,
+      loop: " release-loop ",
+      q: " review ",
       scope: "workspace",
       workspace_id: "ws_alpha",
-      source: "dynamic",
+      source: "package",
       limit: 10,
     });
 
-    expect(result).toEqual([jobFixture]);
+    expect(result.jobs).toEqual([jobFixture]);
+    expect(result.page.total).toBe(12);
     await expectFetchRequest({
-      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=dynamic&limit=10",
+      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=package&enabled=false&q=review&cursor=job-cursor-1&limit=10&loop=release-loop",
     });
   });
 
@@ -200,20 +208,28 @@ describe("triggerAutomationJob", () => {
 });
 
 describe("listAutomationTriggers", () => {
-  it("calls GET /api/automation/triggers with event filter", async () => {
-    mockJsonResponse({ triggers: [triggerFixture] });
+  it("forwards every stable trigger filter, enabled state, event, and cursor", async () => {
+    mockJsonResponse({
+      page: { has_more: false, limit: 5, total: 1 },
+      triggers: [triggerFixture],
+    });
 
     const result = await listAutomationTriggers({
+      cursor: " trigger-cursor-1 ",
+      enabled: true,
       scope: "workspace",
       workspace_id: "ws_alpha",
       event: "ext.github.push",
-      source: "dynamic",
+      loop: " release-loop ",
+      q: " main ",
+      source: "package",
       limit: 5,
     });
 
-    expect(result).toEqual([triggerFixture]);
+    expect(result.triggers).toEqual([triggerFixture]);
+    expect(result.page.total).toBe(1);
     await expectFetchRequest({
-      path: "/api/automation/triggers?scope=workspace&workspace_id=ws_alpha&source=dynamic&event=ext.github.push&limit=5",
+      path: "/api/automation/triggers?scope=workspace&workspace_id=ws_alpha&source=package&enabled=true&event=ext.github.push&q=main&cursor=trigger-cursor-1&limit=5&loop=release-loop",
     });
   });
 });

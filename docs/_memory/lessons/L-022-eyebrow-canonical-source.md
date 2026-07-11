@@ -5,7 +5,7 @@
 **Evidence sources:** Audit run ahead of the dashboard polish; the final consolidation collapsed
 the prop matrix and the multi-utility CSS layer into a single Inter UC contract. Touched files:
 `packages/ui/src/components/custom/eyebrow.tsx`, `packages/ui/src/tokens.css`, `DESIGN.md` §3 / §11,
-`.agents/skills/agh-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
+`.agents/skills/agh/agh-design/SKILL.md`, `packages/ui/src/lib/utils.ts`,
 `lint-plugins/compozy-design-system.mjs`, plus the cross-monorepo callsite sweep.
 
 ## Context
@@ -128,6 +128,6 @@ implementation files.
   AND the deleted `eyebrow-badge` / `eyebrow-micro` utility-class literals.
 - `DESIGN.md` §3 ("Type Ladder") and §11 ("Anti-patterns") — authoritative type ladder + Eyebrow
   rule + misuse register.
-- `.agents/skills/agh-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
+- `.agents/skills/agh/agh-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
 - `web/CLAUDE.md` ("Critical Rules") and `packages/site/CLAUDE.md` ("Critical Rules") — surface
   guards for the rule.

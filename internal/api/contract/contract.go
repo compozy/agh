@@ -17,21 +17,6 @@ const (
 	contractDirectKey = "direct"
 )
 
-const (
-	SessionStreamFrameRaw        = "raw"
-	SessionStreamFrameTranscript = "transcript"
-	SessionStreamReplaySnapshot  = "snapshot"
-
-	SessionStreamEventTranscriptSnapshot = "transcript_snapshot"
-	SessionStreamEventTranscriptDelta    = "transcript_delta"
-
-	TranscriptSnapshotReasonSubscribe           = "subscribe"
-	TranscriptSnapshotReasonReconnect           = "reconnect"
-	TranscriptSnapshotReasonEpochReset          = "epoch_reset"
-	TranscriptSnapshotReasonBelowWindowMutation = "below_window_mutation"
-	TranscriptSnapshotReasonCacheRebuild        = "cache_rebuild"
-)
-
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName       string          `json:"agent_name,omitempty"`
@@ -133,38 +118,6 @@ type SessionPayload struct {
 	Health       *SessionHealthPayload   `json:"health,omitempty"`
 	CreatedAt    time.Time               `json:"created_at"`
 	UpdatedAt    time.Time               `json:"updated_at"`
-}
-
-// TranscriptSnapshotPayload seeds one stream subscriber with a bounded assembled transcript window.
-type TranscriptSnapshotPayload struct {
-	SessionID     string             `json:"session_id"`
-	WorkspaceID   string             `json:"workspace_id,omitempty"`
-	WorkspacePath string             `json:"workspace_path,omitempty"`
-	Epoch         int64              `json:"epoch"`
-	Entries       []transcript.Entry `json:"entries"`
-	MinSequence   int64              `json:"min_sequence"`
-	MaxSequence   int64              `json:"max_sequence"`
-	ResetBelow    bool               `json:"reset_below"`
-	Reason        string             `json:"reason,omitempty"`
-}
-
-// TranscriptDeltaPayload carries one fully folded UI message update for stream upsert.
-type TranscriptDeltaPayload struct {
-	SessionID     string           `json:"session_id"`
-	WorkspaceID   string           `json:"workspace_id,omitempty"`
-	WorkspacePath string           `json:"workspace_path,omitempty"`
-	Epoch         int64            `json:"epoch"`
-	Entry         transcript.Entry `json:"entry"`
-	Sequence      int64            `json:"sequence"`
-}
-
-// SessionStreamPayload documents the possible SSE data payloads for the session stream.
-// The event name selects which payload shape is present on a concrete frame.
-type SessionStreamPayload struct {
-	Raw                *SessionEventPayload       `json:"raw,omitempty"`
-	TranscriptSnapshot *TranscriptSnapshotPayload `json:"transcript_snapshot,omitempty"`
-	TranscriptDelta    *TranscriptDeltaPayload    `json:"transcript_delta,omitempty"`
-	SessionStopped     *SessionEventPayload       `json:"session_stopped,omitempty"`
 }
 
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by

@@ -1311,25 +1311,6 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(c *gin.Context) (contract.Se
 	return payload, true
 }
 
-func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
-	ctx context.Context,
-	infos []*session.Info,
-	includeHealth bool,
-) ([]contract.SessionPayload, error) {
-	payloads := make([]contract.SessionPayload, 0, len(infos))
-	for _, info := range infos {
-		if info == nil {
-			continue
-		}
-		payload, err := h.sessionPayloadWithOptionalHealth(ctx, info, includeHealth)
-		if err != nil {
-			return nil, err
-		}
-		payloads = append(payloads, payload)
-	}
-	return payloads, nil
-}
-
 func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 	ctx context.Context,
 	info *session.Info,

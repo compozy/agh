@@ -1,12 +1,11 @@
 import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
-import type { LoopCatalogEntry, LoopRunStatus } from "../types";
+import type { LoopRunStatus } from "../types";
 import {
   type LoopCatalogFilter,
   type LoopKindFilter,
   type LoopStatusFilter,
   loopKind,
-  matchesLoopFilter,
 } from "./loop-catalog";
 import { isLoopRunStatus, loopStatusLabel } from "./loop-formatters";
 
@@ -92,27 +91,6 @@ export function applyLoopFilterChips(chips: Filter<string>[], handlers: LoopFilt
   handlers.onKindChange(asLoopKind(lookup.get("kind")) ?? "all");
   handlers.onCategoryChange(asNonEmptyString(lookup.get("category")));
   handlers.onStatusChange(asLoopStatus(lookup.get("status")));
-}
-
-/** Client-side search over name + goal (AND-combined with chip filters). */
-export function filterLoopsByQuery(
-  entries: readonly LoopCatalogEntry[],
-  query: string
-): LoopCatalogEntry[] {
-  const trimmed = query.trim().toLowerCase();
-  if (trimmed === "") return [...entries];
-  return entries.filter(entry => {
-    const haystack = [entry.name, entry.contract.goal ?? ""].join(" ").toLowerCase();
-    return haystack.includes(trimmed);
-  });
-}
-
-export function filterLoopCatalog(
-  entries: readonly LoopCatalogEntry[],
-  query: string,
-  filter: LoopCatalogFilter
-): LoopCatalogEntry[] {
-  return filterLoopsByQuery(entries, query).filter(entry => matchesLoopFilter(entry, filter));
 }
 
 export function parseLoopKindFilter(value: unknown): Exclude<LoopKindFilter, "all"> | undefined {

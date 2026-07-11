@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -199,7 +200,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText("Cron schedule")).not.toBeInTheDocument();
   });
 
-  it("renders the job success-rate Metric with the computed percentage from the fixture runs", () => {
+  it("renders truthful recent-window metrics from the fetched run sample", () => {
     renderPanel({
       item: jobFixture,
       runs: [
@@ -210,7 +211,11 @@ describe("AutomationDetailPanel", () => {
     });
 
     const successRate = screen.getByTestId("automation-job-metric-success-rate");
+    const runsShown = screen.getByTestId("automation-job-metric-runs");
+    expect(successRate).toHaveTextContent("Recent success");
     expect(successRate).toHaveTextContent("67%");
+    expect(runsShown).toHaveTextContent("Runs shown");
+    expect(runsShown).toHaveTextContent("3");
   });
 
   it("renders the trigger hook Section with a KindChip for the source", () => {
@@ -245,7 +250,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
   });
 
-  it("renders a dynamic webhook trigger endpoint URL and curl copy affordance", () => {
+  it("renders a dynamic webhook trigger endpoint URL and curl copy affordance", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -268,9 +273,11 @@ describe("AutomationDetailPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("curl")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy webhook URL" }));
+    await userEvent.click(screen.getByRole("button", { name: "Copy webhook URL" }));
 
-    expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review");
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review")
+    );
     expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
     expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
   });

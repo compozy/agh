@@ -23740,7 +23740,31 @@
                         "in": "query",
                         "name": "source",
                         "schema": {
-                            "enum": ["config", "dynamic"],
+                            "enum": ["config", "package", "dynamic"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by enabled state",
+                        "in": "query",
+                        "name": "enabled",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Search jobs by name, agent, prompt, scope, source, or schedule",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Continue after this automation job cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
                             "type": "string"
                         }
                     },
@@ -23933,7 +23957,7 @@
                                                         "type": "string"
                                                     },
                                                     "source": {
-                                                        "enum": ["config", "dynamic"],
+                                                        "enum": ["config", "package", "dynamic"],
                                                         "type": "string"
                                                     },
                                                     "target_kind": {
@@ -24000,9 +24024,27 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["jobs"],
+                                    "required": ["jobs", "page"],
                                     "type": "object"
                                 }
                             }
@@ -24513,7 +24555,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -25353,7 +25395,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -25943,7 +25985,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -27820,14 +27862,38 @@
                         "in": "query",
                         "name": "source",
                         "schema": {
-                            "enum": ["config", "dynamic"],
+                            "enum": ["config", "package", "dynamic"],
                             "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by enabled state",
+                        "in": "query",
+                        "name": "enabled",
+                        "schema": {
+                            "type": "boolean"
                         }
                     },
                     {
                         "description": "Filter by trigger event",
                         "in": "query",
                         "name": "event",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Search triggers by definition or filter fields",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Continue after this automation trigger cursor",
+                        "in": "query",
+                        "name": "cursor",
                         "schema": {
                             "type": "string"
                         }
@@ -27856,6 +27922,24 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
+                                        },
                                         "triggers": {
                                             "items": {
                                                 "properties": {
@@ -27950,7 +28034,7 @@
                                                         "type": "string"
                                                     },
                                                     "source": {
-                                                        "enum": ["config", "dynamic"],
+                                                        "enum": ["config", "package", "dynamic"],
                                                         "type": "string"
                                                     },
                                                     "target_kind": {
@@ -27994,7 +28078,7 @@
                                             "type": "array"
                                         }
                                     },
-                                    "required": ["triggers"],
+                                    "required": ["page", "triggers"],
                                     "type": "object"
                                 }
                             }
@@ -28401,7 +28485,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -29149,7 +29233,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -29613,7 +29697,7 @@
                                                     "type": "string"
                                                 },
                                                 "source": {
-                                                    "enum": ["config", "dynamic"],
+                                                    "enum": ["config", "package", "dynamic"],
                                                     "type": "string"
                                                 },
                                                 "target_kind": {
@@ -30470,6 +30554,64 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Search display name, platform, extension, or effective status",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by messaging platform",
+                        "in": "query",
+                        "name": "platform",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by effective runtime status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "disabled",
+                                "starting",
+                                "ready",
+                                "degraded",
+                                "auth_required",
+                                "error"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Stable global-first display-name order",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "enum": ["name"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Continue after this query-bound bridge cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of bridges to return; defaults to 50 and is capped at 200",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -30767,9 +30909,70 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "facets": {
+                                            "properties": {
+                                                "platforms": {
+                                                    "additionalProperties": {
+                                                        "type": "integer"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "statuses": {
+                                                    "properties": {
+                                                        "auth_required": {
+                                                            "type": "integer"
+                                                        },
+                                                        "degraded": {
+                                                            "type": "integer"
+                                                        },
+                                                        "disabled": {
+                                                            "type": "integer"
+                                                        },
+                                                        "error": {
+                                                            "type": "integer"
+                                                        },
+                                                        "ready": {
+                                                            "type": "integer"
+                                                        },
+                                                        "starting": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "auth_required",
+                                                        "degraded",
+                                                        "disabled",
+                                                        "error",
+                                                        "ready",
+                                                        "starting"
+                                                    ],
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "required": ["platforms", "statuses"],
+                                            "type": "object"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["bridges"],
+                                    "required": ["bridge_health", "bridges", "facets", "page"],
                                     "type": "object"
                                 }
                             }
@@ -30837,6 +31040,130 @@
                             }
                         },
                         "description": "Invalid bridge list filter"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is unavailable"
                     },
                     "500": {
                         "content": {
@@ -31617,6 +31944,15 @@
                 "operationId": "streamBridgeHealth",
                 "parameters": [
                     {
+                        "description": "Comma-separated bridge ids from the current catalog page; maximum 200",
+                        "in": "query",
+                        "name": "bridge_ids",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Filter by bridge scope",
                         "in": "query",
                         "name": "scope",
@@ -31874,6 +32210,130 @@
                             }
                         },
                         "description": "Invalid bridge list filter"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is unavailable"
                     },
                     "500": {
                         "content": {
@@ -47545,6 +48005,14 @@
                             "format": "int32",
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "Replay bounded retained logs before live polling",
+                        "in": "query",
+                        "name": "replay",
+                        "schema": {
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {
@@ -47816,12 +48284,46 @@
                         }
                     },
                     {
-                        "description": "Maximum number of memories to return",
+                        "description": "Filter by memory type",
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "enum": ["user", "feedback", "project", "reference"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Order memory headers by recent modification or normalized name",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "enum": ["recent", "name"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Continue after this query-bound memory cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of memories to return; defaults to 50 and is capped at 200",
                         "in": "query",
                         "name": "limit",
                         "schema": {
                             "format": "int32",
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Include system-managed memory entries",
+                        "in": "query",
+                        "name": "include_system",
+                        "schema": {
+                            "type": "boolean"
                         }
                     }
                 ],
@@ -47917,9 +48419,27 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["memories"],
+                                    "required": ["memories", "page"],
                                     "type": "object"
                                 }
                             }
@@ -48189,6 +48709,9 @@
                                                                 "project",
                                                                 "reference"
                                                             ],
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -49354,6 +49877,14 @@
                         }
                     },
                     {
+                        "description": "Target memory filename",
+                        "in": "query",
+                        "name": "filename",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Only decisions since this timestamp",
                         "in": "query",
                         "name": "since",
@@ -49485,6 +50016,9 @@
                                                                     "project",
                                                                     "reference"
                                                                 ],
+                                                                "type": "string"
+                                                            },
+                                                            "workspace_id": {
                                                                 "type": "string"
                                                             }
                                                         },
@@ -49790,6 +50324,9 @@
                                                                 "project",
                                                                 "reference"
                                                             ],
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -50112,6 +50649,9 @@
                                                                 "project",
                                                                 "reference"
                                                             ],
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -52115,6 +52655,9 @@
                                                                 "project",
                                                                 "reference"
                                                             ],
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -54513,6 +55056,9 @@
                                                                 "reference"
                                                             ],
                                                             "type": "string"
+                                                        },
+                                                        "workspace_id": {
+                                                            "type": "string"
                                                         }
                                                     },
                                                     "required": [
@@ -55147,6 +55693,9 @@
                                                                 "project",
                                                                 "reference"
                                                             ],
+                                                            "type": "string"
+                                                        },
+                                                        "workspace_id": {
                                                             "type": "string"
                                                         }
                                                     },
@@ -61291,7 +61840,35 @@
                         }
                     },
                     {
-                        "description": "Return only unread inbox items",
+                        "description": "Filter by canonical task status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "draft",
+                                "pending",
+                                "blocked",
+                                "needs_attention",
+                                "ready",
+                                "in_progress",
+                                "completed",
+                                "failed",
+                                "canceled"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by task priority",
+                        "in": "query",
+                        "name": "priority",
+                        "schema": {
+                            "enum": ["low", "medium", "high", "urgent"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by unread state; false selects read items",
                         "in": "query",
                         "name": "unread",
                         "schema": {
@@ -61307,7 +61884,15 @@
                         }
                     },
                     {
-                        "description": "Maximum number of inbox items to return",
+                        "description": "Opaque actor- and query-bound continuation cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page size from 1 to 200 (default 50)",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -61326,6 +61911,59 @@
                                             "properties": {
                                                 "archived_total": {
                                                     "type": "integer"
+                                                },
+                                                "facets": {
+                                                    "properties": {
+                                                        "priorities": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "count": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "priority": {
+                                                                        "enum": [
+                                                                            "low",
+                                                                            "medium",
+                                                                            "high",
+                                                                            "urgent"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["count", "priority"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        },
+                                                        "statuses": {
+                                                            "items": {
+                                                                "properties": {
+                                                                    "count": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "status": {
+                                                                        "enum": [
+                                                                            "draft",
+                                                                            "pending",
+                                                                            "blocked",
+                                                                            "needs_attention",
+                                                                            "ready",
+                                                                            "in_progress",
+                                                                            "completed",
+                                                                            "failed",
+                                                                            "canceled"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["count", "status"],
+                                                                "type": "object"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "required": ["priorities", "statuses"],
+                                                    "type": "object"
                                                 },
                                                 "groups": {
                                                     "items": {
@@ -61375,9 +62013,6 @@
                                                                                 "attempt": {
                                                                                     "type": "integer"
                                                                                 },
-                                                                                "claim_token_hash": {
-                                                                                    "type": "string"
-                                                                                },
                                                                                 "claimed_at": {
                                                                                     "format": "date-time",
                                                                                     "nullable": true,
@@ -61407,80 +62042,7 @@
                                                                                     ],
                                                                                     "type": "object"
                                                                                 },
-                                                                                "coordination_channel": {
-                                                                                    "nullable": true,
-                                                                                    "properties": {
-                                                                                        "allowed_message_kinds": {
-                                                                                            "items": {
-                                                                                                "enum": [
-                                                                                                    "status",
-                                                                                                    "request",
-                                                                                                    "reply",
-                                                                                                    "blocker",
-                                                                                                    "handoff",
-                                                                                                    "result",
-                                                                                                    "review_request"
-                                                                                                ],
-                                                                                                "type": "string"
-                                                                                            },
-                                                                                            "type": "array"
-                                                                                        },
-                                                                                        "channel": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "display_name": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "id": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "last_activity_at": {
-                                                                                            "format": "date-time",
-                                                                                            "nullable": true,
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "purpose": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "run_id": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "task_id": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "workflow_id": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "workspace_id": {
-                                                                                            "type": "string"
-                                                                                        }
-                                                                                    },
-                                                                                    "required": [
-                                                                                        "allowed_message_kinds",
-                                                                                        "display_name",
-                                                                                        "id"
-                                                                                    ],
-                                                                                    "type": "object"
-                                                                                },
                                                                                 "coordination_channel_id": {
-                                                                                    "type": "string"
-                                                                                },
-                                                                                "designation": {
-                                                                                    "nullable": true,
-                                                                                    "properties": {
-                                                                                        "brief": {
-                                                                                            "type": "string"
-                                                                                        },
-                                                                                        "index": {
-                                                                                            "type": "integer"
-                                                                                        }
-                                                                                    },
-                                                                                    "required": [
-                                                                                        "index"
-                                                                                    ],
-                                                                                    "type": "object"
-                                                                                },
-                                                                                "designation_group_id": {
                                                                                     "type": "string"
                                                                                 },
                                                                                 "ended_at": {
@@ -61554,9 +62116,6 @@
                                                                         },
                                                                         "task": {
                                                                             "properties": {
-                                                                                "effective_paused": {
-                                                                                    "type": "boolean"
-                                                                                },
                                                                                 "id": {
                                                                                     "type": "string"
                                                                                 },
@@ -61590,12 +62149,6 @@
                                                                                         "ref"
                                                                                     ],
                                                                                     "type": "object"
-                                                                                },
-                                                                                "paused": {
-                                                                                    "type": "boolean"
-                                                                                },
-                                                                                "paused_by_task_id": {
-                                                                                    "type": "string"
                                                                                 },
                                                                                 "priority": {
                                                                                     "enum": [
@@ -61734,14 +62287,35 @@
                                                     },
                                                     "type": "array"
                                                 },
-                                                "total": {
-                                                    "type": "integer"
+                                                "page": {
+                                                    "properties": {
+                                                        "has_more": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "limit": {
+                                                            "type": "integer"
+                                                        },
+                                                        "next_cursor": {
+                                                            "type": "string"
+                                                        },
+                                                        "total": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "required": ["has_more", "limit", "total"],
+                                                    "type": "object"
                                                 },
                                                 "unread_total": {
                                                     "type": "integer"
                                                 }
                                             },
-                                            "required": ["archived_total", "total", "unread_total"],
+                                            "required": [
+                                                "archived_total",
+                                                "facets",
+                                                "groups",
+                                                "page",
+                                                "unread_total"
+                                            ],
                                             "type": "object"
                                         }
                                     },
@@ -61751,6 +62325,68 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid task inbox query or cursor"
                     },
                     "404": {
                         "content": {
@@ -61814,7 +62450,7 @@
                         },
                         "description": "Workspace not found"
                     },
-                    "422": {
+                    "410": {
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -61874,7 +62510,7 @@
                                 }
                             }
                         },
-                        "description": "Invalid task inbox query"
+                        "description": "Workspace root is missing"
                     },
                     "500": {
                         "content": {
@@ -71369,11 +72005,11 @@
                         }
                     },
                     {
-                        "description": "Filter by task scope",
+                        "description": "Filter by catalog visibility",
                         "in": "query",
                         "name": "scope",
                         "schema": {
-                            "enum": ["global", "workspace"],
+                            "enum": ["all", "global", "workspace"],
                             "type": "string"
                         }
                     },
@@ -73505,11 +74141,36 @@
                         }
                     },
                     {
-                        "description": "Include metadata-only session health when available",
+                        "description": "Include metadata-only health for returned sessions",
                         "in": "query",
                         "name": "include_health",
                         "schema": {
                             "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Filter by exact session state",
+                        "in": "query",
+                        "name": "state",
+                        "schema": {
+                            "enum": ["starting", "active", "stopping", "stopped"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by exact agent definition name",
+                        "in": "query",
+                        "name": "agent",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Search session id, name, agent, provider, or channel",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     {
@@ -73521,15 +74182,24 @@
                         }
                     },
                     {
-                        "description": "Optional sort key. Use last_activity with resumable=true.",
+                        "description": "Stable session ordering",
                         "in": "query",
                         "name": "sort",
+                        "schema": {
+                            "enum": ["recent", "last_activity"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Opaque next_cursor from the previous page",
+                        "in": "query",
+                        "name": "cursor",
                         "schema": {
                             "type": "string"
                         }
                     },
                     {
-                        "description": "Maximum sessions to return when filtering resumable sessions",
+                        "description": "Sessions per page (1-100)",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -73544,6 +74214,24 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
+                                        },
                                         "sessions": {
                                             "items": {
                                                 "properties": {
@@ -74022,12 +74710,74 @@
                                             "type": "array"
                                         }
                                     },
-                                    "required": ["sessions"],
+                                    "required": ["page", "sessions"],
                                     "type": "object"
                                 }
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid session list query or cursor"
                     },
                     "404": {
                         "content": {
@@ -74091,6 +74841,68 @@
                         },
                         "description": "Workspace not found"
                     },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -74152,6 +74964,68 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Paged session catalog or workspace resolver is unavailable"
                     }
                 },
                 "summary": "List sessions",
@@ -103816,11 +104690,11 @@
                 "operationId": "listTasks",
                 "parameters": [
                     {
-                        "description": "Filter by task scope",
+                        "description": "Filter by catalog visibility",
                         "in": "query",
                         "name": "scope",
                         "schema": {
-                            "enum": ["global", "workspace"],
+                            "enum": ["all", "global", "workspace"],
                             "type": "string"
                         }
                     },
@@ -103926,7 +104800,24 @@
                         }
                     },
                     {
-                        "description": "Maximum number of records to return",
+                        "description": "Order by recent activity or priority",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "enum": ["recent", "priority"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Opaque query-bound continuation cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page size from 1 to 200 (default 50)",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -103941,6 +104832,88 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "facets": {
+                                            "properties": {
+                                                "owners": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "owner": {
+                                                                "properties": {
+                                                                    "kind": {
+                                                                        "enum": [
+                                                                            "human",
+                                                                            "agent_session",
+                                                                            "automation",
+                                                                            "extension",
+                                                                            "network_peer",
+                                                                            "pool"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "ref": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": ["kind", "ref"],
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "required": ["count", "owner"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "statuses": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "status": {
+                                                                "enum": [
+                                                                    "draft",
+                                                                    "pending",
+                                                                    "blocked",
+                                                                    "needs_attention",
+                                                                    "ready",
+                                                                    "in_progress",
+                                                                    "completed",
+                                                                    "failed",
+                                                                    "canceled"
+                                                                ],
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["count", "status"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "required": ["owners", "statuses"],
+                                            "type": "object"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
+                                        },
                                         "tasks": {
                                             "items": {
                                                 "properties": {
@@ -103949,9 +104922,6 @@
                                                         "properties": {
                                                             "attempt": {
                                                                 "type": "integer"
-                                                            },
-                                                            "claim_token_hash": {
-                                                                "type": "string"
                                                             },
                                                             "claimed_at": {
                                                                 "format": "date-time",
@@ -103979,78 +104949,7 @@
                                                                 "required": ["kind", "ref"],
                                                                 "type": "object"
                                                             },
-                                                            "coordination_channel": {
-                                                                "nullable": true,
-                                                                "properties": {
-                                                                    "allowed_message_kinds": {
-                                                                        "items": {
-                                                                            "enum": [
-                                                                                "status",
-                                                                                "request",
-                                                                                "reply",
-                                                                                "blocker",
-                                                                                "handoff",
-                                                                                "result",
-                                                                                "review_request"
-                                                                            ],
-                                                                            "type": "string"
-                                                                        },
-                                                                        "type": "array"
-                                                                    },
-                                                                    "channel": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "display_name": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "last_activity_at": {
-                                                                        "format": "date-time",
-                                                                        "nullable": true,
-                                                                        "type": "string"
-                                                                    },
-                                                                    "purpose": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "run_id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "task_id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "workflow_id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "workspace_id": {
-                                                                        "type": "string"
-                                                                    }
-                                                                },
-                                                                "required": [
-                                                                    "allowed_message_kinds",
-                                                                    "display_name",
-                                                                    "id"
-                                                                ],
-                                                                "type": "object"
-                                                            },
                                                             "coordination_channel_id": {
-                                                                "type": "string"
-                                                            },
-                                                            "designation": {
-                                                                "nullable": true,
-                                                                "properties": {
-                                                                    "brief": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "index": {
-                                                                        "type": "integer"
-                                                                    }
-                                                                },
-                                                                "required": ["index"],
-                                                                "type": "object"
-                                                            },
-                                                            "designation_group_id": {
                                                                 "type": "string"
                                                             },
                                                             "ended_at": {
@@ -104138,45 +105037,6 @@
                                                     "auto_enqueue_on_ready": {
                                                         "type": "boolean"
                                                     },
-                                                    "blocked_reasons": {
-                                                        "description": "Read projection of current blocking causes; mutation responses may omit it.",
-                                                        "items": {
-                                                            "properties": {
-                                                                "block_id": {
-                                                                    "type": "string"
-                                                                },
-                                                                "depends_on_task_ids": {
-                                                                    "items": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "type": "array"
-                                                                },
-                                                                "kind": {
-                                                                    "enum": [
-                                                                        "needs_input",
-                                                                        "capability",
-                                                                        "transient"
-                                                                    ],
-                                                                    "type": "string"
-                                                                },
-                                                                "reason": {
-                                                                    "type": "string"
-                                                                },
-                                                                "source": {
-                                                                    "enum": [
-                                                                        "dependency",
-                                                                        "approval",
-                                                                        "paused",
-                                                                        "block"
-                                                                    ],
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "required": ["source"],
-                                                            "type": "object"
-                                                        },
-                                                        "type": "array"
-                                                    },
                                                     "child_count": {
                                                         "type": "integer"
                                                     },
@@ -104212,133 +105072,10 @@
                                                     "current_run_id": {
                                                         "type": "string"
                                                     },
-                                                    "dependencies": {
-                                                        "items": {
-                                                            "properties": {
-                                                                "created_at": {
-                                                                    "format": "date-time",
-                                                                    "type": "string"
-                                                                },
-                                                                "depends_on": {
-                                                                    "properties": {
-                                                                        "effective_paused": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "id": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "identifier": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "latest_event_seq": {
-                                                                            "format": "int64",
-                                                                            "type": "integer"
-                                                                        },
-                                                                        "owner": {
-                                                                            "nullable": true,
-                                                                            "properties": {
-                                                                                "kind": {
-                                                                                    "enum": [
-                                                                                        "human",
-                                                                                        "agent_session",
-                                                                                        "automation",
-                                                                                        "extension",
-                                                                                        "network_peer",
-                                                                                        "pool"
-                                                                                    ],
-                                                                                    "type": "string"
-                                                                                },
-                                                                                "ref": {
-                                                                                    "type": "string"
-                                                                                }
-                                                                            },
-                                                                            "required": [
-                                                                                "kind",
-                                                                                "ref"
-                                                                            ],
-                                                                            "type": "object"
-                                                                        },
-                                                                        "paused": {
-                                                                            "type": "boolean"
-                                                                        },
-                                                                        "paused_by_task_id": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "priority": {
-                                                                            "enum": [
-                                                                                "low",
-                                                                                "medium",
-                                                                                "high",
-                                                                                "urgent"
-                                                                            ],
-                                                                            "type": "string"
-                                                                        },
-                                                                        "scope": {
-                                                                            "enum": [
-                                                                                "global",
-                                                                                "workspace"
-                                                                            ],
-                                                                            "type": "string"
-                                                                        },
-                                                                        "status": {
-                                                                            "enum": [
-                                                                                "draft",
-                                                                                "pending",
-                                                                                "blocked",
-                                                                                "needs_attention",
-                                                                                "ready",
-                                                                                "in_progress",
-                                                                                "completed",
-                                                                                "failed",
-                                                                                "canceled"
-                                                                            ],
-                                                                            "type": "string"
-                                                                        },
-                                                                        "title": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "workspace_id": {
-                                                                            "type": "string"
-                                                                        }
-                                                                    },
-                                                                    "required": [
-                                                                        "id",
-                                                                        "latest_event_seq",
-                                                                        "scope",
-                                                                        "status",
-                                                                        "title"
-                                                                    ],
-                                                                    "type": "object"
-                                                                },
-                                                                "depends_on_task_id": {
-                                                                    "type": "string"
-                                                                },
-                                                                "kind": {
-                                                                    "enum": ["blocks"],
-                                                                    "type": "string"
-                                                                },
-                                                                "task_id": {
-                                                                    "type": "string"
-                                                                }
-                                                            },
-                                                            "required": [
-                                                                "created_at",
-                                                                "depends_on",
-                                                                "depends_on_task_id",
-                                                                "kind",
-                                                                "task_id"
-                                                            ],
-                                                            "type": "object"
-                                                        },
-                                                        "type": "array"
-                                                    },
                                                     "dependency_count": {
                                                         "type": "integer"
                                                     },
                                                     "draft": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "effective_paused": {
                                                         "type": "boolean"
                                                     },
                                                     "id": {
@@ -104441,23 +105178,6 @@
                                                     "parent_task_id": {
                                                         "type": "string"
                                                     },
-                                                    "paused": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "paused_at": {
-                                                        "format": "date-time",
-                                                        "nullable": true,
-                                                        "type": "string"
-                                                    },
-                                                    "paused_by": {
-                                                        "type": "string"
-                                                    },
-                                                    "paused_by_task_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "paused_reason": {
-                                                        "type": "string"
-                                                    },
                                                     "priority": {
                                                         "enum": ["low", "medium", "high", "urgent"],
                                                         "type": "string"
@@ -104511,12 +105231,74 @@
                                             "type": "array"
                                         }
                                     },
-                                    "required": ["tasks"],
+                                    "required": ["facets", "page", "tasks"],
                                     "type": "object"
                                 }
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid task filter or cursor"
                     },
                     "404": {
                         "content": {
@@ -104580,7 +105362,7 @@
                         },
                         "description": "Workspace not found"
                     },
-                    "422": {
+                    "410": {
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -104640,7 +105422,7 @@
                                 }
                             }
                         },
-                        "description": "Invalid task filter"
+                        "description": "Workspace root is missing"
                     },
                     "500": {
                         "content": {
@@ -104767,7 +105549,7 @@
                         "description": "Task service is not configured"
                     }
                 },
-                "summary": "List enriched tasks",
+                "summary": "List a bounded task catalog page",
                 "tags": ["tasks"],
                 "x-agh-transports": ["http", "uds"]
             },
@@ -143197,6 +143979,78 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Search Loop name or contract goal",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by effective Loop kind",
+                        "in": "query",
+                        "name": "kind",
+                        "schema": {
+                            "enum": ["read_only", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by exact catalog category",
+                        "in": "query",
+                        "name": "category",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by exact latest-run status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": [
+                                "queued",
+                                "running",
+                                "watching",
+                                "needs-approval",
+                                "paused",
+                                "done",
+                                "no-op",
+                                "blocked",
+                                "failed",
+                                "exhausted",
+                                "stalled"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Stable read-only-first name order",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "enum": ["name"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Continue after this workspace- and query-bound Loop cursor",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Maximum number of Loops to return; defaults to 50 and is capped at 200",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -143205,6 +144059,30 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "facets": {
+                                            "properties": {
+                                                "categories": {
+                                                    "additionalProperties": {
+                                                        "type": "integer"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "kinds": {
+                                                    "additionalProperties": {
+                                                        "type": "integer"
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "statuses": {
+                                                    "additionalProperties": {
+                                                        "type": "integer"
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "required": ["categories", "kinds", "statuses"],
+                                            "type": "object"
+                                        },
                                         "loops": {
                                             "items": {
                                                 "properties": {
@@ -143406,86 +144284,11 @@
                                                     "last_run": {
                                                         "nullable": true,
                                                         "properties": {
-                                                            "active_gate_id": {
-                                                                "type": "string"
-                                                            },
-                                                            "budget_approval_seq": {
-                                                                "type": "integer"
-                                                            },
-                                                            "budget_on_exceeded": {
-                                                                "enum": ["halt", "escalate"],
-                                                                "type": "string"
-                                                            },
-                                                            "budget_tokens": {
-                                                                "type": "integer"
-                                                            },
-                                                            "budget_wall_sec": {
-                                                                "type": "integer"
-                                                            },
-                                                            "consecutive_failures": {
-                                                                "type": "integer"
-                                                            },
                                                             "created_at": {
                                                                 "format": "date-time",
                                                                 "type": "string"
                                                             },
-                                                            "definition_digest": {
-                                                                "type": "string"
-                                                            },
-                                                            "definition_version": {
-                                                                "type": "integer"
-                                                            },
-                                                            "generation": {
-                                                                "type": "integer"
-                                                            },
                                                             "id": {
-                                                                "type": "string"
-                                                            },
-                                                            "inputs": {
-                                                                "additionalProperties": {},
-                                                                "type": "object"
-                                                            },
-                                                            "iteration_cap": {
-                                                                "type": "integer"
-                                                            },
-                                                            "last_progress_at": {
-                                                                "format": "date-time",
-                                                                "type": "string"
-                                                            },
-                                                            "loop_name": {
-                                                                "type": "string"
-                                                            },
-                                                            "parent_loop_run_id": {
-                                                                "type": "string"
-                                                            },
-                                                            "pause_requested": {
-                                                                "type": "boolean"
-                                                            },
-                                                            "reattempt_strategy": {
-                                                                "enum": [
-                                                                    "failed_only",
-                                                                    "full_body"
-                                                                ],
-                                                                "type": "string"
-                                                            },
-                                                            "start_metadata": {
-                                                                "additionalProperties": {},
-                                                                "type": "object"
-                                                            },
-                                                            "started_at": {
-                                                                "format": "date-time",
-                                                                "type": "string"
-                                                            },
-                                                            "started_by_kind": {
-                                                                "type": "string"
-                                                            },
-                                                            "started_by_ref": {
-                                                                "type": "string"
-                                                            },
-                                                            "started_origin_kind": {
-                                                                "type": "string"
-                                                            },
-                                                            "started_origin_ref": {
                                                                 "type": "string"
                                                             },
                                                             "status": {
@@ -143503,34 +144306,9 @@
                                                                     "stalled"
                                                                 ],
                                                                 "type": "string"
-                                                            },
-                                                            "tokens_used": {
-                                                                "format": "int64",
-                                                                "type": "integer"
-                                                            },
-                                                            "workspace_id": {
-                                                                "type": "string"
                                                             }
                                                         },
-                                                        "required": [
-                                                            "budget_on_exceeded",
-                                                            "budget_tokens",
-                                                            "budget_wall_sec",
-                                                            "consecutive_failures",
-                                                            "created_at",
-                                                            "definition_version",
-                                                            "generation",
-                                                            "id",
-                                                            "iteration_cap",
-                                                            "last_progress_at",
-                                                            "loop_name",
-                                                            "pause_requested",
-                                                            "reattempt_strategy",
-                                                            "started_at",
-                                                            "status",
-                                                            "tokens_used",
-                                                            "workspace_id"
-                                                        ],
+                                                        "required": ["created_at", "id", "status"],
                                                         "type": "object"
                                                     },
                                                     "name": {
@@ -143587,9 +144365,27 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["loops"],
+                                    "required": ["facets", "loops", "page"],
                                     "type": "object"
                                 }
                             }
@@ -143657,6 +144453,130 @@
                             }
                         },
                         "description": "Invalid Loop request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root is missing"
                     },
                     "500": {
                         "content": {
@@ -150921,6 +151841,15 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Maximum cross-channel recent conversations to include",
+                        "in": "query",
+                        "name": "recent_limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -150991,6 +151920,44 @@
                                                     }
                                                 },
                                                 "required": ["channel", "peer_count"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "recents": {
+                                            "items": {
+                                                "properties": {
+                                                    "channel": {
+                                                        "type": "string"
+                                                    },
+                                                    "container_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "last_activity_at": {
+                                                        "format": "date-time",
+                                                        "nullable": true,
+                                                        "type": "string"
+                                                    },
+                                                    "last_message_preview": {
+                                                        "type": "string"
+                                                    },
+                                                    "participant_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "peer_a": {
+                                                        "type": "string"
+                                                    },
+                                                    "peer_b": {
+                                                        "type": "string"
+                                                    },
+                                                    "surface": {
+                                                        "type": "string"
+                                                    },
+                                                    "title": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": ["channel", "container_id", "surface"],
                                                 "type": "object"
                                             },
                                             "type": "array"
@@ -154104,7 +155071,7 @@
                         }
                     },
                     {
-                        "description": "Filter direct rooms by peer id",
+                        "description": "Filter by participant peer id",
                         "in": "query",
                         "name": "peer_id",
                         "schema": {
@@ -154112,7 +155079,31 @@
                         }
                     },
                     {
-                        "description": "Return direct rooms after the specified direct id",
+                        "description": "Filter direct rooms by title, peer, or preview text",
+                        "in": "query",
+                        "name": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by presence of open work",
+                        "in": "query",
+                        "name": "has_work",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Order by recent_activity, created, or alphabetical",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return rows after the specified stable id cursor",
                         "in": "query",
                         "name": "after",
                         "schema": {
@@ -154184,9 +155175,27 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["directs"],
+                                    "required": ["directs", "page"],
                                     "type": "object"
                                 }
                             }
@@ -155335,9 +156344,24 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["messages"],
+                                    "required": ["messages", "page"],
                                     "type": "object"
                                 }
                             }
@@ -156444,7 +157468,39 @@
                         }
                     },
                     {
-                        "description": "Return threads after the specified thread id",
+                        "description": "Filter by participant peer id",
+                        "in": "query",
+                        "name": "peer_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter threads by title, peer, or preview text",
+                        "in": "query",
+                        "name": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter by presence of open work",
+                        "in": "query",
+                        "name": "has_work",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "description": "Order by recent_activity, created, or alphabetical",
+                        "in": "query",
+                        "name": "sort",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Return rows after the specified stable id cursor",
                         "in": "query",
                         "name": "after",
                         "schema": {
@@ -156452,7 +157508,7 @@
                         }
                     },
                     {
-                        "description": "Maximum number of public threads to return",
+                        "description": "Maximum number of threads to return",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -156467,6 +157523,24 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
+                                        },
                                         "threads": {
                                             "items": {
                                                 "properties": {
@@ -156545,7 +157619,7 @@
                                             "type": "array"
                                         }
                                     },
-                                    "required": ["threads"],
+                                    "required": ["page", "threads"],
                                     "type": "object"
                                 }
                             }
@@ -157384,9 +158458,24 @@
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit"],
+                                            "type": "object"
                                         }
                                     },
-                                    "required": ["messages"],
+                                    "required": ["messages", "page"],
                                     "type": "object"
                                 }
                             }
@@ -159469,8 +160558,13 @@
                     "content": {
                         "application/json": {
                             "schema": {
+                                "description": "For say, capability, receipt, and trace, surface is required. surface=thread requires thread_id; the first valid send creates the public thread. surface=direct requires an existing direct_id. capability, receipt, and trace also require work_id. capability and lifecycle-bearing say also require to. greet and whois omit conversation and work fields.",
                                 "properties": {
-                                    "body": {},
+                                    "body": {
+                                        "additionalProperties": {},
+                                        "description": "Kind-specific object. say requires a non-empty text field; other kinds follow the AGH Network message body rules.",
+                                        "type": "object"
+                                    },
                                     "causation_id": {
                                         "type": "string"
                                     },
@@ -159478,6 +160572,8 @@
                                         "type": "string"
                                     },
                                     "direct_id": {
+                                        "description": "Required with surface=direct. Resolve the existing room before sending.",
+                                        "pattern": "^direct_[a-f0-9]{32}$",
                                         "type": "string"
                                     },
                                     "expires_at": {
@@ -159493,6 +160589,14 @@
                                         "type": "string"
                                     },
                                     "kind": {
+                                        "enum": [
+                                            "greet",
+                                            "whois",
+                                            "say",
+                                            "capability",
+                                            "receipt",
+                                            "trace"
+                                        ],
                                         "type": "string"
                                     },
                                     "mentions": {
@@ -159508,18 +160612,24 @@
                                         "type": "string"
                                     },
                                     "surface": {
+                                        "description": "Required for say, capability, receipt, and trace; omitted for greet and whois.",
+                                        "enum": ["thread", "direct"],
                                         "type": "string"
                                     },
                                     "thread_id": {
+                                        "description": "Required with surface=thread. Use a fresh valid ID. The first valid send creates the public thread; later sends reuse the same ID.",
+                                        "pattern": "^thread_[a-z0-9][a-z0-9_-]{2,95}$",
                                         "type": "string"
                                     },
                                     "to": {
+                                        "description": "Target peer. Required for capability and for say carrying work_id.",
                                         "type": "string"
                                     },
                                     "trace_id": {
                                         "type": "string"
                                     },
                                     "work_id": {
+                                        "description": "Required for capability, receipt, and trace; optional for lifecycle-bearing say messages.",
                                         "type": "string"
                                     },
                                     "workspace_id": {
@@ -167624,7 +168734,7 @@
                         }
                     },
                     {
-                        "description": "Resume after the last received SSE id",
+                        "description": "Resume after the last applied SSE cursor; transcript reconnects also require epoch and generation",
                         "in": "header",
                         "name": "Last-Event-ID",
                         "schema": {
@@ -167632,7 +168742,7 @@
                         }
                     },
                     {
-                        "description": "Initial replay cursor when Last-Event-ID is not supplied",
+                        "description": "Initial cursor when Last-Event-ID is not supplied",
                         "in": "query",
                         "name": "after_sequence",
                         "schema": {
@@ -167641,7 +168751,7 @@
                         }
                     },
                     {
-                        "description": "Frame mode. The default is transcript; raw preserves persisted event frames for CLI consumers.",
+                        "description": "Frame mode; transcript is the default and raw preserves persisted event frames",
                         "in": "query",
                         "name": "frames",
                         "schema": {
@@ -167650,12 +168760,30 @@
                         }
                     },
                     {
-                        "description": "Replay policy. snapshot seeds transcript subscribers with the current assembled tail.",
+                        "description": "Expected transcript epoch for a fenced reconnect",
                         "in": "query",
-                        "name": "replay",
+                        "name": "epoch",
                         "schema": {
-                            "enum": ["snapshot"],
-                            "type": "string"
+                            "format": "int64",
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Expected materialized projection generation for a fenced reconnect",
+                        "in": "query",
+                        "name": "generation",
+                        "schema": {
+                            "format": "int64",
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Maximum entries per transcript snapshot or change batch",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
                         }
                     }
                 ],
@@ -167924,74 +169052,96 @@
                                         "transcript_delta": {
                                             "nullable": true,
                                             "properties": {
-                                                "entry": {
-                                                    "properties": {
-                                                        "message": {
-                                                            "properties": {
-                                                                "id": {
-                                                                    "type": "string"
-                                                                },
-                                                                "metadata": {},
-                                                                "parts": {
-                                                                    "items": {
-                                                                        "properties": {
-                                                                            "data": {},
-                                                                            "errorText": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "id": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "input": {},
-                                                                            "output": {},
-                                                                            "preliminary": {
-                                                                                "type": "boolean"
-                                                                            },
-                                                                            "rawInput": {},
-                                                                            "state": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "text": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "title": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "toolCallId": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "toolName": {
-                                                                                "type": "string"
-                                                                            },
-                                                                            "type": {
-                                                                                "type": "string"
-                                                                            }
-                                                                        },
-                                                                        "required": ["type"],
-                                                                        "type": "object"
+                                                "cursor": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "entries": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "message": {
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "string"
                                                                     },
-                                                                    "type": "array"
+                                                                    "metadata": {},
+                                                                    "parts": {
+                                                                        "items": {
+                                                                            "properties": {
+                                                                                "data": {},
+                                                                                "errorText": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "input": {},
+                                                                                "output": {},
+                                                                                "preliminary": {
+                                                                                    "type": "boolean"
+                                                                                },
+                                                                                "rawInput": {},
+                                                                                "state": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "text": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "title": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "toolCallId": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "toolName": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": ["type"],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "role": {
+                                                                        "type": "string"
+                                                                    }
                                                                 },
-                                                                "role": {
-                                                                    "type": "string"
-                                                                }
+                                                                "required": ["id", "parts", "role"],
+                                                                "type": "object"
                                                             },
-                                                            "required": ["id", "parts", "role"],
-                                                            "type": "object"
+                                                            "sequence": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
+                                                            "start_sequence": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            }
                                                         },
-                                                        "sequence": {
-                                                            "format": "int64",
-                                                            "type": "integer"
-                                                        }
+                                                        "required": [
+                                                            "message",
+                                                            "sequence",
+                                                            "start_sequence"
+                                                        ],
+                                                        "type": "object"
                                                     },
-                                                    "required": ["message", "sequence"],
-                                                    "type": "object"
+                                                    "type": "array"
                                                 },
                                                 "epoch": {
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
-                                                "sequence": {
+                                                "generation": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "max_sequence": {
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
@@ -168006,9 +169156,12 @@
                                                 }
                                             },
                                             "required": [
-                                                "entry",
+                                                "cursor",
+                                                "entries",
                                                 "epoch",
-                                                "sequence",
+                                                "generation",
+                                                "has_more",
+                                                "max_sequence",
                                                 "session_id"
                                             ],
                                             "type": "object"
@@ -168075,9 +169228,17 @@
                                                             "sequence": {
                                                                 "format": "int64",
                                                                 "type": "integer"
+                                                            },
+                                                            "start_sequence": {
+                                                                "format": "int64",
+                                                                "type": "integer"
                                                             }
                                                         },
-                                                        "required": ["message", "sequence"],
+                                                        "required": [
+                                                            "message",
+                                                            "sequence",
+                                                            "start_sequence"
+                                                        ],
                                                         "type": "object"
                                                     },
                                                     "type": "array"
@@ -168086,18 +169247,25 @@
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
+                                                "generation": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                },
+                                                "has_older": {
+                                                    "type": "boolean"
+                                                },
                                                 "max_sequence": {
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
-                                                "min_sequence": {
+                                                "next_before_sequence": {
                                                     "format": "int64",
                                                     "type": "integer"
                                                 },
                                                 "reason": {
                                                     "type": "string"
                                                 },
-                                                "reset_below": {
+                                                "reset": {
                                                     "type": "boolean"
                                                 },
                                                 "session_id": {
@@ -168113,9 +169281,10 @@
                                             "required": [
                                                 "entries",
                                                 "epoch",
+                                                "generation",
+                                                "has_older",
                                                 "max_sequence",
-                                                "min_sequence",
-                                                "reset_below",
+                                                "reset",
                                                 "session_id"
                                             ],
                                             "type": "object"
@@ -168312,9 +169481,71 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Transcript projection is incompatible"
                     }
                 },
-                "summary": "Stream session events or assembled transcript updates",
+                "summary": "Stream raw session events or fenced transcript changes",
                 "tags": ["sessions"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -169604,7 +170835,7 @@
                         }
                     },
                     {
-                        "description": "Maximum number of transcript entries to return; defaults to the newest 200 and is capped at 1000",
+                        "description": "Maximum page size; defaults to the newest 200 entries and is capped at 1000",
                         "in": "query",
                         "name": "limit",
                         "schema": {
@@ -169613,16 +170844,7 @@
                         }
                     },
                     {
-                        "description": "Only return transcript entries after this event sequence",
-                        "in": "query",
-                        "name": "after_sequence",
-                        "schema": {
-                            "format": "int64",
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Return transcript entries before this event sequence for backward pagination",
+                        "description": "Return entries whose stable start sequence is before this cursor",
                         "in": "query",
                         "name": "before_sequence",
                         "schema": {
@@ -169696,20 +170918,119 @@
                                                     "sequence": {
                                                         "format": "int64",
                                                         "type": "integer"
+                                                    },
+                                                    "start_sequence": {
+                                                        "format": "int64",
+                                                        "type": "integer"
                                                     }
                                                 },
-                                                "required": ["message", "sequence"],
+                                                "required": [
+                                                    "message",
+                                                    "sequence",
+                                                    "start_sequence"
+                                                ],
                                                 "type": "object"
                                             },
                                             "type": "array"
+                                        },
+                                        "epoch": {
+                                            "format": "int64",
+                                            "type": "integer"
+                                        },
+                                        "generation": {
+                                            "format": "int64",
+                                            "type": "integer"
+                                        },
+                                        "has_older": {
+                                            "type": "boolean"
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "max_sequence": {
+                                            "format": "int64",
+                                            "type": "integer"
+                                        },
+                                        "next_before_sequence": {
+                                            "format": "int64",
+                                            "type": "integer"
                                         }
                                     },
-                                    "required": ["entries"],
+                                    "required": [
+                                        "entries",
+                                        "epoch",
+                                        "generation",
+                                        "has_older",
+                                        "limit",
+                                        "max_sequence"
+                                    ],
                                     "type": "object"
                                 }
                             }
                         },
                         "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid filter"
                     },
                     "404": {
                         "content": {
@@ -169834,9 +171155,71 @@
                             }
                         },
                         "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Transcript projection is incompatible"
                     }
                 },
-                "summary": "Get the canonical transcript for one session",
+                "summary": "Get a bounded materialized transcript page",
                 "tags": ["sessions"],
                 "x-agh-transports": ["http", "uds"]
             }

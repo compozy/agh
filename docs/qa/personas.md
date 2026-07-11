@@ -23,8 +23,8 @@ persona:
 ```
 
 - **Who:** the developer who replaced `compozy tasks run` with the `software-delivery` Loop. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
-- **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide.
+- **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, and J-24 triage-work-at-scale.
 
 ## Lea — First-time Adopter
 
@@ -77,7 +77,7 @@ persona:
 ```
 
 - **Who:** an ACP agent (PRD primary persona "Autonomous agent") driving Loops via `agh__loop_*` native tools over CLI/HTTP/UDS. **Ada is a non-human actor** — QA role-plays her to verify AGH's agent-manageability premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold. Zero patience for ambiguous or non-parseable output.
-- **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s. **On the session surface** (session-improvements program): bounded read defaults, stable pagination cursors, snapshot-on-resubscribe seeding an idle background session, keep-alive cadence, gap-free reconnect via `Last-Event-ID`/`after_sequence`, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart.
+- **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart.
 - **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona).
 
 ## Sol — Accessibility-Reliant Operator
@@ -119,8 +119,8 @@ persona:
 ```
 
 - **Who:** the developer who keeps several agent sessions running across workspaces, backgrounds the tab for minutes-to-hours, and comes back expecting their work intact. The session-surface counterpart to Bruno. **Hero persona for blank-on-return** (the program's headline bug).
-- **What they reveal:** blank/`ThreadEmpty` thread while persisted messages exist (the trust-killer), false `running`/`done`/`stopped` badges, silent permanent blank after a transient transcript 5xx, source-flip races on remount, SSE that never re-seeds an idle background session, lost live-tail after a reconnect gap, workspace-switch that redirects with no explanation.
-- **Owns journeys:** J-11 return-to-running-session (hero), J-13 follow-a-live-run.
+- **What they reveal:** blank/`ThreadEmpty` thread while persisted messages exist (the trust-killer), false `running`/`done`/`stopped` badges, silent permanent blank after a transient transcript 5xx, source-flip races on remount, fenced SSE reconnect gaps, workspace-switch redirects with no explanation, and Network reads/actions that bleed through a lagging active-workspace state.
+- **Owns journeys:** J-11 return-to-running-session (hero), J-13 follow-a-live-run, and J-23 return-to-network-work.
 
 ## Nia — First-time Session Viewer
 
@@ -155,5 +155,5 @@ persona:
 ```
 
 - **Who:** the reviewer/auditor who reads the longest finished sessions in the corpus for review or compliance. Cares about the transcript *UI language* rewrite (tasks 25–33, 36–37): grouping, inline inspection, copy affordances, truthful usage. Related to Marina's reviewer archetype but desktop and transcript-deep, not mobile approval.
-- **What they reveal:** ungrouped 44px tool-call cards, output hidden behind default-closed chips, missing `+N previous tool calls`/turn folds, lossy or missing inline Input/Output, no copy affordance, a permanently-empty Usage tab presented as real data, false success/danger glyphs, gaps/duplicates when paging older history.
-- **Owns journeys:** J-14 read-a-finished-transcript (primary).
+- **What they reveal:** ungrouped 44px tool-call cards, output hidden behind default-closed chips, missing `+N previous tool calls`/turn folds, lossy or missing inline Input/Output, no copy affordance, a permanently-empty Usage tab presented as real data, false success/danger glyphs, gaps/duplicates when paging older history, and knowledge catalogs that hide old entries or retain ghost headers after interrupted derived synchronization.
+- **Owns journeys:** J-14 read-a-finished-transcript (primary) and J-25 browse-and-recover-knowledge.

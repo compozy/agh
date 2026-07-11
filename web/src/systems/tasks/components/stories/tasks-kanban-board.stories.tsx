@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { countTasksByStatus } from "../../lib/task-formatters";
 import { groupTasksForKanban } from "../../lib/task-grouping";
 import type { TaskListItem } from "../../types";
 import { TasksKanbanBoard } from "../tasks-kanban-board";
@@ -12,6 +13,11 @@ const meta: Meta<typeof TasksKanbanBoard> = {
   component: TasksKanbanBoard,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Task status lanes with exact backend facet totals and explicit continuation.",
+      },
+    },
   },
 };
 
@@ -90,18 +96,20 @@ function ControlledKanban(
   props: Partial<Parameters<typeof TasksKanbanBoard>[0]> & { tasks?: TaskListItem[] }
 ) {
   const [selected, setSelected] = useState<string | null>(null);
-  const { tasks = KANBAN_TASKS, ...rest } = props;
+  const { tasks = KANBAN_TASKS, statusCounts = countTasksByStatus(tasks), ...rest } = props;
   return (
     <TasksKanbanBoard
       columns={groupTasksForKanban(tasks)}
       onSelectTask={setSelected}
       selectedTaskId={selected}
+      statusCounts={statusCounts}
       {...rest}
     />
   );
 }
 
 export const Populated: Story = {
+  args: {},
   render: () => (
     <Frame>
       <ControlledKanban />
@@ -110,6 +118,7 @@ export const Populated: Story = {
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => (
     <Frame>
       <ControlledKanban tasks={[]} />
@@ -118,6 +127,7 @@ export const Empty: Story = {
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => (
     <Frame>
       <ControlledKanban isLoading tasks={[]} />
@@ -126,6 +136,7 @@ export const Loading: Story = {
 };
 
 export const ErrorState: Story = {
+  args: {},
   name: "Error",
   render: () => (
     <Frame>

@@ -3,59 +3,16 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDaemonHealth } from "../use-daemon-health";
+import { statusFixture } from "../../mocks/fixtures";
+import { deriveDaemonConnectionStatus, useDaemonHealth } from "../use-daemon-health";
+import { useDaemonStatus } from "../use-daemon-status";
+import { useStatus } from "../use-status";
 
 vi.mock("../../adapters/daemon-api", () => ({
-  fetchHealth: vi.fn(),
+  fetchStatus: vi.fn(),
 }));
 
-import { fetchHealth } from "../../adapters/daemon-api";
-import type { HealthPayload } from "../../types";
-
-const healthFixture: HealthPayload = {
-  status: "ok",
-  uptime_seconds: 100,
-  active_sessions: 1,
-  active_agents: 1,
-  bridges: {
-    total_instances: 0,
-    route_count: 0,
-    delivery_backlog: 0,
-    delivery_dropped_total: 0,
-    delivery_failures_total: 0,
-    auth_failures_total: 0,
-    status_counts: {
-      disabled: 0,
-      starting: 0,
-      ready: 0,
-      degraded: 0,
-      auth_required: 0,
-      error: 0,
-    },
-  },
-  global_db_size_bytes: 0,
-  session_db_size_bytes: 0,
-  persistence: {
-    status: "ok",
-    global_db_size_bytes: 0,
-    session_db_size_bytes: 0,
-  },
-  retention: {
-    enabled: false,
-    retention_days: 0,
-    sweep_interval_seconds: 86_400,
-    last_sweep_status: "disabled",
-    deleted_event_summaries: 0,
-    deleted_token_stats: 0,
-    deleted_permission_log_rows: 0,
-  },
-  failures: {
-    status: "ok",
-    total: 0,
-  },
-  agent_probes: [],
-  version: "0.1.0",
-};
+import { fetchStatus } from "../../adapters/daemon-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -67,7 +24,45 @@ function createWrapper() {
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-describe("useDaemonHealth", () => {
+describe("deriveDaemonConnectionStatus", () => {
+  it("Should map the shared status query lifecycle to a connection status", () => {
+    expect(
+      deriveDaemonConnectionStatus({
+        isPending: true,
+        isFetching: true,
+        isSuccess: false,
+        isError: false,
+      })
+    ).toBe("connecting");
+    expect(
+      deriveDaemonConnectionStatus({
+        data: statusFixture.health,
+        isPending: false,
+        isFetching: false,
+        isSuccess: true,
+        isError: false,
+      })
+    ).toBe("connected");
+    expect(
+      deriveDaemonConnectionStatus({
+        isPending: false,
+        isFetching: false,
+        isSuccess: false,
+        isError: true,
+      })
+    ).toBe("error");
+    expect(
+      deriveDaemonConnectionStatus({
+        isPending: false,
+        isFetching: false,
+        isSuccess: false,
+        isError: false,
+      })
+    ).toBe("disconnected");
+  });
+});
+
+describe("daemon status query projections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -76,23 +71,30 @@ describe("useDaemonHealth", () => {
     vi.restoreAllMocks();
   });
 
-  it('derives "connected" when query succeeds', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue(healthFixture);
+  it("Should share one status request across envelope, daemon, and health consumers", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
 
-    const { result } = renderHook(() => useDaemonHealth(), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => ({
+        envelope: useStatus(),
+        daemon: useDaemonStatus(),
+        health: useDaemonHealth(),
+      }),
+      { wrapper: createWrapper() }
+    );
 
     await waitFor(() => {
-      expect(result.current.connectionStatus).toBe("connected");
+      expect(result.current.health.connectionStatus).toBe("connected");
     });
 
-    expect(result.current.health).toBeDefined();
-    expect(result.current.health?.status).toBe("ok");
+    expect(result.current.envelope.data).toEqual(statusFixture);
+    expect(result.current.daemon.data).toEqual(statusFixture.daemon);
+    expect(result.current.health.health).toEqual(statusFixture.health);
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
   });
 
-  it('derives "connecting" while the first health query is still pending', () => {
-    vi.mocked(fetchHealth).mockReturnValue(new Promise(() => undefined));
+  it("Should report connecting while the first shared status request is pending", () => {
+    vi.mocked(fetchStatus).mockReturnValue(new Promise(() => undefined));
 
     const { result } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),
@@ -102,8 +104,8 @@ describe("useDaemonHealth", () => {
     expect(result.current.isInitialLoading).toBe(true);
   });
 
-  it('derives "error" after the health query fails', async () => {
-    vi.mocked(fetchHealth).mockRejectedValue(new Error("Network error"));
+  it("Should report an error after the shared status request fails", async () => {
+    vi.mocked(fetchStatus).mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useDaemonHealth(), {
       wrapper: createWrapper(),
@@ -117,5 +119,6 @@ describe("useDaemonHealth", () => {
     );
 
     expect(result.current.health).toBeUndefined();
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
   });
 });

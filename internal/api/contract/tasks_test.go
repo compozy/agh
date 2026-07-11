@@ -321,9 +321,9 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 	lastSeen := lastActivity.Add(-time.Minute)
 	inbox := TaskInboxResponse{
 		Inbox: TaskInboxPayload{
-			Total:         2,
 			UnreadTotal:   1,
 			ArchivedTotal: 0,
+			Page:          CountedCursorPagePayload{Total: 2, Limit: 10},
 			Groups: []TaskInboxLaneGroupPayload{
 				{
 					Lane:        TaskInboxLaneApprovals,
@@ -331,7 +331,7 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 					UnreadCount: 1,
 					Items: []TaskInboxItemPayload{
 						{
-							Task: TaskReferencePayload{
+							Task: TaskInboxTaskPayload{
 								ID:          "task-1",
 								Identifier:  "TSK-001",
 								Title:       "Approve task",
@@ -345,7 +345,7 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 							ApprovalState:    taskpkg.ApprovalStatePending,
 							BlockingReason:   "awaiting_approval",
 							LatestActivityAt: lastActivity,
-							Run: &TaskRunSummaryPayload{
+							Run: &TaskCatalogRunPayload{
 								ID:          "run-1",
 								TaskID:      "task-1",
 								Status:      taskpkg.TaskRunStatusClaimed,
@@ -425,7 +425,9 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 
 		inboxObject := marshalObject(t, inbox)
 		inboxRoot := nestedObject(t, inboxObject, "inbox")
-		assertObjectKeys(t, inboxRoot, "total", "unread_total", "archived_total", "groups")
+		assertObjectKeys(t, inboxRoot, "unread_total", "archived_total", "groups", "page", "facets")
+		assertObjectKeys(t, nestedObject(t, inboxRoot, "page"), "has_more", "total", "limit")
+		assertObjectKeys(t, nestedObject(t, inboxRoot, "facets"), "statuses", "priorities")
 		firstGroup := firstObjectFromArray(t, inboxRoot, "groups")
 		assertObjectKeys(t, firstGroup, "lane", "count", "unread_count", "items")
 		firstItem := firstObjectFromArray(t, firstGroup, "items")

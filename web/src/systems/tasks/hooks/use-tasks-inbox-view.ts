@@ -14,8 +14,15 @@ import {
   type InboxUiLane,
   backendLaneToUiLane,
   resolveInboxGroupId,
+  resolveInboxLaneGroupId,
 } from "../lib/inbox-grouping";
-import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
+import type {
+  TaskInboxGroup,
+  TaskInboxItem,
+  TaskInboxView,
+  TaskPriority,
+  TaskStatus,
+} from "../types";
 
 type LaneCount = InboxLaneCount;
 
@@ -27,7 +34,6 @@ interface UseTasksInboxViewArgs {
   onStatusChange: (next: TaskStatus | null) => void;
   priorityFilter: TaskPriority | null;
   onPriorityChange: (next: TaskPriority | null) => void;
-  unreadOnly: boolean;
 }
 
 function flattenItems(inbox: TaskInboxView | null): TaskInboxItem[] {
@@ -37,19 +43,16 @@ function flattenItems(inbox: TaskInboxView | null): TaskInboxItem[] {
   return inbox.groups.flatMap(group => group.items ?? []);
 }
 
-function computeLaneCounts(items: TaskInboxItem[]): Map<InboxUiLane, LaneCount> {
+function computeLaneCounts(groups: TaskInboxGroup[] | undefined): Map<InboxUiLane, LaneCount> {
   const counts = new Map<InboxUiLane, LaneCount>();
   for (const lane of INBOX_UI_LANES) {
     counts.set(lane.id, { count: 0, unread: 0 });
   }
-  for (const item of items) {
-    const laneId = backendLaneToUiLane(item.lane);
-    const entry = counts.get(laneId);
+  for (const group of groups ?? []) {
+    const entry = counts.get(backendLaneToUiLane(group.lane));
     if (!entry) continue;
-    entry.count += 1;
-    if (!item.triage.read && !item.triage.dismissed) {
-      entry.unread += 1;
-    }
+    entry.count = group.count;
+    entry.unread = group.unread_count;
   }
   return counts;
 }
@@ -66,6 +69,19 @@ function partitionByGroup(items: TaskInboxItem[]): Map<InboxGroupId, TaskInboxIt
   return buckets;
 }
 
+function countByDisplayGroup(groups: TaskInboxGroup[] | undefined): Record<InboxGroupId, number> {
+  const counts: Record<InboxGroupId, number> = {
+    needs_review: 0,
+    blocked: 0,
+    updates: 0,
+  };
+  for (const group of groups ?? []) {
+    const groupId = resolveInboxLaneGroupId(group.lane);
+    counts[groupId] += group.count;
+  }
+  return counts;
+}
+
 export function useTasksInboxView({
   inbox,
   laneFilter,
@@ -74,10 +90,9 @@ export function useTasksInboxView({
   onStatusChange,
   priorityFilter,
   onPriorityChange,
-  unreadOnly,
 }: UseTasksInboxViewArgs) {
   const allItems = useMemo(() => flattenItems(inbox), [inbox]);
-  const laneCounts = useMemo(() => computeLaneCounts(allItems), [allItems]);
+  const laneCounts = useMemo(() => computeLaneCounts(inbox?.groups), [inbox?.groups]);
   const filterFields = useMemo(() => buildInboxFilterFields(laneCounts), [laneCounts]);
   const filterChips = useMemo(
     () => inboxFiltersToChips({ laneFilter, statusFilter, priorityFilter }),
@@ -93,32 +108,19 @@ export function useTasksInboxView({
     },
     [onLaneChange, onPriorityChange, onStatusChange]
   );
-  const filteredItems = useMemo(() => {
-    const lanedItems =
-      laneFilter === "all"
-        ? allItems
-        : allItems.filter(item => backendLaneToUiLane(item.lane) === laneFilter);
-    const statusedItems = statusFilter
-      ? lanedItems.filter(item => item.task.status === statusFilter)
-      : lanedItems;
-    const prioritizedItems = priorityFilter
-      ? statusedItems.filter(item => item.task.priority === priorityFilter)
-      : statusedItems;
-    return unreadOnly
-      ? prioritizedItems.filter(item => !item.triage.read && !item.triage.dismissed)
-      : prioritizedItems;
-  }, [allItems, laneFilter, priorityFilter, statusFilter, unreadOnly]);
-  const groups = useMemo(() => partitionByGroup(filteredItems), [filteredItems]);
+  const groups = useMemo(() => partitionByGroup(allItems), [allItems]);
+  const groupTotals = useMemo(() => countByDisplayGroup(inbox?.groups), [inbox?.groups]);
 
   return {
     archivedTotal: inbox?.archived_total ?? 0,
     filterChips,
     filterFields,
     groups,
+    groupTotals,
     handleFiltersChange,
-    hasItems: filteredItems.length > 0,
-    totalCount: inbox?.total ?? allItems.length,
+    hasItems: allItems.length > 0,
+    totalCount: inbox?.page.total ?? 0,
     unreadTotal: inbox?.unread_total ?? 0,
-    visibleCount: filteredItems.length,
+    visibleCount: allItems.length,
   };
 }

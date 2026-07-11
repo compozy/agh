@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import { TasksDetailHeader, TasksListSurface } from "@/systems/tasks";
+import { countTasksByStatus, TasksDetailHeader, TasksListSurface } from "@/systems/tasks";
 import type { TaskDetailView, TaskListItem } from "@/systems/tasks";
 
 function buildTestRouter(initialUrl: string) {
@@ -246,6 +246,7 @@ function buildSelectionRouter(initialUrl: string) {
           searchQuery=""
           sortBy="recent"
           statusFilter={null}
+          statusCounts={countTasksByStatus(FIXTURE_TASKS)}
           tasks={FIXTURE_TASKS}
           totalCount={FIXTURE_TASKS.length}
         />

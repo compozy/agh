@@ -33,27 +33,27 @@ portable sender SHOULD include them explicitly as `null` when no target or proof
 
 ## Fields
 
-| Field          | Type           | Required    | Rule                                                                                                                                                                                                                   |
-| -------------- | -------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                              |
-| `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                         |
-| `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, work, and transport subjects.                                                                                                 |
-| `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                   |
-| `channel`      | string         | Yes         | MUST match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                                                                                 |
-| `surface`      | string or null | Conditional | MUST be `"thread"` or `"direct"` on conversation-bearing kinds. MUST be absent on `greet` and `whois`.                                                                                                                 |
-| `thread_id`    | string or null | Conditional | REQUIRED when `surface == "thread"`. MUST be absent otherwise.                                                                                                                                                         |
-| `direct_id`    | string or null | Conditional | REQUIRED when `surface == "direct"`. MUST be absent otherwise. Matches `^direct_[a-f0-9]{32}$`.                                                                                                                        |
-| `from`         | string         | Yes         | MUST be the sender Peer ID and MUST match `[a-z0-9][a-z0-9._-]{0,127}`.                                                                                                                                                |
-| `to`           | string or null | Conditional | MUST be a Peer ID when the message is directed to one peer. MUST be `null` or omitted for broadcast messages.                                                                                                          |
-| `work_id`      | string or null | Conditional | REQUIRED on `receipt` and `trace`. MAY appear on `say` and `capability` when the message is part of a single lifecycle-bearing work unit. MUST be absent on `greet` and `whois`. Matches `^work_[a-zA-Z0-9_-]{1,64}$`. |
-| `reply_to`     | string         | Conditional | REQUIRED on `whois` responses. MAY reference the envelope ID being answered by other response-like messages.                                                                                                           |
-| `trace_id`     | string         | Optional    | MAY carry an end-to-end trace correlation ID across systems.                                                                                                                                                           |
-| `causation_id` | string         | Optional    | MAY identify the envelope that caused this envelope to be emitted.                                                                                                                                                     |
-| `ts`           | integer        | Yes         | MUST be Unix time in seconds, set by the sender.                                                                                                                                                                       |
-| `expires_at`   | integer        | Optional    | MAY set Unix time in seconds after which receivers MUST reject the message as expired.                                                                                                                                 |
-| `body`         | object         | Yes         | MUST be a JSON object matching the message kind.                                                                                                                                                                       |
-| `proof`        | object or null | Reserved    | MAY be `null` in v0. v0 receivers MUST NOT require cryptographic proof processing.                                                                                                                                     |
-| `ext`          | object         | Optional    | MAY contain extension keys. Receivers MUST ignore unknown extension keys they do not understand.                                                                                                                       |
+| Field          | Type           | Required    | Rule                                                                                                                                                                                                                                                                                       |
+| -------------- | -------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `protocol`     | string         | Yes         | MUST be `agh-network/v0`.                                                                                                                                                                                                                                                                  |
+| `id`           | string         | Yes         | MUST identify this envelope uniquely within the sender's replay window. UUIDs are RECOMMENDED.                                                                                                                                                                                             |
+| `workspace_id` | string         | Yes         | MUST be the stable workspace ID that scopes the channel, peers, conversation containers, work, and transport subjects.                                                                                                                                                                     |
+| `kind`         | string         | Yes         | MUST be one of `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`. `direct` is not a kind.                                                                                                                                                                                       |
+| `channel`      | string         | Yes         | MUST match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                                                                                                                                                     |
+| `surface`      | string or null | Conditional | MUST be `"thread"` or `"direct"` on conversation-bearing kinds. MUST be absent on `greet` and `whois`.                                                                                                                                                                                     |
+| `thread_id`    | string or null | Conditional | REQUIRED when `surface == "thread"`. MUST be absent otherwise. Matches `^thread_[a-z0-9][a-z0-9_-]{2,95}$`.                                                                                                                                                                                |
+| `direct_id`    | string or null | Conditional | REQUIRED when `surface == "direct"`. MUST be absent otherwise. Matches `^direct_[a-f0-9]{32}$`.                                                                                                                                                                                            |
+| `from`         | string         | Yes         | MUST be the sender Peer ID and MUST match `[a-z0-9][a-z0-9._-]{0,127}`.                                                                                                                                                                                                                    |
+| `to`           | string or null | Conditional | REQUIRED on `capability` and on `say` carrying `work_id`. Otherwise MUST be a Peer ID when the message is directed to one peer and MAY be `null` or omitted for broadcast messages.                                                                                                        |
+| `work_id`      | string or null | Conditional | REQUIRED on `capability`, `receipt`, and `trace`. MAY appear on `say` when the message is part of a single lifecycle-bearing work unit. MUST be absent on `greet` and `whois`. After trimming, occupies 1–128 UTF-8 bytes and MUST NOT contain `/`, `\`, ASCII control characters, or DEL. |
+| `reply_to`     | string         | Conditional | REQUIRED on `whois` responses. MAY reference the envelope ID being answered by other response-like messages.                                                                                                                                                                               |
+| `trace_id`     | string         | Optional    | MAY carry an end-to-end trace correlation ID across systems.                                                                                                                                                                                                                               |
+| `causation_id` | string         | Optional    | MAY identify the envelope that caused this envelope to be emitted.                                                                                                                                                                                                                         |
+| `ts`           | integer        | Yes         | MUST be Unix time in seconds, set by the sender.                                                                                                                                                                                                                                           |
+| `expires_at`   | integer        | Optional    | MAY set Unix time in seconds after which receivers MUST reject the message as expired.                                                                                                                                                                                                     |
+| `body`         | object         | Yes         | MUST be a JSON object matching the message kind.                                                                                                                                                                                                                                           |
+| `proof`        | object or null | Reserved    | MAY be `null` in v0. v0 receivers MUST NOT require cryptographic proof processing.                                                                                                                                                                                                         |
+| `ext`          | object         | Optional    | MAY contain extension keys. Receivers MUST ignore unknown extension keys they do not understand.                                                                                                                                                                                           |
 
 ## Conversation surface fields
 
@@ -139,7 +139,7 @@ kind pages.
     },
     "thread_id": {
       "type": ["string", "null"],
-      "minLength": 1
+      "pattern": "^thread_[a-z0-9][a-z0-9_-]{2,95}$"
     },
     "direct_id": {
       "type": ["string", "null"],
@@ -155,7 +155,7 @@ kind pages.
     },
     "work_id": {
       "type": ["string", "null"],
-      "pattern": "^work_[a-zA-Z0-9_-]{1,64}$"
+      "minLength": 1
     },
     "reply_to": {
       "type": "string",

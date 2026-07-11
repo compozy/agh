@@ -16,7 +16,7 @@ description: Use when adding, moving, reviewing, or auditing tests in AGH to ide
 1. Select exactly one primary owning layer: unit, integration, end-to-end, static analysis, codegen, visual QA, documentation build, or manual QA evidence.
 2. Prefer the lowest layer that can prove the invariant against the real owner.
 3. Do not duplicate the same invariant in multiple layers unless each layer proves a distinct failure mode.
-4. Read `.agents/skills/consolidate-test-suites/references/test-placement-rules.md` when the owning layer is not obvious.
+4. Read `.agents/skills/agh/consolidate-test-suites/references/test-placement-rules.md` when the owning layer is not obvious.
 
 **Step 3: Reuse The Canonical Suite**
 1. Search existing tests before creating files: use `rg --files` plus focused `rg` for the feature, public API, component, route, command, or package name.

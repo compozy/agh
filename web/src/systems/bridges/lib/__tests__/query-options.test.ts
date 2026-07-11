@@ -10,12 +10,40 @@ import {
 } from "@/systems/bridges/lib/query-options";
 
 describe("bridgesListOptions", () => {
-  it("uses the expected timings and list query key", () => {
-    const options = bridgesListOptions({ scope: "all", workspace_id: "ws_alpha" });
+  it("uses a stable filtered key and cursor-only page parameter", () => {
+    const options = bridgesListOptions({
+      limit: 25,
+      platform: "slack",
+      q: "support",
+      scope: "all",
+      sort: "name",
+      status: "ready",
+      workspace_id: "ws_alpha",
+    });
 
-    expect(options.queryKey).toEqual(["bridges", "list", "all", "ws_alpha", ""]);
+    expect(options.queryKey).toEqual([
+      "bridges",
+      "list",
+      "all",
+      "ws_alpha",
+      "",
+      "support",
+      "slack",
+      "ready",
+      "name",
+      "25",
+    ]);
+    expect(options.initialPageParam).toBeUndefined();
+    expect(
+      options.getNextPageParam?.(
+        { page: { has_more: true, next_cursor: "next" } } as never,
+        [],
+        undefined,
+        []
+      )
+    ).toBe("next");
     expect(options.staleTime).toBe(15_000);
-    expect(options.refetchInterval).toBe(30_000);
+    expect(options.refetchInterval).toBeUndefined();
   });
 });
 

@@ -6,6 +6,8 @@ import {
   type SessionTranscriptThreadStatus,
 } from "./session-transcript-thread-context-value";
 
+const noop = () => {};
+
 export function SessionTranscriptThreadProvider({
   children,
   messages,
@@ -13,6 +15,9 @@ export function SessionTranscriptThreadProvider({
   isPending,
   isError,
   error,
+  hasOlder = false,
+  isFetchingOlder = false,
+  loadOlder = noop,
   retry,
 }: {
   children: ReactNode;
@@ -21,11 +26,24 @@ export function SessionTranscriptThreadProvider({
   isPending: boolean;
   isError: boolean;
   error: Error | null;
+  hasOlder?: boolean;
+  isFetchingOlder?: boolean;
+  loadOlder?: () => void;
   retry: () => void;
 }) {
   return (
     <SessionTranscriptThreadContext.Provider
-      value={{ messages, status, isPending, isError, error, retry }}
+      value={{
+        messages,
+        status,
+        isPending,
+        isError,
+        error,
+        hasOlder,
+        isFetchingOlder,
+        loadOlder,
+        retry,
+      }}
     >
       {children}
     </SessionTranscriptThreadContext.Provider>

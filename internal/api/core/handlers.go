@@ -47,84 +47,6 @@ func (h *BaseHandlers) SetHTTPPort(port int) {
 	h.httpPort.Store(int64(port))
 }
 
-// ListSessions returns the visible session list.
-func (h *BaseHandlers) ListSessions(c *gin.Context) {
-	workspaceFilter := strings.TrimSpace(c.Query("workspace"))
-	resumable, err := parseBoolQuery(c, "resumable")
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	if resumable {
-		h.listResumableSessions(c, workspaceFilter)
-		return
-	}
-	infos, err := h.Sessions.ListAll(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	if workspaceFilter != "" {
-		workspaceID, lookupErr := h.lookupWorkspaceID(c.Request.Context(), workspaceFilter)
-		if lookupErr != nil {
-			h.respondError(c, StatusForWorkspaceError(lookupErr), lookupErr)
-			return
-		}
-		infos = filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
-	}
-	infos = visibleSessionInfosInternal(infos)
-	includeHealth, err := parseBoolQuery(c, "include_health")
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	payloads, err := h.sessionPayloadsWithOptionalHealth(c.Request.Context(), infos, includeHealth)
-	if err != nil {
-		h.respondError(c, StatusForHeartbeatError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: payloads})
-}
-
-func (h *BaseHandlers) listResumableSessions(c *gin.Context, workspaceFilter string) {
-	if h.SessionCatalog == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog is required"))
-		return
-	}
-	workspaceID := ""
-	if workspaceFilter != "" {
-		resolved, err := h.lookupWorkspaceID(c.Request.Context(), workspaceFilter)
-		if err != nil {
-			h.respondError(c, StatusForWorkspaceError(err), err)
-			return
-		}
-		workspaceID = resolved
-	}
-	limit, err := parseOptionalPositiveIntQuery(c, "limit", 0, maxSessionRecapLimit)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	sortKey := strings.TrimSpace(c.Query("sort"))
-	infos, err := h.SessionCatalog.ListSessions(c.Request.Context(), store.SessionListQuery{
-		WorkspaceID: workspaceID,
-		Resumable:   true,
-		Sort:        sortKey,
-		Limit:       limit,
-	})
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	infos = visibleSessionStoreInfosInternal(infos)
-	payloads := make([]contract.SessionPayload, 0, len(infos))
-	for _, info := range infos {
-		payloads = append(payloads, SessionPayloadFromStoreInfo(info))
-	}
-	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: payloads})
-}
-
 // CreateSession creates a new runtime session.
 func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	var req contract.CreateSessionRequest
@@ -221,11 +143,12 @@ func (h *BaseHandlers) ResumeSession(c *gin.Context) {
 
 // AttachSession acquires a short-lived attach lease without starting a new runtime authority.
 func (h *BaseHandlers) AttachSession(c *gin.Context) {
-	if h.SessionCatalog == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog is required"))
+	attacher, ok := h.Sessions.(SessionAttachManager)
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session attach manager is required"))
 		return
 	}
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
@@ -246,7 +169,7 @@ func (h *BaseHandlers) AttachSession(c *gin.Context) {
 	if attachedTo == "" {
 		attachedTo = fmt.Sprintf("%s:%d", h.transportName(), h.PID())
 	}
-	attach, err := h.SessionCatalog.AttachSession(c.Request.Context(), store.SessionAttachRequest{
+	attach, err := attacher.AttachSession(c.Request.Context(), store.SessionAttachRequest{
 		SessionID:  sessionID,
 		AttachedTo: attachedTo,
 		Now:        h.Now(),
@@ -257,9 +180,12 @@ func (h *BaseHandlers) AttachSession(c *gin.Context) {
 		return
 	}
 
-	payload := SessionPayloadFromInfo(info)
-	payload.AttachedTo = attach.AttachedTo
-	payload.AttachExpiresAt = &attach.AttachExpiresAt
+	info, err := h.Sessions.Status(c.Request.Context(), sessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	payload := sessionPayloadFromInfoAt(info, attach.AttachedAt)
 	c.JSON(http.StatusOK, contract.SessionAttachResponse{
 		Session: payload,
 		Attach: contract.SessionAttachPayload{
@@ -436,27 +362,6 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.SessionHistoryResponse{History: payload})
-}
-
-// SessionTranscript returns the stored transcript for a session.
-func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
-	query, err := parseSessionTranscriptQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	entries, err := h.Sessions.Transcript(c.Request.Context(), sessionID, query)
-	if err != nil {
-		h.logSessionReadError("transcript", sessionID, err)
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Entries: entries})
 }
 
 func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
@@ -904,73 +809,6 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.LogsListResponse{Events: payload})
-}
-
-// StreamLogs streams runtime logs over SSE.
-func (h *BaseHandlers) StreamLogs(c *gin.Context) {
-	if h.Observer == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
-		return
-	}
-	query, err := ParseLogsQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-
-	cursor, err := ParseLogsCursor(c.GetHeader("Last-Event-ID"))
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	if !cursor.Timestamp.IsZero() {
-		query.Since = cursor.Timestamp
-	}
-
-	initial, err := h.Observer.QueryEvents(c.Request.Context(), query)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	cursor = EmitLogs(writer, initial, cursor)
-
-	pollQuery := query
-	pollQuery.Limit = 0
-	if !cursor.Timestamp.IsZero() {
-		pollQuery.Since = cursor.Timestamp
-	}
-
-	ticker := time.NewTicker(h.PollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-ticker.C:
-			if !cursor.Timestamp.IsZero() {
-				pollQuery.Since = cursor.Timestamp
-			}
-			events, pollErr := h.Observer.QueryEvents(c.Request.Context(), pollQuery)
-			if pollErr != nil {
-				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: handlersErrorKey,
-					Data: ErrorPayloadForError(pollErr),
-				})
-				return
-			}
-			cursor = EmitLogs(writer, events, cursor)
-		}
-	}
 }
 
 func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {

@@ -15,6 +15,61 @@ type blockingObserveTransport struct {
 	blockStart bool
 }
 
+type catalogBridgeSource struct {
+	instances          []bridgepkg.BridgeInstance
+	routeCounts        map[string]int
+	metrics            map[string]bridgepkg.BridgeDeliveryMetrics
+	listInstancesCalls int
+	listRoutesCalls    int
+	batchCalls         int
+	batchIDs           []string
+	metricsCalls       int
+	metricsBatchCalls  int
+	metricsBatchIDs    []string
+}
+
+func (s *catalogBridgeSource) ListInstances(context.Context) ([]bridgepkg.BridgeInstance, error) {
+	s.listInstancesCalls++
+	return append([]bridgepkg.BridgeInstance(nil), s.instances...), nil
+}
+
+func (s *catalogBridgeSource) ListRoutes(context.Context, string) ([]bridgepkg.BridgeRoute, error) {
+	s.listRoutesCalls++
+	return nil, nil
+}
+
+func (s *catalogBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
+	s.metricsCalls++
+	return s.metrics
+}
+
+func (s *catalogBridgeSource) DeliveryMetricsFor(
+	bridgeInstanceIDs []string,
+) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
+	s.metricsBatchCalls++
+	s.metricsBatchIDs = append([]string(nil), bridgeInstanceIDs...)
+	result := make(map[string]bridgepkg.BridgeDeliveryMetrics, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		if metrics, ok := s.metrics[id]; ok {
+			result[id] = metrics
+		}
+	}
+	return result, nil
+}
+
+func (s *catalogBridgeSource) CountBridgeRoutes(
+	_ context.Context,
+	bridgeInstanceIDs []string,
+) (map[string]int, error) {
+	s.batchCalls++
+	s.batchIDs = append([]string(nil), bridgeInstanceIDs...)
+	result := make(map[string]int, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		result[id] = s.routeCounts[id]
+	}
+	return result, nil
+}
+
 func (t *blockingObserveTransport) DeliverBridge(
 	ctx context.Context,
 	_ string,
@@ -83,6 +138,140 @@ func TestHealthIncludesBridgeStatusCountsAndRouteSummary(t *testing.T) {
 	if got, want := observed[authRequired.ID].Status, bridgepkg.BridgeStatusAuthRequired; got != want {
 		t.Fatalf("QueryBridgeHealth(%s).Status = %q, want %q", authRequired.ID, got, want)
 	}
+}
+
+func TestBridgeCatalogHealthReadsOnlyTheRequestedPage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should merge effective status without a registry read and batch page health", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
+		instances := []bridgepkg.BridgeInstance{
+			{ID: "brg-a", Enabled: true, Status: bridgepkg.BridgeStatusReady},
+			{ID: "brg-b", Enabled: true, Status: bridgepkg.BridgeStatusReady},
+			{ID: "brg-c", Enabled: false, Status: bridgepkg.BridgeStatusDisabled},
+		}
+		source := &catalogBridgeSource{
+			instances:   instances,
+			routeCounts: map[string]int{"brg-a": 9, "brg-b": 3, "brg-c": 7},
+			metrics: map[string]bridgepkg.BridgeDeliveryMetrics{
+				"brg-b": {DeliveryBacklog: 2},
+				"brg-c": {DeliveryBacklog: 99, DeliveryFailuresTotal: 77},
+			},
+		}
+		observer := &Observer{
+			now:          func() time.Time { return now },
+			bridgeSource: source,
+			bridgeState:  make(map[string]observedBridgeState),
+		}
+		observer.RecordBridgeRuntimeIssue("brg-b", bridgepkg.BridgeStatusError, "adapter crashed")
+
+		records := make([]bridgepkg.BridgeCatalogRecord, 0, len(instances))
+		for _, instance := range instances {
+			records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
+		}
+		statuses, err := observer.QueryBridgeEffectiveStatuses(testutil.Context(t), records)
+		if err != nil {
+			t.Fatalf("QueryBridgeEffectiveStatuses() error = %v", err)
+		}
+		if got, want := statuses["brg-b"], bridgepkg.BridgeStatusError; got != want {
+			t.Fatalf("effective brg-b status = %q, want %q", got, want)
+		}
+		if got, want := statuses["brg-c"], bridgepkg.BridgeStatusDisabled; got != want {
+			t.Fatalf("effective brg-c status = %q, want %q", got, want)
+		}
+
+		health, err := observer.QueryBridgeHealthFor(testutil.Context(t), instances[1:2])
+		if err != nil {
+			t.Fatalf("QueryBridgeHealthFor() error = %v", err)
+		}
+		if got, want := len(health), 1; got != want {
+			t.Fatalf("len(QueryBridgeHealthFor()) = %d, want %d", got, want)
+		}
+		if health[0].BridgeInstanceID != "brg-b" || health[0].Status != bridgepkg.BridgeStatusError ||
+			health[0].RouteCount != 3 || health[0].DeliveryBacklog != 2 || health[0].LastError != "adapter crashed" {
+			t.Fatalf("QueryBridgeHealthFor() = %#v, want page-scoped effective health", health)
+		}
+		if source.listInstancesCalls != 0 || source.listRoutesCalls != 0 || source.batchCalls != 1 ||
+			source.metricsCalls != 0 || source.metricsBatchCalls != 1 {
+			t.Fatalf(
+				"source calls = listInstances:%d listRoutes:%d routes_batch:%d metrics:%d metrics_batch:%d, want 0/0/1/0/1",
+				source.listInstancesCalls,
+				source.listRoutesCalls,
+				source.batchCalls,
+				source.metricsCalls,
+				source.metricsBatchCalls,
+			)
+		}
+		if got, want := source.batchIDs, []string{"brg-b"}; len(got) != len(want) || got[0] != want[0] {
+			t.Fatalf("batch ids = %#v, want %#v", got, want)
+		}
+		if got, want := source.metricsBatchIDs, []string{"brg-b"}; len(got) != len(want) || got[0] != want[0] {
+			t.Fatalf("metrics batch ids = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should batch the complete health snapshot without per-instance route reads", func(t *testing.T) {
+		t.Parallel()
+
+		instances := []bridgepkg.BridgeInstance{
+			{ID: "brg-a", Enabled: true, Status: bridgepkg.BridgeStatusReady},
+			{ID: "brg-b", Enabled: true, Status: bridgepkg.BridgeStatusDegraded},
+		}
+		source := &catalogBridgeSource{
+			instances:   instances,
+			routeCounts: map[string]int{"brg-a": 4, "brg-b": 6},
+		}
+		observer := &Observer{
+			now:          time.Now,
+			bridgeSource: source,
+			bridgeState:  make(map[string]observedBridgeState),
+		}
+
+		health, err := observer.QueryBridgeHealth(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("QueryBridgeHealth() error = %v", err)
+		}
+		if len(health) != 2 || health[0].RouteCount+health[1].RouteCount != 10 {
+			t.Fatalf("QueryBridgeHealth() = %#v, want two batched route counts", health)
+		}
+		if source.listInstancesCalls != 1 || source.batchCalls != 1 || source.listRoutesCalls != 0 {
+			t.Fatalf(
+				"source calls = listInstances:%d batch:%d listRoutes:%d, want 1/1/0",
+				source.listInstancesCalls,
+				source.batchCalls,
+				source.listRoutesCalls,
+			)
+		}
+	})
+
+	t.Run("Should reject catalog reads when the bridge source is missing", func(t *testing.T) {
+		t.Parallel()
+
+		observer := &Observer{bridgeState: make(map[string]observedBridgeState)}
+		if err := observer.CheckBridgeCatalogReady(); err == nil {
+			t.Fatal("CheckBridgeCatalogReady() error = nil, want missing source error")
+		}
+		record := bridgepkg.BridgeCatalogRecord{
+			ID:      "brg-missing-source",
+			Enabled: true,
+			Status:  bridgepkg.BridgeStatusReady,
+		}
+		if _, err := observer.QueryBridgeEffectiveStatuses(
+			testutil.Context(t),
+			[]bridgepkg.BridgeCatalogRecord{record},
+		); err == nil {
+			t.Fatal("QueryBridgeEffectiveStatuses() error = nil, want missing source error")
+		}
+		instance := bridgepkg.BridgeInstance{ID: record.ID, Enabled: true, Status: record.Status}
+		if _, err := observer.QueryBridgeHealthFor(
+			testutil.Context(t),
+			[]bridgepkg.BridgeInstance{instance},
+		); err == nil {
+			t.Fatal("QueryBridgeHealthFor() error = nil, want missing source error")
+		}
+	})
 }
 
 func TestHealthTracksDeliveryBacklogWithoutChangingActiveSessions(t *testing.T) {

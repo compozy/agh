@@ -10,7 +10,7 @@ export interface TasksRouteView {
   routedTaskId: string | null;
   isCreateRoute: boolean;
   surfaceMode: SurfaceMode;
-  shellCount: number;
+  shellCount: number | undefined;
   handleModeSelect: (next: SurfaceMode) => void;
   openCreateRoute: () => void;
 }
@@ -27,11 +27,13 @@ export function useTasksRoute(): TasksRouteView {
   const surfaceMode: SurfaceMode = hasChildMatch ? "list" : page.mode;
 
   const shellCount =
-    surfaceMode === "inbox"
-      ? (page.inbox?.total ?? 0)
-      : surfaceMode === "dashboard"
-        ? (page.dashboard?.totals.tasks_total ?? page.tasksCount)
-        : page.tasksCount;
+    page.scopeLoading || page.scopeError || !page.hasActiveTaskScope
+      ? undefined
+      : surfaceMode === "inbox"
+        ? page.inbox?.page.total
+        : surfaceMode === "dashboard"
+          ? page.dashboard?.totals.tasks_total
+          : page.tasksCount;
 
   const handleModeSelect = (next: SurfaceMode) => {
     page.handleModeChange(next);

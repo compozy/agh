@@ -81,7 +81,7 @@ func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListJobs() error = %v", err)
 	}
-	if got, want := len(jobs), 1; got != want {
+	if got, want := len(jobs.Jobs), 1; got != want {
 		t.Fatalf("len(jobs) = %d, want %d", got, want)
 	}
 

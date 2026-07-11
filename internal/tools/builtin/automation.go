@@ -282,9 +282,12 @@ const automationJobsListInputSchema = `{
 	"properties":{
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
-		"source":{"type":"string"},
+		"source":{"type":"string","enum":["config","package","dynamic"]},
+		"enabled":{"type":"boolean"},
 		"loop":{"type":"string"},
-		"limit":{"type":"integer"}
+		"q":{"type":"string"},
+		"cursor":{"type":"string"},
+		"limit":{"type":"integer","minimum":0,"maximum":200}
 	},
 	"additionalProperties":false
 }`
@@ -325,9 +328,12 @@ const automationTriggersListInputSchema = `{
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
 		"event":{"type":"string"},
-		"source":{"type":"string"},
+		"source":{"type":"string","enum":["config","package","dynamic"]},
+		"enabled":{"type":"boolean"},
 		"loop":{"type":"string"},
-		"limit":{"type":"integer"}
+		"q":{"type":"string"},
+		"cursor":{"type":"string"},
+		"limit":{"type":"integer","minimum":0,"maximum":200}
 	},
 	"additionalProperties":false
 }`

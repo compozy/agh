@@ -178,11 +178,14 @@ Transcript assembly is deterministic and event-driven:
 - empty text chunks are dropped
 - non-chat events such as `plan`, `system`, `done`, and `error` only flush in-progress assistant buffers
 
-The transcript API returns `entries`, not a bare `messages` array. Each entry carries the folded
-AI SDK UI message plus the persisted event `sequence` that last shaped it. Use `after_sequence` for
-forward paging, `before_sequence` for backward paging, and `limit` for the bounded window size.
-Live clients should use the session stream's default transcript frames with `replay=snapshot` when
-they need an initial window followed by incremental `transcript_delta` frames.
+The transcript API returns `entries`, not a bare `messages` array. Each entry carries the folded AI
+SDK UI message, a stable `start_sequence` for backward paging, and the latest `sequence` that shaped
+it. Use `next_before_sequence` as `before_sequence` while `has_older` is true; `limit` bounds every
+page. Forward changes come from the session stream, not from the page endpoint.
+
+Live clients should cache `epoch`, `generation`, and the applied stream cursor together. Reconnect
+with all three values. Matching fences produce bounded `transcript_delta` batches; a missing or stale
+fence produces an explicit reset snapshot. The stream rejects the old `replay` query.
 
 ## Common cases and gotchas
 

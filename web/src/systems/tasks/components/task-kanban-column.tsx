@@ -12,6 +12,7 @@ import type { PillTone } from "@agh/ui";
 export interface TaskKanbanColumnProps {
   column: TaskKanbanColumnDef;
   count: number;
+  totalCount?: number;
   tone: PillTone;
   onAdd?: () => void;
   emptyState?: React.ReactNode;
@@ -38,6 +39,7 @@ function headerDotTone(tone: PillTone): StatusDotTone | null {
 export function TaskKanbanColumn({
   column,
   count,
+  totalCount,
   tone,
   onAdd,
   emptyState,
@@ -46,6 +48,12 @@ export function TaskKanbanColumn({
 }: TaskKanbanColumnProps) {
   const isEmpty = React.Children.count(children) === 0;
   const dotTone = headerDotTone(tone);
+  const countLabel =
+    totalCount === undefined
+      ? undefined
+      : count === totalCount
+        ? `${count}`
+        : `${count} of ${totalCount}`;
 
   return (
     <section
@@ -60,18 +68,20 @@ export function TaskKanbanColumn({
       <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
         {dotTone === null ? null : <StatusDot tone={dotTone} size="default" label={column.label} />}
         <h2 className="text-small-body font-medium text-fg-strong">{column.label}</h2>
-        <span
-          className="font-mono text-badge tabular-nums text-faint"
-          data-testid={`tasks-kanban-column-count-${column.id}`}
-        >
-          {count}
-        </span>
+        {countLabel ? (
+          <span
+            className="font-mono text-badge tabular-nums text-faint"
+            data-testid={`tasks-kanban-column-count-${column.id}`}
+          >
+            {countLabel}
+          </span>
+        ) : null}
         {onAdd ? (
           <Button
-            aria-label={`Add task to ${column.label}`}
+            aria-label="Create task"
             className="ml-auto"
             data-testid={`tasks-kanban-column-add-${column.id}`}
-            onClick={onAdd}
+            onClick={() => onAdd()}
             size="icon-xs"
             type="button"
             variant="ghost"

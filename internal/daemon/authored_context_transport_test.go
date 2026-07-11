@@ -389,7 +389,7 @@ func newHTTPAuthoredContextEngine(t *testing.T, fixture *authoredContextFixture)
 	_, err := httpapi.New(
 		httpapi.WithEngine(engine),
 		httpapi.WithSessionManager(authoredContextSessionManager()),
-		httpapi.WithTaskService(testutil.StubTaskManager{}),
+		httpapi.WithTaskService(&testutil.StubTaskManager{}),
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(workspaceResolverForFixture(fixture)),
 		httpapi.WithSoulAuthoring(fixture.soul),
@@ -420,7 +420,7 @@ func newUDSAuthoredContextEngine(t *testing.T, fixture *authoredContextFixture) 
 		udsapi.WithEngine(engine),
 		udsapi.WithSocketPath(socketPath),
 		udsapi.WithSessionManager(authoredContextSessionManager()),
-		udsapi.WithTaskService(testutil.StubTaskManager{}),
+		udsapi.WithTaskService(&testutil.StubTaskManager{}),
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(workspaceResolverForFixture(fixture)),
 		udsapi.WithSoulAuthoring(fixture.soul),

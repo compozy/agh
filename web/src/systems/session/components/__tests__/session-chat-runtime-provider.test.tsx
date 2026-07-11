@@ -7,12 +7,13 @@ import { formatMessageError, SessionThread } from "@/components/assistant-ui/ses
 import { sessionKeys, useSessionTranscriptThreadState } from "@/systems/session";
 import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
+import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import type { TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
 
-const SESSION_STREAM_QUERY = "frames=transcript&replay=snapshot";
+const SESSION_STREAM_QUERY = "frames=transcript";
 
 describe("formatMessageError", () => {
   it("extracts provider failure detail from JSON-RPC error envelopes", () => {
@@ -39,8 +40,42 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-function transcriptEntries(messages: TranscriptMessage[]) {
-  return messages.map((message, index) => ({ message, sequence: index + 1 }));
+function transcriptEntries(messages: TranscriptMessage[], firstSequence = 1) {
+  return messages.map((message, index) => ({
+    message,
+    sequence: firstSequence + index,
+    start_sequence: firstSequence + index,
+  }));
+}
+
+function transcriptPayload(
+  messages: TranscriptMessage[],
+  options: {
+    firstSequence?: number;
+    hasOlder?: boolean;
+    nextBeforeSequence?: number;
+  } = {}
+) {
+  const entries = transcriptEntries(messages, options.firstSequence);
+  return {
+    entries,
+    epoch: 1,
+    generation: 1,
+    has_older: options.hasOlder ?? false,
+    limit: 200,
+    max_sequence: entries.at(-1)?.sequence ?? 0,
+    ...(options.nextBeforeSequence === undefined
+      ? {}
+      : { next_before_sequence: options.nextBeforeSequence }),
+  };
+}
+
+function transcriptCache(messages: TranscriptMessage[]): SessionTranscriptData {
+  const payload = transcriptPayload(messages);
+  return {
+    pages: [{ ...payload, cursor: payload.max_sequence }],
+    pageParams: [undefined],
+  };
 }
 
 function sseResponse(frames: string[]) {
@@ -75,6 +110,12 @@ function getPathname(input: RequestInfo | URL): string {
   return new URL(input.url, "http://localhost").pathname;
 }
 
+function getRequestURL(input: RequestInfo | URL): URL {
+  if (typeof input === "string") return new URL(input, "http://localhost");
+  if (input instanceof URL) return input;
+  return new URL(input.url, "http://localhost");
+}
+
 function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -96,6 +137,20 @@ function createDeferred<T>() {
     reject = promiseReject;
   });
   return { promise, reject, resolve };
+}
+
+function testRect(top: number, height = 40): DOMRect {
+  return {
+    bottom: top + height,
+    height,
+    left: 0,
+    right: 800,
+    top,
+    width: 800,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  };
 }
 
 class FakeSessionEventSource {
@@ -219,6 +274,11 @@ describe("SessionChatRuntimeProvider", () => {
   let sessionDetailResponse = primarySessionFixture;
   let transcriptFetchShouldFail = false;
   let transcriptResponsePromise: Promise<Response> | null = null;
+  let olderTranscriptResponsePromise: Promise<Response> | null = null;
+  let transcriptFirstSequence = 1;
+  let transcriptHasOlder = false;
+  let transcriptNextBeforeSequence: number | undefined;
+  let olderTranscriptMessages: TranscriptMessage[] = [];
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -226,11 +286,20 @@ describe("SessionChatRuntimeProvider", () => {
     sessionDetailResponse = primarySessionFixture;
     transcriptFetchShouldFail = false;
     transcriptResponsePromise = null;
+    olderTranscriptResponsePromise = null;
+    transcriptFirstSequence = 1;
+    transcriptHasOlder = false;
+    transcriptNextBeforeSequence = undefined;
+    olderTranscriptMessages = [];
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const pathname = getPathname(input);
+      const requestURL = getRequestURL(input);
+      const pathname = requestURL.pathname;
 
       if (pathname === "/api/sessions") {
-        return jsonResponse({ sessions: [primarySessionFixture] });
+        return jsonResponse({
+          sessions: [primarySessionFixture],
+          page: { has_more: false, limit: 50, total: 1 },
+        });
       }
 
       if (
@@ -250,7 +319,17 @@ describe("SessionChatRuntimeProvider", () => {
         if (transcriptFetchShouldFail) {
           return jsonResponse({ error: "recorder temporarily unavailable" }, { status: 500 });
         }
-        return jsonResponse({ entries: transcriptEntries(transcriptMessages) });
+        if (requestURL.searchParams.has("before_sequence")) {
+          if (olderTranscriptResponsePromise) return olderTranscriptResponsePromise;
+          return jsonResponse(transcriptPayload(olderTranscriptMessages));
+        }
+        return jsonResponse(
+          transcriptPayload(transcriptMessages, {
+            firstSequence: transcriptFirstSequence,
+            hasOlder: transcriptHasOlder,
+            nextBeforeSequence: transcriptNextBeforeSequence,
+          })
+        );
       }
 
       if (
@@ -284,7 +363,8 @@ describe("SessionChatRuntimeProvider", () => {
     const workspaceId = fixtureWorkspaceId();
     const sessionId = primarySessionFixture.id;
     queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), primarySessionFixture);
-    queryClient.setQueryData(sessionKeys.transcript(workspaceId, sessionId), transcriptMessages);
+    const cachedTranscript = transcriptCache(transcriptMessages);
+    queryClient.setQueryData(sessionKeys.transcript(workspaceId, sessionId), cachedTranscript);
 
     const firstRender = renderSessionThread({ queryClient });
 
@@ -304,7 +384,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(queryClient.getQueryData(sessionKeys.transcript(workspaceId, sessionId))).toEqual(
-      transcriptMessages
+      cachedTranscript
     );
 
     renderSessionThread({ queryClient });
@@ -349,7 +429,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("thread-transcript-skeleton")).toBeInTheDocument();
     expect(screen.queryByText("Start a conversation.")).not.toBeInTheDocument();
 
-    transcriptResponse.resolve(jsonResponse({ entries: transcriptEntries(transcriptMessages) }));
+    transcriptResponse.resolve(jsonResponse(transcriptPayload(transcriptMessages)));
 
     expect(
       await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
@@ -367,6 +447,79 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     expect(countTranscriptFetches(fetchMock)).toBe(1);
+  }, 10_000);
+
+  it("Should preserve a visible message anchor when older history and a live delta arrive together", async () => {
+    const user = userEvent.setup();
+    transcriptMessages = [sessionTranscriptFixture[1]!];
+    transcriptFirstSequence = 20;
+    transcriptHasOlder = true;
+    transcriptNextBeforeSequence = 20;
+    olderTranscriptMessages = [sessionTranscriptFixture[0]!];
+    const olderResponse = createDeferred<Response>();
+    olderTranscriptResponsePromise = olderResponse.promise;
+    const sources: FakeSessionEventSource[] = [];
+    let viewportElement: HTMLElement | null = null;
+    let olderResolved = false;
+    const anchorMessageId = sessionTranscriptFixture[1]!.id;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this === viewportElement) return testRect(0, 600);
+        if (this.dataset.messageId === anchorMessageId) {
+          return testRect(olderResolved ? 360 : 100);
+        }
+        return testRect(700);
+      }
+    );
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+
+    const loadOlder = await screen.findByRole("button", { name: "Load older messages" });
+    const viewport = screen.getByTestId("chat-view");
+    viewportElement = viewport;
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      get: () => (olderResolved ? 1_500 : 1_000),
+    });
+    viewport.scrollTop = 320;
+
+    await user.click(loadOlder);
+    const liveMessage: TranscriptMessage = {
+      id: "anchor-live-delta",
+      role: "assistant",
+      parts: [{ type: "text", text: "Live delta while history loads.", state: "done" }],
+    };
+    act(() => {
+      sources[0]?.dispatch(
+        "transcript_delta",
+        {
+          cursor: 21,
+          entries: [{ message: liveMessage, sequence: 21, start_sequence: 21 }],
+          epoch: 1,
+          generation: 1,
+          has_more: false,
+          max_sequence: 21,
+          session_id: primarySessionFixture.id,
+        },
+        "21"
+      );
+    });
+    expect(await screen.findByText("Live delta while history loads.")).toBeInTheDocument();
+
+    olderResolved = true;
+    olderResponse.resolve(jsonResponse(transcriptPayload(olderTranscriptMessages)));
+
+    expect(
+      await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+    ).toBeInTheDocument();
+    await waitFor(() => expect(viewport.scrollTop).toBe(580));
+    expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
   }, 10_000);
 
   it("Should fail loudly when workspaceId is empty", () => {
@@ -845,9 +998,12 @@ describe("SessionChatRuntimeProvider", () => {
       "transcript_delta",
       {
         session_id: primarySessionFixture.id,
-        epoch: 0,
-        entry: { message: liveMessage, sequence: 2 },
-        sequence: 2,
+        epoch: 1,
+        generation: 1,
+        cursor: 2,
+        entries: [{ message: liveMessage, sequence: 2, start_sequence: 2 }],
+        has_more: false,
+        max_sequence: 2,
       },
       "2"
     );
@@ -857,7 +1013,7 @@ describe("SessionChatRuntimeProvider", () => {
     });
   }, 10_000);
 
-  it("recovers stream gaps from durable transcript before resuming from the latest cursor", async () => {
+  it("merges a same-fence durable snapshot without an extra transcript request", async () => {
     transcriptMessages = sessionTranscriptFixture.slice(0, 1);
     const sources: FakeSessionEventSource[] = [];
 
@@ -889,14 +1045,15 @@ describe("SessionChatRuntimeProvider", () => {
         "transcript_snapshot",
         {
           session_id: primarySessionFixture.id,
-          epoch: 0,
+          epoch: 1,
+          generation: 1,
           entries: [
-            { message: sessionTranscriptFixture[0]!, sequence: 1 },
-            { message: recoveredMessage, sequence: 4 },
+            { message: sessionTranscriptFixture[0]!, sequence: 1, start_sequence: 1 },
+            { message: recoveredMessage, sequence: 4, start_sequence: 4 },
           ],
-          min_sequence: 1,
+          has_older: false,
           max_sequence: 4,
-          reset_below: true,
+          reset: false,
         },
         "4"
       );
@@ -969,7 +1126,7 @@ describe("SessionChatRuntimeProvider", () => {
       });
     });
     expect(sources[1]?.url).toBe(
-      `/api/workspaces/${workspaceId}/sessions/${sessionId}/stream?${SESSION_STREAM_QUERY}&after_sequence=9`
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/stream?${SESSION_STREAM_QUERY}&after_sequence=1&epoch=1&generation=1`
     );
   }, 10_000);
 

@@ -173,7 +173,8 @@ func getDirectRoomByPeerPairWithExecutor(
 	row := exec.QueryRowContext(
 		ctx,
 		`SELECT
-			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
+			workspace_id, channel, direct_id, peer_a, peer_b,
+			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
 			message_count, open_work_count, last_message_preview
 		FROM network_direct_rooms
 		WHERE workspace_id = ? AND channel = ? AND peer_a = ? AND peer_b = ?`,
@@ -189,7 +190,7 @@ func insertNetworkTimelineMessageWithExecutor(
 	ctx context.Context,
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
-) (bool, error) {
+) (bool, int64, error) {
 	result, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO network_timeline_log (
@@ -241,13 +242,27 @@ func insertNetworkTimelineMessageWithExecutor(
 		store.FormatTimestamp(entry.Timestamp),
 	)
 	if err != nil {
-		return false, fmt.Errorf("store: insert network conversation message: %w", err)
+		return false, 0, fmt.Errorf("store: insert network conversation message: %w", err)
 	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("store: inspect network conversation message insert: %w", err)
+		return false, 0, fmt.Errorf("store: inspect network conversation message insert: %w", err)
 	}
-	return rowsAffected > 0, nil
+	if rowsAffected == 0 {
+		return false, 0, nil
+	}
+	sequence, err := result.LastInsertId()
+	if err != nil {
+		return false, 0, fmt.Errorf("store: inspect network conversation message sequence: %w", err)
+	}
+	if sequence <= 0 {
+		return false, 0, fmt.Errorf("store: network conversation message sequence must be positive: %d", sequence)
+	}
+	entry.Sequence = sequence
+	if err := updateNetworkChannelProjection(ctx, exec, entry); err != nil {
+		return false, 0, err
+	}
+	return true, sequence, nil
 }
 
 func lookupNetworkMessageTimestamp(
@@ -296,8 +311,9 @@ func ensureNetworkThreadWithExecutor(
 		ctx,
 		`INSERT OR IGNORE INTO network_threads (
 			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-			opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '')`,
+			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
+			message_count, participant_count, open_work_count, last_message_preview
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '')`,
 		entry.WorkspaceID,
 		entry.Channel,
 		entry.ThreadID,
@@ -306,7 +322,9 @@ func ensureNetworkThreadWithExecutor(
 		entry.PeerFrom,
 		entry.SessionID,
 		store.FormatTimestamp(entry.Timestamp),
+		entry.Sequence,
 		store.FormatTimestamp(entry.Timestamp),
+		entry.Sequence,
 	)
 	if err != nil {
 		return false, fmt.Errorf("store: insert network thread: %w", err)
@@ -352,5 +370,26 @@ func ensureNetworkDirectRoomWithExecutor(
 		OpenedAt:       entry.Timestamp,
 		LastActivityAt: entry.Timestamp,
 	})
-	return opened, err
+	if err != nil {
+		return opened, err
+	}
+	result, err := exec.ExecContext(
+		ctx,
+		`UPDATE network_direct_rooms
+		 SET opened_sequence = ?, last_activity_sequence = ?
+		 WHERE workspace_id = ? AND channel = ? AND direct_id = ? AND opened_sequence = 0`,
+		entry.Sequence,
+		entry.Sequence,
+		entry.WorkspaceID,
+		entry.Channel,
+		entry.DirectID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("store: initialize network direct room sequence: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("store: inspect network direct room sequence initialization: %w", err)
+	}
+	return opened || rowsAffected > 0, nil
 }

@@ -57,6 +57,7 @@ type ResourceSpec struct {
 	Version                int                 `json:"version,omitempty"`
 	Description            string              `json:"description,omitempty"`
 	Catalog                CatalogResourceSpec `json:"catalog,omitzero"`
+	ContractGoal           string              `json:"contract_goal,omitempty"`
 	Start                  []StartResourceSpec `json:"start,omitempty"`
 	Source                 Source              `json:"source"`
 	Dir                    string              `json:"dir,omitempty"`

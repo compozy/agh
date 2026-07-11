@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 // Record appends a session event using the dedicated writer goroutine.
@@ -177,17 +179,34 @@ func (s *SessionDB) writeEventBatch(
 	}
 
 	if err := store.ExecuteWriteNoCheckpoint(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		state, err := loadProjectionState(ctx, tx)
+		if err != nil {
+			return err
+		}
+		projector, err := transcript.NewProjector(state, projectionSQLResolver{db: tx})
+		if err != nil {
+			return err
+		}
 		nextSequence, err := nextEventSequence(ctx, tx)
 		if err != nil {
 			return err
 		}
+		affected := make(map[string]struct{})
 		for idx := range persisted {
 			persisted[idx].Sequence = nextSequence + int64(idx)
-			if err := insertSessionEvent(ctx, tx, persisted[idx]); err != nil {
+			assignment, assignErr := projector.Assign(ctx, persisted[idx])
+			if assignErr != nil {
+				return assignErr
+			}
+			if err := insertSessionEvent(ctx, tx, persisted[idx], assignment.Entry.Key); err != nil {
 				return err
 			}
+			affected[assignment.Entry.Key] = struct{}{}
+			for _, key := range assignment.CompletedKeys {
+				affected[key] = struct{}{}
+			}
 		}
-		return nil
+		return persistIncrementalTranscriptProjection(ctx, tx, s.sessionID, projector, affected)
 	}); err != nil {
 		return nil, err
 	}
@@ -195,11 +214,17 @@ func (s *SessionDB) writeEventBatch(
 	return persisted, nil
 }
 
-func insertSessionEvent(ctx context.Context, tx *store.WriteTx, event store.SessionEvent) error {
+func insertSessionEvent(
+	ctx context.Context,
+	tx *store.WriteTx,
+	event store.SessionEvent,
+	entryKey string,
+) error {
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO events (
+			id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.ID,
 		event.Sequence,
 		event.TurnID,
@@ -207,8 +232,76 @@ func insertSessionEvent(ctx context.Context, tx *store.WriteTx, event store.Sess
 		event.AgentName,
 		event.Content,
 		store.FormatTimestamp(event.Timestamp),
+		entryKey,
 	); err != nil {
 		return fmt.Errorf("store: insert session event: %w", err)
 	}
 	return nil
+}
+
+func persistIncrementalTranscriptProjection(
+	ctx context.Context,
+	tx *store.WriteTx,
+	sessionID string,
+	projector *transcript.Projector,
+	affected map[string]struct{},
+) error {
+	identities := make([]transcript.EntryIdentity, 0, len(affected))
+	for key := range affected {
+		identity, ok := projector.Identity(key)
+		if !ok {
+			return fmt.Errorf("%w: missing affected identity %q", transcript.ErrProjectionCorrupt, key)
+		}
+		identities = append(identities, identity)
+	}
+	sort.Slice(identities, func(i, j int) bool {
+		return identities[i].StartSequence < identities[j].StartSequence
+	})
+
+	// Each append rewrites only the independently rebuildable entries it affects.
+	// This bounded write amplification is required to preserve full-message
+	// semantics while reads stay proportional to the requested result window.
+	for _, identity := range identities {
+		events, err := loadAssignedEvents(ctx, tx, sessionID, identity.Key)
+		if err != nil {
+			return err
+		}
+		candidate := identity
+		if candidate.MessageID == "" {
+			candidate.MessageID = candidate.BaseMessageID
+		}
+		entry, err := transcript.ProjectAssignedEntry(events, candidate)
+		if err != nil {
+			return fmt.Errorf("store: project transcript entry %q: %w", identity.Key, err)
+		}
+		if entry != nil && identity.MessageID == "" {
+			identity.MessageID, err = allocateProjectionMessageID(
+				ctx,
+				tx,
+				identity.Key,
+				identity.BaseMessageID,
+			)
+			if err != nil {
+				return err
+			}
+			entry, err = transcript.ProjectAssignedEntry(events, identity)
+			if err != nil {
+				return fmt.Errorf("store: reproject transcript entry %q: %w", identity.Key, err)
+			}
+		}
+		if err := persistProjectionEntry(ctx, tx, identity, entry); err != nil {
+			return err
+		}
+	}
+	for toolKey, entryKey := range projector.ToolRoutes() {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO transcript_tool_routes (tool_key, entry_key) VALUES (?, ?)
+			ON CONFLICT(tool_key) DO UPDATE SET entry_key = excluded.entry_key`,
+			toolKey,
+			entryKey,
+		); err != nil {
+			return fmt.Errorf("store: upsert transcript tool route %q: %w", toolKey, err)
+		}
+	}
+	return persistProjectionState(ctx, tx, projector.State())
 }

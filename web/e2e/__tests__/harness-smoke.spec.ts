@@ -34,6 +34,27 @@ test("boots against the daemon-served onboarding shell and captures a trace plus
   expect(screenshots.length).toBeGreaterThan(0);
 });
 
+test("boots when the optional view transition never invokes its update callback", async ({
+  appPage,
+  runtime,
+}) => {
+  const coldPage = await appPage.context().newPage();
+  try {
+    await coldPage.addInitScript(() => {
+      Object.defineProperty(document, "startViewTransition", {
+        configurable: true,
+        value: () => undefined,
+      });
+    });
+
+    await coldPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+
+    await expect(coldPage.getByTestId("onboarding-wizard")).toBeVisible();
+  } finally {
+    await coldPage.close();
+  }
+});
+
 test("records harness scenario contract, viewport evidence, and HTTP UDS CLI parity", async ({
   appPage,
   browserArtifacts,

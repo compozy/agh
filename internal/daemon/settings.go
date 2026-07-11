@@ -188,11 +188,11 @@ func (s *settingsRuntimeSurface) MemoryHealthStatus(context.Context) (settingspk
 		return status, nil
 	}
 
-	headers, err := s.memoryStore.Scan(memcontract.ScopeGlobal)
+	count, err := s.memoryStore.SourceHeaderCount(memcontract.ScopeGlobal)
 	if err != nil {
 		return settingspkg.MemoryHealthStatus{}, fmt.Errorf("daemon: settings memory health scan: %w", err)
 	}
-	status.FileCount = len(headers)
+	status.FileCount = count
 
 	if s.dreamTrigger != nil {
 		lastConsolidatedAt, err := s.dreamTrigger.LastConsolidatedAt()

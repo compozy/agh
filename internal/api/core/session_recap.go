@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/events"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
 	"github.com/gin-gonic/gin"
 )
@@ -24,15 +23,16 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 		return
 	}
 
-	entries, err := h.Sessions.Transcript(
+	page, err := h.Sessions.TranscriptPage(
 		c.Request.Context(),
 		sessionID,
-		store.EventQuery{Limit: recapTranscriptReadLimit(limit)},
+		transcript.PageQuery{Limit: recapTranscriptReadLimit(limit)},
 	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
+	entries := page.Entries
 	recentEntries := recentTranscriptEntries(entries, limit)
 	markers := recentTranscriptMarkersFromEntries(entries, 5)
 	queueSummary, err := h.Sessions.InputQueueSummary(c.Request.Context(), sessionID)
@@ -41,7 +41,7 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 		return
 	}
 	pendingMarkers := pendingTranscriptMarkerCountFromEntries(entries)
-	eventCursor := maxTranscriptEntrySequence(entries)
+	eventCursor := page.MaxSequence
 	payload := contract.RecapPayload{
 		Session:        SessionPayloadFromInfo(info),
 		RecentMarkers:  markers,
@@ -187,24 +187,4 @@ func transcriptMarkerPayload(marker transcript.Marker) contract.TranscriptMarker
 
 func isTranscriptMarkerEventType(eventType string) bool {
 	return eventType == events.TranscriptMarkerCreated || eventType == events.TranscriptMarkerRedacted
-}
-
-func maxTranscriptEntrySequence(entries []transcript.Entry) int64 {
-	var maxSequence int64
-	for _, entry := range entries {
-		if entry.Sequence > maxSequence {
-			maxSequence = entry.Sequence
-		}
-	}
-	return maxSequence
-}
-
-func maxSessionEventSequence(eventsList []store.SessionEvent) int64 {
-	var maxSequence int64
-	for _, event := range eventsList {
-		if event.Sequence > maxSequence {
-			maxSequence = event.Sequence
-		}
-	}
-	return maxSequence
 }

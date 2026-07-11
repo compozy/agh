@@ -115,7 +115,13 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 		parent := createTaskViaUDS(t, ctx, harness, "Watched parent")
 		child := createOwnedChildTaskViaUDS(t, ctx, harness, parent.ID, "Watched child", "general")
 		blockedChild := createChildTaskViaUDS(t, ctx, harness, parent.ID, "Watched blocked child")
-		run := runLoopViaHTTPWithInputs(t, ctx, harness, watchEventsE2ELoopName, watchEventsE2EInputs(parent.ID, child.ID))
+		run := runLoopViaHTTPWithInputs(
+			t,
+			ctx,
+			harness,
+			watchEventsE2ELoopName,
+			watchEventsE2EInputs(parent.ID, child.ID),
+		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusWatching)
 
 		lease := claimTaskRunViaAgentUDS(t, ctx, harness, child.ID)
@@ -150,7 +156,13 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 		waitForLoopCatalogEntry(t, ctx, harness, watchEventsE2ELoopName)
 		parent := createTaskViaUDS(t, ctx, harness, "Restart parent")
 		child := createChildTaskViaUDS(t, ctx, harness, parent.ID, "Restart child")
-		run := runLoopViaHTTPWithInputs(t, ctx, harness, watchEventsE2ELoopName, watchEventsE2EInputs(parent.ID, child.ID))
+		run := runLoopViaHTTPWithInputs(
+			t,
+			ctx,
+			harness,
+			watchEventsE2ELoopName,
+			watchEventsE2EInputs(parent.ID, child.ID),
+		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, aghcontract.LoopRunStatusWatching)
 
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -352,10 +364,12 @@ func writeWatchEventsFixture(t testing.TB) string {
 			"turns": []map[string]any{{
 				"name":  "watch-events-batch",
 				"match": map[string]any{"turn_source": "user"},
-				"steps": []map[string]any{{
-					"kind": "assistant",
-					"text": "```json\n{\"summary\":\"watch events observed\",\"message\":\"watch batch complete\"}\n```",
-				}},
+				"steps": []map[string]any{
+					{
+						"kind": "assistant",
+						"text": "```json\n{\"summary\":\"watch events observed\",\"message\":\"watch batch complete\"}\n```",
+					},
+				},
 			}},
 		}},
 	}
@@ -379,7 +393,13 @@ func createLoopViaHTTP(
 	t.Helper()
 	var response aghcontract.LoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loops"
-	if err := harness.HTTPJSON(ctx, http.MethodPost, path, aghcontract.CreateLoopRequest{Definition: &def}, &response); err != nil {
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		aghcontract.CreateLoopRequest{Definition: &def},
+		&response,
+	); err != nil {
 		t.Fatalf("HTTP create loop error = %v", err)
 	}
 	if response.Loop.Name != def.Meta.Name {
@@ -828,7 +848,9 @@ func loopRunEventTaskIDs(events []loopRunSSEEvent) []string {
 	var out []string
 	for _, event := range events {
 		switch event.Kind {
-		case aghcontract.LoopRunEventNodeRunning, aghcontract.LoopRunEventNodeSucceeded, aghcontract.LoopRunEventNodeFailed:
+		case aghcontract.LoopRunEventNodeRunning,
+			aghcontract.LoopRunEventNodeSucceeded,
+			aghcontract.LoopRunEventNodeFailed:
 		default:
 			continue
 		}

@@ -191,12 +191,17 @@ type StubTaskManager struct {
 		taskpkg.ExpiredLeaseRecovery,
 		taskpkg.ActorContext,
 	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
-	GetTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
-	InspectTaskFn  func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
-	InspectRunFn   func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
-	ListTaskRunsFn func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
-	ListTasksFn    func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
-	TimelineFn     func(
+	GetTaskFn         func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
+	InspectTaskFn     func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	InspectRunFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	ListTaskRunsFn    func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
+	ListTasksFn       func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
+	ListTaskCatalogFn func(
+		context.Context,
+		taskpkg.CatalogQuery,
+		taskpkg.ActorContext,
+	) (taskpkg.CatalogPage, error)
+	TimelineFn func(
 		context.Context,
 		string,
 		taskpkg.TimelineQuery,
@@ -212,7 +217,7 @@ type StubTaskManager struct {
 	RunDetailFn func(context.Context, string, taskpkg.ActorContext) (*taskpkg.RunDetailView, error)
 }
 
-func (s StubTaskManager) CreateTask(
+func (s *StubTaskManager) CreateTask(
 	ctx context.Context,
 	spec taskpkg.CreateTask,
 	actor taskpkg.ActorContext,
@@ -223,7 +228,7 @@ func (s StubTaskManager) CreateTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) CreateChildTask(
+func (s *StubTaskManager) CreateChildTask(
 	ctx context.Context,
 	parentTaskID string,
 	spec taskpkg.CreateTask,
@@ -235,7 +240,7 @@ func (s StubTaskManager) CreateChildTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) DeleteTask(
+func (s *StubTaskManager) DeleteTask(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -246,7 +251,7 @@ func (s StubTaskManager) DeleteTask(
 	return taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) UpdateTask(
+func (s *StubTaskManager) UpdateTask(
 	ctx context.Context,
 	id string,
 	patch taskpkg.Patch,
@@ -258,7 +263,7 @@ func (s StubTaskManager) UpdateTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) PublishTask(
+func (s *StubTaskManager) PublishTask(
 	ctx context.Context,
 	id string,
 	req taskpkg.ExecutionRequest,
@@ -270,7 +275,7 @@ func (s StubTaskManager) PublishTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) StartTask(
+func (s *StubTaskManager) StartTask(
 	ctx context.Context,
 	id string,
 	req taskpkg.ExecutionRequest,
@@ -282,7 +287,7 @@ func (s StubTaskManager) StartTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ApproveTask(
+func (s *StubTaskManager) ApproveTask(
 	ctx context.Context,
 	id string,
 	req taskpkg.ExecutionRequest,
@@ -294,7 +299,7 @@ func (s StubTaskManager) ApproveTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) RejectTask(
+func (s *StubTaskManager) RejectTask(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -305,7 +310,7 @@ func (s StubTaskManager) RejectTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) CancelTask(
+func (s *StubTaskManager) CancelTask(
 	ctx context.Context,
 	id string,
 	req taskpkg.CancelTask,
@@ -317,7 +322,7 @@ func (s StubTaskManager) CancelTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) BlockTask(
+func (s *StubTaskManager) BlockTask(
 	ctx context.Context,
 	req taskpkg.BlockRequest,
 	actor taskpkg.ActorContext,
@@ -328,7 +333,7 @@ func (s StubTaskManager) BlockTask(
 	return taskpkg.TaskBlock{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ClearTaskBlock(
+func (s *StubTaskManager) ClearTaskBlock(
 	ctx context.Context,
 	taskID string,
 	blockID string,
@@ -341,7 +346,7 @@ func (s StubTaskManager) ClearTaskBlock(
 	return taskpkg.TaskBlock{}, taskpkg.ErrTaskBlockNotFound
 }
 
-func (s StubTaskManager) RecoverTask(
+func (s *StubTaskManager) RecoverTask(
 	ctx context.Context,
 	id string,
 	note string,
@@ -353,7 +358,7 @@ func (s StubTaskManager) RecoverTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ExpireTaskBlocks(
+func (s *StubTaskManager) ExpireTaskBlocks(
 	ctx context.Context,
 	now time.Time,
 	actor taskpkg.ActorContext,
@@ -364,7 +369,7 @@ func (s StubTaskManager) ExpireTaskBlocks(
 	return taskpkg.ExpireTaskBlocksResult{}, nil
 }
 
-func (s StubTaskManager) ListTaskBlocks(
+func (s *StubTaskManager) ListTaskBlocks(
 	ctx context.Context,
 	taskID string,
 	includeCleared bool,
@@ -376,7 +381,7 @@ func (s StubTaskManager) ListTaskBlocks(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) MarkTaskRead(
+func (s *StubTaskManager) MarkTaskRead(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -387,7 +392,7 @@ func (s StubTaskManager) MarkTaskRead(
 	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ArchiveTask(
+func (s *StubTaskManager) ArchiveTask(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -398,7 +403,7 @@ func (s StubTaskManager) ArchiveTask(
 	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) DismissTask(
+func (s *StubTaskManager) DismissTask(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -409,7 +414,7 @@ func (s StubTaskManager) DismissTask(
 	return taskpkg.TriageState{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) GetExecutionProfile(
+func (s *StubTaskManager) GetExecutionProfile(
 	ctx context.Context,
 	taskID string,
 	actor taskpkg.ActorContext,
@@ -420,7 +425,7 @@ func (s StubTaskManager) GetExecutionProfile(
 	return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
 }
 
-func (s StubTaskManager) SetExecutionProfile(
+func (s *StubTaskManager) SetExecutionProfile(
 	ctx context.Context,
 	taskID string,
 	profile *taskpkg.ExecutionProfile,
@@ -432,7 +437,7 @@ func (s StubTaskManager) SetExecutionProfile(
 	return taskpkg.ExecutionProfile{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) DeleteExecutionProfile(
+func (s *StubTaskManager) DeleteExecutionProfile(
 	ctx context.Context,
 	taskID string,
 	actor taskpkg.ActorContext,
@@ -443,7 +448,7 @@ func (s StubTaskManager) DeleteExecutionProfile(
 	return taskpkg.ErrExecutionProfileNotFound
 }
 
-func (s StubTaskManager) RequestRunReview(
+func (s *StubTaskManager) RequestRunReview(
 	ctx context.Context,
 	req taskpkg.RunReviewRequest,
 	actor taskpkg.ActorContext,
@@ -454,7 +459,7 @@ func (s StubTaskManager) RequestRunReview(
 	return taskpkg.RunReview{}, false, taskpkg.ErrRunReviewNotFound
 }
 
-func (s StubTaskManager) GetRunReview(
+func (s *StubTaskManager) GetRunReview(
 	ctx context.Context,
 	reviewID string,
 	actor taskpkg.ActorContext,
@@ -465,7 +470,7 @@ func (s StubTaskManager) GetRunReview(
 	return taskpkg.RunReview{}, taskpkg.ErrRunReviewNotFound
 }
 
-func (s StubTaskManager) RecordRunReview(
+func (s *StubTaskManager) RecordRunReview(
 	ctx context.Context,
 	req taskpkg.RecordRunReviewRequest,
 	actor taskpkg.ActorContext,
@@ -476,7 +481,7 @@ func (s StubTaskManager) RecordRunReview(
 	return taskpkg.RunReviewResult{}, taskpkg.ErrRunReviewNotFound
 }
 
-func (s StubTaskManager) BindRunReviewSession(
+func (s *StubTaskManager) BindRunReviewSession(
 	ctx context.Context,
 	req taskpkg.BindRunReviewSessionRequest,
 	actor taskpkg.ActorContext,
@@ -487,7 +492,7 @@ func (s StubTaskManager) BindRunReviewSession(
 	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
 }
 
-func (s StubTaskManager) LookupRunReviewForSession(
+func (s *StubTaskManager) LookupRunReviewForSession(
 	_ context.Context,
 	_ string,
 	_ taskpkg.ActorContext,
@@ -495,7 +500,7 @@ func (s StubTaskManager) LookupRunReviewForSession(
 	return taskpkg.RunReviewBinding{}, taskpkg.ErrRunReviewNotFound
 }
 
-func (s StubTaskManager) ListRunReviews(
+func (s *StubTaskManager) ListRunReviews(
 	ctx context.Context,
 	query taskpkg.RunReviewQuery,
 	actor taskpkg.ActorContext,
@@ -506,7 +511,7 @@ func (s StubTaskManager) ListRunReviews(
 	return nil, nil
 }
 
-func (s StubTaskManager) AddDependency(
+func (s *StubTaskManager) AddDependency(
 	ctx context.Context,
 	spec taskpkg.AddDependency,
 	actor taskpkg.ActorContext,
@@ -517,7 +522,7 @@ func (s StubTaskManager) AddDependency(
 	return taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) RemoveDependency(
+func (s *StubTaskManager) RemoveDependency(
 	ctx context.Context,
 	taskID string,
 	dependsOnID string,
@@ -529,7 +534,7 @@ func (s StubTaskManager) RemoveDependency(
 	return taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) EnqueueRun(
+func (s *StubTaskManager) EnqueueRun(
 	ctx context.Context,
 	spec taskpkg.EnqueueRun,
 	actor taskpkg.ActorContext,
@@ -540,7 +545,7 @@ func (s StubTaskManager) EnqueueRun(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ClaimNextRun(
+func (s *StubTaskManager) ClaimNextRun(
 	ctx context.Context,
 	criteria taskpkg.ClaimCriteria,
 	actor taskpkg.ActorContext,
@@ -551,7 +556,7 @@ func (s StubTaskManager) ClaimNextRun(
 	return nil, taskpkg.ErrNoClaimableRun
 }
 
-func (s StubTaskManager) ClaimRun(
+func (s *StubTaskManager) ClaimRun(
 	ctx context.Context,
 	runID string,
 	claim taskpkg.ClaimRun,
@@ -563,7 +568,7 @@ func (s StubTaskManager) ClaimRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) StartRun(
+func (s *StubTaskManager) StartRun(
 	ctx context.Context,
 	runID string,
 	req taskpkg.StartRun,
@@ -575,7 +580,7 @@ func (s StubTaskManager) StartRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) AttachRunSession(
+func (s *StubTaskManager) AttachRunSession(
 	ctx context.Context,
 	runID string,
 	sessionID string,
@@ -587,7 +592,7 @@ func (s StubTaskManager) AttachRunSession(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) HeartbeatRunLease(
+func (s *StubTaskManager) HeartbeatRunLease(
 	ctx context.Context,
 	heartbeat taskpkg.LeaseHeartbeat,
 	actor taskpkg.ActorContext,
@@ -598,7 +603,7 @@ func (s StubTaskManager) HeartbeatRunLease(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) ReleaseRunLease(
+func (s *StubTaskManager) ReleaseRunLease(
 	ctx context.Context,
 	release taskpkg.LeaseRelease,
 	actor taskpkg.ActorContext,
@@ -609,7 +614,7 @@ func (s StubTaskManager) ReleaseRunLease(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) ForceReleaseRun(
+func (s *StubTaskManager) ForceReleaseRun(
 	ctx context.Context,
 	runID string,
 	release taskpkg.ForceReleaseRun,
@@ -621,7 +626,7 @@ func (s StubTaskManager) ForceReleaseRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) ForceFailRun(
+func (s *StubTaskManager) ForceFailRun(
 	ctx context.Context,
 	runID string,
 	failure taskpkg.ForceFailRun,
@@ -633,7 +638,7 @@ func (s StubTaskManager) ForceFailRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) RetryRun(
+func (s *StubTaskManager) RetryRun(
 	ctx context.Context,
 	runID string,
 	retry taskpkg.RetryRunRequest,
@@ -645,7 +650,7 @@ func (s StubTaskManager) RetryRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) RecoverRun(
+func (s *StubTaskManager) RecoverRun(
 	ctx context.Context,
 	runID string,
 	req taskpkg.RecoverRunRequest,
@@ -657,7 +662,7 @@ func (s StubTaskManager) RecoverRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) BulkForceReleaseRuns(
+func (s *StubTaskManager) BulkForceReleaseRuns(
 	ctx context.Context,
 	req taskpkg.BulkForceRunRequest,
 	actor taskpkg.ActorContext,
@@ -668,7 +673,7 @@ func (s StubTaskManager) BulkForceReleaseRuns(
 	return taskpkg.BulkForceRunResult{}, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) BulkForceFailRuns(
+func (s *StubTaskManager) BulkForceFailRuns(
 	ctx context.Context,
 	req taskpkg.BulkForceRunRequest,
 	actor taskpkg.ActorContext,
@@ -679,7 +684,7 @@ func (s StubTaskManager) BulkForceFailRuns(
 	return taskpkg.BulkForceRunResult{}, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) PauseTask(
+func (s *StubTaskManager) PauseTask(
 	ctx context.Context,
 	taskID string,
 	req taskpkg.PauseTaskRequest,
@@ -691,7 +696,7 @@ func (s StubTaskManager) PauseTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ResumeTask(
+func (s *StubTaskManager) ResumeTask(
 	ctx context.Context,
 	taskID string,
 	req taskpkg.ResumeTaskRequest,
@@ -703,7 +708,7 @@ func (s StubTaskManager) ResumeTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) SchedulerStatus(
+func (s *StubTaskManager) SchedulerStatus(
 	ctx context.Context,
 	actor taskpkg.ActorContext,
 ) (taskpkg.SchedulerStatus, error) {
@@ -713,7 +718,7 @@ func (s StubTaskManager) SchedulerStatus(
 	return taskpkg.SchedulerStatus{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) PauseScheduler(
+func (s *StubTaskManager) PauseScheduler(
 	ctx context.Context,
 	req taskpkg.SchedulerPauseRequest,
 	actor taskpkg.ActorContext,
@@ -724,7 +729,7 @@ func (s StubTaskManager) PauseScheduler(
 	return taskpkg.SchedulerStatus{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) ResumeScheduler(
+func (s *StubTaskManager) ResumeScheduler(
 	ctx context.Context,
 	req taskpkg.SchedulerResumeRequest,
 	actor taskpkg.ActorContext,
@@ -735,7 +740,7 @@ func (s StubTaskManager) ResumeScheduler(
 	return taskpkg.SchedulerStatus{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) DrainScheduler(
+func (s *StubTaskManager) DrainScheduler(
 	ctx context.Context,
 	req taskpkg.SchedulerDrainRequest,
 	actor taskpkg.ActorContext,
@@ -746,7 +751,7 @@ func (s StubTaskManager) DrainScheduler(
 	return taskpkg.SchedulerDrainResult{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) SchedulerBacklog(
+func (s *StubTaskManager) SchedulerBacklog(
 	ctx context.Context,
 	query taskpkg.SchedulerBacklogQuery,
 	actor taskpkg.ActorContext,
@@ -757,7 +762,7 @@ func (s StubTaskManager) SchedulerBacklog(
 	return taskpkg.SchedulerBacklog{}, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) CompleteRunLease(
+func (s *StubTaskManager) CompleteRunLease(
 	ctx context.Context,
 	completion taskpkg.LeaseCompletion,
 	actor taskpkg.ActorContext,
@@ -768,7 +773,7 @@ func (s StubTaskManager) CompleteRunLease(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) FailRunLease(
+func (s *StubTaskManager) FailRunLease(
 	ctx context.Context,
 	failure taskpkg.LeaseFailure,
 	actor taskpkg.ActorContext,
@@ -779,7 +784,7 @@ func (s StubTaskManager) FailRunLease(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) LookupActiveRunForSession(
+func (s *StubTaskManager) LookupActiveRunForSession(
 	ctx context.Context,
 	sessionID string,
 	runID string,
@@ -790,7 +795,7 @@ func (s StubTaskManager) LookupActiveRunForSession(
 	return taskpkg.AutonomyLeaseHandle{}, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) CompleteRun(
+func (s *StubTaskManager) CompleteRun(
 	ctx context.Context,
 	runID string,
 	result taskpkg.RunResult,
@@ -802,7 +807,7 @@ func (s StubTaskManager) CompleteRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) FailRun(
+func (s *StubTaskManager) FailRun(
 	ctx context.Context,
 	runID string,
 	failure taskpkg.RunFailure,
@@ -814,7 +819,7 @@ func (s StubTaskManager) FailRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) CancelRun(
+func (s *StubTaskManager) CancelRun(
 	ctx context.Context,
 	runID string,
 	req taskpkg.CancelRun,
@@ -826,7 +831,7 @@ func (s StubTaskManager) CancelRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) RecoverExpiredRunLeases(
+func (s *StubTaskManager) RecoverExpiredRunLeases(
 	ctx context.Context,
 	recovery taskpkg.ExpiredLeaseRecovery,
 	actor taskpkg.ActorContext,
@@ -837,7 +842,7 @@ func (s StubTaskManager) RecoverExpiredRunLeases(
 	return nil, nil
 }
 
-func (s StubTaskManager) GetTask(
+func (s *StubTaskManager) GetTask(
 	ctx context.Context,
 	id string,
 	actor taskpkg.ActorContext,
@@ -848,7 +853,7 @@ func (s StubTaskManager) GetTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) InspectTask(
+func (s *StubTaskManager) InspectTask(
 	ctx context.Context,
 	taskID string,
 	actor taskpkg.ActorContext,
@@ -859,7 +864,7 @@ func (s StubTaskManager) InspectTask(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) InspectRun(
+func (s *StubTaskManager) InspectRun(
 	ctx context.Context,
 	runID string,
 	actor taskpkg.ActorContext,
@@ -870,7 +875,7 @@ func (s StubTaskManager) InspectRun(
 	return nil, taskpkg.ErrTaskRunNotFound
 }
 
-func (s StubTaskManager) ListTaskRuns(
+func (s *StubTaskManager) ListTaskRuns(
 	ctx context.Context,
 	taskID string,
 	query taskpkg.RunQuery,
@@ -882,18 +887,7 @@ func (s StubTaskManager) ListTaskRuns(
 	return nil, nil
 }
 
-func (s StubTaskManager) ListTasks(
-	ctx context.Context,
-	query taskpkg.Query,
-	actor taskpkg.ActorContext,
-) ([]taskpkg.Summary, error) {
-	if s.ListTasksFn != nil {
-		return s.ListTasksFn(ctx, query, actor)
-	}
-	return nil, nil
-}
-
-func (s StubTaskManager) Timeline(
+func (s *StubTaskManager) Timeline(
 	ctx context.Context,
 	taskID string,
 	query taskpkg.TimelineQuery,
@@ -905,7 +899,7 @@ func (s StubTaskManager) Timeline(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) Stream(
+func (s *StubTaskManager) Stream(
 	ctx context.Context,
 	taskID string,
 	query taskpkg.StreamQuery,
@@ -917,7 +911,7 @@ func (s StubTaskManager) Stream(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) Tree(
+func (s *StubTaskManager) Tree(
 	ctx context.Context,
 	taskID string,
 	actor taskpkg.ActorContext,
@@ -928,7 +922,7 @@ func (s StubTaskManager) Tree(
 	return nil, taskpkg.ErrTaskNotFound
 }
 
-func (s StubTaskManager) RunDetail(
+func (s *StubTaskManager) RunDetail(
 	ctx context.Context,
 	runID string,
 	actor taskpkg.ActorContext,

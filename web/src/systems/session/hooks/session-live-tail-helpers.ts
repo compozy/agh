@@ -59,37 +59,3 @@ export function terminalFailureMessage(
     ],
   } as SessionMessage;
 }
-
-export function upsertTranscriptMessage(
-  existing: SessionMessage[] | undefined,
-  message: SessionMessage
-): SessionMessage[] {
-  const messages = existing ? [...existing] : [];
-  const index = messages.findIndex(item => item.id === message.id);
-  if (index === -1) {
-    messages.push(message);
-    return messages;
-  }
-  messages[index] = message;
-  return messages;
-}
-
-export function sortMessagesByKnownSequence(
-  messages: SessionMessage[],
-  sequences: ReadonlyMap<string, number>
-): SessionMessage[] {
-  return [...messages].sort((left, right) => {
-    const leftSequence = sequences.get(left.id);
-    const rightSequence = sequences.get(right.id);
-    if (leftSequence !== undefined && rightSequence !== undefined) {
-      return leftSequence - rightSequence;
-    }
-    if (leftSequence !== undefined) {
-      return 1;
-    }
-    if (rightSequence !== undefined) {
-      return -1;
-    }
-    return 0;
-  });
-}

@@ -19,13 +19,47 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
+
+type unpagedSessionManager struct {
+	core.SessionManager
+}
+
+type sessionHealthReaderFunc func(context.Context, string) (heartbeat.SessionHealth, error)
+
+func (f sessionHealthReaderFunc) GetSessionHealth(
+	ctx context.Context,
+	sessionID string,
+) (heartbeat.SessionHealth, error) {
+	return f(ctx, sessionID)
+}
+
+type sessionHealthPageReaderStub struct {
+	getFn  func(context.Context, string) (heartbeat.SessionHealth, error)
+	pageFn func(context.Context, []*session.Info) (map[string]heartbeat.SessionHealth, error)
+}
+
+func (s sessionHealthPageReaderStub) GetSessionHealth(
+	ctx context.Context,
+	sessionID string,
+) (heartbeat.SessionHealth, error) {
+	return s.getFn(ctx, sessionID)
+}
+
+func (s sessionHealthPageReaderStub) SessionHealthForPage(
+	ctx context.Context,
+	infos []*session.Info,
+) (map[string]heartbeat.SessionHealth, error) {
+	return s.pageFn(ctx, infos)
+}
 
 type bufferFlusher struct {
 	bytes.Buffer
@@ -698,17 +732,11 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	})
 }
 
-func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
+func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Parallel()
 
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
-	memoryLineage := &store.SessionLineage{
-		ParentSessionID: "sess-user",
-		RootSessionID:   "sess-user",
-		SpawnDepth:      1,
-		SpawnRole:       session.SpawnRoleMemoryExtractor,
-	}
 	workerLineage := &store.SessionLineage{
 		ParentSessionID: "sess-user",
 		RootSessionID:   "sess-user",
@@ -716,12 +744,15 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 		SpawnRole:       "worker",
 	}
 
-	t.Run("Should omit internal memory sessions from active session lists", func(t *testing.T) {
+	t.Run("Should return the bounded visible session page", func(t *testing.T) {
 		t.Parallel()
 
 		manager := testutil.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if query.Limit != 0 {
+					t.Fatalf("session page limit = %d, want server default request", query.Limit)
+				}
+				return session.ListPage{Sessions: []*session.Info{
 					{
 						ID:          "sess-user",
 						Name:        "Operator session",
@@ -745,30 +776,7 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 						CreatedAt:   createdAt,
 						UpdatedAt:   updatedAt,
 					},
-					{
-						ID:          "sess-dream",
-						Name:        "Memory extractor",
-						AgentName:   "coder",
-						Provider:    "codex",
-						WorkspaceID: "ws_alpha",
-						Type:        session.SessionTypeDream,
-						State:       session.StateStopped,
-						CreatedAt:   createdAt,
-						UpdatedAt:   updatedAt,
-					},
-					{
-						ID:          "sess-memory",
-						Name:        "Memory extractor",
-						AgentName:   "coder",
-						Provider:    "codex",
-						WorkspaceID: "ws_alpha",
-						Type:        session.SessionTypeSpawned,
-						Lineage:     memoryLineage,
-						State:       session.StateStopped,
-						CreatedAt:   createdAt,
-						UpdatedAt:   updatedAt,
-					},
-				}, nil
+				}, Total: 2, Limit: session.DefaultListLimit}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
@@ -777,7 +785,7 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 		if resp.Code != http.StatusOK {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
-		var payload contract.SessionsResponse
+		var payload contract.SessionCatalogResponse
 		testutil.DecodeJSONResponse(t, resp, &payload)
 
 		ids := make([]string, 0, len(payload.Sessions))
@@ -787,25 +795,28 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 		if got, want := strings.Join(ids, ","), "sess-user,sess-worker"; got != want {
 			t.Fatalf("session ids = %q, want %q", got, want)
 		}
+		if payload.Page.Total != 2 || payload.Page.Limit != session.DefaultListLimit {
+			t.Fatalf("session page = %#v, want truthful total/default limit", payload.Page)
+		}
 	})
 
-	t.Run("Should omit internal memory sessions from resumable lists", func(t *testing.T) {
+	t.Run("Should preserve the page contract for resumable lists", func(t *testing.T) {
 		t.Parallel()
 
 		manager := testutil.StubSessionManager{
-			ListSessionsFn: func(_ context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 				if !query.Resumable {
 					t.Fatalf("resumable query = false, want true")
 				}
-				return []store.SessionInfo{
+				return session.ListPage{Sessions: []*session.Info{
 					{
 						ID:          "sess-user",
 						Name:        "Operator session",
 						AgentName:   "coder",
 						Provider:    "codex",
 						WorkspaceID: "ws_alpha",
-						SessionType: string(session.SessionTypeUser),
-						State:       string(session.StateStopped),
+						Type:        session.SessionTypeUser,
+						State:       session.StateActive,
 						CreatedAt:   createdAt,
 						UpdatedAt:   updatedAt,
 					},
@@ -815,36 +826,13 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 						AgentName:   "coder",
 						Provider:    "codex",
 						WorkspaceID: "ws_alpha",
-						SessionType: string(session.SessionTypeSpawned),
+						Type:        session.SessionTypeSpawned,
 						Lineage:     workerLineage,
-						State:       string(session.StateStopped),
+						State:       session.StateActive,
 						CreatedAt:   createdAt,
 						UpdatedAt:   updatedAt,
 					},
-					{
-						ID:          "sess-dream",
-						Name:        "Memory extractor",
-						AgentName:   "coder",
-						Provider:    "codex",
-						WorkspaceID: "ws_alpha",
-						SessionType: string(session.SessionTypeDream),
-						State:       string(session.StateStopped),
-						CreatedAt:   createdAt,
-						UpdatedAt:   updatedAt,
-					},
-					{
-						ID:          "sess-memory",
-						Name:        "Memory extractor",
-						AgentName:   "coder",
-						Provider:    "codex",
-						WorkspaceID: "ws_alpha",
-						SessionType: string(session.SessionTypeSpawned),
-						Lineage:     memoryLineage,
-						State:       string(session.StateStopped),
-						CreatedAt:   createdAt,
-						UpdatedAt:   updatedAt,
-					},
-				}, nil
+				}, Total: 2, Limit: session.DefaultListLimit}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
@@ -858,7 +846,7 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 				resp.Body.String(),
 			)
 		}
-		var payload contract.SessionsResponse
+		var payload contract.SessionCatalogResponse
 		testutil.DecodeJSONResponse(t, resp, &payload)
 
 		ids := make([]string, 0, len(payload.Sessions))
@@ -869,17 +857,86 @@ func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
 			t.Fatalf("session ids = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should hydrate health only for sessions returned by the page", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListPageFn: func(_ context.Context, _ session.ListQuery) (session.ListPage, error) {
+				return session.ListPage{
+					Sessions: []*session.Info{{
+						ID:          "sess-returned",
+						AgentName:   "coder",
+						WorkspaceID: "ws-alpha",
+						Type:        session.SessionTypeUser,
+						State:       session.StateActive,
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					}},
+					Total: 100,
+					Limit: 1,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		pageHealthCalls := 0
+		singleHealthCalls := 0
+		fixture.Handlers.SessionHealth = sessionHealthPageReaderStub{
+			getFn: func(context.Context, string) (heartbeat.SessionHealth, error) {
+				singleHealthCalls++
+				return heartbeat.SessionHealth{}, errors.New("unexpected single health read")
+			},
+			pageFn: func(
+				_ context.Context,
+				infos []*session.Info,
+			) (map[string]heartbeat.SessionHealth, error) {
+				pageHealthCalls++
+				if len(infos) != 1 || infos[0].ID != "sess-returned" {
+					t.Fatalf("SessionHealthForPage() infos = %#v, want returned page only", infos)
+				}
+				return map[string]heartbeat.SessionHealth{
+					"sess-returned": {
+						SessionID:   "sess-returned",
+						WorkspaceID: "ws-alpha",
+						AgentName:   "coder",
+						State:       heartbeat.SessionHealthStateIdle,
+						Health:      heartbeat.SessionHealthHealthy,
+						Attachable:  true,
+						UpdatedAt:   updatedAt,
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?include_health=true&limit=1", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.SessionCatalogResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if pageHealthCalls != 1 || singleHealthCalls != 0 ||
+			len(payload.Sessions) != 1 || payload.Sessions[0].Health == nil {
+			t.Fatalf(
+				"health calls = (page %d, single %d) payload = %#v, want one batched page hydration",
+				pageHealthCalls,
+				singleHealthCalls,
+				payload,
+			)
+		}
+	})
 }
 
 func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should list all failure", func(t *testing.T) {
+		t.Parallel()
+
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
-				ListAllFn: func(context.Context) ([]*session.Info, error) {
-					return nil, errors.New("list failed")
+				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
+					return session.ListPage{}, errors.New("list failed")
 				},
 			},
 			testutil.StubObserver{},
@@ -899,7 +956,59 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report an unavailable paged catalog", func(t *testing.T) {
+		t.Parallel()
+
+		manager := unpagedSessionManager{SessionManager: testutil.StubSessionManager{}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			MaskInternalErrors: false,
+			Sessions:           manager,
+		})
+		engine := gin.New()
+		engine.GET("/sessions", handlers.ListSessions)
+		resp := performRequest(t, engine, http.MethodGet, "/sessions", nil)
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"list sessions status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusServiceUnavailable,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject per-session health fallback for a catalog page", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
+				return session.ListPage{Sessions: []*session.Info{{ID: "sess-returned"}}, Total: 1, Limit: 1}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		singleCalls := 0
+		fixture.Handlers.SessionHealth = sessionHealthReaderFunc(func(
+			context.Context,
+			string,
+		) (heartbeat.SessionHealth, error) {
+			singleCalls++
+			return heartbeat.SessionHealth{}, nil
+		})
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?include_health=true", nil)
+		if resp.Code != http.StatusServiceUnavailable || singleCalls != 0 {
+			t.Fatalf(
+				"list sessions status = %d single calls = %d, want 503 with no per-session fallback; body=%s",
+				resp.Code,
+				singleCalls,
+				resp.Body.String(),
+			)
+		}
+	})
+
 	t.Run("Should workspace lookup failure", func(t *testing.T) {
+		t.Parallel()
+
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
@@ -922,6 +1031,55 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusNotFound, resp.Body.String())
 		}
 	})
+
+	t.Run("Should preserve missing workspace root status", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceRootMissing
+				},
+			},
+			nil,
+			nil,
+		)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=missing-root", nil)
+		if resp.Code != http.StatusGone {
+			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusGone, resp.Body.String())
+		}
+	})
+
+	for _, path := range []string{
+		"/sessions?resumable=not-a-bool",
+		"/sessions?include_health=not-a-bool",
+		"/sessions?limit=not-an-int",
+	} {
+		t.Run("Should reject invalid query "+path, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
+			)
+			resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"list sessions status = %d, want %d; body=%s",
+					resp.Code,
+					http.StatusBadRequest,
+					resp.Body.String(),
+				)
+			}
+		})
+	}
 }
 
 func TestObserveStreamAndParseObserveQuery(t *testing.T) {

@@ -90,11 +90,23 @@ func (n *daemonNativeTools) loopList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	response, err := n.loopService().ListLoops(ctx, workspaceID)
+	response, err := n.loopService().ListLoops(ctx, workspaceID, looppkg.CatalogQuery{
+		Search:   input.Q,
+		Kind:     input.Kind,
+		Category: input.Category,
+		Status:   input.Status,
+		Sort:     input.Sort,
+		Cursor:   input.Cursor,
+		Limit:    input.Limit,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("%d loops", len(response.Loops)))
+	preview := fmt.Sprintf("%d of %d loops", len(response.Loops), response.Page.Total)
+	if response.Page.HasMore {
+		preview += "; more available"
+	}
+	return structuredResult(response, preview)
 }
 
 func (n *daemonNativeTools) loopInspect(
@@ -116,11 +128,11 @@ func (n *daemonNativeTools) loopInspect(
 	}
 	loop := response.Loop
 	return structuredResult(map[string]any{
-		"name":     loop.Name,
-		"inputs":   loop.Definition.Inputs,
-		"contract": loop.Definition.Contract,
-		"start":    loop.Definition.Start,
-		"version":  loop.Version,
+		nativeConfigHookToolsNameKey: loop.Name,
+		"inputs":                     loop.Definition.Inputs,
+		"contract":                   loop.Definition.Contract,
+		"start":                      loop.Definition.Start,
+		"version":                    loop.Version,
 	}, fmt.Sprintf("loop %s v%d", loop.Name, loop.Version))
 }
 

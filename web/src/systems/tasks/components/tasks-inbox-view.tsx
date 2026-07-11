@@ -1,6 +1,15 @@
 import { AlertCircle, ListFilter, Search } from "lucide-react";
 
-import { BlockLoading, Button, Empty, Eyebrow, SearchInput, StatusDot, Switch } from "@agh/ui";
+import {
+  BlockLoading,
+  Button,
+  Empty,
+  Eyebrow,
+  SearchInput,
+  Spinner,
+  StatusDot,
+  Switch,
+} from "@agh/ui";
 import { Filters } from "@agh/ui/components/reui/filters";
 
 import {
@@ -37,12 +46,16 @@ export interface TasksInboxViewProps {
   onDismiss?: TasksInboxItemProps["onDismiss"];
   onMarkRead?: TasksInboxItemProps["onMarkRead"];
   onOpen?: TasksInboxItemProps["onOpen"];
-  pendingApproveId?: string | null;
-  pendingRejectId?: string | null;
-  pendingRetryId?: string | null;
-  pendingArchiveId?: string | null;
-  pendingDismissId?: string | null;
-  pendingMarkReadId?: string | null;
+  pendingApproveIds?: ReadonlySet<string>;
+  pendingRejectIds?: ReadonlySet<string>;
+  pendingRetryIds?: ReadonlySet<string>;
+  pendingArchiveIds?: ReadonlySet<string>;
+  pendingDismissIds?: ReadonlySet<string>;
+  pendingMarkReadIds?: ReadonlySet<string>;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  onRetryQuery?: () => void;
 }
 
 export function TasksInboxView({
@@ -68,18 +81,23 @@ export function TasksInboxView({
   onDismiss,
   onMarkRead,
   onOpen,
-  pendingApproveId,
-  pendingRejectId,
-  pendingRetryId,
-  pendingArchiveId,
-  pendingDismissId,
-  pendingMarkReadId,
+  pendingApproveIds,
+  pendingRejectIds,
+  pendingRetryIds,
+  pendingArchiveIds,
+  pendingDismissIds,
+  pendingMarkReadIds,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  onRetryQuery,
 }: TasksInboxViewProps) {
   const {
     archivedTotal,
     filterChips,
     filterFields,
     groups,
+    groupTotals,
     handleFiltersChange,
     hasItems,
     totalCount,
@@ -93,7 +111,6 @@ export function TasksInboxView({
     onStatusChange,
     priorityFilter,
     onPriorityChange,
-    unreadOnly,
   });
 
   const itemActionProps: Omit<TasksInboxItemProps, "item" | "group"> = {
@@ -104,12 +121,12 @@ export function TasksInboxView({
     onDismiss,
     onMarkRead,
     onOpen,
-    pendingApproveId,
-    pendingRejectId,
-    pendingRetryId,
-    pendingArchiveId,
-    pendingDismissId,
-    pendingMarkReadId,
+    pendingApproveIds,
+    pendingRejectIds,
+    pendingRetryIds,
+    pendingArchiveIds,
+    pendingDismissIds,
+    pendingMarkReadIds,
   };
 
   return (
@@ -119,11 +136,11 @@ export function TasksInboxView({
     >
       <div className="mx-auto w-full max-w-[1320px] px-9 pt-7 pb-20">
         <TasksInboxPageHead
-          archivedCount={archivedTotal}
+          archivedCount={inbox ? archivedTotal : undefined}
           inboxUpdatedAt={inboxUpdatedAt}
-          totalCount={totalCount}
-          unreadCount={unreadTotal}
-          visibleCount={visibleCount}
+          totalCount={inbox ? totalCount : undefined}
+          unreadCount={inbox ? unreadTotal : undefined}
+          visibleCount={inbox ? visibleCount : undefined}
           workspaceName={workspaceName}
         />
 
@@ -180,12 +197,19 @@ export function TasksInboxView({
               data-testid="tasks-inbox-loading"
             />
           ) : errorMessage && !inbox ? (
-            <Empty
-              data-testid="tasks-inbox-error"
-              description={errorMessage}
-              icon={AlertCircle}
-              title="Unable to load inbox"
-            />
+            <div className="flex flex-col items-center gap-3">
+              <Empty
+                data-testid="tasks-inbox-error"
+                description={errorMessage}
+                icon={AlertCircle}
+                title="Unable to load inbox"
+              />
+              {onRetryQuery ? (
+                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+                  Retry loading inbox
+                </Button>
+              ) : null}
+            </div>
           ) : !hasItems ? (
             <Empty
               className="mx-auto max-w-xl"
@@ -207,11 +231,43 @@ export function TasksInboxView({
                     items={bucket}
                     itemActionProps={itemActionProps}
                     key={group.id}
+                    totalCount={groupTotals[group.id]}
                   />
                 );
               })}
             </div>
           )}
+          {errorMessage && inbox ? (
+            <div
+              className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
+              data-testid="tasks-inbox-pagination-error"
+              role="alert"
+            >
+              <span>{errorMessage}</span>
+              {onRetryQuery ? (
+                <Button onClick={onRetryQuery} size="sm" type="button" variant="ghost">
+                  Retry loading inbox
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          {hasMore && onLoadMore && !errorMessage ? (
+            <div className="flex items-center justify-center border-t border-line-soft pt-3">
+              <Button
+                aria-busy={isLoadingMore}
+                aria-label={isLoadingMore ? "Loading more inbox tasks" : "Load more inbox tasks"}
+                data-testid="tasks-inbox-load-more"
+                disabled={isLoadingMore}
+                onClick={onLoadMore}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+                {isLoadingMore ? "Loading more" : "Load more"}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -222,9 +278,12 @@ interface GroupSectionProps {
   group: InboxGroupDefinition;
   items: TaskInboxItem[];
   itemActionProps: Omit<TasksInboxItemProps, "item" | "group">;
+  totalCount: number;
 }
 
-function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
+function GroupSection({ group, items, itemActionProps, totalCount }: GroupSectionProps) {
+  const countLabel =
+    items.length === totalCount ? `${items.length}` : `${items.length} of ${totalCount}`;
   return (
     <section className="flex flex-col gap-2" data-testid={`tasks-inbox-group-${group.id}`}>
       <header className="flex items-center gap-2">
@@ -239,7 +298,7 @@ function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
           className="font-mono text-badge tabular-nums text-faint"
           data-testid={`tasks-inbox-group-count-${group.id}`}
         >
-          {items.length}
+          {countLabel}
         </span>
       </header>
       <div className="flex flex-col">

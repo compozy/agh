@@ -34,6 +34,7 @@ type Story = StoryObj<typeof meta>;
  */
 export const Default: Story = {
   args: {
+    workspaceId: networkDirectRoomDetailFixture.workspace_id ?? "workspace_launch",
     channel: networkDirectRoomDetailFixture.channel,
     directId: networkDirectRoomDetailFixture.direct_id,
     selfPeerId: networkDirectRoomDetailFixture.peer_a,
@@ -47,6 +48,7 @@ export const NewDirect: Story = {
   args: {},
   render: () => (
     <NewDirectDialog
+      workspaceId={networkDirectRoomDetailFixture.workspace_id ?? "workspace_launch"}
       open
       onOpenChange={() => undefined}
       channel={networkDirectRoomDetailFixture.channel}

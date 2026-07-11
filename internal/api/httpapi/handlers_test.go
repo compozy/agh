@@ -510,7 +510,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	now := time.Date(2026, 7, 3, 14, 0, 0, 0, time.UTC)
 	const rawClaimToken = "agh_claim_secret"
 
-	newEngine := func(t *testing.T, manager apitestutil.StubTaskManager) *gin.Engine {
+	newEngine := func(t *testing.T, manager *apitestutil.StubTaskManager) *gin.Engine {
 		t.Helper()
 
 		return newTestRouter(t, newTestHandlersWithAutomationBridgesTasksAndWorkspace(
@@ -529,7 +529,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 		t.Parallel()
 
 		var blockReq taskpkg.BlockRequest
-		engine := newEngine(t, apitestutil.StubTaskManager{
+		engine := newEngine(t, &apitestutil.StubTaskManager{
 			BlockTaskFn: func(_ context.Context, req taskpkg.BlockRequest, actor taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
 				blockReq = req
 				return taskpkg.TaskBlock{
@@ -572,7 +572,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 		t.Parallel()
 
 		listIncludeCleared := false
-		engine := newEngine(t, apitestutil.StubTaskManager{
+		engine := newEngine(t, &apitestutil.StubTaskManager{
 			ListTaskBlocksFn: func(
 				_ context.Context,
 				taskID string,
@@ -611,7 +611,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 	t.Run("Should get blocked task details without leaking raw claim tokens", func(t *testing.T) {
 		t.Parallel()
 
-		engine := newEngine(t, apitestutil.StubTaskManager{
+		engine := newEngine(t, &apitestutil.StubTaskManager{
 			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
 				blockedReasons := []taskpkg.BlockedReason{{
 					Source:  taskpkg.BlockedSourceBlock,
@@ -666,7 +666,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 		t.Parallel()
 
 		clearNote := ""
-		engine := newEngine(t, apitestutil.StubTaskManager{
+		engine := newEngine(t, &apitestutil.StubTaskManager{
 			ClearTaskBlockFn: func(
 				_ context.Context,
 				taskID string,
@@ -712,7 +712,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 		t.Parallel()
 
 		recoverNote := ""
-		engine := newEngine(t, apitestutil.StubTaskManager{
+		engine := newEngine(t, &apitestutil.StubTaskManager{
 			RecoverTaskFn: func(
 				_ context.Context,
 				id string,
@@ -759,7 +759,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 		method     string
 		path       string
 		body       []byte
-		manager    apitestutil.StubTaskManager
+		manager    *apitestutil.StubTaskManager
 		wantStatus int
 	}{
 		{
@@ -767,7 +767,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/api/tasks/missing/blocks",
 			body:   []byte(`{"kind":"needs_input","reason":"missing task"}`),
-			manager: apitestutil.StubTaskManager{
+			manager: &apitestutil.StubTaskManager{
 				BlockTaskFn: func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
 					return taskpkg.TaskBlock{}, taskpkg.ErrTaskNotFound
 				},
@@ -779,7 +779,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/api/tasks/task-1/blocks",
 			body:   []byte(`{"kind":"missing","reason":"bad kind"}`),
-			manager: apitestutil.StubTaskManager{
+			manager: &apitestutil.StubTaskManager{
 				BlockTaskFn: func(context.Context, taskpkg.BlockRequest, taskpkg.ActorContext) (taskpkg.TaskBlock, error) {
 					return taskpkg.TaskBlock{}, errors.Join(taskpkg.ErrValidation, errors.New("invalid task block"))
 				},
@@ -791,7 +791,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/api/tasks/task-1/blocks/block-1/clear",
 			body:   []byte(`{"note":"again"}`),
-			manager: apitestutil.StubTaskManager{
+			manager: &apitestutil.StubTaskManager{
 				ClearTaskBlockFn: func(
 					context.Context,
 					string,
@@ -808,7 +808,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 			name:   "list returns 404 body when service reports task not found",
 			method: http.MethodGet,
 			path:   "/api/tasks/foreign-task/blocks?include_cleared=true",
-			manager: apitestutil.StubTaskManager{
+			manager: &apitestutil.StubTaskManager{
 				ListTaskBlocksFn: func(
 					_ context.Context,
 					taskID string,
@@ -828,7 +828,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/api/tasks/task-1/recover",
 			body:   []byte(`{"note":"too soon"}`),
-			manager: apitestutil.StubTaskManager{
+			manager: &apitestutil.StubTaskManager{
 				RecoverTaskFn: func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Task, error) {
 					return nil, taskpkg.ErrInvalidStatusTransition
 				},
@@ -1337,11 +1337,15 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	}
 
 	var response struct {
-		Sessions []sessionPayload `json:"sessions"`
+		Sessions []sessionPayload                  `json:"sessions"`
+		Page     contract.CountedCursorPagePayload `json:"page"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Sessions) != 2 {
 		t.Fatalf("len(sessions) = %d, want 2", len(response.Sessions))
+	}
+	if response.Page.Total != 2 || response.Page.Limit != session.DefaultListLimit {
+		t.Fatalf("page = %#v, want HTTP counted page metadata", response.Page)
 	}
 }
 
@@ -1373,7 +1377,8 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 
 	var response struct {
-		Sessions []sessionPayload `json:"sessions"`
+		Sessions []sessionPayload                  `json:"sessions"`
+		Page     contract.CountedCursorPagePayload `json:"page"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Sessions) != 1 || response.Sessions[0].ID != "sess-a" {
@@ -1381,6 +1386,9 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	if response.Sessions[0].WorkspaceID != "ws-workspace" {
 		t.Fatalf("workspace_id = %q, want ws-workspace", response.Sessions[0].WorkspaceID)
+	}
+	if response.Page.Total != 1 {
+		t.Fatalf("page total = %d, want workspace-scoped total 1", response.Page.Total)
 	}
 }
 
@@ -2365,19 +2373,32 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
-			return []transcript.Entry{{
-				Sequence: 1,
-				Message: transcript.UIMessage{
-					ID:   "msg-1",
-					Role: transcript.UIRoleAssistant,
-					Parts: []transcript.UIMessagePart{{
-						Type:  "text",
-						Text:  "hello",
-						State: "done",
-					}},
-				},
-			}}, nil
+		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			info := apitestutil.NewSessionInfo(id)
+			info.TranscriptEpoch = 5
+			return info, nil
+		},
+		TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+			if id != "sess-123" || query.Limit != 200 || query.BeforeSequence != 0 {
+				t.Fatalf("TranscriptPage() call = %q %#v, want bounded default tail", id, query)
+			}
+			return transcript.Page{
+				Entries: []transcript.Entry{{
+					StartSequence: 1,
+					Sequence:      1,
+					Message: transcript.UIMessage{
+						ID:   "msg-1",
+						Role: transcript.UIRoleAssistant,
+						Parts: []transcript.UIMessagePart{{
+							Type:  "text",
+							Text:  "hello",
+							State: "done",
+						}},
+					},
+				}},
+				Generation:  4,
+				MaxSequence: 1,
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -2394,9 +2415,7 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
 
-	var response struct {
-		Entries []transcript.Entry `json:"entries"`
-	}
+	var response contract.SessionTranscriptResponse
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Entries) != 1 {
 		t.Fatalf("len(entries) = %d, want 1", len(response.Entries))
@@ -2406,6 +2425,9 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 	}
 	if got := response.Entries[0].Message.Parts[0].Text; got != "hello" {
 		t.Fatalf("entries[0].Message.Parts[0].Text = %q, want %q", got, "hello")
+	}
+	if response.Epoch != 5 || response.Generation != 4 || response.MaxSequence != 1 || response.Limit != 200 {
+		t.Fatalf("transcript page metadata = %#v", response)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
@@ -238,6 +239,145 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			t.Fatalf("loop run positional error = %v, want positional rejection", err)
 		}
 	})
+}
+
+func TestLoopListShouldPreserveServerOwnedCatalogPages(t *testing.T) {
+	t.Parallel()
+
+	lastRunCreatedAt := time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC)
+	response := contract.LoopsResponse{
+		Loops: []contract.LoopCatalogEntryPayload{{
+			Name:    "release",
+			Source:  contract.LoopSourceWorkspace,
+			Catalog: contract.LoopCatalogResourceSpec{Category: "delivery"},
+			LastRun: &contract.LoopCatalogLastRunPayload{
+				ID:        "run-release-latest",
+				Status:    contract.LoopRunStatusRunning,
+				CreatedAt: lastRunCreatedAt,
+			},
+			Aggregate30d:  contract.LoopCatalogAggregatePayload{Runs: 4, Succeeded: 2, Failed: 1},
+			SuccessRate30: 0.5,
+		}},
+		Facets: contract.LoopCatalogFacetsPayload{
+			Kinds:      map[string]int{"workspace": 7},
+			Categories: map[string]int{"delivery": 5},
+			Statuses:   map[string]int{"running": 3},
+		},
+		Page: contract.CountedCursorPagePayload{
+			NextCursor: "cursor-next",
+			HasMore:    true,
+			Total:      7,
+			Limit:      1,
+		},
+	}
+
+	t.Run("Should forward filters and render the complete JSON envelope", func(t *testing.T) {
+		t.Parallel()
+
+		var captured LoopListQuery
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			listLoopsFn: func(
+				_ context.Context,
+				workspaceID string,
+				query LoopListQuery,
+			) (contract.LoopsResponse, error) {
+				if workspaceID != "ws-alpha" {
+					t.Fatalf("ListLoops() workspace = %q, want ws-alpha", workspaceID)
+				}
+				captured = query
+				return response, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "list", "--workspace", "alpha",
+			"--query", "deploy", "--kind", "workspace", "--category", "delivery",
+			"--status", "running", "--sort", "name", "--cursor", "cursor-prev", "--limit", "1",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop list) error = %v", err)
+		}
+		if captured.Search != "deploy" || captured.Kind != "workspace" || captured.Category != "delivery" ||
+			captured.Status != "running" || captured.Sort != "name" ||
+			captured.Cursor != "cursor-prev" || captured.Limit != 1 {
+			t.Fatalf("ListLoops() query = %#v, want every server-owned filter", captured)
+		}
+		var decoded contract.LoopsResponse
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(loop list) error = %v", err)
+		}
+		if len(decoded.Loops) != 1 || decoded.Page.Total != 7 || decoded.Page.NextCursor != "cursor-next" ||
+			decoded.Facets.Kinds["workspace"] != 7 {
+			t.Fatalf("loop list JSON = %#v, want full page envelope", decoded)
+		}
+		lastRun := decoded.Loops[0].LastRun
+		if lastRun == nil || lastRun.ID != "run-release-latest" ||
+			lastRun.Status != contract.LoopRunStatusRunning || !lastRun.CreatedAt.Equal(lastRunCreatedAt) {
+			t.Fatalf("loop list last_run = %#v, want lean run payload", lastRun)
+		}
+	})
+
+	t.Run("Should append page and facets after JSONL items", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			listLoopsFn: func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error) {
+				return response, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "list", "--workspace", "alpha", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop list jsonl) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("loop list JSONL lines = %d, want item plus page; output=%q", len(lines), stdout)
+		}
+		var continuation struct {
+			Type   string                            `json:"type"`
+			Page   contract.CountedCursorPagePayload `json:"page"`
+			Facets contract.LoopCatalogFacetsPayload `json:"facets"`
+		}
+		if err := json.Unmarshal([]byte(lines[1]), &continuation); err != nil {
+			t.Fatalf("json.Unmarshal(loop page continuation) error = %v", err)
+		}
+		if continuation.Type != "page" || continuation.Page.NextCursor != "cursor-next" ||
+			continuation.Facets.Statuses["running"] != 3 {
+			t.Fatalf("loop page continuation = %#v", continuation)
+		}
+	})
+
+	for _, output := range []string{"human", "toon"} {
+		t.Run("Should expose continuation metadata in "+output, func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{
+				getWorkspaceFn: resolveTestLoopWorkspace(t),
+				listLoopsFn: func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error) {
+					return response, nil
+				},
+			})
+			args := []string{"loop", "list", "--workspace", "alpha"}
+			if output == "toon" {
+				args = append(args, "-o", "toon")
+			}
+			stdout, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatalf("executeRootCommand(loop list %s) error = %v", output, err)
+			}
+			if !strings.Contains(stdout, "cursor-next") || !strings.Contains(strings.ToLower(stdout), "total") {
+				t.Fatalf("loop list %s output = %q, want continuation metadata", output, stdout)
+			}
+		})
+	}
 }
 
 func testAgentIdentityEnv(sessionID string, agentName string) func(string) string {

@@ -19,8 +19,10 @@ import { OnboardingWizard, useOnboardingStatus } from "@/systems/onboarding";
 import { AppSidebar } from "@/systems/runtime";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
+import { preloadAppRoute } from "./_app/-app-preload";
 
 export const Route = createFileRoute("/_app")({
+  loader: ({ context }) => preloadAppRoute(context.queryClient),
   component: AppLayout,
   errorComponent: AppRouteErrorBoundary,
   notFoundComponent: AppRouteNotFoundBoundary,

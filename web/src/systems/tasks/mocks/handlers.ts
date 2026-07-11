@@ -7,7 +7,6 @@ import type {
   TaskBridgeNotificationSubscription,
   TaskBridgeNotificationSubscriptionCreateRequest,
   TaskExecutionProfileSetRequest,
-  TaskInboxItem,
   TaskInspectView,
   TaskListItem,
   TaskRecord,
@@ -19,6 +18,7 @@ import type {
   UpdateTaskRequest,
 } from "../types";
 import {
+  TASK_CATALOG_FIXTURES,
   TASK_FIXTURES,
   agentContextFixture,
   buildBridgeNotificationCursorFixture,
@@ -43,6 +43,7 @@ import {
   taskTimelineFixture,
   taskTriageStateFixture,
 } from "./fixtures";
+import { buildTaskCatalogResponse, buildTaskInboxResponse } from "./query-responses";
 
 function resolveTask(id: string): TaskListItem | null {
   return TASK_FIXTURES.find(task => task.id === id) ?? null;
@@ -185,68 +186,6 @@ function resolveTaskRun(runId: string) {
   return null;
 }
 
-function filterTasks(requestUrl: URL) {
-  const scope = requestUrl.searchParams.get("scope");
-  const status = requestUrl.searchParams.get("status");
-  const ownerRef = requestUrl.searchParams.get("owner_ref");
-  const query = requestUrl.searchParams.get("query")?.trim().toLowerCase() ?? "";
-
-  return TASK_FIXTURES.filter(task => {
-    if (scope && task.scope !== scope) return false;
-    if (status && task.status !== status) return false;
-    if (ownerRef && task.owner?.ref !== ownerRef) return false;
-    if (query && !`${task.title} ${task.identifier ?? ""}`.toLowerCase().includes(query)) {
-      return false;
-    }
-    return true;
-  });
-}
-
-function filterInboxItems(items: TaskInboxItem[], requestUrl: URL) {
-  const lane = requestUrl.searchParams.get("lane");
-  const unread = requestUrl.searchParams.get("unread");
-  const query = requestUrl.searchParams.get("query")?.trim().toLowerCase() ?? "";
-
-  return items.filter(item => {
-    if (lane && item.lane !== lane) return false;
-    if (unread === "true" && item.triage.read) return false;
-    if (
-      query &&
-      !`${item.task.title} ${item.task.identifier ?? ""}`.toLowerCase().includes(query)
-    ) {
-      return false;
-    }
-    return true;
-  });
-}
-
-function buildInboxResponse(requestUrl: URL) {
-  const flatItems = (taskInboxFixture.groups ?? []).flatMap(group => group.items ?? []);
-  const filteredItems = filterInboxItems(flatItems, requestUrl);
-
-  const grouped = new Map<TaskInboxItem["lane"], TaskInboxItem[]>();
-  for (const item of filteredItems) {
-    const existing = grouped.get(item.lane) ?? [];
-    existing.push(item);
-    grouped.set(item.lane, existing);
-  }
-
-  const groups = Array.from(grouped.entries()).map(([lane, items]) => ({
-    lane,
-    count: items.length,
-    unread_count: items.filter(item => !item.triage.read).length,
-    items,
-  }));
-
-  return {
-    ...taskInboxFixture,
-    total: filteredItems.length,
-    unread_total: filteredItems.filter(item => !item.triage.read).length,
-    archived_total: filteredItems.filter(item => item.triage.archived).length,
-    groups,
-  };
-}
-
 function filterRuns(runs: TaskRun[], requestUrl: URL) {
   const status = requestUrl.searchParams.get("status");
   const sessionId = requestUrl.searchParams.get("session_id");
@@ -273,7 +212,7 @@ function notFound(entity: string, id: string) {
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/tasks", ({ request }) =>
-    HttpResponse.json({ tasks: filterTasks(new URL(request.url)) })
+    HttpResponse.json(buildTaskCatalogResponse(TASK_CATALOG_FIXTURES, new URL(request.url)))
   ),
   aghApiMock.get("/api/tasks/{id}", ({ params, response }) => {
     const id = String(params.id);
@@ -371,7 +310,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json({ dashboard: taskDashboardFixture })
   ),
   aghApiMock.get("/api/observe/tasks/inbox", ({ request }) =>
-    HttpResponse.json({ inbox: buildInboxResponse(new URL(request.url)) })
+    HttpResponse.json({ inbox: buildTaskInboxResponse(taskInboxFixture, new URL(request.url)) })
   ),
   aghApiMock.post("/api/tasks", async ({ request }) => {
     const body = (await request.json()) as Partial<CreateTaskRequest>;

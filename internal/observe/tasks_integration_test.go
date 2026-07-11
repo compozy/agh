@@ -932,7 +932,12 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("updated my_work ids = %#v, want %#v", got, want)
 		}
 
-		unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: true}, alice.Actor)
+		unread := true
+		unreadOnly, err := h.observer.QueryTaskInbox(
+			testutil.Context(t),
+			TaskInboxQuery{Unread: &unread},
+			alice.Actor,
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(unread) error = %v", err)
 		}

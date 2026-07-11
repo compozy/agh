@@ -44,6 +44,10 @@ const (
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
 func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
+	return sessionPayloadFromInfoAt(info, time.Now().UTC())
+}
+
+func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
 	payload := contract.SessionPayload{}
 	if info == nil {
 		return payload
@@ -63,7 +67,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		Type:            info.Type,
 		State:           info.State,
 		Badge:           session.BadgeForInfo(info),
-		Attachable:      session.AttachableForInfo(info, time.Now().UTC()),
+		Attachable:      session.AttachableForInfo(info, now),
 		AttachedTo:      strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt: cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch: info.TranscriptEpoch,
@@ -78,7 +82,7 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
 	}
-	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, time.Now().UTC()); activity != nil {
+	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
 		payload.Activity = activity
 	}
 	if sandbox := SessionSandboxPayloadFromMeta(info.Sandbox); sandbox != nil {
@@ -122,17 +126,6 @@ func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	visible := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
 		if info == nil || isInternalMemorySessionInfo(info.Type, info.Lineage) {
-			continue
-		}
-		visible = append(visible, info)
-	}
-	return visible
-}
-
-func visibleSessionStoreInfosInternal(infos []store.SessionInfo) []store.SessionInfo {
-	visible := make([]store.SessionInfo, 0, len(infos))
-	for _, info := range infos {
-		if isInternalMemorySessionInfo(session.Type(strings.TrimSpace(info.SessionType)), info.Lineage) {
 			continue
 		}
 		visible = append(visible, info)
@@ -3106,44 +3099,4 @@ func taskDashboardFreshnessPayload(
 		Status:           freshness.Status,
 		Stale:            freshness.Stale,
 	}
-}
-
-// TaskInboxPayloadFromView converts one observer-backed inbox view into the shared payload.
-func TaskInboxPayloadFromView(view observepkg.TaskInboxView) contract.TaskInboxPayload {
-	payload := contract.TaskInboxPayload{
-		Total:         view.Total,
-		UnreadTotal:   view.UnreadTotal,
-		ArchivedTotal: view.ArchivedTotal,
-	}
-
-	if len(view.Groups) == 0 {
-		return payload
-	}
-
-	payload.Groups = make([]contract.TaskInboxLaneGroupPayload, 0, len(view.Groups))
-	for _, group := range view.Groups {
-		groupPayload := contract.TaskInboxLaneGroupPayload{
-			Lane:        contract.TaskInboxLane(group.Lane),
-			Count:       group.Count,
-			UnreadCount: group.UnreadCount,
-		}
-		if len(group.Items) > 0 {
-			groupPayload.Items = make([]contract.TaskInboxItemPayload, 0, len(group.Items))
-			for _, item := range group.Items {
-				groupPayload.Items = append(groupPayload.Items, contract.TaskInboxItemPayload{
-					Task:             TaskReferencePayloadFromReference(item.Task),
-					Lane:             contract.TaskInboxLane(item.Lane),
-					ApprovalPolicy:   item.ApprovalPolicy,
-					ApprovalState:    item.ApprovalState,
-					BlockingReason:   item.BlockingReason,
-					LatestActivityAt: item.LatestActivityAt,
-					Run:              TaskRunSummaryPayloadFromSummary(item.Run),
-					Triage:           TaskTriageStatePayloadFromState(item.Triage),
-				})
-			}
-		}
-		payload.Groups = append(payload.Groups, groupPayload)
-	}
-
-	return payload
 }

@@ -40,7 +40,7 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 				*taskRunTokenFenceCapture,
 				string,
 				string,
-			) testutil.StubTaskManager
+			) *testutil.StubTaskManager
 		}{
 			{
 				name:            "Should reject human completion with a redacted token-fence conflict",
@@ -54,9 +54,9 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 					capture *taskRunTokenFenceCapture,
 					runID string,
 					rawToken string,
-				) testutil.StubTaskManager {
+				) *testutil.StubTaskManager {
 					t.Helper()
-					return testutil.StubTaskManager{
+					return &testutil.StubTaskManager{
 						CompleteRunFn: func(
 							_ context.Context,
 							gotRunID string,
@@ -87,9 +87,9 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 					capture *taskRunTokenFenceCapture,
 					runID string,
 					rawToken string,
-				) testutil.StubTaskManager {
+				) *testutil.StubTaskManager {
 					t.Helper()
-					return testutil.StubTaskManager{
+					return &testutil.StubTaskManager{
 						FailRunFn: func(
 							_ context.Context,
 							gotRunID string,
@@ -167,7 +167,7 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 				t,
 				testutil.StubSessionManager{},
 				testutil.StubObserver{},
-				testutil.StubTaskManager{
+				&testutil.StubTaskManager{
 					CancelRunFn: func(
 						_ context.Context,
 						runID string,

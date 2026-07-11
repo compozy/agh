@@ -19,6 +19,17 @@ created, updated, and deleted through the automation API.
   default global automation concurrency limit is `5` active jobs.
 </OperatorNote>
 
+## Browse the job catalog
+
+`agh automation jobs -o json` returns one counted catalog page. The daemon applies `scope`,
+`workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, Loop target,
+and text query filters before it cuts the page. The response keeps the rows under `jobs` and reports
+the exact `total`, applied `limit`, `has_more`, and `next_cursor` values under `page`.
+
+Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
+that created it; restart from the first page when any filter changes. See the generated
+[`agh automation jobs`](/runtime/cli-reference/automation/jobs) reference for every flag.
+
 ## Execution flow
 
 <Mermaid

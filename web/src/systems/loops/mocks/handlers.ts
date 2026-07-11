@@ -123,7 +123,19 @@ function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): 
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/workspaces/{workspace_id}/loops", () =>
-    HttpResponse.json({ loops: loopCatalogFixtures })
+    HttpResponse.json({
+      facets: {
+        categories: { delivery: 1, watch: 1 },
+        kinds: { read_only: 1, workspace: 1 },
+        statuses: { running: 1, watching: 1 },
+      },
+      loops: loopCatalogFixtures,
+      page: {
+        has_more: false,
+        limit: 50,
+        total: loopCatalogFixtures.length,
+      },
+    })
   ),
   aghApiMock.post("/api/workspaces/{workspace_id}/loops", () =>
     HttpResponse.json({ loop: loopDetailByName.get("software-delivery")! }, { status: 201 })

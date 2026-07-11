@@ -577,66 +577,6 @@ type TaskTriageStatePayload struct {
 	UpdatedAt          time.Time             `json:"updated_at"`
 }
 
-// TaskInboxLane identifies one inbox grouping lane.
-type TaskInboxLane string
-
-const (
-	// TaskInboxLaneMyWork identifies directly assigned or actively owned work.
-	TaskInboxLaneMyWork TaskInboxLane = "my_work"
-	// TaskInboxLaneApprovals identifies approval-gated work awaiting a decision.
-	TaskInboxLaneApprovals TaskInboxLane = "approvals"
-	// TaskInboxLaneFailedRuns identifies items whose latest execution failed.
-	TaskInboxLaneFailedRuns TaskInboxLane = "failed_runs"
-	// TaskInboxLaneBlocked identifies blocked work that is not waiting for approval.
-	TaskInboxLaneBlocked TaskInboxLane = "blocked"
-	// TaskInboxLaneArchived identifies items archived by the current actor context.
-	TaskInboxLaneArchived TaskInboxLane = "archived"
-)
-
-// TaskInboxItemPayload is one task inbox item with action-ready metadata.
-type TaskInboxItemPayload struct {
-	Task             TaskReferencePayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	ApprovalState    taskpkg.ApprovalState  `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskRunSummaryPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-// TaskInboxLaneGroupPayload groups inbox items by lane.
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}
-
-// TaskInboxPayload is the observer-backed task inbox response payload.
-type TaskInboxPayload struct {
-	Total         int                         `json:"total"`
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups,omitempty"`
-}
-
-// TaskListQuery captures the shared task list filters.
-type TaskListQuery struct {
-	Scope          taskpkg.Scope         `json:"scope,omitempty"`
-	Workspace      string                `json:"workspace,omitempty"`
-	Status         taskpkg.Status        `json:"status,omitempty"`
-	Priority       taskpkg.Priority      `json:"priority,omitempty"`
-	IncludeDrafts  bool                  `json:"include_drafts,omitempty"`
-	ApprovalState  taskpkg.ApprovalState `json:"approval_state,omitempty"`
-	OwnerKind      taskpkg.OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef       string                `json:"owner_ref,omitempty"`
-	ParentTaskID   string                `json:"parent_task_id,omitempty"`
-	NetworkChannel string                `json:"network_channel,omitempty"`
-	Query          string                `json:"query,omitempty"`
-	Limit          int                   `json:"limit,omitempty"`
-}
-
 // TaskRunListQuery captures the shared task-run list filters.
 type TaskRunListQuery struct {
 	Status    taskpkg.RunStatus `json:"status,omitempty"`
@@ -663,18 +603,6 @@ type TaskDashboardQuery struct {
 	OwnerRef       string             `json:"owner_ref,omitempty"`
 	NetworkChannel string             `json:"network_channel,omitempty"`
 	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
-}
-
-// TaskInboxQuery captures the shared observer-backed task inbox filters.
-type TaskInboxQuery struct {
-	Scope     taskpkg.Scope     `json:"scope,omitempty"`
-	Workspace string            `json:"workspace,omitempty"`
-	OwnerKind taskpkg.OwnerKind `json:"owner_kind,omitempty"`
-	OwnerRef  string            `json:"owner_ref,omitempty"`
-	Lane      TaskInboxLane     `json:"lane,omitempty"`
-	Unread    bool              `json:"unread,omitempty"`
-	Query     string            `json:"query,omitempty"`
-	Limit     int               `json:"limit,omitempty"`
 }
 
 // CreateTaskRequest is the shared task-create request payload.

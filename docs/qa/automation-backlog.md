@@ -33,10 +33,10 @@ Seed material: `_seeds/qa-e2e-playbook.md` §10 (first-automation backlog) and `
 - Status: proposed
 
 ## AB-005: Blank-on-return hero — network-drop → reconnect Playwright (real daemon)
-- Source: J-11 / RT-045, RT-043, RT-023 / `_tests.md` E2E-web 1 (hero), E2E-runtime 3 (snapshot-on-subscribe); `_qa.md` §6 J-A flag
-- Why automate: the program's headline path is regression-prone and today only unit/component-owned for the network-drop→reconnect branch (task 09). E2E-web 1 covers open→away→return; the SSE drop/restore + snapshot-on-subscribe self-heal on the same real running session has no browser assertion.
+- Source: J-11 / RT-045, RT-043, RT-023 / `_tests.md` E2E-web 1 (hero), E2E-runtime 3 (fenced transcript reconnect); `_qa.md` §6 J-A flag
+- Why automate: the program's headline path is regression-prone and today only unit/component-owned for the network-drop→reconnect branch (task 09). E2E-web 1 covers open→away→return; the SSE drop/restore path with `after_sequence` + `epoch`/`generation`, explicit reset reasons, and REST-tail self-heal on the same real running session has no browser assertion.
 - Suggested layer: E2E browser (`make test-e2e-web`) + a daemon-side fixture: a genuinely running background session with a long turn in flight.
-- Spec sketch: open a running session, background >gcTime, drop the network (offline), restore; assert the thread never renders ThreadEmpty, the stream reconnects gap-free from the cursor, an idle session is snapshot-seeded, a transient 5xx self-heals, and the task-40 empty-while-active counter never fires. True end state: the transcript is current on return with a truthful badge — never a silent blank.
+- Spec sketch: open a running session, background >gcTime, drop the network (offline), restore; assert the thread never renders ThreadEmpty, a warm stream reconnects gap-free with `after_sequence` + `epoch`/`generation`, matching fences deliver bounded deltas, a stale fence yields an explicit reset snapshot, a transient REST 5xx self-heals, and the task-40 empty-while-active counter never fires. True end state: the transcript is current on return with a truthful badge — never a silent blank.
 - Status: proposed
 
 ## AB-006: Live-follow streaming + reduced-motion E2E sweep

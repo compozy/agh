@@ -29,7 +29,22 @@ const marketingStoppedSessionRoute = `/agents/${storyAgentNames.marketing}/sessi
 const missingSessionRoute = `/agents/${storyAgentNames.fraud}/sessions/sess-missing`;
 
 function transcriptEntries<T>(messages: T[]) {
-  return messages.map((message, index) => ({ message, sequence: index + 1 }));
+  return messages.map((message, index) => ({
+    message,
+    sequence: index + 1,
+    start_sequence: index + 1,
+  }));
+}
+
+function transcriptPayload<T>(messages: T[]) {
+  return {
+    entries: transcriptEntries(messages),
+    epoch: 1,
+    generation: 1,
+    has_older: false,
+    limit: 200,
+    max_sequence: messages.length,
+  };
 }
 
 /**
@@ -76,7 +91,7 @@ export const PendingPermission: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
-          HttpResponse.json({ entries: transcriptEntries(sessionTranscriptPermissionFixture) })
+          HttpResponse.json(transcriptPayload(sessionTranscriptPermissionFixture))
         ),
       ],
     }),

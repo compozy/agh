@@ -12,7 +12,6 @@ export interface UseNetworkPageResult {
   statusError: Error | null;
   isNetworkEnabled: boolean;
   isNetworkDisabled: boolean;
-
   channels: NetworkChannelSummary[];
   pinnedChannels: NetworkChannelSummary[];
   unpinnedChannels: NetworkChannelSummary[];
@@ -21,41 +20,36 @@ export interface UseNetworkPageResult {
   togglePinned: (channel: string) => void;
   isChannelsLoading: boolean;
   channelsError: Error | null;
-
   recents: NetworkRecentEntry[];
   isRecentsLoading: boolean;
-
   firstVisibleChannel: NetworkChannelSummary | null;
 }
 
-export function useNetworkPage(): UseNetworkPageResult {
+export function useNetworkPage(
+  workspaceId?: string | null,
+  options: { enabled?: boolean } = {}
+): UseNetworkPageResult {
   const statusQuery = useQuery(networkStatusOptions());
   const status = statusQuery.data ?? null;
   const isNetworkEnabled = status?.enabled === true;
   const isNetworkDisabled = status?.enabled === false;
-
-  const channelsResult = useNetworkChannels({ enabled: isNetworkEnabled });
-  const recentsResult = useNetworkRecents(channelsResult.channels, {
-    enabled: isNetworkEnabled,
+  const enabled = isNetworkEnabled && (options.enabled ?? true);
+  const channelsResult = useNetworkChannels({ workspaceId, enabled });
+  const recentsResult = useNetworkRecents(channelsResult.recents, {
+    workspaceId,
+    enabled,
+    isLoading: channelsResult.isLoading,
   });
-
-  const firstVisibleChannel = useMemo<NetworkChannelSummary | null>(() => {
-    if (channelsResult.pinned.length > 0) {
-      return channelsResult.pinned[0] ?? null;
-    }
-    if (channelsResult.unpinned.length > 0) {
-      return channelsResult.unpinned[0] ?? null;
-    }
-    return null;
-  }, [channelsResult.pinned, channelsResult.unpinned]);
-
+  const firstVisibleChannel = useMemo<NetworkChannelSummary | null>(
+    () => channelsResult.pinned[0] ?? channelsResult.unpinned[0] ?? null,
+    [channelsResult.pinned, channelsResult.unpinned]
+  );
   return {
     status,
     isStatusLoading: statusQuery.isLoading && !status,
     statusError: statusQuery.error ?? null,
     isNetworkEnabled,
     isNetworkDisabled,
-
     channels: channelsResult.channels,
     pinnedChannels: channelsResult.pinned,
     unpinnedChannels: channelsResult.unpinned,
@@ -64,10 +58,8 @@ export function useNetworkPage(): UseNetworkPageResult {
     togglePinned: channelsResult.togglePinned,
     isChannelsLoading: channelsResult.isLoading,
     channelsError: channelsResult.error,
-
     recents: recentsResult.recents,
     isRecentsLoading: recentsResult.isLoading,
-
     firstVisibleChannel,
   };
 }

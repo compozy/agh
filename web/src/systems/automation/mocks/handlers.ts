@@ -13,7 +13,16 @@ const jobById = new Map(automationJobFixtures.map(job => [job.id, job]));
 const triggerById = new Map(automationTriggerFixtures.map(trigger => [trigger.id, trigger]));
 
 export const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/automation/jobs", () => HttpResponse.json({ jobs: automationJobFixtures })),
+  aghApiMock.get("/api/automation/jobs", () =>
+    HttpResponse.json({
+      jobs: automationJobFixtures,
+      page: {
+        has_more: false,
+        limit: 50,
+        total: automationJobFixtures.length,
+      },
+    })
+  ),
   aghApiMock.get("/api/automation/jobs/{id}", ({ params }) => {
     const id = String(params.id);
     const job = jobById.get(id);
@@ -87,7 +96,14 @@ export const handlers: HttpHandler[] = [
     });
   }),
   aghApiMock.get("/api/automation/triggers", () =>
-    HttpResponse.json({ triggers: automationTriggerFixtures })
+    HttpResponse.json({
+      page: {
+        has_more: false,
+        limit: 50,
+        total: automationTriggerFixtures.length,
+      },
+      triggers: automationTriggerFixtures,
+    })
   ),
   aghApiMock.get("/api/automation/triggers/{id}", ({ params }) => {
     const id = String(params.id);

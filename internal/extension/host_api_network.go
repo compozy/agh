@@ -108,7 +108,7 @@ func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	query, err := hostAPINetworkThreadQuery(params.Limit, params.After)
+	query, err := hostAPINetworkThreadQuery(params)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	threads, err := networkStore.ListThreads(
+	page, err := networkStore.ListThreads(
 		ctx,
 		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
 		query,
@@ -124,7 +124,15 @@ func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
-	return hostAPINetworkThreadSummaryPayloads(threads), nil
+	return apicontract.NetworkThreadsResponse{
+		Threads: hostAPINetworkThreadSummaryPayloads(page.Threads),
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	}, nil
 }
 
 func (h *HostAPIHandler) handleNetworkThreadGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -185,7 +193,11 @@ func (h *HostAPIHandler) handleNetworkThreadMessages(ctx context.Context, raw js
 	if err != nil {
 		return nil, err
 	}
-	return h.hostAPINetworkConversationMessages(ctx, ref, query)
+	payload, page, err := h.hostAPINetworkConversationMessages(ctx, ref, query)
+	if err != nil {
+		return nil, err
+	}
+	return apicontract.NetworkThreadMessagesResponse{Messages: payload, Page: page}, nil
 }
 
 func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -201,7 +213,7 @@ func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	query, err := hostAPINetworkDirectRoomQuery(params.Limit, params.After, params.PeerID)
+	query, err := hostAPINetworkDirectRoomQuery(params)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +221,7 @@ func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	directs, err := networkStore.ListDirectRooms(
+	page, err := networkStore.ListDirectRooms(
 		ctx,
 		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
 		query,
@@ -217,7 +229,15 @@ func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
-	return hostAPINetworkDirectRoomPayloads(directs), nil
+	return apicontract.NetworkDirectRoomsResponse{
+		Directs: hostAPINetworkDirectRoomPayloads(page.Directs),
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+	}, nil
 }
 
 func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -299,7 +319,11 @@ func (h *HostAPIHandler) handleNetworkDirectMessages(ctx context.Context, raw js
 	if err != nil {
 		return nil, err
 	}
-	return h.hostAPINetworkConversationMessages(ctx, ref, query)
+	payload, page, err := h.hostAPINetworkConversationMessages(ctx, ref, query)
+	if err != nil {
+		return nil, err
+	}
+	return apicontract.NetworkDirectRoomMessagesResponse{Messages: payload, Page: page}, nil
 }
 
 func (h *HostAPIHandler) handleNetworkWorkGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -349,29 +373,6 @@ func (h *HostAPIHandler) handleNetworkSend(ctx context.Context, raw json.RawMess
 		return nil, mapHostAPINetworkRPCError(err)
 	}
 	return hostAPINetworkSendPayloadFromRequest(id, params), nil
-}
-
-func (h *HostAPIHandler) hostAPINetworkConversationMessages(
-	ctx context.Context,
-	ref store.NetworkConversationRef,
-	query store.NetworkConversationMessageQuery,
-) (any, error) {
-	networkStore, err := h.requireHostAPINetworkStore()
-	if err != nil {
-		return nil, err
-	}
-	ref.WorkspaceID = strings.TrimSpace(ref.WorkspaceID)
-	ref.Channel = strings.TrimSpace(ref.Channel)
-	ref.ThreadID = strings.TrimSpace(ref.ThreadID)
-	ref.DirectID = strings.TrimSpace(ref.DirectID)
-	if err := ref.Validate(); err != nil {
-		return nil, invalidParamsRPCError(err)
-	}
-	messages, err := networkStore.ListConversationMessages(ctx, ref, query)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return hostAPINetworkConversationMessagePayloads(messages), nil
 }
 
 func (h *HostAPIHandler) requireHostAPINetworkService() (hostAPINetworkService, error) {
@@ -457,58 +458,6 @@ func hostAPINetworkChannel(channel string) (string, error) {
 		return "", invalidParamsRPCError(err)
 	}
 	return trimmed, nil
-}
-
-func hostAPINetworkThreadQuery(limit int, after string) (store.NetworkThreadQuery, error) {
-	if limit == 0 {
-		limit = defaultHostAPIDefaultLimit
-	}
-	query := store.NetworkThreadQuery{
-		Limit: limit,
-		After: strings.TrimSpace(after),
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkThreadQuery{}, invalidParamsRPCError(err)
-	}
-	return query, nil
-}
-
-func hostAPINetworkDirectRoomQuery(limit int, after string, peerID string) (store.NetworkDirectRoomQuery, error) {
-	if limit == 0 {
-		limit = defaultHostAPIDefaultLimit
-	}
-	query := store.NetworkDirectRoomQuery{
-		PeerID: strings.TrimSpace(peerID),
-		Limit:  limit,
-		After:  strings.TrimSpace(after),
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkDirectRoomQuery{}, invalidParamsRPCError(err)
-	}
-	return query, nil
-}
-
-func hostAPINetworkConversationMessageQuery(
-	limit int,
-	before string,
-	after string,
-	kind string,
-	workID string,
-) (store.NetworkConversationMessageQuery, error) {
-	if limit == 0 {
-		limit = defaultHostAPIDefaultLimit
-	}
-	query := store.NetworkConversationMessageQuery{
-		BeforeMessageID: strings.TrimSpace(before),
-		AfterMessageID:  strings.TrimSpace(after),
-		Kind:            strings.TrimSpace(kind),
-		WorkID:          strings.TrimSpace(workID),
-		Limit:           limit,
-	}
-	if err := query.Validate(); err != nil {
-		return store.NetworkConversationMessageQuery{}, invalidParamsRPCError(err)
-	}
-	return query, nil
 }
 
 func hostAPINetworkSendRequestFromPayload(req apicontract.NetworkSendRequest) (network.SendRequest, error) {
@@ -653,6 +602,7 @@ func mapHostAPINetworkRPCError(err error) error {
 		errors.Is(err, store.ErrNetworkWorkClosed):
 		return hostAPIStatusRPCError(409, "Conflict", map[string]string{extensionStateError: err.Error()})
 	case errors.Is(err, network.ErrMissingField),
+		errors.Is(err, store.ErrNetworkCursorInvalid),
 		errors.Is(err, network.ErrInvalidField),
 		errors.Is(err, network.ErrInvalidKind),
 		errors.Is(err, network.ErrInvalidBody),

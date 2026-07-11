@@ -7,12 +7,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const navigateMock = vi.fn();
 const threadDetailMock = vi.hoisted(() => vi.fn());
+const threadDetailArgsMock = vi.hoisted(() => vi.fn());
+const messagesArgsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
     <a {...(rest as Record<string, unknown>)}>{children}</a>
   ),
   useNavigate: () => navigateMock,
+}));
+
+vi.mock("@agh/ui", async () => ({
+  ...(await vi.importActual("@agh/ui")),
+  ScrollArea: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={className} data-slot="scroll-area-viewport">
+      {children}
+    </div>
+  ),
 }));
 
 const messages = [
@@ -52,17 +63,26 @@ vi.mock("../../../hooks/use-threads", async () => {
   );
   return {
     ...actual,
-    useNetworkThreadDetail: () => threadDetailMock(),
+    useNetworkThreadDetail: (...args: unknown[]) => {
+      threadDetailArgsMock(...args);
+      return threadDetailMock();
+    },
   };
 });
 
 vi.mock("../../../hooks/use-messages", () => ({
-  useNetworkMessages: () => ({
-    messages,
-    isLoading: false,
-    isFetching: false,
-    error: null,
-  }),
+  useNetworkMessages: (args: unknown) => {
+    messagesArgsMock(args);
+    return {
+      messages,
+      isLoading: false,
+      isFetching: false,
+      hasOlder: false,
+      isLoadingOlder: false,
+      loadOlder: vi.fn(),
+      error: null,
+    };
+  },
 }));
 
 vi.mock("../../../hooks/use-active-session", () => ({
@@ -98,6 +118,8 @@ function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {
 
 describe("ThreadOverlay", () => {
   beforeEach(() => {
+    threadDetailArgsMock.mockClear();
+    messagesArgsMock.mockClear();
     threadDetailMock.mockReturnValue({
       thread: {
         channel: "ops",
@@ -116,6 +138,17 @@ describe("ThreadOverlay", () => {
       isLoading: false,
       error: null,
     });
+  });
+
+  it("Should scope detail, history, and loaded-work reads to the URL workspace", () => {
+    renderOverlay();
+    expect(threadDetailArgsMock).toHaveBeenCalledWith("ops", "thread-test", {
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(messagesArgsMock.mock.calls.length).toBeGreaterThan(0);
+    for (const [args] of messagesArgsMock.mock.calls) {
+      expect(args).toEqual(expect.objectContaining({ workspaceId: WORKSPACE_ID }));
+    }
   });
 
   it("Should render the thread title, root, and reply count", () => {

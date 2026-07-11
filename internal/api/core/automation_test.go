@@ -438,9 +438,15 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	triggerDeleted := false
 
 	router := newAutomationCoreTestRouter(t, stubAutomationManager{
-		ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error) {
+		ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
 			listJobsQuery = query
-			return []automationpkg.Job{job}, nil
+			return automationpkg.JobListPage{
+				Jobs:       []automationpkg.Job{job},
+				Total:      7,
+				Limit:      query.Limit,
+				HasMore:    true,
+				NextCursor: "job-next",
+			}, nil
 		},
 		GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
 			if id != job.ID {
@@ -477,9 +483,15 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			}
 			return jobRun, nil
 		},
-		ListTriggersFn: func(_ context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error) {
+		ListTriggersFn: func(_ context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error) {
 			listTriggersQuery = query
-			return []automationpkg.Trigger{trigger}, nil
+			return automationpkg.TriggerListPage{
+				Triggers:   []automationpkg.Trigger{trigger},
+				Total:      9,
+				Limit:      query.Limit,
+				HasMore:    true,
+				NextCursor: "trigger-next",
+			}, nil
 		},
 		GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
 			if id != trigger.ID {
@@ -550,7 +562,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/jobs?scope=global&source=dynamic&limit=3&loop=triage",
+		"/automation/jobs?scope=global&source=package&enabled=false&q=review&limit=3&loop=triage",
 		nil,
 		nil,
 	)
@@ -567,9 +579,15 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		!jobsResponse.Jobs[0].Scheduler.Registered {
 		t.Fatalf("jobs response scheduler = %#v, want durable scheduler metadata", jobsResponse.Jobs[0].Scheduler)
 	}
+	if jobsResponse.Page.Total != 7 || jobsResponse.Page.Limit != 3 ||
+		!jobsResponse.Page.HasMore || jobsResponse.Page.NextCursor != "job-next" {
+		t.Fatalf("jobs response page = %#v", jobsResponse.Page)
+	}
 	if listJobsQuery.Scope != automationpkg.AutomationScopeGlobal ||
-		listJobsQuery.Source != automationpkg.JobSourceDynamic ||
+		listJobsQuery.Source != automationpkg.JobSourcePackage ||
+		listJobsQuery.Enabled == nil || *listJobsQuery.Enabled ||
 		listJobsQuery.LoopName != "triage" ||
+		listJobsQuery.Search != "review" ||
 		listJobsQuery.Limit != 3 {
 		t.Fatalf("ListJobs() query = %#v", listJobsQuery)
 	}
@@ -639,7 +657,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 		t,
 		router,
 		http.MethodGet,
-		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=dynamic&event=webhook&limit=2&loop=triage",
+		"/automation/triggers?scope=workspace&workspace_id=ws-alpha&source=package&enabled=true&event=webhook&q=review&limit=2&loop=triage",
 		nil,
 		nil,
 	)
@@ -651,13 +669,41 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 			triggerList.Body.String(),
 		)
 	}
+	var triggersResponse contract.TriggersResponse
+	decodeAutomationCoreJSON(t, triggerList, &triggersResponse)
+	if len(triggersResponse.Triggers) != 1 {
+		t.Fatalf("triggers response = %#v", triggersResponse.Triggers)
+	}
+	if triggersResponse.Page.Total != 9 || triggersResponse.Page.Limit != 2 ||
+		!triggersResponse.Page.HasMore || triggersResponse.Page.NextCursor != "trigger-next" {
+		t.Fatalf("triggers response page = %#v", triggersResponse.Page)
+	}
 	if listTriggersQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listTriggersQuery.WorkspaceID != "ws-alpha" ||
-		listTriggersQuery.Source != automationpkg.JobSourceDynamic ||
+		listTriggersQuery.Source != automationpkg.JobSourcePackage ||
+		listTriggersQuery.Enabled == nil || !*listTriggersQuery.Enabled ||
 		listTriggersQuery.Event != "webhook" ||
 		listTriggersQuery.LoopName != "triage" ||
+		listTriggersQuery.Search != "review" ||
 		listTriggersQuery.Limit != 2 {
 		t.Fatalf("ListTriggers() query = %#v", listTriggersQuery)
+	}
+
+	invalidEnabled := performAutomationCoreRequest(
+		t,
+		router,
+		http.MethodGet,
+		"/automation/jobs?enabled=not-a-boolean",
+		nil,
+		nil,
+	)
+	if invalidEnabled.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"invalid enabled status = %d, want %d; body=%s",
+			invalidEnabled.Code,
+			http.StatusBadRequest,
+			invalidEnabled.Body.String(),
+		)
 	}
 
 	triggerCreate := performAutomationCoreRequest(
@@ -1357,13 +1403,13 @@ func decodeAutomationCoreJSON(t *testing.T, recorder *httptest.ResponseRecorder,
 }
 
 type stubAutomationManager struct {
-	ListJobsFn          func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	ListJobsFn          func(context.Context, automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	GetJobFn            func(context.Context, string) (automationpkg.Job, error)
 	CreateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	UpdateJobFn         func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	DeleteJobFn         func(context.Context, string) error
 	TriggerJobFn        func(context.Context, string) (automationpkg.Run, error)
-	ListTriggersFn      func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	ListTriggersFn      func(context.Context, automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	GetTriggerFn        func(context.Context, string) (automationpkg.Trigger, error)
 	CreateTriggerFn     func(context.Context, automationpkg.Trigger, automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error)
 	UpdateTriggerFn     func(context.Context, automationpkg.Trigger, *automationpkg.WebhookSecretWrite) (automationpkg.Trigger, error)
@@ -1379,9 +1425,9 @@ type stubAutomationManager struct {
 func (s stubAutomationManager) ListJobs(
 	ctx context.Context,
 	query automationpkg.JobListQuery,
-) ([]automationpkg.Job, error) {
+) (automationpkg.JobListPage, error) {
 	if s.ListJobsFn == nil {
-		return nil, nil
+		return automationpkg.JobListPage{}, nil
 	}
 	return s.ListJobsFn(ctx, query)
 }
@@ -1422,15 +1468,16 @@ func (s stubAutomationManager) TriggerJob(ctx context.Context, id string) (autom
 }
 
 func (s stubAutomationManager) Jobs(ctx context.Context) ([]automationpkg.Job, error) {
-	return s.ListJobs(ctx, automationpkg.JobListQuery{})
+	page, err := s.ListJobs(ctx, automationpkg.JobListQuery{})
+	return page.Jobs, err
 }
 
 func (s stubAutomationManager) ListTriggers(
 	ctx context.Context,
 	query automationpkg.TriggerListQuery,
-) ([]automationpkg.Trigger, error) {
+) (automationpkg.TriggerListPage, error) {
 	if s.ListTriggersFn == nil {
-		return nil, nil
+		return automationpkg.TriggerListPage{}, nil
 	}
 	return s.ListTriggersFn(ctx, query)
 }
@@ -1472,7 +1519,8 @@ func (s stubAutomationManager) DeleteTrigger(ctx context.Context, id string) err
 }
 
 func (s stubAutomationManager) Triggers(ctx context.Context) ([]automationpkg.Trigger, error) {
-	return s.ListTriggers(ctx, automationpkg.TriggerListQuery{})
+	page, err := s.ListTriggers(ctx, automationpkg.TriggerListQuery{})
+	return page.Triggers, err
 }
 
 func (s stubAutomationManager) ListRuns(

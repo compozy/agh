@@ -43,13 +43,9 @@ function makeHealthMap(entries: Record<string, BridgeHealthMap[string]>): Bridge
 }
 
 const defaultProps = {
-  activeWorkspaceId: "ws_test" as string | null,
   bridgeHealth: {} as BridgeHealthMap,
+  hasActiveFilters: false,
   onClearFilters: vi.fn(),
-  platformFilter: null,
-  scopeFilter: "all" as const,
-  searchQuery: "",
-  statusFilter: null,
   view: "rows" as const,
 };
 
@@ -86,7 +82,7 @@ describe("BridgeListPanel", () => {
     expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "brg_support" }));
   });
 
-  it("filters by search, platform, and status", () => {
+  it("renders the server-provided page in canonical order without local filtering", () => {
     const bridges = [
       makeBridge({ id: "brg_support", display_name: "Support", platform: "telegram" }),
       makeBridge({
@@ -98,19 +94,11 @@ describe("BridgeListPanel", () => {
       }),
     ];
 
-    const { rerender } = render(
-      <BridgeListPanel {...defaultProps} bridges={bridges} searchQuery="ops" />
-    );
-    expect(screen.getByTestId("bridge-item-brg_ops_slack")).toBeInTheDocument();
-    expect(screen.queryByTestId("bridge-item-brg_support")).not.toBeInTheDocument();
-
-    rerender(<BridgeListPanel {...defaultProps} bridges={bridges} platformFilter="telegram" />);
-    expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
-    expect(screen.queryByTestId("bridge-item-brg_ops_slack")).not.toBeInTheDocument();
-
-    rerender(<BridgeListPanel {...defaultProps} bridges={bridges} statusFilter="disabled" />);
-    expect(screen.getByTestId("bridge-item-brg_ops_slack")).toBeInTheDocument();
-    expect(screen.queryByTestId("bridge-item-brg_support")).not.toBeInTheDocument();
+    render(<BridgeListPanel {...defaultProps} bridges={bridges} />);
+    expect(screen.getAllByTestId(/^bridge-item-/).map(row => row.dataset.bridge)).toEqual([
+      "brg_support",
+      "brg_ops_slack",
+    ]);
   });
 
   it("renders cards view", () => {
@@ -134,8 +122,8 @@ describe("BridgeListPanel", () => {
       <BridgeListPanel
         {...defaultProps}
         bridges={[]}
+        hasActiveFilters
         onClearFilters={onClearFilters}
-        searchQuery="zzzz"
       />
     );
 
@@ -185,5 +173,33 @@ describe("BridgeListPanel", () => {
     expect(screen.getByText(/2 routes/i)).toBeInTheDocument();
     expect(screen.getByText("ready")).toBeInTheDocument();
     expect(screen.getByText("telegram")).toBeInTheDocument();
+  });
+
+  it("loads the next server page through an accessible explicit control", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const { rerender } = render(
+      <BridgeListPanel
+        {...defaultProps}
+        bridges={[makeBridge()]}
+        hasNextPage
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more bridges" }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+
+    rerender(
+      <BridgeListPanel
+        {...defaultProps}
+        bridges={[makeBridge()]}
+        hasNextPage
+        isFetchingNextPage
+        onLoadMore={onLoadMore}
+      />
+    );
+    expect(screen.getByTestId("bridge-list-load-more")).toBeDisabled();
+    expect(screen.getByTestId("bridge-list-load-more")).toHaveAttribute("aria-busy", "true");
   });
 });

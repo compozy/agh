@@ -3115,7 +3115,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List enriched tasks */
+    /** List a bounded task catalog page */
     get: operations["listTasks"];
     put?: never;
     /** Create a task */
@@ -4685,7 +4685,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Stream session events or assembled transcript updates */
+    /** Stream raw session events or fenced transcript changes */
     get: operations["streamSession"];
     put?: never;
     post?: never;
@@ -4736,7 +4736,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get the canonical transcript for one session */
+    /** Get a bounded materialized transcript page */
     get: operations["getSessionTranscript"];
     put?: never;
     post?: never;
@@ -13597,7 +13597,13 @@ export interface operations {
         /** @description Filter by workspace id */
         workspace_id?: string;
         /** @description Filter by job source */
-        source?: "config" | "dynamic";
+        source?: "config" | "package" | "dynamic";
+        /** @description Filter by enabled state */
+        enabled?: boolean;
+        /** @description Search jobs by name, agent, prompt, scope, source, or schedule */
+        q?: string;
+        /** @description Continue after this automation job cursor */
+        cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
         /** @description Filter by Loop target name */
@@ -13676,7 +13682,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               task?: {
                 description?: string;
@@ -13698,6 +13704,12 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
           };
         };
       };
@@ -13911,7 +13923,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               task?: {
                 description?: string;
@@ -14142,7 +14154,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               task?: {
                 description?: string;
@@ -14499,7 +14511,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               task?: {
                 description?: string;
@@ -15253,9 +15265,15 @@ export interface operations {
         /** @description Filter by workspace id */
         workspace_id?: string;
         /** @description Filter by trigger source */
-        source?: "config" | "dynamic";
+        source?: "config" | "package" | "dynamic";
+        /** @description Filter by enabled state */
+        enabled?: boolean;
         /** @description Filter by trigger event */
         event?: string;
+        /** @description Search triggers by definition or filter fields */
+        q?: string;
+        /** @description Continue after this automation trigger cursor */
+        cursor?: string;
         /** @description Maximum number of records to return */
         limit?: number;
         /** @description Filter by Loop target name */
@@ -15274,6 +15292,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
             triggers: {
               agent_name: string;
               /** Format: date-time */
@@ -15310,7 +15334,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               /** Format: date-time */
               updated_at: string;
@@ -15492,7 +15516,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               /** Format: date-time */
               updated_at: string;
@@ -15686,7 +15710,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               /** Format: date-time */
               updated_at: string;
@@ -15990,7 +16014,7 @@ export interface operations {
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
-              source: "config" | "dynamic";
+              source: "config" | "package" | "dynamic";
               target_kind: string;
               /** Format: date-time */
               updated_at: string;
@@ -16322,6 +16346,18 @@ export interface operations {
         workspace_id?: string;
         /** @description Filter by workspace id, name, or path */
         workspace?: string;
+        /** @description Search display name, platform, extension, or effective status */
+        q?: string;
+        /** @description Filter by messaging platform */
+        platform?: string;
+        /** @description Filter by effective runtime status */
+        status?: "disabled" | "starting" | "ready" | "degraded" | "auth_required" | "error";
+        /** @description Stable global-first display-name order */
+        sort?: "name";
+        /** @description Continue after this query-bound bridge cursor */
+        cursor?: string;
+        /** @description Maximum number of bridges to return; defaults to 50 and is capped at 200 */
+        limit?: number;
       };
       header?: never;
       path?: never;
@@ -16336,7 +16372,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            bridge_health?: {
+            bridge_health: {
               [key: string]: {
                 auth_failures_total: number;
                 bridge_instance_id: string;
@@ -16443,11 +16479,80 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
             }[];
+            facets: {
+              platforms: {
+                [key: string]: number;
+              };
+              statuses: {
+                auth_required: number;
+                degraded: number;
+                disabled: number;
+                error: number;
+                ready: number;
+                starting: number;
+              };
+            };
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
           };
         };
       };
       /** @description Invalid bridge list filter */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root is unavailable */
+      410: {
         headers: {
           [name: string]: unknown;
         };
@@ -16776,7 +16881,9 @@ export interface operations {
   };
   streamBridgeHealth: {
     parameters: {
-      query?: {
+      query: {
+        /** @description Comma-separated bridge ids from the current catalog page; maximum 200 */
+        bridge_ids: string;
         /** @description Filter by bridge scope */
         scope?: "all" | "global" | "workspace";
         /** @description Filter by active workspace id */
@@ -16865,6 +16972,56 @@ export interface operations {
       };
       /** @description Invalid bridge list filter */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root is unavailable */
+      410: {
         headers: {
           [name: string]: unknown;
         };
@@ -22914,6 +23071,8 @@ export interface operations {
         since?: string;
         /** @description Maximum number of records to return */
         limit?: number;
+        /** @description Replay bounded retained logs before live polling */
+        replay?: boolean;
       };
       header?: never;
       path?: never;
@@ -23022,8 +23181,16 @@ export interface operations {
         agent_name?: string;
         /** @description Agent memory tier */
         agent_tier?: "workspace" | "global";
-        /** @description Maximum number of memories to return */
+        /** @description Filter by memory type */
+        type?: "user" | "feedback" | "project" | "reference";
+        /** @description Order memory headers by recent modification or normalized name */
+        sort?: "recent" | "name";
+        /** @description Continue after this query-bound memory cursor */
+        cursor?: string;
+        /** @description Maximum number of memories to return; defaults to 50 and is capped at 200 */
         limit?: number;
+        /** @description Include system-managed memory entries */
+        include_system?: boolean;
       };
       header?: never;
       path?: never;
@@ -23065,6 +23232,12 @@ export interface operations {
               updated_at?: string | null;
               workspace_id?: string;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
           };
         };
       };
@@ -23201,6 +23374,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -23653,6 +23827,8 @@ export interface operations {
         agent_tier?: "workspace" | "global";
         /** @description Controller decision op */
         op?: string;
+        /** @description Target memory filename */
+        filename?: string;
         /** @description Only decisions since this timestamp */
         since?: string;
         /** @description Maximum number of decisions to return */
@@ -23714,6 +23890,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -23841,6 +24018,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -23976,6 +24154,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -24959,6 +25138,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -26272,6 +26452,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -26452,6 +26633,7 @@ export interface operations {
                 scope?: "global" | "workspace" | "agent";
                 /** @enum {string} */
                 type: "user" | "feedback" | "project" | "reference";
+                workspace_id?: string;
               };
               id: string;
               idempotency_key?: string;
@@ -28915,11 +29097,26 @@ export interface operations {
         owner_ref?: string;
         /** @description Filter by inbox lane */
         lane?: "my_work" | "approvals" | "failed_runs" | "blocked" | "archived";
-        /** @description Return only unread inbox items */
+        /** @description Filter by canonical task status */
+        status?:
+          | "draft"
+          | "pending"
+          | "blocked"
+          | "needs_attention"
+          | "ready"
+          | "in_progress"
+          | "completed"
+          | "failed"
+          | "canceled";
+        /** @description Filter by task priority */
+        priority?: "low" | "medium" | "high" | "urgent";
+        /** @description Filter by unread state; false selects read items */
         unread?: boolean;
         /** @description Filter by task title or identifier */
         query?: string;
-        /** @description Maximum number of inbox items to return */
+        /** @description Opaque actor- and query-bound continuation cursor */
+        cursor?: string;
+        /** @description Page size from 1 to 200 (default 50) */
         limit?: number;
       };
       header?: never;
@@ -28937,7 +29134,28 @@ export interface operations {
           "application/json": {
             inbox: {
               archived_total: number;
-              groups?: {
+              facets: {
+                priorities: {
+                  count: number;
+                  /** @enum {string} */
+                  priority: "low" | "medium" | "high" | "urgent";
+                }[];
+                statuses: {
+                  count: number;
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "needs_attention"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                }[];
+              };
+              groups: {
                 count: number;
                 items?: {
                   /** @enum {string} */
@@ -28951,7 +29169,6 @@ export interface operations {
                   latest_activity_at: string;
                   run?: {
                     attempt: number;
-                    claim_token_hash?: string;
                     /** Format: date-time */
                     claimed_at?: string | null;
                     claimed_by?: {
@@ -28965,33 +29182,7 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
-                    coordination_channel?: {
-                      allowed_message_kinds: (
-                        | "status"
-                        | "request"
-                        | "reply"
-                        | "blocker"
-                        | "handoff"
-                        | "result"
-                        | "review_request"
-                      )[];
-                      channel?: string;
-                      display_name: string;
-                      id: string;
-                      /** Format: date-time */
-                      last_activity_at?: string | null;
-                      purpose?: string;
-                      run_id?: string;
-                      task_id?: string;
-                      workflow_id?: string;
-                      workspace_id?: string;
-                    } | null;
                     coordination_channel_id?: string;
-                    designation?: {
-                      brief?: string;
-                      index: number;
-                    } | null;
-                    designation_group_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
@@ -29021,7 +29212,6 @@ export interface operations {
                     task_id: string;
                   } | null;
                   task: {
-                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -29037,8 +29227,6 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
-                    paused?: boolean;
-                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -29083,9 +29271,39 @@ export interface operations {
                 lane: "my_work" | "approvals" | "failed_runs" | "blocked" | "archived";
                 unread_count: number;
               }[];
-              total: number;
+              page: {
+                has_more: boolean;
+                limit: number;
+                next_cursor?: string;
+                total: number;
+              };
               unread_total: number;
             };
+          };
+        };
+      };
+      /** @description Invalid task inbox query or cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -29114,8 +29332,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task inbox query */
-      422: {
+      /** @description Workspace root is missing */
+      410: {
         headers: {
           [name: string]: unknown;
         };
@@ -33140,8 +33358,8 @@ export interface operations {
       query?: {
         /** @description Maximum number of queued runs to return */
         limit?: number;
-        /** @description Filter by task scope */
-        scope?: "global" | "workspace";
+        /** @description Filter by catalog visibility */
+        scope?: "all" | "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Include runs blocked by task pause state */
@@ -34025,13 +34243,21 @@ export interface operations {
       query?: {
         /** @description Workspace id or path */
         workspace?: string;
-        /** @description Include metadata-only session health when available */
+        /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
+        /** @description Filter by exact session state */
+        state?: "starting" | "active" | "stopping" | "stopped";
+        /** @description Filter by exact agent definition name */
+        agent?: string;
+        /** @description Search session id, name, agent, provider, or channel */
+        q?: string;
         /** @description Only list sessions eligible for explicit attach */
         resumable?: boolean;
-        /** @description Optional sort key. Use last_activity with resumable=true. */
-        sort?: string;
-        /** @description Maximum sessions to return when filtering resumable sessions */
+        /** @description Stable session ordering */
+        sort?: "recent" | "last_activity";
+        /** @description Opaque next_cursor from the previous page */
+        cursor?: string;
+        /** @description Sessions per page (1-100) */
         limit?: number;
       };
       header?: never;
@@ -34047,6 +34273,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
             sessions: {
               acp_caps?: {
                 config_options?: {
@@ -34197,6 +34429,31 @@ export interface operations {
           };
         };
       };
+      /** @description Invalid session list query or cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Workspace not found */
       404: {
         headers: {
@@ -34222,8 +34479,58 @@ export interface operations {
           };
         };
       };
+      /** @description Workspace root is missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Paged session catalog or workspace resolver is unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -46191,8 +46498,8 @@ export interface operations {
   listTasks: {
     parameters: {
       query?: {
-        /** @description Filter by task scope */
-        scope?: "global" | "workspace";
+        /** @description Filter by catalog visibility */
+        scope?: "all" | "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Filter by task status */
@@ -46228,7 +46535,11 @@ export interface operations {
         network_channel?: string;
         /** @description Filter by task title or identifier */
         query?: string;
-        /** @description Maximum number of records to return */
+        /** @description Order by recent activity or priority */
+        sort?: "recent" | "priority";
+        /** @description Opaque query-bound continuation cursor */
+        cursor?: string;
+        /** @description Page size from 1 to 200 (default 50) */
         limit?: number;
       };
       header?: never;
@@ -46244,10 +46555,45 @@ export interface operations {
         };
         content: {
           "application/json": {
+            facets: {
+              owners: {
+                count: number;
+                owner: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                };
+              }[];
+              statuses: {
+                count: number;
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "needs_attention"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+              }[];
+            };
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
             tasks: {
               active_run?: {
                 attempt: number;
-                claim_token_hash?: string;
                 /** Format: date-time */
                 claimed_at?: string | null;
                 claimed_by?: {
@@ -46261,33 +46607,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
-                coordination_channel?: {
-                  allowed_message_kinds: (
-                    | "status"
-                    | "request"
-                    | "reply"
-                    | "blocker"
-                    | "handoff"
-                    | "result"
-                    | "review_request"
-                  )[];
-                  channel?: string;
-                  display_name: string;
-                  id: string;
-                  /** Format: date-time */
-                  last_activity_at?: string | null;
-                  purpose?: string;
-                  run_id?: string;
-                  task_id?: string;
-                  workflow_id?: string;
-                  workspace_id?: string;
-                } | null;
                 coordination_channel_id?: string;
-                designation?: {
-                  brief?: string;
-                  index: number;
-                } | null;
-                designation_group_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -46321,16 +46641,6 @@ export interface operations {
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
               auto_enqueue_on_ready?: boolean;
-              /** @description Read projection of current blocking causes; mutation responses may omit it. */
-              blocked_reasons?: {
-                block_id?: string;
-                depends_on_task_ids?: string[];
-                /** @enum {string} */
-                kind?: "needs_input" | "capability" | "transient";
-                reason?: string;
-                /** @enum {string} */
-                source: "dependency" | "approval" | "paused" | "block";
-              }[];
               child_count?: number;
               /** Format: date-time */
               closed_at?: string | null;
@@ -46348,54 +46658,8 @@ export interface operations {
                 ref: string;
               };
               current_run_id?: string;
-              dependencies?: {
-                /** Format: date-time */
-                created_at: string;
-                depends_on: {
-                  effective_paused?: boolean;
-                  id: string;
-                  identifier?: string;
-                  /** Format: int64 */
-                  latest_event_seq: number;
-                  owner?: {
-                    /** @enum {string} */
-                    kind:
-                      | "human"
-                      | "agent_session"
-                      | "automation"
-                      | "extension"
-                      | "network_peer"
-                      | "pool";
-                    ref: string;
-                  } | null;
-                  paused?: boolean;
-                  paused_by_task_id?: string;
-                  /** @enum {string} */
-                  priority?: "low" | "medium" | "high" | "urgent";
-                  /** @enum {string} */
-                  scope: "global" | "workspace";
-                  /** @enum {string} */
-                  status:
-                    | "draft"
-                    | "pending"
-                    | "blocked"
-                    | "needs_attention"
-                    | "ready"
-                    | "in_progress"
-                    | "completed"
-                    | "failed"
-                    | "canceled";
-                  title: string;
-                  workspace_id?: string;
-                };
-                depends_on_task_id: string;
-                /** @enum {string} */
-                kind: "blocks";
-                task_id: string;
-              }[];
               dependency_count?: number;
               draft?: boolean;
-              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: date-time */
@@ -46445,12 +46709,6 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
-              paused?: boolean;
-              /** Format: date-time */
-              paused_at?: string | null;
-              paused_by?: string;
-              paused_by_task_id?: string;
-              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -46472,6 +46730,31 @@ export interface operations {
               wake_creator: boolean;
               workspace_id?: string;
             }[];
+          };
+        };
+      };
+      /** @description Invalid task filter or cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -46500,8 +46783,8 @@ export interface operations {
           };
         };
       };
-      /** @description Invalid task filter */
-      422: {
+      /** @description Workspace root is missing */
+      410: {
         headers: {
           [name: string]: unknown;
         };
@@ -63483,7 +63766,33 @@ export interface operations {
   };
   listLoops: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Search Loop name or contract goal */
+        q?: string;
+        /** @description Filter by effective Loop kind */
+        kind?: "read_only" | "workspace";
+        /** @description Filter by exact catalog category */
+        category?: string;
+        /** @description Filter by exact latest-run status */
+        status?:
+          | "queued"
+          | "running"
+          | "watching"
+          | "needs-approval"
+          | "paused"
+          | "done"
+          | "no-op"
+          | "blocked"
+          | "failed"
+          | "exhausted"
+          | "stalled";
+        /** @description Stable read-only-first name order */
+        sort?: "name";
+        /** @description Continue after this workspace- and query-bound Loop cursor */
+        cursor?: string;
+        /** @description Maximum number of Loops to return; defaults to 50 and is capped at 200 */
+        limit?: number;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -63500,6 +63809,17 @@ export interface operations {
         };
         content: {
           "application/json": {
+            facets: {
+              categories: {
+                [key: string]: number;
+              };
+              kinds: {
+                [key: string]: number;
+              };
+              statuses: {
+                [key: string]: number;
+              };
+            };
             loops: {
               aggregate_30d: {
                 failed: number;
@@ -63561,39 +63881,9 @@ export interface operations {
                 };
               };
               last_run?: {
-                active_gate_id?: string;
-                budget_approval_seq?: number;
-                /** @enum {string} */
-                budget_on_exceeded: "halt" | "escalate";
-                budget_tokens: number;
-                budget_wall_sec: number;
-                consecutive_failures: number;
                 /** Format: date-time */
                 created_at: string;
-                definition_digest?: string;
-                definition_version: number;
-                generation: number;
                 id: string;
-                inputs?: {
-                  [key: string]: unknown;
-                };
-                iteration_cap: number;
-                /** Format: date-time */
-                last_progress_at: string;
-                loop_name: string;
-                parent_loop_run_id?: string;
-                pause_requested: boolean;
-                /** @enum {string} */
-                reattempt_strategy: "failed_only" | "full_body";
-                start_metadata?: {
-                  [key: string]: unknown;
-                };
-                /** Format: date-time */
-                started_at: string;
-                started_by_kind?: string;
-                started_by_ref?: string;
-                started_origin_kind?: string;
-                started_origin_ref?: string;
                 /** @enum {string} */
                 status:
                   | "queued"
@@ -63607,9 +63897,6 @@ export interface operations {
                   | "failed"
                   | "exhausted"
                   | "stalled";
-                /** Format: int64 */
-                tokens_used: number;
-                workspace_id: string;
               } | null;
               name: string;
               /** @enum {string} */
@@ -63627,11 +63914,67 @@ export interface operations {
               success_rate_30d: number;
               version: number;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
           };
         };
       };
       /** @description Invalid Loop request */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root is missing */
+      410: {
         headers: {
           [name: string]: unknown;
         };
@@ -66534,7 +66877,10 @@ export interface operations {
   };
   listNetworkChannels: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Maximum cross-channel recent conversations to include */
+        recent_limit?: number;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -66572,6 +66918,18 @@ export interface operations {
               remote_peer_count?: number;
               session_count?: number;
               workspace_id?: string;
+            }[];
+            recents?: {
+              channel: string;
+              container_id: string;
+              /** Format: date-time */
+              last_activity_at?: string | null;
+              last_message_preview?: string;
+              participant_count?: number;
+              peer_a?: string;
+              peer_b?: string;
+              surface: string;
+              title?: string;
             }[];
           };
         };
@@ -67640,9 +67998,15 @@ export interface operations {
   listNetworkDirectRooms: {
     parameters: {
       query?: {
-        /** @description Filter direct rooms by peer id */
+        /** @description Filter by participant peer id */
         peer_id?: string;
-        /** @description Return direct rooms after the specified direct id */
+        /** @description Filter direct rooms by title, peer, or preview text */
+        query?: string;
+        /** @description Filter by presence of open work */
+        has_work?: boolean;
+        /** @description Order by recent_activity, created, or alphabetical */
+        sort?: string;
+        /** @description Return rows after the specified stable id cursor */
         after?: string;
         /** @description Maximum number of direct rooms to return */
         limit?: number;
@@ -67679,6 +68043,12 @@ export interface operations {
               peer_b: string;
               workspace_id?: string;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
           };
         };
       };
@@ -68141,6 +68511,11 @@ export interface operations {
               work_id?: string;
               workspace_id?: string;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+            };
           };
         };
       };
@@ -68595,9 +68970,17 @@ export interface operations {
   listNetworkThreads: {
     parameters: {
       query?: {
-        /** @description Return threads after the specified thread id */
+        /** @description Filter by participant peer id */
+        peer_id?: string;
+        /** @description Filter threads by title, peer, or preview text */
+        query?: string;
+        /** @description Filter by presence of open work */
+        has_work?: boolean;
+        /** @description Order by recent_activity, created, or alphabetical */
+        sort?: string;
+        /** @description Return rows after the specified stable id cursor */
         after?: string;
-        /** @description Maximum number of public threads to return */
+        /** @description Maximum number of threads to return */
         limit?: number;
       };
       header?: never;
@@ -68618,6 +69001,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
             threads: {
               channel: string;
               coordination_cost?: {
@@ -68969,6 +69358,11 @@ export interface operations {
               work_id?: string;
               workspace_id?: string;
             }[];
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+            };
           };
         };
       };
@@ -69804,9 +70198,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          body: unknown;
+          /** @description Kind-specific object. say requires a non-empty text field; other kinds follow the AGH Network message body rules. */
+          body: {
+            [key: string]: unknown;
+          };
           causation_id?: string;
           channel: string;
+          /** @description Required with surface=direct. Resolve the existing room before sending. */
           direct_id?: string;
           /** Format: int64 */
           expires_at?: number | null;
@@ -69814,14 +70212,22 @@ export interface operations {
             [key: string]: unknown;
           };
           id?: string;
-          kind: string;
+          /** @enum {string} */
+          kind: "greet" | "whois" | "say" | "capability" | "receipt" | "trace";
           mentions?: string[];
           reply_to?: string;
           session_id: string;
-          surface?: string;
+          /**
+           * @description Required for say, capability, receipt, and trace; omitted for greet and whois.
+           * @enum {string}
+           */
+          surface?: "thread" | "direct";
+          /** @description Required with surface=thread. Use a fresh valid ID. The first valid send creates the public thread; later sends reuse the same ID. */
           thread_id?: string;
+          /** @description Target peer. Required for capability and for say carrying work_id. */
           to?: string;
           trace_id?: string;
+          /** @description Required for capability, receipt, and trace; optional for lifecycle-bearing say messages. */
           work_id?: string;
           workspace_id?: string;
         };
@@ -73012,15 +73418,19 @@ export interface operations {
   streamSession: {
     parameters: {
       query?: {
-        /** @description Initial replay cursor when Last-Event-ID is not supplied */
+        /** @description Initial cursor when Last-Event-ID is not supplied */
         after_sequence?: number;
-        /** @description Frame mode. The default is transcript; raw preserves persisted event frames for CLI consumers. */
+        /** @description Frame mode; transcript is the default and raw preserves persisted event frames */
         frames?: "raw" | "transcript";
-        /** @description Replay policy. snapshot seeds transcript subscribers with the current assembled tail. */
-        replay?: "snapshot";
+        /** @description Expected transcript epoch for a fenced reconnect */
+        epoch?: number;
+        /** @description Expected materialized projection generation for a fenced reconnect */
+        generation?: number;
+        /** @description Maximum entries per transcript snapshot or change batch */
+        limit?: number;
       };
       header?: {
-        /** @description Resume after the last received SSE id */
+        /** @description Resume after the last applied SSE cursor; transcript reconnects also require epoch and generation */
         "Last-Event-ID"?: string;
       };
       path: {
@@ -73137,7 +73547,9 @@ export interface operations {
               workspace_path?: string;
             } | null;
             transcript_delta?: {
-              entry: {
+              /** Format: int64 */
+              cursor: number;
+              entries: {
                 message: {
                   id: string;
                   metadata?: unknown;
@@ -73160,11 +73572,16 @@ export interface operations {
                 };
                 /** Format: int64 */
                 sequence: number;
-              };
+                /** Format: int64 */
+                start_sequence: number;
+              }[];
               /** Format: int64 */
               epoch: number;
               /** Format: int64 */
-              sequence: number;
+              generation: number;
+              has_more: boolean;
+              /** Format: int64 */
+              max_sequence: number;
               session_id: string;
               workspace_id?: string;
               workspace_path?: string;
@@ -73193,15 +73610,20 @@ export interface operations {
                 };
                 /** Format: int64 */
                 sequence: number;
+                /** Format: int64 */
+                start_sequence: number;
               }[];
               /** Format: int64 */
               epoch: number;
               /** Format: int64 */
+              generation: number;
+              has_older: boolean;
+              /** Format: int64 */
               max_sequence: number;
               /** Format: int64 */
-              min_sequence: number;
+              next_before_sequence?: number;
               reason?: string;
-              reset_below: boolean;
+              reset: boolean;
               session_id: string;
               workspace_id?: string;
               workspace_path?: string;
@@ -73261,6 +73683,31 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -73957,11 +74404,9 @@ export interface operations {
   getSessionTranscript: {
     parameters: {
       query?: {
-        /** @description Maximum number of transcript entries to return; defaults to the newest 200 and is capped at 1000 */
+        /** @description Maximum page size; defaults to the newest 200 entries and is capped at 1000 */
         limit?: number;
-        /** @description Only return transcript entries after this event sequence */
-        after_sequence?: number;
-        /** @description Return transcript entries before this event sequence for backward pagination */
+        /** @description Return entries whose stable start sequence is before this cursor */
         before_sequence?: number;
       };
       header?: never;
@@ -74005,7 +74450,44 @@ export interface operations {
               };
               /** Format: int64 */
               sequence: number;
+              /** Format: int64 */
+              start_sequence: number;
             }[];
+            /** Format: int64 */
+            epoch: number;
+            /** Format: int64 */
+            generation: number;
+            has_older: boolean;
+            limit: number;
+            /** Format: int64 */
+            max_sequence: number;
+            /** Format: int64 */
+            next_before_sequence?: number;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -74036,6 +74518,31 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Transcript projection is incompatible */
+      503: {
         headers: {
           [name: string]: unknown;
         };

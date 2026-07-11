@@ -5,6 +5,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const directDetailMock = vi.hoisted(() => vi.fn());
+const directDetailArgsMock = vi.hoisted(() => vi.fn());
+const messagesArgsMock = vi.hoisted(() => vi.fn());
 const listNetworkPeersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
@@ -28,17 +30,26 @@ vi.mock("../../../hooks/use-directs", async () => {
   );
   return {
     ...actual,
-    useNetworkDirectDetail: () => directDetailMock(),
+    useNetworkDirectDetail: (...args: unknown[]) => {
+      directDetailArgsMock(...args);
+      return directDetailMock();
+    },
   };
 });
 
 vi.mock("../../../hooks/use-messages", () => ({
-  useNetworkMessages: () => ({
-    messages: [],
-    isLoading: false,
-    isFetching: false,
-    error: null,
-  }),
+  useNetworkMessages: (args: unknown) => {
+    messagesArgsMock(args);
+    return {
+      messages: [],
+      isLoading: false,
+      isFetching: false,
+      hasOlder: false,
+      isLoadingOlder: false,
+      loadOlder: vi.fn(),
+      error: null,
+    };
+  },
 }));
 
 vi.mock("../../../hooks/use-active-session", () => ({
@@ -59,6 +70,8 @@ import { DirectRoom } from "../direct-room";
 describe("DirectRoom headerless layout", () => {
   beforeEach(() => {
     directDetailMock.mockReset();
+    directDetailArgsMock.mockClear();
+    messagesArgsMock.mockClear();
     listNetworkPeersMock.mockReset();
     listNetworkPeersMock.mockResolvedValue([
       {
@@ -117,6 +130,17 @@ describe("DirectRoom headerless layout", () => {
     expect(screen.queryByText("#ops")).toBeNull();
     expect(screen.queryByText(/members/i)).toBeNull();
     expect(screen.getByText("@peer-remote")).toBeInTheDocument();
+  });
+
+  it("Should scope direct detail, history, and loaded work to the URL workspace", () => {
+    renderRoom();
+    expect(directDetailArgsMock).toHaveBeenCalledWith("ops", "direct_test", {
+      workspaceId: "ws_test",
+    });
+    expect(messagesArgsMock.mock.calls.length).toBeGreaterThan(0);
+    for (const [args] of messagesArgsMock.mock.calls) {
+      expect(args).toEqual(expect.objectContaining({ workspaceId: "ws_test" }));
+    }
   });
 
   it("Should render the identity header via <DetailHeader> (24 px H1)", () => {

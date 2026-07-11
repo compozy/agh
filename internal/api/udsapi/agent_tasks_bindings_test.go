@@ -36,7 +36,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 		}
 
 		var seenCriteria taskpkg.ClaimCriteria
-		handlers := newHistoricalAgentTaskHandlers(t, historicalChannel, stubTaskManager{
+		handlers := newHistoricalAgentTaskHandlers(t, historicalChannel, &stubTaskManager{
 			ClaimNextRunFn: func(
 				_ context.Context,
 				criteria taskpkg.ClaimCriteria,
@@ -125,7 +125,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			name          string
 			path          string
 			body          []byte
-			buildManager  func(*testing.T, *agentTaskLeaseBindingCapture, time.Time) stubTaskManager
+			buildManager  func(*testing.T, *agentTaskLeaseBindingCapture, time.Time) *stubTaskManager
 			assertCapture func(*testing.T, *agentTaskLeaseBindingCapture)
 			wantStatus    taskpkg.RunStatus
 		}{
@@ -137,9 +137,9 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
 					now time.Time,
-				) stubTaskManager {
+				) *stubTaskManager {
 					t.Helper()
-					return stubTaskManager{
+					return &stubTaskManager{
 						LookupActiveRunForSessionFn: func(
 							_ context.Context,
 							sessionID string,
@@ -189,9 +189,9 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
 					_ time.Time,
-				) stubTaskManager {
+				) *stubTaskManager {
 					t.Helper()
-					return stubTaskManager{
+					return &stubTaskManager{
 						LookupActiveRunForSessionFn: func(
 							_ context.Context,
 							sessionID string,
@@ -240,9 +240,9 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
 					_ time.Time,
-				) stubTaskManager {
+				) *stubTaskManager {
 					t.Helper()
-					return stubTaskManager{
+					return &stubTaskManager{
 						LookupActiveRunForSessionFn: func(
 							_ context.Context,
 							sessionID string,
@@ -292,9 +292,9 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 					t *testing.T,
 					capture *agentTaskLeaseBindingCapture,
 					_ time.Time,
-				) stubTaskManager {
+				) *stubTaskManager {
 					t.Helper()
-					return stubTaskManager{
+					return &stubTaskManager{
 						LookupActiveRunForSessionFn: func(
 							_ context.Context,
 							sessionID string,
@@ -378,7 +378,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 	})
 }
 
-func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks stubTaskManager) *Handlers {
+func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks *stubTaskManager) *Handlers {
 	t.Helper()
 
 	return newTestHandlersWithRuntime(

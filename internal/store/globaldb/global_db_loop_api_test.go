@@ -1,13 +1,305 @@
 package globaldb
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+func TestLoopCatalogRunIndexMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create the catalog index on a fresh database", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		assertIndexesPresent(t, globalDB.db, "loop_runs", loopRunCatalogIndex)
+		assertIndexSQLContains(
+			t,
+			globalDB.db,
+			loopRunCatalogIndex,
+			"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
+		)
+	})
+
+	t.Run("Should preserve loop runs while upgrading and remain idempotent after reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(previous) error = %v", err)
+		}
+		closed := false
+		t.Cleanup(func() {
+			if !closed {
+				if closeErr := db.Close(); closeErr != nil {
+					t.Errorf("Close(previous cleanup) error = %v", closeErr)
+				}
+			}
+		})
+		migrationIndex := migrationIndexByName(t, loopCatalogPagingMigration.Name)
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:migrationIndex]); err != nil {
+			t.Fatalf("RunMigrations(previous) error = %v", err)
+		}
+		legacy := &GlobalDB{db: db, path: path, now: func() time.Time { return time.Now().UTC() }}
+		workspaceID := registerWorkspaceForGlobalTests(t, legacy, "loop-catalog-upgrade", t.TempDir())
+		run := testLoopRun("looprun-preserved-catalog", time.Now().UTC(), looppkg.StatusDone)
+		run.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		run.LoopName = "preserved"
+		insertLoopCatalogRunForTest(t, legacy, run)
+		assertIndexAbsent(t, db, loopRunCatalogIndex)
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(previous) error = %v", err)
+		}
+		closed = true
+
+		reopened, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(); closeErr != nil {
+				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
+			}
+		})
+		if err := store.RunMigrations(ctx, reopened, globalSchemaMigrations); err != nil {
+			t.Fatalf("RunMigrations(upgrade) error = %v", err)
+		}
+		if err := store.RunMigrations(ctx, reopened, globalSchemaMigrations); err != nil {
+			t.Fatalf("RunMigrations(idempotent) error = %v", err)
+		}
+		assertIndexesPresent(t, reopened, "loop_runs", loopRunCatalogIndex)
+		var count int
+		if err := reopened.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_runs WHERE id = ?`,
+			string(run.ID),
+		).Scan(&count); err != nil {
+			t.Fatalf("query preserved loop run error = %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("preserved loop run count = %d, want 1", count)
+		}
+	})
+}
+
+func TestGlobalDBLoopCatalogRunsShouldReturnTruthfulBatchSummaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return exact lean summaries without decoding rich run fields", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+
+		oldOnly := testLoopRun("looprun-old-only", now.Add(-40*24*time.Hour), looppkg.StatusFailed)
+		oldOnly.WorkspaceID = "ws-a"
+		oldOnly.LoopName = "old-only"
+		insertLoopCatalogRunForTest(t, globalDB, oldOnly)
+		oversizedInvalidJSON := strings.Repeat("{", 1<<20)
+		result, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs
+			 SET inputs_json = ?, start_metadata_json = ?, active_human_criteria_json = ?
+			 WHERE id = ?`,
+			oversizedInvalidJSON,
+			"{",
+			"[",
+			string(oldOnly.ID),
+		)
+		if err != nil {
+			t.Fatalf("poison rich loop run fields error = %v", err)
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			t.Fatalf("poison rich loop run fields rows affected error = %v", err)
+		}
+		if affected != 1 {
+			t.Fatalf("poison rich loop run fields rows affected = %d, want 1", affected)
+		}
+
+		foreign := testLoopRun("looprun-old-foreign", now.Add(time.Hour), looppkg.StatusDone)
+		foreign.WorkspaceID = "ws-b"
+		foreign.LoopName = "old-only"
+		insertLoopCatalogRunForTest(t, globalDB, foreign)
+
+		for index := range 501 {
+			run := testLoopRun(
+				"looprun-bulk-"+leftPadCatalogIndex(index),
+				now.Add(-time.Duration(501-index)*time.Minute),
+				looppkg.StatusDone,
+			)
+			run.WorkspaceID = "ws-a"
+			run.LoopName = "bulk"
+			insertLoopCatalogRunForTest(t, globalDB, run)
+		}
+
+		query := looppkg.CatalogRunQuery{
+			WorkspaceID:    "ws-a",
+			LoopNames:      []string{"old-only", "bulk", "never"},
+			AggregateAfter: now.Add(-30 * 24 * time.Hour),
+		}
+		summaries, err := globalDB.ListLoopCatalogRunSummaries(ctx, query)
+		if err != nil {
+			t.Fatalf("ListLoopCatalogRunSummaries() error = %v", err)
+		}
+		if got := summaries["bulk"].Aggregate30d; got.Runs != 501 || got.Succeeded != 501 || got.Failed != 0 {
+			t.Fatalf("bulk aggregate = %#v, want 501/501/0", got)
+		}
+		if latest := summaries["bulk"].LastRun; latest == nil || latest.ID != "looprun-bulk-500" {
+			t.Fatalf("bulk latest = %#v, want looprun-bulk-500", latest)
+		}
+		old := summaries["old-only"]
+		if old.LastRun == nil || old.LastRun.ID != oldOnly.ID || old.LastRun.Status != oldOnly.Status ||
+			!old.LastRun.CreatedAt.Equal(oldOnly.CreatedAt) {
+			t.Fatalf("old-only latest = %#v, want ws-a all-time run head", old.LastRun)
+		}
+		if old.Aggregate30d != (looppkg.CatalogRunAggregate{}) {
+			t.Fatalf("old-only aggregate = %#v, want zero 30-day aggregate", old.Aggregate30d)
+		}
+		if never := summaries["never"]; never.LastRun != nil || never.Aggregate30d.Runs != 0 {
+			t.Fatalf("never summary = %#v, want explicit empty summary", never)
+		}
+
+		normalized, err := normalizeLoopCatalogRunQuery(query)
+		if err != nil {
+			t.Fatalf("normalizeLoopCatalogRunQuery() error = %v", err)
+		}
+		namesJSON, err := json.Marshal(normalized.LoopNames)
+		if err != nil {
+			t.Fatalf("json.Marshal(normalized loop names) error = %v", err)
+		}
+		counting := &countingLoopCatalogQueryExecutor{loopCatalogQueryExecutor: globalDB.db}
+		countedSummaries := make(map[string]looppkg.CatalogRunSummary, len(normalized.LoopNames))
+		for _, name := range normalized.LoopNames {
+			countedSummaries[name] = looppkg.CatalogRunSummary{LoopName: name}
+		}
+		if err := readLoopCatalogRunSummaries(
+			ctx,
+			counting,
+			string(namesJSON),
+			normalized,
+			countedSummaries,
+		); err != nil {
+			t.Fatalf("readLoopCatalogRunSummaries() error = %v", err)
+		}
+		if counting.reads != 2 {
+			t.Fatalf("loop catalog read statements = %d, want constant 2", counting.reads)
+		}
+	})
+
+	t.Run("Should reject missing scope malformed names and missing aggregate window", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		queries := []looppkg.CatalogRunQuery{
+			{LoopNames: []string{"alpha"}, AggregateAfter: time.Now().UTC()},
+			{WorkspaceID: "ws-a", LoopNames: []string{"Not Valid"}, AggregateAfter: time.Now().UTC()},
+			{WorkspaceID: "ws-a", LoopNames: []string{"alpha"}},
+		}
+		for _, query := range queries {
+			if _, err := globalDB.ListLoopCatalogRunSummaries(testutil.Context(t), query); err == nil {
+				t.Fatalf("ListLoopCatalogRunSummaries(%#v) error = nil, want validation error", query)
+			}
+		}
+	})
+}
+
+func TestGlobalDBLoopCatalogRunsShouldUseCatalogIndex(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should seek newest all-status ids without a temporary order sort", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		names, err := json.Marshal([]string{"alpha", "beta"})
+		if err != nil {
+			t.Fatalf("json.Marshal(loop names) error = %v", err)
+		}
+		rows, err := globalDB.db.QueryContext(
+			testutil.Context(t),
+			"EXPLAIN QUERY PLAN "+loopCatalogLatestRunsSQL,
+			string(names),
+			"ws-a",
+		)
+		if err != nil {
+			t.Fatalf("EXPLAIN QUERY PLAN loop catalog latest error = %v", err)
+		}
+		defer func() {
+			if closeErr := rows.Close(); closeErr != nil {
+				t.Errorf("close loop catalog query plan rows error = %v", closeErr)
+			}
+		}()
+
+		var details []string
+		for rows.Next() {
+			var id int
+			var parent int
+			var unused int
+			var detail string
+			if scanErr := rows.Scan(&id, &parent, &unused, &detail); scanErr != nil {
+				t.Fatalf("scan loop catalog query plan error = %v", scanErr)
+			}
+			details = append(details, detail)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate loop catalog query plan error = %v", err)
+		}
+		plan := strings.Join(details, "\n")
+		if !strings.Contains(plan, "idx_loop_runs_catalog") {
+			t.Fatalf("loop catalog query plan = %q, want idx_loop_runs_catalog", plan)
+		}
+		if strings.Contains(plan, "USE TEMP B-TREE FOR ORDER BY") {
+			t.Fatalf("loop catalog query plan = %q, want indexed newest seek", plan)
+		}
+	})
+}
+
+func insertLoopCatalogRunForTest(t *testing.T, globalDB *GlobalDB, run looppkg.Run) {
+	t.Helper()
+	inputs, err := json.Marshal(run.Inputs)
+	if err != nil {
+		t.Fatalf("json.Marshal(loop run inputs) error = %v", err)
+	}
+	metadata, err := json.Marshal(run.StartMetadata)
+	if err != nil {
+		t.Fatalf("json.Marshal(loop run start metadata) error = %v", err)
+	}
+	if err := insertLoopRun(testutil.Context(t), globalDB.db, run, inputs, metadata); err != nil {
+		t.Fatalf("insertLoopRun(%s) error = %v", run.ID, err)
+	}
+}
+
+func leftPadCatalogIndex(index int) string {
+	return fmt.Sprintf("%03d", index)
+}
+
+type countingLoopCatalogQueryExecutor struct {
+	loopCatalogQueryExecutor
+	reads int
+}
+
+func (e *countingLoopCatalogQueryExecutor) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (*sql.Rows, error) {
+	e.reads++
+	return e.loopCatalogQueryExecutor.QueryContext(ctx, query, args...)
+}
 
 func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Parallel()

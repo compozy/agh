@@ -798,7 +798,11 @@ func (s *Store) syncScopeAfterWriteErr(
 	scope memcontract.Scope,
 	header memcontract.Header,
 	content []byte,
+	forceFullSync bool,
 ) error {
+	if forceFullSync {
+		return s.syncScope(ctx, scope)
+	}
 	if needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(header.Filename)); err != nil {
 		return err
 	} else if needsFullSync {
@@ -823,7 +827,15 @@ func (s *Store) syncScopeAfterWriteErr(
 	return s.catalog.upsertDocument(ctx, doc)
 }
 
-func (s *Store) syncScopeAfterDeleteErr(ctx context.Context, scope memcontract.Scope, filename string) error {
+func (s *Store) syncScopeAfterDeleteErr(
+	ctx context.Context,
+	scope memcontract.Scope,
+	filename string,
+	forceFullSync bool,
+) error {
+	if forceFullSync {
+		return s.syncScope(ctx, scope)
+	}
 	needsFullSync, err := s.needsFullSyncAfterMutation(ctx, scope, strings.TrimSpace(filename))
 	if err != nil {
 		return err
@@ -873,7 +885,12 @@ func (s *Store) needsFullSyncAfterMutation(
 	if err != nil {
 		return false, err
 	}
-	ready, err := s.catalog.scopeReady(ctx, scope, workspaceID)
+	ready, err := s.catalog.identityReady(ctx, newCatalogIdentity(
+		scope,
+		workspaceID,
+		s.catalogAgentName(scope),
+		s.catalogAgentTier(scope),
+	))
 	if err != nil {
 		return false, err
 	}
@@ -1064,176 +1081,6 @@ func (s *Store) catalogAgentTier(scope memcontract.Scope) memcontract.AgentTier 
 		return ""
 	}
 	return s.agentTier.Normalize()
-}
-
-func (s *Store) ensureCatalogReady(
-	ctx context.Context,
-	scope memcontract.Scope,
-	workspaceRoot string,
-	workspaceID string,
-) error {
-	if s.catalog == nil {
-		return nil
-	}
-
-	filters := []catalogFilter{{scope: memcontract.ScopeGlobal}}
-	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
-		filters = filters[:1]
-	case memcontract.ScopeWorkspace:
-		filters = []catalogFilter{{
-			scope:         memcontract.ScopeWorkspace,
-			workspaceRoot: workspaceRoot,
-			workspaceID:   workspaceID,
-		}}
-	case memcontract.ScopeAgent:
-		filters = []catalogFilter{{
-			scope:         memcontract.ScopeAgent,
-			workspaceRoot: workspaceRoot,
-			workspaceID:   workspaceID,
-		}}
-	default:
-		if strings.TrimSpace(workspaceID) != "" {
-			filters = append(filters, catalogFilter{
-				scope:         memcontract.ScopeWorkspace,
-				workspaceRoot: workspaceRoot,
-				workspaceID:   workspaceID,
-			})
-		}
-	}
-
-	for _, filter := range filters {
-		if err := s.ensureCatalogFilterReady(ctx, filter); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Store) ensureCatalogFilterReady(ctx context.Context, filter catalogFilter) error {
-	if s.catalog == nil {
-		return nil
-	}
-
-	ready, err := s.catalog.scopeReady(ctx, filter.scope, filter.workspaceID)
-	if err != nil {
-		return err
-	}
-	if ready {
-		return nil
-	}
-
-	entryCount, err := s.catalog.scopeEntryCount(ctx, filter.scope, filter.workspaceID)
-	if err != nil {
-		return err
-	}
-	if entryCount > 0 {
-		return s.catalog.setScopeReady(ctx, filter.scope, filter.workspaceID)
-	}
-
-	_, err = s.reindexScopes(ctx, filter.scope, filter.workspaceRoot, filter.workspaceID)
-	return err
-}
-
-func (s *Store) reindexScopes(
-	ctx context.Context,
-	scope memcontract.Scope,
-	workspaceRoot string,
-	workspaceID string,
-) (int, error) {
-	if s.catalog == nil {
-		return 0, nil
-	}
-
-	total := 0
-	seenWorkspaceRoot := strings.TrimSpace(workspaceRoot)
-	seenWorkspaceID := strings.TrimSpace(workspaceID)
-
-	reindexScope := func(scope memcontract.Scope, workspaceRoot string, workspaceID string) error {
-		headers, err := s.headersForCatalogScope(scope, workspaceRoot)
-		if err != nil {
-			return err
-		}
-		docs, err := s.documentsForHeaders(scope, workspaceRoot, workspaceID, headers)
-		if err != nil {
-			return err
-		}
-		if err := s.catalog.replaceScope(
-			ctx,
-			scope,
-			workspaceID,
-			s.catalogAgentName(scope),
-			s.catalogAgentTier(scope),
-			docs,
-		); err != nil {
-			return err
-		}
-		total += len(docs)
-		return nil
-	}
-
-	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
-		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
-			return 0, err
-		}
-	case memcontract.ScopeWorkspace:
-		if err := reindexScope(memcontract.ScopeWorkspace, seenWorkspaceRoot, seenWorkspaceID); err != nil {
-			return 0, err
-		}
-	case memcontract.ScopeAgent:
-		if err := reindexScope(memcontract.ScopeAgent, seenWorkspaceRoot, seenWorkspaceID); err != nil {
-			return 0, err
-		}
-	default:
-		if err := reindexScope(memcontract.ScopeGlobal, "", ""); err != nil {
-			return 0, err
-		}
-		if seenWorkspaceRoot != "" {
-			if err := reindexScope(memcontract.ScopeWorkspace, seenWorkspaceRoot, seenWorkspaceID); err != nil {
-				return 0, err
-			}
-		}
-	}
-
-	if err := s.catalog.setLastReindex(ctx, time.Now().UTC()); err != nil {
-		return 0, err
-	}
-	return total, nil
-}
-
-func (s *Store) headersForCatalogScope(scope memcontract.Scope, workspaceRoot string) ([]memcontract.Header, error) {
-	target := s
-	if scope.Normalize() == memcontract.ScopeWorkspace {
-		target = s.ForWorkspace(workspaceRoot)
-	}
-	return target.scan(scope, 0)
-}
-
-func (s *Store) documentsForHeaders(
-	scope memcontract.Scope,
-	workspaceRoot string,
-	workspaceID string,
-	headers []memcontract.Header,
-) ([]catalogDocument, error) {
-	target := s
-	if scope.Normalize() == memcontract.ScopeWorkspace {
-		target = s.ForWorkspace(workspaceRoot)
-	}
-
-	docs := make([]catalogDocument, 0, len(headers))
-	for _, header := range headers {
-		rawContent, err := target.Read(scope, header.Filename)
-		if err != nil {
-			return nil, err
-		}
-		doc, err := buildCatalogDocument(scope, workspaceID, header, rawContent)
-		if err != nil {
-			return nil, err
-		}
-		docs = append(docs, doc)
-	}
-	return docs, nil
 }
 
 func (s *Store) collectSearchDocuments(
@@ -1508,6 +1355,9 @@ func cleanFilename(filename string) (string, error) {
 	}
 	if trimmed == "." || trimmed == ".." {
 		return "", fmt.Errorf("filename %q is invalid", filename)
+	}
+	if strings.EqualFold(trimmed, catalogDirtyMarkerFilename) {
+		return "", fmt.Errorf("filename %q is reserved", filename)
 	}
 	if strings.ContainsAny(trimmed, `/\`) {
 		return "", fmt.Errorf("filename %q must not include path separators", filename)

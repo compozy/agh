@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -9,17 +9,33 @@ import {
   sessionUsageOptions,
   sessionsListOptions,
 } from "../lib/query-options";
-import type { SessionState } from "../types";
+import {
+  flattenSessionPages,
+  normalizeSessionListFilters,
+  sessionListTotal,
+} from "../lib/session-list-query";
+import type { SessionListFilters, SessionState } from "../types";
 
 interface UseSessionsOptions {
   enabled?: boolean;
+  filters?: Omit<SessionListFilters, "workspace">;
 }
 
 export function useSessions(workspace: string | null = null, options?: UseSessionsOptions) {
-  return useQuery({
-    ...sessionsListOptions(workspace),
+  const filters = normalizeSessionListFilters({
+    ...options?.filters,
+    ...(workspace ? { workspace } : {}),
+  });
+  const query = useInfiniteQuery({
+    ...sessionsListOptions(filters),
     enabled: options?.enabled ?? true,
   });
+
+  return {
+    ...query,
+    data: flattenSessionPages(query.data),
+    total: sessionListTotal(query.data),
+  };
 }
 
 export function useSession(id: string, workspace?: string | null) {

@@ -1,16 +1,10 @@
-import {
-  apiClient,
-  apiRequestFailed,
-  defaultApiErrorMessage,
-  requireResponseData,
-} from "@/lib/api-client";
+import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   ApproveSessionParams,
   CreateSessionParams,
   FetchSessionEventsParams,
   SessionLedgerResponse,
-  SessionMessage,
   SessionEventPayload,
   SessionPayload,
   SessionPromptPayload,
@@ -21,8 +15,16 @@ import type {
   SessionUsagePayload,
   TurnHistoryPayload,
 } from "../types";
-import { normalizeTranscriptMessages } from "../lib/message-schemas";
-import { filterVisibleSessions } from "../lib/session-visibility";
+import {
+  SessionApiError,
+  SessionNotFoundError,
+  throwSessionRequestError,
+} from "./session-api-errors";
+
+export { fetchSessions } from "./session-catalog-api";
+export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcript-api";
+export type { SessionStreamCursor } from "./session-transcript-api";
+export { SessionApiError, SessionNotFoundError } from "./session-api-errors";
 
 export type {
   ApproveSessionParams,
@@ -31,60 +33,6 @@ export type {
   PermissionDecision,
   SessionRepairQuery,
 } from "../types";
-
-export class SessionApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-    public readonly sessionId?: string
-  ) {
-    super(message);
-    this.name = "SessionApiError";
-  }
-}
-
-export class SessionNotFoundError extends SessionApiError {
-  constructor(id: string) {
-    super(`Session not found: ${id}`, 404, id);
-    this.name = "SessionNotFoundError";
-  }
-}
-
-function throwSessionRequestError(
-  response: Response,
-  error: unknown,
-  fallback: string,
-  sessionId?: string
-): never {
-  if (response.status === 404 && sessionId) {
-    throw new SessionNotFoundError(sessionId);
-  }
-  throw new SessionApiError(
-    defaultApiErrorMessage(fallback, response, error),
-    response.status,
-    sessionId
-  );
-}
-
-export async function fetchSessions(
-  workspace?: string,
-  signal?: AbortSignal
-): Promise<SessionPayload[]> {
-  const normalizedWorkspace = workspace?.trim();
-  const { data, error, response } = await apiClient.GET("/api/sessions", {
-    params:
-      normalizedWorkspace == null || normalizedWorkspace === ""
-        ? undefined
-        : { query: { workspace: normalizedWorkspace } },
-    signal,
-  });
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, "Failed to fetch sessions");
-  }
-  return filterVisibleSessions(
-    requireResponseData(data, response, "Failed to fetch sessions").sessions
-  );
-}
 
 export async function createSession(
   params: CreateSessionParams,
@@ -212,22 +160,6 @@ export async function sendSessionPrompt(
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to send prompt to session "${id}"`).prompt;
-}
-
-export function buildSessionStreamUrl(
-  workspaceId: string,
-  id: string,
-  afterSequence?: number
-): string {
-  const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/stream`;
-  const params = new URLSearchParams({
-    frames: "transcript",
-    replay: "snapshot",
-  });
-  if (afterSequence !== undefined && afterSequence > 0) {
-    params.set("after_sequence", String(afterSequence));
-  }
-  return `${path}?${params.toString()}`;
 }
 
 export async function interruptSessionPrompt(
@@ -527,25 +459,4 @@ export async function fetchSessionLedger(
     throwSessionRequestError(response, error, `Failed to fetch session ledger "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to fetch session ledger "${id}"`);
-}
-
-export async function fetchSessionTranscript(
-  workspaceId: string,
-  id: string,
-  signal?: AbortSignal
-): Promise<SessionMessage[]> {
-  const { data, error, response } = await apiClient.GET(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
-    {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throwSessionRequestError(response, error, `Failed to fetch session transcript "${id}"`, id);
-  }
-
-  const payload = requireResponseData(data, response, `Failed to fetch session transcript "${id}"`);
-
-  return normalizeTranscriptMessages(payload.entries.map(entry => entry.message));
 }

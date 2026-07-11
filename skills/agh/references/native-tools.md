@@ -35,18 +35,7 @@ does not add an automatic bootstrap/catalog allowlist over the hosted projection
 `tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still
 apply.
 
-Discovery tools are diagnostic as well as navigational:
-
-- `agh__tool_list` lists tools currently callable in the effective session projection.
-- `agh__tool_search` searches known tool descriptors and reports callable or denied status.
-- `agh__tool_info` returns one known descriptor and diagnostics even when policy denies invocation.
-
-Use:
-
-1. Resolve canonical `agh__tool_search`, then search with the domain or action.
-2. Resolve canonical `agh__tool_info`, then inspect the selected ToolID.
-3. Call the returned dedicated tool reference when available.
-4. CLI/API fallback only after reading denial or absence diagnostics.
+The discovery loop and denial-handling rules live in the preceding tools-and-skills prompt section; this reference supplies the stable tool map.
 
 ## Runtime And Workspace Tools
 
@@ -99,7 +88,7 @@ Toolset `agh__loops` (13 tools) authors, runs, and manages Loops: `agh__loop_lis
 
 Config tools live under `agh__config_*` for show/list/get/set/unset/diff/path. Hook tools live under `agh__hooks_*` for list/info/events/runs/create/update/delete/enable/disable; hooks are typed dispatch, not an event bus.
 
-Automation tools live under `agh__automation_*` for jobs, triggers, runs, history, enable/disable, and manual trigger. Extension tools live under `agh__extensions_*` for search/list/info/install/update/remove/enable/disable.
+Automation job/trigger catalogs are available through CLI, HTTP/UDS, and `agh__automation_jobs_list` / `agh__automation_triggers_list`. They return counted cursor pages and support scope/workspace, source, enabled, Loop-target, search, and trigger-event filters. Run/history reads remain separate uncounted `runs` collections; bound them explicitly. Other automation tools under `agh__automation_*` cover detail, mutation, enable/disable, and manual trigger. Extension tools live under `agh__extensions_*` for search/list/info/install/update/remove/enable/disable.
 
 Bundle tools live under `agh__bundles_*` for list/info/activate/deactivate/status. Resource tools live under `agh__resources_*` for list/info/snapshot of desired-state resources.
 
@@ -109,7 +98,7 @@ MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagn
 
 Runtime log inspection is available through `agh__logs`. Metrics and redacted event search are available through `agh__observe_metrics` and `agh__observe_search`.
 
-Bridge inspection is available through `agh__bridges_list` and `agh__bridges_status`. Bridge lifecycle, route mutation, test delivery, and secret binding management remain CLI/HTTP surfaces unless a scoped native tool is present in the live descriptor.
+Bridge list/status reads return counted, filtered pages through CLI, HTTP/UDS, and `agh__bridges_list` / `agh__bridges_status`; native results are redacted. The HTTP/UDS health stream requires at most 200 IDs from the current page under the same scope/workspace boundary. Bridge lifecycle, route mutation, test delivery, and secret binding management remain CLI/HTTP surfaces unless a scoped native tool is present in the live descriptor.
 
 ## CLI/HTTP-Only Management Surfaces
 

@@ -21,16 +21,23 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !h.IncludeSessionWorkspaceInSSE {
-		info = nil
-	}
 
 	query, err := h.parseSessionStreamEventQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	subscription, err := h.subscribeSessionEventStream(c.Request.Context(), sessionID, query.AfterSequence)
+	query, err = normalizeSessionStreamQuery(query, streamOptions)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	subscription, err := h.subscribeSessionEventStream(
+		c.Request.Context(),
+		sessionID,
+		query.AfterSequence,
+		streamOptions.frameMode,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

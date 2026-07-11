@@ -45,9 +45,35 @@ import (
 	skillbundled "github.com/compozy/agh/skills"
 )
 
-const nativeNetworkTestWorkspaceID = "ws-native-network"
+const (
+	nativeNetworkTestWorkspaceID         = "ws-native-network"
+	nativeNetworkTestWorkspaceIdentityID = "01NATIVEWORKSPACEIDENTITY"
+)
+
+type nativeSessionPageHealthManager struct {
+	apitest.StubSessionManager
+	healthByID  map[string]heartbeat.SessionHealth
+	healthCalls int
+	healthInfos []*session.Info
+}
+
+func (m *nativeSessionPageHealthManager) SessionHealthForPage(
+	_ context.Context,
+	infos []*session.Info,
+) (map[string]heartbeat.SessionHealth, error) {
+	m.healthCalls++
+	m.healthInfos = append([]*session.Info(nil), infos...)
+	return m.healthByID, nil
+}
 
 func nativeNetworkTestWorkspaceService(t *testing.T) apitest.StubWorkspaceService {
+	return nativeNetworkTestWorkspaceServiceWithIdentity(t, "")
+}
+
+func nativeNetworkTestWorkspaceServiceWithIdentity(
+	t *testing.T,
+	identityID string,
+) apitest.StubWorkspaceService {
 	t.Helper()
 
 	root := t.TempDir()
@@ -59,13 +85,17 @@ func nativeNetworkTestWorkspaceService(t *testing.T) apitest.StubWorkspaceServic
 		if workspaceID == "" {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 		}
+		resolvedIdentityID := strings.TrimSpace(identityID)
+		if resolvedIdentityID == "" {
+			resolvedIdentityID = workspaceID
+		}
 		return workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{
 				ID:      workspaceID,
 				RootDir: root,
 				Name:    workspaceID,
 			},
-			WorkspaceID: workspaceID,
+			WorkspaceID: resolvedIdentityID,
 		}, nil
 	}
 	return apitest.StubWorkspaceService{
@@ -98,8 +128,9 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should dispatch skill catalog tools through the real skill registry", func(t *testing.T) {
 		t.Parallel()
 
+		skillRegistry := newLoadedNativeSkillRegistry(t)
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: newLoadedNativeSkillRegistry(t),
+			Skills: skillRegistry,
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -136,10 +167,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(skill_view) error = %v", err)
 		}
-		requireNativeStructuredContains(t, viewResult, []byte(`## Contents`))
-		if len(viewResult.Content) != 1 ||
-			!bytes.Contains([]byte(viewResult.Content[0].Text), []byte(`## Contents`)) {
-			t.Fatalf("skill_view content = %#v, want real skill body", viewResult.Content)
+		skill, ok := skillRegistry.Get("agh")
+		if !ok {
+			t.Fatal("Registry.Get(agh) found = false, want true")
+		}
+		expectedContent, err := skillRegistry.LoadResource(t.Context(), skill, "references/memory.md")
+		if err != nil {
+			t.Fatalf("Registry.LoadResource(memory) error = %v", err)
+		}
+		var viewPayload struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(viewResult.Structured, &viewPayload); err != nil {
+			t.Fatalf("json.Unmarshal(skill_view) error = %v", err)
+		}
+		if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
+			viewResult.Content[0].Text != expectedContent {
+			t.Fatalf("skill_view did not return the resolved bundled resource")
 		}
 	})
 
@@ -693,6 +737,72 @@ func TestDaemonNativeTools(t *testing.T) {
 			if nativeToolViewByID(sessionViews, id) != nil {
 				t.Fatalf("session projection leaked unavailable tool %s", id)
 			}
+		}
+	})
+
+	t.Run("Should mark bridge catalog tools unavailable without the bounded observer capability", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name     string
+			observer core.Observer
+		}{
+			{name: "nil observer"},
+			{
+				name: "observer missing bounded bridge catalog methods",
+				observer: struct{ core.Observer }{
+					Observer: &nativeObserverStub{},
+				},
+			},
+			{
+				name: "bounded observer missing bridge source",
+				observer: &nativeObserverStub{
+					bridgeCatalogReadyErr: errors.New("bridge source is missing"),
+				},
+			},
+		} {
+			t.Run("Should report dependency missing for "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				deps := &daemonNativeToolsDeps{
+					Bridges:  apitest.StubBridgeService{},
+					Observer: test.observer,
+				}
+				registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+				views, err := registry.List(t.Context(), toolspkg.Scope{Operator: true})
+				if err != nil {
+					t.Fatalf("Registry.List(operator) error = %v", err)
+				}
+				for _, id := range []toolspkg.ToolID{
+					toolspkg.ToolIDBridgesList,
+					toolspkg.ToolIDBridgesStatus,
+				} {
+					requireNativeToolUnavailableReason(t, views, id)
+					_, callErr := registry.Call(
+						t.Context(),
+						toolspkg.Scope{Operator: true},
+						toolspkg.CallRequest{ToolID: id},
+					)
+					requireToolReason(
+						t,
+						callErr,
+						toolspkg.ErrToolUnavailable,
+						toolspkg.ReasonDependencyMissing,
+					)
+				}
+
+				_, directErr := (&daemonNativeTools{deps: deps}).bridgesList(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesList},
+				)
+				requireToolReason(
+					t,
+					directErr,
+					toolspkg.ErrToolUnavailable,
+					toolspkg.ReasonDependencyMissing,
+				)
+			})
 		}
 	})
 
@@ -3038,9 +3148,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			sendErr: fmt.Errorf("%w: session=sess-missing", network.ErrLocalPeerNotFound),
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network:    networkService,
-			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
-			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Network:  networkService,
+			Sessions: nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceServiceWithIdentity(
+				t,
+				nativeNetworkTestWorkspaceIdentityID,
+			),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -3061,6 +3174,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if networkService.lastSend.SessionID != "sess-scope" {
 			t.Fatalf("SendRequest.SessionID = %q, want scoped session", networkService.lastSend.SessionID)
+		}
+		if networkService.lastSend.WorkspaceID != nativeNetworkTestWorkspaceID {
+			t.Fatalf(
+				"SendRequest.WorkspaceID = %q, want registry workspace %q",
+				networkService.lastSend.WorkspaceID,
+				nativeNetworkTestWorkspaceID,
+			)
 		}
 		if networkService.lastSend.Surface == nil || *networkService.lastSend.Surface != network.SurfaceThread {
 			t.Fatalf("SendRequest.Surface = %v, want thread", networkService.lastSend.Surface)
@@ -3091,12 +3211,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				_ context.Context,
 				ref store.NetworkChannelRef,
 				query store.NetworkThreadQuery,
-			) ([]store.NetworkThreadSummary, error) {
+			) (store.NetworkThreadPage, error) {
 				if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" || query.Limit != 2 ||
 					query.After != "thread_root" {
 					t.Fatalf("ListThreads ref/query = %#v/%#v, want requested filters", ref, query)
 				}
-				return []store.NetworkThreadSummary{{
+				return store.NetworkThreadPage{Threads: []store.NetworkThreadSummary{{
 					WorkspaceID:        ref.WorkspaceID,
 					Channel:            ref.Channel,
 					ThreadID:           "thread_launch",
@@ -3110,19 +3230,19 @@ func TestDaemonNativeTools(t *testing.T) {
 					ParticipantCount:   2,
 					OpenWorkCount:      1,
 					LastMessagePreview: "ready",
-				}}, nil
+				}}, Total: 5, Limit: 2, HasMore: true, NextCursor: "opaque-thread-next"}, nil
 			},
 			ListDirectRoomsFn: func(
 				_ context.Context,
 				ref store.NetworkChannelRef,
 				query store.NetworkDirectRoomQuery,
-			) ([]store.NetworkDirectRoomSummary, error) {
+			) (store.NetworkDirectRoomPage, error) {
 				if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
 					query.PeerID != "reviewer.sess-xyz" ||
 					query.Limit != 3 {
 					t.Fatalf("ListDirectRooms ref/query = %#v/%#v, want requested filters", ref, query)
 				}
-				return []store.NetworkDirectRoomSummary{{
+				return store.NetworkDirectRoomPage{Directs: []store.NetworkDirectRoomSummary{{
 					WorkspaceID:        ref.WorkspaceID,
 					Channel:            ref.Channel,
 					DirectID:           directID,
@@ -3133,7 +3253,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					MessageCount:       1,
 					OpenWorkCount:      1,
 					LastMessagePreview: "handoff",
-				}}, nil
+				}}, Total: 4, Limit: 3, HasMore: true, NextCursor: "opaque-direct-next"}, nil
 			},
 			ResolveDirectRoomFn: func(
 				_ context.Context,
@@ -3191,7 +3311,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					}}, nil
 				case store.NetworkSurfaceDirect:
 					if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
-						ref.DirectID != directID || query.Limit != 4 {
+						ref.DirectID != directID || query.Limit != 5 {
 						t.Fatalf("ListConversationMessages direct ref/query = %#v/%#v", ref, query)
 					}
 					return []store.NetworkConversationMessage{{
@@ -3261,6 +3381,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(network_threads) error = %v", err)
 		}
 		requireNativeStructuredContains(t, threadsResult, []byte(`"thread_launch"`))
+		requireNativeStructuredContains(t, threadsResult, []byte(`"total":5`))
+		requireNativeStructuredContains(t, threadsResult, []byte(`"limit":2`))
+		requireNativeStructuredContains(t, threadsResult, []byte(`"opaque-thread-next"`))
 
 		threadMessagesResult, err := registry.Call(
 			t.Context(),
@@ -3276,6 +3399,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(network_thread_messages) error = %v", err)
 		}
 		requireNativeStructuredContains(t, threadMessagesResult, []byte(`"msg_thread_launch"`))
+		requireNativeStructuredContains(t, threadMessagesResult, []byte(`"limit":5`))
 		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_RESULT123`))
 		requireNativeStructuredExcludes(t, threadMessagesResult, []byte(`agh_claim_BODY123`))
 
@@ -3293,6 +3417,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(network_directs) error = %v", err)
 		}
 		requireNativeStructuredContains(t, directsResult, []byte(directID))
+		requireNativeStructuredContains(t, directsResult, []byte(`"total":4`))
+		requireNativeStructuredContains(t, directsResult, []byte(`"limit":3`))
+		requireNativeStructuredContains(t, directsResult, []byte(`"opaque-direct-next"`))
 
 		for i := range 2 {
 			resolveResult, err := registry.Call(
@@ -3335,6 +3462,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(network_direct_messages) error = %v", err)
 		}
 		requireNativeStructuredContains(t, directMessagesResult, []byte(`"msg_direct_launch"`))
+		requireNativeStructuredContains(t, directMessagesResult, []byte(`"limit":4`))
 
 		workResult, err := registry.Call(
 			t.Context(),
@@ -3535,8 +3663,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					context.Context,
 					store.NetworkChannelRef,
 					store.NetworkDirectRoomQuery,
-				) ([]store.NetworkDirectRoomSummary, error) {
-					return nil, storeErr
+				) (store.NetworkDirectRoomPage, error) {
+					return store.NetworkDirectRoomPage{}, storeErr
 				},
 			},
 		}, nativeApproveAllPolicyInputs())
@@ -3758,6 +3886,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		stableWorkspaceID := "ws-stable"
 		registryWorkspaceID := "ws-1"
 		foreignStableWorkspaceID := "ws-foreign-stable"
+		var seenListQuery session.ListQuery
 		info := &session.Info{
 			ID:          "sess-1",
 			AgentName:   "coder",
@@ -3767,6 +3896,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			UpdatedAt:   now,
 		}
 		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+				switch ref {
+				case stableWorkspaceID, registryWorkspaceID:
+					return workspacepkg.Workspace{ID: registryWorkspaceID}, nil
+				case foreignStableWorkspaceID, "ws-other":
+					return workspacepkg.Workspace{ID: "ws-other"}, nil
+				default:
+					return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			},
 			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 				switch ref {
 				case stableWorkspaceID, registryWorkspaceID:
@@ -3784,38 +3923,32 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			},
 		}
-		manager := apitest.StubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{info}, nil
-			},
-			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-				if id != "sess-1" {
-					return nil, session.ErrSessionNotFound
-				}
-				return info, nil
-			},
-			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
-				if id != "sess-1" || query.Limit != 1 {
-					t.Fatalf("Events query = %q %#v", id, query)
-				}
-				return []store.SessionEvent{{
-					ID:        "event-1",
-					SessionID: id,
-					Sequence:  1,
-					TurnID:    "turn-1",
-					Type:      "agent_message",
-					AgentName: "coder",
-					Content:   `{"text":"hello"}`,
-					Timestamp: now,
-				}}, nil
-			},
-			HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
-				if id != "sess-1" || query.Limit != 1 {
-					t.Fatalf("History query = %q %#v", id, query)
-				}
-				return []store.TurnHistory{{
-					TurnID: "turn-1",
-					Events: []store.SessionEvent{{
+		manager := &nativeSessionPageHealthManager{
+			StubSessionManager: apitest.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{info}, nil
+				},
+				ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+					seenListQuery = query
+					return session.ListPage{
+						Sessions:   []*session.Info{info},
+						NextCursor: "cursor-next",
+						HasMore:    true,
+						Total:      3,
+						Limit:      2,
+					}, nil
+				},
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					if id != "sess-1" {
+						return nil, session.ErrSessionNotFound
+					}
+					return info, nil
+				},
+				EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+					if id != "sess-1" || query.Limit != 1 {
+						t.Fatalf("Events query = %q %#v", id, query)
+					}
+					return []store.SessionEvent{{
 						ID:        "event-1",
 						SessionID: id,
 						Sequence:  1,
@@ -3824,8 +3957,37 @@ func TestDaemonNativeTools(t *testing.T) {
 						AgentName: "coder",
 						Content:   `{"text":"hello"}`,
 						Timestamp: now,
-					}},
-				}}, nil
+					}}, nil
+				},
+				HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
+					if id != "sess-1" || query.Limit != 1 {
+						t.Fatalf("History query = %q %#v", id, query)
+					}
+					return []store.TurnHistory{{
+						TurnID: "turn-1",
+						Events: []store.SessionEvent{{
+							ID:        "event-1",
+							SessionID: id,
+							Sequence:  1,
+							TurnID:    "turn-1",
+							Type:      "agent_message",
+							AgentName: "coder",
+							Content:   `{"text":"hello"}`,
+							Timestamp: now,
+						}},
+					}}, nil
+				},
+			},
+			healthByID: map[string]heartbeat.SessionHealth{
+				"sess-1": {
+					SessionID:   "sess-1",
+					WorkspaceID: registryWorkspaceID,
+					AgentName:   "coder",
+					State:       heartbeat.SessionHealthStateIdle,
+					Health:      heartbeat.SessionHealthHealthy,
+					Attachable:  true,
+					UpdatedAt:   now,
+				},
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -3857,7 +4019,74 @@ func TestDaemonNativeTools(t *testing.T) {
 			})
 		}
 
-		_, err := registry.Call(
+		listResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionList,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","state":"active","agent":"coder","q":"review",` +
+						`"resumable":true,"include_health":true,"sort":"last_activity",` +
+						`"cursor":"cursor-prev","limit":2}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_list page) error = %v; cause=%v", err, errors.Unwrap(err))
+		}
+		if seenListQuery.WorkspaceID == "" || seenListQuery.State != "active" ||
+			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
+			!seenListQuery.Resumable || seenListQuery.Sort != "last_activity" ||
+			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 {
+			t.Fatalf("session list query = %#v, want full paged filter parity", seenListQuery)
+		}
+		var listResponse contract.SessionCatalogResponse
+		if err := json.Unmarshal(listResult.Structured, &listResponse); err != nil {
+			t.Fatalf("json.Unmarshal(session_list result) error = %v", err)
+		}
+		if len(listResponse.Sessions) != 1 || listResponse.Page.NextCursor != "cursor-next" ||
+			!listResponse.Page.HasMore || listResponse.Page.Total != 3 || listResponse.Page.Limit != 2 {
+			t.Fatalf("session_list response = %#v, want truthful page", listResponse)
+		}
+		if manager.healthCalls != 1 || len(manager.healthInfos) != 1 || manager.healthInfos[0] != info {
+			t.Fatalf(
+				"SessionHealthForPage() calls/infos = %d/%#v, want one returned-page batch",
+				manager.healthCalls,
+				manager.healthInfos,
+			)
+		}
+		if health := listResponse.Sessions[0].Health; health == nil ||
+			health.State != contract.SessionHealthStateIdle || health.Health != contract.SessionHealthHealthy {
+			t.Fatalf("session_list health = %#v, want nested page health", health)
+		}
+
+		registryWithoutHealth := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: workspaces,
+			Sessions:   manager.StubSessionManager,
+		}, nativeApproveAllPolicyInputs())
+		if _, defaultErr := registryWithoutHealth.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionList},
+		); defaultErr != nil {
+			t.Fatalf("Registry.Call(session_list without page health) error = %v", defaultErr)
+		}
+		_, missingHealthErr := registryWithoutHealth.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionList,
+				Input:  json.RawMessage(`{"include_health":true}`),
+			},
+		)
+		if !errors.Is(missingHealthErr, toolspkg.ErrToolUnavailable) {
+			t.Fatalf(
+				"Registry.Call(session_list include_health without capability) error = %v, want unavailable",
+				missingHealthErr,
+			)
+		}
+
+		_, err = registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -4209,15 +4438,62 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryList,
-				Input:  json.RawMessage(`{"workspace":"` + stableWorkspaceID + `"}`),
+				Input:  json.RawMessage(`{"workspace":"` + stableWorkspaceID + `","sort":"name","limit":1}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(memory_list combined) error = %v", err)
 		}
+		var firstPage contract.MemoryListResponse
+		if err := json.Unmarshal(combinedListResult.Structured, &firstPage); err != nil {
+			t.Fatalf("json.Unmarshal(memory_list combined) error = %v", err)
+		}
+		if len(firstPage.Memories) != 1 || firstPage.Memories[0].Filename != "global.md" {
+			t.Fatalf("memory_list combined first page = %#v, want global.md", firstPage.Memories)
+		}
+		if firstPage.Page.Total != 2 || firstPage.Page.Limit != 1 || !firstPage.Page.HasMore ||
+			firstPage.Page.NextCursor == "" {
+			t.Fatalf("memory_list combined first page metadata = %#v", firstPage.Page)
+		}
 		requireNativeStructuredContains(t, combinedListResult, []byte(`"global.md"`))
-		requireNativeStructuredContains(t, combinedListResult, []byte(`"workspace.md"`))
+		requireNativeStructuredExcludes(t, combinedListResult, []byte(`"workspace.md"`))
 		requireNativeStructuredExcludes(t, combinedListResult, []byte(rawClaim))
+
+		secondInput, err := json.Marshal(map[string]any{
+			"workspace": stableWorkspaceID,
+			"sort":      "name",
+			"limit":     1,
+			"cursor":    firstPage.Page.NextCursor,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(memory_list second page) error = %v", err)
+		}
+		secondListResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMemoryList, Input: secondInput},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list second page) error = %v", err)
+		}
+		var secondPage contract.MemoryListResponse
+		if err := json.Unmarshal(secondListResult.Structured, &secondPage); err != nil {
+			t.Fatalf("json.Unmarshal(memory_list second page) error = %v", err)
+		}
+		if len(secondPage.Memories) != 1 || secondPage.Memories[0].Filename != "workspace.md" {
+			t.Fatalf("memory_list combined second page = %#v, want workspace.md", secondPage.Memories)
+		}
+		if secondPage.Memories[0].WorkspaceID != stableWorkspaceID {
+			t.Fatalf(
+				"memory_list combined second page workspace_id = %q, want %q",
+				secondPage.Memories[0].WorkspaceID,
+				stableWorkspaceID,
+			)
+		}
+		if secondPage.Page.Total != 2 || secondPage.Page.Limit != 1 || secondPage.Page.HasMore {
+			t.Fatalf("memory_list combined second page metadata = %#v", secondPage.Page)
+		}
+		requireNativeStructuredExcludes(t, secondListResult, []byte(rawClaim))
 
 		readResult, err := registry.Call(
 			t.Context(),
@@ -4323,18 +4599,128 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reach an oldest matching native memory beyond the prompt scan cap", func(t *testing.T) {
+		t.Parallel()
+
+		globalDir := filepath.Join(t.TempDir(), "global-memory")
+		memoryStore := memorypkg.NewStore(globalDir)
+		if err := memoryStore.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		seedNativeMemoryCatalogDocuments(t, globalDir, 205)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MemoryStore: memoryStore,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryList,
+				Input:  json.RawMessage(`{"scope":"global","type":"reference","limit":1}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list) error = %v", err)
+		}
+		var payload contract.MemoryListResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(memory_list) error = %v", err)
+		}
+		if payload.Page.Total != 1 || len(payload.Memories) != 1 ||
+			payload.Memories[0].Filename != "memory-000.md" {
+			t.Fatalf("memory_list payload = %#v, want oldest matching memory", payload)
+		}
+	})
+
+	t.Run("Should bind native agent memory lists to the caller identity", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+		}
+		identity, err := workspacepkg.EnsureIdentity(t.Context(), workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		memoryStore := memorypkg.NewStore(
+			filepath.Join(baseDir, "global-memory"),
+			memorypkg.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		base := memoryStore.ForWorkspace(workspaceRoot)
+		for _, agentName := range []string{"reviewer-a", "reviewer-b"} {
+			agentStore := base.ForAgent(identity.WorkspaceID, agentName, memcontract.AgentTierWorkspace)
+			if err := agentStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs(%s) error = %v", agentName, err)
+			}
+			if err := agentStore.Write(
+				memcontract.ScopeAgent,
+				agentName+".md",
+				nativeMemoryDocument(agentName, "agent memory", memcontract.TypeFeedback, "body"),
+			); err != nil {
+				t.Fatalf("Store.Write(%s) error = %v", agentName, err)
+			}
+		}
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: identity.WorkspaceID, RootDir: workspaceRoot},
+					WorkspaceID: identity.WorkspaceID,
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MemoryStore: memoryStore,
+			Workspaces:  workspaces,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: identity.WorkspaceID, AgentName: "reviewer-a"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMemoryList,
+				Input:  json.RawMessage(`{"agent_tier":"workspace"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(memory_list agent) error = %v", err)
+		}
+		var payload contract.MemoryListResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(memory_list agent) error = %v", err)
+		}
+		if payload.Page.Total != 1 || len(payload.Memories) != 1 {
+			t.Fatalf("memory_list agent payload = %#v, want one reviewer-a memory", payload)
+		}
+		got := payload.Memories[0]
+		if got.Filename != "reviewer-a.md" || got.WorkspaceID != identity.WorkspaceID ||
+			got.AgentName != "reviewer-a" || got.AgentTier != memcontract.AgentTierWorkspace {
+			t.Fatalf("memory_list agent item = %#v, want caller-bound reviewer-a identity", got)
+		}
+	})
+
 	t.Run("Should dispatch Memory admin tools through operational Memory v2 services", func(t *testing.T) {
 		t.Parallel()
 
 		globalDir := filepath.Join(t.TempDir(), "memory")
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
-		if err := memoryStore.Write(
-			memcontract.ScopeGlobal,
-			"ops.md",
-			nativeMemoryDocument("Ops", "Operational memory", memcontract.TypeUser, "memory admin health"),
-		); err != nil {
-			t.Fatalf("Write(global memory) error = %v", err)
+		for idx := range 205 {
+			filename := fmt.Sprintf("ops-%03d.md", idx)
+			if err := memoryStore.Write(
+				memcontract.ScopeGlobal,
+				filename,
+				nativeMemoryDocument(
+					fmt.Sprintf("Ops %03d", idx),
+					"Operational memory",
+					memcontract.TypeUser,
+					"memory admin health",
+				),
+			); err != nil {
+				t.Fatalf("Write(%q) error = %v", filename, err)
+			}
 		}
 		cfg := aghconfig.Config{}
 		cfg.Memory.Enabled = true
@@ -4386,8 +4772,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(memory_health) error = %v", err)
 		}
-		requireNativeStructuredContains(t, healthResult, []byte(`"enabled":true`))
-		requireNativeStructuredContains(t, healthResult, []byte(`"global_files":1`))
+		var healthPayload contract.MemoryHealthPayload
+		if err := json.Unmarshal(healthResult.Structured, &healthPayload); err != nil {
+			t.Fatalf("json.Unmarshal(memory_health) error = %v", err)
+		}
+		if !healthPayload.Enabled || healthPayload.GlobalFiles != 205 {
+			t.Fatalf("memory_health payload = %#v, want enabled with 205 global files", healthPayload)
+		}
 
 		extractorResult, err := registry.Call(
 			t.Context(),
@@ -4495,6 +4886,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope   toolspkg.Scope
 			input   func(nativeMemoryAdminFixture) json.RawMessage
 			want    []byte
+			wantFor func(nativeMemoryAdminFixture) []byte
 			wantErr toolspkg.ErrorCode
 			assert  func(*testing.T, nativeMemoryAdminFixture)
 		}{
@@ -4539,7 +4931,19 @@ func TestDaemonNativeTools(t *testing.T) {
 				want:  []byte(`"derived_only":true`),
 			},
 			{name: "reload", id: toolspkg.ToolIDMemoryReload, want: []byte(`"generation"`)},
-			{name: "decisions list", id: toolspkg.ToolIDMemoryDecisionsList, want: []byte(`"decisions"`)},
+			{
+				name: "decisions list filters by target filename before limit",
+				id:   toolspkg.ToolIDMemoryDecisionsList,
+				input: func(fixture nativeMemoryAdminFixture) json.RawMessage {
+					return json.RawMessage(fmt.Sprintf(
+						`{"filename":%q,"limit":1}`,
+						fixture.decision.TargetFilename,
+					))
+				},
+				wantFor: func(fixture nativeMemoryAdminFixture) []byte {
+					return []byte(fmt.Sprintf(`"id":%q`, fixture.decision.ID))
+				},
+			},
 			{
 				name: "decisions show",
 				id:   toolspkg.ToolIDMemoryDecisionsShow,
@@ -4719,7 +5123,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
 				}
-				requireNativeStructuredContains(t, result, tc.want)
+				want := tc.want
+				if tc.wantFor != nil {
+					want = tc.wantFor(fixture)
+				}
+				requireNativeStructuredContains(t, result, want)
 				if tc.assert != nil {
 					tc.assert(t, fixture)
 				}
@@ -5402,6 +5810,163 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should page bridge catalogs within the caller workspace authority", func(t *testing.T) {
+		t.Parallel()
+
+		instances := make([]bridgepkg.BridgeInstance, 0, 58)
+		for index := range 55 {
+			instances = append(instances, bridgepkg.BridgeInstance{
+				ID:          fmt.Sprintf("bridge-prefix-%03d", index),
+				Scope:       bridgepkg.ScopeGlobal,
+				Platform:    "telegram",
+				DisplayName: fmt.Sprintf("Prefix %03d", index),
+				Enabled:     true,
+				Status:      bridgepkg.BridgeStatusReady,
+			})
+		}
+		instances = append(
+			instances,
+			bridgepkg.BridgeInstance{
+				ID: "bridge-needle-global", Scope: bridgepkg.ScopeGlobal, Platform: "slack",
+				DisplayName: "Needle A", Enabled: true, Status: bridgepkg.BridgeStatusReady,
+			},
+			bridgepkg.BridgeInstance{
+				ID: "bridge-needle-own", Scope: bridgepkg.ScopeWorkspace, WorkspaceID: "ws-1",
+				Platform: "slack", DisplayName: "Needle B", Enabled: true, Status: bridgepkg.BridgeStatusReady,
+			},
+			bridgepkg.BridgeInstance{
+				ID: "bridge-needle-other", Scope: bridgepkg.ScopeWorkspace, WorkspaceID: "ws-2",
+				Platform: "slack", DisplayName: "Needle C", Enabled: true, Status: bridgepkg.BridgeStatusReady,
+			},
+		)
+		instancesByID := make(map[string]bridgepkg.BridgeInstance, len(instances))
+		records := make([]bridgepkg.BridgeCatalogRecord, 0, len(instances))
+		for _, instance := range instances {
+			instancesByID[instance.ID] = instance
+			records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
+		}
+		catalogCalls := 0
+		hydrationCalls := 0
+		var hydratedIDs []string
+		observer := &nativeObserverStub{bridgeHealth: []observe.BridgeInstanceHealth{
+			{BridgeInstanceID: "bridge-needle-global", Status: bridgepkg.BridgeStatusReady, RouteCount: 1},
+			{BridgeInstanceID: "bridge-needle-own", Status: bridgepkg.BridgeStatusReady, RouteCount: 2},
+			{BridgeInstanceID: "bridge-needle-other", Status: bridgepkg.BridgeStatusReady, RouteCount: 3},
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Bridges: apitest.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					t.Fatal("ListInstances() must not hydrate the full native bridge catalog")
+					return nil, nil
+				},
+				ListCatalogRecordsFn: func(
+					_ context.Context,
+					query bridgepkg.BridgeCatalogQuery,
+				) ([]bridgepkg.BridgeCatalogRecord, error) {
+					catalogCalls++
+					if query.Scope != "all" || query.WorkspaceID != "ws-1" || query.Platform != "slack" {
+						t.Fatalf("ListCatalogRecords() query = %#v, want caller visibility and platform", query)
+					}
+					return records, nil
+				},
+				ListInstancesByIDsFn: func(
+					_ context.Context,
+					ids []string,
+				) ([]bridgepkg.BridgeInstance, error) {
+					hydrationCalls++
+					hydratedIDs = append([]string(nil), ids...)
+					result := make([]bridgepkg.BridgeInstance, 0, len(ids))
+					for _, id := range ids {
+						result = append(result, instancesByID[id])
+					}
+					return result, nil
+				},
+			},
+			Observer: observer,
+		}, nativeApproveAllPolicyInputs())
+
+		first, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBridgesList,
+				Input:  json.RawMessage(`{"q":"needle","platform":"SLACK","sort":"name","limit":1}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(first bridges_list page) error = %v", err)
+		}
+		var firstPage nativeBridgeCatalogResponse
+		if err := json.Unmarshal(first.Structured, &firstPage); err != nil {
+			t.Fatalf("json.Unmarshal(first bridges_list page) error = %v", err)
+		}
+		if got, want := firstPage.Page.Total, 2; got != want {
+			t.Fatalf("first page total = %d, want %d", got, want)
+		}
+		if len(firstPage.Bridges) != 1 || firstPage.Bridges[0].ID != "bridge-needle-global" ||
+			!firstPage.Page.HasMore || firstPage.Page.NextCursor == "" {
+			t.Fatalf("first page = %#v, want global-first continuation", firstPage)
+		}
+		if len(firstPage.BridgeHealth) != 1 || firstPage.BridgeHealth["bridge-needle-global"].RouteCount != 1 {
+			t.Fatalf("first page health = %#v, want returned id only", firstPage.BridgeHealth)
+		}
+		if catalogCalls != 1 || hydrationCalls != 1 || observer.bridgeEffectiveCalls != 1 ||
+			observer.bridgeHealthForCalls != 1 ||
+			!slices.Equal(hydratedIDs, []string{"bridge-needle-global"}) ||
+			!slices.Equal(observer.bridgeHealthForIDs, hydratedIDs) {
+			t.Fatalf(
+				"first page calls = catalog:%d hydration:%d effective:%d health:%d hydrated:%#v health_ids:%#v",
+				catalogCalls,
+				hydrationCalls,
+				observer.bridgeEffectiveCalls,
+				observer.bridgeHealthForCalls,
+				hydratedIDs,
+				observer.bridgeHealthForIDs,
+			)
+		}
+
+		observer.bridgeHealthForIDs = nil
+		secondInput, err := json.Marshal(bridgeCatalogInput{
+			Search:   "needle",
+			Platform: "slack",
+			Sort:     "name",
+			Cursor:   firstPage.Page.NextCursor,
+			Limit:    1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(second bridges_list input) error = %v", err)
+		}
+		second, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBridgesList, Input: secondInput},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(second bridges_list page) error = %v", err)
+		}
+		var secondPage nativeBridgeCatalogResponse
+		if err := json.Unmarshal(second.Structured, &secondPage); err != nil {
+			t.Fatalf("json.Unmarshal(second bridges_list page) error = %v", err)
+		}
+		if len(secondPage.Bridges) != 1 || secondPage.Bridges[0].ID != "bridge-needle-own" ||
+			secondPage.Page.HasMore || secondPage.Page.Total != 2 {
+			t.Fatalf("second page = %#v, want own workspace continuation", secondPage)
+		}
+		if !slices.Equal(observer.bridgeHealthForIDs, []string{"bridge-needle-own"}) {
+			t.Fatalf("second page health ids = %#v, want own id only", observer.bridgeHealthForIDs)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBridgesList,
+				Input:  json.RawMessage(`{"workspace_id":"ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+	})
 }
 
 func TestDaemonBootToolRegistry(t *testing.T) {
@@ -6682,6 +7247,28 @@ func nativeMemoryDocument(name string, description string, typ memcontract.Type,
 	)
 }
 
+func seedNativeMemoryCatalogDocuments(t *testing.T, dir string, count int) {
+	t.Helper()
+
+	baseTime := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
+	for index := range count {
+		typ := memcontract.TypeProject
+		if index == 0 {
+			typ = memcontract.TypeReference
+		}
+		filename := fmt.Sprintf("memory-%03d.md", index)
+		content := nativeMemoryDocument(fmt.Sprintf("Memory %03d", index), "desc", typ, "body")
+		path := filepath.Join(dir, filename)
+		if err := os.WriteFile(path, content, 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", filename, err)
+		}
+		modTime := baseTime.Add(time.Duration(index) * time.Minute)
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			t.Fatalf("Chtimes(%s) error = %v", filename, err)
+		}
+	}
+}
+
 func requireToolReason(t *testing.T, err error, target error, reason toolspkg.ReasonCode) {
 	t.Helper()
 
@@ -6845,17 +7432,26 @@ func (s *nativeResourceServiceStub) Delete(
 }
 
 type nativeObserverStub struct {
-	catalog          []hookspkg.CatalogEntry
-	catalogCall      int
-	runs             []hookspkg.HookRunRecord
-	hookRunCalls     int
-	lastHookRunQuery store.HookRunQuery
-	events           []hookspkg.EventDescriptor
-	eventSummaries   []store.EventSummary
-	bridgeHealth     []observe.BridgeInstanceHealth
-	health           observe.Health
-	eventQueryCalls  int
-	lastEventQuery   store.EventSummaryQuery
+	catalog               []hookspkg.CatalogEntry
+	catalogCall           int
+	runs                  []hookspkg.HookRunRecord
+	hookRunCalls          int
+	lastHookRunQuery      store.HookRunQuery
+	events                []hookspkg.EventDescriptor
+	eventSummaries        []store.EventSummary
+	bridgeHealth          []observe.BridgeInstanceHealth
+	bridgeHealthCalls     int
+	bridgeEffectiveCalls  int
+	bridgeHealthForCalls  int
+	bridgeHealthForIDs    []string
+	bridgeCatalogReadyErr error
+	health                observe.Health
+	eventQueryCalls       int
+	lastEventQuery        store.EventSummaryQuery
+}
+
+func (o *nativeObserverStub) CheckBridgeCatalogReady() error {
+	return o.bridgeCatalogReadyErr
 }
 
 func (o *nativeObserverStub) QueryEvents(
@@ -6924,7 +7520,42 @@ func (o *nativeObserverStub) QueryTokenStats(
 }
 
 func (o *nativeObserverStub) QueryBridgeHealth(context.Context) ([]observe.BridgeInstanceHealth, error) {
+	o.bridgeHealthCalls++
 	return append([]observe.BridgeInstanceHealth(nil), o.bridgeHealth...), nil
+}
+
+func (o *nativeObserverStub) QueryBridgeEffectiveStatuses(
+	_ context.Context,
+	records []bridgepkg.BridgeCatalogRecord,
+) (map[string]bridgepkg.BridgeStatus, error) {
+	o.bridgeEffectiveCalls++
+	statuses := make(map[string]bridgepkg.BridgeStatus, len(records))
+	for _, record := range records {
+		statuses[record.ID] = record.Status
+	}
+	for _, item := range o.bridgeHealth {
+		statuses[item.BridgeInstanceID] = item.Status
+	}
+	return statuses, nil
+}
+
+func (o *nativeObserverStub) QueryBridgeHealthFor(
+	_ context.Context,
+	instances []bridgepkg.BridgeInstance,
+) ([]observe.BridgeInstanceHealth, error) {
+	o.bridgeHealthForCalls++
+	requested := make(map[string]struct{}, len(instances))
+	for _, instance := range instances {
+		requested[instance.ID] = struct{}{}
+		o.bridgeHealthForIDs = append(o.bridgeHealthForIDs, instance.ID)
+	}
+	result := make([]observe.BridgeInstanceHealth, 0, len(instances))
+	for _, item := range o.bridgeHealth {
+		if _, ok := requested[item.BridgeInstanceID]; ok {
+			result = append(result, item)
+		}
+	}
+	return result, nil
 }
 
 func (o *nativeObserverStub) Health(context.Context) (observe.Health, error) {
@@ -7369,6 +8000,29 @@ func (m *nativeTaskManager) ListTasks(
 	m.listCalls++
 	m.lastQuery = query
 	return append([]taskpkg.Summary(nil), m.listSummaries...), nil
+}
+
+func (m *nativeTaskManager) ListTaskCatalog(
+	_ context.Context,
+	query taskpkg.CatalogQuery,
+	_ taskpkg.ActorContext,
+) (taskpkg.CatalogPage, error) {
+	m.listCalls++
+	m.lastQuery = taskpkg.Query{
+		Scope:       taskpkg.Scope(query.Scope),
+		WorkspaceID: query.WorkspaceID,
+		Status:      query.Status,
+		Priority:    query.Priority,
+		OwnerKind:   query.OwnerKind,
+		OwnerRef:    query.OwnerRef,
+		Search:      query.Search,
+		Limit:       query.Limit,
+	}
+	return taskpkg.CatalogPage{
+		Tasks: append([]taskpkg.Summary(nil), m.listSummaries...),
+		Total: len(m.listSummaries),
+		Limit: query.Limit,
+	}, nil
 }
 
 func (m *nativeTaskManager) GetExecutionProfile(

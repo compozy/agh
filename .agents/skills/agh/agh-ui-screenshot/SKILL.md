@@ -15,16 +15,16 @@ Capture deterministic PNGs of AGH runtime UI surfaces (Storybook isolation ifram
 3. Read `references/storybook-urls.md` for the canonical port table, iframe URL grammar, and story-id naming patterns.
 
 **Step 2: Prepare the capture workdir.**
-1. Execute the bootstrap helper: `bash .agents/skills/agh-ui-screenshot/scripts/setup-workdir.sh /tmp/agh-ui-screenshot`. This is a bootstrap helper — it creates the directory and installs `chrome-launcher` + `chrome-remote-interface` via bun. It is idempotent; re-running on an existing workdir is a no-op.
+1. Execute the bootstrap helper: `bash .agents/skills/agh/agh-ui-screenshot/scripts/setup-workdir.sh /tmp/agh-ui-screenshot`. This is a bootstrap helper — it creates the directory and installs `chrome-launcher` + `chrome-remote-interface` via bun. It is idempotent; re-running on an existing workdir is a no-op.
 2. Capture its stdout — the printed path is the workdir to `cd` into for every later `bun run` invocation.
 
 **Step 3: Resolve the story ids to capture.**
 1. Skip this step when capturing a non-Storybook URL (e.g., the proposal mock).
-2. For Storybook captures, run the read-only helper `bun run .agents/skills/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 [--filter <substring>]`. The script fetches `index.json` and emits one story id per line, optionally filtered.
+2. For Storybook captures, run the read-only helper `bun run .agents/skills/agh/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 [--filter <substring>]`. The script fetches `index.json` and emits one story id per line, optionally filtered.
 3. Confirm each story id intended for capture appears in the output. A missing id will land on Storybook's "Couldn't find story" fallback and produce a tiny (under 20 KB) PNG. If unsure of the naming pattern, read `references/storybook-urls.md`.
 
 **Step 4: Capture screenshots via the CDP helper.**
-1. From the workdir created in Step 2, run the mutating helper `bun run .agents/skills/agh-ui-screenshot/scripts/cap.mjs --out <output-dir> --width <W> --height <H> --wait <ms> --shot <name> <url> [--shot <name> <url> ...]`. Each `--shot` pair writes `<output-dir>/<name>.png`.
+1. From the workdir created in Step 2, run the mutating helper `bun run .agents/skills/agh/agh-ui-screenshot/scripts/cap.mjs --out <output-dir> --width <W> --height <H> --wait <ms> --shot <name> <url> [--shot <name> <url> ...]`. Each `--shot` pair writes `<output-dir>/<name>.png`.
 2. Use `1440 × 900` for full-route surfaces, `1680 × 1050` for wide-breakpoint validation, `1100 × 700` for primitive previews, `320 × 800` for collapsed sidebar. Defaults documented in `references/cdp-flow.md`.
 3. Use `--wait 2200` as the empirical floor for AGH's `systems-*-routes-*` surfaces. Bump to `4000` if any capture shows fallback fonts.
 4. Verify the helper's stdout: each successful capture prints `saved <name>`; failures print `FAIL <name> <message>` and the script exits 0 — scan for `FAIL` lines.

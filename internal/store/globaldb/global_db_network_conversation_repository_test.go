@@ -1,7 +1,10 @@
 package globaldb
 
 import (
+	"encoding/base64"
 	"errors"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -71,10 +74,10 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListDirectRooms() error = %v", err)
 		}
-		if got, want := len(rooms), 1; got != want {
+		if got, want := len(rooms.Directs), 1; got != want {
 			t.Fatalf("len(rooms) = %d, want %d", got, want)
 		}
-		if got, want := rooms[0].DirectID, expectedID; got != want {
+		if got, want := rooms.Directs[0].DirectID, expectedID; got != want {
 			t.Fatalf("rooms[0].DirectID = %q, want %q", got, want)
 		}
 	})
@@ -102,6 +105,133 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		})
 		if !errors.Is(err, store.ErrNetworkDirectRoomCollision) {
 			t.Fatalf("ResolveDirectRoom(collision) error = %v, want ErrNetworkDirectRoomCollision", err)
+		}
+	})
+
+	t.Run("Should anchor the first message in a room resolved before its timeline exists", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		openedAt := time.Date(2026, 7, 11, 19, 0, 0, 0, time.UTC)
+		room, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+			WorkspaceID:    networkStoreTestWorkspaceID,
+			Channel:        "builders",
+			PeerA:          "coder.sess-abc",
+			PeerB:          "reviewer.sess-xyz",
+			OpenedAt:       openedAt,
+			LastActivityAt: openedAt,
+		})
+		if err != nil {
+			t.Fatalf("ResolveDirectRoom() error = %v", err)
+		}
+		if room.OpenedSequence != 0 || room.LastActivitySequence != 0 {
+			t.Fatalf(
+				"resolved empty room sequences = (%d, %d), want (0, 0)",
+				room.OpenedSequence,
+				room.LastActivitySequence,
+			)
+		}
+		if _, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+			WorkspaceID:    networkStoreTestWorkspaceID,
+			Channel:        "builders",
+			PeerA:          "coder.sess-abc",
+			PeerB:          "planner.sess-123",
+			OpenedAt:       openedAt.Add(time.Minute),
+			LastActivityAt: openedAt.Add(time.Minute),
+		}); err != nil {
+			t.Fatalf("ResolveDirectRoom(second empty room) error = %v", err)
+		}
+		firstPage, err := globalDB.ListDirectRooms(
+			ctx,
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{Sort: store.NetworkConversationSortCreated, Limit: 1},
+		)
+		if err != nil {
+			t.Fatalf("ListDirectRooms(first empty-room page) error = %v", err)
+		}
+		if len(firstPage.Directs) != 1 || !firstPage.HasMore || firstPage.NextCursor == "" {
+			t.Fatalf("first empty-room page = %#v, want one row and continuation", firstPage)
+		}
+		assertNetworkCursorHidesSequence(t, firstPage.NextCursor)
+		secondPage, err := globalDB.ListDirectRooms(
+			ctx,
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{
+				Sort:  store.NetworkConversationSortCreated,
+				Limit: 1,
+				After: firstPage.NextCursor,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ListDirectRooms(second empty-room page) error = %v", err)
+		}
+		if len(secondPage.Directs) != 1 || secondPage.HasMore || secondPage.NextCursor != "" {
+			t.Fatalf("second empty-room page = %#v, want one exhausted row", secondPage)
+		}
+		if firstPage.Directs[0].DirectID == secondPage.Directs[0].DirectID {
+			t.Fatalf("empty-room pages repeated direct_id %q", firstPage.Directs[0].DirectID)
+		}
+
+		directID, firstWrite, err := writeDirectMessage(
+			t,
+			globalDB,
+			"msg_resolved_room_first",
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+			"first durable message",
+			time.Date(2026, 7, 11, 20, 0, 0, 0, time.UTC),
+		)
+		if err != nil {
+			t.Fatalf("writeDirectMessage() error = %v", err)
+		}
+		if !firstWrite.ConversationOpened {
+			t.Fatal("WriteConversationMessage(first direct).ConversationOpened = false, want true")
+		}
+		continuedPage, err := globalDB.ListDirectRooms(
+			ctx,
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{
+				Sort:  store.NetworkConversationSortCreated,
+				Limit: 1,
+				After: firstPage.NextCursor,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ListDirectRooms(after first message with prior cursor) error = %v", err)
+		}
+		if len(continuedPage.Directs) != 1 || continuedPage.Directs[0].DirectID == directID {
+			t.Fatalf("continued created page = %#v, want the other room without duplication", continuedPage)
+		}
+		_, secondWrite, err := writeDirectMessage(
+			t,
+			globalDB,
+			"msg_resolved_room_second",
+			"reviewer.sess-xyz",
+			"coder.sess-abc",
+			"second durable message",
+			time.Date(2026, 7, 11, 20, 1, 0, 0, time.UTC),
+		)
+		if err != nil {
+			t.Fatalf("writeDirectMessage(second) error = %v", err)
+		}
+		if secondWrite.ConversationOpened {
+			t.Fatal("WriteConversationMessage(second direct).ConversationOpened = true, want false")
+		}
+		persisted, err := globalDB.GetDirectRoom(
+			ctx,
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			directID,
+		)
+		if err != nil {
+			t.Fatalf("GetDirectRoom() error = %v", err)
+		}
+		if persisted.OpenedSequence <= 0 || persisted.LastActivitySequence <= persisted.OpenedSequence {
+			t.Fatalf(
+				"persisted direct sequences = (%d, %d), want immutable positive opening before later activity",
+				persisted.OpenedSequence,
+				persisted.LastActivitySequence,
+			)
 		}
 	})
 }
@@ -179,13 +309,13 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListThreads() error = %v", err)
 		}
-		if got, want := len(threads), 1; got != want {
+		if got, want := len(threads.Threads), 1; got != want {
 			t.Fatalf("len(threads) = %d, want %d", got, want)
 		}
-		if got, want := threads[0].ThreadID, "thread_store_counts"; got != want {
+		if got, want := threads.Threads[0].ThreadID, "thread_store_counts"; got != want {
 			t.Fatalf("threads[0].ThreadID = %q, want %q", got, want)
 		}
-		if got, want := threads[0].ParticipantCount, 3; got != want {
+		if got, want := threads.Threads[0].ParticipantCount, 3; got != want {
 			t.Fatalf("threads[0].ParticipantCount = %d, want %d", got, want)
 		}
 
@@ -502,27 +632,28 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListThreads(first page) error = %v", err)
 		}
-		if got, want := len(firstThreadPage), 1; got != want {
+		if got, want := len(firstThreadPage.Threads), 1; got != want {
 			t.Fatalf("len(firstThreadPage) = %d, want %d", got, want)
 		}
-		if got, want := firstThreadPage[0].ThreadID, "thread_query_other"; got != want {
+		if got, want := firstThreadPage.Threads[0].ThreadID, "thread_query_other"; got != want {
 			t.Fatalf("firstThreadPage[0].ThreadID = %q, want %q", got, want)
 		}
+		assertNetworkCursorHidesSequence(t, firstThreadPage.NextCursor)
 		secondThreadPage, err := globalDB.ListThreads(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkThreadQuery{
-				Limit: 10,
-				After: firstThreadPage[0].ThreadID,
+				Limit: 1,
+				After: firstThreadPage.NextCursor,
 			},
 		)
 		if err != nil {
 			t.Fatalf("ListThreads(second page) error = %v", err)
 		}
-		if got, want := len(secondThreadPage), 1; got != want {
+		if got, want := len(secondThreadPage.Threads), 1; got != want {
 			t.Fatalf("len(secondThreadPage) = %d, want %d", got, want)
 		}
-		if got, want := secondThreadPage[0].ThreadID, "thread_query_cursors"; got != want {
+		if got, want := secondThreadPage.Threads[0].ThreadID, "thread_query_cursors"; got != want {
 			t.Fatalf("secondThreadPage[0].ThreadID = %q, want %q", got, want)
 		}
 
@@ -571,7 +702,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			t.Fatalf("filtered message IDs = %v, want %v", got, want)
 		}
 
-		firstDirectID, err := writeDirectMessage(
+		firstDirectID, _, err := writeDirectMessage(
 			t,
 			globalDB,
 			"msg_direct_cursor_one",
@@ -583,7 +714,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("writeDirectMessage(first) error = %v", err)
 		}
-		secondDirectID, err := writeDirectMessage(
+		secondDirectID, _, err := writeDirectMessage(
 			t,
 			globalDB,
 			"msg_direct_cursor_two",
@@ -607,29 +738,397 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListDirectRooms(first page) error = %v", err)
 		}
-		if got, want := len(firstDirectPage), 1; got != want {
+		if got, want := firstDirectPage.Total, 2; got != want || firstDirectPage.Limit != 1 ||
+			!firstDirectPage.HasMore || firstDirectPage.NextCursor == "" {
+			t.Fatalf("first direct page = %#v, want total=%d limit=1 has_more cursor", firstDirectPage, want)
+		}
+		if got, want := len(firstDirectPage.Directs), 1; got != want {
 			t.Fatalf("len(firstDirectPage) = %d, want %d", got, want)
 		}
-		if got, want := firstDirectPage[0].DirectID, secondDirectID; got != want {
+		if got, want := firstDirectPage.Directs[0].DirectID, secondDirectID; got != want {
 			t.Fatalf("firstDirectPage[0].DirectID = %q, want %q", got, want)
 		}
+		assertNetworkCursorHidesSequence(t, firstDirectPage.NextCursor)
 		secondDirectPage, err := globalDB.ListDirectRooms(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
 				PeerID: "coder.sess-abc",
-				Limit:  10,
-				After:  firstDirectPage[0].DirectID,
+				Limit:  1,
+				After:  firstDirectPage.NextCursor,
 			},
 		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms(second page) error = %v", err)
 		}
-		if got, want := len(secondDirectPage), 1; got != want {
+		if got, want := secondDirectPage.Total, 2; got != want || secondDirectPage.Limit != 1 ||
+			secondDirectPage.HasMore || secondDirectPage.NextCursor != "" {
+			t.Fatalf("second direct page = %#v, want total=%d limit=1 exhausted", secondDirectPage, want)
+		}
+		if got, want := len(secondDirectPage.Directs), 1; got != want {
 			t.Fatalf("len(secondDirectPage) = %d, want %d", got, want)
 		}
-		if got, want := secondDirectPage[0].DirectID, firstDirectID; got != want {
+		if got, want := secondDirectPage.Directs[0].DirectID, firstDirectID; got != want {
 			t.Fatalf("secondDirectPage[0].DirectID = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter before paging and walk alphabetical thread pages without gaps", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		startedAt := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		messages := []store.NetworkConversationMessage{
+			threadMessage("msg_sort_zulu", "thread_sort_zulu", "peer.zulu", "Zulu", startedAt),
+			threadMessage("msg_sort_alpha", "thread_sort_alpha", "peer.alpha", "alpha", startedAt),
+			threadMessage("msg_sort_beta", "thread_sort_beta", "peer.beta", "Beta", startedAt),
+			threadMessage("msg_sort_work", "thread_sort_work", "peer.work", "Work", startedAt),
+		}
+		messages[3].PeerTo = "peer.reviewer"
+		messages[3].WorkID = "work_sort_open"
+		for _, message := range messages {
+			if _, err := globalDB.WriteConversationMessage(testutil.Context(t), message); err != nil {
+				t.Fatalf("WriteConversationMessage(%q) error = %v", message.MessageID, err)
+			}
+		}
+
+		ref := store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"}
+		firstPage, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Sort:  store.NetworkConversationSortAlphabetical,
+			Limit: 2,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(first alphabetical page) error = %v", err)
+		}
+		if got, want := firstPage.Total, 4; got != want || firstPage.Limit != 2 || !firstPage.HasMore ||
+			firstPage.NextCursor == "" {
+			t.Fatalf("first alphabetical page = %#v, want total=%d limit=2 has_more cursor", firstPage, want)
+		}
+		secondPage, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Sort:  store.NetworkConversationSortAlphabetical,
+			Limit: 2,
+			After: firstPage.NextCursor,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(second alphabetical page) error = %v", err)
+		}
+		if got, want := secondPage.Total, 4; got != want || secondPage.Limit != 2 || secondPage.HasMore ||
+			secondPage.NextCursor != "" {
+			t.Fatalf("second alphabetical page = %#v, want total=%d limit=2 exhausted", secondPage, want)
+		}
+		gotIDs := append(threadSummaryIDs(firstPage.Threads), threadSummaryIDs(secondPage.Threads)...)
+		wantIDs := []string{
+			"thread_sort_alpha",
+			"thread_sort_beta",
+			"thread_sort_work",
+			"thread_sort_zulu",
+		}
+		if !sameStrings(gotIDs, wantIDs) {
+			t.Fatalf("alphabetical thread IDs = %v, want %v", gotIDs, wantIDs)
+		}
+
+		hasWork := true
+		work, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			HasWork: &hasWork,
+			Limit:   10,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(has_work) error = %v", err)
+		}
+		if got, want := work.Total, 1; got != want || work.Limit != 10 {
+			t.Fatalf("has-work page = %#v, want total=%d limit=10", work, want)
+		}
+		if got, want := threadSummaryIDs(work.Threads), []string{"thread_sort_work"}; !sameStrings(got, want) {
+			t.Fatalf("has-work thread IDs = %v, want %v", got, want)
+		}
+
+		search, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Search: "ALP",
+			Limit:  10,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(search) error = %v", err)
+		}
+		if got, want := search.Total, 1; got != want || search.Limit != 10 {
+			t.Fatalf("search page = %#v, want total=%d limit=10", search, want)
+		}
+		if got, want := threadSummaryIDs(search.Threads), []string{"thread_sort_alpha"}; !sameStrings(got, want) {
+			t.Fatalf("search thread IDs = %v, want %v", got, want)
+		}
+
+		_, err = globalDB.ListThreads(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: "ws-other", Channel: "builders"},
+			store.NetworkThreadQuery{After: firstPage.NextCursor, Limit: 2},
+		)
+		if !errors.Is(err, store.ErrNetworkCursorInvalid) {
+			t.Fatalf("ListThreads(cross-workspace cursor) error = %v, want ErrNetworkCursorInvalid", err)
+		}
+
+		_, err = globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Sort:   store.NetworkConversationSortAlphabetical,
+			Search: "alpha",
+			Limit:  2,
+			After:  firstPage.NextCursor,
+		})
+		if !errors.Is(err, store.ErrNetworkCursorInvalid) {
+			t.Fatalf("ListThreads(reused filtered cursor) error = %v, want ErrNetworkCursorInvalid", err)
+		}
+
+		empty, err := globalDB.ListThreads(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "empty"},
+			store.NetworkThreadQuery{},
+		)
+		if err != nil {
+			t.Fatalf("ListThreads(empty default page) error = %v", err)
+		}
+		if empty.Total != 0 || empty.Limit != store.NetworkConversationListDefaultLimit ||
+			len(empty.Threads) != 0 || empty.HasMore || empty.NextCursor != "" {
+			t.Fatalf("empty default page = %#v, want truthful zero total and normalized default limit", empty)
+		}
+	})
+
+	t.Run("Should continue from the captured sort tuple when the anchor mutates", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
+		for index, threadID := range []string{"thread_mutation_oldest", "thread_mutation_anchor", "thread_mutation_newest"} {
+			message := threadMessage(
+				"msg_mutation_"+strconv.Itoa(index),
+				threadID,
+				"peer.mutation",
+				threadID,
+				startedAt.Add(time.Duration(index)*time.Minute),
+			)
+			if _, err := globalDB.WriteConversationMessage(testutil.Context(t), message); err != nil {
+				t.Fatalf("WriteConversationMessage(%q) error = %v", message.MessageID, err)
+			}
+		}
+
+		ref := store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"}
+		first, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Search: "THREAD_MUTATION",
+			Limit:  2,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(first mutation page) error = %v", err)
+		}
+		if got, want := threadSummaryIDs(first.Threads), []string{
+			"thread_mutation_newest",
+			"thread_mutation_anchor",
+		}; !sameStrings(got, want) {
+			t.Fatalf("first mutation page IDs = %v, want %v", got, want)
+		}
+
+		mutation := threadMessage(
+			"msg_mutation_anchor_new",
+			"thread_mutation_anchor",
+			"peer.mutation",
+			"anchor moved",
+			startedAt.Add(10*time.Minute),
+		)
+		if _, err := globalDB.WriteConversationMessage(testutil.Context(t), mutation); err != nil {
+			t.Fatalf("WriteConversationMessage(anchor mutation) error = %v", err)
+		}
+
+		second, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+			Search: "thread_mutation",
+			Limit:  2,
+			After:  first.NextCursor,
+		})
+		if err != nil {
+			t.Fatalf("ListThreads(second mutation page) error = %v", err)
+		}
+		if got, want := threadSummaryIDs(second.Threads), []string{"thread_mutation_oldest"}; !sameStrings(got, want) {
+			t.Fatalf("second mutation page IDs = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should return the latest message tail in chronological order", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		startedAt := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
+		for _, id := range []string{"zulu", "yankee", "xray", "whiskey", "victor"} {
+			message := threadMessage(
+				"msg_tail_"+id,
+				"thread_tail",
+				"peer.tail",
+				id,
+				startedAt,
+			)
+			if _, err := globalDB.WriteConversationMessage(testutil.Context(t), message); err != nil {
+				t.Fatalf("WriteConversationMessage(%q) error = %v", message.MessageID, err)
+			}
+		}
+		ref := store.NetworkConversationRef{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_tail",
+		}
+		latest, err := globalDB.ListConversationMessages(
+			testutil.Context(t),
+			ref,
+			store.NetworkConversationMessageQuery{Limit: 2},
+		)
+		if err != nil {
+			t.Fatalf("ListConversationMessages(latest) error = %v", err)
+		}
+		if got, want := messageIDs(latest), []string{"msg_tail_whiskey", "msg_tail_victor"}; !sameStrings(got, want) {
+			t.Fatalf("latest message IDs = %v, want %v", got, want)
+		}
+
+		older, err := globalDB.ListConversationMessages(
+			testutil.Context(t),
+			ref,
+			store.NetworkConversationMessageQuery{BeforeMessageID: "msg_tail_whiskey", Limit: 2},
+		)
+		if err != nil {
+			t.Fatalf("ListConversationMessages(older) error = %v", err)
+		}
+		if got, want := messageIDs(older), []string{"msg_tail_yankee", "msg_tail_xray"}; !sameStrings(got, want) {
+			t.Fatalf("older message IDs = %v, want %v", got, want)
+		}
+
+		newer, err := globalDB.ListConversationMessages(
+			testutil.Context(t),
+			ref,
+			store.NetworkConversationMessageQuery{AfterMessageID: "msg_tail_xray", Limit: 2},
+		)
+		if err != nil {
+			t.Fatalf("ListConversationMessages(newer) error = %v", err)
+		}
+		if got, want := messageIDs(newer), []string{"msg_tail_whiskey", "msg_tail_victor"}; !sameStrings(got, want) {
+			t.Fatalf("newer message IDs = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should aggregate channel timeline projections atomically", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
+		first := threadMessage(
+			"msg_projection_first",
+			"thread_projection",
+			"peer.author",
+			"first public",
+			startedAt,
+		)
+		first.Mentions = []string{"peer.mentioned"}
+		if _, err := globalDB.WriteConversationMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("WriteConversationMessage(first) error = %v", err)
+		}
+		presence := store.NetworkMessageEntry{
+			MessageID:   "msg_projection_presence",
+			SessionID:   "sess-projection-presence",
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			Direction:   "received",
+			PeerFrom:    "peer.presence",
+			Kind:        store.NetworkKindGreet,
+			Body:        []byte(`{"display_name":"Presence"}`),
+			Timestamp:   startedAt.Add(time.Minute),
+		}
+		if err := globalDB.WriteNetworkMessage(testutil.Context(t), presence); err != nil {
+			t.Fatalf("WriteNetworkMessage(presence) error = %v", err)
+		}
+		if err := globalDB.WriteNetworkMessage(testutil.Context(t), presence); err != nil {
+			t.Fatalf("WriteNetworkMessage(duplicate presence) error = %v", err)
+		}
+		second := threadMessage(
+			"msg_projection_second",
+			"thread_projection",
+			"peer.second",
+			"latest public",
+			startedAt.Add(2*time.Minute),
+		)
+		if _, err := globalDB.WriteConversationMessage(testutil.Context(t), second); err != nil {
+			t.Fatalf("WriteConversationMessage(second) error = %v", err)
+		}
+		directID, _, err := writeDirectMessage(
+			t,
+			globalDB,
+			"msg_projection_direct",
+			"peer.second",
+			"peer.direct",
+			"private",
+			startedAt.Add(3*time.Minute),
+		)
+		if err != nil {
+			t.Fatalf("writeDirectMessage() error = %v", err)
+		}
+
+		projections, err := globalDB.ListNetworkChannelProjections(
+			testutil.Context(t),
+			store.NetworkChannelProjectionQuery{WorkspaceID: networkStoreTestWorkspaceID},
+		)
+		if err != nil {
+			t.Fatalf("ListNetworkChannelProjections() error = %v", err)
+		}
+		if got, want := len(projections), 1; got != want {
+			t.Fatalf("len(projections) = %d, want %d", got, want)
+		}
+		projection := projections[0]
+		if got, want := projection.MessageCount, 2; got != want {
+			t.Fatalf("projection.MessageCount = %d, want %d", got, want)
+		}
+		if got, want := projection.PresenceCount, 1; got != want {
+			t.Fatalf("projection.PresenceCount = %d, want %d", got, want)
+		}
+		if got, want := projection.HistoricalParticipantCount, 5; got != want {
+			t.Fatalf("projection.HistoricalParticipantCount = %d, want %d", got, want)
+		}
+		if projection.LastActivityAt == nil || !projection.LastActivityAt.Equal(startedAt.Add(2*time.Minute)) {
+			t.Fatalf("projection.LastActivityAt = %v, want %s", projection.LastActivityAt, startedAt.Add(2*time.Minute))
+		}
+		if got, want := projection.LastMessagePreview, "latest public"; got != want {
+			t.Fatalf("projection.LastMessagePreview = %q, want %q", got, want)
+		}
+
+		counts, err := globalDB.ListNetworkChannelKindCounts(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+		)
+		if err != nil {
+			t.Fatalf("ListNetworkChannelKindCounts() error = %v", err)
+		}
+		if got, want := len(counts), 1; got != want {
+			t.Fatalf("len(kind counts) = %d, want %d", got, want)
+		}
+		if got, want := counts[0].Kind, store.NetworkKindSay; got != want {
+			t.Fatalf("kind count kind = %q, want %q", got, want)
+		}
+		if got, want := counts[0].Count, 2; got != want {
+			t.Fatalf("kind count = %d, want %d", got, want)
+		}
+
+		recents, err := globalDB.ListNetworkRecents(
+			testutil.Context(t),
+			store.NetworkRecentQuery{WorkspaceID: networkStoreTestWorkspaceID, Limit: 2},
+		)
+		if err != nil {
+			t.Fatalf("ListNetworkRecents() error = %v", err)
+		}
+		if got, want := len(recents), 2; got != want {
+			t.Fatalf("len(recents) = %d, want %d", got, want)
+		}
+		if got, want := recents[0].ContainerID, directID; got != want {
+			t.Fatalf("recents[0].ContainerID = %q, want %q", got, want)
+		}
+		if got, want := recents[1].ContainerID, "thread_projection"; got != want {
+			t.Fatalf("recents[1].ContainerID = %q, want %q", got, want)
 		}
 	})
 }
@@ -890,7 +1389,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 		); err != nil {
 			t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 		}
-		directID, err := writeDirectMessage(
+		directID, _, err := writeDirectMessage(
 			t,
 			globalDB,
 			"msg_direct_query_error",
@@ -1278,14 +1777,14 @@ func writeDirectMessage(
 	peerTo string,
 	text string,
 	timestamp time.Time,
-) (string, error) {
+) (string, store.NetworkConversationWriteResult, error) {
 	t.Helper()
 
 	directID, _, _, err := store.NetworkDirectRoomIdentity(networkStoreTestWorkspaceID, "builders", peerFrom, peerTo)
 	if err != nil {
-		return "", err
+		return "", store.NetworkConversationWriteResult{}, err
 	}
-	_, err = globalDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+	result, err := globalDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   messageID,
 		SessionID:   "sess-" + messageID,
 		WorkspaceID: networkStoreTestWorkspaceID,
@@ -1301,13 +1800,21 @@ func writeDirectMessage(
 		Body:        []byte(`{"text":"` + text + `"}`),
 		Timestamp:   timestamp,
 	})
-	return directID, err
+	return directID, result, err
 }
 
 func messageIDs(messages []store.NetworkConversationMessage) []string {
 	ids := make([]string, 0, len(messages))
 	for _, message := range messages {
 		ids = append(ids, message.MessageID)
+	}
+	return ids
+}
+
+func threadSummaryIDs(threads []store.NetworkThreadSummary) []string {
+	ids := make([]string, 0, len(threads))
+	for _, thread := range threads {
+		ids = append(ids, thread.ThreadID)
 	}
 	return ids
 }
@@ -1322,6 +1829,18 @@ func sameStrings(got []string, want []string) bool {
 		}
 	}
 	return true
+}
+
+func assertNetworkCursorHidesSequence(t *testing.T, cursor string) {
+	t.Helper()
+
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		t.Fatalf("decode network cursor error = %v", err)
+	}
+	if strings.Contains(string(decoded), "sequence") {
+		t.Fatalf("network cursor exposes global sequence: %s", decoded)
+	}
 }
 
 func assertNoTimelineOrAuditRows(t *testing.T, globalDB *GlobalDB, messageID string) {

@@ -1114,26 +1114,6 @@ func (r NetworkConversationRef) ContainerID() string {
 	}
 }
 
-// NetworkThreadSummary is the list/detail projection for a public thread.
-type NetworkThreadSummary struct {
-	WorkspaceID           string
-	Channel               string
-	ThreadID              string
-	RootMessageID         string
-	Title                 string
-	OpenedByPeerID        string
-	OpenedSessionID       string
-	OpenedAt              time.Time
-	LastActivityAt        time.Time
-	MessageCount          int
-	ParticipantCount      int
-	OpenWorkCount         int
-	DeliveredCount        int64
-	PromptSizeBytes       int64
-	EstimatedPromptTokens int64
-	LastMessagePreview    string
-}
-
 // NetworkThreadParticipant is one peer recorded as present in a public thread.
 type NetworkThreadParticipant struct {
 	WorkspaceID    string
@@ -1284,6 +1264,9 @@ func (s NetworkThreadSummary) Validate() error {
 	if s.LastActivityAt.IsZero() {
 		return fmt.Errorf("store: network thread last_activity_at is required")
 	}
+	if s.OpenedSequence < 0 || s.LastActivitySequence < 0 {
+		return fmt.Errorf("store: network thread sequences must be zero or positive")
+	}
 	if s.MessageCount < 0 {
 		return fmt.Errorf("store: network thread message_count must be zero or positive: %d", s.MessageCount)
 	}
@@ -1308,20 +1291,6 @@ func (s NetworkThreadSummary) Validate() error {
 	return nil
 }
 
-// NetworkDirectRoomSummary is the list/detail projection for a direct room.
-type NetworkDirectRoomSummary struct {
-	WorkspaceID        string
-	Channel            string
-	DirectID           string
-	PeerA              string
-	PeerB              string
-	OpenedAt           time.Time
-	LastActivityAt     time.Time
-	MessageCount       int
-	OpenWorkCount      int
-	LastMessagePreview string
-}
-
 // Validate ensures the direct-room summary is internally consistent.
 func (s NetworkDirectRoomSummary) Validate() error {
 	if err := validateNetworkDirectRoom(s.WorkspaceID, s.Channel, s.DirectID, s.PeerA, s.PeerB); err != nil {
@@ -1332,6 +1301,9 @@ func (s NetworkDirectRoomSummary) Validate() error {
 	}
 	if s.LastActivityAt.IsZero() {
 		return fmt.Errorf("store: network direct room last_activity_at is required")
+	}
+	if s.OpenedSequence < 0 || s.LastActivitySequence < 0 {
+		return fmt.Errorf("store: network direct room sequences must be zero or positive")
 	}
 	if s.MessageCount < 0 {
 		return fmt.Errorf("store: network direct room message_count must be zero or positive: %d", s.MessageCount)
@@ -1419,6 +1391,7 @@ func (e NetworkWorkEntry) Validate() error {
 
 // NetworkConversationMessage is one persisted network conversation or presence message.
 type NetworkConversationMessage struct {
+	Sequence    int64
 	MessageID   string
 	SessionID   string
 	WorkspaceID string
@@ -1449,6 +1422,9 @@ type NetworkMessageEntry = NetworkConversationMessage
 
 // Validate ensures the persisted network message is complete and internally consistent.
 func (e NetworkConversationMessage) Validate() error {
+	if e.Sequence < 0 {
+		return fmt.Errorf("store: network message sequence must be zero or positive")
+	}
 	if err := requireField(e.MessageID, "network message id"); err != nil {
 		return err
 	}
@@ -1669,75 +1645,6 @@ func (r TaskDesignationRollup) Validate() error {
 		return fmt.Errorf("store: task designation rollup summary_json must be valid JSON")
 	}
 	return nil
-}
-
-// NetworkMessageQuery filters persisted network timeline lookups.
-type NetworkMessageQuery struct {
-	SessionID       string
-	WorkspaceID     string
-	Channel         string
-	PeerID          string
-	PeerFrom        string
-	PeerTo          string
-	Kind            string
-	Direction       string
-	MessageID       string
-	BeforeMessageID string
-	AfterMessageID  string
-	DirectedOnly    bool
-	IncludePresence bool
-	Since           time.Time
-	Limit           int
-}
-
-// NetworkThreadQuery filters public-thread summary lookups.
-type NetworkThreadQuery struct {
-	Limit int
-	After string
-}
-
-// Validate ensures the query uses sane bounds.
-func (q NetworkThreadQuery) Validate() error {
-	return requirePositiveLimit(q.Limit, "network thread limit")
-}
-
-// NetworkDirectRoomQuery filters direct-room summary lookups.
-type NetworkDirectRoomQuery struct {
-	PeerID string
-	Limit  int
-	After  string
-}
-
-// Validate ensures the query uses sane bounds.
-func (q NetworkDirectRoomQuery) Validate() error {
-	return requirePositiveLimit(q.Limit, "network direct room limit")
-}
-
-// NetworkConversationMessageQuery filters conversation message lookups.
-type NetworkConversationMessageQuery struct {
-	BeforeMessageID string
-	AfterMessageID  string
-	Kind            string
-	WorkID          string
-	Limit           int
-}
-
-// Validate ensures the query uses sane bounds and one cursor direction.
-func (q NetworkConversationMessageQuery) Validate() error {
-	if strings.TrimSpace(q.BeforeMessageID) != "" && strings.TrimSpace(q.AfterMessageID) != "" {
-		return fmt.Errorf("store: network conversation message query cannot specify both before and after cursors")
-	}
-	if strings.TrimSpace(q.Kind) != "" {
-		if err := validateNetworkMessageKind(q.Kind); err != nil {
-			return err
-		}
-	}
-	if strings.TrimSpace(q.WorkID) != "" {
-		if err := validateNetworkConversationID(q.WorkID, "work_id"); err != nil {
-			return err
-		}
-	}
-	return requirePositiveLimit(q.Limit, "network conversation message limit")
 }
 
 // NormalizeNetworkDirectRoomPeers validates and orders a two-party room pair.
@@ -2023,17 +1930,6 @@ func networkClaimTokenKeyHasValue(key string, value any) bool {
 
 func networkStringContainsRawClaimToken(value string) bool {
 	return strings.Contains(strings.TrimSpace(value), "agh_claim_")
-}
-
-// Validate ensures the query uses sane bounds.
-func (q NetworkMessageQuery) Validate() error {
-	if err := requireField(q.WorkspaceID, "network message query workspace_id"); err != nil {
-		return err
-	}
-	if strings.TrimSpace(q.BeforeMessageID) != "" && strings.TrimSpace(q.AfterMessageID) != "" {
-		return fmt.Errorf("store: network message query cannot specify both before and after cursors")
-	}
-	return requirePositiveLimit(q.Limit, "network message limit")
 }
 
 // ReconcileResult reports which sessions were indexed or marked orphaned.

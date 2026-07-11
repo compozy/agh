@@ -9,11 +9,24 @@ import (
 )
 
 type StubBridgeService struct {
-	CreateInstanceFn        func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error)
-	GetInstanceFn           func(context.Context, string) (*bridgepkg.BridgeInstance, error)
-	ListInstancesFn         func(context.Context) ([]bridgepkg.BridgeInstance, error)
-	ListProvidersFn         func(context.Context) ([]bridgepkg.BridgeProvider, error)
-	ListSecretBindingsFn    func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
+	CreateInstanceFn func(
+		context.Context,
+		bridgepkg.CreateInstanceRequest,
+	) (*bridgepkg.BridgeInstance, error)
+	GetInstanceFn        func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	ListInstancesFn      func(context.Context) ([]bridgepkg.BridgeInstance, error)
+	ListCatalogRecordsFn func(
+		context.Context,
+		bridgepkg.BridgeCatalogQuery,
+	) ([]bridgepkg.BridgeCatalogRecord, error)
+	ListInstancesByIDsFn             func(context.Context, []string) ([]bridgepkg.BridgeInstance, error)
+	ListProvidersFn                  func(context.Context) ([]bridgepkg.BridgeProvider, error)
+	CountBridgeRoutesFn              func(context.Context, []string) (map[string]int, error)
+	ListSecretBindingsFn             func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
+	ListSecretBindingsForInstancesFn func(
+		context.Context,
+		[]string,
+	) (map[string][]bridgepkg.BridgeSecretBinding, error)
 	PutSecretBindingFn      func(context.Context, bridgepkg.BridgeSecretBinding, *string) error
 	DeleteSecretBindingFn   func(context.Context, string, string) error
 	UpdateInstanceFn        func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error)
@@ -71,11 +84,67 @@ func (s StubBridgeService) ListInstances(ctx context.Context) ([]bridgepkg.Bridg
 	return nil, nil
 }
 
+func (s StubBridgeService) ListCatalogRecords(
+	ctx context.Context,
+	query bridgepkg.BridgeCatalogQuery,
+) ([]bridgepkg.BridgeCatalogRecord, error) {
+	if s.ListCatalogRecordsFn != nil {
+		return s.ListCatalogRecordsFn(ctx, query)
+	}
+	instances, err := s.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]bridgepkg.BridgeCatalogRecord, 0, len(instances))
+	for _, instance := range instances {
+		records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
+	}
+	return records, nil
+}
+
+func (s StubBridgeService) ListInstancesByIDs(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) ([]bridgepkg.BridgeInstance, error) {
+	if s.ListInstancesByIDsFn != nil {
+		return s.ListInstancesByIDsFn(ctx, bridgeInstanceIDs)
+	}
+	instances, err := s.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]bridgepkg.BridgeInstance, len(instances))
+	for _, instance := range instances {
+		byID[instance.ID] = instance
+	}
+	selected := make([]bridgepkg.BridgeInstance, 0, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		if instance, ok := byID[id]; ok {
+			selected = append(selected, instance)
+		}
+	}
+	return selected, nil
+}
+
 func (s StubBridgeService) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {
 	if s.ListProvidersFn != nil {
 		return s.ListProvidersFn(ctx)
 	}
 	return nil, nil
+}
+
+func (s StubBridgeService) CountBridgeRoutes(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string]int, error) {
+	if s.CountBridgeRoutesFn != nil {
+		return s.CountBridgeRoutesFn(ctx, bridgeInstanceIDs)
+	}
+	counts := make(map[string]int, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		counts[id] = 0
+	}
+	return counts, nil
 }
 
 func (s StubBridgeService) ListSecretBindings(
@@ -86,6 +155,20 @@ func (s StubBridgeService) ListSecretBindings(
 		return s.ListSecretBindingsFn(ctx, bridgeInstanceID)
 	}
 	return nil, nil
+}
+
+func (s StubBridgeService) ListSecretBindingsForInstances(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string][]bridgepkg.BridgeSecretBinding, error) {
+	if s.ListSecretBindingsForInstancesFn != nil {
+		return s.ListSecretBindingsForInstancesFn(ctx, bridgeInstanceIDs)
+	}
+	bindings := make(map[string][]bridgepkg.BridgeSecretBinding, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		bindings[id] = []bridgepkg.BridgeSecretBinding{}
+	}
+	return bindings, nil
 }
 
 func (s StubBridgeService) PutSecretBinding(

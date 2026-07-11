@@ -59,10 +59,9 @@ export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): Tas
     started_at: "2026-04-17T09:59:00Z",
     session_id: storySessionIds.product,
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
-    claim_token_hash: "sha256:launch-command-run",
     coordination_channel_id: "coord-launch-001",
     ...overrides,
-  } as TaskActiveRun;
+  };
 }
 
 export function buildTaskRunRecordFixture(overrides: Partial<TaskRun> = {}): TaskRun {
@@ -112,13 +111,14 @@ export function buildTaskFixture(overrides: Partial<TaskListItem> = {}): TaskLis
     updated_at: "2026-04-17T18:02:00Z",
     last_activity_at: "2026-04-17T18:01:00Z",
     created_by: { kind: "human", ref: storyPeople.primaryOperator },
+    wake_creator: true,
     owner: { kind: "agent_session", ref: storyAgentNames.product },
     priority: "high",
     child_count: 3,
     dependency_count: 2,
     active_run: buildTaskRunFixture(),
     ...overrides,
-  } as TaskListItem;
+  };
 }
 
 export const recoverableTaskFixture: TaskListItem = buildTaskFixture({
@@ -165,7 +165,6 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: "2026-04-17T17:42:00Z",
       session_id: storySessionIds.frontend,
       claimed_by: { kind: "agent_session", ref: storyAgentNames.frontend },
-      claim_token_hash: "sha256:hero-qa-run",
       coordination_channel_id: "coord-launch-002",
     }),
     child_count: 0,
@@ -222,6 +221,8 @@ export const TASK_FIXTURES: TaskListItem[] = [
     priority: "urgent",
     approval_policy: "manual",
     approval_state: "pending",
+    parent_task_id: "task_001",
+    network_channel: STORYBOOK_CHANNEL,
     active_run: null,
     owner: { kind: "human", ref: storyPeople.productLead },
   }),
@@ -318,7 +319,6 @@ export const TASK_FIXTURES: TaskListItem[] = [
       started_at: null,
       session_id: undefined,
       claimed_by: undefined,
-      claim_token_hash: "sha256:partner-backlog-run",
       coordination_channel_id: "coord-launch-014",
     }),
     child_count: 0,
@@ -363,6 +363,8 @@ export const TASK_FIXTURES: TaskListItem[] = [
     identifier: "TASK-18",
     title: "Finalize launch-room owner matrix and escalation routing",
     status: "ready",
+    scope: "global",
+    workspace_id: undefined,
     priority: "low",
     active_run: null,
     child_count: 0,
@@ -380,9 +382,7 @@ export function buildTaskRecordFixture(
   return {
     ...task,
     workspace_id:
-      task.scope === "workspace"
-        ? ((task as { workspace_id?: string }).workspace_id ?? STORYBOOK_WORKSPACE_ID)
-        : undefined,
+      task.scope === "workspace" ? (task.workspace_id ?? STORYBOOK_WORKSPACE_ID) : undefined,
     description:
       "Coordinate the launch-week decision, capture the blocker context, and leave a crisp operator-ready outcome.",
     approval_policy: task.approval_policy,
@@ -749,16 +749,20 @@ export function buildInboxItemFixture(
   overrides: TaskInboxItemFixtureOverrides = {}
 ): TaskInboxItem {
   const { task, ...itemOverrides } = overrides;
-  const defaultTask = buildTaskRecordFixture(
-    buildTaskFixture({
-      id: "task_inbox_001",
-      identifier: "TASK-8",
-      title: "Inbox item",
-      status: "ready",
-      priority: "medium",
-      active_run: null,
-    })
-  );
+  const inboxTask: TaskInboxItem["task"] = {
+    id: task?.id ?? "task_inbox_001",
+    identifier: task?.identifier ?? "TASK-8",
+    latest_event_seq: task?.latest_event_seq ?? 1,
+    owner:
+      task?.owner === undefined
+        ? { kind: "agent_session", ref: storyAgentNames.product }
+        : task.owner,
+    priority: task?.priority ?? "medium",
+    scope: task?.scope ?? "workspace",
+    status: task?.status ?? "ready",
+    title: task?.title ?? "Inbox item",
+    workspace_id: task?.workspace_id ?? STORYBOOK_WORKSPACE_ID,
+  };
   return {
     lane: "my_work",
     latest_activity_at: "2026-04-17T18:00:00Z",
@@ -767,12 +771,12 @@ export function buildInboxItemFixture(
       archived: false,
       dismissed: false,
       read: false,
-      task_id: "task_inbox_001",
+      task_id: inboxTask.id,
       updated_at: "2026-04-17T18:00:00Z",
     },
     ...itemOverrides,
-    task: task === undefined ? defaultTask : buildTaskRecordFixture(undefined, task),
-  } as TaskInboxItem;
+    task: inboxTask,
+  };
 }
 
 function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
@@ -786,7 +790,8 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
           lane: "approvals",
           approval_policy: "manual",
           approval_state: "pending",
-          task: buildTaskRecordFixture(TASK_FIXTURES[5]!),
+          latest_activity_at: "2026-04-17T18:00:00Z",
+          task: TASK_FIXTURES[5]!,
           triage: {
             actor: { kind: "human", ref: storyPeople.primaryOperator },
             archived: false,
@@ -816,7 +821,8 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
             claimed_by: { kind: "agent_session", ref: storyAgentNames.platform },
             error: "partner-bank replay detail was stale and blocked the public timeout copy",
           }),
-          task: buildTaskRecordFixture(TASK_FIXTURES[3]!),
+          latest_activity_at: "2026-04-17T17:14:00Z",
+          task: TASK_FIXTURES[3]!,
           triage: {
             actor: { kind: "agent_session", ref: storyAgentNames.platform },
             archived: false,
@@ -835,7 +841,8 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
       items: [
         buildInboxItemFixture({
           lane: "my_work",
-          task: buildTaskRecordFixture(TASK_FIXTURES[0]!),
+          latest_activity_at: "2026-04-17T18:01:00Z",
+          task: TASK_FIXTURES[0]!,
           triage: {
             actor: { kind: "agent_session", ref: storyAgentNames.product },
             archived: false,
@@ -847,7 +854,8 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
         }),
         buildInboxItemFixture({
           lane: "my_work",
-          task: buildTaskRecordFixture(TASK_FIXTURES[1]!),
+          latest_activity_at: "2026-04-17T17:59:00Z",
+          task: TASK_FIXTURES[1]!,
           triage: {
             actor: { kind: "agent_session", ref: storyAgentNames.frontend },
             archived: false,
@@ -866,7 +874,8 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
       items: [
         buildInboxItemFixture({
           lane: "archived",
-          task: buildTaskRecordFixture(TASK_FIXTURES[12]!),
+          latest_activity_at: "2026-04-17T17:25:00Z",
+          task: TASK_FIXTURES[12]!,
           triage: {
             actor: { kind: "human", ref: storyPeople.primaryOperator },
             archived: true,
@@ -884,11 +893,12 @@ function buildPopulatedInboxGroups(): NonNullable<TaskInboxView["groups"]> {
 export function buildInboxFixture(overrides: Partial<TaskInboxView> = {}): TaskInboxView {
   return {
     archived_total: 0,
-    total: 0,
-    unread_total: 0,
+    facets: { priorities: [], statuses: [] },
     groups: [],
+    page: { has_more: false, limit: 50, total: 0 },
+    unread_total: 0,
     ...overrides,
-  } as TaskInboxView;
+  };
 }
 
 export function buildTaskTimelineItemFixture(
@@ -1103,9 +1113,22 @@ export function buildTaskRunDetailFixture(
 export const taskDashboardFixture = buildDashboardFixture();
 export const taskInboxFixture = buildInboxFixture({
   archived_total: 1,
-  total: 5,
-  unread_total: 4,
+  facets: {
+    priorities: [
+      { count: 1, priority: "high" },
+      { count: 1, priority: "medium" },
+      { count: 3, priority: "urgent" },
+    ],
+    statuses: [
+      { count: 1, status: "blocked" },
+      { count: 1, status: "completed" },
+      { count: 1, status: "failed" },
+      { count: 2, status: "in_progress" },
+    ],
+  },
   groups: buildPopulatedInboxGroups(),
+  page: { has_more: false, limit: 50, total: 5 },
+  unread_total: 4,
 });
 export const taskDetailFixture = buildDetailFixture();
 export const taskInspectFixture = buildTaskInspectFixture();
@@ -1161,6 +1184,8 @@ export const savedIntentTaskFixture: TaskListItem = buildTaskFixture({
   origin: { kind: "web", ref: storyPeople.primaryOperator },
 });
 
+export const TASK_CATALOG_FIXTURES: TaskListItem[] = [...TASK_FIXTURES, savedIntentTaskFixture];
+
 /**
  * Agent-created approval-pending fixture: agent drafted the work and the
  * operator must approve before any run is enqueued.
@@ -1200,24 +1225,7 @@ export const queuedCoordinatedTaskFixture: TaskListItem = buildTaskFixture({
     queued_at: "2026-04-17T09:55:00Z",
     started_at: null,
     session_id: undefined,
-    claim_token_hash: "sha256:queued-coordinated",
     coordination_channel_id: "coord-task-queued",
-    coordination_channel: {
-      id: "coord-task-queued",
-      display_name: "TASK-QUEUED coordination",
-      workspace_id: STORYBOOK_WORKSPACE_ID,
-      task_id: "task_queued_coordinated",
-      run_id: "run_queued_coordinated",
-      allowed_message_kinds: [
-        "status",
-        "request",
-        "reply",
-        "blocker",
-        "handoff",
-        "result",
-        "review_request",
-      ],
-    },
   }),
   child_count: 0,
   dependency_count: 0,

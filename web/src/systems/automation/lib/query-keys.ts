@@ -1,9 +1,13 @@
 import type {
-  AutomationJobListFilter,
+  AutomationJobStableFilter,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
-  AutomationTriggerListFilter,
+  AutomationTriggerStableFilter,
 } from "../types";
+import {
+  normalizeAutomationJobFilter,
+  normalizeAutomationTriggerFilter,
+} from "./automation-list-query";
 
 function normalizeText(value?: string): string {
   return value ?? "";
@@ -13,20 +17,28 @@ function normalizeNumber(value?: number): string {
   return value == null ? "" : String(value);
 }
 
+function normalizeBoolean(value?: boolean): string {
+  return value === undefined ? "" : String(value);
+}
+
 export const automationKeys = {
   all: ["automation"] as const,
 
   jobs: () => [...automationKeys.all, "jobs"] as const,
   jobLists: () => [...automationKeys.jobs(), "list"] as const,
-  jobList: (filters: AutomationJobListFilter = {}) =>
-    [
+  jobList: (filters: AutomationJobStableFilter = {}) => {
+    const normalized = normalizeAutomationJobFilter(filters);
+    return [
       ...automationKeys.jobLists(),
-      filters.scope ?? "",
-      normalizeText(filters.workspace_id),
-      filters.source ?? "",
-      normalizeNumber(filters.limit),
-      normalizeText(filters.loop),
-    ] as const,
+      normalized.scope ?? "",
+      normalizeText(normalized.workspace_id),
+      normalized.source ?? "",
+      normalizeBoolean(normalized.enabled),
+      normalizeText(normalized.q),
+      normalizeNumber(normalized.limit),
+      normalizeText(normalized.loop),
+    ] as const;
+  },
   jobDetails: () => [...automationKeys.jobs(), "detail"] as const,
   jobDetail: (id: string) => [...automationKeys.jobDetails(), id] as const,
   jobRunsRoot: () => [...automationKeys.jobs(), "runs"] as const,
@@ -42,16 +54,20 @@ export const automationKeys = {
 
   triggers: () => [...automationKeys.all, "triggers"] as const,
   triggerLists: () => [...automationKeys.triggers(), "list"] as const,
-  triggerList: (filters: AutomationTriggerListFilter = {}) =>
-    [
+  triggerList: (filters: AutomationTriggerStableFilter = {}) => {
+    const normalized = normalizeAutomationTriggerFilter(filters);
+    return [
       ...automationKeys.triggerLists(),
-      filters.scope ?? "",
-      normalizeText(filters.workspace_id),
-      filters.source ?? "",
-      normalizeText(filters.event),
-      normalizeNumber(filters.limit),
-      normalizeText(filters.loop),
-    ] as const,
+      normalized.scope ?? "",
+      normalizeText(normalized.workspace_id),
+      normalized.source ?? "",
+      normalizeBoolean(normalized.enabled),
+      normalizeText(normalized.event),
+      normalizeText(normalized.q),
+      normalizeNumber(normalized.limit),
+      normalizeText(normalized.loop),
+    ] as const;
+  },
   triggerDetails: () => [...automationKeys.triggers(), "detail"] as const,
   triggerDetail: (id: string) => [...automationKeys.triggerDetails(), id] as const,
   triggerRunsRoot: () => [...automationKeys.triggers(), "runs"] as const,

@@ -152,6 +152,7 @@ export function NetworkInspector({
             entries={workEntries}
             isLoading={isWorkLoading}
             onJump={onWorkJump}
+            totalCount={workCount}
           />
         ) : (
           <InspectorActivityFeed

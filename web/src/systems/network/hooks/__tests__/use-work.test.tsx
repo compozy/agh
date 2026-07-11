@@ -124,6 +124,39 @@ describe("useOpenWork", () => {
     expect(result.current.hasNeedsInput).toBe(false);
   });
 
+  it("Should keep the exact summary count when loaded lifecycle messages are only a subset", () => {
+    useNetworkMessagesMock.mockReturnValue({
+      messages: [
+        buildMessage({
+          message_id: "loaded-work",
+          work_id: "work-loaded",
+          body: { state: "working" },
+        }),
+      ],
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    });
+
+    const { result } = renderHook(
+      () =>
+        useOpenWork({
+          workspaceId: "ws-route",
+          channel: "ops",
+          surface: "thread",
+          containerId: "thread-1",
+          exactOpenCount: 7,
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    expect(result.current.openCount).toBe(7);
+    expect(result.current.entries).toHaveLength(1);
+    expect(useNetworkMessagesMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ workspaceId: "ws-route" })
+    );
+  });
+
   it("Should return empty when disabled", () => {
     useNetworkMessagesMock.mockReturnValue({
       messages: [],

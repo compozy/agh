@@ -30,7 +30,15 @@ vi.mock("@/systems/automation", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/automation")>();
   return {
     ...actual,
-    useAutomationJobs: () => ({ data: [], error: null, isLoading: false }),
+    useAutomationJobs: () => ({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      jobs: [],
+      total: 0,
+    }),
     useAutomationJob: () => ({ data: null, error: null, isLoading: false }),
     useAutomationJobRuns: () => ({ data: [], error: null, isLoading: false }),
     useCreateAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),

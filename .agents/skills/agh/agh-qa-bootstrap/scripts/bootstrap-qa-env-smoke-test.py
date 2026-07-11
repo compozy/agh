@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Smoke tests for bootstrap-qa-env helpers that are not covered by repo gates."""
+"""Smoke tests for bootstrap-qa-env helpers that are not covered by repo gates.
+
+Suite: QA bootstrap helper integration.
+Invariant: bootstrap resolves and executes its bundled helpers from the current repository layout.
+Boundary IN: bootstrap helper path resolution and real workspace initialization script.
+Boundary OUT: daemon startup and behavioral QA, owned by downstream QA execution.
+"""
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import types
@@ -61,6 +68,59 @@ def main() -> None:
     if playbook.get("playbook_ref") != "devtool-oss-launch":
         raise AssertionError(f"loaded playbook_ref = {playbook.get('playbook_ref')!r}")
 
+    with tempfile.TemporaryDirectory() as raw_dir:
+        workspace_info = module.run_init_workspace(repo_root, "path-resolution-smoke", raw_dir)
+        workspace_path = Path(workspace_info["WORKSPACE_PATH"])
+        if workspace_path.parent != Path(raw_dir):
+            raise AssertionError(
+                f"run_init_workspace() created {workspace_path}, want a lab directly under {raw_dir}"
+            )
+        if not (workspace_path / "qa-artifacts" / "qa" / "screenshots").is_dir():
+            raise AssertionError("run_init_workspace() did not execute the bundled workspace initializer")
+
+    playbook = module.load_playbook_via_helper(repo_root, "northstar-pay")
+    if playbook.get("playbook_ref") != "northstar-pay":
+        raise AssertionError("load_playbook_via_helper() returned the wrong playbook")
+
+    with tempfile.TemporaryDirectory() as raw_dir:
+        workspace_path = Path(raw_dir)
+        summary = module.seed_playbook_workspace(repo_root, workspace_path, "northstar-pay")
+        if not Path(summary["playbook_snapshot"]).is_file():
+            raise AssertionError("seed_playbook_workspace() did not materialize the playbook")
+
+        qa_root = workspace_path / "qa-artifacts" / "qa"
+        qa_root.mkdir(parents=True)
+        evidence_paths = module.seed_qa_evidence_contracts(
+            repo_root, qa_root, "path-resolution-smoke", playbook
+        )
+        if not evidence_paths["AUDIT_COMMAND"].is_file():
+            raise AssertionError("seed_qa_evidence_contracts() emitted a missing audit command")
+
+    with tempfile.TemporaryDirectory() as raw_dir:
+        browser_bin = Path(raw_dir) / "browser-use"
+        browser_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        browser_bin.chmod(0o755)
+        previous_path = os.environ.get("PATH")
+        try:
+            os.environ["PATH"] = raw_dir
+            mode, blocker = module.detect_browser_mode(Path(raw_dir) / "empty-codex-home")
+            if (mode, blocker) != ("browser-use", ""):
+                raise AssertionError(
+                    f"detect_browser_mode(browser-use CLI) = {(mode, blocker)!r}, "
+                    "want ('browser-use', '')"
+                )
+
+            browser_bin.unlink()
+            mode, blocker = module.detect_browser_mode(Path(raw_dir) / "empty-codex-home")
+            if mode != "blocked" or "Neither browser-use" not in blocker:
+                raise AssertionError(
+                    f"detect_browser_mode(no browser) = {(mode, blocker)!r}, want blocked"
+                )
+        finally:
+            if previous_path is None:
+                os.environ.pop("PATH", None)
+            else:
+                os.environ["PATH"] = previous_path
 
 if __name__ == "__main__":
     main()

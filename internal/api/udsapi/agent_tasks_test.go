@@ -27,7 +27,7 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 
 	var seenCriteria taskpkg.ClaimCriteria
 	var seenActor taskpkg.ActorContext
-	handlers := newAgentTaskHandlers(t, stubTaskManager{
+	handlers := newAgentTaskHandlers(t, &stubTaskManager{
 		ClaimNextRunFn: func(
 			_ context.Context,
 			criteria taskpkg.ClaimCriteria,
@@ -123,7 +123,7 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 func TestAgentTaskClaimNextNoWorkReturnsNoContent(t *testing.T) {
 	t.Parallel()
 
-	handlers := newAgentTaskHandlers(t, stubTaskManager{
+	handlers := newAgentTaskHandlers(t, &stubTaskManager{
 		ClaimNextRunFn: func(
 			context.Context,
 			taskpkg.ClaimCriteria,
@@ -163,7 +163,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 		name    string
 		path    string
 		body    string
-		manager stubTaskManager
+		manager *stubTaskManager
 		status  taskpkg.RunStatus
 	}{
 		{
@@ -171,7 +171,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			path:   "/api/agent/tasks/run-1/heartbeat",
 			body:   `{"lease_seconds":60}`,
 			status: taskpkg.TaskRunStatusClaimed,
-			manager: stubTaskManager{
+			manager: &stubTaskManager{
 				LookupActiveRunForSessionFn: lookupFn,
 				HeartbeatRunLeaseFn: func(
 					_ context.Context,
@@ -195,7 +195,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			path:   "/api/agent/tasks/run-1/complete",
 			body:   `{"result":{"ok":true}}`,
 			status: taskpkg.TaskRunStatusCompleted,
-			manager: stubTaskManager{
+			manager: &stubTaskManager{
 				LookupActiveRunForSessionFn: lookupFn,
 				CompleteRunLeaseFn: func(
 					_ context.Context,
@@ -218,7 +218,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			path:   "/api/agent/tasks/run-1/fail",
 			body:   `{"error":"boom","metadata":{"code":"E_TASK"}}`,
 			status: taskpkg.TaskRunStatusFailed,
-			manager: stubTaskManager{
+			manager: &stubTaskManager{
 				LookupActiveRunForSessionFn: lookupFn,
 				FailRunLeaseFn: func(
 					_ context.Context,
@@ -242,7 +242,7 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			path:   "/api/agent/tasks/run-1/release",
 			body:   `{"reason":"handoff"}`,
 			status: taskpkg.TaskRunStatusQueued,
-			manager: stubTaskManager{
+			manager: &stubTaskManager{
 				LookupActiveRunForSessionFn: lookupFn,
 				ReleaseRunLeaseFn: func(
 					_ context.Context,
@@ -304,7 +304,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 
 		recorder := performAgentKernelRequest(
 			t,
-			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{})),
+			newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{})),
 			http.MethodPost,
 			"/api/agent/tasks/claim-next",
 			[]byte(`{}`),
@@ -318,7 +318,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 	t.Run("Should permission denied redacts token in error", func(t *testing.T) {
 		t.Parallel()
 
-		handlers := newAgentTaskHandlers(t, stubTaskManager{
+		handlers := newAgentTaskHandlers(t, &stubTaskManager{
 			ClaimNextRunFn: func(
 				context.Context,
 				taskpkg.ClaimCriteria,
@@ -349,7 +349,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 
 		recorder := performAgentKernelRequest(
 			t,
-			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{})),
+			newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{})),
 			http.MethodPost,
 			"/api/agent/tasks/run-1/heartbeat",
 			[]byte(`{"lease_seconds":`),
@@ -365,7 +365,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 
 		recorder := performAgentKernelRequest(
 			t,
-			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{
+			newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{
 				LookupActiveRunForSessionFn: func(
 					context.Context,
 					string,
@@ -392,7 +392,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 
 		recorder := performAgentKernelRequest(
 			t,
-			newTestRouter(t, newAgentTaskHandlers(t, stubTaskManager{
+			newTestRouter(t, newAgentTaskHandlers(t, &stubTaskManager{
 				CompleteRunLeaseFn: func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error) {
 					t.Fatal("CompleteRunLease should not be called for raw claim_token result")
 					return nil, errors.New("unexpected")
@@ -414,7 +414,7 @@ func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 	})
 }
 
-func newAgentTaskHandlers(t *testing.T, tasks stubTaskManager) *Handlers {
+func newAgentTaskHandlers(t *testing.T, tasks *stubTaskManager) *Handlers {
 	t.Helper()
 	return newTestHandlersWithRuntime(
 		t,

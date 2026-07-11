@@ -1,6 +1,8 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type TaskListItem = OperationResponse<"listTasks", 200>["tasks"][number];
+export type TaskListPage = OperationResponse<"listTasks", 200>;
+export type TaskListFacets = TaskListPage["facets"];
 export type TaskDetailView = OperationResponse<"getTask", 200>["task"];
 export type TaskSummary = TaskDetailView["summary"];
 export type TaskRecord = TaskDetailView["task"];
@@ -16,6 +18,7 @@ export type TaskTreeView = OperationResponse<"getTaskTree", 200>["tree"];
 export type TaskTreeNode = TaskTreeView["root"];
 export type TaskDashboardView = OperationResponse<"getTaskDashboard", 200>["dashboard"];
 export type TaskInboxView = OperationResponse<"getTaskInbox", 200>["inbox"];
+export type TaskInboxPage = TaskInboxView;
 export type TaskInboxGroup = NonNullable<TaskInboxView["groups"]>[number];
 export type TaskInboxItem = NonNullable<TaskInboxGroup["items"]>[number];
 export type TaskTriageState = OperationResponse<"markTaskRead", 200>["triage"];
@@ -32,8 +35,10 @@ export type AgentChannelMessage = OperationResponse<
 >["messages"][number];
 
 export type TaskListFilter = OperationQuery<"listTasks">;
+export type TaskListStableFilter = Omit<TaskListFilter, "cursor">;
 export type TaskDashboardFilter = OperationQuery<"getTaskDashboard">;
 export type TaskInboxFilter = OperationQuery<"getTaskInbox">;
+export type TaskInboxStableFilter = Omit<TaskInboxFilter, "cursor">;
 export type TaskRunsFilter = OperationQuery<"listTaskRuns">;
 export type TaskTimelineFilter = OperationQuery<"getTaskTimeline">;
 export type TaskStreamFilter = OperationQuery<"streamTask">;

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	modelpkg "github.com/compozy/agh/internal/automation/model"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -139,21 +140,11 @@ func scheduledJobStatesFromDurable(states []SchedulerState) []ScheduledJobState 
 }
 
 func sortJobs(jobs []Job) {
-	sort.Slice(jobs, func(i, j int) bool {
-		if jobs[i].Name == jobs[j].Name {
-			return jobs[i].ID < jobs[j].ID
-		}
-		return jobs[i].Name < jobs[j].Name
-	})
+	modelpkg.SortJobsForList(jobs)
 }
 
 func sortTriggers(triggers []Trigger) {
-	sort.Slice(triggers, func(i, j int) bool {
-		if triggers[i].Name == triggers[j].Name {
-			return triggers[i].ID < triggers[j].ID
-		}
-		return triggers[i].Name < triggers[j].Name
-	})
+	modelpkg.SortTriggersForList(triggers)
 }
 
 func cloneJob(job Job) Job {

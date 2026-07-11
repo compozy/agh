@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
-import { useActiveWorkspace } from "@/systems/workspace";
 import {
   Button,
   Command,
@@ -24,6 +23,7 @@ import type { NetworkPeerSummary } from "../../types";
 import { getPeerDisplayName } from "../../lib/network-formatters";
 
 export interface NewDirectDialogProps {
+  workspaceId?: string;
   open: boolean;
   onOpenChange: (next: boolean) => void;
   channel: string;
@@ -34,6 +34,7 @@ export interface NewDirectDialogProps {
 }
 
 interface PickerProps {
+  workspaceId: string;
   channel: string;
   selfPeerId?: string;
   onSelect: (peer: NetworkPeerSummary) => void;
@@ -41,11 +42,16 @@ interface PickerProps {
   disabled: boolean;
 }
 
-function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disabled }: PickerProps) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+function PeerPickerList({
+  workspaceId,
+  channel,
+  selfPeerId,
+  onSelect,
+  selectedPeerId,
+  disabled,
+}: PickerProps) {
   const { data, isLoading } = useQuery(
-    networkPeersOptions(workspaceId, channel, activeWorkspaceId != null)
+    networkPeersOptions(workspaceId, channel, Boolean(workspaceId))
   );
   const candidates = useMemo(() => {
     const peers = data ?? [];
@@ -91,6 +97,7 @@ function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disable
 }
 
 export function NewDirectDialog({
+  workspaceId = "",
   open,
   onOpenChange,
   channel,
@@ -98,8 +105,7 @@ export function NewDirectDialog({
   sessionId,
 }: NewDirectDialogProps) {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const { resolveRoom, isResolving, error } = useResolveNetworkDirectRoom();
+  const { resolveRoom, isResolving, error } = useResolveNetworkDirectRoom({ workspaceId });
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -120,10 +126,10 @@ export function NewDirectDialog({
         },
       });
       handleOpenChange(false);
-      if (activeWorkspaceId) {
+      if (workspaceId) {
         void navigate({
           to: "/network/$workspaceId/$channel/directs/$directId",
-          params: { workspaceId: activeWorkspaceId, channel, directId: direct.direct_id },
+          params: { workspaceId, channel, directId: direct.direct_id },
         });
       }
     } catch {
@@ -142,6 +148,7 @@ export function NewDirectDialog({
         </DialogHeader>
 
         <PeerPickerList
+          workspaceId={workspaceId}
           channel={channel}
           disabled={isResolving}
           onSelect={handleSelect}

@@ -334,6 +334,9 @@ type AutomationJobsParams struct {
 	Scope       automationpkg.Scope `json:"scope,omitempty"`
 	WorkspaceID string              `json:"workspace_id,omitempty"`
 	Enabled     *bool               `json:"enabled,omitempty"`
+	Query       string              `json:"q,omitempty"`
+	Cursor      string              `json:"cursor,omitempty"`
+	Limit       int                 `json:"limit,omitempty"`
 }
 
 // AutomationTriggersParams filters visible automation triggers.
@@ -342,6 +345,21 @@ type AutomationTriggersParams struct {
 	WorkspaceID string              `json:"workspace_id,omitempty"`
 	Event       string              `json:"event,omitempty"`
 	Enabled     *bool               `json:"enabled,omitempty"`
+	Query       string              `json:"q,omitempty"`
+	Cursor      string              `json:"cursor,omitempty"`
+	Limit       int                 `json:"limit,omitempty"`
+}
+
+// AutomationJobsResult is one bounded page of extension-visible automation jobs.
+type AutomationJobsResult struct {
+	Jobs []automationpkg.Job                  `json:"jobs"`
+	Page apicontract.CountedCursorPagePayload `json:"page"`
+}
+
+// AutomationTriggersResult is one bounded page of redacted extension-visible automation triggers.
+type AutomationTriggersResult struct {
+	Triggers []apicontract.TriggerPayload         `json:"triggers"`
+	Page     apicontract.CountedCursorPagePayload `json:"page"`
 }
 
 // AutomationRunsParams filters visible automation runs.
@@ -493,81 +511,6 @@ type TaskRunCancelParams struct {
 	ID string `json:"id"`
 	apicontract.CancelTaskRunRequest
 }
-
-// NetworkChannelsParams filters visible channels by workspace.
-type NetworkChannelsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-}
-
-// NetworkPeersParams filters visible peers by workspace and channel.
-type NetworkPeersParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel,omitempty"`
-}
-
-// NetworkThreadsParams filters public-thread summaries by workspace and channel.
-type NetworkThreadsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Limit       int    `json:"limit,omitempty"`
-	After       string `json:"after,omitempty"`
-}
-
-// NetworkThreadTargetParams identifies one public thread.
-type NetworkThreadTargetParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	ThreadID    string `json:"thread_id"`
-}
-
-// NetworkThreadMessagesParams filters messages inside one public thread.
-type NetworkThreadMessagesParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	ThreadID    string `json:"thread_id"`
-	Before      string `json:"before,omitempty"`
-	After       string `json:"after,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-// NetworkDirectsParams filters direct-room summaries by channel.
-type NetworkDirectsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	PeerID      string `json:"peer_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-	After       string `json:"after,omitempty"`
-}
-
-// NetworkDirectResolveParams creates or returns a deterministic direct room.
-type NetworkDirectResolveParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	apicontract.NetworkDirectResolveRequest
-}
-
-// NetworkDirectMessagesParams filters messages inside one direct room.
-type NetworkDirectMessagesParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	DirectID    string `json:"direct_id"`
-	Before      string `json:"before,omitempty"`
-	After       string `json:"after,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-// NetworkWorkGetParams identifies one network work row.
-type NetworkWorkGetParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	WorkID      string `json:"work_id"`
-}
-
-// NetworkSendParams is the shared daemon network send request payload.
-type NetworkSendParams = apicontract.NetworkSendRequest
 
 // ResourcesListParams filters same-source resource visibility for one extension actor.
 type ResourcesListParams struct {
@@ -922,7 +865,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodAutomationJobs,
 		Params:         NamedType{Name: "AutomationJobsParams", Value: AutomationJobsParams{}},
-		Result:         NamedType{Name: hostAPIJobValue, Value: []automationpkg.Job{}},
+		Result:         NamedType{Name: "AutomationJobsResult", Value: AutomationJobsResult{}},
 		OptionalParams: true,
 	},
 	{
@@ -958,7 +901,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodAutomationTriggers,
 		Params:         NamedType{Name: "AutomationTriggersParams", Value: AutomationTriggersParams{}},
-		Result:         NamedType{Name: hostAPITriggerValue, Value: []apicontract.TriggerPayload{}},
+		Result:         NamedType{Name: "AutomationTriggersResult", Value: AutomationTriggersResult{}},
 		OptionalParams: true,
 	},
 	{
@@ -1000,7 +943,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodTasks,
 		Params:         NamedType{Name: "TasksParams", Value: TasksParams{}},
-		Result:         NamedType{Name: "TaskSummary", Value: []apicontract.TaskSummaryPayload{}},
+		Result:         NamedType{Name: "TasksResponse", Value: apicontract.TasksResponse{}},
 		OptionalParams: true,
 	},
 	{
@@ -1109,7 +1052,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodNetworkThreads,
 		Params: NamedType{Name: "NetworkThreadsParams", Value: NetworkThreadsParams{}},
-		Result: NamedType{Name: "NetworkThreadSummaryPayload", Value: []apicontract.NetworkThreadSummaryPayload{}},
+		Result: NamedType{Name: "NetworkThreadsResponse", Value: apicontract.NetworkThreadsResponse{}},
 	},
 	{
 		Method: HostAPIMethodNetworkThreadGet,
@@ -1120,14 +1063,14 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodNetworkThreadMessages,
 		Params: NamedType{Name: "NetworkThreadMessagesParams", Value: NetworkThreadMessagesParams{}},
 		Result: NamedType{
-			Name:  "NetworkConversationMessagePayload",
-			Value: []apicontract.NetworkConversationMessagePayload{},
+			Name:  "NetworkThreadMessagesResponse",
+			Value: apicontract.NetworkThreadMessagesResponse{},
 		},
 	},
 	{
 		Method: HostAPIMethodNetworkDirects,
 		Params: NamedType{Name: "NetworkDirectsParams", Value: NetworkDirectsParams{}},
-		Result: NamedType{Name: "NetworkDirectRoomPayload", Value: []apicontract.NetworkDirectRoomPayload{}},
+		Result: NamedType{Name: "NetworkDirectRoomsResponse", Value: apicontract.NetworkDirectRoomsResponse{}},
 	},
 	{
 		Method: HostAPIMethodNetworkDirectResolve,
@@ -1138,8 +1081,8 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		Method: HostAPIMethodNetworkDirectMessages,
 		Params: NamedType{Name: "NetworkDirectMessagesParams", Value: NetworkDirectMessagesParams{}},
 		Result: NamedType{
-			Name:  "NetworkConversationMessagePayload",
-			Value: []apicontract.NetworkConversationMessagePayload{},
+			Name:  "NetworkDirectRoomMessagesResponse",
+			Value: apicontract.NetworkDirectRoomMessagesResponse{},
 		},
 	},
 	{

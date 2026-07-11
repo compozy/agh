@@ -188,22 +188,12 @@ var rawMessageType = reflect.TypeFor[json.RawMessage]()
 type Transport string
 
 const (
-	TransportHTTP Transport = "http"
-	TransportUDS  Transport = "uds"
+	TransportHTTP                   Transport = "http"
+	TransportUDS                    Transport = "uds"
+	workspaceRootMissingDescription           = "Workspace root is missing"
 )
 
 type binaryResponse struct{}
-
-func describeTaskBlockedReasonsProperty(schema *openapi3.Schema) {
-	if schema == nil || schema.Properties == nil {
-		return
-	}
-	property := schema.Properties["blocked_reasons"]
-	if property == nil || property.Value == nil {
-		return
-	}
-	property.Value.Description = "Read projection of current blocking causes; mutation responses may omit it."
-}
 
 // ParameterSpec describes one OpenAPI parameter.
 type ParameterSpec struct {
@@ -723,6 +713,9 @@ var operationRegistry = []OperationSpec{
 			enumQueryParam("scope", "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
+			boolQueryParam("enabled", "Filter by enabled state"),
+			queryParam("q", "Search jobs by name, agent, prompt, scope, source, or schedule", false),
+			queryParam("cursor", "Continue after this automation job cursor", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
@@ -854,7 +847,10 @@ var operationRegistry = []OperationSpec{
 			enumQueryParam("scope", "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
+			boolQueryParam("enabled", "Filter by enabled state"),
 			queryParam("event", "Filter by trigger event", false),
+			queryParam("q", "Search triggers by definition or filter fields", false),
+			queryParam("cursor", "Continue after this automation trigger cursor", false),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
@@ -1048,14 +1044,12 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List persisted bridge instances",
 		Tags:        []string{specBridgesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by bridge scope", []string{specAllKey, specGlobalKey, specWorkspaceKey}),
-			queryParam("workspace_id", "Filter by active workspace id", false),
-			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
-		},
+		Parameters:  bridgeCatalogQueryParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.BridgesResponse{}},
 			{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 410, Description: "Workspace root is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -1097,6 +1091,7 @@ var operationRegistry = []OperationSpec{
 		Tags:        []string{specBridgesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			queryParam("bridge_ids", "Comma-separated bridge ids from the current catalog page; maximum 200", true),
 			enumQueryParam("scope", "Filter by bridge scope", []string{specAllKey, specGlobalKey, specWorkspaceKey}),
 			queryParam("workspace_id", "Filter by active workspace id", false),
 			queryParam(specWorkspaceKey, "Filter by workspace id, name, or path", false),
@@ -1109,6 +1104,8 @@ var operationRegistry = []OperationSpec{
 				ContentType: specContentTypeEventStream,
 			},
 			{Status: 400, Description: "Invalid bridge list filter", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 410, Description: "Workspace root is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specBridgeServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -1491,6 +1488,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
+			intQueryParam("recent_limit", "Maximum cross-channel recent conversations to include"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkChannelsResponse{}},
@@ -1623,12 +1621,10 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List public threads in one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			queryParam("after", "Return threads after the specified thread id", false),
-			intQueryParam("limit", "Maximum number of public threads to return"),
-		},
+		}, networkConversationListQueryParams("threads", true)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadsResponse{}},
 			{Status: 400, Description: "Invalid public-thread request", Body: contract.ErrorPayload{}},
@@ -1688,16 +1684,11 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List messages in one public thread",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("thread_id", "Public thread id"),
-			queryParam("before", "Return messages before the specified message id", false),
-			queryParam("after", "Return messages after the specified message id", false),
-			queryParam("kind", "Filter messages by network kind", false),
-			queryParam("work_id", "Filter messages by work id", false),
-			intQueryParam("limit", "Maximum number of messages to return"),
-		},
+		}, networkConversationMessageQueryParams()...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadMessagesResponse{}},
 			{Status: 400, Description: "Invalid public-thread messages request", Body: contract.ErrorPayload{}},
@@ -1713,13 +1704,10 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List direct rooms in one network channel",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
-			queryParam("peer_id", "Filter direct rooms by peer id", false),
-			queryParam("after", "Return direct rooms after the specified direct id", false),
-			intQueryParam("limit", "Maximum number of direct rooms to return"),
-		},
+		}, networkConversationListQueryParams("direct rooms", true)...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomsResponse{}},
 			{Status: 400, Description: "Invalid direct-room request", Body: contract.ErrorPayload{}},
@@ -1775,16 +1763,11 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List messages in one direct room",
 		Tags:        []string{specNetworkKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: append([]ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("channel", "Network channel"),
 			pathParam("direct_id", "Direct-room id"),
-			queryParam("before", "Return messages before the specified message id", false),
-			queryParam("after", "Return messages after the specified message id", false),
-			queryParam("kind", "Filter messages by network kind", false),
-			queryParam("work_id", "Filter messages by work id", false),
-			intQueryParam("limit", "Maximum number of messages to return"),
-		},
+		}, networkConversationMessageQueryParams()...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkDirectRoomMessagesResponse{}},
 			{Status: 400, Description: "Invalid direct-room messages request", Body: contract.ErrorPayload{}},
@@ -2566,10 +2549,7 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List Memory v2 curated entries",
 		Tags:        []string{specMemoryKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(
-			memorySelectorQueryParams(),
-			intQueryParam("limit", "Maximum number of memories to return"),
-		),
+		Parameters:  memoryListQueryParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.MemoryListResponse{}},
 			memoryError(400, "Invalid memory filter"),
@@ -2781,11 +2761,7 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List Memory v2 controller decisions",
 		Tags:        []string{specMemoryKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: append(memorySelectorQueryParams(),
-			queryParam("op", "Controller decision op", false),
-			dateTimeQueryParam("since", "Only decisions since this timestamp"),
-			intQueryParam("limit", "Maximum number of decisions to return"),
-		),
+		Parameters:  append(memorySelectorQueryParams(), memoryDecisionQueryParams()...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.MemoryDecisionListResponse{}},
 			memoryError(400, "Invalid memory decision filter"),
@@ -3180,7 +3156,7 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Stream runtime logs",
 		Tags:        []string{specLogsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  logFilterQueryParams(),
+		Parameters:  logStreamQueryParams(),
 		Responses: []ResponseSpec{
 			{
 				Status:      200,
@@ -3259,26 +3235,7 @@ var operationRegistry = []OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/sessions",
-		OperationID: "listSessions",
-		Summary:     "List sessions",
-		Tags:        []string{specSessionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam(specWorkspaceKey, "Workspace id or path", false),
-			boolQueryParam("include_health", "Include metadata-only session health when available"),
-			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
-			queryParam("sort", "Optional sort key. Use last_activity with resumable=true.", false),
-			intQueryParam("limit", "Maximum sessions to return when filtering resumable sessions"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SessionsResponse{}},
-			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
+	sessionCatalogListOperation(),
 	{
 		Method:      httpMethodPost,
 		Path:        "/api/sessions",
@@ -3573,64 +3530,6 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
-		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
-		OperationID: "getSessionTranscript",
-		Summary:     "Get the canonical transcript for one session",
-		Tags:        []string{specSessionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("workspace_id", "Workspace id"),
-			pathParam("session_id", "Session id"),
-			intQueryParam(
-				"limit",
-				"Maximum number of transcript entries to return; defaults to the newest 200 and is capped at 1000",
-			),
-			afterSequenceQueryParam("Only return transcript entries after this event sequence"),
-			beforeSequenceQueryParam("Return transcript entries before this event sequence for backward pagination"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SessionTranscriptResponse{}},
-			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/stream",
-		OperationID: "streamSession",
-		Summary:     "Stream session events or assembled transcript updates",
-		Tags:        []string{specSessionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("workspace_id", "Workspace id"),
-			pathParam("session_id", "Session id"),
-			optionalHeaderParam("Last-Event-ID", "Resume after the last received SSE id"),
-			afterSequenceQueryParam("Initial replay cursor when Last-Event-ID is not supplied"),
-			enumQueryParam(
-				"frames",
-				"Frame mode. The default is transcript; raw preserves persisted event frames for CLI consumers.",
-				[]string{contract.SessionStreamFrameRaw, contract.SessionStreamFrameTranscript},
-			),
-			enumQueryParam(
-				"replay",
-				"Replay policy. snapshot seeds transcript subscribers with the current assembled tail.",
-				[]string{contract.SessionStreamReplaySnapshot},
-			),
-		},
-		Responses: []ResponseSpec{
-			{
-				Status:      200,
-				Description: "Session event stream",
-				Body:        contract.SessionStreamPayload{},
-				ContentType: specContentTypeEventStream,
-			},
-			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
 		Method:      httpMethodPost,
 		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
 		OperationID: "approveSession",
@@ -3653,11 +3552,11 @@ var operationRegistry = []OperationSpec{
 		Method:      httpMethodGet,
 		Path:        specAPITasksPath,
 		OperationID: "listTasks",
-		Summary:     "List enriched tasks",
+		Summary:     "List a bounded task catalog page",
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			enumQueryParam("scope", "Filter by catalog visibility", taskCatalogScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
@@ -3668,12 +3567,15 @@ var operationRegistry = []OperationSpec{
 			queryParam("parent_task_id", "Filter by parent task ID", false),
 			queryParam("network_channel", "Filter by network channel", false),
 			queryParam("query", "Filter by task title or identifier", false),
-			intQueryParam("limit", "Maximum number of records to return"),
+			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),
+			queryParam("cursor", "Opaque query-bound continuation cursor", false),
+			intQueryParam("limit", "Page size from 1 to 200 (default 50)"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid task filter", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid task filter or cursor", Body: contract.ErrorPayload{}},
+			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -4491,7 +4393,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			intQueryParam("limit", "Maximum number of queued runs to return"),
-			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
+			enumQueryParam("scope", "Filter by catalog visibility", taskCatalogScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
 		},
@@ -4894,14 +4796,18 @@ var operationRegistry = []OperationSpec{
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			enumQueryParam("lane", "Filter by inbox lane", taskInboxLaneValues()),
-			boolQueryParam("unread", "Return only unread inbox items"),
+			enumQueryParam("status", "Filter by canonical task status", taskStatusValues()),
+			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
+			boolQueryParam("unread", "Filter by unread state; false selects read items"),
 			queryParam("query", "Filter by task title or identifier", false),
-			intQueryParam("limit", "Maximum number of inbox items to return"),
+			queryParam("cursor", "Opaque actor- and query-bound continuation cursor", false),
+			intQueryParam("limit", "Page size from 1 to 200 (default 50)"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskInboxResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid task inbox query", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid task inbox query or cursor", Body: contract.ErrorPayload{}},
+			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Observe service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -5870,6 +5776,7 @@ func notificationPresetServiceUnavailableResponse() ResponseSpec {
 
 func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
+	ops = append(ops, sessionTranscriptOperations()...)
 	ops = append(ops, notificationPresetOperations()...)
 	ops = append(ops, authoredContextOperations()...)
 	ops = append(ops, loopsOperations()...)
@@ -6437,26 +6344,6 @@ func intQueryParam(name string, description string) ParameterSpec {
 	}
 }
 
-func logFilterQueryParams() []ParameterSpec {
-	return []ParameterSpec{
-		queryParam("workspace_id", "Workspace id", false),
-		queryParam("session_id", "Session id", false),
-		queryParam("agent_name", "Agent name", false),
-		queryParam("type", "Event type", false),
-		queryParam("run", "Task run id", false),
-		queryParam("actor", "Actor as kind:id", false),
-		queryParam("actor_kind", "Actor kind", false),
-		queryParam("actor_id", "Actor id", false),
-		queryParam("provider", "Provider id projected at event write time", false),
-		queryParam("outcome", "Event registry outcome", false),
-		queryParam("component", "Event registry component", false),
-		boolQueryParam("error_only", "Return warning and failure outcomes only"),
-		intQueryParam("after_seq", "Return rows after this event summary sequence"),
-		dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
-		intQueryParam("limit", "Maximum number of records to return"),
-	}
-}
-
 func memorySelectorQueryParams() []ParameterSpec {
 	return []ParameterSpec{
 		enumQueryParam("scope", "Memory scope", memoryScopeValues()),
@@ -6506,13 +6393,6 @@ func automationScopeValues() []string {
 	return []string{
 		string(automationpkg.AutomationScopeGlobal),
 		string(automationpkg.AutomationScopeWorkspace),
-	}
-}
-
-func automationSourceValues() []string {
-	return []string{
-		string(automationpkg.JobSourceConfig),
-		string(automationpkg.JobSourceDynamic),
 	}
 }
 
@@ -6608,6 +6488,21 @@ func taskScopeValues() []string {
 	return []string{
 		string(taskpkg.ScopeGlobal),
 		string(taskpkg.ScopeWorkspace),
+	}
+}
+
+func taskCatalogScopeValues() []string {
+	return []string{
+		string(taskpkg.CatalogScopeAll),
+		string(taskpkg.CatalogScopeGlobal),
+		string(taskpkg.CatalogScopeWorkspace),
+	}
+}
+
+func taskCatalogSortValues() []string {
+	return []string{
+		string(taskpkg.CatalogSortRecent),
+		string(taskpkg.CatalogSortPriority),
 	}
 }
 

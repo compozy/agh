@@ -23,6 +23,7 @@ let mockBridgesData: BridgesListResponse | undefined;
 let mockBridgesLoading = false;
 let mockBridgesError: Error | null = null;
 const mockRefetchBridges = vi.fn();
+const mockFetchNextBridges = vi.fn();
 
 let mockProvidersData: BridgeProvider[] | undefined;
 let mockProvidersLoading = false;
@@ -153,10 +154,17 @@ vi.mock("@/systems/bridges", async () => {
   return {
     ...actual,
     useBridges: () => ({
-      data: mockBridgesData,
+      data: mockBridgesData ? { pageParams: [undefined], pages: [mockBridgesData] } : undefined,
+      bridgeHealth: mockBridgesData?.bridge_health ?? {},
+      bridges: mockBridgesData?.bridges ?? [],
       error: mockBridgesError,
+      facets: mockBridgesData?.facets,
+      fetchNextPage: mockFetchNextBridges,
+      hasNextPage: mockBridgesData?.page.has_more ?? false,
+      isFetchingNextPage: false,
       isLoading: mockBridgesLoading,
       refetch: mockRefetchBridges,
+      total: mockBridgesData?.page.total ?? 0,
     }),
     useBridgeProviders: () => ({
       data: mockProvidersData,
@@ -240,14 +248,34 @@ function makeProvider(overrides: Partial<BridgeProvider> = {}): BridgeProvider {
   };
 }
 
+function makeBridgesResponse(
+  bridges: BridgesListResponse["bridges"],
+  bridgeHealth: BridgesListResponse["bridge_health"],
+  total = bridges.length
+): BridgesListResponse {
+  return {
+    bridge_health: bridgeHealth,
+    bridges,
+    facets: {
+      platforms: Object.fromEntries(bridges.map(bridge => [bridge.platform, 1])),
+      statuses: {
+        auth_required: 0,
+        degraded: 0,
+        disabled: 0,
+        error: 0,
+        ready: bridges.length,
+        starting: 0,
+      },
+    },
+    page: { has_more: false, limit: 50, total },
+  };
+}
+
 describe("BridgesPage", () => {
   beforeEach(() => {
-    mockBridgesData = {
-      bridge_health: {
-        brg_support: makeHealth(),
-      },
-      bridges: [makeBridge()],
-    };
+    mockBridgesData = makeBridgesResponse([makeBridge()], {
+      brg_support: makeHealth(),
+    });
     mockBridgesLoading = false;
     mockBridgesError = null;
     mockProvidersData = [makeProvider()];
@@ -258,6 +286,7 @@ describe("BridgesPage", () => {
     mockActiveWorkspaceName = "test-workspace";
     mockCreateBridgeMutateAsync.mockReset();
     mockRefetchBridges.mockReset();
+    mockFetchNextBridges.mockReset();
     mockRefetchProviders.mockReset();
     toast.success.mockReset();
     toast.error.mockReset();
@@ -300,10 +329,7 @@ describe("BridgesPage", () => {
   });
 
   it("renders the empty state with provider cards when no bridge exists yet", () => {
-    mockBridgesData = {
-      bridge_health: {},
-      bridges: [],
-    };
+    mockBridgesData = makeBridgesResponse([], {});
 
     render(<BridgesPage />);
 
@@ -320,14 +346,9 @@ describe("BridgesPage", () => {
     expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "brg_support" }));
   });
 
-  it("keeps the All scope bound to global and active-workspace bridges", () => {
-    mockBridgesData = {
-      bridge_health: {
-        brg_global: makeHealth({ bridge_instance_id: "brg_global" }),
-        brg_other: makeHealth({ bridge_instance_id: "brg_other" }),
-        brg_support: makeHealth(),
-      },
-      bridges: [
+  it("renders the server page unchanged and uses its exact total", () => {
+    mockBridgesData = makeBridgesResponse(
+      [
         makeBridge({
           display_name: "Global Telegram",
           id: "brg_global",
@@ -335,20 +356,19 @@ describe("BridgesPage", () => {
           workspace_id: undefined,
         }),
         makeBridge(),
-        makeBridge({
-          display_name: "Other Workspace Telegram",
-          id: "brg_other",
-          workspace_id: "ws_other",
-        }),
       ],
-    };
+      {
+        brg_global: makeHealth({ bridge_instance_id: "brg_global" }),
+        brg_support: makeHealth(),
+      },
+      12
+    );
 
     render(<BridgesPage />);
 
     expect(screen.getByTestId("bridge-item-brg_global")).toBeInTheDocument();
     expect(screen.getByTestId("bridge-item-brg_support")).toBeInTheDocument();
-    expect(screen.queryByTestId("bridge-item-brg_other")).not.toBeInTheDocument();
-    expect(screen.getByTestId("bridges-page-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("bridges-page-count")).toHaveTextContent("12");
   });
 
   it("persists view=cards in URL search", async () => {
@@ -371,10 +391,7 @@ describe("BridgesPage", () => {
 
   it("creates a bridge and navigates to the detail route", async () => {
     const user = userEvent.setup();
-    mockBridgesData = {
-      bridge_health: {},
-      bridges: [],
-    };
+    mockBridgesData = makeBridgesResponse([], {});
 
     render(<BridgesPage />);
 
@@ -425,10 +442,7 @@ describe("BridgesPage", () => {
 
   it("blocks workspace-scoped bridge creation when the active workspace disappears", async () => {
     const user = userEvent.setup();
-    mockBridgesData = {
-      bridge_health: {},
-      bridges: [],
-    };
+    mockBridgesData = makeBridgesResponse([], {});
 
     const { rerender } = render(<BridgesPage />);
 

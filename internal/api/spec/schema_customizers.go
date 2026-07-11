@@ -22,6 +22,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.BridgeDeliveryDefaultsPayload](): func(schema *openapi3.Schema) {
 		*schema = *bridgeDeliveryDefaultsSchema()
 	},
+	reflect.TypeFor[contract.NetworkSendRequest](): customizeNetworkSendRequestSchema,
 	reflect.TypeFor[contract.TaskPayload]():        describeTaskBlockedReasonsProperty,
 	reflect.TypeFor[contract.TaskSummaryPayload](): describeTaskBlockedReasonsProperty,
 }

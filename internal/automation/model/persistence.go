@@ -38,6 +38,9 @@ type JobListQuery struct {
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	Source      JobSource `json:"source,omitempty"`
 	LoopName    string    `json:"loop_name,omitempty"`
+	Enabled     *bool     `json:"enabled,omitempty"`
+	Search      string    `json:"q,omitempty"`
+	Cursor      string    `json:"cursor,omitempty"`
 	Limit       int       `json:"limit,omitempty"`
 }
 
@@ -48,6 +51,9 @@ type TriggerListQuery struct {
 	Event       string    `json:"event,omitempty"`
 	Source      JobSource `json:"source,omitempty"`
 	LoopName    string    `json:"loop_name,omitempty"`
+	Enabled     *bool     `json:"enabled,omitempty"`
+	Search      string    `json:"q,omitempty"`
+	Cursor      string    `json:"cursor,omitempty"`
 	Limit       int       `json:"limit,omitempty"`
 }
 

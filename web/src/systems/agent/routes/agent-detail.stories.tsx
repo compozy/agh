@@ -55,37 +55,12 @@ const fallbackFraudSession: SessionPayload = {
 };
 
 const failureBaseSession = fraudSessions[0] ?? fallbackFraudSession;
-const memoryExtractionSession: SessionPayload = {
-  ...failureBaseSession,
-  id: "sess_fraud_memory_extraction",
-  name: "Memory extractor",
-  type: "spawned",
-  state: "stopped",
-  badge: "stopped",
-  attachable: false,
-  lineage: {
-    parent_session_id: storySessionIds.fraud,
-    root_session_id: storySessionIds.fraud,
-    spawn_depth: 1,
-    spawn_role: "memory-extractor",
-    ttl_expires_at: "2026-04-17T20:00:00Z",
-    auto_stop_on_parent: true,
-    spawn_budget: {
-      max_children: 4,
-      max_depth: 1,
-      ttl_seconds: 7200,
-    },
-    permission_policy: {
-      tools: [],
-      skills: [],
-      mcp_servers: [],
-      workspace_paths: [],
-      network_channels: [],
-      sandbox_profiles: [],
-    },
-  },
-  updated_at: "2026-04-17T18:44:00Z",
-};
+function sessionPage(sessions: SessionPayload[]) {
+  return {
+    sessions,
+    page: { has_more: false, limit: 50, total: sessions.length },
+  };
+}
 
 const fraudAgentRoute = `/agents/${storyAgentNames.fraud}`;
 const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
@@ -108,31 +83,6 @@ export const Default: Story = {
 };
 
 /**
- * Mixed agent-detail data where internal memory extraction sessions are omitted from the public table.
- */
-export const WithMemoryExtractionSessions: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters(fraudAgentRoute),
-    ...storybookMswParameters({
-      session: [
-        aghApiMock.get("/api/sessions", () =>
-          HttpResponse.json({ sessions: [memoryExtractionSession, ...fraudSessions] })
-        ),
-      ],
-    }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-sessions-table")).resolves.toBeDefined();
-    expect(canvas.queryByTestId("agent-session-view-toggle")).toBeNull();
-    expect(canvas.queryByTestId("agent-session-row-sess_fraud_memory_extraction")).toBeNull();
-  },
-};
-
-/**
  * Agent that has no sessions yet , empty state inside the sessions panel + IDLE status pill.
  */
 export const NoSessions: Story = {
@@ -140,7 +90,7 @@ export const NoSessions: Story = {
   parameters: {
     ...appRouteParameters(complianceAgentRoute),
     ...storybookMswParameters({
-      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json({ sessions: [] }))],
+      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -162,7 +112,7 @@ export const SessionsLoading: Story = {
       session: [
         aghApiMock.get("/api/sessions", async () => {
           await delay("infinite");
-          return HttpResponse.json({ sessions: [] });
+          return HttpResponse.json(sessionPage([]));
         }),
       ],
     }),
@@ -232,8 +182,8 @@ export const WithFailedSession: Story = {
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/sessions", () =>
-          HttpResponse.json({
-            sessions: [
+          HttpResponse.json(
+            sessionPage([
               ...fraudSessions,
               {
                 ...failureBaseSession,
@@ -247,8 +197,8 @@ export const WithFailedSession: Story = {
                 },
                 updated_at: "2026-04-17T18:42:00Z",
               },
-            ],
-          })
+            ])
+          )
         ),
       ],
     }),

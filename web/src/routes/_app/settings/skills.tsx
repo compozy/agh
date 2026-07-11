@@ -12,6 +12,7 @@ import { SettingsFieldRow } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { WorkspacePayload } from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSettingsSkillsRoute } from "../-settings-preload";
 import {
   Button,
   Empty,
@@ -39,11 +40,11 @@ export const Route = createFileRoute("/_app/settings/skills")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Skills settings", icon: Wrench },
   }),
+  loader: ({ context }) => preloadSettingsSkillsRoute(context.queryClient),
   component: SkillsSettingsPage,
 });
 
 type SkillsConfig = SettingsSkillsSection["config"];
-
 function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
   const envelopeForSlot = page.envelope;
@@ -175,7 +176,6 @@ function SkillsSettingsPage() {
 }
 
 type SkillsScopeValue = "global" | "agent";
-
 interface ScopeSelectorProps {
   selection: SkillsScopeSelection;
   availableScopes: readonly SettingsScope[];

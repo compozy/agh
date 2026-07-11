@@ -152,6 +152,13 @@ export function getKanbanColumns(): TaskKanbanColumn[] {
   return KANBAN_COLUMNS;
 }
 
+export function taskStatusFacetTotal(
+  statuses: readonly TaskStatus[],
+  counts: Record<TaskStatus, number>
+): number {
+  return statuses.reduce((total, status) => total + counts[status], 0);
+}
+
 export function groupTasksForKanban(tasks: TaskListItem[]): KanbanColumnGroup[] {
   const buckets = new Map<TaskKanbanColumnId, TaskListItem[]>();
   for (const column of KANBAN_COLUMNS) {

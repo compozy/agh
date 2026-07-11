@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const mockInvalidate = vi.fn();
@@ -15,34 +15,30 @@ vi.mock("@agh/ui", async () => {
   };
 });
 
-vi.mock("@tanstack/react-router", () => ({
-  createRootRoute: (opts: {
-    component: () => React.ReactNode;
-    errorComponent?: (props: { error: Error; reset: () => void }) => React.ReactNode;
-    notFoundComponent?: (props: { isNotFound: true; routeId: string }) => React.ReactNode;
-  }) => ({
-    component: opts.component,
-    errorComponent: opts.errorComponent,
-    notFoundComponent: opts.notFoundComponent,
-  }),
-  Outlet: () => <div data-testid="outlet" />,
-  Link: ({
-    children,
-    to,
-    ...props
-  }: {
-    children: React.ReactNode;
-    to: string;
-  } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
-  ),
-  useRouter: () => ({
-    invalidate: mockInvalidate,
-  }),
-  useMatchRoute: () => (opts: { to: string }) => opts.to === "/",
-}));
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+
+  return {
+    ...actual,
+    Outlet: () => <div data-testid="outlet" />,
+    Link: ({
+      children,
+      to,
+      ...props
+    }: {
+      children: React.ReactNode;
+      to: string;
+    } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+      <a href={to} {...props}>
+        {children}
+      </a>
+    ),
+    useRouter: () => ({
+      invalidate: mockInvalidate,
+    }),
+    useMatchRoute: () => (opts: { to: string }) => opts.to === "/",
+  };
+});
 
 import { routeComponent, routeErrorComponent, routeNotFoundComponent } from "@/test/route-options";
 
@@ -57,7 +53,7 @@ const RootNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => Re
 describe("RootComponent", () => {
   it("renders the Outlet inside the shell", () => {
     render(<RootComponent />);
-    expect(screen.getByTestId("outlet")).toBeInTheDocument();
+    expect(within(screen.getByTestId("app-shell")).getByTestId("outlet")).toBeInTheDocument();
   });
 
   it("renders a skip-to-content link that targets the app-content main", () => {

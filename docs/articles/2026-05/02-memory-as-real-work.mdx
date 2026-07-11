@@ -78,10 +78,11 @@ private preferences either for one project or across the whole AGH install.
 The merge order is the load-bearing part. When the same memory file name
 appears in more than one scope, agent wins over workspace, workspace wins over
 global, and the loser is shadowed — still on disk, still inspectable, but
-hidden from the active session unless the operator asks for it with
-`--include-shadowed`. That precedence is what lets an agent override a
-workspace convention for one project without rewriting the global note, and
-lets a workspace override a personal default without editing global truth.
+hidden from the active session. An operator can inspect each copy through an
+explicit scope-specific list or show call. That precedence is what lets an
+agent override a workspace convention for one project without rewriting the
+global note, and lets a workspace override a personal default without editing
+global truth.
 
 The default _write_ scope is not picked at random either. The runtime resolves
 it from the memory type:

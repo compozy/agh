@@ -204,13 +204,17 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		http.NoBody,
 	)
 
-	query, err := handlers.parseTaskListQuery(context.Background(), ctx)
+	transportQuery, err := ParseTaskListQuery(ctx)
 	if err != nil {
-		t.Fatalf("parseTaskListQuery() error = %v", err)
+		t.Fatalf("ParseTaskListQuery() error = %v", err)
+	}
+	query, err := handlers.taskListDomainQuery(context.Background(), transportQuery)
+	if err != nil {
+		t.Fatalf("taskListDomainQuery() error = %v", err)
 	}
 	if query.WorkspaceID != "ws-alpha" || query.Status != taskpkg.TaskStatusReady ||
 		query.OwnerKind != taskpkg.OwnerKindPool {
-		t.Fatalf("parseTaskListQuery() = %#v", query)
+		t.Fatalf("taskListDomainQuery() = %#v", query)
 	}
 
 	runRecorder := httptest.NewRecorder()
@@ -295,11 +299,29 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		"/tasks?limit=bad",
 		http.NoBody,
 	)
-	if _, err := handlers.parseTaskListQuery(context.Background(), invalidCtx); err == nil {
-		t.Fatal("parseTaskListQuery(invalid limit) error = nil, want non-nil")
+	if _, err := ParseTaskListQuery(invalidCtx); err == nil {
+		t.Fatal("ParseTaskListQuery(invalid limit) error = nil, want non-nil")
 	} else {
 		assertTaskValidationError(t, err, `invalid integer "bad"`)
 	}
+
+	t.Run("Should reject a bounded query before workspace lookup", func(t *testing.T) {
+		t.Parallel()
+
+		boundedRecorder := httptest.NewRecorder()
+		boundedCtx, _ := gin.CreateTestContext(boundedRecorder)
+		boundedCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks?scope=workspace&workspace=missing&limit=-1",
+			http.NoBody,
+		)
+		if _, err := ParseTaskListQuery(boundedCtx); err == nil {
+			t.Fatal("ParseTaskListQuery(invalid bounded query) error = nil, want non-nil")
+		} else {
+			assertTaskValidationError(t, err, "task_query.limit")
+		}
+	})
 
 	invalidRunRecorder := httptest.NewRecorder()
 	invalidRunCtx, _ := gin.CreateTestContext(invalidRunRecorder)

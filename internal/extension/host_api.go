@@ -188,14 +188,14 @@ type hostAPIObserver interface {
 
 // HostAPIAutomationManager is the automation surface exposed to the extension Host API.
 type HostAPIAutomationManager interface {
-	ListJobs(ctx context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	ListJobs(ctx context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	GetJob(ctx context.Context, id string) (automationpkg.Job, error)
 	CreateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	DeleteJob(ctx context.Context, id string) error
 	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
 	TriggerJobWithPayload(ctx context.Context, id string, payload map[string]any) (automationpkg.Run, error)
-	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
 	CreateTrigger(
 		ctx context.Context,
@@ -218,7 +218,11 @@ type HostAPIAutomationManager interface {
 }
 
 type hostAPITaskManager interface {
-	ListTasks(ctx context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error)
+	ListTaskCatalog(
+		ctx context.Context,
+		query taskpkg.CatalogQuery,
+		actor taskpkg.ActorContext,
+	) (taskpkg.CatalogPage, error)
 	GetTask(ctx context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error)
 	Timeline(
 		ctx context.Context,
@@ -1397,43 +1401,6 @@ func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessa
 	return result, nil
 }
 
-func (h *HostAPIHandler) handleAutomationJobs(ctx context.Context, raw json.RawMessage) (any, error) {
-	automation, err := h.automationManager()
-	if err != nil {
-		return nil, err
-	}
-
-	var params hostAPIAutomationJobsParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-
-	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-
-	jobs, err := automation.ListJobs(ctx, automationpkg.JobListQuery{
-		Scope:       params.Scope,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if params.Enabled == nil {
-		return jobs, nil
-	}
-
-	filtered := make([]automationpkg.Job, 0, len(jobs))
-	for _, job := range jobs {
-		if job.Enabled == *params.Enabled {
-			filtered = append(filtered, job)
-		}
-	}
-	return filtered, nil
-}
-
 func (h *HostAPIHandler) handleAutomationJobsGet(ctx context.Context, raw json.RawMessage) (any, error) {
 	automation, err := h.automationManager()
 	if err != nil {
@@ -1580,44 +1547,6 @@ func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.
 		Status: params.Status,
 		Limit:  params.Limit,
 	})
-}
-
-func (h *HostAPIHandler) handleAutomationTriggers(ctx context.Context, raw json.RawMessage) (any, error) {
-	automation, err := h.automationManager()
-	if err != nil {
-		return nil, err
-	}
-
-	var params hostAPIAutomationTriggersParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-
-	workspaceID, err := h.resolveAutomationWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-
-	triggers, err := automation.ListTriggers(ctx, automationpkg.TriggerListQuery{
-		Scope:       params.Scope,
-		WorkspaceID: workspaceID,
-		Event:       strings.TrimSpace(params.Event),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if params.Enabled == nil {
-		return apicontract.TriggerPayloadsFromTriggers(triggers), nil
-	}
-
-	filtered := make([]automationpkg.Trigger, 0, len(triggers))
-	for _, trigger := range triggers {
-		if trigger.Enabled == *params.Enabled {
-			filtered = append(filtered, trigger)
-		}
-	}
-	return apicontract.TriggerPayloadsFromTriggers(filtered), nil
 }
 
 func (h *HostAPIHandler) handleAutomationTriggersGet(ctx context.Context, raw json.RawMessage) (any, error) {

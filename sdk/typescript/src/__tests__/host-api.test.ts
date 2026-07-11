@@ -314,7 +314,19 @@ describe("HostAPI", () => {
     });
     pair.host.handle("network/threads", async params => {
       expect(params).toEqual({ workspace_id: "ws-1", channel: "builders", limit: 10 });
-      return [{ channel: "builders", thread_id: "thread_alpha01", root_message_id: "msg-root" }];
+      return {
+        threads: [
+          {
+            channel: "builders",
+            thread_id: "thread_alpha01",
+            root_message_id: "msg-root",
+            message_count: 1,
+            participant_count: 1,
+            open_work_count: 0,
+          },
+        ],
+        page: { has_more: false, total: 1, limit: 10 },
+      };
     });
     pair.host.handle("network/thread/get", async params => {
       expect(params).toEqual({
@@ -331,19 +343,22 @@ describe("HostAPI", () => {
         thread_id: "thread_alpha01",
         limit: 5,
       });
-      return [
-        {
-          message_id: "msg-root",
-          channel: "builders",
-          surface: "thread",
-          thread_id: "thread_alpha01",
-          kind: "say",
-          direction: "sent",
-          peer_from: "agent.local",
-          body: { text: "hello" },
-          timestamp: "2026-04-10T12:00:00.000Z",
-        },
-      ];
+      return {
+        messages: [
+          {
+            message_id: "msg-root",
+            channel: "builders",
+            surface: "thread",
+            thread_id: "thread_alpha01",
+            kind: "say",
+            direction: "sent",
+            peer_from: "agent.local",
+            body: { text: "hello" },
+            timestamp: "2026-04-10T12:00:00.000Z",
+          },
+        ],
+        page: { has_more: false, limit: 5 },
+      };
     });
     pair.host.handle("network/directs", async params => {
       expect(params).toEqual({
@@ -351,14 +366,19 @@ describe("HostAPI", () => {
         channel: "builders",
         peer_id: "peer.remote",
       });
-      return [
-        {
-          channel: "builders",
-          direct_id: "direct_0123456789abcdef0123456789abcdef",
-          peer_a: "agent.local",
-          peer_b: "peer.remote",
-        },
-      ];
+      return {
+        directs: [
+          {
+            channel: "builders",
+            direct_id: "direct_0123456789abcdef0123456789abcdef",
+            peer_a: "agent.local",
+            peer_b: "peer.remote",
+            message_count: 0,
+            open_work_count: 0,
+          },
+        ],
+        page: { has_more: false, total: 1, limit: 50 },
+      };
     });
     pair.host.handle("network/direct/resolve", async params => {
       expect(params).toEqual({
@@ -381,7 +401,7 @@ describe("HostAPI", () => {
         direct_id: "direct_0123456789abcdef0123456789abcdef",
         limit: 5,
       });
-      return [];
+      return { messages: [], page: { has_more: false, limit: 5 } };
     });
     pair.host.handle("network/work/get", async params => {
       expect(params).toEqual({ workspace_id: "ws-1", work_id: "work-alpha" });
@@ -419,7 +439,10 @@ describe("HostAPI", () => {
     ).resolves.toHaveLength(1);
     await expect(
       host.network.threads({ workspace_id: "ws-1", channel: "builders", limit: 10 })
-    ).resolves.toHaveLength(1);
+    ).resolves.toEqual({
+      threads: [expect.objectContaining({ thread_id: "thread_alpha01" })],
+      page: { has_more: false, total: 1, limit: 10 },
+    });
     await expect(
       host.network.thread.get({
         workspace_id: "ws-1",
@@ -434,14 +457,20 @@ describe("HostAPI", () => {
         thread_id: "thread_alpha01",
         limit: 5,
       })
-    ).resolves.toHaveLength(1);
+    ).resolves.toEqual({
+      messages: [expect.objectContaining({ message_id: "msg-root" })],
+      page: { has_more: false, limit: 5 },
+    });
     await expect(
       host.network.directs({
         workspace_id: "ws-1",
         channel: "builders",
         peer_id: "peer.remote",
       })
-    ).resolves.toHaveLength(1);
+    ).resolves.toEqual({
+      directs: [expect.objectContaining({ direct_id: "direct_0123456789abcdef0123456789abcdef" })],
+      page: { has_more: false, total: 1, limit: 50 },
+    });
     await expect(
       host.network.direct.resolve({
         workspace_id: "ws-1",
@@ -457,7 +486,7 @@ describe("HostAPI", () => {
         direct_id: "direct_0123456789abcdef0123456789abcdef",
         limit: 5,
       })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ messages: [], page: { has_more: false, limit: 5 } });
     await expect(
       host.network.work.get({ workspace_id: "ws-1", work_id: "work-alpha" })
     ).resolves.toMatchObject({

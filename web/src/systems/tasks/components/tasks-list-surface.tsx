@@ -1,9 +1,9 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, ListingPage, ListingToolbar, Skeleton } from "@agh/ui";
+import { Button, Empty, ListingPage, ListingToolbar, Skeleton, Spinner } from "@agh/ui";
 
-import { groupTasksForList } from "../lib/task-grouping";
+import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
 import { formatRelativeTime } from "../lib/task-formatters";
 import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListItem, TaskListSortKey, TaskPriority, TaskStatus } from "../types";
@@ -22,27 +22,33 @@ const TASK_LIST_SKELETON_IDS = [
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
-  totalCount: number;
+  totalCount?: number;
+  statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
   workspaceName?: string | null;
   listUpdatedAt?: number;
   statusFilter: TaskStatus | null;
-  ownerFilter: string | null;
+  ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
   ownerOptions: TaskFilterOwnerOption[];
   sortBy: TaskListSortKey;
   searchQuery: string;
   onStatusChange: (next: TaskStatus | null) => void;
-  onOwnerChange: (next: string | null) => void;
+  onOwnerChange: (next: TaskFilterOwnerOption | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
   onSortChange: (next: TaskListSortKey) => void;
   onSearchQueryChange: (next: string) => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  onRetryLoad?: () => void;
 }
 
 export function TasksListSurface({
   tasks,
   totalCount,
+  statusCounts,
   isLoading = false,
   errorMessage = null,
   workspaceName,
@@ -58,16 +64,32 @@ export function TasksListSurface({
   onPriorityChange,
   onSortChange,
   onSearchQueryChange,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  onRetryLoad,
 }: TasksListSurfaceProps) {
   const buckets = useMemo(
-    () => groupTasksForList(tasks).filter(bucket => bucket.tasks.length > 0),
-    [tasks]
+    () =>
+      groupTasksForList(tasks).filter(
+        bucket =>
+          bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
+      ),
+    [statusCounts, tasks]
   );
 
   const visibleCount = tasks.length;
-  const hasFilters = Boolean(statusFilter) || Boolean(ownerFilter) || Boolean(priorityFilter);
+  const hasFilters =
+    Boolean(statusFilter) ||
+    Boolean(ownerFilter) ||
+    Boolean(priorityFilter) ||
+    searchQuery.trim() !== "";
   const countLabel =
-    visibleCount === totalCount ? `${totalCount}` : `${visibleCount} of ${totalCount}`;
+    totalCount === undefined
+      ? undefined
+      : visibleCount === totalCount
+        ? `${totalCount}`
+        : `${visibleCount} of ${totalCount}`;
   let syncedText: string | null = null;
   if (listUpdatedAt) {
     const syncedLabel = formatRelativeTime(new Date(listUpdatedAt).toISOString());
@@ -140,12 +162,19 @@ export function TasksListSurface({
             ))}
           </div>
         ) : errorMessage && visibleCount === 0 ? (
-          <Empty
-            data-testid="tasks-list-surface-error"
-            description={errorMessage}
-            icon={AlertCircle}
-            title="Unable to load tasks"
-          />
+          <div className="flex flex-col items-center gap-3">
+            <Empty
+              data-testid="tasks-list-surface-error"
+              description={errorMessage}
+              icon={AlertCircle}
+              title="Unable to load tasks"
+            />
+            {onRetryLoad ? (
+              <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
+                Retry loading tasks
+              </Button>
+            ) : null}
+          </div>
         ) : visibleCount === 0 ? (
           <Empty
             data-testid="tasks-list-surface-empty"
@@ -164,6 +193,7 @@ export function TasksListSurface({
               id={bucket.group.id}
               key={bucket.group.id}
               label={bucket.group.label}
+              totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
                 <TaskCard key={task.id} task={task} />
@@ -171,6 +201,37 @@ export function TasksListSurface({
             </TaskGroup>
           ))
         )}
+        {errorMessage && visibleCount > 0 ? (
+          <div
+            className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
+            data-testid="tasks-list-surface-pagination-error"
+            role="alert"
+          >
+            <span>{errorMessage}</span>
+            {onRetryLoad ? (
+              <Button onClick={onRetryLoad} size="sm" type="button" variant="ghost">
+                Retry loading tasks
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {hasMore && onLoadMore && !errorMessage ? (
+          <div className="flex items-center justify-center border-t border-line-soft pt-3">
+            <Button
+              aria-busy={isLoadingMore}
+              aria-label={isLoadingMore ? "Loading more tasks" : "Load more tasks"}
+              data-testid="tasks-list-load-more"
+              disabled={isLoadingMore}
+              onClick={onLoadMore}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {isLoadingMore ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {isLoadingMore ? "Loading more" : "Load more"}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </ListingPage>
   );

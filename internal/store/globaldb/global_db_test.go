@@ -121,6 +121,9 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"permission_log",
 		"extensions",
 		"config_apply_records",
+		"network_channel_stats",
+		"network_channel_participants",
+		"network_channel_kind_counts",
 		"scheduler_pause",
 	)
 	assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
@@ -163,6 +166,20 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"idx_config_apply_records_generation",
 		"idx_config_apply_records_actor",
 		"idx_config_apply_records_status",
+	)
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"network_channel_stats",
+		"idx_network_channel_stats_activity",
+	)
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"network_threads",
+		"idx_network_threads_created",
+		"idx_network_threads_title",
+		"idx_network_threads_open_work",
 	)
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
@@ -382,6 +399,137 @@ func TestGlobalDBWatchEventReplayProjectionMigration(t *testing.T) {
 		})
 		assertWatchEventReplayProjectionMigrationState(t, reopened.db)
 	})
+}
+
+func TestGlobalDBNetworkChannelProjectionMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should backfill channel projections and preserve them after reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v66) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if db != nil {
+				if closeErr := db.Close(); closeErr != nil {
+					t.Errorf("db.Close(cleanup) error = %v", closeErr)
+				}
+			}
+		})
+		preProjection := globalSchemaMigrations[:globalMigrationIndex(t, networkChannelProjectionsMigration.Version)]
+		if err := store.RunMigrations(ctx, db, preProjection); err != nil {
+			t.Fatalf("RunMigrations(v66) error = %v", err)
+		}
+		startedAt := time.Date(2026, 7, 10, 16, 0, 0, 0, time.UTC)
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO network_timeline_log (
+				message_id, workspace_id, channel, surface, thread_id, direct_id,
+				direction, peer_from, peer_to, kind, text, preview_text, mentions_json,
+				body_json, timestamp
+			) VALUES
+				('msg-projection-public', 'ws-projection-upgrade', 'builders', 'thread',
+				 'thread-projection', NULL, 'sent', 'peer.author', NULL, 'say', 'public',
+				 'public preview', '["peer.mentioned"]', '{}', ?),
+				('msg-projection-presence', 'ws-projection-upgrade', 'builders', NULL,
+				 NULL, NULL, 'received', 'peer.presence', NULL, 'greet', NULL, '', '[]', '{}', ?),
+				('msg-projection-direct', 'ws-projection-upgrade', 'builders', 'direct',
+				 NULL, 'direct_projection', 'sent', 'peer.author', 'peer.direct', 'say',
+				 'private', 'private', '[]', '{}', ?)`,
+			store.FormatTimestamp(startedAt),
+			store.FormatTimestamp(startedAt.Add(time.Minute)),
+			store.FormatTimestamp(startedAt.Add(2*time.Minute)),
+		); err != nil {
+			t.Fatalf("insert v66 network timeline error = %v", err)
+		}
+
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
+			t.Fatalf("RunMigrations(v67) error = %v", err)
+		}
+		assertNetworkChannelProjectionMigrationState(t, db, startedAt)
+		if err := db.Close(); err != nil {
+			t.Fatalf("db.Close(v67) error = %v", err)
+		}
+		db = nil
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen v67) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened v67) error = %v", closeErr)
+			}
+		})
+		assertNetworkChannelProjectionMigrationState(t, reopened.db, startedAt)
+	})
+}
+
+func assertNetworkChannelProjectionMigrationState(t *testing.T, db *sql.DB, startedAt time.Time) {
+	t.Helper()
+
+	var (
+		messageCount     int
+		presenceCount    int
+		participantCount int
+		lastActivityRaw  string
+		preview          string
+	)
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT message_count, presence_count, historical_participant_count,
+			last_activity_at, last_message_preview
+		 FROM network_channel_stats
+		 WHERE workspace_id = 'ws-projection-upgrade' AND channel = 'builders'`,
+	).Scan(&messageCount, &presenceCount, &participantCount, &lastActivityRaw, &preview); err != nil {
+		t.Fatalf("query network channel projection state error = %v", err)
+	}
+	if messageCount != 1 || presenceCount != 1 || participantCount != 4 {
+		t.Fatalf(
+			"projection counts = messages:%d presence:%d participants:%d, want 1/1/4",
+			messageCount,
+			presenceCount,
+			participantCount,
+		)
+	}
+	if got, want := lastActivityRaw, store.FormatTimestamp(startedAt); got != want {
+		t.Fatalf("last_activity_at = %q, want %q", got, want)
+	}
+	if got, want := preview, "public preview"; got != want {
+		t.Fatalf("last_message_preview = %q, want %q", got, want)
+	}
+	var kindCount int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT message_count FROM network_channel_kind_counts
+		 WHERE workspace_id = 'ws-projection-upgrade' AND channel = 'builders' AND kind = 'say'`,
+	).Scan(&kindCount); err != nil {
+		t.Fatalf("query network channel kind projection error = %v", err)
+	}
+	if got, want := kindCount, 1; got != want {
+		t.Fatalf("kind count = %d, want %d", got, want)
+	}
+	assertIndexesPresent(
+		t,
+		db,
+		"network_channel_stats",
+		"idx_network_channel_stats_activity",
+	)
+}
+
+func globalMigrationIndex(t *testing.T, version int) int {
+	t.Helper()
+	for index, migration := range globalSchemaMigrations {
+		if migration.Version == version {
+			return index
+		}
+	}
+	t.Fatalf("global migration version %d not found", version)
+	return -1
 }
 
 func assertWatchEventReplayProjectionMigrationState(t *testing.T, db *sql.DB) {
@@ -961,6 +1109,41 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			version:  66,
 			name:     "add_model_catalog_curation_presence",
 			checksum: "2026-07-10-add-model-catalog-curation-presence",
+		},
+		{
+			version:  67,
+			name:     "add_network_channel_projections",
+			checksum: "2026-07-10-add-network-channel-projections",
+		},
+		{
+			version:  68,
+			name:     "add_session_catalog_paging_indexes",
+			checksum: "2026-07-10-add-session-catalog-paging-indexes",
+		},
+		{
+			version:  69,
+			name:     "add_loop_catalog_run_index",
+			checksum: "2026-07-10-add-loop-catalog-run-index",
+		},
+		{
+			version:  70,
+			name:     "add_automation_catalog_projections",
+			checksum: "2026-07-10-add-automation-catalog-projections",
+		},
+		{
+			version:  71,
+			name:     "add_network_timeline_sequence",
+			checksum: "2026-07-11-add-network-timeline-sequence",
+		},
+		{
+			version:  72,
+			name:     "drop_redundant_sessions_workspace_state_index",
+			checksum: "2026-07-11-drop-redundant-sessions-workspace-state-index",
+		},
+		{
+			version:  73,
+			name:     "index_network_direct_rooms_by_opened_at",
+			checksum: "2026-07-11-index-network-direct-rooms-by-opened-at",
 		},
 	}
 }

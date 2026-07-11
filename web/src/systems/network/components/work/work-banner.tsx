@@ -23,10 +23,9 @@ export interface WorkBannerProps {
   openCount: number;
   hasNeedsInput: boolean;
   /**
-   * Optional breakdown of open-work counts by lifecycle state. When provided,
-   * the banner renders the explicit "needs input · working" segments instead of
-   * the legacy summary message. `useOpenWork` derives this client-side from the
-   * already-loaded message stream - see `_design.md` §5.8.2.
+   * Optional authoritative breakdown. Never pass counts derived from a bounded
+   * timeline page: omitting these fields keeps the exact `openCount` summary
+   * truthful when the backend does not expose per-state aggregates.
    */
   needsInputCount?: number;
   workingCount?: number;

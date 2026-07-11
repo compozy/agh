@@ -68,7 +68,7 @@ function PresenceBadge({ presence }: PresenceBadgeProps) {
 }
 
 export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: DirectRoomProps) {
-  const view = useDirectRoomView({ channel, directId, selfPeerId });
+  const view = useDirectRoomView({ workspaceId, channel, directId, selfPeerId });
   const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const otherPeerId = room.otherPeerId;
   const detailError = room.detailError;
@@ -132,12 +132,7 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
         />
       ) : (
         <>
-          <WorkBanner
-            hasNeedsInput={openWork.hasNeedsInput}
-            needsInputCount={openWork.needsInputCount}
-            openCount={openWork.openCount}
-            workingCount={openWork.workingCount}
-          />
+          <WorkBanner hasNeedsInput={false} openCount={openWork.openCount} />
 
           <MessageTimeline
             ariaLabel={`Direct messages with @${otherPeerId || "peer"}`}
@@ -145,6 +140,9 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
             emptyState={<DirectEmpty />}
             isLoading={room.isDetailLoading || room.isMessagesLoading}
             lastReadAt={room.lastReadIso}
+            hasOlder={room.hasOlder}
+            isLoadingOlder={room.isLoadingOlder}
+            onLoadOlder={room.loadOlder}
             messages={room.messages}
             onDiscardOptimistic={handleDiscard}
             onRetryOptimistic={handleRetry}
@@ -152,6 +150,7 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
           />
 
           <DetailComposer
+            workspaceId={workspaceId}
             channel={channel}
             directId={directId}
             disabledReason={disabledReason ?? undefined}

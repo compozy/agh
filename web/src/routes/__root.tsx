@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import {
   Link,
   Outlet,
-  createRootRoute,
+  createRootRouteWithContext,
   useRouter,
   type ErrorComponentProps,
   type NotFoundRouteProps,
@@ -12,7 +12,9 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, buttonVariants } from "@agh/ui";
 
-export const Route = createRootRoute({
+import type { RouterContext } from "@/integrations/tanstack-query/root-context";
+
+export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
   errorComponent: RootRouteErrorBoundary,
   notFoundComponent: RootRouteNotFoundBoundary,

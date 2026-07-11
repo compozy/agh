@@ -20,11 +20,18 @@ import {
 } from "../query-options";
 
 describe("tasks list options", () => {
-  it("uses the default stale and refetch cadence", () => {
+  it("uses infinite cursor pages without automatic catalog polling", () => {
     const options = tasksListOptions();
 
     expect(options.staleTime).toBe(15_000);
-    expect(options.refetchInterval).toBe(30_000);
+    expect(options.refetchInterval).toBeUndefined();
+    expect(options.initialPageParam).toBeUndefined();
+    const page = {
+      facets: { owners: [], statuses: [] },
+      page: { has_more: true, limit: 1, next_cursor: "tasks-next", total: 2 },
+      tasks: [],
+    };
+    expect(options.getNextPageParam?.(page, [page], undefined, [undefined])).toBe("tasks-next");
     expect(options.enabled).toBe(true);
   });
 
@@ -77,14 +84,25 @@ describe("tasks detail and run options", () => {
 });
 
 describe("tasks dashboard and inbox options", () => {
-  it("uses the default cadence for aggregate reads", () => {
+  it("keeps dashboard polling separate from infinite inbox pages", () => {
     const dashboardOptions = taskDashboardOptions({ scope: "workspace" });
     const inboxOptions = taskInboxOptions({ lane: "approvals" });
 
     expect(dashboardOptions.staleTime).toBe(15_000);
     expect(dashboardOptions.refetchInterval).toBe(30_000);
     expect(inboxOptions.staleTime).toBe(15_000);
-    expect(inboxOptions.refetchInterval).toBe(30_000);
+    expect(inboxOptions.refetchInterval).toBeUndefined();
+    expect(inboxOptions.initialPageParam).toBeUndefined();
+    const page = {
+      archived_total: 0,
+      facets: { priorities: [], statuses: [] },
+      groups: [],
+      page: { has_more: true, limit: 1, next_cursor: "inbox-next", total: 2 },
+      unread_total: 0,
+    };
+    expect(inboxOptions.getNextPageParam?.(page, [page], undefined, [undefined])).toBe(
+      "inbox-next"
+    );
     expect(dashboardOptions.queryKey).toContain("workspace");
     expect(inboxOptions.queryKey).toContain("approvals");
   });

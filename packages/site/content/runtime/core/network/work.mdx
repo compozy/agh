@@ -75,10 +75,10 @@ returns `ErrNetworkConversationNotFound`-shaped errors at the boundary.
 Work is permanently bound to one conversation container. The runtime rejects continuation envelopes
 whose conversation fields do not match the opening envelope:
 
-| Opening envelope                                   | Continuation envelope MUST carry                |
-| -------------------------------------------------- | ----------------------------------------------- |
-| `surface:"thread"` with `thread_id:"thread_X"`     | `surface:"thread"` with `thread_id:"thread_X"`. |
-| `surface:"direct"` with `direct_id:"direct_<...>"` | `surface:"direct"` with the same `direct_id`.   |
+| Opening envelope                                     | Continuation envelope MUST carry                      |
+| ---------------------------------------------------- | ----------------------------------------------------- |
+| `surface:"thread"` with `thread_id:"thread_example"` | `surface:"thread"` with `thread_id:"thread_example"`. |
+| `surface:"direct"` with `direct_id:"direct_<...>"`   | `surface:"direct"` with the same `direct_id`.         |
 
 When a public-thread work unit needs restricted follow-up in a direct room, open a new `work_id` in
 the direct room and link the messages with `reply_to`, `trace_id`, and `causation_id`. The

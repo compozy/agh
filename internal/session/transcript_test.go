@@ -5,20 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"reflect"
+	"sort"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
-	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/transcript"
 )
 
-func TestManagerTranscriptDelegatesToTranscriptAssembler(t *testing.T) {
+func TestManagerTranscriptPageDelegatesToProjection(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -54,13 +53,13 @@ func TestManagerTranscriptDelegatesToTranscriptAssembler(t *testing.T) {
 		}
 	}
 
-	entries, err := h.manager.Transcript(testutil.Context(t), session.ID, store.EventQuery{})
+	page, err := h.manager.TranscriptPage(testutil.Context(t), session.ID, transcript.PageQuery{})
 	if err != nil {
-		t.Fatalf("Transcript() error = %v", err)
+		t.Fatalf("TranscriptPage() error = %v", err)
 	}
-	messages := transcript.MessagesFromEntries(entries)
+	messages := transcript.MessagesFromEntries(page.Entries)
 	if len(messages) != 2 {
-		t.Fatalf("Transcript() len = %d, want 2", len(messages))
+		t.Fatalf("TranscriptPage() len = %d, want 2", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -70,7 +69,7 @@ func TestManagerTranscriptDelegatesToTranscriptAssembler(t *testing.T) {
 	}
 }
 
-func TestManagerTranscriptIncludesSyntheticOriginMessages(t *testing.T) {
+func TestManagerTranscriptPageIncludesSyntheticOriginMessages(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
@@ -114,13 +113,13 @@ func TestManagerTranscriptIncludesSyntheticOriginMessages(t *testing.T) {
 		}
 	}
 
-	entries, err := h.manager.Transcript(testutil.Context(t), session.ID, store.EventQuery{})
+	page, err := h.manager.TranscriptPage(testutil.Context(t), session.ID, transcript.PageQuery{})
 	if err != nil {
-		t.Fatalf("Transcript() error = %v", err)
+		t.Fatalf("TranscriptPage() error = %v", err)
 	}
-	messages := transcript.MessagesFromEntries(entries)
+	messages := transcript.MessagesFromEntries(page.Entries)
 	if len(messages) != 3 {
-		t.Fatalf("Transcript() len = %d, want 3", len(messages))
+		t.Fatalf("TranscriptPage() len = %d, want 3", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleUser {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleUser)
@@ -136,26 +135,26 @@ func TestManagerTranscriptIncludesSyntheticOriginMessages(t *testing.T) {
 	}
 }
 
-func TestManagerTranscriptReturnsStoredQueryErrors(t *testing.T) {
+func TestManagerTranscriptPageReturnsStoredQueryErrors(t *testing.T) {
 	t.Parallel()
 
 	queryErr := errors.New("query failed")
-	recorder := &queryRecorderStub{queryErr: queryErr}
+	recorder := &transcriptRecorderStub{pageErr: queryErr}
 	h := newHarness(t, WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
 		return recorder, nil
 	}))
 	writeStoppedSessionArtifacts(t, h, "stored-query-failure", true)
 
-	_, err := h.manager.Transcript(testutil.Context(t), "stored-query-failure", store.EventQuery{})
+	_, err := h.manager.TranscriptPage(testutil.Context(t), "stored-query-failure", transcript.PageQuery{})
 	if !errors.Is(err, queryErr) {
-		t.Fatalf("Transcript() error = %v, want wrapped %v", err, queryErr)
+		t.Fatalf("TranscriptPage() error = %v, want wrapped %v", err, queryErr)
 	}
 	if recorder.closeCalls != 1 {
 		t.Fatalf("recorder.closeCalls = %d, want 1", recorder.closeCalls)
 	}
 }
 
-func TestManagerTranscriptLogsCleanupErrorsWithoutFailingSuccessfulRead(t *testing.T) {
+func TestManagerTranscriptPageLogsCleanupErrorsWithoutFailingSuccessfulRead(t *testing.T) {
 	t.Parallel()
 
 	recorder := &transcriptRecorderStub{
@@ -177,13 +176,13 @@ func TestManagerTranscriptLogsCleanupErrorsWithoutFailingSuccessfulRead(t *testi
 	h.manager.logger = nil
 	writeStoppedSessionArtifacts(t, h, "stored-cleanup-error", true)
 
-	entries, err := h.manager.Transcript(testutil.Context(t), "stored-cleanup-error", store.EventQuery{})
+	page, err := h.manager.TranscriptPage(testutil.Context(t), "stored-cleanup-error", transcript.PageQuery{})
 	if err != nil {
-		t.Fatalf("Transcript() error = %v", err)
+		t.Fatalf("TranscriptPage() error = %v", err)
 	}
-	messages := transcript.MessagesFromEntries(entries)
+	messages := transcript.MessagesFromEntries(page.Entries)
 	if len(messages) != 1 {
-		t.Fatalf("Transcript() len = %d, want 1", len(messages))
+		t.Fatalf("TranscriptPage() len = %d, want 1", len(messages))
 	}
 	if got := messages[0].Role; got != transcript.UIRoleSystem {
 		t.Fatalf("messages[0].Role = %q, want %q", got, transcript.UIRoleSystem)
@@ -193,118 +192,59 @@ func TestManagerTranscriptLogsCleanupErrorsWithoutFailingSuccessfulRead(t *testi
 	}
 }
 
-func TestManagerTranscriptCache(t *testing.T) {
+func TestManagerTranscriptProjectionReads(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should fold only delta events after the cached cursor", func(t *testing.T) {
+	t.Run("Should read materialized pages without querying raw events", func(t *testing.T) {
 		t.Parallel()
 
-		logs := newCaptureLogHandler()
 		recorder := &filteringTranscriptRecorder{}
 		h := newHarness(
 			t,
-			WithLogger(slog.New(logs)),
 			WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
 				return recorder, nil
 			}),
 		)
-		sessionID := "cached-transcript"
+		sessionID := "projected-transcript"
 		writeStoppedSessionArtifacts(t, h, sessionID, true)
 		recorder.Append(
-			transcriptCacheEvent(t, sessionID, 1, "turn-cache", acp.EventTypeUserMessage, "hello"),
-			transcriptCacheEvent(t, sessionID, 2, "turn-cache", acp.EventTypeAgentMessage, "hel"),
+			transcriptProjectionEvent(t, sessionID, 1, "turn-projection", acp.EventTypeUserMessage, "hello"),
+			transcriptProjectionEvent(t, sessionID, 2, "turn-projection", acp.EventTypeAgentMessage, "hel"),
 		)
 
-		if _, err := h.manager.Transcript(testutil.Context(t), sessionID, store.EventQuery{}); err != nil {
-			t.Fatalf("Transcript(initial) error = %v", err)
+		if _, err := h.manager.TranscriptPage(testutil.Context(t), sessionID, transcript.PageQuery{}); err != nil {
+			t.Fatalf("TranscriptPage(initial) error = %v", err)
 		}
 		recorder.Append(
-			transcriptCacheEvent(t, sessionID, 3, "turn-cache", acp.EventTypeAgentMessage, "lo"),
-			transcriptCacheEvent(t, sessionID, 4, "turn-cache", acp.EventTypeDone, ""),
+			transcriptProjectionEvent(t, sessionID, 3, "turn-projection", acp.EventTypeAgentMessage, "lo"),
+			transcriptProjectionEvent(t, sessionID, 4, "turn-projection", acp.EventTypeDone, ""),
 		)
 
-		got, err := h.manager.Transcript(testutil.Context(t), sessionID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), sessionID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(delta) error = %v", err)
+			t.Fatalf("TranscriptPage(updated) error = %v", err)
 		}
 		want, err := transcript.ToUIEntries(recorder.Events())
 		if err != nil {
 			t.Fatalf("ToUIEntries() error = %v", err)
 		}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("Transcript(delta) = %#v, want %#v", got, want)
+		if !reflect.DeepEqual(page.Entries, want) {
+			t.Fatalf("TranscriptPage(updated) = %#v, want %#v", page.Entries, want)
 		}
 
-		calls := recorder.QueryCalls()
+		calls := recorder.PageCalls()
 		if got, want := len(calls), 2; got != want {
-			t.Fatalf("query calls = %d, want %d; calls=%#v", got, want, calls)
+			t.Fatalf("page calls = %d, want %d; calls=%#v", got, want, calls)
 		}
-		if calls[0].AfterSequence != 0 {
-			t.Fatalf("initial query AfterSequence = %d, want 0", calls[0].AfterSequence)
+		if calls[0].BeforeSequence != 0 || calls[1].BeforeSequence != 0 {
+			t.Fatalf("page cursors = %#v, want tail reads", calls)
 		}
-		if got, want := calls[1].AfterSequence, int64(2); got != want {
-			t.Fatalf("delta query AfterSequence = %d, want %d", got, want)
-		}
-
-		record, ok := logs.FindByMessage(eventspkg.SessionTranscriptCacheRebuilt)
-		if !ok {
-			t.Fatalf("FindByMessage(%q) = false; records=%#v", eventspkg.SessionTranscriptCacheRebuilt, logs.Records())
-		}
-		if got, want := record.Attrs["workspace_id"], h.workspaceID; got != want {
-			t.Fatalf("workspace_id log attr = %q, want %q", got, want)
-		}
-		if got := record.Attrs["session_id"]; got != sessionID {
-			t.Fatalf("session_id log attr = %q, want %q", got, sessionID)
+		if rawCalls := recorder.QueryCalls(); len(rawCalls) != 0 {
+			t.Fatalf("raw event query calls = %#v, want none", rawCalls)
 		}
 	})
 
-	t.Run("Should expose replay watermark after cache rebuild and below-window mutation", func(t *testing.T) {
-		t.Parallel()
-
-		recorder := &filteringTranscriptRecorder{}
-		h := newHarness(
-			t,
-			WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
-				return recorder, nil
-			}),
-		)
-		sessionID := "watermarked-transcript"
-		writeStoppedSessionArtifacts(t, h, sessionID, true)
-		recorder.Append(
-			transcriptCacheEvent(t, sessionID, 1, "turn-watermark", acp.EventTypeUserMessage, "hello"),
-			transcriptCacheEvent(t, sessionID, 2, "turn-watermark", acp.EventTypeAgentMessage, "hi"),
-		)
-
-		if _, err := h.manager.Transcript(testutil.Context(t), sessionID, store.EventQuery{}); err != nil {
-			t.Fatalf("Transcript(initial) error = %v", err)
-		}
-		watermark := h.manager.TranscriptWatermark(testutil.Context(t), sessionID)
-		if watermark.Sequence != 2 {
-			t.Fatalf("TranscriptWatermark().Sequence = %d, want 2", watermark.Sequence)
-		}
-		if watermark.Reason != TranscriptWatermarkReasonCacheRebuild {
-			t.Fatalf(
-				"TranscriptWatermark().Reason = %q, want %q",
-				watermark.Reason,
-				TranscriptWatermarkReasonCacheRebuild,
-			)
-		}
-
-		h.manager.markTranscriptBelowWindowMutation(sessionID, 1)
-		watermark = h.manager.TranscriptWatermark(testutil.Context(t), sessionID)
-		if watermark.Sequence != 2 {
-			t.Fatalf("TranscriptWatermark().Sequence after mutation = %d, want 2", watermark.Sequence)
-		}
-		if watermark.Reason != TranscriptWatermarkReasonBelowWindowMutation {
-			t.Fatalf(
-				"TranscriptWatermark().Reason after mutation = %q, want %q",
-				watermark.Reason,
-				TranscriptWatermarkReasonBelowWindowMutation,
-			)
-		}
-	})
-
-	t.Run("Should keep cache entries scoped by session id", func(t *testing.T) {
+	t.Run("Should keep projection reads scoped by session id", func(t *testing.T) {
 		t.Parallel()
 
 		recorders := map[string]*filteringTranscriptRecorder{
@@ -319,7 +259,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 		)
 		for sessionID, recorder := range recorders {
 			writeStoppedSessionArtifacts(t, h, sessionID, true)
-			recorder.Append(transcriptCacheEvent(
+			recorder.Append(transcriptProjectionEvent(
 				t,
 				sessionID,
 				1,
@@ -329,17 +269,17 @@ func TestManagerTranscriptCache(t *testing.T) {
 			))
 		}
 
-		entriesA, err := h.manager.Transcript(testutil.Context(t), "sess-cache-a", store.EventQuery{})
+		pageA, err := h.manager.TranscriptPage(testutil.Context(t), "sess-cache-a", transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(sess-cache-a) error = %v", err)
+			t.Fatalf("TranscriptPage(sess-cache-a) error = %v", err)
 		}
-		entriesB, err := h.manager.Transcript(testutil.Context(t), "sess-cache-b", store.EventQuery{})
+		pageB, err := h.manager.TranscriptPage(testutil.Context(t), "sess-cache-b", transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(sess-cache-b) error = %v", err)
+			t.Fatalf("TranscriptPage(sess-cache-b) error = %v", err)
 		}
 
-		textA := transcript.JoinUIMessageText(transcript.MessagesFromEntries(entriesA))
-		textB := transcript.JoinUIMessageText(transcript.MessagesFromEntries(entriesB))
+		textA := transcript.JoinUIMessageText(transcript.MessagesFromEntries(pageA.Entries))
+		textB := transcript.JoinUIMessageText(transcript.MessagesFromEntries(pageB.Entries))
 		if textA != "text-sess-cache-a" {
 			t.Fatalf("session A transcript = %q, want text-sess-cache-a", textA)
 		}
@@ -348,7 +288,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not block another session while one transcript cache refresh is querying", func(t *testing.T) {
+	t.Run("Should not block another session while one transcript page is querying", func(t *testing.T) {
 		t.Parallel()
 
 		releaseSlowQuery := make(chan struct{})
@@ -370,7 +310,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 		)
 		writeStoppedSessionArtifacts(t, h, "sess-cache-slow", true)
 		writeStoppedSessionArtifacts(t, h, "sess-cache-fast", true)
-		slowRecorder.Append(transcriptCacheEvent(
+		slowRecorder.Append(transcriptProjectionEvent(
 			t,
 			"sess-cache-slow",
 			1,
@@ -378,7 +318,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 			acp.EventTypeAgentMessage,
 			"slow",
 		))
-		fastRecorder.Append(transcriptCacheEvent(
+		fastRecorder.Append(transcriptProjectionEvent(
 			t,
 			"sess-cache-fast",
 			1,
@@ -389,7 +329,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 
 		slowDone := make(chan error, 1)
 		go func() {
-			_, err := h.manager.Transcript(testutil.Context(t), "sess-cache-slow", store.EventQuery{})
+			_, err := h.manager.TranscriptPage(testutil.Context(t), "sess-cache-slow", transcript.PageQuery{})
 			slowDone <- err
 		}()
 		select {
@@ -400,12 +340,12 @@ func TestManagerTranscriptCache(t *testing.T) {
 
 		fastDone := make(chan error, 1)
 		go func() {
-			entries, err := h.manager.Transcript(testutil.Context(t), "sess-cache-fast", store.EventQuery{})
+			page, err := h.manager.TranscriptPage(testutil.Context(t), "sess-cache-fast", transcript.PageQuery{})
 			if err != nil {
 				fastDone <- err
 				return
 			}
-			if got := transcript.JoinUIMessageText(transcript.MessagesFromEntries(entries)); got != "fast" {
+			if got := transcript.JoinUIMessageText(transcript.MessagesFromEntries(page.Entries)); got != "fast" {
 				fastDone <- fmt.Errorf("fast transcript = %q, want fast", got)
 				return
 			}
@@ -415,7 +355,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 		case err := <-fastDone:
 			if err != nil {
 				close(releaseSlowQuery)
-				t.Fatalf("Transcript(fast) error = %v", err)
+				t.Fatalf("TranscriptPage(fast) error = %v", err)
 			}
 		case <-time.After(100 * time.Millisecond):
 			close(releaseSlowQuery)
@@ -424,49 +364,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 
 		close(releaseSlowQuery)
 		if err := <-slowDone; err != nil {
-			t.Fatalf("Transcript(slow) error = %v", err)
-		}
-	})
-
-	t.Run("Should drop transcript cache when deleting a session", func(t *testing.T) {
-		t.Parallel()
-
-		recorder := &filteringTranscriptRecorder{}
-		h := newHarness(
-			t,
-			WithStore(func(_ context.Context, _ string, _ string) (EventRecorder, error) {
-				return recorder, nil
-			}),
-		)
-		sessionID := "sess-cache-delete"
-		writeStoppedSessionArtifacts(t, h, sessionID, true)
-		recorder.Append(transcriptCacheEvent(
-			t,
-			sessionID,
-			1,
-			"turn-delete",
-			acp.EventTypeAgentMessage,
-			"cached",
-		))
-
-		if _, err := h.manager.Transcript(testutil.Context(t), sessionID, store.EventQuery{}); err != nil {
-			t.Fatalf("Transcript(before delete) error = %v", err)
-		}
-		h.manager.transcriptCacheMu.Lock()
-		_, cachedBefore := h.manager.transcriptCache[sessionID]
-		h.manager.transcriptCacheMu.Unlock()
-		if !cachedBefore {
-			t.Fatal("transcript cache missing before delete")
-		}
-
-		if err := h.manager.Delete(testutil.Context(t), sessionID); err != nil {
-			t.Fatalf("Delete() error = %v", err)
-		}
-		h.manager.transcriptCacheMu.Lock()
-		_, cachedAfter := h.manager.transcriptCache[sessionID]
-		h.manager.transcriptCacheMu.Unlock()
-		if cachedAfter {
-			t.Fatal("transcript cache still present after delete")
+			t.Fatalf("TranscriptPage(slow) error = %v", err)
 		}
 	})
 }
@@ -474,6 +372,7 @@ func TestManagerTranscriptCache(t *testing.T) {
 type transcriptRecorderStub struct {
 	queryRecorderStub
 	closeErr error
+	pageErr  error
 }
 
 func (s *transcriptRecorderStub) Close(context.Context) error {
@@ -481,10 +380,32 @@ func (s *transcriptRecorderStub) Close(context.Context) error {
 	return s.closeErr
 }
 
+func (s *transcriptRecorderStub) TranscriptPage(
+	_ context.Context,
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	if s.pageErr != nil {
+		return transcript.Page{}, s.pageErr
+	}
+	return projectionPageFromEvents(s.events, query)
+}
+
+func (s *transcriptRecorderStub) TranscriptChanges(
+	_ context.Context,
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	if s.pageErr != nil {
+		return transcript.ChangePage{}, s.pageErr
+	}
+	return projectionChangesFromEvents(s.events, query)
+}
+
 type filteringTranscriptRecorder struct {
-	mu         sync.Mutex
-	events     []store.SessionEvent
-	queryCalls []store.EventQuery
+	mu          sync.Mutex
+	events      []store.SessionEvent
+	queryCalls  []store.EventQuery
+	pageCalls   []transcript.PageQuery
+	changeCalls []transcript.ChangeQuery
 }
 
 type blockingTranscriptRecorder struct {
@@ -510,6 +431,12 @@ func (r *filteringTranscriptRecorder) QueryCalls() []store.EventQuery {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]store.EventQuery(nil), r.queryCalls...)
+}
+
+func (r *filteringTranscriptRecorder) PageCalls() []transcript.PageQuery {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]transcript.PageQuery(nil), r.pageCalls...)
 }
 
 func (r *filteringTranscriptRecorder) Record(context.Context, store.SessionEvent) error {
@@ -560,6 +487,47 @@ func (r *blockingTranscriptRecorder) Query(
 	return r.filteringTranscriptRecorder.Query(ctx, query)
 }
 
+func (r *filteringTranscriptRecorder) TranscriptPage(
+	_ context.Context,
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	r.mu.Lock()
+	r.pageCalls = append(r.pageCalls, query)
+	events := append([]store.SessionEvent(nil), r.events...)
+	r.mu.Unlock()
+	return projectionPageFromEvents(events, query)
+}
+
+func (r *filteringTranscriptRecorder) TranscriptChanges(
+	_ context.Context,
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	r.mu.Lock()
+	r.changeCalls = append(r.changeCalls, query)
+	events := append([]store.SessionEvent(nil), r.events...)
+	r.mu.Unlock()
+	return projectionChangesFromEvents(events, query)
+}
+
+func (r *blockingTranscriptRecorder) TranscriptPage(
+	ctx context.Context,
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	shouldBlock := false
+	r.once.Do(func() {
+		shouldBlock = true
+		close(r.started)
+	})
+	if shouldBlock {
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return transcript.Page{}, ctx.Err()
+		}
+	}
+	return r.filteringTranscriptRecorder.TranscriptPage(ctx, query)
+}
+
 func (r *filteringTranscriptRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {
 	return nil, nil
 }
@@ -568,7 +536,83 @@ func (r *filteringTranscriptRecorder) Close(context.Context) error {
 	return nil
 }
 
-func transcriptCacheEvent(
+func projectionPageFromEvents(
+	events []store.SessionEvent,
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	query, err := query.Normalize()
+	if err != nil {
+		return transcript.Page{}, err
+	}
+	entries, err := transcript.ToUIEntries(events)
+	if err != nil {
+		return transcript.Page{}, err
+	}
+	maxSequence := maxEventSequenceForTest(events)
+	filtered := make([]transcript.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if query.BeforeSequence == 0 || entry.StartSequence < query.BeforeSequence {
+			filtered = append(filtered, entry)
+		}
+	}
+	page := transcript.Page{Generation: 0, MaxSequence: maxSequence}
+	if len(filtered) > query.Limit {
+		page.HasOlder = true
+		filtered = filtered[len(filtered)-query.Limit:]
+	}
+	page.Entries = filtered
+	if page.HasOlder {
+		page.NextBeforeSequence = filtered[0].StartSequence
+	}
+	return page, nil
+}
+
+func projectionChangesFromEvents(
+	events []store.SessionEvent,
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	query, err := query.Normalize()
+	if err != nil {
+		return transcript.ChangePage{}, err
+	}
+	entries, err := transcript.ToUIEntries(events)
+	if err != nil {
+		return transcript.ChangePage{}, err
+	}
+	filtered := make([]transcript.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Sequence > query.AfterSequence {
+			filtered = append(filtered, entry)
+		}
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Sequence < filtered[j].Sequence
+	})
+	page := transcript.ChangePage{Generation: 0, MaxSequence: maxEventSequenceForTest(events)}
+	if len(filtered) > query.Limit {
+		page.HasMore = true
+		filtered = filtered[:query.Limit]
+	}
+	page.Entries = filtered
+	if len(filtered) > 0 {
+		page.NextAfter = filtered[len(filtered)-1].Sequence
+	} else {
+		page.NextAfter = query.AfterSequence
+	}
+	return page, nil
+}
+
+func maxEventSequenceForTest(events []store.SessionEvent) int64 {
+	var maxSequence int64
+	for _, event := range events {
+		if event.Sequence > maxSequence {
+			maxSequence = event.Sequence
+		}
+	}
+	return maxSequence
+}
+
+func transcriptProjectionEvent(
 	t *testing.T,
 	sessionID string,
 	sequence int64,

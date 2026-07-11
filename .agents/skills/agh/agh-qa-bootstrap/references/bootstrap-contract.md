@@ -45,7 +45,7 @@ The bootstrap helper writes two canonical artifacts under:
     "BEHAVIORAL_CHARTER": "/abs/path/to/lab/qa-artifacts/qa/behavioral-scenario-charter.yaml",
     "JOURNEY_LOG": "/abs/path/to/lab/qa-artifacts/qa/journey-log.jsonl",
     "PROVIDER_ATTEMPT": "/abs/path/to/lab/qa-artifacts/qa/provider-attempt.json",
-    "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py",
+    "AUDIT_COMMAND": "/abs/path/to/repo/.agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py",
     "TEARDOWN_COMMAND": "python3 /abs/path/to/repo/.agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest /abs/path/to/lab/qa-artifacts/qa/bootstrap-manifest.json",
     "PLAYBOOK_REF": "northstar-pay",
     "KICKOFF_POSTED": "false",

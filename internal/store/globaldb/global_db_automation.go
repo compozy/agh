@@ -14,301 +14,6 @@ import (
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-// CreateJob stores a new automation job definition.
-func (g *GlobalDB) CreateJob(ctx context.Context, job automation.Job) (automation.Job, error) {
-	if err := g.checkReady(ctx, "create automation job"); err != nil {
-		return automation.Job{}, err
-	}
-
-	normalized, err := g.normalizeJobForCreate(job)
-	if err != nil {
-		return automation.Job{}, err
-	}
-	if err := g.insertJob(ctx, g.db, normalized); err != nil {
-		return automation.Job{}, fmt.Errorf("store: create automation job %q: %w", normalized.ID, err)
-	}
-
-	return normalized, nil
-}
-
-// UpdateJob replaces the mutable fields of a persisted automation job definition.
-func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (automation.Job, error) {
-	if err := g.checkReady(ctx, "update automation job"); err != nil {
-		return automation.Job{}, err
-	}
-
-	normalized, err := g.normalizeJobForUpdate(job)
-	if err != nil {
-		return automation.Job{}, err
-	}
-
-	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeJobRecord(normalized)
-	if err != nil {
-		return automation.Job{}, err
-	}
-
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE automation_jobs
-		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
-		     schedule = ?, task = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, target_kind = ?, loop_workspace_id = ?, loop_name = ?,
-		     loop_inputs = ?, loop_input_mapping = ?, updated_at = ?
-		 WHERE id = ?`,
-		normalized.Scope,
-		normalized.Name,
-		normalized.AgentName,
-		store.NullableString(normalized.WorkspaceID),
-		normalized.Prompt,
-		scheduleJSON,
-		taskJSON,
-		normalized.Enabled,
-		retryJSON,
-		fireLimitJSON,
-		normalized.Source,
-		normalized.TargetKind,
-		store.NullableString(loopTarget.workspaceID),
-		store.NullableString(loopTarget.loopName),
-		loopTarget.inputsJSON,
-		loopTarget.inputMappingJSON,
-		store.FormatTimestamp(normalized.UpdatedAt),
-		normalized.ID,
-	)
-	if err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: update automation job %q: %w",
-			normalized.ID,
-			mapAutomationJobConstraintError(err),
-		)
-	}
-
-	if err := requireRowsAffected(result, automation.ErrJobNotFound, normalized.ID, "automation job"); err != nil {
-		return automation.Job{}, err
-	}
-
-	return g.GetJob(ctx, normalized.ID)
-}
-
-// DeleteJob removes an automation job definition.
-func (g *GlobalDB) DeleteJob(ctx context.Context, id string) error {
-	if err := g.checkReady(ctx, "delete automation job"); err != nil {
-		return err
-	}
-
-	trimmedID, err := requireAutomationID(id, "automation job id")
-	if err != nil {
-		return err
-	}
-
-	result, err := g.db.ExecContext(ctx, `DELETE FROM automation_jobs WHERE id = ?`, trimmedID)
-	if err != nil {
-		return fmt.Errorf("store: delete automation job %q: %w", trimmedID, mapAutomationJobConstraintError(err))
-	}
-
-	return requireRowsAffected(result, automation.ErrJobNotFound, trimmedID, "automation job")
-}
-
-// GetJob loads one persisted automation job definition by primary key.
-func (g *GlobalDB) GetJob(ctx context.Context, id string) (automation.Job, error) {
-	if err := g.checkReady(ctx, "get automation job"); err != nil {
-		return automation.Job{}, err
-	}
-
-	trimmedID, err := requireAutomationID(id, "automation job id")
-	if err != nil {
-		return automation.Job{}, err
-	}
-
-	return g.getJobByQuery(
-		ctx,
-		`SELECT
-			id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-			enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-			loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
-		 FROM automation_jobs
-		 WHERE id = ?`,
-		trimmedID,
-	)
-}
-
-// ListJobs returns persisted automation jobs using the supplied filters.
-func (g *GlobalDB) ListJobs(ctx context.Context, query automation.JobListQuery) ([]automation.Job, error) {
-	if err := g.checkReady(ctx, "list automation jobs"); err != nil {
-		return nil, err
-	}
-	if err := validateAutomationJobListQuery(query); err != nil {
-		return nil, err
-	}
-
-	sqlQuery := `SELECT
-		id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-		enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-		loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
-		FROM automation_jobs`
-	where, args := store.BuildClauses(
-		store.StringClause("scope", string(query.Scope)),
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("source", string(query.Source)),
-		store.StringClause("loop_name", query.LoopName),
-	)
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY name ASC, id ASC"
-	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
-
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query automation jobs: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	jobs := make([]automation.Job, 0)
-	for rows.Next() {
-		job, scanErr := scanAutomationJob(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		jobs = append(jobs, job)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate automation jobs: %w", err)
-	}
-
-	return jobs, nil
-}
-
-// CreateTrigger stores a new automation trigger definition.
-func (g *GlobalDB) CreateTrigger(ctx context.Context, trigger automation.Trigger) (automation.Trigger, error) {
-	if err := g.checkReady(ctx, "create automation trigger"); err != nil {
-		return automation.Trigger{}, err
-	}
-
-	normalized, err := g.normalizeTriggerForCreate(trigger)
-	if err != nil {
-		return automation.Trigger{}, err
-	}
-	if err := g.insertTrigger(ctx, g.db, normalized); err != nil {
-		return automation.Trigger{}, fmt.Errorf("store: create automation trigger %q: %w", normalized.ID, err)
-	}
-
-	return normalized, nil
-}
-
-// UpdateTrigger replaces the mutable fields of a persisted automation trigger definition.
-func (g *GlobalDB) UpdateTrigger(ctx context.Context, trigger automation.Trigger) (automation.Trigger, error) {
-	if err := g.checkReady(ctx, "update automation trigger"); err != nil {
-		return automation.Trigger{}, err
-	}
-
-	normalized, err := g.normalizeTriggerForUpdate(trigger)
-	if err != nil {
-		return automation.Trigger{}, err
-	}
-
-	filterJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeTriggerRecord(normalized)
-	if err != nil {
-		return automation.Trigger{}, err
-	}
-
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE automation_triggers
-		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
-		     event = ?, filter = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, webhook_id = ?, endpoint_slug = ?, webhook_secret_ref = ?,
-		     target_kind = ?, loop_workspace_id = ?, loop_name = ?, loop_inputs = ?,
-		     loop_input_mapping = ?, updated_at = ?
-		 WHERE id = ?`,
-		normalized.Scope,
-		normalized.Name,
-		normalized.AgentName,
-		store.NullableString(normalized.WorkspaceID),
-		normalized.Prompt,
-		normalized.Event,
-		filterJSON,
-		normalized.Enabled,
-		retryJSON,
-		fireLimitJSON,
-		normalized.Source,
-		store.NullableString(normalized.WebhookID),
-		store.NullableString(normalized.EndpointSlug),
-		store.NullableString(normalized.WebhookSecretRef),
-		normalized.TargetKind,
-		store.NullableString(loopTarget.workspaceID),
-		store.NullableString(loopTarget.loopName),
-		loopTarget.inputsJSON,
-		loopTarget.inputMappingJSON,
-		store.FormatTimestamp(normalized.UpdatedAt),
-		normalized.ID,
-	)
-	if err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: update automation trigger %q: %w",
-			normalized.ID,
-			mapAutomationTriggerConstraintError(err),
-		)
-	}
-
-	if err := requireRowsAffected(
-		result,
-		automation.ErrTriggerNotFound,
-		normalized.ID,
-		"automation trigger",
-	); err != nil {
-		return automation.Trigger{}, err
-	}
-
-	return g.GetTrigger(ctx, normalized.ID)
-}
-
-// DeleteTrigger removes an automation trigger definition.
-func (g *GlobalDB) DeleteTrigger(ctx context.Context, id string) error {
-	if err := g.checkReady(ctx, "delete automation trigger"); err != nil {
-		return err
-	}
-
-	trimmedID, err := requireAutomationID(id, "automation trigger id")
-	if err != nil {
-		return err
-	}
-
-	result, err := g.db.ExecContext(ctx, `DELETE FROM automation_triggers WHERE id = ?`, trimmedID)
-	if err != nil {
-		return fmt.Errorf(
-			"store: delete automation trigger %q: %w",
-			trimmedID,
-			mapAutomationTriggerConstraintError(err),
-		)
-	}
-
-	return requireRowsAffected(result, automation.ErrTriggerNotFound, trimmedID, "automation trigger")
-}
-
-// GetTrigger loads one persisted automation trigger definition by primary key.
-func (g *GlobalDB) GetTrigger(ctx context.Context, id string) (automation.Trigger, error) {
-	if err := g.checkReady(ctx, "get automation trigger"); err != nil {
-		return automation.Trigger{}, err
-	}
-
-	trimmedID, err := requireAutomationID(id, "automation trigger id")
-	if err != nil {
-		return automation.Trigger{}, err
-	}
-
-	return g.getTriggerByQuery(
-		ctx,
-		`SELECT
-				id, scope, name, agent_name, workspace_id, prompt, event, filter,
-				enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-				webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
-				loop_inputs, loop_input_mapping, created_at, updated_at
-			 FROM automation_triggers
-			 WHERE id = ?`,
-		trimmedID,
-	)
-}
-
 // GetTriggerByWebhookID loads a webhook trigger using its stable webhook identifier.
 func (g *GlobalDB) GetTriggerByWebhookID(ctx context.Context, webhookID string) (automation.Trigger, error) {
 	if err := g.checkReady(ctx, "get automation trigger by webhook id"); err != nil {
@@ -331,52 +36,6 @@ func (g *GlobalDB) GetTriggerByWebhookID(ctx context.Context, webhookID string) 
 			 WHERE webhook_id = ?`,
 		trimmedWebhookID,
 	)
-}
-
-// ListTriggers returns persisted automation triggers using the supplied filters.
-func (g *GlobalDB) ListTriggers(ctx context.Context, query automation.TriggerListQuery) ([]automation.Trigger, error) {
-	if err := g.checkReady(ctx, "list automation triggers"); err != nil {
-		return nil, err
-	}
-	if err := validateAutomationTriggerListQuery(query); err != nil {
-		return nil, err
-	}
-
-	sqlQuery := `SELECT id, scope, name, agent_name, workspace_id, prompt, event, filter, enabled, retry,
-		fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref, target_kind, loop_workspace_id,
-		loop_name, loop_inputs, loop_input_mapping, created_at, updated_at FROM automation_triggers`
-	where, args := store.BuildClauses(
-		store.StringClause("scope", string(query.Scope)),
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("event", query.Event),
-		store.StringClause("source", string(query.Source)),
-		store.StringClause("loop_name", query.LoopName),
-	)
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY name ASC, id ASC"
-	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
-
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query automation triggers: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	triggers := make([]automation.Trigger, 0)
-	for rows.Next() {
-		trigger, scanErr := scanAutomationTrigger(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		triggers = append(triggers, trigger)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate automation triggers: %w", err)
-	}
-
-	return triggers, nil
 }
 
 // CreateRun stores a new automation run history row.
@@ -513,7 +172,10 @@ func (g *GlobalDB) GetRun(ctx context.Context, id string) (automation.Run, error
 }
 
 // ListRuns returns filtered automation run history rows.
-func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]automation.Run, error) {
+func (g *GlobalDB) ListRuns(
+	ctx context.Context,
+	query automation.RunQuery,
+) (runs []automation.Run, err error) {
 	if err := g.checkReady(ctx, "list automation runs"); err != nil {
 		return nil, err
 	}
@@ -536,10 +198,12 @@ func (g *GlobalDB) ListRuns(ctx context.Context, query automation.RunQuery) ([]a
 		return nil, fmt.Errorf("store: query automation runs: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close automation run rows: %w", closeErr))
+		}
 	}()
 
-	runs := make([]automation.Run, 0)
+	runs = make([]automation.Run, 0)
 	for rows.Next() {
 		run, scanErr := scanAutomationRun(rows)
 		if scanErr != nil {
@@ -639,7 +303,9 @@ func (g *GlobalDB) GetJobEnabledOverlay(ctx context.Context, jobID string) (auto
 }
 
 // ListJobEnabledOverlays returns all persisted job enabled overlays.
-func (g *GlobalDB) ListJobEnabledOverlays(ctx context.Context) ([]automation.JobEnabledOverlay, error) {
+func (g *GlobalDB) ListJobEnabledOverlays(
+	ctx context.Context,
+) (overlays []automation.JobEnabledOverlay, err error) {
 	if err := g.checkReady(ctx, "list automation job overlays"); err != nil {
 		return nil, err
 	}
@@ -654,10 +320,12 @@ func (g *GlobalDB) ListJobEnabledOverlays(ctx context.Context) ([]automation.Job
 		return nil, fmt.Errorf("store: query automation job overlays: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close automation job overlay rows: %w", closeErr))
+		}
 	}()
 
-	overlays := make([]automation.JobEnabledOverlay, 0)
+	overlays = make([]automation.JobEnabledOverlay, 0)
 	for rows.Next() {
 		overlay, scanErr := scanJobEnabledOverlay(rows)
 		if scanErr != nil {
@@ -757,7 +425,9 @@ func (g *GlobalDB) GetTriggerEnabledOverlay(
 }
 
 // ListTriggerEnabledOverlays returns all persisted trigger enabled overlays.
-func (g *GlobalDB) ListTriggerEnabledOverlays(ctx context.Context) ([]automation.TriggerEnabledOverlay, error) {
+func (g *GlobalDB) ListTriggerEnabledOverlays(
+	ctx context.Context,
+) (overlays []automation.TriggerEnabledOverlay, err error) {
 	if err := g.checkReady(ctx, "list automation trigger overlays"); err != nil {
 		return nil, err
 	}
@@ -772,10 +442,12 @@ func (g *GlobalDB) ListTriggerEnabledOverlays(ctx context.Context) ([]automation
 		return nil, fmt.Errorf("store: query automation trigger overlays: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close automation trigger overlay rows: %w", closeErr))
+		}
 	}()
 
-	overlays := make([]automation.TriggerEnabledOverlay, 0)
+	overlays = make([]automation.TriggerEnabledOverlay, 0)
 	for rows.Next() {
 		overlay, scanErr := scanTriggerEnabledOverlay(rows)
 		if scanErr != nil {
@@ -1362,46 +1034,6 @@ func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, autom
 	}
 
 	return filterJSON, retryJSON, fireLimitJSON, loopTarget, nil
-}
-
-func validateAutomationJobListQuery(query automation.JobListQuery) error {
-	if query.Limit < 0 {
-		return fmt.Errorf("store: invalid automation job limit %d", query.Limit)
-	}
-	if query.Scope != "" {
-		if err := query.Scope.Validate("job_query.scope"); err != nil {
-			return err
-		}
-	}
-	if query.Source != "" {
-		if err := query.Source.Validate("job_query.source"); err != nil {
-			return err
-		}
-	}
-	if query.Scope == automation.AutomationScopeGlobal && strings.TrimSpace(query.WorkspaceID) != "" {
-		return errors.New("store: automation job workspace_id filter must be empty when scope is global")
-	}
-	return nil
-}
-
-func validateAutomationTriggerListQuery(query automation.TriggerListQuery) error {
-	if query.Limit < 0 {
-		return fmt.Errorf("store: invalid automation trigger limit %d", query.Limit)
-	}
-	if query.Scope != "" {
-		if err := query.Scope.Validate("trigger_query.scope"); err != nil {
-			return err
-		}
-	}
-	if query.Source != "" {
-		if err := query.Source.Validate("trigger_query.source"); err != nil {
-			return err
-		}
-	}
-	if query.Scope == automation.AutomationScopeGlobal && strings.TrimSpace(query.WorkspaceID) != "" {
-		return errors.New("store: automation trigger workspace_id filter must be empty when scope is global")
-	}
-	return nil
 }
 
 func validateAutomationRunQuery(query automation.RunQuery) error {

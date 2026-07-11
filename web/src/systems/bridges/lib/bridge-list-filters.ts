@@ -1,7 +1,13 @@
 import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
 import { bridgeStatusLabel } from "./bridge-formatters";
-import type { BridgeHealthMap, BridgeScopeFilter, BridgeStatus, BridgeSummary } from "../types";
+import type {
+  BridgeHealthMap,
+  BridgeListFilter,
+  BridgeScopeFilter,
+  BridgeStatus,
+  BridgeSummary,
+} from "../types";
 
 export type BridgePlatformFilter = string;
 export type BridgeStatusFilter = BridgeStatus;
@@ -20,6 +26,19 @@ export interface BridgeFilterHandlers {
   onStatusChange: (next: BridgeStatusFilter | null) => void;
 }
 
+export function bridgeListFilterForScope(
+  scope: BridgeScopeFilter,
+  activeWorkspaceId: string | null
+): BridgeListFilter {
+  if (scope === "global" || (scope === "all" && !activeWorkspaceId)) {
+    return { scope: "global" };
+  }
+  if (!activeWorkspaceId) {
+    return { scope: "workspace" };
+  }
+  return { scope: scope === "all" ? "all" : scope, workspace_id: activeWorkspaceId };
+}
+
 const SCOPE_OPTIONS: { value: BridgeScopeFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "global", label: "Global" },
@@ -35,7 +54,10 @@ const STATUS_OPTIONS: BridgeStatusFilter[] = [
   "error",
 ];
 
-export function buildBridgeFilterFields(platforms: readonly string[]): FilterFieldsConfig<string> {
+export function buildBridgeFilterFields(
+  platforms: readonly string[],
+  statuses: readonly BridgeStatusFilter[] = STATUS_OPTIONS
+): FilterFieldsConfig<string> {
   const distinctPlatforms = [...new Set(platforms)].sort((left, right) =>
     left.localeCompare(right)
   );
@@ -57,7 +79,7 @@ export function buildBridgeFilterFields(platforms: readonly string[]): FilterFie
       key: "status",
       label: "Status",
       type: "select",
-      options: STATUS_OPTIONS.map(value => ({
+      options: statuses.map(value => ({
         value,
         label: bridgeStatusLabel(value),
       })),
@@ -107,65 +129,11 @@ export function applyBridgeFilterChips(
   handlers.onStatusChange(asBridgeStatus(lookup.get("status")));
 }
 
-export function matchesBridgeScope(
-  bridge: BridgeSummary,
-  activeScope: BridgeScopeFilter,
-  activeWorkspaceId: string | null
-): boolean {
-  if (activeScope === "all") {
-    return bridge.scope === "global" || bridge.workspace_id === activeWorkspaceId;
-  }
-
-  if (activeScope === "global") {
-    return bridge.scope === "global";
-  }
-
-  return bridge.scope === "workspace" && bridge.workspace_id === activeWorkspaceId;
-}
-
-export function matchesBridgeSearch(bridge: BridgeSummary, searchQuery: string): boolean {
-  if (!searchQuery) {
-    return true;
-  }
-
-  const query = searchQuery.toLowerCase();
-  return (
-    bridge.display_name.toLowerCase().includes(query) ||
-    bridge.platform.toLowerCase().includes(query) ||
-    bridge.extension_name.toLowerCase().includes(query) ||
-    bridge.status.toLowerCase().includes(query)
-  );
-}
-
 export function effectiveBridgeStatus(
   bridge: BridgeSummary,
   health: BridgeHealthMap[string] | undefined
 ): BridgeStatus {
   return health?.status ?? bridge.status;
-}
-
-export function filterBridges(
-  bridges: BridgeSummary[],
-  bridgeHealth: BridgeHealthMap,
-  query: string,
-  filters: BridgeFilterState,
-  activeWorkspaceId: string | null
-): BridgeSummary[] {
-  return [...bridges]
-    .filter(
-      bridge =>
-        matchesBridgeScope(bridge, filters.scope, activeWorkspaceId) &&
-        matchesBridgeSearch(bridge, query) &&
-        (filters.platform === null || bridge.platform === filters.platform) &&
-        (filters.status === null ||
-          effectiveBridgeStatus(bridge, bridgeHealth[bridge.id]) === filters.status)
-    )
-    .sort((left, right) => {
-      if (left.scope !== right.scope) {
-        return left.scope === "global" ? -1 : 1;
-      }
-      return left.display_name.localeCompare(right.display_name);
-    });
 }
 
 export function parseBridgeScopeFilter(value: unknown): BridgeScopeFilter | undefined {

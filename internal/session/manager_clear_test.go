@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
@@ -58,12 +59,12 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			t.Fatalf("clear restart ResumeSessionID = %q, want empty for fresh provider context", got)
 		}
 
-		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), cleared.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(after clear) error = %v", err)
+			t.Fatalf("TranscriptPage(after clear) error = %v", err)
 		}
-		if got := len(messages); got != 0 {
-			t.Fatalf("Transcript(after clear) len = %d, want 0", got)
+		if got := len(page.Entries); got != 0 {
+			t.Fatalf("TranscriptPage(after clear) len = %d, want 0", got)
 		}
 
 		stored := readStoredEvents(t, cleared)
@@ -140,12 +141,12 @@ func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
 		if got := len(events); got != 0 {
 			t.Fatalf("Events(after clear) len = %d, want 0", got)
 		}
-		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), cleared.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(after clear) error = %v", err)
+			t.Fatalf("TranscriptPage(after clear) error = %v", err)
 		}
-		if got := len(messages); got != 0 {
-			t.Fatalf("Transcript(after clear) len = %d, want 0", got)
+		if got := len(page.Entries); got != 0 {
+			t.Fatalf("TranscriptPage(after clear) len = %d, want 0", got)
 		}
 
 		if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {

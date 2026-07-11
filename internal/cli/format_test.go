@@ -63,11 +63,11 @@ func TestJSONOutputProducesValidJSON(t *testing.T) {
 			t.Fatalf("executeRootCommand() error = %v", err)
 		}
 
-		var decoded []SessionRecord
+		var decoded SessionListPage
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if len(decoded) != 1 || decoded[0].ID != "sess-1" {
+		if len(decoded.Sessions) != 1 || decoded.Sessions[0].ID != "sess-1" || decoded.Page.Total != 1 {
 			t.Fatalf("decoded = %#v, want one session", decoded)
 		}
 	})

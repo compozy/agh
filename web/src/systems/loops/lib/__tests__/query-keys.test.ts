@@ -4,7 +4,7 @@ import { loopsKeys } from "../query-keys";
 
 describe("loopsKeys", () => {
   it("Should scope every read key by workspace so a workspace switch never serves another cache", () => {
-    expect(loopsKeys.catalog("ws_a")).toEqual(["loops", "catalog", "ws_a"]);
+    expect(loopsKeys.catalog("ws_a")).toEqual(["loops", "catalog", "ws_a", "", "", "", "", "", ""]);
     expect(loopsKeys.detail("ws_a", "delivery")).toEqual(["loops", "detail", "ws_a", "delivery"]);
     expect(loopsKeys.config("ws_a", "delivery")).toEqual(["loops", "config", "ws_a", "delivery"]);
     expect(loopsKeys.annotations("ws_a", "delivery")).toEqual([
@@ -16,6 +16,29 @@ describe("loopsKeys", () => {
     expect(loopsKeys.runDetail("ws_a", "run_1")).toEqual(["loops", "run-detail", "ws_a", "run_1"]);
 
     expect(loopsKeys.catalog("ws_a")).not.toEqual(loopsKeys.catalog("ws_b"));
+  });
+
+  it("Should include every stable catalog filter while keeping cursor out of the key", () => {
+    expect(
+      loopsKeys.catalog("ws_a", {
+        category: "Engineering",
+        kind: "read_only",
+        limit: 25,
+        q: "delivery",
+        sort: "name",
+        status: "running",
+      })
+    ).toEqual([
+      "loops",
+      "catalog",
+      "ws_a",
+      "delivery",
+      "read_only",
+      "Engineering",
+      "running",
+      "name",
+      "25",
+    ]);
   });
 
   it("Should nest each key under its root so invalidation can target a scope or everything", () => {

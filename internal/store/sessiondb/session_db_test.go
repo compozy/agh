@@ -1,8 +1,10 @@
 package sessiondb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,7 +34,16 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 
 		sessionDB := openTestSessionDB(t, "sess-open")
 
-		assertTablesPresent(t, sessionDB.db, "schema_migrations", "events", "token_usage")
+		assertTablesPresent(
+			t,
+			sessionDB.db,
+			"schema_migrations",
+			"events",
+			"token_usage",
+			"transcript_projection_state",
+			"transcript_entries",
+			"transcript_tool_routes",
+		)
 		assertUniqueIndex(t, sessionDB.db, "events", "idx_events_sequence")
 		assertJournalModeWAL(t, sessionDB.db)
 		assertSynchronousNormal(t, sessionDB.db)
@@ -301,6 +312,500 @@ func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testi
 	})
 }
 
+func TestSessionDBTranscriptProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should update one stable entry across streamed event writes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-stream")
+		for index, text := range []string{"hel", "lo"} {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    "turn-stream",
+				Type:      acp.EventTypeAgentMessage,
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"type":"agent_message","turn_id":"turn-stream","text":%q}`, text),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", index, err)
+			}
+		}
+
+		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage() error = %v", err)
+		}
+		if got, want := len(page.Entries), 1; got != want {
+			t.Fatalf("len(page.Entries) = %d, want %d", got, want)
+		}
+		entry := page.Entries[0]
+		if got, want := entry.StartSequence, int64(1); got != want {
+			t.Fatalf("StartSequence = %d, want %d", got, want)
+		}
+		if got, want := entry.Sequence, int64(2); got != want {
+			t.Fatalf("Sequence = %d, want %d", got, want)
+		}
+		if got, want := transcript.UIMessageText(entry.Message), "hello"; got != want {
+			t.Fatalf("streamed text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should publish a completed assistant upsert with its boundary entry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-boundary-change")
+		persisted, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-transcript-boundary-change",
+				TurnID:    "turn-first",
+				Text:      "streamed answer",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-transcript-boundary-change",
+				TurnID:    "turn-next",
+				Text:      "next question",
+			}, "coder"),
+		})
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+		if got, want := len(persisted), 2; got != want {
+			t.Fatalf("len(persisted) = %d, want %d", got, want)
+		}
+
+		changes, err := sessionDB.TranscriptChanges(ctx, transcript.ChangeQuery{
+			AfterSequence: persisted[0].Sequence,
+			Limit:         1,
+		})
+		if err != nil {
+			t.Fatalf("TranscriptChanges() error = %v", err)
+		}
+		if got, want := len(changes.Entries), 2; got != want {
+			t.Fatalf("len(changes.Entries) = %d, want completed upsert plus boundary", got)
+		}
+		assistant := changes.Entries[0]
+		boundary := changes.Entries[1]
+		if got, want := assistant.StartSequence, persisted[0].Sequence; got != want {
+			t.Fatalf("assistant.StartSequence = %d, want stable %d", got, want)
+		}
+		if got, want := assistant.Sequence, persisted[1].Sequence; got != want {
+			t.Fatalf("assistant.Sequence = %d, want boundary %d", got, want)
+		}
+		for index, part := range assistant.Message.Parts {
+			if part.State != "done" {
+				t.Fatalf("assistant part %d state = %q, want done", index, part.State)
+			}
+		}
+		if got, want := boundary.StartSequence, persisted[1].Sequence; got != want {
+			t.Fatalf("boundary.StartSequence = %d, want %d", got, want)
+		}
+		if boundary.Sequence != persisted[1].Sequence || changes.HasMore || changes.NextAfter != persisted[1].Sequence {
+			t.Fatalf("boundary change page = %#v, want one complete cursor group", changes)
+		}
+
+		after, err := sessionDB.TranscriptChanges(ctx, transcript.ChangeQuery{
+			AfterSequence: changes.NextAfter,
+			Limit:         1,
+		})
+		if err != nil {
+			t.Fatalf("TranscriptChanges(after boundary) error = %v", err)
+		}
+		if len(after.Entries) != 0 || after.NextAfter != changes.NextAfter {
+			t.Fatalf("TranscriptChanges(after boundary) = %#v, want no duplicate or gap", after)
+		}
+	})
+
+	t.Run("Should walk canonical entries without gaps across stable start cursors", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-pages")
+		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		marker, err := transcript.NewMarker(
+			transcript.MarkerSessionUnhealthy,
+			"Provider stopped responding",
+			now.Add(3*time.Second),
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("NewMarker() error = %v", err)
+		}
+		markerEvent, err := marker.AgentEvent("sess-transcript-pages", "turn-shared")
+		if err != nil {
+			t.Fatalf("AgentEvent(marker) error = %v", err)
+		}
+
+		input := []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-transcript-pages",
+				TurnID:    "turn-shared",
+				Timestamp: now,
+				Text:      "start",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-transcript-pages",
+				TurnID:    "turn-shared",
+				Timestamp: now.Add(time.Second),
+				Text:      "before marker",
+			}, "coder"),
+			canonicalStoreEvent(t, markerEvent, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-transcript-pages",
+				TurnID:    "turn-shared",
+				Timestamp: now.Add(4 * time.Second),
+				Text:      "after marker",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-transcript-pages",
+				TurnID:    "turn-next",
+				Timestamp: now.Add(5 * time.Second),
+				Text:      "next",
+			}, "coder"),
+		}
+		if _, err := sessionDB.RecordPersistedBatch(ctx, input); err != nil {
+			t.Fatalf("RecordPersistedBatch() error = %v", err)
+		}
+
+		storedEvents, err := sessionDB.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		want, err := transcript.ToUIEntries(storedEvents)
+		if err != nil {
+			t.Fatalf("ToUIEntries() error = %v", err)
+		}
+
+		got := make([]transcript.Entry, 0, len(want))
+		before := int64(0)
+		for {
+			page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{
+				Limit:          2,
+				BeforeSequence: before,
+			})
+			if err != nil {
+				t.Fatalf("TranscriptPage(before=%d) error = %v", before, err)
+			}
+			got = append(page.Entries, got...)
+			if !page.HasOlder {
+				break
+			}
+			if page.NextBeforeSequence <= 0 || page.NextBeforeSequence == before {
+				t.Fatalf("NextBeforeSequence = %d after %d, want progress", page.NextBeforeSequence, before)
+			}
+			before = page.NextBeforeSequence
+		}
+
+		assertTranscriptEntriesEqual(t, got, want)
+		if got, want := transcript.UIMessageText(got[1].Message), "before marker"; got != want {
+			t.Fatalf("first assistant segment text = %q, want %q", got, want)
+		}
+		if got, want := transcript.UIMessageText(got[3].Message), "after marker"; got != want {
+			t.Fatalf("second assistant segment text = %q, want %q", got, want)
+		}
+		if got[1].Message.ID == got[3].Message.ID {
+			t.Fatalf("assistant segment ids = %q, want distinct ids", got[1].Message.ID)
+		}
+	})
+
+	t.Run("Should surface a repaired tool lifecycle through historical entry changes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-repair")
+		now := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
+		initial, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:       acp.EventTypeToolCall,
+				SessionID:  "sess-transcript-repair",
+				TurnID:     "turn-old",
+				Timestamp:  now,
+				Title:      "Bash",
+				ToolCallID: "call-old",
+				Raw:        json.RawMessage(`{"rawInput":{"command":"pwd"}}`),
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeSyntheticReentry,
+				SessionID: "sess-transcript-repair",
+				TurnID:    "turn-new",
+				Timestamp: now.Add(time.Second),
+				Text:      "resume",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-transcript-repair",
+				TurnID:    "turn-new",
+				Timestamp: now.Add(2 * time.Second),
+				Text:      "new work",
+			}, "coder"),
+		})
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch(initial) error = %v", err)
+		}
+		beforeRepair, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(before repair) error = %v", err)
+		}
+		if got, want := len(beforeRepair.Entries), 3; got != want {
+			t.Fatalf("len(beforeRepair.Entries) = %d, want %d", got, want)
+		}
+		toolEntry := beforeRepair.Entries[0]
+
+		repair, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:       acp.EventTypeToolResult,
+				SessionID:  "sess-transcript-repair",
+				TurnID:     "turn-old",
+				Timestamp:  now.Add(3 * time.Second),
+				Title:      "Bash",
+				ToolCallID: "call-old",
+				Raw: json.RawMessage(
+					`{"sessionUpdate":"tool_call_update","status":"completed",` +
+						`"rawOutput":{"stdout":"workspace"},` +
+						`"_meta":{"claudeCode":{"toolName":"Bash"}}}`,
+				),
+			}, "coder"),
+		})
+		if err != nil {
+			t.Fatalf("RecordPersistedBatch(repair) error = %v", err)
+		}
+		if got, want := len(repair), 1; got != want {
+			t.Fatalf("len(repair) = %d, want %d", got, want)
+		}
+
+		changes, err := sessionDB.TranscriptChanges(ctx, transcript.ChangeQuery{
+			AfterSequence: initial[len(initial)-1].Sequence,
+			Limit:         10,
+		})
+		if err != nil {
+			t.Fatalf("TranscriptChanges() error = %v", err)
+		}
+		if got, want := len(changes.Entries), 1; got != want {
+			t.Fatalf("len(changes.Entries) = %d, want %d", got, want)
+		}
+		changed := changes.Entries[0]
+		if got, want := changed.Message.ID, toolEntry.Message.ID; got != want {
+			t.Fatalf("changed message id = %q, want historical %q", got, want)
+		}
+		if got, want := changed.StartSequence, toolEntry.StartSequence; got != want {
+			t.Fatalf("changed start sequence = %d, want immutable %d", got, want)
+		}
+		if got, want := changed.Sequence, repair[0].Sequence; got != want {
+			t.Fatalf("changed updated sequence = %d, want %d", got, want)
+		}
+		assertTranscriptToolPart(t, changed, "call-old", "pwd", "output-available")
+	})
+
+	t.Run("Should avoid decoding an unselected corrupt history prefix", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-bounded")
+		for index := range 6 {
+			if err := sessionDB.Record(ctx, SessionEvent{
+				TurnID:    fmt.Sprintf("turn-%d", index),
+				Type:      acp.EventTypeUserMessage,
+				AgentName: "coder",
+				Content:   fmt.Sprintf(`{"type":"user_message","text":"message-%d"}`, index),
+			}); err != nil {
+				t.Fatalf("Record(%d) error = %v", index, err)
+			}
+		}
+		if _, err := sessionDB.db.ExecContext(
+			ctx,
+			`UPDATE transcript_entries SET message_json = ? WHERE start_sequence = 1`,
+			`{"broken"`,
+		); err != nil {
+			t.Fatalf("corrupt oldest projection error = %v", err)
+		}
+
+		tail, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 1})
+		if err != nil {
+			t.Fatalf("TranscriptPage(tail) error = %v", err)
+		}
+		if got, want := transcript.UIMessageText(tail.Entries[0].Message), "message-5"; got != want {
+			t.Fatalf("tail text = %q, want %q", got, want)
+		}
+		_, err = sessionDB.TranscriptPage(ctx, transcript.PageQuery{
+			Limit:          1,
+			BeforeSequence: 2,
+		})
+		if !errors.Is(err, transcript.ErrProjectionCorrupt) {
+			t.Fatalf("TranscriptPage(corrupt prefix) error = %v, want ErrProjectionCorrupt", err)
+		}
+	})
+
+	t.Run("Should roll back the raw event when projection state is incompatible", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-rollback")
+		if _, err := sessionDB.db.ExecContext(
+			ctx,
+			`UPDATE transcript_projection_state SET projection_version = 999 WHERE singleton = 1`,
+		); err != nil {
+			t.Fatalf("set incompatible projection version error = %v", err)
+		}
+
+		err := sessionDB.Record(ctx, SessionEvent{
+			TurnID:    "turn-rollback",
+			Type:      acp.EventTypeUserMessage,
+			AgentName: "coder",
+			Content:   `{"type":"user_message","text":"must roll back"}`,
+		})
+		if !errors.Is(err, transcript.ErrProjectionIncompatible) {
+			t.Fatalf("Record() error = %v, want ErrProjectionIncompatible", err)
+		}
+		events, err := sessionDB.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("len(events) = %d, want transaction rollback", len(events))
+		}
+	})
+
+	t.Run("Should roll back the raw event when materialization fails after insert", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-transcript-atomic")
+		if _, err := sessionDB.db.ExecContext(ctx, `
+			CREATE TRIGGER reject_transcript_projection
+			BEFORE INSERT ON transcript_entries
+			BEGIN
+				SELECT RAISE(ABORT, 'projection rejected');
+			END`); err != nil {
+			t.Fatalf("create rejection trigger error = %v", err)
+		}
+
+		err := sessionDB.Record(ctx, SessionEvent{
+			TurnID:    "turn-atomic",
+			Type:      acp.EventTypeUserMessage,
+			AgentName: "coder",
+			Content:   `{"type":"user_message","text":"must be atomic"}`,
+		})
+		if err == nil {
+			t.Fatal("Record() error = nil, want projection failure")
+		}
+		events, queryErr := sessionDB.Query(ctx, EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query() error = %v", queryErr)
+		}
+		if len(events) != 0 {
+			t.Fatalf("len(events) = %d, want raw event rollback", len(events))
+		}
+	})
+}
+
+func TestSessionDBTranscriptProjectionMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should backfill a version three database and preserve replay after reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		now := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
+		legacyEvents := []SessionEvent{
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-v3-upgrade",
+				TurnID:    "turn-upgrade",
+				Timestamp: now,
+				Text:      "legacy question",
+			}, "coder"),
+			canonicalStoreEvent(t, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-v3-upgrade",
+				TurnID:    "turn-upgrade",
+				Timestamp: now.Add(time.Second),
+				Text:      "legacy answer",
+			}, "coder"),
+		}
+		legacyDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			if err := store.RunMigrations(ctx, db, sessionSchemaMigrations[:3]); err != nil {
+				return err
+			}
+			for index, event := range legacyEvents {
+				event.ID = fmt.Sprintf("legacy-%d", index+1)
+				event.Sequence = int64(index + 1)
+				legacyEvents[index] = event
+				if _, err := db.ExecContext(
+					ctx,
+					`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
+					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					event.ID,
+					event.Sequence,
+					event.TurnID,
+					event.Type,
+					event.AgentName,
+					event.Content,
+					store.FormatTimestamp(event.Timestamp),
+				); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v3) error = %v", err)
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		writer, err := OpenSessionDB(ctx, "sess-v3-upgrade", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(upgrade) error = %v", err)
+		}
+		if _, err := writer.db.ExecContext(
+			ctx,
+			`UPDATE events SET content = '{' WHERE id = 'legacy-1'`,
+		); err != nil {
+			t.Fatalf("corrupt raw history after backfill error = %v", err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(upgrade writer) error = %v", err)
+		}
+		reader, err := OpenSessionDBReadOnly(ctx, "sess-v3-upgrade", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reader) error = %v", err)
+			}
+		})
+
+		page, err := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(reopen) error = %v", err)
+		}
+		want, err := transcript.ToUIEntries(legacyEvents)
+		if err != nil {
+			t.Fatalf("ToUIEntries(legacy) error = %v", err)
+		}
+		assertTranscriptEntriesEqual(t, page.Entries, want)
+		var unassigned int
+		if err := reader.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM events WHERE transcript_entry_key = ''`,
+		).Scan(&unassigned); err != nil {
+			t.Fatalf("count unassigned events error = %v", err)
+		}
+		if unassigned != 0 {
+			t.Fatalf("unassigned events = %d, want 0", unassigned)
+		}
+	})
+}
+
 func TestOpenSessionDBReadOnly(t *testing.T) {
 	t.Parallel()
 
@@ -503,6 +1008,69 @@ func TestSessionDBClear(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatalf("Clear() writer request not observed: %v", ctx.Err())
 		}
+	})
+
+	t.Run("Should advance transcript generation and restart event sequences", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := openTestSessionDB(t, "sess-clear-transcript")
+		if err := sessionDB.Record(ctx, SessionEvent{
+			TurnID:    "turn-before-clear",
+			Type:      acp.EventTypeUserMessage,
+			AgentName: "coder",
+			Content:   `{"type":"user_message","text":"before"}`,
+		}); err != nil {
+			t.Fatalf("Record(before clear) error = %v", err)
+		}
+		before, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(before clear) error = %v", err)
+		}
+
+		if err := sessionDB.Clear(ctx); err != nil {
+			t.Fatalf("Clear() error = %v", err)
+		}
+		if err := sessionDB.Record(ctx, SessionEvent{
+			TurnID:    "turn-after-clear",
+			Type:      acp.EventTypeUserMessage,
+			AgentName: "coder",
+			Content:   `{"type":"user_message","text":"after"}`,
+		}); err != nil {
+			t.Fatalf("Record(after clear) error = %v", err)
+		}
+		after, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(after clear) error = %v", err)
+		}
+		if got, want := after.Generation, before.Generation+1; got != want {
+			t.Fatalf("generation after clear = %d, want %d", got, want)
+		}
+		if got, want := after.Entries[0].StartSequence, int64(1); got != want {
+			t.Fatalf("start sequence after clear = %d, want %d", got, want)
+		}
+		if got, want := transcript.UIMessageText(after.Entries[0].Message), "after"; got != want {
+			t.Fatalf("transcript after clear = %q, want %q", got, want)
+		}
+
+		path := sessionDB.Path()
+		if err := sessionDB.Close(ctx); err != nil {
+			t.Fatalf("Close(after clear) error = %v", err)
+		}
+		reader, err := OpenSessionDBReadOnly(ctx, "sess-clear-transcript", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly(after clear) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reader) error = %v", err)
+			}
+		})
+		reopened, err := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("TranscriptPage(reopened) error = %v", err)
+		}
+		assertTranscriptEntriesEqual(t, reopened.Entries, after.Entries)
 	})
 }
 
@@ -1215,6 +1783,50 @@ func lastEntryText(t *testing.T, entries []transcript.Entry) string {
 	return transcript.UIMessageText(entries[len(entries)-1].Message)
 }
 
+func assertTranscriptEntriesEqual(t *testing.T, got []transcript.Entry, want []transcript.Entry) {
+	t.Helper()
+
+	gotJSON, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal(got transcript) error = %v", err)
+	}
+	wantJSON, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("json.Marshal(want transcript) error = %v", err)
+	}
+	if !bytes.Equal(gotJSON, wantJSON) {
+		t.Fatalf("transcript entries = %s, want %s", gotJSON, wantJSON)
+	}
+}
+
+func assertTranscriptToolPart(
+	t *testing.T,
+	entry transcript.Entry,
+	toolCallID string,
+	wantCommand string,
+	wantState string,
+) {
+	t.Helper()
+
+	for _, part := range entry.Message.Parts {
+		if part.ToolCallID != toolCallID {
+			continue
+		}
+		if part.State != wantState {
+			t.Fatalf("tool part state = %q, want %q", part.State, wantState)
+		}
+		var input map[string]string
+		if err := json.Unmarshal(part.Input, &input); err != nil {
+			t.Fatalf("json.Unmarshal(tool input) error = %v; input=%s", err, string(part.Input))
+		}
+		if input["command"] != wantCommand {
+			t.Fatalf("tool input command = %q, want %q", input["command"], wantCommand)
+		}
+		return
+	}
+	t.Fatalf("tool part %q not found in %#v", toolCallID, entry.Message.Parts)
+}
+
 func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 	t.Helper()
 
@@ -1262,6 +1874,7 @@ func assertSessionSchemaMigrations(t *testing.T, records []store.MigrationRecord
 		{version: 1, name: "create_session_schema"},
 		{version: 2, name: "strip_canonical_event_raw_payloads"},
 		{version: 3, name: "enforce_unique_event_sequences"},
+		{version: 4, name: "materialize_transcript_projection"},
 	}
 	if got, wantLen := len(records), len(want); got != wantLen {
 		t.Fatalf("len(records) = %d, want %d", got, wantLen)

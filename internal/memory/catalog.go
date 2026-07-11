@@ -414,6 +414,12 @@ var catalogSchemaMigrations = []storepkg.Migration{
 		Checksum: "2026-05-05-memv2-recall-signals-live-flow",
 		Up:       migrateRecallSignalsLiveFlow,
 	},
+	{
+		Version:  9,
+		Name:     "rebuild_memory_catalog_fts",
+		Checksum: "2026-07-10-rebuild-memory-catalog-fts",
+		Up:       migrateCatalogFTSRebuild,
+	},
 }
 
 type catalog struct {
@@ -1054,7 +1060,11 @@ func (c *catalog) replaceScope(
 				return err
 			}
 		}
-		return c.upsertCatalogScopeStateTx(ctx, tx, scope, workspaceID)
+		return c.upsertCatalogIdentityStateTx(
+			ctx,
+			tx,
+			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
+		)
 	})
 }
 
@@ -1066,7 +1076,11 @@ func (c *catalog) upsertDocument(ctx context.Context, doc catalogDocument) (err 
 		if err := replaceCatalogChunksTx(ctx, tx, doc); err != nil {
 			return err
 		}
-		if err := c.upsertCatalogScopeStateTx(ctx, tx, doc.Scope, doc.WorkspaceID); err != nil {
+		if err := c.upsertCatalogIdentityStateTx(
+			ctx,
+			tx,
+			newCatalogIdentity(doc.Scope, doc.WorkspaceID, doc.AgentName, doc.AgentTier),
+		); err != nil {
 			return err
 		}
 		if err := upsertCatalogStateTx(
@@ -1222,28 +1236,6 @@ func replaceCatalogChunksTx(ctx context.Context, tx catalogWriteExecutor, doc ca
 	return nil
 }
 
-func (c *catalog) upsertCatalogScopeStateTx(
-	ctx context.Context,
-	tx catalogWriteExecutor,
-	scope memcontract.Scope,
-	workspaceID string,
-) error {
-	if err := upsertCatalogStateTx(
-		ctx,
-		tx,
-		catalogScopeStateKey(scope, workspaceID),
-		storepkg.FormatTimestamp(c.now().UTC()),
-	); err != nil {
-		return fmt.Errorf(
-			"memory: persist catalog scope state %q/%q: %w",
-			scope.Normalize(),
-			strings.TrimSpace(workspaceID),
-			err,
-		)
-	}
-	return nil
-}
-
 func (c *catalog) deleteDocument(
 	ctx context.Context,
 	scope memcontract.Scope,
@@ -1280,18 +1272,12 @@ func (c *catalog) deleteDocument(
 		); err != nil {
 			return fmt.Errorf("memory: delete catalog entry %q: %w", filename, err)
 		}
-		if err := upsertCatalogStateTx(
+		if err := c.upsertCatalogIdentityStateTx(
 			ctx,
 			tx,
-			catalogScopeStateKey(scope, workspaceID),
-			storepkg.FormatTimestamp(c.now().UTC()),
+			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
 		); err != nil {
-			return fmt.Errorf(
-				"memory: persist catalog scope state %q/%q: %w",
-				scope.Normalize(),
-				strings.TrimSpace(workspaceID),
-				err,
-			)
+			return err
 		}
 		if err := upsertCatalogStateTx(
 			ctx,
@@ -1334,78 +1320,6 @@ func (c *catalog) lastReindex(ctx context.Context) (*time.Time, error) {
 	}
 	parsed = parsed.UTC()
 	return &parsed, nil
-}
-
-func (c *catalog) setScopeReady(ctx context.Context, scope memcontract.Scope, workspaceID string) error {
-	if err := c.upsertState(
-		ctx,
-		catalogScopeStateKey(scope, workspaceID),
-		storepkg.FormatTimestamp(c.now().UTC()),
-	); err != nil {
-		return fmt.Errorf(
-			"memory: persist catalog scope state %q/%q: %w",
-			scope.Normalize(),
-			strings.TrimSpace(workspaceID),
-			err,
-		)
-	}
-	return nil
-}
-
-func (c *catalog) scopeReady(ctx context.Context, scope memcontract.Scope, workspaceID string) (bool, error) {
-	raw, ok, err := c.stateValue(ctx, catalogScopeStateKey(scope, workspaceID))
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		return false, nil
-	}
-	if _, err := storepkg.ParseTimestamp(raw); err != nil {
-		return false, fmt.Errorf(
-			"memory: parse catalog scope state %q/%q timestamp %q: %w",
-			scope.Normalize(),
-			strings.TrimSpace(workspaceID),
-			raw,
-			err,
-		)
-	}
-	return true, nil
-}
-
-func (c *catalog) scopeEntryCount(ctx context.Context, scope memcontract.Scope, workspaceID string) (int, error) {
-	db, err := c.ensureDB(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if db == nil {
-		return 0, nil
-	}
-
-	query := `SELECT COUNT(*) FROM memory_catalog_entries`
-	args := make([]any, 0, 1)
-	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
-		query += ` WHERE scope = 'global'`
-	case memcontract.ScopeWorkspace:
-		query += ` WHERE scope = 'workspace' AND workspace_id = ?`
-		args = append(args, strings.TrimSpace(workspaceID))
-	case memcontract.ScopeAgent:
-		query += ` WHERE scope = 'agent' AND workspace_id = ?`
-		args = append(args, strings.TrimSpace(workspaceID))
-	default:
-		return 0, fmt.Errorf("memory: count catalog entries for unsupported scope %q", scope)
-	}
-
-	var count int
-	if err := db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
-		return 0, fmt.Errorf(
-			"memory: count catalog entries for scope %q workspace %q: %w",
-			scope.Normalize(),
-			strings.TrimSpace(workspaceID),
-			err,
-		)
-	}
-	return count, nil
 }
 
 func (c *catalog) listEntries(ctx context.Context, filters []catalogFilter) ([]catalogDocument, error) {

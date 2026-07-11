@@ -49,24 +49,24 @@ describe("useNetworkChannels", () => {
     window.localStorage.clear();
   });
 
-  it("sorts channels alphabetically and surfaces pinned channels separately", async () => {
+  it("preserves backend channel order and surfaces pinned channels separately", async () => {
     const { result } = renderHook(() => useNetworkChannels({ enabled: true }), {
       wrapper: makeWrapper(),
     });
 
     await waitFor(() => {
       expect(result.current.channels.map(channel => channel.channel)).toEqual([
+        "ops",
         "alpha",
         "design",
-        "ops",
       ]);
     });
 
     expect(result.current.pinned).toEqual([]);
     expect(result.current.unpinned.map(channel => channel.channel)).toEqual([
+      "ops",
       "alpha",
       "design",
-      "ops",
     ]);
   });
 

@@ -109,11 +109,6 @@ type MemoryEntryPayload struct {
 	Content string                    `json:"content"`
 }
 
-// MemoryListResponse wraps Memory v2 list output.
-type MemoryListResponse struct {
-	Memories []MemoryEntrySummaryPayload `json:"memories"`
-}
-
 // MemoryEntryResponse wraps a single Memory v2 entry.
 type MemoryEntryResponse struct {
 	Memory MemoryEntryPayload `json:"memory"`

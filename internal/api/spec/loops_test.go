@@ -31,7 +31,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "list catalog",
 				path:       "/api/workspaces/{workspace_id}/loops",
 				method:     "GET",
-				statuses:   []int{200, 400, 503, 500},
+				statuses:   []int{200, 400, 404, 410, 500, 503},
 				parameters: []string{"workspace_id"},
 			},
 			{

@@ -147,8 +147,13 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 		"global",
 		"--type",
 		"user",
+		"--sort",
+		"name",
+		"--cursor",
+		"next-page",
+		"--limit",
+		"7",
 		"--include-system",
-		"--include-shadowed",
 		"-o",
 		"jsonl",
 	)
@@ -159,12 +164,17 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 		seenList.AgentName != "reviewer" ||
 		seenList.AgentTier != memcontract.AgentTierGlobal ||
 		seenList.Type != memcontract.TypeUser ||
-		!seenList.IncludeSystem ||
-		!seenList.IncludeShadowed {
+		seenList.Sort != "name" ||
+		seenList.Cursor != "next-page" ||
+		seenList.Limit != 7 ||
+		!seenList.IncludeSystem {
 		t.Fatalf("list query = %#v, want agent selector with filters", seenList)
 	}
 	if got := strings.Count(strings.TrimSpace(listOut), "\n") + 1; got != 1 {
 		t.Fatalf("list jsonl lines = %d, output=%q", got, listOut)
+	}
+	if _, _, err := executeRootCommand(t, deps, "memory", "list", "--include-shadowed"); err == nil {
+		t.Fatal("memory list --include-shadowed error = nil, want removed flag")
 	}
 
 	showOut, _, err := executeRootCommand(
@@ -226,6 +236,50 @@ func TestMemoryListShowAndSearchUseV2Selectors(t *testing.T) {
 	if !strings.Contains(searchOut, "agent:global") {
 		t.Fatalf("search output = %q, want agent tier label", searchOut)
 	}
+}
+
+func TestMemoryDecisionCommands(t *testing.T) {
+	t.Run("Should pass target filename and limit through the decisions list command", func(t *testing.T) {
+		t.Parallel()
+
+		var seen MemoryDecisionListQuery
+		deps := newTestDeps(t, &stubClient{
+			listMemoryDecisionsFn: func(
+				_ context.Context,
+				query MemoryDecisionListQuery,
+			) (MemoryDecisionListRecord, error) {
+				seen = query
+				return MemoryDecisionListRecord{Decisions: []contract.MemoryDecisionPayload{
+					testMemoryDecision("dec-filtered", memcontract.OpUpdate),
+				}}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"memory",
+			"decisions",
+			"list",
+			"--scope",
+			"global",
+			"--filename",
+			"prefs.md",
+			"--limit",
+			"1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("memory decisions list error = %v", err)
+		}
+		if seen.Scope != memcontract.ScopeGlobal || seen.TargetFilename != "prefs.md" || seen.Limit != 1 {
+			t.Fatalf("memory decision query = %#v, want global prefs.md limit 1", seen)
+		}
+		if !strings.Contains(stdout, "dec-filtered") {
+			t.Fatalf("memory decisions list output = %q, want filtered decision", stdout)
+		}
+	})
 }
 
 func TestMemoryExtractorDrainUsesTimeoutContext(t *testing.T) {

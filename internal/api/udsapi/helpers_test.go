@@ -269,7 +269,7 @@ func newTestHandlers(
 		manager,
 		observer,
 		nil,
-		stubTaskManager{},
+		&stubTaskManager{},
 		nil,
 		stubWorkspaceService{},
 		nil,
@@ -286,7 +286,17 @@ func newTestHandlersWithBridges(
 	homePaths aghconfig.HomePaths,
 ) *Handlers {
 	t.Helper()
-	return newTestHandlersWithRuntime(t, manager, observer, nil, stubTaskManager{}, bridges, workspaces, nil, homePaths)
+	return newTestHandlersWithRuntime(
+		t,
+		manager,
+		observer,
+		nil,
+		&stubTaskManager{},
+		bridges,
+		workspaces,
+		nil,
+		homePaths,
+	)
 }
 
 func newTestHandlersWithExtensions(
@@ -302,7 +312,7 @@ func newTestHandlersWithExtensions(
 		manager,
 		observer,
 		nil,
-		stubTaskManager{},
+		&stubTaskManager{},
 		nil,
 		stubWorkspaceService{},
 		extensions,
@@ -322,7 +332,7 @@ func newTestHandlersWithSettingsAndExtensions(
 	cfg := testConfigWithDisabledNetwork(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:        stubSessionManager{},
-		tasks:           stubTaskManager{},
+		tasks:           &stubTaskManager{},
 		observer:        stubObserver{},
 		workspaces:      stubWorkspaceService{},
 		settings:        settings,
@@ -450,7 +460,7 @@ func newTestHandlersWithResources(
 	cfg := testConfigWithDisabledNetwork(homePaths)
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
-		tasks:        stubTaskManager{},
+		tasks:        &stubTaskManager{},
 		observer:     observer,
 		resources:    resources,
 		workspaces:   stubWorkspaceService{},

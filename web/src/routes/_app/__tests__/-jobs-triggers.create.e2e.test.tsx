@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse, type HttpHandler } from "msw";
-import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { useEffect, useState, type AnchorHTMLAttributes, type ReactNode } from "react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -43,6 +43,13 @@ const { clipboardWriteText, toast } = vi.hoisted(() => ({
   },
 }));
 
+const routerState = vi.hoisted(() => ({
+  currentPath: "/jobs",
+  navigateMock: vi.fn(),
+  searchListeners: new Set<(search: Record<string, unknown>) => void>(),
+  searchParams: {} as Record<string, unknown>,
+}));
+
 interface MockLinkParams {
   id?: string;
 }
@@ -51,17 +58,69 @@ interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: MockLinkParams;
 }
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-    useSearch: () => ({}),
-  }),
-  Link: ({ children, params, ...props }: MockLinkProps) => (
-    <a href={`/session/${params?.id ?? ""}`} {...props}>
-      {children}
-    </a>
-  ),
-}));
+interface MockNavigateOptions {
+  search?:
+    | Record<string, unknown>
+    | ((current: Record<string, unknown>) => Record<string, unknown>);
+  to: string;
+}
+
+async function navigate(options: MockNavigateOptions) {
+  routerState.navigateMock(options);
+  if (options.to !== routerState.currentPath) return;
+
+  if (typeof options.search === "function") {
+    routerState.searchParams = options.search(routerState.searchParams);
+  } else if (options.search) {
+    routerState.searchParams = options.search;
+  }
+
+  for (const listener of routerState.searchListeners) {
+    listener(routerState.searchParams);
+  }
+}
+
+vi.mock("@tanstack/react-router", async importOriginal => {
+  const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+
+  return {
+    ...actual,
+    createFileRoute:
+      () =>
+      (opts: {
+        component: () => ReactNode;
+        validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
+      }) => {
+        const validateSearch = (search: Record<string, unknown>) =>
+          opts.validateSearch ? opts.validateSearch(search) : search;
+
+        return {
+          component: opts.component,
+          useSearch: () => {
+            const [search, setSearch] = useState(() => validateSearch(routerState.searchParams));
+
+            useEffect(() => {
+              const listener = (nextSearch: Record<string, unknown>) => {
+                setSearch(validateSearch(nextSearch));
+              };
+              routerState.searchListeners.add(listener);
+              return () => {
+                routerState.searchListeners.delete(listener);
+              };
+            }, []);
+
+            return search;
+          },
+        };
+      },
+    Link: ({ children, params, ...props }: MockLinkProps) => (
+      <a href={`/session/${params?.id ?? ""}`} {...props}>
+        {children}
+      </a>
+    ),
+    useNavigate: () => navigate,
+  };
+});
 
 vi.mock("sonner", () => ({
   toast,
@@ -125,6 +184,7 @@ function createQueryClient() {
 }
 
 function renderAutomationPage(page: "jobs" | "triggers") {
+  routerState.currentPath = `/${page}`;
   const Page = page === "jobs" ? JobsPage : TriggersPage;
   const queryClient = createQueryClient();
   queryClient.setQueryData(workspaceKeys.list(), workspaces);
@@ -236,9 +296,13 @@ function automationCreateHandlers(): HttpHandler[] {
   return [
     http.get("/api/workspaces", () => HttpResponse.json({ workspaces })),
     http.get("/api/settings/automation", () => HttpResponse.json(settingsAutomationSectionFixture)),
-    http.get("/api/automation/jobs", ({ request }) =>
-      HttpResponse.json({ jobs: jobStore.listScoped(scopedFilterFromRequest(request)) })
-    ),
+    http.get("/api/automation/jobs", ({ request }) => {
+      const jobs = jobStore.listScoped(scopedFilterFromRequest(request));
+      return HttpResponse.json({
+        jobs,
+        page: { has_more: false, limit: 50, total: jobs.length },
+      });
+    }),
     http.get("/api/automation/jobs/:id", ({ params }) => {
       const id = String(params.id);
       const job = jobStore.get(id);
@@ -290,9 +354,13 @@ function automationCreateHandlers(): HttpHandler[] {
 
       return new HttpResponse(null, { status: 204 });
     }),
-    http.get("/api/automation/triggers", ({ request }) =>
-      HttpResponse.json({ triggers: triggerStore.listScoped(scopedFilterFromRequest(request)) })
-    ),
+    http.get("/api/automation/triggers", ({ request }) => {
+      const triggers = triggerStore.listScoped(scopedFilterFromRequest(request));
+      return HttpResponse.json({
+        page: { has_more: false, limit: 50, total: triggers.length },
+        triggers,
+      });
+    }),
     http.get("/api/automation/triggers/:id", ({ params }) => {
       const id = String(params.id);
       const trigger = triggerStore.get(id);
@@ -373,6 +441,9 @@ beforeEach(() => {
   handlers = automationCreateHandlers();
   clipboardWriteText.mockReset();
   clipboardWriteText.mockResolvedValue(undefined);
+  routerState.navigateMock.mockReset();
+  routerState.searchListeners.clear();
+  routerState.searchParams = {};
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: clipboardWriteText },
@@ -771,6 +842,10 @@ describe("Jobs create modal", () => {
     });
     fireEvent.click(screen.getByTestId("jobs-scope-workspace"));
     await waitFor(() => {
+      expect(routerState.navigateMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: expect.any(Function), to: "/jobs" })
+      );
+      expect(routerState.searchParams).toEqual(expect.objectContaining({ scope: "workspace" }));
       expect(screen.getByTestId("automation-item-job_alpha_only_job")).toBeInTheDocument();
     });
 
@@ -1181,6 +1256,10 @@ describe("Triggers create modal", () => {
     });
     fireEvent.click(screen.getByTestId("triggers-scope-workspace"));
     await waitFor(() => {
+      expect(routerState.navigateMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: expect.any(Function), to: "/triggers" })
+      );
+      expect(routerState.searchParams).toEqual(expect.objectContaining({ scope: "workspace" }));
       expect(screen.getByTestId("automation-item-trg_alpha_only_trigger")).toBeInTheDocument();
     });
 

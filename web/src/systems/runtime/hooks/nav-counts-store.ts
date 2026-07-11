@@ -17,7 +17,9 @@
  */
 import { type StoreApi, createStore } from "zustand/vanilla";
 
-import { apiClient, apiRequestFailed } from "@/lib/api-client";
+import { createDefaultFetchers, observeStreamUrlForWorkspace } from "./nav-counts-fetchers";
+
+export { createDefaultFetchers, observeStreamUrlForWorkspace } from "./nav-counts-fetchers";
 
 export const NAV_COUNT_KEYS = [
   "tasks",
@@ -94,6 +96,7 @@ export interface NavCountsEventSource {
   addEventListener: (type: string, listener: (event: MessageEvent) => void) => void;
   removeEventListener?: (type: string, listener: (event: MessageEvent) => void) => void;
   close: () => void;
+  onopen: ((event: Event) => void) | null;
   onerror: ((event: Event) => void) | null;
 }
 
@@ -199,6 +202,7 @@ export function createNavCountsStore(options: NavCountsStoreOptions = {}): NavCo
         for (const type of TASK_NAV_COUNT_EVENT_TYPES) {
           source.removeEventListener?.(type, handleTaskEvent);
         }
+        source.onopen = null;
         source.onerror = null;
         source.close();
       } catch (err) {
@@ -232,11 +236,14 @@ export function createNavCountsStore(options: NavCountsStoreOptions = {}): NavCo
     try {
       const source = eventSourceFactory(observeStreamUrl);
       eventSource = source;
-      sseConnected = true;
-      sseLastActivityAt = now();
       for (const type of TASK_NAV_COUNT_EVENT_TYPES) {
         source.addEventListener(type, handleTaskEvent);
       }
+      source.onopen = () => {
+        sseConnected = true;
+        sseLastActivityAt = now();
+        markTasksFresh();
+      };
       source.onerror = () => {
         sseConnected = false;
       };
@@ -268,6 +275,21 @@ export function createNavCountsStore(options: NavCountsStoreOptions = {}): NavCo
         counts: {
           ...state.counts,
           tasks: { count: nextCount, stale: false },
+        },
+      };
+    });
+  }
+
+  function markTasksFresh(): void {
+    store.setState(state => {
+      const tasks = state.counts.tasks;
+      if (!tasks?.stale) {
+        return state;
+      }
+      return {
+        counts: {
+          ...state.counts,
+          tasks: { ...tasks, stale: false },
         },
       };
     });
@@ -377,110 +399,6 @@ const globalTimer: NavCountsTimerAPI = {
 
 function defaultLogger(message: string, err: unknown): void {
   console.error(message, err);
-}
-
-/**
- * Exported for test coverage of the per-endpoint mapping; runtime callers
- * receive these automatically via createNavCountsStore() without override.
- */
-export function observeStreamUrlForWorkspace(workspaceId: string): string {
-  return `/api/logs/stream?workspace_id=${encodeURIComponent(workspaceId)}`;
-}
-
-export function createDefaultFetchers(workspaceId?: string | null): NavCountFetchers {
-  return {
-    tasks: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/observe/tasks/dashboard", {
-        params: workspaceId
-          ? { query: { scope: "workspace" as const, workspace: workspaceId } }
-          : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts tasks snapshot failed: ${response.status}`);
-      }
-      const total = data?.dashboard?.totals?.tasks_total ?? 0;
-      return { count: total };
-    },
-    jobs: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/automation/jobs", {
-        params: workspaceId
-          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
-          : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts jobs snapshot failed: ${response.status}`);
-      }
-      return { count: data?.jobs?.length ?? 0 };
-    },
-    network: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/network/status", { signal });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts network snapshot failed: ${response.status}`);
-      }
-      const net = data?.network;
-      const peers = (net?.local_peers ?? 0) + (net?.remote_peers ?? 0);
-      const channels = net?.channels ?? 0;
-      return { count: peers + channels };
-    },
-    triggers: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/automation/triggers", {
-        params: workspaceId
-          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
-          : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts triggers snapshot failed: ${response.status}`);
-      }
-      return { count: data?.triggers?.length ?? 0 };
-    },
-    agents: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/agents", {
-        params: workspaceId ? { query: { workspace: workspaceId } } : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts agents snapshot failed: ${response.status}`);
-      }
-      return { count: data?.agents?.length ?? 0 };
-    },
-    knowledge: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/memory", {
-        params: workspaceId
-          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
-          : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts knowledge snapshot failed: ${response.status}`);
-      }
-      return { count: data?.memories?.length ?? 0 };
-    },
-    skills: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/skills", {
-        params: workspaceId ? { query: { workspace: workspaceId } } : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts skills snapshot failed: ${response.status}`);
-      }
-      return { count: data?.skills?.length ?? 0 };
-    },
-    bridges: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/bridges", {
-        params: workspaceId
-          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
-          : undefined,
-        signal,
-      });
-      if (apiRequestFailed(response, error)) {
-        throw new Error(`nav-counts bridges snapshot failed: ${response.status}`);
-      }
-      return { count: data?.bridges?.length ?? 0 };
-    },
-  };
 }
 
 const processSingletons = new Map<string, NavCountsStore>();

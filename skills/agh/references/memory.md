@@ -1,16 +1,5 @@
 # Memory
 
-## Contents
-
-- What memory stores
-- Scopes and types
-- CLI operations
-- Search, reindex, promote, and reload
-- Recall traces
-- Extractor diagnostics
-- Hygiene
-- When not to write memory
-
 ## What Memory Stores
 
 AGH memory is durable Markdown outside transient session prompts. Use it for facts that should survive across sessions: project context, user preferences, durable decisions, and reusable references.
@@ -31,8 +20,12 @@ Common memory types include user, feedback, project, and reference. Choose the t
 
     agh memory list
     agh memory list --scope global
-    agh memory list --scope workspace
+    agh memory list --scope workspace --type project --sort name --limit 50 -o json
     agh memory show architecture.md --scope workspace
+
+List filters run before the page cut. JSON output includes `page.total`, the applied `page.limit`,
+`page.has_more`, and an opaque `page.next_cursor`; pass that cursor back with `--cursor` to continue
+the same selector, type, and sort. A page defaults to 50 entries and is capped at 200.
 
 Create or update durable memory:
 
@@ -41,6 +34,10 @@ Create or update durable memory:
 Delete outdated memory:
 
     agh memory delete architecture.md --scope workspace
+
+Inspect controller history for one file; the daemon applies the filename filter before the result limit:
+
+    agh memory decisions list --filename architecture.md --limit 10 -o json
 
 Trigger a gated consolidation check:
 

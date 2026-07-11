@@ -47,7 +47,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 4: Post the Operator Kickoff**
 
 1. Render and validate the kickoff with the helper (mutating):
-   `python3 .agents/skills/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/post-operator-kickoff.py --workspace "$WORKSPACE_PATH" --playbook "$PLAYBOOK_REF" --qa-output-path "$QA_OUTPUT_PATH" --manifest "$BOOTSTRAP_MANIFEST"`
 2. The helper aborts with exit code 2 if the rendered kickoff contains any phrase from `references/forbidden-prompt-phrases.md`. Do not edit the helper to suppress the check; rewrite the playbook's `kickoff_brief` instead.
 3. Read `<WORKSPACE_PATH>/.agh/operator-kickoff.txt` for inspection. Use the same text verbatim when the AGH CLI is invoked to deliver the kickoff to the operator session:
    `agh session prompt <operator-session-id> "$(cat $WORKSPACE_PATH/.agh/operator-kickoff.txt)" -o jsonl > $QA_OUTPUT_PATH/qa/operator-kickoff.jsonl`
@@ -57,7 +57,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 5: Observe the Runtime**
 
 1. Run the observer (read-only) for the configured window:
-   `python3 .agents/skills/real-scenario-qa/scripts/observe-runtime.py --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/observe-runtime.py --workspace "$WORKSPACE_PATH" --qa-output-path "$QA_OUTPUT_PATH" --duration-sec 1800 --stall-threshold-sec 300`
 2. While the observer is tailing the journey log, capture cross-surface evidence WITHOUT directing agents:
    - CLI: `agh task list`, `agh agent list`, `agh channel list`, `agh session list` against the isolated daemon.
    - API: read endpoints that intersect the playbook's primary domain.
@@ -69,7 +69,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 **Step 6: Audit, Diagnose, Fix, Re-Verify**
 
 1. Run the strict auditor against the lab:
-   `python3 .agents/skills/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
 2. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All bugs go to the repo's global registry `docs/qa/bugs/BUG-NNNN.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/state.csv` rows:
    - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
    - **C16** deliverable count short → file a runtime bug (which AGH agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.

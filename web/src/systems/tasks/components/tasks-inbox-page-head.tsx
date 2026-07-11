@@ -3,10 +3,10 @@ import { Briefcase, Clock } from "lucide-react";
 import { formatRelativeTime } from "../lib/task-formatters";
 
 export interface TasksInboxPageHeadProps {
-  visibleCount: number;
-  totalCount: number;
-  unreadCount: number;
-  archivedCount: number;
+  visibleCount?: number;
+  totalCount?: number;
+  unreadCount?: number;
+  archivedCount?: number;
   workspaceName?: string | null;
   /** Epoch ms of the last successful inbox fetch (TanStack `dataUpdatedAt`). */
   inboxUpdatedAt?: number;
@@ -26,7 +26,11 @@ export function TasksInboxPageHead({
   inboxUpdatedAt,
 }: TasksInboxPageHeadProps) {
   const countLabel =
-    visibleCount === totalCount ? `${totalCount}` : `${visibleCount} of ${totalCount}`;
+    visibleCount === undefined || totalCount === undefined
+      ? null
+      : visibleCount === totalCount
+        ? `${totalCount}`
+        : `${visibleCount} of ${totalCount}`;
   const syncedLabel = inboxUpdatedAt
     ? formatRelativeTime(new Date(inboxUpdatedAt).toISOString())
     : null;
@@ -40,12 +44,14 @@ export function TasksInboxPageHead({
         >
           Inbox
         </h1>
-        <span
-          className="inline-flex min-h-5 items-center rounded bg-canvas-soft px-1.5 py-0.5 font-mono text-form-hint font-medium tabular-nums text-faint"
-          data-testid="tasks-inbox-page-count"
-        >
-          {countLabel}
-        </span>
+        {countLabel === null ? null : (
+          <span
+            className="inline-flex min-h-5 items-center rounded bg-canvas-soft px-1.5 py-0.5 font-mono text-form-hint font-medium tabular-nums text-faint"
+            data-testid="tasks-inbox-page-count"
+          >
+            {countLabel}
+          </span>
+        )}
       </div>
       <div
         className="flex flex-wrap items-center gap-2 text-form-label text-subtle"
@@ -71,17 +77,22 @@ export function TasksInboxPageHead({
             <span>synced {syncedLabel} ago</span>
           </span>
         ) : null}
-        {(workspaceName || syncedLabel) && (unreadCount > 0 || archivedCount > 0) ? (
+        {(workspaceName || syncedLabel) &&
+        unreadCount !== undefined &&
+        archivedCount !== undefined &&
+        (unreadCount > 0 || archivedCount > 0) ? (
           <span aria-hidden="true" className="text-faint">
             ·
           </span>
         ) : null}
-        <span
-          className="font-mono text-form-hint tabular-nums text-faint"
-          data-testid="tasks-inbox-page-totals"
-        >
-          {unreadCount} unread · {archivedCount} archived
-        </span>
+        {unreadCount === undefined || archivedCount === undefined ? null : (
+          <span
+            className="font-mono text-form-hint tabular-nums text-faint"
+            data-testid="tasks-inbox-page-totals"
+          >
+            {unreadCount} unread · {archivedCount} archived
+          </span>
+        )}
       </div>
     </div>
   );

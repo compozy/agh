@@ -10,7 +10,17 @@ import {
 
 describe("loop query-options", () => {
   it("Should key each option by its workspace-scoped query key", () => {
-    expect(loopsCatalogOptions("ws_a").queryKey).toEqual(["loops", "catalog", "ws_a"]);
+    expect(loopsCatalogOptions("ws_a").queryKey).toEqual([
+      "loops",
+      "catalog",
+      "ws_a",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
     expect(loopDetailOptions("ws_a", "delivery").queryKey).toEqual([
       "loops",
       "detail",
@@ -35,11 +45,10 @@ describe("loop query-options", () => {
     expect(loopRunDetailOptions("", "run_1").enabled).toBe(false);
   });
 
-  it("Should gate catalog/runs reads on the workspace and honor an explicit disable", () => {
-    expect(loopsCatalogOptions("ws_a").enabled).toBe(true);
-    expect(loopsCatalogOptions("").enabled).toBe(false);
-    expect(loopsCatalogOptions("ws_a", false).enabled).toBe(false);
-
+  it("Should leave catalog enablement to the hook and gate runs on the workspace", () => {
+    expect(loopsCatalogOptions("ws_a").enabled).toBeUndefined();
+    expect(loopsCatalogOptions("ws_a").initialPageParam).toBeUndefined();
+    expect(loopsCatalogOptions("ws_a").refetchInterval).toBeUndefined();
     expect(loopRunsOptions("ws_a").enabled).toBe(true);
     expect(loopRunsOptions("").enabled).toBe(false);
   });

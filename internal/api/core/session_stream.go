@@ -18,8 +18,9 @@ const (
 )
 
 type sessionStreamOptions struct {
-	frameMode      string
-	replaySnapshot bool
+	frameMode          string
+	expectedEpoch      *int64
+	expectedGeneration *int64
 }
 
 func parseSessionStreamOptions(c *gin.Context) (sessionStreamOptions, error) {
@@ -33,19 +34,44 @@ func parseSessionStreamOptions(c *gin.Context) (sessionStreamOptions, error) {
 		return sessionStreamOptions{}, fmt.Errorf("invalid frames query: %q", frameMode)
 	}
 
-	replay := strings.TrimSpace(c.Query("replay"))
-	replaySnapshot := replay == contract.SessionStreamReplaySnapshot
-	if replay != "" && !replaySnapshot {
-		return sessionStreamOptions{}, fmt.Errorf("invalid replay query: %q", replay)
+	if replay, supplied := c.GetQuery("replay"); supplied {
+		return sessionStreamOptions{}, fmt.Errorf("replay query is no longer supported: %q", strings.TrimSpace(replay))
 	}
-	if strings.TrimSpace(c.GetHeader("Last-Event-ID")) == "" {
-		replaySnapshot = true
+	expectedEpoch, err := parseSessionStreamExpected(c, "epoch", frameMode)
+	if err != nil {
+		return sessionStreamOptions{}, err
+	}
+	expectedGeneration, err := parseSessionStreamExpected(c, "generation", frameMode)
+	if err != nil {
+		return sessionStreamOptions{}, err
 	}
 
 	return sessionStreamOptions{
-		frameMode:      frameMode,
-		replaySnapshot: replaySnapshot,
+		frameMode:          frameMode,
+		expectedEpoch:      expectedEpoch,
+		expectedGeneration: expectedGeneration,
 	}, nil
+}
+
+func parseSessionStreamExpected(c *gin.Context, name string, frameMode string) (*int64, error) {
+	if frameMode == contract.SessionStreamFrameRaw {
+		return nil, nil
+	}
+	raw, ok := c.GetQuery(name)
+	if !ok {
+		return nil, nil
+	}
+	if strings.TrimSpace(raw) == "" {
+		return nil, fmt.Errorf("invalid %s query: value is required when supplied", name)
+	}
+	value, err := ParseOptionalInt64(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s query: %w", name, err)
+	}
+	if value < 0 {
+		return nil, fmt.Errorf("invalid %s query: value must be non-negative", name)
+	}
+	return &value, nil
 }
 
 func parseLastEventID(lastEventID string, transportName string) (int64, error) {
@@ -111,67 +137,22 @@ func (h *BaseHandlers) streamRawSessionEvents(
 	h.pollAndStreamSessionEvents(c, writer, sessionID, info, pollQuery, afterSequence)
 }
 
-func (h *BaseHandlers) streamTranscriptSessionEvents(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	query store.EventQuery,
-	initial []store.SessionEvent,
-	options sessionStreamOptions,
-	subscription sessionEventStreamSubscription,
-) {
-	defer subscription.cancelIfActive()
-
-	afterSequence := query.AfterSequence
-	if options.replaySnapshot {
-		snapshot, err := h.writeTranscriptSnapshot(c.Request.Context(), writer, sessionID, info, afterSequence)
-		if err != nil {
-			h.logSSEWriteFailure(contract.SessionStreamEventTranscriptSnapshot, err)
-			return
-		}
-		if snapshot.resetBelow || snapshot.maxSequence > afterSequence {
-			afterSequence = snapshot.maxSequence
-		}
-	} else {
-		nextSequence, err := h.writeTranscriptDeltasForEvents(
-			c.Request.Context(),
-			writer,
-			sessionID,
-			info,
-			initial,
-			afterSequence,
-		)
-		if err != nil {
-			h.logSSEWriteFailure(contract.SessionStreamEventTranscriptDelta, err)
-			return
-		}
-		if nextSequence > afterSequence {
-			afterSequence = nextSequence
-		}
-	}
-
-	pollQuery := query
-	pollQuery.Limit = 0
-	if subscription.active() {
-		h.pushAndStreamSessionTranscript(c, writer, sessionID, info, pollQuery, afterSequence, subscription)
-		return
-	}
-	h.pollAndStreamSessionTranscript(c, writer, sessionID, info, pollQuery, afterSequence)
-}
-
 func (h *BaseHandlers) writeSessionEventBatch(
 	writer FlushWriter,
 	events []store.SessionEvent,
 	info *session.Info,
 ) (int64, error) {
+	payloadInfo := info
+	if !h.IncludeSessionWorkspaceInSSE {
+		payloadInfo = nil
+	}
 	var afterSequence int64
 	for _, event := range events {
 		afterSequence = event.Sequence
 		if err := WriteSSE(writer, SSEMessage{
 			ID:   strconv.FormatInt(event.Sequence, 10),
 			Name: event.Type,
-			Data: SessionEventPayloadFromEvent(event, info),
+			Data: SessionEventPayloadFromEvent(event, payloadInfo),
 		}); err != nil {
 			return afterSequence, err
 		}
@@ -184,14 +165,14 @@ func (h *BaseHandlers) writeSessionStoppedEvent(writer FlushWriter, latest *sess
 		return nil
 	}
 
-	ref := workref.NewPath(latest.WorkspaceID, latest.Workspace)
+	workspaceID, workspacePath := h.streamWorkspaceFields(latest)
 	return WriteSSE(writer, SSEMessage{
 		Name: session.EventTypeSessionStopped,
 		Data: contract.SessionEventPayload{
 			SessionID:     latest.ID,
 			Type:          session.EventTypeSessionStopped,
-			WorkspaceID:   ref.WorkspaceID,
-			WorkspacePath: ref.WorkspacePath,
+			WorkspaceID:   workspaceID,
+			WorkspacePath: workspacePath,
 			StopReason:    latest.StopReason,
 			StopDetail:    latest.StopDetail,
 			Failure:       SessionFailurePayloadFromStore(latest.Failure),
@@ -303,131 +284,8 @@ func (h *BaseHandlers) pushAndStreamSessionEvents(
 	}
 }
 
-func (h *BaseHandlers) pollAndStreamSessionTranscript(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	pollQuery store.EventQuery,
-	afterSequence int64,
-) {
-	ticker := time.NewTicker(h.PollInterval)
-	defer ticker.Stop()
-	keepAlive := time.NewTicker(sessionStreamKeepAliveInterval)
-	defer keepAlive.Stop()
-
-	currentInfo := info
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-keepAlive.C:
-			if !h.writeKeepAlive(writer) {
-				return
-			}
-		case <-ticker.C:
-			var done bool
-			afterSequence, currentInfo, done = h.pollSessionTranscriptTick(
-				c,
-				writer,
-				sessionID,
-				currentInfo,
-				pollQuery,
-				afterSequence,
-			)
-			if done {
-				return
-			}
-		}
-	}
-}
-
-func (h *BaseHandlers) pushAndStreamSessionTranscript(
-	c *gin.Context,
-	writer FlushWriter,
-	sessionID string,
-	info *session.Info,
-	pollQuery store.EventQuery,
-	afterSequence int64,
-	subscription sessionEventStreamSubscription,
-) {
-	keepAlive := time.NewTicker(sessionStreamKeepAliveInterval)
-	defer keepAlive.Stop()
-
-	currentInfo := info
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-keepAlive.C:
-			if !h.writeKeepAlive(writer) {
-				return
-			}
-		case event, ok := <-subscription.events:
-			if !ok {
-				h.logSessionStreamSubscriptionClosed(
-					c.Request.Context(), sessionID, currentInfo, contract.SessionStreamFrameTranscript, afterSequence,
-				)
-				subscription.cancelIfActive()
-				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
-				return
-			}
-			if event.Sequence <= afterSequence {
-				continue
-			}
-			if event.Sequence > afterSequence+1 {
-				h.logSessionStreamSequenceGap(
-					c.Request.Context(),
-					sessionID,
-					currentInfo,
-					contract.SessionStreamFrameTranscript,
-					afterSequence,
-					event.Sequence,
-				)
-				subscription.cancelIfActive()
-				h.pollAndStreamSessionTranscript(c, writer, sessionID, currentInfo, pollQuery, afterSequence)
-				return
-			}
-			nextSequence, err := h.writeTranscriptDeltasForEvents(
-				c.Request.Context(),
-				writer,
-				sessionID,
-				currentInfo,
-				[]store.SessionEvent{event},
-				afterSequence,
-			)
-			if err != nil {
-				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: sessionStreamErrorKey,
-					Data: ErrorPayloadForError(err),
-				})
-				return
-			}
-			if nextSequence > afterSequence {
-				afterSequence = nextSequence
-			}
-			if event.Type == session.EventTypeSessionStopped {
-				latest, statusErr := h.Sessions.Status(c.Request.Context(), sessionID)
-				if statusErr != nil {
-					h.writeSSEBestEffort(writer, SSEMessage{
-						Name: sessionStreamErrorKey,
-						Data: ErrorPayloadForError(statusErr),
-					})
-					return
-				}
-				h.logSSEWriteFailure("session_stopped", h.writeSessionStoppedEvent(writer, latest))
-				return
-			}
-		}
-	}
-}
-
-func streamWorkspaceFields(info *session.Info) (string, string) {
-	if info == nil {
+func (h *BaseHandlers) streamWorkspaceFields(info *session.Info) (string, string) {
+	if info == nil || !h.IncludeSessionWorkspaceInSSE {
 		return "", ""
 	}
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)

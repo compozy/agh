@@ -5068,12 +5068,20 @@ func (f *fakeSessionManager) History(context.Context, string, store.EventQuery) 
 	return nil, nil
 }
 
-func (f *fakeSessionManager) Transcript(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
-	return nil, nil
+func (f *fakeSessionManager) TranscriptPage(
+	context.Context,
+	string,
+	transcript.PageQuery,
+) (transcript.Page, error) {
+	return transcript.Page{}, nil
 }
 
-func (f *fakeSessionManager) TranscriptWatermark(context.Context, string) session.TranscriptWatermark {
-	return session.TranscriptWatermark{}
+func (f *fakeSessionManager) TranscriptChanges(
+	context.Context,
+	string,
+	transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	return transcript.ChangePage{}, nil
 }
 
 func (f *fakeSessionManager) InputQueueSummary(
@@ -6225,8 +6233,8 @@ func (r *recordingRegistry) ListThreads(
 	context.Context,
 	store.NetworkChannelRef,
 	store.NetworkThreadQuery,
-) ([]store.NetworkThreadSummary, error) {
-	return nil, nil
+) (store.NetworkThreadPage, error) {
+	return store.NetworkThreadPage{}, nil
 }
 
 func (r *recordingRegistry) GetThread(
@@ -6241,8 +6249,8 @@ func (r *recordingRegistry) ListDirectRooms(
 	context.Context,
 	store.NetworkChannelRef,
 	store.NetworkDirectRoomQuery,
-) ([]store.NetworkDirectRoomSummary, error) {
-	return nil, nil
+) (store.NetworkDirectRoomPage, error) {
+	return store.NetworkDirectRoomPage{}, nil
 }
 
 func (r *recordingRegistry) GetDirectRoom(
@@ -6726,21 +6734,8 @@ func (f *fakeAutomationManager) Jobs(context.Context) ([]automationpkg.Job, erro
 func (f *fakeAutomationManager) ListJobs(
 	_ context.Context,
 	query automationpkg.JobListQuery,
-) ([]automationpkg.Job, error) {
-	jobs := make([]automationpkg.Job, 0, len(f.jobs))
-	for _, job := range f.jobs {
-		if query.Scope != "" && job.Scope != query.Scope {
-			continue
-		}
-		if query.WorkspaceID != "" && job.WorkspaceID != query.WorkspaceID {
-			continue
-		}
-		if query.Source != "" && job.Source != query.Source {
-			continue
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs, nil
+) (automationpkg.JobListPage, error) {
+	return automationpkg.BuildJobListPage(f.jobs, query)
 }
 
 func (f *fakeAutomationManager) GetJob(_ context.Context, id string) (automationpkg.Job, error) {
@@ -6803,24 +6798,8 @@ func (f *fakeAutomationManager) Triggers(context.Context) ([]automationpkg.Trigg
 func (f *fakeAutomationManager) ListTriggers(
 	_ context.Context,
 	query automationpkg.TriggerListQuery,
-) ([]automationpkg.Trigger, error) {
-	triggers := make([]automationpkg.Trigger, 0, len(f.triggers))
-	for _, trigger := range f.triggers {
-		if query.Scope != "" && trigger.Scope != query.Scope {
-			continue
-		}
-		if query.WorkspaceID != "" && trigger.WorkspaceID != query.WorkspaceID {
-			continue
-		}
-		if query.Event != "" && trigger.Event != query.Event {
-			continue
-		}
-		if query.Source != "" && trigger.Source != query.Source {
-			continue
-		}
-		triggers = append(triggers, trigger)
-	}
-	return triggers, nil
+) (automationpkg.TriggerListPage, error) {
+	return automationpkg.BuildTriggerListPage(f.triggers, query)
 }
 
 func (f *fakeAutomationManager) GetTrigger(_ context.Context, id string) (automationpkg.Trigger, error) {

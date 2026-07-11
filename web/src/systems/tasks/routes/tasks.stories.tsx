@@ -44,7 +44,15 @@ export const Empty: Story = {
   parameters: {
     ...appRouteParameters("/tasks"),
     ...storybookMswParameters({
-      tasks: [aghApiMock.get("/api/tasks", () => HttpResponse.json({ tasks: [] }))],
+      tasks: [
+        aghApiMock.get("/api/tasks", () =>
+          HttpResponse.json({
+            facets: { owners: [], statuses: [] },
+            page: { has_more: false, limit: 50, total: 0 },
+            tasks: [],
+          })
+        ),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -107,7 +115,11 @@ export const Loading: Story = {
       tasks: [
         aghApiMock.get("/api/tasks", async () => {
           await delay("infinite");
-          return HttpResponse.json({ tasks: [] });
+          return HttpResponse.json({
+            facets: { owners: [], statuses: [] },
+            page: { has_more: false, limit: 50, total: 0 },
+            tasks: [],
+          });
         }),
       ],
     }),

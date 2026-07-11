@@ -177,7 +177,7 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 		gotSetProfile taskpkg.ExecutionProfile
 		deletedTaskID string
 	)
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		GetExecutionProfileFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (taskpkg.ExecutionProfile, error) {
 			if id != "task-1" || actor.Origin.Ref != "tasks.get_profile" {
 				t.Fatalf("GetExecutionProfile(id, actor) = %q, %#v", id, actor)
@@ -308,7 +308,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 		deleteID        string
 		deleted         bool
 	)
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
 			if id != "task-1" {
 				t.Fatalf("GetTask id = %q, want task-1", id)
@@ -432,7 +432,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 		t.Parallel()
 
 		var autoPutSubscription bridgepkg.BridgeTaskSubscription
-		autoTasks := testutil.StubTaskManager{
+		autoTasks := &testutil.StubTaskManager{
 			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
 				if id != "task-1" {
 					t.Fatalf("GetTask id = %q, want task-1", id)
@@ -662,7 +662,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 	t.Run("Should reject subscriptions for missing bridge instances before persistence", func(t *testing.T) {
 		t.Parallel()
 
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
 				if id != "task-1" {
 					t.Fatalf("GetTask id = %q, want task-1", id)
@@ -727,7 +727,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 	t.Run("Should reject bridge instances outside the task scope before persistence", func(t *testing.T) {
 		t.Parallel()
 
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
 				if id != "task-1" {
 					t.Fatalf("GetTask id = %q, want task-1", id)
@@ -822,7 +822,7 @@ func TestBaseHandlersTaskRunReviewEndpoints(t *testing.T) {
 		gotReviewID  string
 		gotVerdict   taskpkg.RecordRunReviewRequest
 	)
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		RunDetailFn: func(_ context.Context, runID string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error) {
 			if runID != "run-1" || actor.Origin.Ref != "tasks.request_review" {
 				t.Fatalf("RunDetail(runID, actor) = %q, %#v", runID, actor)
@@ -1012,7 +1012,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 
 		var pauseRequest taskpkg.PauseTaskRequest
 		var resumeRequest taskpkg.ResumeTaskRequest
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			PauseTaskFn: func(
 				_ context.Context,
 				id string,
@@ -1113,7 +1113,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		var drainRequest taskpkg.SchedulerDrainRequest
 		var backlogQuery taskpkg.SchedulerBacklogQuery
 		now := time.Date(2026, 5, 21, 10, 15, 0, 0, time.UTC)
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			SchedulerStatusFn: func(_ context.Context, _ taskpkg.ActorContext) (taskpkg.SchedulerStatus, error) {
 				return taskpkg.SchedulerStatus{Paused: false, ActiveClaimCount: 2, QueuedRunCount: 3, AsOf: now}, nil
 			},
@@ -1303,7 +1303,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 	t.Run("ShouldRejectInvalidScopeWorkspaceAndChannelInputs", func(t *testing.T) {
 		t.Parallel()
 
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			CreateTaskFn: func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
 				t.Fatal("CreateTask should not be called for invalid task input")
 				return nil, nil
@@ -1355,7 +1355,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 	t.Run("ShouldRejectUnknownWorkspaceAndInvalidOwnerInput", func(t *testing.T) {
 		t.Parallel()
 
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			CreateTaskFn: func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error) {
 				t.Fatal("CreateTask should not be called when workspace lookup fails")
 				return nil, nil
@@ -1417,7 +1417,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		t.Parallel()
 
 		workspaceLookups := 0
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			ListTasksFn: func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error) {
 				t.Fatal("ListTasks should not be called when global scope includes workspace filter")
 				return nil, nil
@@ -1492,7 +1492,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 	t.Run("ShouldMapTaskDomainErrorsToStableStatuses", func(t *testing.T) {
 		t.Parallel()
 
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			GetTaskFn: func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error) {
 				return nil, taskpkg.ErrTaskNotFound
 			},
@@ -1620,7 +1620,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 
 	getTaskCalls := 0
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		ListTasksFn: func(_ context.Context, query taskpkg.Query, _ taskpkg.ActorContext) ([]taskpkg.Summary, error) {
 			listedQuery = query
 			return []taskpkg.Summary{{
@@ -2421,7 +2421,7 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 		t,
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
-		testutil.StubTaskManager{},
+		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
 		nil,
 		nil,
@@ -2486,7 +2486,7 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 		t,
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
-		testutil.StubTaskManager{},
+		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
 		nil,
 		nil,
@@ -2549,7 +2549,7 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 		t,
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
-		testutil.StubTaskManager{
+		&testutil.StubTaskManager{
 			ListTasksFn: func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error) {
 				return nil, taskpkg.ErrPermissionDenied
 			},
@@ -2686,7 +2686,7 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 		t,
 		testutil.StubSessionManager{},
 		testutil.StubObserver{},
-		testutil.StubTaskManager{},
+		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
 		nil,
 		nil,

@@ -196,8 +196,19 @@ const dashboardFixture = {
 
 const inboxFixture = {
   archived_total: 0,
-  total: 0,
+  facets: { priorities: [], statuses: [] },
+  groups: [],
+  page: { has_more: true, limit: 1, next_cursor: "inbox-next", total: 4 },
   unread_total: 0,
+};
+
+const taskListPageFixture = {
+  facets: {
+    owners: [],
+    statuses: [{ count: 4, status: "ready" as const }],
+  },
+  page: { has_more: true, limit: 1, next_cursor: "tasks-next", total: 4 },
+  tasks: [taskFixture],
 };
 
 const triageFixture = {
@@ -219,8 +230,8 @@ afterEach(() => {
 });
 
 describe("listTasks", () => {
-  it("calls GET /api/tasks with normalized filters", async () => {
-    mockJsonResponse({ tasks: [taskFixture] });
+  it("preserves the counted envelope and forwards every normalized catalog parameter", async () => {
+    mockJsonResponse(taskListPageFixture);
 
     const result = await listTasks({
       scope: "workspace",
@@ -229,12 +240,14 @@ describe("listTasks", () => {
       priority: "high",
       include_drafts: true,
       query: " review ",
+      sort: "priority",
+      cursor: "tasks-cursor",
       limit: 25,
     });
 
-    expect(result).toEqual([taskFixture]);
+    expect(result).toEqual(taskListPageFixture);
     await expectFetchRequest({
-      path: "/api/tasks?scope=workspace&workspace=ws_alpha&status=ready&priority=high&include_drafts=true&query=review&limit=25",
+      path: "/api/tasks?scope=workspace&workspace=ws_alpha&status=ready&priority=high&include_drafts=true&query=review&sort=priority&cursor=tasks-cursor&limit=25",
     });
   });
 
@@ -570,19 +583,23 @@ describe("dashboard and inbox", () => {
     });
   });
 
-  it("fetches inbox payload with filter normalization", async () => {
+  it("preserves inbox totals/facets and forwards server-owned filters and cursor", async () => {
     mockJsonResponse({ inbox: inboxFixture });
 
-    await getTaskInbox({
+    const result = await getTaskInbox({
       scope: "workspace",
       workspace: "ws_a",
       lane: "my_work",
+      status: "ready",
+      priority: "high",
       unread: true,
+      cursor: "inbox-cursor",
       limit: 10,
     });
 
+    expect(result).toEqual(inboxFixture);
     await expectFetchRequest({
-      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&lane=my_work&unread=true&limit=10",
+      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&lane=my_work&status=ready&priority=high&unread=true&cursor=inbox-cursor&limit=10",
     });
   });
 });

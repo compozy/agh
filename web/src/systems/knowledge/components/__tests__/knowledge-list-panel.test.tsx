@@ -142,8 +142,9 @@ describe("KnowledgeListPanel", () => {
   it("Should emit onSearchChange with the typed query", () => {
     const onSearchChange = vi.fn();
     renderPanel({ onSearchChange });
-    const input = screen.getByLabelText("Search knowledge");
+    const input = screen.getByLabelText("Recall knowledge");
     expect(input).toHaveAttribute("data-testid", "knowledge-search-input");
+    expect(input).toHaveAttribute("placeholder", "Recall knowledge...");
     fireEvent.change(input, { target: { value: "alpha" } });
     expect(onSearchChange).toHaveBeenCalledWith("alpha");
   });
@@ -191,5 +192,72 @@ describe("KnowledgeListPanel", () => {
     const timeEl = row.querySelector("time[datetime]");
     expect(timeEl).not.toBeNull();
     expect(timeEl?.getAttribute("datetime")).toBe(GLOBAL.mod_time);
+  });
+
+  it("Should expose an accessible loading-aware control for the next catalog page", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const { rerender } = renderPanel({ hasMore: true, onLoadMore, totalCount: 9 });
+
+    const button = screen.getByRole("button", { name: "Load more knowledge" });
+    await user.click(button);
+    expect(onLoadMore).toHaveBeenCalledOnce();
+
+    rerender(
+      <UIProvider reducedMotion="always">
+        <KnowledgeListPanel
+          hasMore
+          isLoadingMore
+          memories={ALL}
+          onLoadMore={onLoadMore}
+          onSearchChange={vi.fn()}
+          onSelectMemory={vi.fn()}
+          searchQuery=""
+          selectedMemoryKey={null}
+          totalCount={9}
+        />
+      </UIProvider>
+    );
+    expect(screen.getByRole("button", { name: "Loading more knowledge" })).toBeDisabled();
+  });
+
+  it("Should preserve loaded memories and expose retry after a continuation error", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    const onRetry = vi.fn();
+    renderPanel({
+      errorMessage: "Next page unavailable",
+      hasMore: true,
+      onLoadMore,
+      onRetry,
+      totalCount: 9,
+    });
+
+    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-list-pagination-error")).toHaveTextContent(
+      "Next page unavailable"
+    );
+    await user.click(screen.getByRole("button", { name: "Retry loading knowledge" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onLoadMore).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Load more knowledge" })).not.toBeInTheDocument();
+  });
+
+  it("Should preserve recall results and retry a failed recall refresh", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    renderPanel({
+      errorMessage: "Recall refresh failed",
+      onRetry,
+      searchMode: true,
+      searchQuery: "operator",
+    });
+
+    expect(screen.getByTestId("memory-item-global:user-role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-list-pagination-error")).toHaveTextContent(
+      "Recall refresh failed"
+    );
+    await user.click(screen.getByRole("button", { name: "Retry loading knowledge" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

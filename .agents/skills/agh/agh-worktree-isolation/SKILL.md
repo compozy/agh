@@ -25,7 +25,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 **Step 2: Allocate AGH_HOME**
 
-1. Run `python3 .agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<scenario-slug>"`. The script:
+1. Run `python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<scenario-slug>"`. The script:
    - Creates a unique `AGH_HOME` directory under `${TMPDIR:-/tmp}/agh-iso-<slug>-<random>/` OR uses the worktree-scoped `Compozy/_worktrees/<slug>/.agh/` when invoked from a worktree.
    - Picks a free TCP port on `127.0.0.1` for the daemon HTTP server.
    - Picks a free TCP port on `127.0.0.1` for any UDS-test-mode TCP shim (or a unique UDS path under the AGH_HOME).
@@ -35,7 +35,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 **Step 3: Source the Envelope**
 
 1. Capture the exported variables: `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`.
-2. For shells: `eval "$(python3 .agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>")"`.
+2. For shells: `eval "$(python3 .agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py --slug "<slug>")"`.
 3. For Make/CI invocations: pass the variables as overrides to the daemon start command.
 4. Confirm the daemon does NOT write to `~/.agh/` or default port 23230.
 
@@ -55,7 +55,7 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 **Step 6: Cleanup (processes ALWAYS, files optionally)**
 
 1. Process teardown is mandatory on every terminal path (success OR failure). Files may stay for forensics; processes never do — orphaned daemons, tmux servers, and watchers accumulate and freeze the machine. Run:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/teardown-qa-env.py --all`
+   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --all`
    (or `make qa-reap` from the repo root; it discovers `agh-iso-*` envelopes, `aghqa-*` runtime roots, and bootstrap labs).
 2. Confirm the teardown reports `TEARDOWN_ALL_CLEAN=true`. Survivors (exit 1) are a blocking failure — diagnose them before completing.
 3. The AGH_HOME directory (files only) is left in place for forensic inspection unless `--purge-after` was specified; with `--purge-after`, pass `--purge` to the teardown so the directory and sockets are removed after a clean sweep.
@@ -67,4 +67,4 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 - **AGH_HOME path collision:** the script uses random suffixes; collision is essentially impossible. If it happens, retry once.
 - **User invokes without concurrency signal but with `--force`:** apply isolation. Some users always want isolated runs.
 - **Worktree-scoped path lacks write permission:** fall back to TMPDIR-scoped path with a logged warning.
-- **`.agents/skills/agh-worktree-isolation/scripts/allocate-isolation.py` not executable:** chmod +x and retry; surface if still failing.
+- **`.agents/skills/agh/agh-worktree-isolation/scripts/allocate-isolation.py` not executable:** chmod +x and retry; surface if still failing.

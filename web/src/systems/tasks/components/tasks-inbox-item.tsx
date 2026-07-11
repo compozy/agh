@@ -23,17 +23,17 @@ export interface TasksInboxItemProps {
   group: InboxGroupId;
   onApprove?: (taskId: string) => void;
   onReject?: (taskId: string) => void;
-  onRetry?: (taskId: string) => void;
+  onRetry?: (runId: string) => void;
   onArchive?: (taskId: string) => void;
   onDismiss?: (taskId: string) => void;
   onMarkRead?: (taskId: string) => void;
   onOpen?: (taskId: string) => void;
-  pendingApproveId?: string | null;
-  pendingRejectId?: string | null;
-  pendingRetryId?: string | null;
-  pendingArchiveId?: string | null;
-  pendingDismissId?: string | null;
-  pendingMarkReadId?: string | null;
+  pendingApproveIds?: ReadonlySet<string>;
+  pendingRejectIds?: ReadonlySet<string>;
+  pendingRetryIds?: ReadonlySet<string>;
+  pendingArchiveIds?: ReadonlySet<string>;
+  pendingDismissIds?: ReadonlySet<string>;
+  pendingMarkReadIds?: ReadonlySet<string>;
 }
 
 export function TasksInboxItem({
@@ -46,12 +46,12 @@ export function TasksInboxItem({
   onDismiss,
   onMarkRead,
   onOpen,
-  pendingApproveId,
-  pendingRejectId,
-  pendingRetryId,
-  pendingArchiveId,
-  pendingDismissId,
-  pendingMarkReadId,
+  pendingApproveIds,
+  pendingRejectIds,
+  pendingRetryIds,
+  pendingArchiveIds,
+  pendingDismissIds,
+  pendingMarkReadIds,
 }: TasksInboxItemProps) {
   const { task, run, triage, lane } = item;
   const taskId = task.id;
@@ -138,12 +138,13 @@ export function TasksInboxItem({
       onMarkRead={onMarkRead}
       onReject={onReject}
       onRetry={onRetry}
-      pendingApproveId={pendingApproveId}
-      pendingArchiveId={pendingArchiveId}
-      pendingDismissId={pendingDismissId}
-      pendingMarkReadId={pendingMarkReadId}
-      pendingRejectId={pendingRejectId}
-      pendingRetryId={pendingRetryId}
+      pendingApproveIds={pendingApproveIds}
+      pendingArchiveIds={pendingArchiveIds}
+      pendingDismissIds={pendingDismissIds}
+      pendingMarkReadIds={pendingMarkReadIds}
+      pendingRejectIds={pendingRejectIds}
+      pendingRetryIds={pendingRetryIds}
+      runId={run?.id}
       taskId={taskId}
       unread={unread}
     />
@@ -165,26 +166,28 @@ export function TasksInboxItem({
 
 interface InboxItemActionsProps {
   taskId: string;
+  runId?: string;
   unread: boolean;
   isApprovalItem: boolean;
   isFailedRun: boolean;
   isArchived: boolean;
   onApprove?: (taskId: string) => void;
   onReject?: (taskId: string) => void;
-  onRetry?: (taskId: string) => void;
+  onRetry?: (runId: string) => void;
   onArchive?: (taskId: string) => void;
   onDismiss?: (taskId: string) => void;
   onMarkRead?: (taskId: string) => void;
-  pendingApproveId?: string | null;
-  pendingRejectId?: string | null;
-  pendingRetryId?: string | null;
-  pendingArchiveId?: string | null;
-  pendingDismissId?: string | null;
-  pendingMarkReadId?: string | null;
+  pendingApproveIds?: ReadonlySet<string>;
+  pendingRejectIds?: ReadonlySet<string>;
+  pendingRetryIds?: ReadonlySet<string>;
+  pendingArchiveIds?: ReadonlySet<string>;
+  pendingDismissIds?: ReadonlySet<string>;
+  pendingMarkReadIds?: ReadonlySet<string>;
 }
 
 function InboxItemActions({
   taskId,
+  runId,
   unread,
   isApprovalItem,
   isFailedRun,
@@ -195,12 +198,12 @@ function InboxItemActions({
   onArchive,
   onDismiss,
   onMarkRead,
-  pendingApproveId,
-  pendingRejectId,
-  pendingRetryId,
-  pendingArchiveId,
-  pendingDismissId,
-  pendingMarkReadId,
+  pendingApproveIds,
+  pendingRejectIds,
+  pendingRetryIds,
+  pendingArchiveIds,
+  pendingDismissIds,
+  pendingMarkReadIds,
 }: InboxItemActionsProps) {
   return (
     <>
@@ -209,7 +212,7 @@ function InboxItemActions({
           icon={<X />}
           label="Reject"
           onClick={() => onReject(taskId)}
-          pending={pendingRejectId === taskId}
+          pending={pendingRejectIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-reject-${taskId}`}
           variant="destructive-ghost"
         />
@@ -219,7 +222,7 @@ function InboxItemActions({
           icon={<Check />}
           label="Approve"
           onClick={() => onApprove(taskId)}
-          pending={pendingApproveId === taskId}
+          pending={pendingApproveIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-approve-${taskId}`}
           variant="primary"
         />
@@ -229,17 +232,17 @@ function InboxItemActions({
           icon={<ArchiveX />}
           label="Dismiss"
           onClick={() => onDismiss(taskId)}
-          pending={pendingDismissId === taskId}
+          pending={pendingDismissIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-dismiss-${taskId}`}
           variant="ghost"
         />
       ) : null}
-      {isFailedRun && onRetry ? (
+      {isFailedRun && onRetry && runId ? (
         <ActionButton
           icon={<RotateCcw />}
           label="Retry"
-          onClick={() => onRetry(taskId)}
-          pending={pendingRetryId === taskId}
+          onClick={() => onRetry(runId)}
+          pending={pendingRetryIds?.has(runId) ?? false}
           testId={`tasks-inbox-item-retry-${taskId}`}
           variant="ghost"
         />
@@ -249,7 +252,7 @@ function InboxItemActions({
           icon={<Eye />}
           label="Mark read"
           onClick={() => onMarkRead(taskId)}
-          pending={pendingMarkReadId === taskId}
+          pending={pendingMarkReadIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-mark-read-${taskId}`}
           variant="ghost"
         />
@@ -259,7 +262,7 @@ function InboxItemActions({
           icon={<Archive />}
           label="Archive"
           onClick={() => onArchive(taskId)}
-          pending={pendingArchiveId === taskId}
+          pending={pendingArchiveIds?.has(taskId) ?? false}
           testId={`tasks-inbox-item-archive-${taskId}`}
           variant="ghost"
         />
@@ -296,6 +299,7 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
   const buttonVariant = variant === "primary" ? "default" : "ghost";
   return (
     <Button
+      aria-busy={pending}
       aria-label={label}
       data-testid={testId}
       data-variant={variant}

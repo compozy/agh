@@ -48,7 +48,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 			WithNow(now),
 			WithPollInterval(25*time.Millisecond),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithBridgeService(bridgeService),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -127,7 +127,7 @@ func TestNewRejectsOverlongSocketPath(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 		)
@@ -150,7 +150,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			name: "Should require a session manager",
 			opts: []Option{
 				WithHomePaths(homePaths),
-				WithTaskService(stubTaskManager{}),
+				WithTaskService(&stubTaskManager{}),
 				WithObserver(stubObserver{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
@@ -171,7 +171,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			opts: []Option{
 				WithHomePaths(homePaths),
 				WithSessionManager(stubSessionManager{}),
-				WithTaskService(stubTaskManager{}),
+				WithTaskService(&stubTaskManager{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
 			wantErr: ErrObserverRequired,
@@ -181,7 +181,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			opts: []Option{
 				WithHomePaths(homePaths),
 				WithSessionManager(stubSessionManager{}),
-				WithTaskService(stubTaskManager{}),
+				WithTaskService(&stubTaskManager{}),
 				WithObserver(stubObserver{}),
 			},
 			wantErr: ErrWorkspaceResolverRequired,
@@ -205,7 +205,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			WithHomePaths(homePaths),
 			WithSocketPath(shortSocketPath(t)),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 		); err != nil {
@@ -233,7 +233,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			WithSessionManager(stubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) { return nil, nil },
 			}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{
 				HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 			}),
@@ -305,7 +305,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),
@@ -336,7 +336,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),
@@ -385,7 +385,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 					return []*session.Info{newSessionInfo("sess-1")}, nil
 				},
 			}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),
@@ -517,7 +517,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{
 				HealthFn: func(context.Context) (observe.Health, error) {
 					return observe.Health{Status: "ok"}, nil
@@ -594,7 +594,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
 			WithSessionManager(stubSessionManager{}),
-			WithTaskService(stubTaskManager{}),
+			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
 			WithSkillsRegistry(stubSkillsRegistry{}),

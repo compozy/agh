@@ -31,13 +31,13 @@ type StubNetworkStore struct {
 		context.Context,
 		store.NetworkChannelRef,
 		store.NetworkThreadQuery,
-	) ([]store.NetworkThreadSummary, error)
+	) (store.NetworkThreadPage, error)
 	GetThreadFn       func(context.Context, store.NetworkChannelRef, string) (store.NetworkThreadSummary, error)
 	ListDirectRoomsFn func(
 		context.Context,
 		store.NetworkChannelRef,
 		store.NetworkDirectRoomQuery,
-	) ([]store.NetworkDirectRoomSummary, error)
+	) (store.NetworkDirectRoomPage, error)
 	ListThreadParticipantsFn func(
 		context.Context,
 		store.NetworkChannelRef,
@@ -58,9 +58,18 @@ type StubNetworkStore struct {
 		store.NetworkConversationRef,
 		store.NetworkConversationMessageQuery,
 	) ([]store.NetworkConversationMessage, error)
-	GetWorkFn                  func(context.Context, string, string) (store.NetworkWorkEntry, error)
-	GetNetworkChannelFn        func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
-	ListNetworkChannelsFn      func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
+	GetWorkFn                       func(context.Context, string, string) (store.NetworkWorkEntry, error)
+	GetNetworkChannelFn             func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+	ListNetworkChannelsFn           func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
+	ListNetworkChannelProjectionsFn func(
+		context.Context,
+		store.NetworkChannelProjectionQuery,
+	) ([]store.NetworkChannelProjection, error)
+	ListNetworkChannelKindCountsFn func(
+		context.Context,
+		store.NetworkChannelRef,
+	) ([]store.NetworkChannelKindCount, error)
+	ListNetworkRecentsFn       func(context.Context, store.NetworkRecentQuery) ([]store.NetworkRecentSummary, error)
 	WriteNetworkChannelFn      func(context.Context, store.NetworkChannelEntry) error
 	PatchNetworkChannelFn      func(context.Context, store.NetworkChannelRef, store.NetworkChannelPatch) error
 	DeleteNetworkChannelFn     func(context.Context, store.NetworkChannelRef) error
@@ -175,6 +184,36 @@ func (s StubNetworkStore) ListNetworkChannels(
 	return nil, nil
 }
 
+func (s StubNetworkStore) ListNetworkChannelProjections(
+	ctx context.Context,
+	query store.NetworkChannelProjectionQuery,
+) ([]store.NetworkChannelProjection, error) {
+	if s.ListNetworkChannelProjectionsFn != nil {
+		return s.ListNetworkChannelProjectionsFn(ctx, query)
+	}
+	return s.deriveNetworkChannelProjections(ctx, query)
+}
+
+func (s StubNetworkStore) ListNetworkChannelKindCounts(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+) ([]store.NetworkChannelKindCount, error) {
+	if s.ListNetworkChannelKindCountsFn != nil {
+		return s.ListNetworkChannelKindCountsFn(ctx, ref)
+	}
+	return s.deriveNetworkChannelKindCounts(ctx, ref)
+}
+
+func (s StubNetworkStore) ListNetworkRecents(
+	ctx context.Context,
+	query store.NetworkRecentQuery,
+) ([]store.NetworkRecentSummary, error) {
+	if s.ListNetworkRecentsFn != nil {
+		return s.ListNetworkRecentsFn(ctx, query)
+	}
+	return nil, nil
+}
+
 func (s StubNetworkStore) WriteNetworkChannel(
 	ctx context.Context,
 	entry store.NetworkChannelEntry,
@@ -231,11 +270,11 @@ func (s StubNetworkStore) ListThreads(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 	query store.NetworkThreadQuery,
-) ([]store.NetworkThreadSummary, error) {
+) (store.NetworkThreadPage, error) {
 	if s.ListThreadsFn != nil {
 		return s.ListThreadsFn(ctx, ref, query)
 	}
-	return nil, nil
+	return store.NetworkThreadPage{Limit: query.Normalize().Limit}, nil
 }
 
 func (s StubNetworkStore) GetThread(
@@ -284,11 +323,11 @@ func (s StubNetworkStore) ListDirectRooms(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 	query store.NetworkDirectRoomQuery,
-) ([]store.NetworkDirectRoomSummary, error) {
+) (store.NetworkDirectRoomPage, error) {
 	if s.ListDirectRoomsFn != nil {
 		return s.ListDirectRoomsFn(ctx, ref, query)
 	}
-	return nil, nil
+	return store.NetworkDirectRoomPage{Limit: query.Normalize().Limit}, nil
 }
 
 func (s StubNetworkStore) GetDirectRoom(
@@ -329,7 +368,11 @@ func (s StubNetworkStore) ListNetworkMessages(
 	query store.NetworkMessageQuery,
 ) ([]store.NetworkMessageEntry, error) {
 	if s.ListNetworkMessagesFn != nil {
-		return s.ListNetworkMessagesFn(ctx, query)
+		messages, err := s.ListNetworkMessagesFn(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return filterStubNetworkMessages(messages, query), nil
 	}
 	return nil, nil
 }

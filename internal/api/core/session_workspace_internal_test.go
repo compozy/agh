@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -207,6 +208,12 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	}
 	if got := statusForSessionError(session.ErrPendingPermissionConflict); got != http.StatusConflict {
 		t.Fatalf("statusForSessionError(conflict) = %d, want %d", got, http.StatusConflict)
+	}
+	if got := statusForSessionError(transcript.ErrProjectionIncompatible); got != http.StatusServiceUnavailable {
+		t.Fatalf("statusForSessionError(projection incompatible) = %d, want %d", got, http.StatusServiceUnavailable)
+	}
+	if got := statusForSessionError(transcript.ErrProjectionCorrupt); got != http.StatusInternalServerError {
+		t.Fatalf("statusForSessionError(projection corrupt) = %d, want %d", got, http.StatusInternalServerError)
 	}
 	if got := statusForSessionError(context.Canceled); got != statusClientClosedRequest {
 		t.Fatalf("statusForSessionError(context canceled) = %d, want %d", got, statusClientClosedRequest)

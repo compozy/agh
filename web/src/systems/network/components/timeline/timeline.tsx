@@ -1,6 +1,6 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 
-import { Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, Skeleton, SkeletonRows } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,9 @@ export interface MessageTimelineProps {
   onDiscardOptimistic?: (message: NetworkConversationMessage) => void;
   /** Click handler for the inline work chip per `_design.md` §5.8.1. */
   onWorkChipClick?: (message: NetworkConversationMessage) => void;
+  hasOlder?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlder?: () => void | Promise<void>;
 }
 
 interface TimelineSkeletonProps {
@@ -80,11 +83,55 @@ export function MessageTimeline({
   onRetryOptimistic,
   onDiscardOptimistic,
   onWorkChipClick,
+  hasOlder = false,
+  isLoadingOlder = false,
+  onLoadOlder,
 }: MessageTimelineProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<{
+    element: HTMLElement;
+    messageId: string | null;
+    offset: number;
+    height: number;
+    top: number;
+  } | null>(null);
   const entries = useMemo(
     () => buildTimelineEntries({ messages, now, lastReadAt }),
     [messages, now, lastReadAt]
   );
+  const firstMessageId = messages[0]?.message_id;
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const candidate = [
+      ...(rootRef.current?.querySelectorAll<HTMLElement>("[data-message-id]") ?? []),
+    ].find(element => element.dataset.messageId === anchor.messageId);
+    const viewportTop = anchor.element.getBoundingClientRect().top;
+    const nextOffset = candidate ? candidate.getBoundingClientRect().top - viewportTop : 0;
+    const offsetDelta = nextOffset - anchor.offset;
+    anchor.element.scrollTop =
+      anchor.top + (offsetDelta !== 0 ? offsetDelta : anchor.element.scrollHeight - anchor.height);
+    anchorRef.current = null;
+  }, [firstMessageId, messages.length]);
+  const handleLoadOlder = useCallback(() => {
+    const root = rootRef.current;
+    if (!root || !onLoadOlder || isLoadingOlder) return;
+    const viewport = asScrollContainer
+      ? root
+      : ((root.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null) ?? root);
+    const viewportTop = viewport.getBoundingClientRect().top;
+    const visibleAnchor = [...root.querySelectorAll<HTMLElement>("[data-message-id]")].find(
+      element => element.getBoundingClientRect().bottom >= viewportTop
+    );
+    anchorRef.current = {
+      element: viewport,
+      messageId: visibleAnchor?.dataset.messageId ?? null,
+      offset: visibleAnchor ? visibleAnchor.getBoundingClientRect().top - viewportTop : 0,
+      height: viewport.scrollHeight,
+      top: viewport.scrollTop,
+    };
+    void onLoadOlder();
+  }, [asScrollContainer, isLoadingOlder, onLoadOlder]);
 
   if (errorState) {
     return (
@@ -111,7 +158,6 @@ export function MessageTimeline({
 
   return (
     <div
-      aria-label={ariaLabel}
       className={cn(
         "flex flex-col gap-1 py-2",
         asScrollContainer && "flex-1 overflow-y-auto",
@@ -119,47 +165,63 @@ export function MessageTimeline({
       )}
       data-density={density}
       data-testid="network-timeline"
-      role="log"
+      ref={rootRef}
     >
-      {entries.map(entry => {
-        if (entry.kind === "date-pill") {
-          return <DatePill key={entry.id} now={now} timestamp={entry.timestamp} />;
-        }
-        if (entry.kind === "new-divider") {
-          return <NewDivider key={entry.id} />;
-        }
-        const handlers = toolbarHandlers?.(entry.message);
-        if (entry.variant === "system") {
+      {hasOlder && onLoadOlder ? (
+        <div className="flex justify-center px-4 py-2">
+          <Button
+            aria-busy={isLoadingOlder}
+            aria-label="Load older messages"
+            disabled={isLoadingOlder}
+            onClick={handleLoadOlder}
+            size="sm"
+            variant="outline"
+          >
+            {isLoadingOlder ? "Loading older messages…" : "Load older messages"}
+          </Button>
+        </div>
+      ) : null}
+      <div aria-label={ariaLabel} className="flex flex-col gap-1" role="log">
+        {entries.map(entry => {
+          if (entry.kind === "date-pill") {
+            return <DatePill key={entry.id} now={now} timestamp={entry.timestamp} />;
+          }
+          if (entry.kind === "new-divider") {
+            return <NewDivider key={entry.id} />;
+          }
+          const handlers = toolbarHandlers?.(entry.message);
+          if (entry.variant === "system") {
+            return (
+              <Fragment key={entry.id}>
+                <MessageRowSystem message={entry.message} />
+              </Fragment>
+            );
+          }
+          if (entry.variant === "collapsed") {
+            return (
+              <MessageRowCollapsed
+                density={density}
+                key={entry.id}
+                message={entry.message}
+                onCopyLink={handlers?.onCopyLink}
+                onCopyText={handlers?.onCopyText}
+              />
+            );
+          }
           return (
-            <Fragment key={entry.id}>
-              <MessageRowSystem message={entry.message} />
-            </Fragment>
-          );
-        }
-        if (entry.variant === "collapsed") {
-          return (
-            <MessageRowCollapsed
+            <MessageRow
               density={density}
               key={entry.id}
               message={entry.message}
               onCopyLink={handlers?.onCopyLink}
               onCopyText={handlers?.onCopyText}
+              onDiscard={onDiscardOptimistic}
+              onRetry={onRetryOptimistic}
+              onWorkChipClick={onWorkChipClick}
             />
           );
-        }
-        return (
-          <MessageRow
-            density={density}
-            key={entry.id}
-            message={entry.message}
-            onCopyLink={handlers?.onCopyLink}
-            onCopyText={handlers?.onCopyText}
-            onDiscard={onDiscardOptimistic}
-            onRetry={onRetryOptimistic}
-            onWorkChipClick={onWorkChipClick}
-          />
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 }

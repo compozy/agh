@@ -14,6 +14,25 @@ import (
 func TestNetworkCommandsAndFormatting(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should explain how the first public thread is opened", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		stdout, _, err := executeRootCommand(t, deps, "network", "send", "--help")
+		if err != nil {
+			t.Fatalf("network send --help error = %v", err)
+		}
+		for _, phrase := range []string{
+			"The first valid send opens a new public thread",
+			"^thread_[a-z0-9][a-z0-9_-]{2,95}$",
+			"required for capability and say with --work",
+		} {
+			if !strings.Contains(stdout, phrase) {
+				t.Fatalf("network send --help output = %q, want phrase %q", stdout, phrase)
+			}
+		}
+	})
+
 	t.Run("Should format status peers channels send and inbox", func(t *testing.T) {
 		t.Parallel()
 
@@ -285,8 +304,9 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			"--session", "sess-a",
 			"--channel", "builders",
 			"--surface", "thread",
-			"--thread", "thread_1",
+			"--thread", "thread_123",
 			"--kind", "say",
+			"--to", "reviewer.sess-a",
 			"--body", `{"text":"hello"}`,
 			"--work", "work_1",
 			"--reply-to", "msg-root",
@@ -310,8 +330,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("seenSendRequest.Ext = %#v, want workflow metadata", seenSendRequest.Ext)
 		}
 		if seenSendRequest.WorkspaceID != "ws-alpha" || seenSendRequest.Surface != "thread" ||
-			seenSendRequest.ThreadID != "thread_1" ||
-			seenSendRequest.WorkID != "work_1" {
+			seenSendRequest.ThreadID != "thread_123" ||
+			seenSendRequest.WorkID != "work_1" || seenSendRequest.To != "reviewer.sess-a" {
 			t.Fatalf("seenSendRequest = %#v, want workspace-qualified thread surface payload", seenSendRequest)
 		}
 		var sent NetworkSendRecord
@@ -447,9 +467,20 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 
 		var seenQuery NetworkThreadsQuery
 		deps := newTestDeps(t, &stubClient{
-			networkThreadsFn: func(_ context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error) {
+			networkThreadsFn: func(
+				_ context.Context,
+				query NetworkThreadsQuery,
+			) (contract.NetworkThreadsResponse, error) {
 				seenQuery = query
-				return []NetworkThreadRecord{thread}, nil
+				return contract.NetworkThreadsResponse{
+					Threads: []NetworkThreadRecord{thread},
+					Page: contract.CountedCursorPagePayload{
+						NextCursor: "thread_next",
+						HasMore:    true,
+						Total:      8,
+						Limit:      2,
+					},
+				}, nil
 			},
 		})
 		out, _, err := executeRootCommand(
@@ -462,6 +493,13 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			"list",
 			"--channel",
 			"builders",
+			"--query",
+			"launch",
+			"--peer",
+			"reviewer.sess-b",
+			"--sort",
+			"alphabetical",
+			"--has-work",
 			"--limit",
 			"2",
 			"--after",
@@ -473,8 +511,10 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network threads list error = %v", err)
 		}
 		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
+			seenQuery.Query != "launch" || seenQuery.PeerID != "reviewer.sess-b" ||
+			seenQuery.Sort != "alphabetical" || seenQuery.HasWork == nil || !*seenQuery.HasWork ||
 			seenQuery.Limit != 2 || seenQuery.After != "thread_0" {
-			t.Fatalf("seenQuery = %#v, want workspace/channel/limit/after", seenQuery)
+			t.Fatalf("seenQuery = %#v, want all thread list filters", seenQuery)
 		}
 		var response contract.NetworkThreadsResponse
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -482,6 +522,10 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		}
 		if len(response.Threads) != 1 || response.Threads[0].ThreadID != "thread_launch" {
 			t.Fatalf("response = %#v, want one thread", response)
+		}
+		if response.Page.Total != 8 || response.Page.Limit != 2 || !response.Page.HasMore ||
+			response.Page.NextCursor != "thread_next" {
+			t.Fatalf("response.Page = %#v, want truthful thread page", response.Page)
 		}
 	})
 
@@ -532,9 +576,14 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			networkThreadMessagesFn: func(
 				_ context.Context,
 				query NetworkConversationMessagesQuery,
-			) ([]NetworkConversationMessageRecord, error) {
+			) (contract.NetworkThreadMessagesResponse, error) {
 				seenQuery = query
-				return []NetworkConversationMessageRecord{threadMessage}, nil
+				return contract.NetworkThreadMessagesResponse{
+					Messages: []NetworkConversationMessageRecord{threadMessage},
+					Page: contract.CursorPagePayload{
+						Limit: 2,
+					},
+				}, nil
 			},
 		})
 		out, _, err := executeRootCommand(
@@ -592,9 +641,18 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 
 		var seenQuery NetworkDirectsQuery
 		deps := newTestDeps(t, &stubClient{
-			networkDirectsFn: func(_ context.Context, query NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error) {
+			networkDirectsFn: func(
+				_ context.Context,
+				query NetworkDirectsQuery,
+			) (contract.NetworkDirectRoomsResponse, error) {
 				seenQuery = query
-				return []NetworkDirectRoomRecord{direct}, nil
+				return contract.NetworkDirectRoomsResponse{
+					Directs: []NetworkDirectRoomRecord{direct},
+					Page: contract.CountedCursorPagePayload{
+						Total: 1,
+						Limit: 2,
+					},
+				}, nil
 			},
 		})
 		out, _, err := executeRootCommand(
@@ -609,8 +667,15 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			"builders",
 			"--peer",
 			"reviewer.sess-b",
+			"--query",
+			"review",
+			"--sort",
+			"created",
+			"--has-work=false",
 			"--limit",
 			"2",
+			"--after",
+			"direct_0",
 			"-o",
 			"json",
 		)
@@ -618,8 +683,10 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			t.Fatalf("network directs list error = %v", err)
 		}
 		if seenQuery.WorkspaceRef != "ws-alpha" || seenQuery.Channel != "builders" ||
-			seenQuery.PeerID != "reviewer.sess-b" || seenQuery.Limit != 2 {
-			t.Fatalf("seenQuery = %#v, want workspace/channel/peer/limit", seenQuery)
+			seenQuery.Query != "review" || seenQuery.PeerID != "reviewer.sess-b" ||
+			seenQuery.Sort != "created" || seenQuery.HasWork == nil || *seenQuery.HasWork ||
+			seenQuery.Limit != 2 || seenQuery.After != "direct_0" {
+			t.Fatalf("seenQuery = %#v, want all direct list filters", seenQuery)
 		}
 		var response contract.NetworkDirectRoomsResponse
 		if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -627,6 +694,10 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 		}
 		if len(response.Directs) != 1 || response.Directs[0].DirectID != directID {
 			t.Fatalf("response = %#v, want one direct room", response)
+		}
+		if response.Page.Total != 1 || response.Page.Limit != 2 || response.Page.HasMore ||
+			response.Page.NextCursor != "" {
+			t.Fatalf("response.Page = %#v, want truthful direct page", response.Page)
 		}
 	})
 
@@ -729,9 +800,14 @@ func TestNetworkConversationCommandsAndFormatting(t *testing.T) {
 			networkDirectMessagesFn: func(
 				_ context.Context,
 				query NetworkConversationMessagesQuery,
-			) ([]NetworkConversationMessageRecord, error) {
+			) (contract.NetworkDirectRoomMessagesResponse, error) {
 				seenQuery = query
-				return []NetworkConversationMessageRecord{directMessage}, nil
+				return contract.NetworkDirectRoomMessagesResponse{
+					Messages: []NetworkConversationMessageRecord{directMessage},
+					Page: contract.CursorPagePayload{
+						Limit: 2,
+					},
+				}, nil
 			},
 		})
 		out, _, err := executeRootCommand(
@@ -915,7 +991,7 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 				"--session", "sess-a",
 				"--channel", "builders",
 				"--surface", "thread",
-				"--thread", "thread_1",
+				"--thread", "thread_123",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
 				"--interaction-id", "work_1",
@@ -947,13 +1023,54 @@ func TestNetworkSendParsersRejectInvalidFlags(t *testing.T) {
 			wantErr: "--surface is required for --kind say",
 		},
 		{
+			name: "Should reject malformed public thread id locally",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "thread",
+				"--thread", "launch-brief-0711",
+				"--kind", "say",
+				"--body", `{"text":"ok"}`,
+			},
+			wantErr: "--thread must match ^thread_[a-z0-9][a-z0-9_-]{2,95}$",
+		},
+		{
+			name: "Should reject capability without directed target",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "thread",
+				"--thread", "thread_123",
+				"--kind", "capability",
+				"--work", "work_1",
+				"--body", `{"capability":{"id":"review"}}`,
+			},
+			wantErr: "--kind capability requires --to",
+		},
+		{
+			name: "Should reject lifecycle say without directed target",
+			args: []string{
+				"network", "send",
+				"--session", "sess-a",
+				"--channel", "builders",
+				"--surface", "thread",
+				"--thread", "thread_123",
+				"--kind", "say",
+				"--work", "work_1",
+				"--body", `{"text":"ok"}`,
+			},
+			wantErr: "--kind say with --work requires --to",
+		},
+		{
 			name: "ShouldRejectLegacyWorkIDFlag",
 			args: []string{
 				"network", "send",
 				"--session", "sess-a",
 				"--channel", "builders",
 				"--surface", "thread",
-				"--thread", "thread_1",
+				"--thread", "thread_123",
 				"--kind", "say",
 				"--body", `{"text":"ok"}`,
 				"--work-id", "work_1",

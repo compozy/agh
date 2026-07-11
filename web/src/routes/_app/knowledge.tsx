@@ -6,22 +6,26 @@ import {
   KnowledgeCreateDialog,
   KnowledgeDetailPanel,
   KnowledgeListPanel,
+  type KnowledgeAgentTier,
+  type KnowledgeScope,
 } from "@/systems/knowledge";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { Button, Empty, Input, PillGroup, Spinner, SplitPane, useTopbarSlot } from "@agh/ui";
+import { preloadKnowledgeRoute } from "./-knowledge-preload";
 
 export const Route = createFileRoute("/_app/knowledge")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Knowledge", icon: BookOpen },
   }),
+  loader: ({ context }) => preloadKnowledgeRoute(context.queryClient),
   component: KnowledgePage,
 });
 
-export function KnowledgePage() {
+function KnowledgePage() {
   const page = useKnowledgePage();
 
   const scopePills = (
-    <PillGroup
+    <PillGroup<KnowledgeScope>
       aria-label="Knowledge scope"
       data-testid="tab-pills"
       items={[
@@ -29,7 +33,7 @@ export function KnowledgePage() {
         { value: "workspace", label: "Workspace", testId: "tab-workspace" },
         { value: "agent", label: "Agent", testId: "tab-agent" },
       ]}
-      onChange={value => page.setActiveScope(value as typeof page.activeScope)}
+      onChange={page.setActiveScope}
       value={page.activeScope}
     />
   );
@@ -45,14 +49,14 @@ export function KnowledgePage() {
           placeholder="agent name"
           value={page.agentName}
         />
-        <PillGroup
+        <PillGroup<KnowledgeAgentTier>
           aria-label="Agent tier"
           data-testid="agent-tier-pills"
           items={[
             { value: "workspace", label: "Workspace", testId: "tier-workspace" },
             { value: "global", label: "Global", testId: "tier-global" },
           ]}
-          onChange={value => page.setAgentTier(value as typeof page.agentTier)}
+          onChange={page.setAgentTier}
           value={page.agentTier}
         />
       </div>
@@ -114,7 +118,7 @@ export function KnowledgePage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="knowledge-shell">
         <div
-          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 py-10"
           data-testid="knowledge-error"
         >
           <Empty
@@ -123,6 +127,9 @@ export function KnowledgePage() {
             icon={AlertCircle}
             title="Unable to load knowledge"
           />
+          <Button onClick={page.retryKnowledgeList} size="sm" type="button" variant="ghost">
+            Retry loading knowledge
+          </Button>
         </div>
       </div>
     );
@@ -158,12 +165,18 @@ export function KnowledgePage() {
         list={
           <KnowledgeListPanel
             memories={page.memories}
+            errorMessage={page.listRetryError?.message ?? null}
+            hasMore={page.hasMoreMemories}
+            isLoadingMore={page.isLoadingMoreMemories}
+            onLoadMore={page.loadMoreMemories}
+            onRetry={page.retryKnowledgeList}
             onSearchChange={page.setSearchQuery}
             onSelectMemory={page.setSelectedMemoryKey}
             searchInfo={page.searchInfo}
             searchMode={page.searchActive}
             searchQuery={page.searchQuery}
             selectedMemoryKey={page.effectiveSelectedMemoryKey}
+            totalCount={page.memoryCount}
           />
         }
       />

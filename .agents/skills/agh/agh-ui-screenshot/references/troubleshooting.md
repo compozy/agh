@@ -7,7 +7,7 @@ Cause: the story id passed to `cap.mjs` does not exist in the running Storybook.
 Fix: list valid ids first.
 
 ```
-bun run .agents/skills/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 --filter <substring>
+bun run .agents/skills/agh/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 --filter <substring>
 ```
 
 Match the exact id (case-sensitive, dashes only). Common slip: `systems-tasks-routes-taskdetail--overview` vs `systems-tasks-routes-tasks--id-overview` (Storybook derives the id from the literal `systems/<system>/routes/...` title, not the app URL).
@@ -65,7 +65,7 @@ Fix:
 
 ```
 rm -rf <workdir>/node_modules <workdir>/bun.lock
-bash .agents/skills/agh-ui-screenshot/scripts/setup-workdir.sh <workdir>
+bash .agents/skills/agh/agh-ui-screenshot/scripts/setup-workdir.sh <workdir>
 ```
 
 ## Symptom: Storybook tells the user the port is unavailable

@@ -149,58 +149,6 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newSessionListCommand(deps commandDeps) *cobra.Command {
-	var (
-		includeAll      bool
-		workspaceFilter string
-		resumable       bool
-		limit           int
-	)
-
-	cmd := &cobra.Command{
-		Use:   sessionListKey,
-		Short: "List sessions",
-		Example: `  # List active sessions
-  agh session list
-
-  # Include stopped sessions and filter to a workspace
-  agh session list --all --workspace checkout-api`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			sessions, err := client.ListSessions(cmd.Context(), SessionListQuery{
-				Workspace: workspaceFilter,
-				Resumable: resumable,
-				Limit:     limit,
-				Sort:      sessionListSortKey(resumable),
-			})
-			if err != nil {
-				return err
-			}
-			if !includeAll && !resumable {
-				sessions = filterActiveSessions(sessions)
-			}
-
-			return writeCommandOutput(cmd, sessionListBundle(sessions, deps.now))
-		},
-	}
-	cmd.Flags().BoolVar(&includeAll, "all", false, "Include stopped sessions")
-	cmd.Flags().StringVar(&workspaceFilter, workspaceSkillSource, "", "Filter by workspace name or ID")
-	cmd.Flags().BoolVar(&resumable, "resumable", false, "Show only sessions eligible for resume attach")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum sessions to return")
-	return cmd
-}
-
-func sessionListSortKey(resumable bool) string {
-	if resumable {
-		return "last_activity"
-	}
-	return ""
-}
-
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop <id>",
@@ -302,19 +250,19 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 			}
 			sessionID := ""
 			if latest {
-				candidates, err := client.ListSessions(cmd.Context(), SessionListQuery{
+				page, err := client.ListSessions(cmd.Context(), SessionListQuery{
 					Workspace: workspaceFilter,
 					Resumable: true,
-					Sort:      "last_activity",
+					Sort:      session.ListSortLastActivity,
 					Limit:     1,
 				})
 				if err != nil {
 					return err
 				}
-				if len(candidates) == 0 {
+				if len(page.Sessions) == 0 {
 					return writeCommandOutput(cmd, sessionResumeEmptyBundle())
 				}
-				sessionID = candidates[0].ID
+				sessionID = page.Sessions[0].ID
 			} else {
 				sessionID = args[0]
 			}
@@ -876,71 +824,6 @@ func renderSessionToon(info SessionRecord) (string, error) {
 	}), nil
 }
 
-func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle {
-	return listBundle(
-		items,
-		items,
-		"Sessions",
-		[]string{
-			"ID",
-			sessionNameValue,
-			sessionAgentValue,
-			sessionProviderValue,
-			sessionBackendValue,
-			sessionStateValue,
-			sessionBadgeValue,
-			"Failure",
-			sessionWorkspaceValue,
-			sessionChannelValue,
-			sessionUpdatedValue,
-		},
-		"sessions",
-		[]string{
-			"id",
-			sessionNameKey,
-			sessionAgentNameKey,
-			sessionProviderKey,
-			"sandbox_backend",
-			sessionStateKey,
-			sessionBadgeKey,
-			taskFailureKindKey,
-			workspaceSkillSource,
-			sessionChannelKey,
-			sessionUpdatedAtKey,
-		},
-		func(item SessionRecord) []string {
-			return []string{
-				stringOrDash(item.ID),
-				stringOrDash(item.Name),
-				stringOrDash(item.AgentName),
-				stringOrDash(item.Provider),
-				stringOrDash(sessionSandboxBackend(item)),
-				stringOrDash(string(item.State)),
-				stringOrDash(string(item.Badge)),
-				stringOrDash(sessionFailureKind(item)),
-				stringOrDash(displaySessionWorkspace(item)),
-				stringOrDash(item.Channel),
-				stringOrDash(formatAge(now, item.UpdatedAt)),
-			}
-		},
-		func(item SessionRecord) []string {
-			return []string{
-				item.ID,
-				item.Name,
-				item.AgentName,
-				item.Provider,
-				sessionSandboxBackend(item),
-				string(item.State),
-				string(item.Badge),
-				sessionFailureKind(item),
-				displaySessionWorkspace(item),
-				item.Channel,
-				formatTime(item.UpdatedAt),
-			}
-		},
-	)
-}
-
 func sessionResumeEmptyBundle() outputBundle {
 	payload := struct {
 		Resumed *SessionRecord `json:"resumed"`
@@ -1310,17 +1193,6 @@ func sessionPromptValues(result SessionPromptResultRecord) []string {
 		strconv.Itoa(result.CanceledQueuedEntries),
 		string(result.FallbackModeIfNoToolResult),
 	}
-}
-
-func filterActiveSessions(items []SessionRecord) []SessionRecord {
-	filtered := make([]SessionRecord, 0, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(string(item.State)) == string(session.StateStopped) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return filtered
 }
 
 func displaySessionWorkspace(info SessionRecord) string {

@@ -73,6 +73,57 @@ test.use({
   },
 });
 
+test("first document navigation to a canonical session route loads the app shell and transcript", async ({
+  page,
+  runtime,
+}) => {
+  if (!runtime.paths?.homeDir) {
+    throw new Error("cold session-route E2E requires launch-mode runtime paths.");
+  }
+
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await runtime.requestJSON("/api/onboarding/complete", { method: "POST" });
+  const session = await createSession(runtime, permissionAgent, workspace.id);
+  const sessionRequestPath = sessionAPIPath(workspace.id, session.id);
+  const observedSessionRequests = new Set<string>();
+
+  page.on("request", request => {
+    const pathname = new URL(request.url()).pathname;
+    if (request.method() === "GET" && pathname === sessionRequestPath) {
+      observedSessionRequests.add(pathname);
+    }
+  });
+  await page.addInitScript(
+    ({ workspaceId }) => {
+      localStorage.setItem(
+        "agh:active-workspace",
+        JSON.stringify({
+          state: { selectedWorkspaceId: workspaceId },
+          version: 0,
+        })
+      );
+    },
+    { workspaceId: workspace.id }
+  );
+
+  await page.goto(runtime.url(sessionPath(permissionAgent, session.id)), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const ui = sessionLifecycleSelectors(page);
+  await expect
+    .poll(async () => ({
+      appGridVisible: await page.getByTestId("app-grid").isVisible(),
+      chatViewVisible: await ui.chatView.isVisible(),
+      sessionRequestObserved: observedSessionRequests.has(sessionRequestPath),
+    }))
+    .toEqual({
+      appGridVisible: true,
+      chatViewVisible: true,
+      sessionRequestObserved: true,
+    });
+});
+
 test("operator rejects a permission request, records tool output, and keeps session artifacts private", async ({
   appPage,
   browserArtifacts,

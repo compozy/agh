@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   getBridge,
@@ -9,19 +9,22 @@ import {
   listBridges,
 } from "../adapters/bridges-api";
 import { bridgeKeys } from "./query-keys";
-import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
+import { bridgeListRequest, normalizeBridgeCatalogFilter } from "./bridge-list-query";
+import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const PROVIDERS_REFETCH_INTERVAL = 60_000;
 
-export function bridgesListOptions(filters: BridgeListFilter = {}, enabled = true) {
-  return queryOptions({
-    queryKey: bridgeKeys.list(filters),
-    queryFn: ({ signal }) => listBridges(filters, signal),
+export function bridgesListOptions(filters: BridgeCatalogFilter = {}) {
+  const normalizedFilters = normalizeBridgeCatalogFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: bridgeKeys.list(normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listBridges(bridgeListRequest(normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
-    enabled,
   });
 }
 

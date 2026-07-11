@@ -194,7 +194,7 @@ func newHTTPModelCatalogRouter(
 		agentLoader:  aghconfig.LoadAgentDef,
 		httpPort:     cfg.HTTP.Port,
 		workspaces:   stubWorkspaceService{},
-		tasks:        stubTaskManager{},
+		tasks:        &stubTaskManager{},
 	})
 	return newTestRouter(t, handlers)
 }

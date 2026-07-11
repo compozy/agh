@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -241,9 +242,17 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 			}
 			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 		},
-		listAutomationJobsFn: func(_ context.Context, query AutomationJobQuery) ([]JobRecord, error) {
+		listAutomationJobsFn: func(_ context.Context, query AutomationJobQuery) (AutomationJobListRecord, error) {
 			listQuery = query
-			return []JobRecord{sampleAutomationJobRecord()}, nil
+			return AutomationJobListRecord{
+				Jobs: []JobRecord{sampleAutomationJobRecord()},
+				Page: contract.CountedCursorPagePayload{
+					Total:      4,
+					Limit:      query.Limit,
+					HasMore:    true,
+					NextCursor: "job-next",
+				},
+			}, nil
 		},
 		updateAutomationJobFn: func(_ context.Context, _ string, request AutomationJobUpdateRequest) (JobRecord, error) {
 			updateRequest = request
@@ -258,6 +267,14 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 			return updated, nil
 		},
 	})
+	jobCursor := automationJobCursorForTest(t, AutomationJobQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Source:      automationpkg.JobSourcePackage,
+		Enabled:     new(false),
+		LoopName:    "triage",
+		Search:      "digest",
+	})
 
 	listJSON, _, err := executeRootCommand(
 		t,
@@ -265,9 +282,12 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 		"automation", "jobs",
 		"--scope", "workspace",
 		"--workspace", "alpha",
-		"--source", "dynamic",
+		"--source", "package",
+		"--enabled=false",
 		"--loop", "triage",
-		"--last", "3",
+		"--query", "digest",
+		"--cursor", jobCursor,
+		"--limit", "3",
 		"-o", "json",
 	)
 	if err != nil {
@@ -280,8 +300,11 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 	}
 	if len(listed.Jobs) != 1 || listQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listQuery.WorkspaceID != "ws-alpha" ||
-		listQuery.Source != automationpkg.JobSourceDynamic ||
+		listQuery.Source != automationpkg.JobSourcePackage ||
+		listQuery.Enabled == nil || *listQuery.Enabled ||
 		listQuery.LoopName != "triage" ||
+		listQuery.Search != "digest" ||
+		listQuery.Cursor != jobCursor ||
 		listQuery.Limit != 3 {
 		t.Fatalf("listQuery = %#v, want resolved scope/workspace/source/limit", listQuery)
 	}
@@ -328,8 +351,11 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
-		listAutomationJobsFn: func(context.Context, AutomationJobQuery) ([]JobRecord, error) {
-			return []JobRecord{sampleAutomationJobRecord()}, nil
+		listAutomationJobsFn: func(_ context.Context, query AutomationJobQuery) (AutomationJobListRecord, error) {
+			return AutomationJobListRecord{
+				Jobs: []JobRecord{sampleAutomationJobRecord()},
+				Page: contract.CountedCursorPagePayload{Total: 1, Limit: query.Limit},
+			}, nil
 		},
 		getAutomationTriggerFn: func(context.Context, string) (TriggerRecord, error) {
 			return sampleAutomationTriggerRecord(), nil
@@ -390,9 +416,17 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 			}
 			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 		},
-		listAutomationTriggersFn: func(_ context.Context, query AutomationTriggerQuery) ([]TriggerRecord, error) {
+		listAutomationTriggersFn: func(_ context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error) {
 			listTriggerQuery = query
-			return []TriggerRecord{sampleAutomationTriggerRecord()}, nil
+			return AutomationTriggerListRecord{
+				Triggers: []TriggerRecord{sampleAutomationTriggerRecord()},
+				Page: contract.CountedCursorPagePayload{
+					Total:      3,
+					Limit:      query.Limit,
+					HasMore:    true,
+					NextCursor: "trigger-next",
+				},
+			}, nil
 		},
 		getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
 			return sampleAutomationJobRecord(), nil
@@ -431,6 +465,15 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 			return sampleAutomationRunRecord(), nil
 		},
 	})
+	triggerCursor := automationTriggerCursorForTest(t, AutomationTriggerQuery{
+		Scope:       automationpkg.AutomationScopeWorkspace,
+		WorkspaceID: "ws-alpha",
+		Event:       "webhook",
+		Source:      automationpkg.JobSourcePackage,
+		Enabled:     new(true),
+		LoopName:    "triage",
+		Search:      "review",
+	})
 
 	stdout, _, err := executeRootCommand(
 		t,
@@ -444,10 +487,15 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		"--event",
 		"webhook",
 		"--source",
-		"dynamic",
+		"package",
+		"--enabled=true",
 		"--loop",
 		"triage",
-		"--last",
+		"--query",
+		"review",
+		"--cursor",
+		triggerCursor,
+		"--limit",
 		"2",
 		"-o",
 		"json",
@@ -462,8 +510,11 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 	if len(listed.Triggers) != 1 || listTriggerQuery.WorkspaceID != "ws-alpha" ||
 		listTriggerQuery.Scope != automationpkg.AutomationScopeWorkspace ||
 		listTriggerQuery.Event != "webhook" ||
-		listTriggerQuery.Source != automationpkg.JobSourceDynamic ||
+		listTriggerQuery.Source != automationpkg.JobSourcePackage ||
+		listTriggerQuery.Enabled == nil || !*listTriggerQuery.Enabled ||
 		listTriggerQuery.LoopName != "triage" ||
+		listTriggerQuery.Search != "review" ||
+		listTriggerQuery.Cursor != triggerCursor ||
 		listTriggerQuery.Limit != 2 {
 		t.Fatalf("listTriggerQuery = %#v, want resolved workspace/event/source/limit", listTriggerQuery)
 	}
@@ -670,7 +721,10 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 		t.Fatalf("parseOptionalAutomationRunStatus() = %q, %v", status, err)
 	}
 
-	triggerListHuman, err := automationTriggerListBundle([]TriggerRecord{sampleAutomationTriggerRecord()}).human()
+	triggerListHuman, err := automationTriggerListBundle(AutomationTriggerListRecord{
+		Triggers: []TriggerRecord{sampleAutomationTriggerRecord()},
+		Page:     contract.CountedCursorPagePayload{Total: 1, Limit: automationpkg.DefaultListLimit},
+	}).human()
 	if err != nil {
 		t.Fatalf("automationTriggerListBundle().human() error = %v", err)
 	}
@@ -728,6 +782,71 @@ func sampleAutomationJobRecord() JobRecord {
 		UpdatedAt: fixedTestNow,
 		NextRun:   &nextRun,
 	}
+}
+
+func automationJobCursorForTest(t *testing.T, query AutomationJobQuery) string {
+	t.Helper()
+
+	source := query.Source
+	if source == "" {
+		source = automationpkg.JobSourceDynamic
+	}
+	enabled := query.Enabled != nil && *query.Enabled
+	jobs := make([]automationpkg.Job, 0, 2)
+	for index, name := range []string{"digest-alpha", "digest-bravo"} {
+		jobs = append(jobs, automationpkg.Job{
+			ID:          fmt.Sprintf("job-cursor-%d", index),
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        name,
+			WorkspaceID: "ws-alpha",
+			Source:      source,
+			Enabled:     enabled,
+			TargetKind:  automationpkg.TargetKindLoop,
+			LoopTarget:  &automationpkg.LoopTarget{WorkspaceID: "ws-alpha", LoopName: "triage"},
+		})
+	}
+	query.Limit = 1
+	page, err := automationpkg.BuildJobListPage(jobs, query)
+	if err != nil {
+		t.Fatalf("BuildJobListPage() error = %v", err)
+	}
+	if page.NextCursor == "" {
+		t.Fatal("BuildJobListPage().NextCursor = empty")
+	}
+	return page.NextCursor
+}
+
+func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) string {
+	t.Helper()
+
+	source := query.Source
+	if source == "" {
+		source = automationpkg.JobSourceDynamic
+	}
+	enabled := query.Enabled != nil && *query.Enabled
+	triggers := make([]automationpkg.Trigger, 0, 2)
+	for index, name := range []string{"review-alpha", "review-bravo"} {
+		triggers = append(triggers, automationpkg.Trigger{
+			ID:          fmt.Sprintf("trigger-cursor-%d", index),
+			Scope:       automationpkg.AutomationScopeWorkspace,
+			Name:        name,
+			WorkspaceID: "ws-alpha",
+			Event:       "webhook",
+			Source:      source,
+			Enabled:     enabled,
+			TargetKind:  automationpkg.TargetKindLoop,
+			LoopTarget:  &automationpkg.LoopTarget{WorkspaceID: "ws-alpha", LoopName: "triage"},
+		})
+	}
+	query.Limit = 1
+	page, err := automationpkg.BuildTriggerListPage(triggers, query)
+	if err != nil {
+		t.Fatalf("BuildTriggerListPage() error = %v", err)
+	}
+	if page.NextCursor == "" {
+		t.Fatal("BuildTriggerListPage().NextCursor = empty")
+	}
+	return page.NextCursor
 }
 
 func sampleAutomationTriggerRecord() TriggerRecord {

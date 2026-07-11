@@ -60,7 +60,7 @@ responsibility.
     participant A as ops-coordinator
     participant B as patch-worker
 
-    A->>B: say surface=thread thread_id=thread-launch work_id=work-123
+    A->>B: say surface=thread thread_id=thread_launch work_id=work_123
     B-->>A: receipt accepted (same surface, thread_id, work_id)
     B-->>A: trace working
     B-->>A: trace completed with result`}
@@ -89,10 +89,10 @@ runtime MUST reject lifecycle messages for the same `work_id` whose conversation
 match the opening envelope. The reference implementation uses `reason_code = work_container_mismatch`
 for this rejection class.
 
-| Opening envelope                                   | Continuation envelope MUST carry               |
-| -------------------------------------------------- | ---------------------------------------------- |
-| `surface:"thread"` with `thread_id:"thread_X"`     | `surface:"thread"` and `thread_id:"thread_X"`. |
-| `surface:"direct"` with `direct_id:"direct_<...>"` | `surface:"direct"` and the same `direct_id`.   |
+| Opening envelope                                     | Continuation envelope MUST carry                     |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| `surface:"thread"` with `thread_id:"thread_example"` | `surface:"thread"` and `thread_id:"thread_example"`. |
+| `surface:"direct"` with `direct_id:"direct_<...>"`   | `surface:"direct"` and the same `direct_id`.         |
 
 A handoff that crosses surfaces — for example, opening follow-up work in a direct room after a
 public thread asked for restricted review — opens a new `work_id`. The new envelope MAY use
@@ -100,9 +100,9 @@ public thread asked for restricted review — opens a new `work_id`. The new env
 
 ## Conversation messages without lifecycle
 
-Use `say` without `work_id` for free-form discussion that does not need lifecycle state. Use
-`capability` without `work_id` to advertise an artifact in a thread without opening lifecycle work.
-A receiver MUST NOT synthesize a `work_id` from `say` text alone.
+Use `say` without `work_id` for free-form discussion that does not need lifecycle state. A
+`capability` always carries the lifecycle work it transfers. A receiver MUST NOT synthesize a
+`work_id` from `say` text alone.
 
 ## Progress streaming
 
@@ -166,13 +166,15 @@ the result with `trace(failed)`, `trace(canceled)`, or `receipt(canceled)`.
 
 ## Work scope
 
-A `work_id` is scoped to one channel and one conversation container inside that channel. The same
-`work_id` value in another channel, thread, or direct room is a different work unit. Implementations
-SHOULD treat `(channel, surface, container_id, work_id)` as the lifecycle key.
+A `work_id` is unique inside one workspace. The first valid conversation envelope binds it to one
+channel and one conversation container. Reusing that value in another channel, thread, or direct
+room is invalid; implementations MUST treat `(workspace_id, work_id)` as the lifecycle identity and
+persist the original container binding.
 
 The first valid conversation envelope that introduces the `work_id` fixes the participants and the
 container binding. A message from a non-participant or from a different container MUST NOT change
-the lifecycle state.
+the lifecycle state. A cross-container reuse MUST be rejected as `work_container_mismatch`; opening
+work in another container requires a new `work_id`.
 
 ## Related pages
 

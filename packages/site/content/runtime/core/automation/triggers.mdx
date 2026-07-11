@@ -16,6 +16,18 @@ uses the same dispatcher and run history model that scheduled jobs use.
   trigger when an external system should create that event envelope.
 </OperatorNote>
 
+## Browse the trigger catalog
+
+`agh automation triggers -o json` returns one counted catalog page. The daemon applies `scope`,
+`workspace`, definition `source` (`config`, `package`, or `dynamic`), enabled state, activation
+event, Loop target, and text query filters before it cuts the page. The response keeps the rows
+under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and `next_cursor` values
+under `page`.
+
+Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
+that created it; restart from the first page when any filter changes. See the generated
+[`agh automation triggers`](/runtime/cli-reference/automation/triggers) reference for every flag.
+
 ## Trigger fields
 
 | Field                        | Required                | Meaning                                                                                      |

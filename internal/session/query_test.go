@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 func TestManagerListAllRequiresContext(t *testing.T) {
@@ -127,6 +129,310 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[1].Channel; got != "builders" {
 		t.Fatalf("ListAll()[1].Channel = %q, want %q", got, "builders")
 	}
+}
+
+func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should page the active and durable union from the indexed projection", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "catalog active",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(active) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), active.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(active cleanup) error = %v", stopErr)
+			}
+		})
+		stopped, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "catalog stopped",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(stopped) error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
+			t.Fatalf("Stop(stopped) error = %v", err)
+		}
+		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
+		metaReads := 0
+		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			metaReads++
+			return store.ReadSessionMeta(path)
+		}
+		h.resolver.mu.Lock()
+		resolverCallsBefore := len(h.resolver.resolveCalls)
+		h.resolver.mu.Unlock()
+
+		query := ListQuery{
+			WorkspaceID: h.workspaceID,
+			AgentName:   "coder",
+			Search:      "CATALOG",
+			Sort:        ListSortRecent,
+			Limit:       1,
+		}
+		first, err := h.manager.ListPage(testutil.Context(t), query)
+		if err != nil {
+			t.Fatalf("ListPage(first) error = %v", err)
+		}
+		if first.Total != 2 || len(first.Sessions) != 1 || !first.HasMore || first.NextCursor == "" {
+			t.Fatalf("ListPage(first) = %#v, want one of two sessions with next cursor", first)
+		}
+		if !slices.Contains(catalog.lastQuery.ExcludeIDs, active.ID) {
+			t.Fatalf("PageSessions().ExcludeIDs = %#v, want active id %q", catalog.lastQuery.ExcludeIDs, active.ID)
+		}
+
+		query.Cursor = first.NextCursor
+		second, err := h.manager.ListPage(testutil.Context(t), query)
+		if err != nil {
+			t.Fatalf("ListPage(second) error = %v", err)
+		}
+		if second.Total != 2 || len(second.Sessions) != 1 || second.HasMore {
+			t.Fatalf("ListPage(second) = %#v, want final one-of-two page", second)
+		}
+		ids := []string{first.Sessions[0].ID, second.Sessions[0].ID}
+		if !slices.Contains(ids, active.ID) || !slices.Contains(ids, stopped.ID) {
+			t.Fatalf("paged ids = %#v, want active %q and durable %q", ids, active.ID, stopped.ID)
+		}
+		for _, page := range []ListPage{first, second} {
+			for _, info := range page.Sessions {
+				if info.ID == stopped.ID && info.Workspace != "" {
+					t.Fatalf("projected stopped info = %#v, want no meta-only workspace path", info)
+				}
+			}
+		}
+		if metaReads != 0 {
+			t.Fatalf("session metadata reads = %d, want zero for catalog pages", metaReads)
+		}
+		h.resolver.mu.Lock()
+		resolverCallsAfter := len(h.resolver.resolveCalls)
+		h.resolver.mu.Unlock()
+		if resolverCallsAfter != resolverCallsBefore {
+			t.Fatalf(
+				"workspace resolver calls = %d after catalog pages, want unchanged %d",
+				resolverCallsAfter,
+				resolverCallsBefore,
+			)
+		}
+
+		callsBeforeMismatch := catalog.calls
+		query.Search = "different"
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("ListPage(query mismatch) error = %v, want ErrListCursorInvalid", err)
+		}
+		query.Search = "catalog"
+		query.WorkspaceID = "ws-foreign"
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("ListPage(workspace mismatch) error = %v, want ErrListCursorInvalid", err)
+		}
+		query.WorkspaceID = h.workspaceID
+		query.Cursor = "not-an-opaque-cursor"
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("ListPage(malformed cursor) error = %v, want ErrListCursorInvalid", err)
+		}
+		if catalog.calls != callsBeforeMismatch {
+			t.Fatalf("PageSessions calls after mismatched cursors = %d, want %d", catalog.calls, callsBeforeMismatch)
+		}
+	})
+
+	t.Run("Should restore active detail health and resumable catalog truth after attach expiry", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newSessionHealthTestClock(time.Date(2026, 7, 11, 14, 0, 0, 0, time.UTC))
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithNow(clock.Now), WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), active.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(active cleanup) error = %v", stopErr)
+			}
+		})
+		attach, err := h.manager.AttachSession(testutil.Context(t), store.SessionAttachRequest{
+			SessionID:  active.ID,
+			AttachedTo: "uds:operator",
+			Now:        clock.Now(),
+			TTL:        time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("AttachSession() error = %v", err)
+		}
+
+		locked, err := h.manager.ListPage(testutil.Context(t), ListQuery{
+			WorkspaceID: h.workspaceID,
+			Resumable:   true,
+		})
+		if err != nil {
+			t.Fatalf("ListPage(locked resumable) error = %v", err)
+		}
+		if locked.Total != 0 || len(locked.Sessions) != 0 {
+			t.Fatalf("ListPage(locked resumable) = %#v, want empty", locked)
+		}
+
+		clock.Set(attach.AttachExpiresAt.Add(time.Second))
+		status, err := h.manager.Status(testutil.Context(t), active.ID)
+		if err != nil {
+			t.Fatalf("Status(after expiry) error = %v", err)
+		}
+		if status.AttachedTo != "" || status.AttachExpiresAt != nil || !AttachableForInfo(status, clock.Now()) {
+			t.Fatalf("Status(after expiry) = %#v, want normalized attachable session", status)
+		}
+		resumable, err := h.manager.ListPage(testutil.Context(t), ListQuery{
+			WorkspaceID: h.workspaceID,
+			Resumable:   true,
+		})
+		if err != nil {
+			t.Fatalf("ListPage(after expiry) error = %v", err)
+		}
+		if resumable.Total != 1 || len(resumable.Sessions) != 1 || resumable.Sessions[0].ID != active.ID ||
+			resumable.Sessions[0].AttachedTo != "" || resumable.Sessions[0].AttachExpiresAt != nil {
+			t.Fatalf("ListPage(after expiry) = %#v, want active session unlocked", resumable)
+		}
+		healthByID, err := h.manager.SessionHealthForPage(testutil.Context(t), resumable.Sessions)
+		if err != nil {
+			t.Fatalf("SessionHealthForPage(after expiry) error = %v", err)
+		}
+		if !healthByID[active.ID].Attachable {
+			t.Fatalf("SessionHealthForPage(after expiry) = %#v, want attachable", healthByID[active.ID])
+		}
+	})
+}
+
+func TestSessionMatchesListQuery(t *testing.T) {
+	t.Parallel()
+
+	base := &Info{
+		ID:          "sess-visible",
+		Name:        "Review launch",
+		AgentName:   "coder",
+		Provider:    "codex",
+		WorkspaceID: "ws-alpha",
+		Channel:     "builders",
+		Type:        SessionTypeUser,
+		State:       StateActive,
+	}
+	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
+
+	t.Run("Should apply exact workspace state agent and literal search filters", func(t *testing.T) {
+		t.Parallel()
+
+		if !sessionMatchesListQuery(base, ListQuery{
+			WorkspaceID: "ws-alpha",
+			State:       "active",
+			AgentName:   "coder",
+			Search:      "review",
+		}, now) {
+			t.Fatal("sessionMatchesListQuery() = false, want exact filters to match")
+		}
+		for _, query := range []ListQuery{
+			{WorkspaceID: "ws-foreign"},
+			{State: "stopped"},
+			{AgentName: "reviewer"},
+			{Search: "missing"},
+		} {
+			if sessionMatchesListQuery(base, query, now) {
+				t.Fatalf("sessionMatchesListQuery(%#v) = true, want false", query)
+			}
+		}
+	})
+
+	t.Run("Should hide daemon-owned memory sessions before the page cut", func(t *testing.T) {
+		t.Parallel()
+
+		dream := *base
+		dream.Type = SessionTypeDream
+		if sessionMatchesListQuery(&dream, ListQuery{}, now) {
+			t.Fatal("sessionMatchesListQuery(dream) = true, want false")
+		}
+		extractor := *base
+		extractor.Lineage = &store.SessionLineage{SpawnRole: SpawnRoleMemoryExtractor}
+		if sessionMatchesListQuery(&extractor, ListQuery{}, now) {
+			t.Fatal("sessionMatchesListQuery(memory extractor) = true, want false")
+		}
+	})
+
+	t.Run("Should apply resumable eligibility before the page cut", func(t *testing.T) {
+		t.Parallel()
+
+		if !sessionMatchesListQuery(base, ListQuery{Resumable: true}, now) {
+			t.Fatal("sessionMatchesListQuery(resumable) = false, want attachable active session")
+		}
+		locked := *base
+		locked.AttachedTo = "uds:123"
+		expiresAt := now.Add(time.Hour)
+		locked.AttachExpiresAt = &expiresAt
+		if sessionMatchesListQuery(&locked, ListQuery{Resumable: true}, now) {
+			t.Fatal("sessionMatchesListQuery(locked resumable) = true, want false")
+		}
+	})
+}
+
+func TestNormalizeListQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize defaults and case-insensitive search", func(t *testing.T) {
+		t.Parallel()
+
+		query, err := normalizeListQuery(ListQuery{Search: "  Review  "})
+		if err != nil {
+			t.Fatalf("normalizeListQuery() error = %v", err)
+		}
+		if query.Search != "review" || query.Sort != ListSortRecent || query.Limit != DefaultListLimit {
+			t.Fatalf("normalizeListQuery() = %#v, want normalized search/sort/limit", query)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name  string
+		query ListQuery
+	}{
+		{name: "state", query: ListQuery{State: "unknown"}},
+		{name: "sort", query: ListQuery{Sort: "oldest"}},
+		{name: "negative limit", query: ListQuery{Limit: -1}},
+		{name: "oversized limit", query: ListQuery{Limit: MaxListLimit + 1}},
+	} {
+		t.Run("Should reject invalid "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := normalizeListQuery(testCase.query); !errors.Is(err, ErrListQueryInvalid) {
+				t.Fatalf("normalizeListQuery(%#v) error = %v, want ErrListQueryInvalid", testCase.query, err)
+			}
+		})
+	}
+}
+
+type pagedRecordingSessionCatalog struct {
+	*recordingSessionCatalog
+	durable   store.SessionInfo
+	lastQuery store.SessionCatalogPageQuery
+	calls     int
+}
+
+func (c *pagedRecordingSessionCatalog) PageSessions(
+	_ context.Context,
+	query store.SessionCatalogPageQuery,
+) (store.SessionCatalogPage, error) {
+	c.calls++
+	c.lastQuery = query
+	if c.durable.ID == "" {
+		return store.SessionCatalogPage{}, nil
+	}
+	page := store.SessionCatalogPage{Total: 1}
+	position := sessionCatalogPosition(c.durable, query.Sort)
+	if query.After == nil || compareSessionCatalogPosition(position, *query.After) > 0 {
+		page.Sessions = []store.SessionInfo{c.durable}
+	}
+	return page, nil
 }
 
 func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
@@ -583,12 +889,12 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		if len(history) == 0 {
 			t.Fatal("History(active with nil recorder) = 0, want persisted turns")
 		}
-		entries, err := h.manager.Transcript(testutil.Context(t), session.ID, store.EventQuery{})
+		page, err := h.manager.TranscriptPage(testutil.Context(t), session.ID, transcript.PageQuery{})
 		if err != nil {
-			t.Fatalf("Transcript(active with nil recorder) error = %v", err)
+			t.Fatalf("TranscriptPage(active with nil recorder) error = %v", err)
 		}
-		if len(entries) == 0 {
-			t.Fatal("Transcript(active with nil recorder) = 0, want persisted entries")
+		if len(page.Entries) == 0 {
+			t.Fatal("TranscriptPage(active with nil recorder) = 0, want persisted entries")
 		}
 	})
 

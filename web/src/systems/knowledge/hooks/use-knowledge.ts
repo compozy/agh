@@ -1,23 +1,33 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import type { ListMemoryDecisionsParams } from "@/systems/knowledge/adapters/knowledge-api";
 import {
   memoriesListOptions,
   memoryDecisionsOptions,
   memoryDetailOptions,
   memorySearchOptions,
 } from "@/systems/knowledge/lib/query-options";
-import type { KnowledgeSelector } from "@/systems/knowledge/types";
+import { readMemoryListData } from "@/systems/knowledge/lib/memory-list-query";
+import type {
+  KnowledgeListFilter,
+  KnowledgeSelector,
+  ListMemoryDecisionsParams,
+} from "@/systems/knowledge/types";
 
 interface KnowledgeQueryOptions {
   enabled?: boolean;
 }
 
-export function useMemories(selector?: KnowledgeSelector, options?: KnowledgeQueryOptions) {
-  return useQuery({
-    ...memoriesListOptions(selector),
-    enabled: (options?.enabled ?? true) && Boolean(selector?.scope),
+export function useMemories(filters?: KnowledgeListFilter, options?: KnowledgeQueryOptions) {
+  const query = useInfiniteQuery({
+    ...memoriesListOptions(filters),
+    enabled: (options?.enabled ?? true) && Boolean(filters?.scope),
   });
+  const catalog = readMemoryListData(query.data);
+  return {
+    ...query,
+    data: catalog.memories,
+    total: catalog.total,
+  };
 }
 
 export function useMemory(

@@ -1,8 +1,6 @@
 import { type ConnectionStatus, Pill, cn } from "@agh/ui";
 
-import { useDaemonConnectionStatus } from "@/systems/status/hooks/use-daemon-connection-status";
-
-import { useNavCounts } from "../hooks/use-nav-counts";
+import { type HealthPayload, useDaemonHealth } from "@/systems/status";
 
 export type RuntimeConnectionTone = "success" | "danger";
 
@@ -15,16 +13,16 @@ export interface RuntimeConnectionIndicatorState {
 export interface RuntimeConnectionIndicatorProps extends React.ComponentProps<"div"> {
   /** Override the resolved connection status. Tests inject this to bypass TanStack Query. */
   status?: ConnectionStatus;
-  /** Force the degraded heartbeat path. Tests inject this to bypass useNavCounts(). */
-  degraded?: boolean;
+  /** Override the daemon health status. Tests inject this to bypass TanStack Query. */
+  healthStatus?: HealthPayload["status"];
   /** Hide the textual label and render only the dot (sidebar collapsed / rail-only mode). */
   dotOnly?: boolean;
 }
 
 /**
  * Encapsulates tone-and-pulse rule for the daemon connection LED:
- *  - success solid → daemon reachable, recent activity within heartbeat window
- *  - success pulse → daemon reachable, degraded heartbeat
+ *  - success solid → daemon reachable and healthy
+ *  - success pulse → daemon reachable but degraded
  *  - danger solid  → daemon unreachable
  *
  * Single owner of the connection LED across the runtime shell. The sidebar
@@ -32,10 +30,12 @@ export interface RuntimeConnectionIndicatorProps extends React.ComponentProps<"d
  */
 export function resolveRuntimeConnectionState(
   status: ConnectionStatus,
-  degraded: boolean
+  healthStatus: HealthPayload["status"] | undefined
 ): RuntimeConnectionIndicatorState {
   if (status === "connected") {
-    if (degraded) return { tone: "success", pulse: true, label: "Degraded" };
+    if (healthStatus === "degraded") {
+      return { tone: "success", pulse: true, label: "Degraded" };
+    }
     return { tone: "success", pulse: false, label: "Connected" };
   }
   if (status === "connecting") {
@@ -49,17 +49,15 @@ export function resolveRuntimeConnectionState(
 
 export function RuntimeConnectionIndicator({
   status: statusOverride,
-  degraded: degradedOverride,
+  healthStatus: healthStatusOverride,
   dotOnly = false,
   className,
   ...rest
 }: RuntimeConnectionIndicatorProps) {
-  const resolvedStatus = useDaemonConnectionStatus();
-  const status = statusOverride ?? resolvedStatus;
-  const navCounts = useNavCounts();
-  const resolvedDegraded =
-    degradedOverride ?? Object.values(navCounts.counts).some(entry => entry?.stale === true);
-  const { tone, pulse, label } = resolveRuntimeConnectionState(status, resolvedDegraded);
+  const { connectionStatus, health } = useDaemonHealth();
+  const status = statusOverride ?? connectionStatus;
+  const healthStatus = healthStatusOverride ?? health?.status;
+  const { tone, pulse, label } = resolveRuntimeConnectionState(status, healthStatus);
   return (
     <div
       aria-live="polite"

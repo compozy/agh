@@ -29,18 +29,11 @@ func (h *HostAPIHandler) handleTasks(ctx context.Context, raw json.RawMessage) (
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := listTasksWithDraftCompensation(
-		ctx,
-		query,
-		params,
-		func(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
-			return manager.ListTasks(ctx, query, actor)
-		},
-	)
+	page, err := manager.ListTaskCatalog(ctx, query, actor)
 	if err != nil {
 		return nil, mapTaskRPCError("", err)
 	}
-	return taskSummaryPayloadsFromSummaries(tasks), nil
+	return taskCatalogResponseFromPage(page), nil
 }
 
 func (h *HostAPIHandler) handleTasksGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -516,43 +509,46 @@ func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorCon
 func (h *HostAPIHandler) taskQueryFromParams(
 	ctx context.Context,
 	params hostAPITasksParams,
-) (taskpkg.Query, error) {
-	query := taskpkg.Query{
+) (taskpkg.CatalogQuery, error) {
+	if err := apicontract.ValidateTaskListQuery(params, "task_query"); err != nil {
+		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
+	}
+	query := taskpkg.CatalogQuery{
 		Scope:         params.Scope.Normalize(),
 		Status:        params.Status.Normalize(),
 		Priority:      params.Priority.Normalize(),
+		IncludeDrafts: params.IncludeDrafts,
 		ApprovalState: params.ApprovalState.Normalize(),
 		OwnerKind:     params.OwnerKind.Normalize(),
 		OwnerRef:      strings.TrimSpace(params.OwnerRef),
 		ParentTaskID:  strings.TrimSpace(params.ParentTaskID),
 		Search:        strings.TrimSpace(params.Query),
+		Sort:          params.Sort.Normalize(),
+		Cursor:        strings.TrimSpace(params.Cursor),
 		Limit:         params.Limit,
 	}
-	if query.Scope.Normalize() != "" {
-		if err := query.Scope.Validate("task_query.scope"); err != nil {
-			return taskpkg.Query{}, invalidParamsRPCError(err)
-		}
-	}
 	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
-			if err := taskpkg.ValidateScopeBinding(query.Scope, workspaceRef, "task_query", "workspace"); err != nil {
-				return taskpkg.Query{}, invalidParamsRPCError(err)
-			}
+		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {
+			return taskpkg.CatalogQuery{}, invalidParamsRPCError(fmt.Errorf(
+				"%w: task_query.workspace must be empty for global scope",
+				taskpkg.ErrValidation,
+			))
 		}
 		workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
 		if err != nil {
-			return taskpkg.Query{}, err
+			return taskpkg.CatalogQuery{}, err
 		}
 		query.WorkspaceID = workspaceID
 	}
 	if err := validateTaskChannel("task_query.network_channel", params.NetworkChannel); err != nil {
-		return taskpkg.Query{}, err
+		return taskpkg.CatalogQuery{}, err
 	}
 	query.NetworkChannel = strings.TrimSpace(params.NetworkChannel)
-	if err := query.Validate("task_query"); err != nil {
-		return taskpkg.Query{}, invalidParamsRPCError(err)
+	normalized, err := taskpkg.NormalizeCatalogQuery(query)
+	if err != nil {
+		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
 	}
-	return query, nil
+	return normalized, nil
 }
 
 func taskTimelineQueryFromParams(params apicontract.TaskTimelineQuery) (taskpkg.TimelineQuery, error) {
@@ -624,30 +620,27 @@ func (h *HostAPIHandler) taskInboxQueryFromParams(
 	ctx context.Context,
 	params apicontract.TaskInboxQuery,
 ) (observepkg.TaskInboxQuery, error) {
+	if err := apicontract.ValidateTaskInboxQuery(params, "task_inbox_query"); err != nil {
+		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
+	}
 	query := observepkg.TaskInboxQuery{
 		Scope:     params.Scope.Normalize(),
 		OwnerKind: params.OwnerKind.Normalize(),
 		OwnerRef:  strings.TrimSpace(params.OwnerRef),
 		Lane:      observepkg.TaskInboxLane(params.Lane).Normalize(),
+		Status:    params.Status.Normalize(),
+		Priority:  params.Priority.Normalize(),
 		Unread:    params.Unread,
 		Search:    strings.TrimSpace(params.Query),
+		Cursor:    strings.TrimSpace(params.Cursor),
 		Limit:     params.Limit,
 	}
-	if query.Scope.Normalize() != "" {
-		if err := query.Scope.Validate("task_inbox_query.scope"); err != nil {
-			return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
-		}
-	}
 	if workspaceRef := strings.TrimSpace(params.Workspace); workspaceRef != "" {
-		if query.Scope.Normalize() == taskpkg.ScopeGlobal {
-			if err := taskpkg.ValidateScopeBinding(
-				query.Scope,
-				workspaceRef,
-				"task_inbox_query",
-				"workspace",
-			); err != nil {
-				return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
-			}
+		if query.Scope.Normalize() == taskpkg.CatalogScopeGlobal {
+			return observepkg.TaskInboxQuery{}, invalidParamsRPCError(fmt.Errorf(
+				"%w: task_inbox_query.workspace must be empty for global scope",
+				taskpkg.ErrValidation,
+			))
 		}
 		workspaceID, err := h.resolveTaskWorkspaceID(ctx, workspaceRef)
 		if err != nil {
@@ -887,6 +880,39 @@ func taskSummaryPayloadsFromSummaries(tasks []taskpkg.Summary) []apicontract.Tas
 		payloads[i] = taskSummaryPayloadFromSummary(&tasks[i])
 	}
 	return payloads
+}
+
+func taskCatalogResponseFromPage(page taskpkg.CatalogPage) apicontract.TasksResponse {
+	items := make([]apicontract.TaskCatalogItemPayload, 0, len(page.Tasks))
+	for index := range page.Tasks {
+		items = append(items, apicontract.TaskCatalogItemPayloadFromSummary(&page.Tasks[index]))
+	}
+	response := apicontract.TasksResponse{
+		Tasks: items,
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: page.NextCursor,
+			HasMore:    page.HasMore,
+			Total:      page.Total,
+			Limit:      page.Limit,
+		},
+		Facets: apicontract.TaskCatalogFacetsPayload{
+			Statuses: make([]apicontract.TaskCatalogStatusFacetPayload, 0, len(page.StatusFacets)),
+			Owners:   make([]apicontract.TaskCatalogOwnerFacetPayload, 0, len(page.OwnerFacets)),
+		},
+	}
+	for _, facet := range page.StatusFacets {
+		response.Facets.Statuses = append(response.Facets.Statuses, apicontract.TaskCatalogStatusFacetPayload{
+			Status: facet.Status,
+			Count:  facet.Count,
+		})
+	}
+	for _, facet := range page.OwnerFacets {
+		response.Facets.Owners = append(response.Facets.Owners, apicontract.TaskCatalogOwnerFacetPayload{
+			Owner: facet.Owner,
+			Count: facet.Count,
+		})
+	}
+	return response
 }
 
 func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSummaryPayload {
@@ -1372,15 +1398,32 @@ func taskDashboardFreshnessPayload(
 
 func taskInboxPayloadFromView(view observepkg.TaskInboxView) apicontract.TaskInboxPayload {
 	payload := apicontract.TaskInboxPayload{
-		Total:         view.Total,
 		UnreadTotal:   view.UnreadTotal,
 		ArchivedTotal: view.ArchivedTotal,
+		Groups:        make([]apicontract.TaskInboxLaneGroupPayload, 0, len(view.Groups)),
+		Page: apicontract.CountedCursorPagePayload{
+			NextCursor: view.NextCursor,
+			HasMore:    view.HasMore,
+			Total:      view.Total,
+			Limit:      view.Limit,
+		},
+		Facets: apicontract.TaskInboxFacetsPayload{
+			Statuses:   make([]apicontract.TaskInboxStatusFacetPayload, 0, len(view.StatusFacets)),
+			Priorities: make([]apicontract.TaskInboxPriorityFacetPayload, 0, len(view.PriorityFacets)),
+		},
 	}
-	if len(view.Groups) == 0 {
-		return payload
+	for _, facet := range view.StatusFacets {
+		payload.Facets.Statuses = append(payload.Facets.Statuses, apicontract.TaskInboxStatusFacetPayload{
+			Status: facet.Status,
+			Count:  facet.Count,
+		})
 	}
-
-	payload.Groups = make([]apicontract.TaskInboxLaneGroupPayload, 0, len(view.Groups))
+	for _, facet := range view.PriorityFacets {
+		payload.Facets.Priorities = append(payload.Facets.Priorities, apicontract.TaskInboxPriorityFacetPayload{
+			Priority: facet.Priority,
+			Count:    facet.Count,
+		})
+	}
 	for _, group := range view.Groups {
 		groupPayload := apicontract.TaskInboxLaneGroupPayload{
 			Lane:        apicontract.TaskInboxLane(group.Lane),
@@ -1391,13 +1434,13 @@ func taskInboxPayloadFromView(view observepkg.TaskInboxView) apicontract.TaskInb
 			groupPayload.Items = make([]apicontract.TaskInboxItemPayload, 0, len(group.Items))
 			for _, item := range group.Items {
 				groupPayload.Items = append(groupPayload.Items, apicontract.TaskInboxItemPayload{
-					Task:             taskReferencePayloadFromReference(item.Task),
+					Task:             apicontract.TaskInboxTaskPayloadFromReference(item.Task),
 					Lane:             apicontract.TaskInboxLane(item.Lane),
 					ApprovalPolicy:   item.ApprovalPolicy,
 					ApprovalState:    item.ApprovalState,
 					BlockingReason:   item.BlockingReason,
 					LatestActivityAt: item.LatestActivityAt,
-					Run:              taskRunSummaryPayloadFromSummary(item.Run),
+					Run:              apicontract.TaskCatalogRunPayloadFromSummary(item.Run),
 					Triage:           taskTriageStatePayloadFromState(item.Triage),
 				})
 			}
@@ -1436,73 +1479,6 @@ func filterTaskRuns(runs []taskpkg.Run, query taskpkg.RunQuery) []taskpkg.Run {
 		return filtered[:query.Limit]
 	}
 	return filtered
-}
-
-func filterTaskListDrafts(tasks []taskpkg.Summary, query apicontract.TaskListQuery) []taskpkg.Summary {
-	if query.IncludeDrafts || query.Status.Normalize() != "" {
-		return tasks
-	}
-
-	filtered := make([]taskpkg.Summary, 0, len(tasks))
-	for idx := range tasks {
-		task := &tasks[idx]
-		if task.Draft || task.Status.Normalize() == taskpkg.TaskStatusDraft {
-			continue
-		}
-		filtered = append(filtered, *task)
-	}
-	if query.Limit > 0 && len(filtered) > query.Limit {
-		return filtered[:query.Limit]
-	}
-	return filtered
-}
-
-func shouldOverfetchTaskDrafts(query apicontract.TaskListQuery) bool {
-	return !query.IncludeDrafts && query.Status.Normalize() == "" && query.Limit > 0
-}
-
-func listTasksWithDraftCompensation(
-	ctx context.Context,
-	query taskpkg.Query,
-	transportQuery apicontract.TaskListQuery,
-	fetch func(context.Context, taskpkg.Query) ([]taskpkg.Summary, error),
-) ([]taskpkg.Summary, error) {
-	if !shouldOverfetchTaskDrafts(transportQuery) {
-		tasks, err := fetch(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		return filterTaskListDrafts(tasks, transportQuery), nil
-	}
-
-	fetchLimit := max(query.Limit, transportQuery.Limit)
-	previousTaskCount := -1
-	for {
-		currentQuery := query
-		currentQuery.Limit = min(nextDraftFetchLimit(fetchLimit, transportQuery.Limit), taskDraftOverfetchMaxLimit)
-
-		tasks, err := fetch(ctx, currentQuery)
-		if err != nil {
-			return nil, err
-		}
-		filtered := filterTaskListDrafts(tasks, transportQuery)
-		if len(filtered) >= transportQuery.Limit ||
-			len(tasks) < currentQuery.Limit ||
-			currentQuery.Limit >= taskDraftOverfetchMaxLimit ||
-			len(tasks) == previousTaskCount {
-			return filtered, nil
-		}
-
-		previousTaskCount = len(tasks)
-		fetchLimit = currentQuery.Limit
-	}
-}
-
-const taskDraftOverfetchMaxLimit = 500
-
-func nextDraftFetchLimit(currentLimit, requestedLimit int) int {
-	nextLimit := max(currentLimit*2, currentLimit+requestedLimit)
-	return nextLimit
 }
 
 func cloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {

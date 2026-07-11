@@ -161,6 +161,11 @@ export const handlers: HttpHandler[] = [
 
       return HttpResponse.json({
         threads: networkThreadsFixture.map(thread => ({ ...thread, channel })),
+        page: {
+          has_more: false,
+          limit: networkThreadsFixture.length,
+          total: networkThreadsFixture.length,
+        },
       });
     }
   ),
@@ -253,6 +258,7 @@ export const handlers: HttpHandler[] = [
           surface: "thread",
           thread_id: threadId,
         })),
+        page: { has_more: false, limit: networkThreadMessagesFixture.length },
       });
     }
   ),
@@ -267,6 +273,11 @@ export const handlers: HttpHandler[] = [
 
       return HttpResponse.json({
         directs: networkDirectRoomsFixture.map(direct => ({ ...direct, channel })),
+        page: {
+          has_more: false,
+          limit: networkDirectRoomsFixture.length,
+          total: networkDirectRoomsFixture.length,
+        },
       });
     }
   ),
@@ -333,6 +344,7 @@ export const handlers: HttpHandler[] = [
           surface: "direct",
           direct_id: directId,
         })),
+        page: { has_more: false, limit: networkDirectRoomMessagesFixture.length },
       });
     }
   ),

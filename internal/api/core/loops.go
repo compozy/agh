@@ -31,20 +31,6 @@ func (h *BaseHandlers) requireLoopService(c *gin.Context) (LoopService, bool) {
 	return h.Loops, true
 }
 
-// ListLoops returns the workspace Loop catalog projection.
-func (h *BaseHandlers) ListLoops(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	response, err := service.ListLoops(c.Request.Context(), c.Param("workspace_id"))
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
 // CreateLoop creates or forks one writable Loop definition.
 func (h *BaseHandlers) CreateLoop(c *gin.Context) {
 	service, ok := h.requireLoopService(c)

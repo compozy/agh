@@ -75,6 +75,15 @@ GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24be
 GET /api/workspaces/ws_alpha/network/channels/builders/directs/direct_99401d24bee62651d189e5a561785466/messages
 ```
 
+Direct-room lists are counted cursor pages. The daemon applies peer, text, open-work, and sort
+filters before the page cut and returns exact `total`, `limit`, `has_more`, and `next_cursor`
+metadata. Keep a cursor with the same workspace, channel, filters, and sort that produced it.
+
+Message reads return a bounded chronological tail. Use the scoped message ID from `before` to load
+older rows or `after` for incremental rows; `kind` and `work_id` filters run before the cut. The
+durable append sequence owns causal ordering internally, including messages that share one
+protocol timestamp, while the public cursor remains a room-scoped message ID.
+
 Native tools: `agh__network_directs`, `agh__network_direct_messages`.
 
 ## Sending into a direct room

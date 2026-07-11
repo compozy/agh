@@ -73,7 +73,11 @@ const treeWithDescendantFixture = {
 };
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
-  listTasks: vi.fn().mockResolvedValue([]),
+  listTasks: vi.fn().mockResolvedValue({
+    facets: { owners: [], statuses: [] },
+    page: { has_more: false, limit: 50, total: 0 },
+    tasks: [],
+  }),
   getTask: vi.fn(),
   listTaskRuns: vi.fn().mockResolvedValue([]),
   getTaskTimeline: vi.fn().mockResolvedValue([]),

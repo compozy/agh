@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	eventSummaryProviderColumn = "provider"
-	taskPausedColumn           = "paused"
+	migrationNameHealSchedulerPause = "heal_scheduler_pause_updated_at"
+	eventSummaryProviderColumn      = "provider"
+	taskPausedColumn                = "paused"
 )
 
 const eventSummaryProviderBackfillSQL = "UPDATE event_summaries SET provider = COALESCE(" +

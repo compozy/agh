@@ -18,27 +18,6 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 )
 
-type bridgeDedupStore interface {
-	PutBridgeIngestDedup(ctx context.Context, record bridgepkg.IngestDedupRecord) error
-	GetBridgeIngestDedup(
-		ctx context.Context,
-		idempotencyKey string,
-		lookupAt time.Time,
-	) (bridgepkg.IngestDedupRecord, error)
-	DeleteExpiredBridgeIngestDedup(ctx context.Context, now time.Time) (int64, error)
-}
-
-type bridgeRuntimeStore interface {
-	bridgepkg.RegistryStore
-	bridgepkg.TargetDirectoryStore
-	bridgepkg.ResourceProjectionStore
-	bridgepkg.BridgeTaskSubscriptionStore
-	bridgeDedupStore
-	PutBridgeSecretBinding(ctx context.Context, binding bridgepkg.BridgeSecretBinding) error
-	ListBridgeSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)
-	DeleteBridgeSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error
-}
-
 var errBridgeSecretResolverRequired = errors.New("daemon: bridge secret resolver is required")
 
 const (
@@ -605,13 +584,6 @@ func bridgeStatusForBridgeUpdate(
 	default:
 		return bridgepkg.BridgeStatusDegraded
 	}
-}
-
-func (r *bridgeRuntime) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if r == nil || r.broker == nil {
-		return nil
-	}
-	return r.broker.DeliveryMetrics()
 }
 
 func (r *bridgeRuntime) BuildBridgeResourceState(

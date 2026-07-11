@@ -45,9 +45,9 @@ func deriveNetworkTimelineWorkProjection(
 			FROM network_timeline_log prior
 			WHERE prior.workspace_id = current.workspace_id
 			  AND prior.work_id = current.work_id
-			  AND prior.rowid < current.rowid
+			  AND prior.sequence < current.sequence
 			  AND prior.work_state <> ''
-			ORDER BY prior.rowid DESC
+			ORDER BY prior.sequence DESC
 			LIMIT 1
 		), '')
 		FROM network_timeline_log current

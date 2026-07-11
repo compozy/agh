@@ -223,6 +223,59 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	}
 }
 
+func TestUnixSocketClientLoopCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize every bounded catalog query field", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/workspaces/ws-1/loops" {
+						t.Fatalf("request = %s %s, want GET Loop catalog", req.Method, req.URL.Path)
+					}
+					want := map[string]string{
+						"q":        "release plan",
+						"kind":     "workspace",
+						"category": "delivery",
+						"status":   "running",
+						"sort":     "name",
+						"cursor":   "next/+=?",
+						"limit":    "17",
+					}
+					for name, value := range want {
+						if got := req.URL.Query().Get(name); got != value {
+							t.Fatalf("query %s = %q, want %q", name, got, value)
+						}
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"loops":[],"facets":{"kinds":{},"categories":{},"statuses":{}},"page":{"has_more":false,"total":0,"limit":17}}`,
+					), nil
+				}),
+			},
+		}
+
+		response, err := client.ListLoops(t.Context(), "ws-1", LoopListQuery{
+			Search:   "release plan",
+			Kind:     "workspace",
+			Category: "delivery",
+			Status:   "running",
+			Sort:     "name",
+			Cursor:   "next/+=?",
+			Limit:    17,
+		})
+		if err != nil {
+			t.Fatalf("ListLoops() error = %v", err)
+		}
+		if response.Page.Total != 0 || response.Page.Limit != 17 || response.Loops == nil {
+			t.Fatalf("ListLoops() = %#v, want explicit empty counted page", response)
+		}
+	})
+}
+
 func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -1068,10 +1121,10 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 			socketPath: "/tmp/agh.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions" {
+					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+							`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 						), nil
 					}
 					if req.Method != http.MethodGet || req.URL.Path != "/api/workspaces/ws-1/sessions/sess-1/stream" {
@@ -1262,13 +1315,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
+				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/sessions":
 					if got := req.URL.Query().Get("workspace"); got != "" && got != "ws-1" {
 						t.Fatalf("session workspace query = %q, want empty or ws-1", got)
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+						`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}],"page":{"next_cursor":"cursor-next","has_more":true,"total":3,"limit":1}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/sessions":
 					body, err := io.ReadAll(req.Body)
@@ -1640,8 +1698,12 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 
 	sessions, err := client.ListSessions(ctx, SessionListQuery{Workspace: "ws-1"})
-	if err != nil || len(sessions) != 1 {
+	if err != nil || len(sessions.Sessions) != 1 {
 		t.Fatalf("ListSessions() = %#v, %v", sessions, err)
+	}
+	if sessions.Page.NextCursor != "cursor-next" || !sessions.Page.HasMore ||
+		sessions.Page.Total != 3 || sessions.Page.Limit != 1 {
+		t.Fatalf("ListSessions().Page = %#v, want decoded continuation metadata", sessions.Page)
 	}
 
 	createdSession, err := client.CreateSession(ctx, CreateSessionRequest{
@@ -1878,6 +1940,39 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	}
 }
 
+func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should never scan the paged session catalog", func(t *testing.T) {
+		t.Parallel()
+
+		var paths []string
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				paths = append(paths, req.URL.Path)
+				if req.URL.Path != "/api/sessions/sess-target" {
+					t.Fatalf("request path = %q, want direct session lookup", req.URL.Path)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-target","workspace_id":"ws-target","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+				), nil
+			})},
+		}
+		workspaceID, err := client.sessionWorkspaceRef(t.Context(), "sess-target")
+		if err != nil {
+			t.Fatalf("sessionWorkspaceRef() error = %v", err)
+		}
+		if workspaceID != "ws-target" {
+			t.Fatalf("sessionWorkspaceRef() = %q, want ws-target", workspaceID)
+		}
+		if len(paths) != 1 || paths[0] == "/api/sessions" {
+			t.Fatalf("sessionWorkspaceRef() paths = %#v, want one by-id request and no catalog scan", paths)
+		}
+	})
+}
+
 func TestUnixSocketClientRepairSession(t *testing.T) {
 	t.Parallel()
 
@@ -1888,10 +1983,10 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 			socketPath: "/tmp/agh.sock",
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions" {
+					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"sessions":[{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"stopped","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}]}`,
+							`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"stopped","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 						), nil
 					}
 					if req.Method != http.MethodPost || req.URL.Path != "/api/workspaces/ws-1/sessions/sess-1/repair" {
@@ -2103,18 +2198,27 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					if got := req.URL.Query().Get("workspace_id"); got != "ws-alpha" {
 						t.Fatalf("job workspace_id query = %q, want %q", got, "ws-alpha")
 					}
-					if got := req.URL.Query().Get("source"); got != "dynamic" {
-						t.Fatalf("job source query = %q, want %q", got, "dynamic")
+					if got := req.URL.Query().Get("source"); got != "package" {
+						t.Fatalf("job source query = %q, want %q", got, "package")
+					}
+					if got := req.URL.Query().Get("enabled"); got != "false" {
+						t.Fatalf("job enabled query = %q, want %q", got, "false")
 					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("job loop query = %q, want %q", got, "triage")
+					}
+					if got := req.URL.Query().Get("q"); got != "digest" {
+						t.Fatalf("job q query = %q, want %q", got, "digest")
+					}
+					if got := req.URL.Query().Get("cursor"); got != "job-cursor" {
+						t.Fatalf("job cursor query = %q, want %q", got, "job-cursor")
 					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("job limit query = %q, want %q", got, "3")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"jobs":[{"id":"job-1","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`,
+						`{"jobs":[{"id":"job-1","scope":"workspace","workspace_id":"ws-alpha","name":"nightly","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}],"page":{"next_cursor":"job-next","has_more":true,"total":4,"limit":3}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/automation/jobs":
 					body, err := io.ReadAll(req.Body)
@@ -2181,18 +2285,27 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 					if got := req.URL.Query().Get("event"); got != "webhook" {
 						t.Fatalf("trigger event query = %q, want %q", got, "webhook")
 					}
-					if got := req.URL.Query().Get("source"); got != "dynamic" {
-						t.Fatalf("trigger source query = %q, want %q", got, "dynamic")
+					if got := req.URL.Query().Get("source"); got != "package" {
+						t.Fatalf("trigger source query = %q, want %q", got, "package")
+					}
+					if got := req.URL.Query().Get("enabled"); got != "true" {
+						t.Fatalf("trigger enabled query = %q, want %q", got, "true")
 					}
 					if got := req.URL.Query().Get("loop"); got != "triage" {
 						t.Fatalf("trigger loop query = %q, want %q", got, "triage")
+					}
+					if got := req.URL.Query().Get("q"); got != "review" {
+						t.Fatalf("trigger q query = %q, want %q", got, "review")
+					}
+					if got := req.URL.Query().Get("cursor"); got != "trigger-cursor" {
+						t.Fatalf("trigger cursor query = %q, want %q", got, "trigger-cursor")
 					}
 					if got := req.URL.Query().Get("limit"); got != "2" {
 						t.Fatalf("trigger limit query = %q, want %q", got, "2")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"triggers":[{"id":"trg-1","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`,
+						`{"triggers":[{"id":"trg-1","scope":"workspace","workspace_id":"ws-alpha","name":"deploy-review","agent_name":"coder","prompt":"review {{ index .Data \"payload\" }}","event":"webhook","filter":{"data.branch":"main"},"enabled":true,"retry":{"strategy":"none"},"fire_limit":{"max":12,"window":"1h"},"source":"dynamic","webhook_id":"wbh_123","endpoint_slug":"deploy-review","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}],"page":{"next_cursor":"trigger-next","has_more":true,"total":3,"limit":2}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/automation/triggers":
 					body, err := io.ReadAll(req.Body)
@@ -2279,11 +2392,14 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 		jobs, err := client.ListAutomationJobs(ctx, AutomationJobQuery{
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			WorkspaceID: "ws-alpha",
-			Source:      automationpkg.JobSourceDynamic,
+			Source:      automationpkg.JobSourcePackage,
+			Enabled:     new(false),
 			LoopName:    "triage",
+			Search:      "digest",
+			Cursor:      "job-cursor",
 			Limit:       3,
 		})
-		if err != nil || len(jobs) != 1 || jobs[0].ID != "job-1" {
+		if err != nil || len(jobs.Jobs) != 1 || jobs.Jobs[0].ID != "job-1" || jobs.Page.Total != 4 {
 			t.Fatalf("ListAutomationJobs() = %#v, %v", jobs, err)
 		}
 	})
@@ -2352,11 +2468,14 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			WorkspaceID: "ws-alpha",
 			Event:       "webhook",
-			Source:      automationpkg.JobSourceDynamic,
+			Source:      automationpkg.JobSourcePackage,
+			Enabled:     new(true),
 			LoopName:    "triage",
+			Search:      "review",
+			Cursor:      "trigger-cursor",
 			Limit:       2,
 		})
-		if err != nil || len(triggers) != 1 || triggers[0].ID != "trg-1" {
+		if err != nil || len(triggers.Triggers) != 1 || triggers.Triggers[0].ID != "trg-1" || triggers.Page.Total != 3 {
 			t.Fatalf("ListAutomationTriggers() = %#v, %v", triggers, err)
 		}
 	})
@@ -2468,7 +2587,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					}
 					body := mustJSON(
 						t,
-						contract.TasksResponse{Tasks: []contract.TaskSummaryPayload{sampleTaskSummaryRecord()}},
+						contract.TasksResponse{Tasks: []contract.TaskCatalogItemPayload{sampleTaskCatalogItemRecord()}},
 					)
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks":
@@ -2665,7 +2784,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
-			Scope:          taskpkg.ScopeWorkspace,
+			Scope:          taskpkg.CatalogScopeWorkspace,
 			Workspace:      "alpha",
 			Status:         taskpkg.TaskStatusReady,
 			OwnerKind:      taskpkg.OwnerKindPool,
@@ -2674,7 +2793,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			NetworkChannel: "builders",
 			Limit:          3,
 		})
-		if err != nil || len(tasks) != 1 || tasks[0].ID != "task-1" {
+		if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].ID != "task-1" {
 			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
 		}
 	})
@@ -2807,6 +2926,60 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 	})
 }
 
+func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize every bounded bridge catalog query parameter", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges" {
+					t.Fatalf("request = %s %s, want GET /api/bridges", req.Method, req.URL.Path)
+				}
+				want := map[string]string{
+					"scope":        "all",
+					"workspace_id": "ws-alpha",
+					"workspace":    "alpha",
+					"q":            "needle",
+					"platform":     "slack",
+					"status":       "error",
+					"sort":         "name",
+					"cursor":       "cursor-1",
+					"limit":        "25",
+				}
+				for key, value := range want {
+					if got := req.URL.Query().Get(key); got != value {
+						t.Fatalf("query[%s] = %q, want %q; raw=%s", key, got, value, req.URL.RawQuery)
+					}
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"bridges":[],"bridge_health":{},"facets":{"platforms":{},"statuses":{"disabled":0,"starting":0,"ready":0,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":0,"limit":25}}`,
+				), nil
+			})},
+		}
+		result, err := client.ListBridges(context.Background(), BridgeListQuery{
+			Scope:       "all",
+			WorkspaceID: "ws-alpha",
+			Workspace:   "alpha",
+			Search:      "needle",
+			Platform:    "slack",
+			Status:      "error",
+			Sort:        "name",
+			Cursor:      "cursor-1",
+			Limit:       25,
+		})
+		if err != nil {
+			t.Fatalf("ListBridges() error = %v", err)
+		}
+		if result.Page.Total != 0 || result.Page.Limit != 25 || result.Bridges == nil {
+			t.Fatalf("ListBridges() = %#v, want explicit empty counted page", result)
+		}
+	})
+}
+
 func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	t.Parallel()
 
@@ -2818,7 +2991,7 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"bridges":[{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}]}`,
+						`{"bridges":[{"id":"brg-a","scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"status":"ready","routing_policy":{"include_peer":true},"created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:00:00Z"}],"bridge_health":{"brg-a":{"bridge_instance_id":"brg-a","status":"ready","route_count":0,"delivery_backlog":0,"delivery_dropped_total":0,"delivery_failures_total":0,"auth_failures_total":0}},"facets":{"platforms":{"telegram":1},"statuses":{"disabled":0,"starting":0,"ready":1,"degraded":0,"auth_required":0,"error":0}},"page":{"has_more":false,"total":1,"limit":50}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges":
 					var payload contract.CreateBridgeRequest
@@ -2926,8 +3099,8 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	listed, err := client.ListBridges(ctx)
-	if err != nil || len(listed) != 1 || listed[0].ID != "brg-a" {
+	listed, err := client.ListBridges(ctx, BridgeListQuery{})
+	if err != nil || len(listed.Bridges) != 1 || listed.Bridges[0].ID != "brg-a" || listed.Page.Total != 1 {
 		t.Fatalf("ListBridges() = %#v, %v", listed, err)
 	}
 
@@ -3050,8 +3223,20 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("sessionEventValues() = %v, want limit/after_sequence", got)
 	}
 
-	if got := sessionListValues(SessionListQuery{Workspace: "ws-1"}); got.Get("workspace") != "ws-1" {
-		t.Fatalf("sessionListValues() = %v, want workspace filter", got)
+	if got := sessionListValues(SessionListQuery{
+		Workspace:     "ws-1",
+		State:         "active",
+		Agent:         "coder",
+		Query:         "needle",
+		Resumable:     true,
+		IncludeHealth: true,
+		Sort:          "last_activity",
+		Cursor:        "cursor-1",
+		Limit:         2,
+	}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("agent") != "coder" ||
+		got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("sort") != "last_activity" ||
+		got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {
+		t.Fatalf("sessionListValues() = %v, want all page filters", got)
 	}
 
 	if got := logsListValues(LogsListQuery{
@@ -3108,10 +3293,14 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	if got := memoryListValues(MemoryListQuery{
 		MemorySelectorQuery: MemorySelectorQuery{Scope: memcontract.ScopeWorkspace},
 		Type:                memcontract.TypeProject,
-		IncludeShadowed:     true,
+		Sort:                "name",
+		Cursor:              "next-page",
+		Limit:               25,
 	}); got.Get("scope") != "workspace" ||
 		got.Get("type") != "project" ||
-		got.Get("include_shadowed") != "true" {
+		got.Get("sort") != "name" ||
+		got.Get("cursor") != "next-page" ||
+		got.Get("limit") != "25" {
 		t.Fatalf("memoryListValues() = %v, want list filters", got)
 	}
 
@@ -3129,12 +3318,32 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("memoryHistoryValues() = %v, want all history filters", got)
 	}
 
+	if got := memoryDecisionValues(MemoryDecisionListQuery{
+		Scope:          memcontract.ScopeWorkspace,
+		WorkspaceID:    "/workspace/project",
+		Operation:      "update",
+		TargetFilename: "project.md",
+		Since:          time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC),
+		Reason:         "accepted",
+		Limit:          1,
+	}); got.Get("scope") != "workspace" ||
+		got.Get("workspace_id") != "/workspace/project" ||
+		got.Get("op") != "update" ||
+		got.Get("filename") != "project.md" ||
+		got.Get("since") != "2026-04-03T11:00:00Z" ||
+		got.Get("reason") != "accepted" ||
+		got.Get("limit") != "1" {
+		t.Fatalf("memoryDecisionValues() = %v, want all decision filters", got)
+	}
+
 	if got := automationJobValues(AutomationJobQuery{
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: "ws-alpha",
 		Source:      automationpkg.JobSourceDynamic,
+		Search:      "digest",
+		Cursor:      "job-cursor",
 		Limit:       3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("source") != "dynamic" || got.Get("limit") != "3" {
+	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("source") != "dynamic" || got.Get("q") != "digest" || got.Get("cursor") != "job-cursor" || got.Get("limit") != "3" {
 		t.Fatalf("automationJobValues() = %v, want all job filters", got)
 	}
 
@@ -3143,8 +3352,10 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		WorkspaceID: "ws-alpha",
 		Event:       "webhook",
 		Source:      automationpkg.JobSourceDynamic,
+		Search:      "review",
+		Cursor:      "trigger-cursor",
 		Limit:       2,
-	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("event") != "webhook" || got.Get("source") != "dynamic" || got.Get("limit") != "2" {
+	}); got.Get("scope") != "workspace" || got.Get("workspace_id") != "ws-alpha" || got.Get("event") != "webhook" || got.Get("source") != "dynamic" || got.Get("q") != "review" || got.Get("cursor") != "trigger-cursor" || got.Get("limit") != "2" {
 		t.Fatalf("automationTriggerValues() = %v, want all trigger filters", got)
 	}
 
@@ -3160,7 +3371,7 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := taskValues(TaskListQuery{
-		Scope:          taskpkg.ScopeWorkspace,
+		Scope:          taskpkg.CatalogScopeWorkspace,
 		Workspace:      "alpha",
 		Status:         taskpkg.TaskStatusReady,
 		OwnerKind:      taskpkg.OwnerKindPool,

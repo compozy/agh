@@ -1,4 +1,4 @@
-import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type NetworkSurface = "thread" | "direct";
 
@@ -18,6 +18,7 @@ export type NetworkStatus = NetworkStatusResponse["network"];
 
 export type NetworkChannelsResponse = OperationResponse<"listNetworkChannels", 200>;
 export type NetworkChannelSummary = NetworkChannelsResponse["channels"][number];
+export type NetworkChannelsQuery = OperationQuery<"listNetworkChannels">;
 
 export type NetworkChannelDetailResponse = OperationResponse<"getNetworkChannel", 200>;
 export type NetworkChannel = NetworkChannelDetailResponse["channel"];
@@ -27,6 +28,7 @@ export type NetworkFanoutPolicy = "capability_match" | "coordinator" | "all_memb
 
 export type NetworkThreadsResponse = OperationResponse<"listNetworkThreads", 200>;
 export type NetworkThreadSummary = NetworkThreadsResponse["threads"][number];
+export type NetworkThreadsListQuery = OperationQuery<"listNetworkThreads">;
 
 export type NetworkThreadDetailResponse = OperationResponse<"getNetworkThread", 200>;
 export type NetworkThreadTaskLink = NonNullable<NetworkThreadDetailResponse["task_links"]>[number];
@@ -39,6 +41,7 @@ export type NetworkThreadMessage = NetworkThreadMessagesResponse["messages"][num
 
 export type NetworkDirectRoomsResponse = OperationResponse<"listNetworkDirectRooms", 200>;
 export type NetworkDirectRoomSummary = NetworkDirectRoomsResponse["directs"][number];
+export type NetworkDirectsListQuery = OperationQuery<"listNetworkDirectRooms">;
 
 export type NetworkDirectRoomDetailResponse = OperationResponse<"getNetworkDirectRoom", 200>;
 export type NetworkDirectRoomDetail = NetworkDirectRoomDetailResponse["direct"];
@@ -96,13 +99,16 @@ export interface NetworkCreateChannelDraft {
   selectedAgentNames: string[];
 }
 
-export interface NetworkConversationMessagesQuery {
-  after?: string | null | undefined;
-  before?: string | null | undefined;
-  kind?: string | null | undefined;
-  limit?: number | null | undefined;
-  work_id?: string | null | undefined;
-}
+export type NetworkConversationMessagesQuery = OperationQuery<"listNetworkThreadMessages">;
+export type NetworkConversationMessageFilters = Omit<
+  NetworkConversationMessagesQuery,
+  "after" | "before"
+>;
+export type NetworkCursorPageParam = string | null;
+export type NetworkMessagePageParam = { before: string } | null;
+export type NetworkConversationMessagesResponse =
+  | NetworkThreadMessagesResponse
+  | NetworkDirectRoomMessagesResponse;
 
 export type NetworkRouteSurface = NetworkSurface | "activity";
 

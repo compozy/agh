@@ -55,7 +55,12 @@ export const Empty: Story = {
     ...appRouteParameters("/triggers"),
     ...storybookMswParameters({
       automation: [
-        aghApiMock.get("/api/automation/triggers", () => HttpResponse.json({ triggers: [] })),
+        aghApiMock.get("/api/automation/triggers", () =>
+          HttpResponse.json({
+            page: { has_more: false, limit: 50, total: 0 },
+            triggers: [],
+          })
+        ),
       ],
     }),
   },
@@ -102,7 +107,10 @@ export const Loading: Story = {
       automation: [
         aghApiMock.get("/api/automation/triggers", async () => {
           await delay("infinite");
-          return HttpResponse.json({ triggers: [] });
+          return HttpResponse.json({
+            page: { has_more: false, limit: 50, total: 0 },
+            triggers: [],
+          });
         }),
       ],
     }),

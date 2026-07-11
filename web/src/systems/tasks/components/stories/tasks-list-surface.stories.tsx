@@ -6,6 +6,7 @@ import { UIProvider } from "@agh/ui";
 import { TasksListSurface } from "../tasks-list-surface";
 import type { TasksListSurfaceProps } from "../tasks-list-surface";
 import type { TaskFilterOwnerOption } from "../../lib/tasks-list-filters";
+import { countTasksByStatus } from "../../lib/task-formatters";
 import { buildTaskFixture } from "./fixtures";
 
 const FIXTURE_TASKS = [
@@ -78,6 +79,7 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
           searchQuery={searchQuery}
           sortBy={sortBy}
           statusFilter={statusFilter}
+          statusCounts={props.statusCounts ?? countTasksByStatus(props.tasks ?? FIXTURE_TASKS)}
           tasks={FIXTURE_TASKS}
           totalCount={FIXTURE_TASKS.length}
           workspaceName="agh-runtime"
@@ -91,31 +93,43 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
 const meta: Meta<typeof TasksListSurface> = {
   title: "systems/tasks/components/TasksListSurface",
   component: TasksListSurface,
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component: "Backend-filtered task list with exact status facets and explicit continuation.",
+      },
+    },
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof TasksListSurface>;
 
 export const Default: Story = {
+  args: {},
   render: () => <Stateful />,
 };
 
 export const Loading: Story = {
+  args: {},
   render: () => <Stateful isLoading tasks={[]} totalCount={0} />,
 };
 
 export const Empty: Story = {
+  args: {},
   render: () => <Stateful tasks={[]} totalCount={0} />,
 };
 
 export const ErrorState: Story = {
+  args: {},
   render: () => (
     <Stateful tasks={[]} totalCount={0} errorMessage="Daemon unreachable on /api/tasks." />
   ),
 };
 
 export const SingleGroup: Story = {
+  args: {},
   render: () => (
     <Stateful
       tasks={FIXTURE_TASKS.filter(task => task.status === "in_progress")}

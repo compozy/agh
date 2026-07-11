@@ -76,9 +76,8 @@ function NetworkShellHarness({
   const pinned = channels.filter(channel => pinnedSet.has(channel.channel));
   const unpinned = channels.filter(channel => !pinnedSet.has(channel.channel));
   const filters = useNetworkListFilters({
+    workspaceId: storyDefaultWorkspaceId,
     channel: channels[0]?.channel ?? "",
-    threads: networkThreadsFixture,
-    directs: networkDirectRoomsFixture,
   });
 
   return (

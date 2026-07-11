@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/systems/loops/hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
-  return { useLoops: () => ({ data: loopCatalogFixtures, isLoading: false }) };
+  return { useLoops: () => ({ loops: loopCatalogFixtures, isLoading: false }) };
 });
 
 import { AutomationJobForm } from "../automation-job-form";

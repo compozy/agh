@@ -189,7 +189,7 @@ export function automationStatusTone(status: AutomationStatusKey): PillTone {
 }
 
 export function automationSourceLabel(source: AutomationJob["source"]): string {
-  return source === "config" ? "CONFIG" : "DYNAMIC";
+  return { config: "CONFIG", dynamic: "DYNAMIC", package: "PACKAGE" }[source];
 }
 
 export function automationScopeLabel(scope: AutomationScope): string {
@@ -202,84 +202,6 @@ export function automationSourceTone(source: AutomationJob["source"]): PillTone 
 
 export function automationScopeTone(scope: AutomationScope): PillTone {
   return scope === "workspace" ? "info" : "neutral";
-}
-
-function searchableParts(parts: Array<string | null | undefined>): string {
-  return parts
-    .filter((value): value is string => typeof value === "string" && value.trim() !== "")
-    .join(" ")
-    .toLowerCase();
-}
-
-export function filterAutomationJobs(jobs: AutomationJob[], query: string): AutomationJob[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery === "") {
-    return jobs;
-  }
-
-  return jobs.filter(job =>
-    searchableParts([
-      job.name,
-      job.agent_name,
-      job.prompt,
-      job.scope,
-      job.source,
-      job.schedule?.mode,
-      job.schedule?.expr,
-      job.schedule?.interval,
-      job.schedule?.time,
-    ]).includes(normalizedQuery)
-  );
-}
-
-export function filterAutomationTriggers(
-  triggers: AutomationTrigger[],
-  query: string
-): AutomationTrigger[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery === "") {
-    return triggers;
-  }
-
-  return triggers.filter(trigger =>
-    searchableParts([
-      trigger.name,
-      trigger.agent_name,
-      trigger.prompt,
-      trigger.scope,
-      trigger.source,
-      trigger.event,
-      trigger.endpoint_slug,
-      trigger.webhook_id,
-      ...Object.entries(trigger.filter ?? {}).flat(),
-    ]).includes(normalizedQuery)
-  );
-}
-
-function sortBySourceAndName<T extends { name: string; source: AutomationJob["source"] }>(
-  items: T[]
-): T[] {
-  const sourceOrder = {
-    config: 0,
-    dynamic: 1,
-  } as const;
-
-  return [...items].sort((left, right) => {
-    const sourceDelta = sourceOrder[left.source] - sourceOrder[right.source];
-    if (sourceDelta !== 0) {
-      return sourceDelta;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
-}
-
-export function sortAutomationJobs(jobs: AutomationJob[]): AutomationJob[] {
-  return sortBySourceAndName(jobs);
-}
-
-export function sortAutomationTriggers(triggers: AutomationTrigger[]): AutomationTrigger[] {
-  return sortBySourceAndName(triggers);
 }
 
 export function formatAutomationListSummary({
@@ -297,14 +219,6 @@ export function formatAutomationListSummary({
   totalCount: number;
   visibleCount: number;
 }): string {
-  const noun =
-    kind === "jobs"
-      ? visibleCount === 1
-        ? "job"
-        : "jobs"
-      : visibleCount === 1
-        ? "trigger"
-        : "triggers";
   const totalNoun =
     kind === "jobs"
       ? totalCount === 1
@@ -314,9 +228,10 @@ export function formatAutomationListSummary({
         ? "trigger"
         : "triggers";
   const trimmedQuery = searchQuery.trim();
+  const count = visibleCount < totalCount ? `Showing ${visibleCount} of ${totalCount}` : totalCount;
 
   if (trimmedQuery !== "") {
-    return `${visibleCount} ${noun} matching current search`;
+    return `${count} ${totalNoun} matching current search`;
   }
 
   if (totalCount === 0) {
@@ -328,12 +243,12 @@ export function formatAutomationListSummary({
   }
 
   if (scopeFilter === "global") {
-    return `${visibleCount} ${noun} in global scope`;
+    return `${count} ${totalNoun} in global scope`;
   }
 
   if (activeWorkspaceName) {
-    return `${visibleCount} ${noun} in ${activeWorkspaceName}`;
+    return `${count} ${totalNoun} in ${activeWorkspaceName}`;
   }
 
-  return `${visibleCount} ${noun} in workspace scope`;
+  return `${count} ${totalNoun} in workspace scope`;
 }

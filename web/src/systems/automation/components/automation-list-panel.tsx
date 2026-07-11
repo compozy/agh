@@ -1,6 +1,7 @@
 import { AlertCircle, Clock3, Zap } from "lucide-react";
 
 import {
+  Button,
   Empty,
   Eyebrow,
   Item,
@@ -33,9 +34,12 @@ interface AutomationListPanelProps {
   activeWorkspaceName?: string;
   errorMessage?: string | null;
   isLoading?: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
   jobs: AutomationJob[];
   kind: AutomationKind;
   onSearchChange: (query: string) => void;
+  onLoadMore?: () => void;
   onSelect: (id: string) => void;
   scopeFilter: AutomationScopeFilter;
   searchQuery: string;
@@ -146,9 +150,12 @@ export function AutomationListPanel({
   activeWorkspaceName,
   errorMessage = null,
   isLoading = false,
+  hasNextPage = false,
+  isFetchingNextPage = false,
   jobs,
   kind,
   onSearchChange,
+  onLoadMore,
   onSelect,
   scopeFilter,
   searchQuery,
@@ -221,24 +228,50 @@ export function AutomationListPanel({
               title={emptyTitle}
             />
           </div>
-        ) : kind === "jobs" ? (
-          jobs.map(job => (
-            <JobListItem
-              isSelected={job.id === selectedId}
-              job={job}
-              key={job.id}
-              onSelect={() => onSelect(job.id)}
-            />
-          ))
         ) : (
-          triggers.map(trigger => (
-            <TriggerListItem
-              isSelected={trigger.id === selectedId}
-              key={trigger.id}
-              onSelect={() => onSelect(trigger.id)}
-              trigger={trigger}
-            />
-          ))
+          <>
+            {kind === "jobs"
+              ? jobs.map(job => (
+                  <JobListItem
+                    isSelected={job.id === selectedId}
+                    job={job}
+                    key={job.id}
+                    onSelect={() => onSelect(job.id)}
+                  />
+                ))
+              : triggers.map(trigger => (
+                  <TriggerListItem
+                    isSelected={trigger.id === selectedId}
+                    key={trigger.id}
+                    onSelect={() => onSelect(trigger.id)}
+                    trigger={trigger}
+                  />
+                ))}
+            {errorMessage ? (
+              <p
+                className="px-4 py-3 text-caption text-danger"
+                data-testid="automation-list-page-error"
+                role="alert"
+              >
+                {errorMessage}
+              </p>
+            ) : null}
+            {hasNextPage && onLoadMore ? (
+              <div className="flex justify-center p-3">
+                <Button
+                  aria-busy={isFetchingNextPage}
+                  data-testid="automation-list-load-more"
+                  disabled={isFetchingNextPage}
+                  onClick={onLoadMore}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {isFetchingNextPage ? `Loading more ${kind}…` : `Load more ${kind}`}
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </aside>

@@ -8,6 +8,7 @@ export type {
   FetchSessionEventsParams,
   PermissionDecision,
   PermissionRequest,
+  NormalizedSessionTranscriptResponse,
   SessionEventPayload,
   SessionApprovalResponse,
   SessionEventsResponse,
@@ -32,7 +33,10 @@ export type {
   SessionRepairResponse,
   SessionResponse,
   SessionState,
+  SessionListFilters,
+  SessionTranscriptPage,
   SessionsResponse,
+  SessionsQuery,
   SessionTranscriptResponse,
   TranscriptMarkerPayload,
   SessionDataParts,
@@ -73,7 +77,6 @@ export {
 // Query infrastructure
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { sessionKeys } from "./lib/query-keys";
-export { filterVisibleSessions, isInternalSession } from "./lib/session-visibility";
 export {
   sessionByIdOptions,
   sessionDetailOptions,

@@ -1,23 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
-  useDaemonConnectionStatus: () => "connected" as const,
-}));
-
-vi.mock("../../hooks/use-nav-counts", () => ({
-  useNavCounts: () => ({
-    counts: {},
-    refresh: () => undefined,
-    status: "loading" as const,
+vi.mock("@/systems/status", () => ({
+  useDaemonHealth: () => ({
+    connectionStatus: "connected" as const,
+    health: { status: "ok" },
+    isInitialLoading: false,
   }),
 }));
 
 import { RuntimeConnectionIndicator, resolveRuntimeConnectionState } from "../connection-indicator";
 
 describe("resolveRuntimeConnectionState", () => {
-  it("Should return success solid when daemon is connected and not degraded", () => {
-    expect(resolveRuntimeConnectionState("connected", false)).toEqual({
+  it("Should return success solid when daemon is connected and healthy", () => {
+    expect(resolveRuntimeConnectionState("connected", "ok")).toEqual({
       tone: "success",
       pulse: false,
       label: "Connected",
@@ -25,7 +21,7 @@ describe("resolveRuntimeConnectionState", () => {
   });
 
   it("Should return success pulse when daemon is connected but degraded", () => {
-    expect(resolveRuntimeConnectionState("connected", true)).toEqual({
+    expect(resolveRuntimeConnectionState("connected", "degraded")).toEqual({
       tone: "success",
       pulse: true,
       label: "Degraded",
@@ -33,7 +29,7 @@ describe("resolveRuntimeConnectionState", () => {
   });
 
   it("Should return success pulse when daemon is mid-connect", () => {
-    expect(resolveRuntimeConnectionState("connecting", false)).toEqual({
+    expect(resolveRuntimeConnectionState("connecting", "ok")).toEqual({
       tone: "success",
       pulse: true,
       label: "Connecting",
@@ -41,7 +37,7 @@ describe("resolveRuntimeConnectionState", () => {
   });
 
   it("Should return danger solid when daemon is disconnected", () => {
-    expect(resolveRuntimeConnectionState("disconnected", false)).toEqual({
+    expect(resolveRuntimeConnectionState("disconnected", "ok")).toEqual({
       tone: "danger",
       pulse: false,
       label: "Disconnected",
@@ -49,7 +45,7 @@ describe("resolveRuntimeConnectionState", () => {
   });
 
   it("Should return danger solid with the error label when the query errors", () => {
-    expect(resolveRuntimeConnectionState("error", false)).toEqual({
+    expect(resolveRuntimeConnectionState("error", undefined)).toEqual({
       tone: "danger",
       pulse: false,
       label: "Connection error",
@@ -58,8 +54,15 @@ describe("resolveRuntimeConnectionState", () => {
 });
 
 describe("RuntimeConnectionIndicator", () => {
+  it("Should render connected from a healthy canonical daemon response", () => {
+    render(<RuntimeConnectionIndicator status="connected" />);
+    const indicator = screen.getByTestId("runtime-connection-indicator");
+    expect(indicator).toHaveAttribute("data-pulse", "false");
+    expect(indicator).toHaveTextContent("Connected");
+  });
+
   it("Should render the dot and label when variant defaults to footer", () => {
-    render(<RuntimeConnectionIndicator status="connected" degraded={false} />);
+    render(<RuntimeConnectionIndicator status="connected" healthStatus="ok" />);
     const indicator = screen.getByTestId("runtime-connection-indicator");
     expect(indicator).toHaveAttribute("data-tone", "success");
     expect(indicator).toHaveAttribute("data-pulse", "false");
@@ -73,7 +76,7 @@ describe("RuntimeConnectionIndicator", () => {
   });
 
   it("Should render only the dot when dotOnly is true (rail mode)", () => {
-    render(<RuntimeConnectionIndicator status="disconnected" degraded={false} dotOnly />);
+    render(<RuntimeConnectionIndicator status="disconnected" healthStatus="ok" dotOnly />);
     const indicator = screen.getByTestId("runtime-connection-indicator");
     expect(indicator).toHaveAttribute("data-variant", "rail-dot");
     expect(indicator.querySelector('[data-slot="connection-indicator-dot"]')).not.toBeNull();
@@ -81,7 +84,7 @@ describe("RuntimeConnectionIndicator", () => {
   });
 
   it("Should pulse the dot when daemon is connected but degraded", () => {
-    render(<RuntimeConnectionIndicator status="connected" degraded />);
+    render(<RuntimeConnectionIndicator status="connected" healthStatus="degraded" />);
     const indicator = screen.getByTestId("runtime-connection-indicator");
     expect(indicator).toHaveAttribute("data-tone", "success");
     expect(indicator).toHaveAttribute("data-pulse", "true");
@@ -90,7 +93,7 @@ describe("RuntimeConnectionIndicator", () => {
   });
 
   it("Should paint the danger tone when daemon is unreachable", () => {
-    render(<RuntimeConnectionIndicator status="disconnected" degraded={false} />);
+    render(<RuntimeConnectionIndicator status="disconnected" healthStatus="ok" />);
     const indicator = screen.getByTestId("runtime-connection-indicator");
     expect(indicator).toHaveAttribute("data-tone", "danger");
     expect(indicator).toHaveAttribute("data-pulse", "false");

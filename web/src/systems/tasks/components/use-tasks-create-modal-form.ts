@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
-import type { CreateTaskDraftInput } from "@/hooks/routes/use-tasks-page";
+import type { TaskEditorDraft as CreateTaskDraftInput } from "../lib/task-editor";
 import type { TaskOwnerKind, TaskPriority, TaskScope } from "../types";
 
 interface UseTasksCreateModalFormParams {

@@ -21,6 +21,9 @@ export interface UseThreadOverlayResult {
   replies: NetworkConversationMessage[];
   replyCount: number;
   isMessagesLoading: boolean;
+  hasOlder: boolean;
+  isLoadingOlder: boolean;
+  loadOlder: () => Promise<void>;
   messagesError: Error | null;
   lastReadIso: string | null;
 }
@@ -46,14 +49,15 @@ export function useThreadOverlay({
   fullPage,
 }: UseThreadOverlayArgs): UseThreadOverlayResult {
   const navigate = useNavigate();
-  const detail = useNetworkThreadDetail(channel, threadId);
+  const detail = useNetworkThreadDetail(channel, threadId, { workspaceId });
   const messagesQuery = useNetworkMessages({
+    workspaceId,
     channel,
     containerId: threadId,
     enabled: Boolean(detail.thread),
     surface: "thread",
   });
-  const { lastReadAt, markRead } = useLastRead();
+  const { lastReadAt, markRead } = useLastRead({ workspaceId });
   const lastReadIso = lastReadAt({ channel, containerId: threadId, surface: "thread" });
 
   const rootMessage = useMemo(
@@ -107,6 +111,9 @@ export function useThreadOverlay({
     replies,
     replyCount,
     isMessagesLoading: messagesQuery.isLoading,
+    hasOlder: messagesQuery.hasOlder,
+    isLoadingOlder: messagesQuery.isLoadingOlder,
+    loadOlder: messagesQuery.loadOlder,
     messagesError: messagesQuery.error,
     lastReadIso,
   };

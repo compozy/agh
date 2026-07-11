@@ -223,7 +223,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
 			if request.WorkspaceID != "ws-1" ||
 				request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" ||
-				request.Surface != "thread" || request.ThreadID != "thread-command-path" ||
+				request.Surface != "thread" || request.ThreadID != "thread_command_path" ||
 				string(request.Body) != `{"text":"hello"}` {
 				t.Fatalf("NetworkSend() request = %#v, want workspace thread session/channel/kind/body", request)
 			}
@@ -232,7 +232,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				SessionID: "sess-1",
 				Channel:   "builders",
 				Surface:   "thread",
-				ThreadID:  "thread-command-path",
+				ThreadID:  "thread_command_path",
 				Kind:      "say",
 			}, nil
 		},
@@ -457,7 +457,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			"--surface",
 			"thread",
 			"--thread",
-			"thread-command-path",
+			"thread_command_path",
 			"--kind",
 			"say",
 			"--body",

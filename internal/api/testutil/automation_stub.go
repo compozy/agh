@@ -8,14 +8,14 @@ import (
 )
 
 type StubAutomationManager struct {
-	ListJobsFn      func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error)
+	ListJobsFn      func(context.Context, automationpkg.JobListQuery) (automationpkg.JobListPage, error)
 	JobsFn          func(context.Context) ([]automationpkg.Job, error)
 	GetJobFn        func(context.Context, string) (automationpkg.Job, error)
 	CreateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	UpdateJobFn     func(context.Context, automationpkg.Job) (automationpkg.Job, error)
 	DeleteJobFn     func(context.Context, string) error
 	TriggerJobFn    func(context.Context, string) (automationpkg.Run, error)
-	ListTriggersFn  func(context.Context, automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
+	ListTriggersFn  func(context.Context, automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error)
 	TriggersFn      func(context.Context) ([]automationpkg.Trigger, error)
 	GetTriggerFn    func(context.Context, string) (automationpkg.Trigger, error)
 	CreateTriggerFn func(
@@ -41,21 +41,23 @@ type StubAutomationManager struct {
 func (s StubAutomationManager) ListJobs(
 	ctx context.Context,
 	query automationpkg.JobListQuery,
-) ([]automationpkg.Job, error) {
+) (automationpkg.JobListPage, error) {
 	if s.ListJobsFn != nil {
 		return s.ListJobsFn(ctx, query)
 	}
 	if s.JobsFn != nil {
-		return s.JobsFn(ctx)
+		jobs, err := s.JobsFn(ctx)
+		return automationpkg.JobListPage{Jobs: jobs, Total: len(jobs), Limit: query.Limit}, err
 	}
-	return nil, nil
+	return automationpkg.JobListPage{}, nil
 }
 
 func (s StubAutomationManager) Jobs(ctx context.Context) ([]automationpkg.Job, error) {
 	if s.JobsFn != nil {
 		return s.JobsFn(ctx)
 	}
-	return s.ListJobs(ctx, automationpkg.JobListQuery{})
+	page, err := s.ListJobs(ctx, automationpkg.JobListQuery{})
+	return page.Jobs, err
 }
 
 func (s StubAutomationManager) GetJob(ctx context.Context, id string) (automationpkg.Job, error) {
@@ -96,21 +98,23 @@ func (s StubAutomationManager) TriggerJob(ctx context.Context, id string) (autom
 func (s StubAutomationManager) ListTriggers(
 	ctx context.Context,
 	query automationpkg.TriggerListQuery,
-) ([]automationpkg.Trigger, error) {
+) (automationpkg.TriggerListPage, error) {
 	if s.ListTriggersFn != nil {
 		return s.ListTriggersFn(ctx, query)
 	}
 	if s.TriggersFn != nil {
-		return s.TriggersFn(ctx)
+		triggers, err := s.TriggersFn(ctx)
+		return automationpkg.TriggerListPage{Triggers: triggers, Total: len(triggers), Limit: query.Limit}, err
 	}
-	return nil, nil
+	return automationpkg.TriggerListPage{}, nil
 }
 
 func (s StubAutomationManager) Triggers(ctx context.Context) ([]automationpkg.Trigger, error) {
 	if s.TriggersFn != nil {
 		return s.TriggersFn(ctx)
 	}
-	return s.ListTriggers(ctx, automationpkg.TriggerListQuery{})
+	page, err := s.ListTriggers(ctx, automationpkg.TriggerListQuery{})
+	return page.Triggers, err
 }
 
 func (s StubAutomationManager) GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error) {

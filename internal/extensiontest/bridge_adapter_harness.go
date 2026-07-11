@@ -1543,13 +1543,6 @@ func (s harnessBridgeSource) ListRoutes(ctx context.Context, bridgeInstanceID st
 	return s.service.ListRoutes(ctx, bridgeInstanceID)
 }
 
-func (s harnessBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
-	if s.broker == nil {
-		return nil
-	}
-	return s.broker.DeliveryMetrics()
-}
-
 type staticWorkspaceResolver struct {
 	resolved workspacepkg.ResolvedWorkspace
 }

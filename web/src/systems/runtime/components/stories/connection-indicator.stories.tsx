@@ -10,7 +10,7 @@ const meta: Meta<typeof RuntimeConnectionIndicator> = {
     docs: {
       description: {
         component:
-          "Single owner of the daemon connection LED Three states: `success` solid (reachable + recent activity), `success` pulse (reachable + degraded heartbeat), `danger` solid (unreachable). The sidebar footer is the only mount point; the rail no longer carries a duplicate LED.",
+          "Single owner of the daemon connection indicator. Transport state determines reachability; the canonical daemon health response determines whether a connected runtime is healthy or degraded.",
       },
     },
   },
@@ -19,28 +19,31 @@ const meta: Meta<typeof RuntimeConnectionIndicator> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SuccessSolid: Story = {
-  args: { status: "connected", degraded: false },
+/** Connected daemon with a healthy runtime response. */
+export const Healthy: Story = {
+  args: { status: "connected", healthStatus: "ok" },
   parameters: {
     docs: {
-      description: { story: "Daemon reachable and within the heartbeat window." },
+      description: { story: "Daemon reachable and reporting healthy runtime state." },
     },
   },
 };
 
-export const SuccessPulse: Story = {
-  args: { status: "connected", degraded: true },
+/** Connected daemon whose canonical health response reports degradation. */
+export const Degraded: Story = {
+  args: { status: "connected", healthStatus: "degraded" },
   parameters: {
     docs: {
       description: {
-        story: "Daemon reachable but the heartbeat is degraded (SSE drop, stale counts).",
+        story: "Daemon reachable but reporting degraded runtime health.",
       },
     },
   },
 };
 
+/** Initial status request in flight. */
 export const Connecting: Story = {
-  args: { status: "connecting", degraded: false },
+  args: { status: "connecting", healthStatus: "ok" },
   parameters: {
     docs: {
       description: { story: "Initial connection in flight; pulses until resolved." },
@@ -48,32 +51,22 @@ export const Connecting: Story = {
   },
 };
 
+/** Daemon transport cannot be reached. */
 export const DangerSolid: Story = {
-  args: { status: "disconnected", degraded: false },
+  args: { status: "disconnected", healthStatus: "ok" },
   parameters: {
     docs: {
-      description: { story: "Daemon unreachable; user action required." },
+      description: { story: "Daemon transport is unreachable." },
     },
   },
 };
 
+/** Status endpoint returned an unusable response. */
 export const Error: Story = {
-  args: { status: "error", degraded: false },
+  args: { status: "error", healthStatus: "ok" },
   parameters: {
     docs: {
       description: { story: "Daemon errored; surfaces a danger tone with the error label." },
-    },
-  },
-};
-
-export const RailDotOnly: Story = {
-  args: { status: "connected", degraded: false, dotOnly: true },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Collapsed rail mode renders only the dot. Reserved for future iterations — the runtime shell still mounts the footer variant by default.",
-      },
     },
   },
 };

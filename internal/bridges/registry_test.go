@@ -2,8 +2,10 @@ package bridges_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -14,14 +16,22 @@ import (
 )
 
 type stubRegistryStore struct {
-	insertBridgeInstanceFn func(context.Context, bridgepkg.BridgeInstance) error
-	updateBridgeInstanceFn func(context.Context, bridgepkg.BridgeInstance) error
-	deleteBridgeInstanceFn func(context.Context, string) error
-	getBridgeInstanceFn    func(context.Context, string) (bridgepkg.BridgeInstance, error)
-	listBridgeInstancesFn  func(context.Context) ([]bridgepkg.BridgeInstance, error)
-	putBridgeRouteFn       func(context.Context, bridgepkg.BridgeRoute) error
-	resolveBridgeRouteFn   func(context.Context, bridgepkg.RoutingKey) (bridgepkg.BridgeRoute, error)
-	listBridgeRoutesFn     func(context.Context, string) ([]bridgepkg.BridgeRoute, error)
+	insertBridgeInstanceFn     func(context.Context, bridgepkg.BridgeInstance) error
+	updateBridgeInstanceFn     func(context.Context, bridgepkg.BridgeInstance) error
+	deleteBridgeInstanceFn     func(context.Context, string) error
+	getBridgeInstanceFn        func(context.Context, string) (bridgepkg.BridgeInstance, error)
+	listBridgeInstancesFn      func(context.Context) ([]bridgepkg.BridgeInstance, error)
+	listBridgeCatalogRecordsFn func(
+		context.Context,
+		bridgepkg.BridgeCatalogQuery,
+	) ([]bridgepkg.BridgeCatalogRecord, error)
+	listBridgeInstancesByIDsFn func(
+		context.Context,
+		[]string,
+	) ([]bridgepkg.BridgeInstance, error)
+	putBridgeRouteFn     func(context.Context, bridgepkg.BridgeRoute) error
+	resolveBridgeRouteFn func(context.Context, bridgepkg.RoutingKey) (bridgepkg.BridgeRoute, error)
+	listBridgeRoutesFn   func(context.Context, string) ([]bridgepkg.BridgeRoute, error)
 }
 
 func (s stubRegistryStore) InsertBridgeInstance(ctx context.Context, instance bridgepkg.BridgeInstance) error {
@@ -55,6 +65,26 @@ func (s stubRegistryStore) GetBridgeInstance(ctx context.Context, id string) (br
 func (s stubRegistryStore) ListBridgeInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
 	if s.listBridgeInstancesFn != nil {
 		return s.listBridgeInstancesFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubRegistryStore) ListBridgeCatalogRecords(
+	ctx context.Context,
+	query bridgepkg.BridgeCatalogQuery,
+) ([]bridgepkg.BridgeCatalogRecord, error) {
+	if s.listBridgeCatalogRecordsFn != nil {
+		return s.listBridgeCatalogRecordsFn(ctx, query)
+	}
+	return nil, nil
+}
+
+func (s stubRegistryStore) ListBridgeInstancesByIDs(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) ([]bridgepkg.BridgeInstance, error) {
+	if s.listBridgeInstancesByIDsFn != nil {
+		return s.listBridgeInstancesByIDsFn(ctx, bridgeInstanceIDs)
 	}
 	return nil, nil
 }
@@ -144,6 +174,36 @@ func (s *memoryRegistryStore) ListBridgeInstances(_ context.Context) ([]bridgepk
 	instances := make([]bridgepkg.BridgeInstance, 0, len(s.instances))
 	for _, instance := range s.instances {
 		instances = append(instances, cloneBridgeInstanceForTest(instance))
+	}
+	return instances, nil
+}
+
+func (s *memoryRegistryStore) ListBridgeCatalogRecords(
+	_ context.Context,
+	_ bridgepkg.BridgeCatalogQuery,
+) ([]bridgepkg.BridgeCatalogRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	records := make([]bridgepkg.BridgeCatalogRecord, 0, len(s.instances))
+	for _, instance := range s.instances {
+		records = append(records, bridgepkg.BridgeCatalogRecordFromInstance(instance))
+	}
+	return records, nil
+}
+
+func (s *memoryRegistryStore) ListBridgeInstancesByIDs(
+	_ context.Context,
+	bridgeInstanceIDs []string,
+) ([]bridgepkg.BridgeInstance, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	instances := make([]bridgepkg.BridgeInstance, 0, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		if instance, ok := s.instances[id]; ok {
+			instances = append(instances, cloneBridgeInstanceForTest(instance))
+		}
 	}
 	return instances, nil
 }
@@ -824,6 +884,72 @@ func TestRegistryListInstancesReturnsClonedDeliveryDefaults(t *testing.T) {
 	}
 }
 
+func TestRegistryListInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should request one batch and return cloned instances in caller order", func(t *testing.T) {
+		t.Parallel()
+
+		stored := []bridgepkg.BridgeInstance{
+			{ID: "brg-b", DeliveryDefaults: json.RawMessage(`{"mode":"reply"}`)},
+			{ID: "brg-a", DeliveryDefaults: json.RawMessage(`{"mode":"direct-send"}`)},
+		}
+		var capturedIDs []string
+		registry := bridgepkg.NewRegistry(stubRegistryStore{
+			listBridgeInstancesByIDsFn: func(
+				_ context.Context,
+				ids []string,
+			) ([]bridgepkg.BridgeInstance, error) {
+				capturedIDs = append([]string(nil), ids...)
+				return stored, nil
+			},
+			listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				t.Fatal("ListBridgeInstances() must not back a bounded lookup")
+				return nil, nil
+			},
+		})
+
+		instances, err := registry.ListInstancesByIDs(testutil.Context(t), []string{"brg-a", "brg-b", "brg-a"})
+		if err != nil {
+			t.Fatalf("ListInstancesByIDs() error = %v", err)
+		}
+		if got, want := strings.Join(capturedIDs, ","), "brg-a,brg-b"; got != want {
+			t.Fatalf("store ids = %q, want %q", got, want)
+		}
+		if got, want := len(instances), 2; got != want {
+			t.Fatalf("len(ListInstancesByIDs()) = %d, want %d", got, want)
+		}
+		if instances[0].ID != "brg-a" || instances[1].ID != "brg-b" {
+			t.Fatalf("ListInstancesByIDs() order = %#v, want brg-a then brg-b", instances)
+		}
+		instances[0].DeliveryDefaults[0] = 'x'
+		if got, want := string(stored[1].DeliveryDefaults), `{"mode":"direct-send"}`; got != want {
+			t.Fatalf("stored delivery defaults = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject empty and oversized batches before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		registry := bridgepkg.NewRegistry(stubRegistryStore{
+			listBridgeInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
+				t.Fatal("ListBridgeInstancesByIDs() should not run for invalid cardinality")
+				return nil, nil
+			},
+		})
+		if _, err := registry.ListInstancesByIDs(testutil.Context(t), nil); err == nil {
+			t.Fatal("ListInstancesByIDs(nil) error = nil, want non-nil")
+		}
+		ids := make([]string, bridgepkg.MaxBridgeCatalogLimit+1)
+		for index := range ids {
+			ids[index] = fmt.Sprintf("brg-%03d", index)
+		}
+		if _, err := registry.ListInstancesByIDs(testutil.Context(t), ids); err == nil {
+			t.Fatal("ListInstancesByIDs(oversized) error = nil, want non-nil")
+		}
+	})
+}
+
 func TestRegistryListRoutesReturnsClonedRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -1041,6 +1167,278 @@ func TestRegistryGuardClauses(t *testing.T) {
 	if _, err := registry.ListInstances(nilContextForBridgesTests()); err == nil {
 		t.Fatal("ListInstances(nil ctx) error = nil, want non-nil")
 	}
+}
+
+func TestBuildBridgeCatalogPage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter the full authority before the page cut and count exact facets", func(t *testing.T) {
+		t.Parallel()
+
+		instances := make([]bridgepkg.BridgeInstance, 0, 58)
+		for index := range 55 {
+			instances = append(instances, bridgeCatalogTestInstance(
+				fmt.Sprintf("brg-prefix-%03d", index),
+				bridgepkg.ScopeGlobal,
+				"",
+				"telegram",
+				fmt.Sprintf("Prefix %03d", index),
+				bridgepkg.BridgeStatusReady,
+			))
+		}
+		instances = append(instances,
+			bridgeCatalogTestInstance(
+				"brg-needle-c", bridgepkg.ScopeWorkspace, "ws-alpha", "Slack", "Needle C", bridgepkg.BridgeStatusReady,
+			),
+			bridgeCatalogTestInstance(
+				"brg-needle-a", bridgepkg.ScopeGlobal, "", "slack", "Needle A", bridgepkg.BridgeStatusReady,
+			),
+			bridgeCatalogTestInstance(
+				"brg-needle-b", bridgepkg.ScopeWorkspace, "ws-alpha", "SLACK", "Needle B", bridgepkg.BridgeStatusReady,
+			),
+		)
+
+		page, err := bridgepkg.BuildBridgeCatalogPage(instances, map[string]bridgepkg.BridgeStatus{
+			"brg-needle-a": bridgepkg.BridgeStatusError,
+			"brg-needle-b": bridgepkg.BridgeStatusError,
+			"brg-needle-c": bridgepkg.BridgeStatusError,
+		}, bridgepkg.BridgeCatalogQuery{
+			Scope:       "all",
+			WorkspaceID: "ws-alpha",
+			Search:      "  NEEDLE  ",
+			Platform:    " SlAcK ",
+			Status:      bridgepkg.BridgeStatusError,
+			Sort:        bridgepkg.BridgeCatalogSortName,
+			Limit:       2,
+		})
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage() error = %v", err)
+		}
+		if got, want := len(page.Items), 2; got != want {
+			t.Fatalf("len(Items) = %d, want %d", got, want)
+		}
+		if got, want := page.Total, 3; got != want {
+			t.Fatalf("Total = %d, want %d", got, want)
+		}
+		if !page.HasMore || page.NextCursor == "" || page.Limit != 2 {
+			t.Fatalf("page metadata = %#v, want bounded continuation", page)
+		}
+		if got, want := page.Items[0].Instance.ID, "brg-needle-a"; got != want {
+			t.Fatalf("first bridge id = %q, want %q", got, want)
+		}
+		if got, want := page.Items[1].Instance.ID, "brg-needle-b"; got != want {
+			t.Fatalf("second bridge id = %q, want %q", got, want)
+		}
+		if got, want := page.Facets.Platforms["slack"], 3; got != want {
+			t.Fatalf("platform facet = %d, want %d", got, want)
+		}
+		if got, want := page.Facets.Statuses[bridgepkg.BridgeStatusError], 3; got != want {
+			t.Fatalf("status facet = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should walk stable tied pages without gaps after the anchor mutates", func(t *testing.T) {
+		t.Parallel()
+
+		instances := make([]bridgepkg.BridgeInstance, 0, 205)
+		for index := range 205 {
+			instances = append(instances, bridgeCatalogTestInstance(
+				fmt.Sprintf("brg-%03d", index),
+				bridgepkg.ScopeGlobal,
+				"",
+				"telegram",
+				"Same name",
+				bridgepkg.BridgeStatusReady,
+			))
+		}
+		query := bridgepkg.BridgeCatalogQuery{Sort: bridgepkg.BridgeCatalogSortName, Limit: 50}
+		first, err := bridgepkg.BuildBridgeCatalogPage(instances, nil, query)
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage(first) error = %v", err)
+		}
+		instances[49].DisplayName = "A name before the captured anchor"
+		query.Cursor = first.NextCursor
+
+		seen := make(map[string]struct{}, len(instances))
+		for _, item := range first.Items {
+			seen[item.Instance.ID] = struct{}{}
+		}
+		for {
+			page, pageErr := bridgepkg.BuildBridgeCatalogPage(instances, nil, query)
+			if pageErr != nil {
+				t.Fatalf("BuildBridgeCatalogPage(next) error = %v", pageErr)
+			}
+			for _, item := range page.Items {
+				if _, duplicate := seen[item.Instance.ID]; duplicate {
+					t.Fatalf("duplicate bridge id %q across pages", item.Instance.ID)
+				}
+				seen[item.Instance.ID] = struct{}{}
+			}
+			if !page.HasMore {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if got, want := len(seen), len(instances); got != want {
+			t.Fatalf("walked bridge count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reject a cursor reused across query or workspace boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		instances := []bridgepkg.BridgeInstance{
+			bridgeCatalogTestInstance("brg-a", bridgepkg.ScopeGlobal, "", "telegram", "A", bridgepkg.BridgeStatusReady),
+			bridgeCatalogTestInstance("brg-b", bridgepkg.ScopeGlobal, "", "telegram", "B", bridgepkg.BridgeStatusReady),
+		}
+		page, err := bridgepkg.BuildBridgeCatalogPage(instances, nil, bridgepkg.BridgeCatalogQuery{
+			Scope:       "all",
+			WorkspaceID: "ws-alpha",
+			Limit:       1,
+		})
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage() error = %v", err)
+		}
+		cases := []bridgepkg.BridgeCatalogQuery{
+			{Scope: "all", WorkspaceID: "ws-beta", Cursor: page.NextCursor, Limit: 1},
+			{
+				Scope: "all", WorkspaceID: "ws-alpha", Search: "different", Cursor: page.NextCursor, Limit: 1,
+			},
+		}
+		for _, query := range cases {
+			_, cursorErr := bridgepkg.BuildBridgeCatalogPage(instances, nil, query)
+			if !errors.Is(cursorErr, bridgepkg.ErrBridgeCatalogCursorInvalid) {
+				t.Fatalf(
+					"BuildBridgeCatalogPage(mismatched cursor) error = %v, want ErrBridgeCatalogCursorInvalid",
+					cursorErr,
+				)
+			}
+		}
+
+		for _, field := range []string{"id", "display_name", "scope"} {
+			forged := forgeBridgeCatalogCursor(t, page.NextCursor, field)
+			_, cursorErr := bridgepkg.BuildBridgeCatalogPage(
+				instances,
+				nil,
+				bridgepkg.BridgeCatalogQuery{
+					Scope:       "all",
+					WorkspaceID: "ws-alpha",
+					Cursor:      forged,
+					Limit:       1,
+				},
+			)
+			if !errors.Is(cursorErr, bridgepkg.ErrBridgeCatalogCursorInvalid) {
+				t.Fatalf(
+					"BuildBridgeCatalogPage(forged %s) error = %v, want ErrBridgeCatalogCursorInvalid",
+					field,
+					cursorErr,
+				)
+			}
+		}
+	})
+
+	t.Run("Should preserve disabled and auth-required status over stale runtime overlays", func(t *testing.T) {
+		t.Parallel()
+
+		instances := []bridgepkg.BridgeInstance{
+			bridgeCatalogTestInstance(
+				"brg-disabled",
+				bridgepkg.ScopeGlobal,
+				"",
+				"telegram",
+				"Disabled",
+				bridgepkg.BridgeStatusDisabled,
+			),
+			bridgeCatalogTestInstance(
+				"brg-auth",
+				bridgepkg.ScopeGlobal,
+				"",
+				"telegram",
+				"Auth",
+				bridgepkg.BridgeStatusAuthRequired,
+			),
+		}
+		page, err := bridgepkg.BuildBridgeCatalogPage(instances, map[string]bridgepkg.BridgeStatus{
+			"brg-disabled": bridgepkg.BridgeStatusReady,
+			"brg-auth":     bridgepkg.BridgeStatusReady,
+		}, bridgepkg.BridgeCatalogQuery{})
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage() error = %v", err)
+		}
+		statuses := make(map[string]bridgepkg.BridgeStatus, len(page.Items))
+		for _, item := range page.Items {
+			statuses[item.Instance.ID] = item.EffectiveStatus
+		}
+		if statuses["brg-disabled"] != bridgepkg.BridgeStatusDisabled ||
+			statuses["brg-auth"] != bridgepkg.BridgeStatusAuthRequired {
+			t.Fatalf("effective statuses = %#v, want persisted safety precedence", statuses)
+		}
+	})
+
+	t.Run("Should return explicit zero counts and reject unsupported sorts", func(t *testing.T) {
+		t.Parallel()
+
+		page, err := bridgepkg.BuildBridgeCatalogPage(nil, nil, bridgepkg.BridgeCatalogQuery{})
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogPage(empty) error = %v", err)
+		}
+		if page.Total != 0 || len(page.Items) != 0 || page.Limit != bridgepkg.DefaultBridgeCatalogLimit {
+			t.Fatalf("empty page = %#v, want explicit zero total and default limit", page)
+		}
+		_, err = bridgepkg.BuildBridgeCatalogPage(nil, nil, bridgepkg.BridgeCatalogQuery{Sort: "recent"})
+		if err == nil {
+			t.Fatal("BuildBridgeCatalogPage(recent) error = nil, want unsupported sort error")
+		}
+	})
+}
+
+func bridgeCatalogTestInstance(
+	id string,
+	scope bridgepkg.Scope,
+	workspaceID string,
+	platform string,
+	displayName string,
+	status bridgepkg.BridgeStatus,
+) bridgepkg.BridgeInstance {
+	return bridgepkg.BridgeInstance{
+		ID:            id,
+		Scope:         scope,
+		WorkspaceID:   workspaceID,
+		Platform:      platform,
+		ExtensionName: platform + "-extension",
+		DisplayName:   displayName,
+		Enabled:       status != bridgepkg.BridgeStatusDisabled,
+		Status:        status,
+		CreatedAt:     time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+func forgeBridgeCatalogCursor(t *testing.T, cursor string, field string) string {
+	t.Helper()
+
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		t.Fatalf("DecodeString(cursor) error = %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(decoded, &envelope); err != nil {
+		t.Fatalf("json.Unmarshal(cursor) error = %v", err)
+	}
+	position, ok := envelope["p"].(map[string]any)
+	if !ok {
+		t.Fatalf("cursor position = %#v, want object", envelope["p"])
+	}
+	if field == "scope" {
+		position[field] = "unknown"
+	} else {
+		position[field] = ""
+	}
+	encoded, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("json.Marshal(cursor) error = %v", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 func newRegistryTestHarness(t *testing.T) (*bridgepkg.Service, *memoryRegistryStore) {

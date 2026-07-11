@@ -5,12 +5,13 @@ import { Button, Empty } from "@agh/ui";
 export interface DirectsEmptyProps {
   onNewDirect?: () => void;
   className?: string;
+  filtered?: boolean;
 }
 
 /**
  * Empty state for the Directs tab (`_design.md` §7.2).
  */
-export function DirectsEmpty({ onNewDirect, className }: DirectsEmptyProps) {
+export function DirectsEmpty({ onNewDirect, className, filtered = false }: DirectsEmptyProps) {
   return (
     <Empty
       action={
@@ -28,9 +29,13 @@ export function DirectsEmpty({ onNewDirect, className }: DirectsEmptyProps) {
       }
       className={className}
       data-testid="network-directs-empty"
-      description="Open one to talk privately with a peer in this channel."
+      description={
+        filtered
+          ? "Try another search or remove a filter."
+          : "Open one to talk privately with a peer in this channel."
+      }
       icon={MessageCircle}
-      title="No direct rooms yet."
+      title={filtered ? "No matching direct rooms." : "No direct rooms yet."}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -7,6 +7,7 @@ import type { ListingViewMode } from "@agh/ui";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
   buildBridgeCreateRequest,
+  bridgeListFilterForScope,
   createBridgeCreateDraft,
   findBridgeProviderByKey,
   isBridgeProviderSelectable,
@@ -15,9 +16,8 @@ import {
   useBridges,
   useCreateBridge,
 } from "@/systems/bridges";
-import type { BridgeCreateDraft, BridgeListFilter, BridgeScopeFilter } from "@/systems/bridges";
+import type { BridgeCreateDraft, BridgeScopeFilter } from "@/systems/bridges";
 import {
-  filterBridges,
   parseBridgePlatformFilter,
   parseBridgeScopeFilter,
   parseBridgeStatusFilter,
@@ -47,65 +47,48 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const platformFilter = search.platform ?? null;
   const statusFilter = search.status ?? null;
 
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState<BridgeCreateDraft>(() =>
     createBridgeCreateDraft([], activeWorkspaceId)
   );
 
-  const bridgeListFilters = useMemo<BridgeListFilter>(() => {
-    if (scopeFilter === "global" || (scopeFilter === "all" && !activeWorkspaceId)) {
-      return { scope: "global" };
-    }
-    if (!activeWorkspaceId) {
-      return { scope: "workspace" };
-    }
-    return { scope: scopeFilter === "all" ? "all" : scopeFilter, workspace_id: activeWorkspaceId };
-  }, [activeWorkspaceId, scopeFilter]);
+  const bridgeListFilters = useMemo(
+    () => ({
+      ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
+      q: searchQuery,
+      platform: platformFilter ?? undefined,
+      status: statusFilter ?? undefined,
+      sort: "name" as const,
+      limit: 50,
+    }),
+    [activeWorkspaceId, platformFilter, scopeFilter, searchQuery, statusFilter]
+  );
   const bridgeListEnabled = scopeFilter !== "workspace" || Boolean(activeWorkspaceId);
 
-  useBridgeHealthStream({ enabled: bridgeListEnabled, filters: bridgeListFilters });
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
+  useBridgeHealthStream({
+    bridgeIds: bridgesQuery.bridges.map(bridge => bridge.id),
+    enabled: bridgeListEnabled,
+    filters: bridgeListFilters,
+  });
   const providersQuery = useBridgeProviders();
   const createBridgeMutation = useCreateBridge();
 
-  const bridges = bridgesQuery.data?.bridges ?? [];
-  const bridgeHealth = bridgesQuery.data?.bridge_health ?? {};
+  const bridges = bridgesQuery.bridges;
+  const bridgeHealth = bridgesQuery.bridgeHealth;
   const providers = providersQuery.data ?? [];
   const canCreateBridge = providers.some(isBridgeProviderSelectable);
 
-  const platforms = useMemo(() => [...new Set(bridges.map(bridge => bridge.platform))], [bridges]);
-
-  const visibleBridges = useMemo(
-    () =>
-      filterBridges(
-        bridges,
-        bridgeHealth,
-        deferredSearchQuery,
-        {
-          platform: platformFilter,
-          scope: scopeFilter,
-          status: statusFilter,
-        },
-        activeWorkspaceId
-      ),
-    [
-      activeWorkspaceId,
-      bridgeHealth,
-      bridges,
-      deferredSearchQuery,
-      platformFilter,
-      scopeFilter,
-      statusFilter,
-    ]
-  );
-  const totalBridgeCount = bridges.filter(
-    bridge =>
-      bridge.scope === "global" ||
-      (activeWorkspaceId != null && bridge.workspace_id === activeWorkspaceId)
-  ).length;
-  const filteredBridgeCount = visibleBridges.length;
+  const platforms = Object.keys(bridgesQuery.facets?.platforms ?? {});
+  const statuses = Object.entries(bridgesQuery.facets?.statuses ?? {})
+    .filter(([status, count]) => count > 0 || status === statusFilter)
+    .map(([status]) => status as BridgeStatusFilter);
+  const totalBridgeCount = bridgesQuery.total;
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    scopeFilter !== "all" ||
+    platformFilter !== null ||
+    statusFilter !== null;
 
   const isInitialLoading =
     (bridgesQuery.isLoading && !bridgesQuery.data) ||
@@ -255,10 +238,13 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     clearFilters,
     createDialogProps,
     fatalError,
-    filteredBridgeCount,
+    hasActiveFilters,
+    hasNextPage: bridgesQuery.hasNextPage,
     handleRefresh,
     hasChildMatch,
     isInitialLoading,
+    isFetchingNextPage: bridgesQuery.isFetchingNextPage,
+    loadMore: bridgesQuery.fetchNextPage,
     openCreateDialog,
     platformFilter,
     platforms,
@@ -271,9 +257,9 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     setStatusFilter,
     setView,
     statusFilter,
+    statuses,
     totalBridgeCount,
     view,
-    visibleBridges,
   };
 }
 

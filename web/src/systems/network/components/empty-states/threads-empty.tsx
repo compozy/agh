@@ -5,12 +5,13 @@ import { Button, Empty } from "@agh/ui";
 export interface ThreadsEmptyProps {
   onStartThread?: () => void;
   className?: string;
+  filtered?: boolean;
 }
 
 /**
  * Empty state for the Threads tab (`_design.md` §7.2).
  */
-export function ThreadsEmpty({ onStartThread, className }: ThreadsEmptyProps) {
+export function ThreadsEmpty({ onStartThread, className, filtered = false }: ThreadsEmptyProps) {
   return (
     <Empty
       action={
@@ -28,9 +29,13 @@ export function ThreadsEmpty({ onStartThread, className }: ThreadsEmptyProps) {
       }
       className={className}
       data-testid="network-threads-empty"
-      description="Start the first one; agents and humans both join."
+      description={
+        filtered
+          ? "Try another search or remove a filter."
+          : "Start the first one; agents and humans both join."
+      }
       icon={MessageSquare}
-      title="No threads yet."
+      title={filtered ? "No matching threads." : "No threads yet."}
     />
   );
 }

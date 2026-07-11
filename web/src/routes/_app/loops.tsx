@@ -19,7 +19,8 @@ import {
   useLoopsCatalog,
 } from "@/hooks/routes/use-loops-catalog";
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
-import { LoopCatalog, LoopCatalogFilters } from "@/systems/loops";
+import { LoopCatalog, LoopCatalogFilters, type LoopStatusFilter } from "@/systems/loops";
+import { preloadLoopsRoute } from "./-loops-preload";
 
 function validateLoopsSearch(search: Record<string, unknown>): LoopsRouteSearch {
   return {
@@ -36,13 +37,30 @@ export const Route = createFileRoute("/_app/loops")({
     topbar: { title: "Loops", icon: Repeat2 },
   }),
   validateSearch: validateLoopsSearch,
+  loaderDeps: ({ search }) => ({
+    category: search.category,
+    kind:
+      search.kind === "read-only"
+        ? ("read_only" as const)
+        : search.kind === "workspace"
+          ? ("workspace" as const)
+          : undefined,
+    limit: 50,
+    q: search.q,
+    sort: "name" as const,
+    status: search.status,
+  }),
+  loader: ({ context, deps, location }) =>
+    location.pathname.split("/").filter(Boolean).length === 1
+      ? preloadLoopsRoute(context.queryClient, deps)
+      : Promise.resolve(),
   component: LoopsRoute,
 });
 
 function LoopsRoute() {
   const page = useLoopsCatalog(Route.useSearch());
-  const loops = page.loopsQuery.data ?? [];
-  const loopCount = loops.length;
+  const loops = page.loopsQuery.loops;
+  const loopCount = page.loopsQuery.total;
   const workspaceLabel = page.activeWorkspace?.name ?? page.activeWorkspace?.id ?? "workspace";
 
   useTopbarSlot({
@@ -91,7 +109,7 @@ function LoopsRoute() {
       </div>
     );
   }
-  if (page.loopsQuery.error) {
+  if (page.loopsQuery.error && loops.length === 0) {
     return (
       <CatalogState
         description={page.loopsQuery.error.message ?? "Failed to load loops"}
@@ -102,7 +120,7 @@ function LoopsRoute() {
     );
   }
 
-  if (loopCount === 0) {
+  if (loopCount === 0 && !page.hasActiveFilters) {
     return (
       <CatalogState
         description="No Loop definitions are available in this workspace yet."
@@ -139,13 +157,14 @@ function LoopsRoute() {
           />
           <ListingToolbar.Filters>
             <LoopCatalogFilters
+              categories={Object.keys(page.loopsQuery.facets?.categories ?? {})}
               categoryFilter={page.filter.category}
-              entries={loops}
               kindFilter={page.filter.kind}
               onCategoryFilterChange={page.setCategoryFilter}
               onKindFilterChange={page.setKindFilter}
               onStatusFilterChange={page.setStatusFilter}
               statusFilter={page.filter.status}
+              statuses={Object.keys(page.loopsQuery.facets?.statuses ?? {}) as LoopStatusFilter[]}
             />
           </ListingToolbar.Filters>
         </ListingToolbar.Leading>
@@ -155,12 +174,14 @@ function LoopsRoute() {
       </ListingToolbar>
 
       <LoopCatalog
-        boundLoops={page.bindingIndex.byLoop}
         entries={loops}
-        filter={page.filter}
+        errorMessage={page.loopsQuery.error?.message}
+        hasActiveFilters={page.hasActiveFilters}
+        hasNextPage={page.loopsQuery.hasNextPage}
+        isFetchingNextPage={page.loopsQuery.isFetchingNextPage}
         onClearFilters={page.clearFilters}
+        onLoadMore={() => void page.loopsQuery.fetchNextPage()}
         onRun={page.handleRun}
-        searchQuery={page.searchQuery}
         view={page.view}
       />
     </ListingPage>

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,7 +13,6 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
-	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/gin-gonic/gin"
 )
 
@@ -123,26 +121,6 @@ func (h *BaseHandlers) networkPeerSessionInfoMap(
 		return nil
 	}
 	return sessionByID
-}
-
-// NetworkChannels returns the active runtime channels.
-func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
-	service, err := h.networkServiceRequired()
-	if err != nil {
-		h.respondError(c, http.StatusServiceUnavailable, err)
-		return
-	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-
-	channels, err := h.networkChannelPayloads(c.Request.Context(), service, scope.NetworkWorkspaceID())
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.NetworkChannelsResponse{Channels: channels})
 }
 
 // NetworkSend validates and forwards one outbound network send request.
@@ -343,141 +321,6 @@ func NetworkStatusPayloadFromStatus(status *network.Status) *contract.NetworkSta
 		LastDisconnect:       strings.TrimSpace(status.LastDisconnect),
 		KindMetrics:          kindMetrics,
 	}
-}
-
-// NetworkSendRequestFromPayload validates and converts one shared send payload into the runtime request.
-func NetworkSendRequestFromPayload(req contract.NetworkSendRequest) (network.SendRequest, error) {
-	if strings.TrimSpace(req.SessionID) == "" {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("session_id is required"))
-	}
-	if strings.TrimSpace(req.WorkspaceID) == "" {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("workspace_id is required"))
-	}
-	if strings.TrimSpace(req.Channel) == "" {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("channel is required"))
-	}
-	if strings.TrimSpace(req.Kind) == "" {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("kind is required"))
-	}
-	if len(bytes.TrimSpace(req.Body)) == 0 {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("body is required"))
-	}
-	if !json.Valid(req.Body) {
-		return network.SendRequest{}, NewNetworkValidationError(errors.New("body must be valid JSON"))
-	}
-	if err := validateNetworkSendNoRawClaimToken(req); err != nil {
-		return network.SendRequest{}, err
-	}
-	if err := validateNetworkSendConversation(req); err != nil {
-		return network.SendRequest{}, err
-	}
-
-	sendReq := network.SendRequest{
-		SessionID:   strings.TrimSpace(req.SessionID),
-		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		Channel:     strings.TrimSpace(req.Channel),
-		Kind:        network.Kind(strings.TrimSpace(req.Kind)),
-		Body:        cloneRawMessage(req.Body),
-		Mentions:    cloneTrimmedStrings(req.Mentions),
-		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
-		Ext:         cloneRawMap(req.Ext),
-	}
-	if to := strings.TrimSpace(req.To); to != "" {
-		sendReq.To = ptrString(to)
-	}
-	if surface := strings.TrimSpace(req.Surface); surface != "" {
-		networkSurface := network.Surface(surface)
-		sendReq.Surface = &networkSurface
-	}
-	if threadID := strings.TrimSpace(req.ThreadID); threadID != "" {
-		sendReq.ThreadID = ptrString(threadID)
-	}
-	if directID := strings.TrimSpace(req.DirectID); directID != "" {
-		sendReq.DirectID = ptrString(directID)
-	}
-	if workID := strings.TrimSpace(req.WorkID); workID != "" {
-		sendReq.WorkID = ptrString(workID)
-	}
-	if replyTo := strings.TrimSpace(req.ReplyTo); replyTo != "" {
-		sendReq.ReplyTo = ptrString(replyTo)
-	}
-	if traceID := strings.TrimSpace(req.TraceID); traceID != "" {
-		sendReq.TraceID = ptrString(traceID)
-	}
-	if causationID := strings.TrimSpace(req.CausationID); causationID != "" {
-		sendReq.CausationID = ptrString(causationID)
-	}
-	if id := strings.TrimSpace(req.ID); id != "" {
-		sendReq.ID = ptrString(id)
-	}
-
-	return sendReq, nil
-}
-
-func validateNetworkSendConversation(req contract.NetworkSendRequest) error {
-	kind := network.Kind(strings.TrimSpace(req.Kind))
-	if err := kind.Validate(); err != nil {
-		return NewNetworkValidationError(err)
-	}
-
-	surface := strings.TrimSpace(req.Surface)
-	threadID := strings.TrimSpace(req.ThreadID)
-	directID := strings.TrimSpace(req.DirectID)
-	workID := strings.TrimSpace(req.WorkID)
-	if kind == network.KindGreet || kind == network.KindWhois {
-		if surface != "" || threadID != "" || directID != "" || workID != "" {
-			return NewNetworkValidationError(fmt.Errorf(
-				"%w: %s cannot carry conversation or work fields",
-				network.ErrInvalidField,
-				kind,
-			))
-		}
-		return nil
-	}
-
-	if surface == "" {
-		return NewNetworkValidationError(fmt.Errorf("%w: surface is required", network.ErrMissingField))
-	}
-	ref := network.ConversationRef{
-		WorkspaceID: strings.TrimSpace(req.WorkspaceID),
-		Channel:     strings.TrimSpace(req.Channel),
-		Surface:     network.Surface(surface),
-		ThreadID:    threadID,
-		DirectID:    directID,
-	}
-	if err := ref.Validate(); err != nil {
-		return NewNetworkValidationError(err)
-	}
-	if workID != "" {
-		if err := network.ValidateWorkID(workID); err != nil {
-			return NewNetworkValidationError(err)
-		}
-	}
-	if kind == network.KindCapability || kind == network.KindReceipt || kind == network.KindTrace {
-		if workID == "" {
-			return NewNetworkValidationError(fmt.Errorf("%w: work_id is required", network.ErrMissingField))
-		}
-	}
-	return nil
-}
-
-// validateNetworkSendNoRawClaimToken keeps raw claim_token fields out of client-controlled network payloads.
-func validateNetworkSendNoRawClaimToken(req contract.NetworkSendRequest) error {
-	payload := struct {
-		Body json.RawMessage            `json:"body"`
-		Ext  map[string]json.RawMessage `json:"ext,omitempty"`
-	}{
-		Body: req.Body,
-		Ext:  req.Ext,
-	}
-	if err := contract.ValidateNoRawClaimTokenField(payload); err != nil {
-		return NewNetworkValidationError(fmt.Errorf(
-			"%s: raw claim_token fields are forbidden: %w",
-			toolspkg.ReasonNetworkRawTokenRejected,
-			err,
-		))
-	}
-	return nil
 }
 
 // NetworkSendPayloadFromRequest builds the shared send response payload

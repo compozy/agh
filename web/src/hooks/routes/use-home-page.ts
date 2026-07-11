@@ -5,7 +5,7 @@ import type { ConnectionStatus, PillTone } from "@agh/ui";
 import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/status";
 import type { HealthPayload } from "@/systems/status";
-import { useSessions, type SessionPayload } from "@/systems/session";
+import { useSessions } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export type DaemonStatusKey = "healthy" | "degraded" | "disconnected" | "unknown";
@@ -40,12 +40,6 @@ const SECOND = 1;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-const ACTIVE_SESSION_STATES = new Set<SessionPayload["state"]>(["active", "starting", "stopping"]);
-
-function isActiveSession(session: SessionPayload): boolean {
-  return ACTIVE_SESSION_STATES.has(session.state);
-}
-
 function formatUptimeSeconds(seconds: number | null | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
     return "—";
@@ -150,11 +144,12 @@ function useHomePage(): HomePageView {
     enabled: activeWorkspaceId !== null,
   });
   const {
-    data: sessions,
+    total: activeSessionsTotal,
     isLoading: areSessionsLoading,
     isError: sessionsError,
   } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
+    filters: { state: "active", limit: 1 },
   });
 
   const daemonStatus = useMemo(
@@ -183,10 +178,16 @@ function useHomePage(): HomePageView {
     return {
       key: "active-sessions",
       label: "Active Sessions",
-      value: String(sessions?.filter(isActiveSession).length ?? 0),
+      value: String(activeSessionsTotal),
       detail: activeWorkspace ? `in ${activeWorkspace.name}` : undefined,
     };
-  }, [activeWorkspace, activeWorkspaceId, health?.active_sessions, sessions, sessionsError]);
+  }, [
+    activeSessionsTotal,
+    activeWorkspace,
+    activeWorkspaceId,
+    health?.active_sessions,
+    sessionsError,
+  ]);
 
   const agentsCount = agents?.length ?? 0;
   const workspacesCount = workspaces.length;

@@ -100,7 +100,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	}
 
 	if session, ok := m.Get(target); ok {
-		return session.Info(), nil
+		return normalizeExpiredSessionAttach(session.Info(), m.now()), nil
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
@@ -320,7 +320,11 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 	}
 
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	meta, err := store.ReadSessionMeta(metaPath)
+	reader := m.readSessionMeta
+	if reader == nil {
+		reader = store.ReadSessionMeta
+	}
+	meta, err := reader(metaPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return store.SessionMeta{}, fmt.Errorf("%w: %s", ErrSessionNotFound, target)

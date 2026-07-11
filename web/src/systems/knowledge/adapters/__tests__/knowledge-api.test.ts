@@ -34,6 +34,11 @@ const validHeader = {
   system_managed: false,
 } as const;
 
+const memoryListPageFixture = {
+  memories: [validHeader],
+  page: { has_more: true, limit: 1, next_cursor: "memory-next", total: 3 },
+};
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
 });
@@ -44,33 +49,44 @@ afterEach(() => {
 });
 
 describe("listMemories", () => {
-  it("Should send the full Memory v2 selector tuple to GET /api/memory", async () => {
-    mockJsonResponse({ memories: [validHeader] });
+  it("Should preserve the counted page and send every stable filter plus cursor", async () => {
+    mockJsonResponse(memoryListPageFixture);
 
     const result = await listMemories({
       scope: "agent",
       workspaceId: "ws_launch",
       agentName: "cto",
       agentTier: "workspace",
+      type: "reference",
+      sort: "recent",
+      includeSystem: true,
+      cursor: "memory-cursor",
+      limit: 25,
     });
 
-    expect(result).toEqual([validHeader]);
+    expect(result).toEqual(memoryListPageFixture);
     await expectFetchRequest({
-      path: "/api/memory?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace",
+      path: "/api/memory?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&type=reference&sort=recent&cursor=memory-cursor&limit=25&include_system=true",
     });
   });
 
   it("Should call GET /api/memory with no params when no selector is provided", async () => {
-    mockJsonResponse({ memories: [] });
+    mockJsonResponse({
+      memories: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
 
     const result = await listMemories();
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({
+      memories: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
     await expectFetchRequest({ path: "/api/memory" });
   });
 
   it("Should pass abort signal to fetch", async () => {
-    mockJsonResponse({ memories: [] });
+    mockJsonResponse({ memories: [], page: { has_more: false, limit: 50, total: 0 } });
     const controller = new AbortController();
 
     await listMemories({ scope: "global" }, controller.signal);
@@ -314,12 +330,14 @@ describe("listMemoryDecisions", () => {
       agentTier: "workspace",
       workspaceId: "ws_launch",
       op: "update",
+      filename: "launch.md",
+      since: "2026-04-25T21:00:00Z",
       limit: 5,
     });
 
     expect(result).toEqual(memoryDecisionsFixture);
     await expectFetchRequest({
-      path: "/api/memory/decisions?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&op=update&limit=5",
+      path: "/api/memory/decisions?scope=agent&workspace_id=ws_launch&agent_name=cto&agent_tier=workspace&op=update&filename=launch.md&since=2026-04-25T21%3A00%3A00Z&limit=5",
     });
   });
 

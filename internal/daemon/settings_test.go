@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	memorypkg "github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -18,6 +21,38 @@ import (
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
+
+func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
+	t.Run("Should count every valid global memory source header", func(t *testing.T) {
+		t.Parallel()
+
+		memoryStore := memorypkg.NewStore(filepath.Join(t.TempDir(), "memory"))
+		for idx := range 205 {
+			filename := fmt.Sprintf("settings-%03d.md", idx)
+			if err := memoryStore.Write(
+				memcontract.ScopeGlobal,
+				filename,
+				[]byte(memoryDocument(
+					fmt.Sprintf("Settings %03d", idx),
+					"Settings health",
+					memcontract.TypeReference,
+					"body",
+				)),
+			); err != nil {
+				t.Fatalf("Write(%q) error = %v", filename, err)
+			}
+		}
+
+		surface := &settingsRuntimeSurface{memoryStore: memoryStore}
+		status, err := surface.MemoryHealthStatus(t.Context())
+		if err != nil {
+			t.Fatalf("MemoryHealthStatus() error = %v", err)
+		}
+		if !status.Available || status.FileCount != 205 {
+			t.Fatalf("MemoryHealthStatus() = %#v, want available with 205 files", status)
+		}
+	})
+}
 
 func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {
 	t.Parallel()

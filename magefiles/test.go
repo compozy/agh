@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/agh/internal/e2elane"
@@ -13,7 +14,8 @@ import (
 func Test() error {
 	return runRaceEnabledGoCommand(context.Background(), nil,
 		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
-		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(), "-parallel=4",
+		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(),
+		"-parallel="+strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout, "./...")
 }
 

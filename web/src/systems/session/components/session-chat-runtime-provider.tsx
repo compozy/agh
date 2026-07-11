@@ -42,6 +42,9 @@ function SessionRuntimeExtensions({
         isPending={transcript.isPending}
         isError={transcript.isError}
         error={transcript.error}
+        hasOlder={transcript.hasOlder}
+        isFetchingOlder={transcript.isFetchingOlder}
+        loadOlder={transcript.loadOlder}
         retry={transcript.retry}
       >
         <PermissionDataUI />

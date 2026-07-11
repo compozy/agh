@@ -34,7 +34,7 @@ func (g *GlobalDB) readNetworkWatchEventsCursor(
 		return scanWatchEventCursor(
 			g.db.QueryRowContext(
 				ctx,
-				`SELECT COALESCE(MAX(rowid), 0)
+				`SELECT COALESCE(MAX(sequence), 0)
 				   FROM network_timeline_log
 				  WHERE workspace_id = ?`,
 				query.workspaceID,
@@ -143,7 +143,7 @@ func (g *GlobalDB) readNetworkWatchEventRows(
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
-			ntl.rowid,
+			ntl.sequence,
 			ntl.message_id,
 			COALESCE(ntl.session_id, ''),
 			ntl.workspace_id,
@@ -168,9 +168,9 @@ func (g *GlobalDB) readNetworkWatchEventRows(
 			ntl.work_state
 		   FROM network_timeline_log ntl
 		  WHERE ntl.workspace_id = ?
-		    AND ntl.rowid > ?
+		    AND ntl.sequence > ?
 		    AND (`+predicate+`)
-		  ORDER BY ntl.rowid ASC`,
+		  ORDER BY ntl.sequence ASC`,
 		query.workspaceID,
 		after,
 	)
@@ -220,6 +220,7 @@ func scanNetworkWatchEventRow(row rowScanner) (networkWatchEventRow, error) {
 		return networkWatchEventRow{}, fmt.Errorf("store: parse network watch-event timestamp: %w", err)
 	}
 	event.message.Body = json.RawMessage(body)
+	event.message.Sequence = event.seq
 	event.message.Timestamp = at
 	event.at = at
 	event.workOutcome.opened = workOpened != 0

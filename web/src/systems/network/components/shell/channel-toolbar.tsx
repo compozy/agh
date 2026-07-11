@@ -1,13 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import {
-  AtSign,
-  Briefcase,
-  CheckCheck,
-  ChevronDown,
-  CircleDot,
-  ListFilter,
-  Pin,
-} from "lucide-react";
+import { Briefcase, CheckCheck, ChevronDown, ListFilter, UserRound } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 
 import {
@@ -17,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   LaneTabs,
+  SearchInput,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -25,11 +18,7 @@ import {
 import { Filters, type FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
 import { useNetworkListFiltersContext } from "../../hooks/use-network-list-filters-context";
-import {
-  NETWORK_FILTER_KEYS,
-  type NetworkFilterKey,
-  type NetworkListSort,
-} from "../../hooks/use-network-list-filters";
+import { type NetworkFilterKey, type NetworkListSort } from "../../hooks/use-network-list-filters";
 import type { ChannelTab } from "./channel-tabs-types";
 
 const SORT_LABELS: Record<NetworkListSort, string> = {
@@ -53,22 +42,10 @@ const CHIP_FIELDS: ReadonlyArray<ChipFieldDescriptor> = [
     testId: "network-toolbar-field-has-work",
   },
   {
-    key: "mentions_me",
-    label: "@me",
-    icon: <AtSign aria-hidden="true" className="size-3" />,
-    testId: "network-toolbar-field-mentions-me",
-  },
-  {
-    key: "pinned",
-    label: "Pinned",
-    icon: <Pin aria-hidden="true" className="size-3" />,
-    testId: "network-toolbar-field-pinned",
-  },
-  {
-    key: "unread",
-    label: "Unread",
-    icon: <CircleDot aria-hidden="true" className="size-3" />,
-    testId: "network-toolbar-field-unread",
+    key: "includes_me",
+    label: "Includes me",
+    icon: <UserRound aria-hidden="true" className="size-3" />,
+    testId: "network-toolbar-field-includes-me",
   },
 ];
 
@@ -125,19 +102,30 @@ export function ChannelToolbar({
   threadCount,
   directCount,
 }: ChannelToolbarProps) {
-  const { filters, setFilters, sort, setSort, markAllRead, isMarkAllReadDisabled } =
-    useNetworkListFiltersContext();
+  const {
+    filters,
+    setFilters,
+    sort,
+    setSort,
+    searchQuery,
+    setSearchQuery,
+    canFilterBySelf,
+    markLoadedRead,
+    isMarkLoadedReadDisabled,
+  } = useNetworkListFiltersContext();
   const navigate = useNavigate();
   const tabs = useMemo(() => buildTabs({ threadCount, directCount }), [threadCount, directCount]);
 
   const filterFields = useMemo<FilterFieldsConfig<boolean>>(() => {
-    return CHIP_FIELDS.map(field => ({
-      key: field.key,
-      label: field.label,
-      icon: field.icon,
-      type: "toggle" as const,
-    }));
-  }, []);
+    return CHIP_FIELDS.filter(field => field.key !== "includes_me" || canFilterBySelf).map(
+      field => ({
+        key: field.key,
+        label: field.label,
+        icon: field.icon,
+        type: "toggle" as const,
+      })
+    );
+  }, [canFilterBySelf]);
 
   const handleTabChange = (next: ChannelTab) => {
     const target = tabs.find(tab => tab.value === next);
@@ -160,12 +148,19 @@ export function ChannelToolbar({
       />
 
       <div className="ml-auto flex items-center gap-1.5">
+        <SearchInput
+          className="h-8 w-56"
+          data-testid="network-list-search"
+          onChange={setSearchQuery}
+          placeholder={`Search #${channel}…`}
+          value={searchQuery}
+        />
         <Filters<boolean>
-          allowMultiple={false}
+          allowMultiple
           fields={filterFields}
           filters={filters}
           onChange={setFilters}
-          showSearchInput={NETWORK_FILTER_KEYS.length > 4}
+          showSearchInput={false}
           size="sm"
           trigger={
             <Button
@@ -216,10 +211,10 @@ export function ChannelToolbar({
           <TooltipTrigger
             render={
               <Button
-                aria-label="Mark all visible items as read"
+                aria-label="Mark loaded conversations as read"
                 data-testid="network-list-mark-all-read"
-                disabled={isMarkAllReadDisabled}
-                onClick={markAllRead}
+                disabled={isMarkLoadedReadDisabled}
+                onClick={markLoadedRead}
                 size="icon-sm"
                 type="button"
                 variant="ghost"
@@ -228,7 +223,7 @@ export function ChannelToolbar({
           >
             <CheckCheck aria-hidden="true" className="size-3" />
           </TooltipTrigger>
-          <TooltipContent>Mark all read</TooltipContent>
+          <TooltipContent>Mark loaded conversations as read</TooltipContent>
         </Tooltip>
       </div>
     </div>

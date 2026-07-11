@@ -347,7 +347,7 @@ func benignTokenMetric(parts []string) bool {
 		return false
 	}
 	switch parts[0] {
-	case "completion", clientToolsPromptKey, "total":
+	case "completion", clientToolsPromptKey, listTotalField:
 		return parts[1] == "tokens"
 	default:
 		return false

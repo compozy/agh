@@ -5,6 +5,7 @@ import {
   useActiveWorkspaceStoreHasHydrated,
 } from "./use-active-workspace-store";
 import { useWorkspaces } from "./use-workspaces";
+import { selectActiveWorkspace } from "../lib/active-workspace";
 
 export function useActiveWorkspace() {
   const hasHydrated = useActiveWorkspaceStoreHasHydrated();
@@ -17,18 +18,7 @@ export function useActiveWorkspace() {
     if (!hasHydrated) {
       return undefined;
     }
-    if (!query.data || query.data.length === 0) {
-      return undefined;
-    }
-
-    if (selectedWorkspaceId) {
-      const selectedWorkspace = query.data.find(workspace => workspace.id === selectedWorkspaceId);
-      if (selectedWorkspace) {
-        return selectedWorkspace;
-      }
-    }
-
-    return query.data[0];
+    return selectActiveWorkspace(query.data ?? [], selectedWorkspaceId);
   }, [hasHydrated, query.data, selectedWorkspaceId]);
 
   useEffect(() => {

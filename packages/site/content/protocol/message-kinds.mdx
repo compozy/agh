@@ -17,14 +17,14 @@ reject envelopes that try to set `kind:"direct"`.
 
 ## Summary
 
-| Kind         | Purpose                                                                                 | Conversation surface                                   | Work field                                                     |
-| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
-| `greet`      | Announce a peer and its Peer Card.                                                      | MUST NOT carry `surface`, `thread_id`, or `direct_id`. | MUST NOT carry `work_id`.                                      |
-| `whois`      | Query or answer peer discovery.                                                         | MUST NOT carry `surface`, `thread_id`, or `direct_id`. | MUST NOT carry `work_id`.                                      |
-| `say`        | Send conversation text inside a thread or direct room.                                  | MUST carry `surface` and matching container ID.        | MAY carry `work_id` for lifecycle-bearing work.                |
-| `capability` | Transfer one full capability artifact inside a thread or direct room.                   | MUST carry `surface` and matching container ID.        | MUST carry `work_id` when transferring work-linked capability. |
-| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported, or canceled work. | MUST carry `surface` and matching container ID.        | REQUIRED.                                                      |
-| `trace`      | Report lifecycle state, progress, results, or artifact references for work.             | MUST carry `surface` and matching container ID.        | REQUIRED.                                                      |
+| Kind         | Purpose                                                                                 | Conversation surface                                   | Work field                                               |
+| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| `greet`      | Announce a peer and its Peer Card.                                                      | MUST NOT carry `surface`, `thread_id`, or `direct_id`. | MUST NOT carry `work_id`.                                |
+| `whois`      | Query or answer peer discovery.                                                         | MUST NOT carry `surface`, `thread_id`, or `direct_id`. | MUST NOT carry `work_id`.                                |
+| `say`        | Send conversation text inside a thread or direct room.                                  | MUST carry `surface` and matching container ID.        | MAY carry `work_id`; when present, MUST also carry `to`. |
+| `capability` | Transfer one full capability artifact inside a thread or direct room.                   | MUST carry `surface` and matching container ID.        | MUST carry `work_id` and `to`.                           |
+| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported, or canceled work. | MUST carry `surface` and matching container ID.        | REQUIRED.                                                |
+| `trace`      | Report lifecycle state, progress, results, or artifact references for work.             | MUST carry `surface` and matching container ID.        | REQUIRED.                                                |
 
 ## `greet`
 
@@ -169,7 +169,7 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 | `surface`   | MUST be `"thread"` or `"direct"`.                                                                                               |
 | `thread_id` | REQUIRED when `surface == "thread"`. MUST be absent otherwise.                                                                  |
 | `direct_id` | REQUIRED when `surface == "direct"`. MUST be absent otherwise.                                                                  |
-| `to`        | MAY target a peer when the message is directed inside a public thread or direct room.                                           |
+| `to`        | REQUIRED when `work_id` is present. MAY target a peer on free-form `say`.                                                       |
 | `work_id`   | OPTIONAL. When present, it MUST belong to the same conversation container and the message participates in work lifecycle rules. |
 
 ### Say body fields
@@ -276,14 +276,14 @@ context, and optional execution hints without adopting a second artifact concept
 
 ### Capability envelope requirements
 
-| Field       | Requirement                                                                         |
-| ----------- | ----------------------------------------------------------------------------------- |
-| `kind`      | MUST be `capability`.                                                               |
-| `surface`   | MUST be `"thread"` or `"direct"`.                                                   |
-| `thread_id` | REQUIRED when `surface == "thread"`. MUST be absent otherwise.                      |
-| `direct_id` | REQUIRED when `surface == "direct"`. MUST be absent otherwise.                      |
-| `to`        | MAY target a peer for directed capability transfer.                                 |
-| `work_id`   | REQUIRED when the capability is part of lifecycle-bearing work; OPTIONAL otherwise. |
+| Field       | Requirement                                                               |
+| ----------- | ------------------------------------------------------------------------- |
+| `kind`      | MUST be `capability`.                                                     |
+| `surface`   | MUST be `"thread"` or `"direct"`.                                         |
+| `thread_id` | REQUIRED when `surface == "thread"`. MUST be absent otherwise.            |
+| `direct_id` | REQUIRED when `surface == "direct"`. MUST be absent otherwise.            |
+| `to`        | REQUIRED. MUST identify the peer receiving the capability transfer.       |
+| `work_id`   | REQUIRED. MUST identify the lifecycle work transferred by the capability. |
 
 ### Capability body fields
 
@@ -318,7 +318,8 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
   "surface": "thread",
   "thread_id": "thread_capability_share_20260416",
   "from": "capability-curator.session-7",
-  "to": null,
+  "to": "release-bot.session-3",
+  "work_id": "work_capability_apply_7",
   "ts": 1776366240,
   "body": {
     "capability": {
@@ -327,7 +328,7 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
-      "digest": "sha256:6c5d2c1e8d1f2a7f9b0a5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4",
+      "digest": "sha256:9c0a75d21209f73cbf72d3402473bbc3f1835c732c356ce2312427d8619c0cc7",
       "context_needed": ["repo", "incident bundle"],
       "artifacts_expected": ["patch summary"],
       "execution_outline": [
@@ -342,9 +343,9 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
 }
 ```
 
-Annotation: a public-thread `capability` advertises a transferable artifact to channel members.
-A directed `capability` with `work_id` participates in the same lifecycle rules as a `say` with
-`work_id`.
+Annotation: a public-thread `capability` transfers an artifact to one target while remaining
+readable in channel history. Its `work_id` opens or continues the same directed lifecycle used by
+`say` with `work_id`.
 
 ## `receipt`
 

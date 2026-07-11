@@ -12,6 +12,7 @@ import {
   useNetworkListFiltersContext,
 } from "@/systems/network";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadNetworkDirectsRoute } from "./-network-preload";
 
 interface DirectDetailParams {
   directId?: string;
@@ -22,13 +23,15 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/direct
     topbar: { title: `#${params.channel} · Directs`, icon: NetworkIcon },
   }),
   component: NetworkChannelDirectsRoute,
+  loader: ({ context, params }) =>
+    preloadNetworkDirectsRoute(context.queryClient, params.workspaceId, params.channel),
 });
 
 function NetworkChannelDirectsRoute() {
   const { workspaceId, channel } = Route.useParams();
   const detailParams = useParams({ strict: false }) as DirectDetailParams;
-  const route = useNetworkChannelDirectsRoute(channel);
-  const { filteredDirects } = useNetworkListFiltersContext();
+  const route = useNetworkChannelDirectsRoute(workspaceId, channel);
+  const { filteredDirects, directsQuery, isFiltered } = useNetworkListFiltersContext();
   const [newDirectOpen, setNewDirectOpen] = useState(false);
 
   if (detailParams.directId) {
@@ -43,15 +46,17 @@ function NetworkChannelDirectsRoute() {
     );
   }
 
-  const directsQuery = route.directs;
   const activeSession = route.session;
   const channelMembers = route.members;
   const visibleDirects = filteredDirects;
   const showEmpty = !directsQuery.isLoading && visibleDirects.length === 0;
   const sessionId = activeSession.session?.sessionId ?? "";
-  const totalDirects = directsQuery.directs.length;
-  const subheaderLabel =
-    totalDirects === 1
+  const totalDirects = directsQuery.total;
+  const subheaderLabel = isFiltered
+    ? totalDirects === 1
+      ? "1 MATCHING DIRECT ROOM"
+      : `${totalDirects} MATCHING DIRECT ROOMS`
+    : totalDirects === 1
       ? "1 DIRECT ROOM IN THIS CHANNEL"
       : `${totalDirects} DIRECT ROOMS IN THIS CHANNEL`;
 
@@ -84,6 +89,7 @@ function NetworkChannelDirectsRoute() {
         <div className="flex flex-1 items-center justify-center px-6 py-10">
           <DirectsEmpty
             className="max-w-md"
+            filtered={isFiltered}
             onNewDirect={sessionId ? () => setNewDirectOpen(true) : undefined}
           />
         </div>
@@ -93,13 +99,18 @@ function NetworkChannelDirectsRoute() {
           activeDirectId={null}
           channel={channel}
           directs={visibleDirects}
+          hasMore={directsQuery.hasMore}
           isLoading={directsQuery.isLoading}
+          isLoadingMore={directsQuery.isLoadingMore}
           members={channelMembers.members}
+          onLoadMore={directsQuery.loadMore}
           selfPeerId={activeSession.session?.peerId}
+          total={directsQuery.total}
         />
       )}
 
       <NewDirectDialog
+        workspaceId={workspaceId}
         channel={channel}
         onOpenChange={setNewDirectOpen}
         open={newDirectOpen && Boolean(sessionId)}

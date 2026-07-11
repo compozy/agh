@@ -56,6 +56,9 @@ let mockWriteError: Error | null = null;
 
 const mockRevertMutateAsync = vi.fn();
 const mockRevertReset = vi.fn();
+const mockFetchNextPage = vi.fn();
+const mockRefetchMemories = vi.fn();
+const mockRefetchSearch = vi.fn();
 let mockRevertPending = false;
 let mockRevertError: Error | null = null;
 
@@ -65,7 +68,7 @@ let mockRevertError: Error | null = null;
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => React.ReactNode }) => ({
-    component: opts.component,
+    options: opts,
   }),
 }));
 
@@ -104,27 +107,33 @@ vi.mock("@/systems/knowledge", async () => {
     ...actual,
     useMemories: (selector?: SelectorLike) => {
       if (!selector) {
-        return { data: [], isLoading: false, error: null };
+        return catalogResult([], false, null, 0, false);
       }
       if (selector.scope === "workspace") {
-        return {
-          data: mockWorkspaceMemories,
-          isLoading: mockWorkspaceMemoriesLoading,
-          error: mockWorkspaceMemoriesError,
-        };
+        return catalogResult(
+          mockWorkspaceMemories,
+          mockWorkspaceMemoriesLoading,
+          mockWorkspaceMemoriesError,
+          mockWorkspaceMemories.length,
+          false
+        );
       }
       if (selector.scope === "agent") {
-        return {
-          data: mockAgentMemories,
-          isLoading: mockAgentMemoriesLoading,
-          error: mockAgentMemoriesError,
-        };
+        return catalogResult(
+          mockAgentMemories,
+          mockAgentMemoriesLoading,
+          mockAgentMemoriesError,
+          mockAgentMemories.length,
+          false
+        );
       }
-      return {
-        data: mockGlobalMemories,
-        isLoading: mockGlobalMemoriesLoading,
-        error: mockGlobalMemoriesError,
-      };
+      return catalogResult(
+        mockGlobalMemories,
+        mockGlobalMemoriesLoading,
+        mockGlobalMemoriesError,
+        8,
+        true
+      );
     },
     useMemory: () => ({
       data:
@@ -138,6 +147,7 @@ vi.mock("@/systems/knowledge", async () => {
       data: mockSearchResponse,
       isLoading: mockSearchLoading,
       error: mockSearchError,
+      refetch: mockRefetchSearch,
     }),
     useMemoryDecisions: () => ({
       data: { decisions: mockDecisions },
@@ -171,7 +181,9 @@ vi.mock("@/systems/knowledge", async () => {
   };
 });
 
-import { KnowledgePage } from "../knowledge";
+import { Route } from "../knowledge";
+
+const KnowledgePage = Route.options.component!;
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -263,6 +275,26 @@ function renderPage() {
   );
 }
 
+function catalogResult(
+  data: MemoryHeader[],
+  isLoading: boolean,
+  error: Error | null,
+  total: number,
+  hasNextPage: boolean
+) {
+  return {
+    data,
+    error,
+    fetchNextPage: mockFetchNextPage,
+    hasNextPage,
+    isFetchNextPageError: false,
+    isFetchingNextPage: false,
+    isLoading,
+    refetch: mockRefetchMemories,
+    total,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -325,6 +357,12 @@ describe("KnowledgePage", () => {
     mockRevertMutateAsync.mockReset();
     mockRevertMutateAsync.mockResolvedValue({ reverted: true });
     mockRevertReset.mockReset();
+    mockFetchNextPage.mockReset();
+    mockFetchNextPage.mockResolvedValue(undefined);
+    mockRefetchMemories.mockReset();
+    mockRefetchMemories.mockResolvedValue(undefined);
+    mockRefetchSearch.mockReset();
+    mockRefetchSearch.mockResolvedValue(undefined);
   });
 
   it("Should default to the GLOBAL scope and render the global memory list", () => {
@@ -333,6 +371,15 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("tab-global")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("knowledge-list-panel")).toBeInTheDocument();
     expect(screen.getByTestId("memory-item-global:user_role.md")).toBeInTheDocument();
+  });
+
+  it("Should show the exact catalog total and continue the global list", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(screen.getByTestId("topbar-count")).toHaveTextContent("8");
+    await user.click(screen.getByRole("button", { name: "Load more knowledge" }));
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
   });
 
   it("Should switch to the WORKSPACE scope when clicked", async () => {
@@ -551,12 +598,16 @@ describe("KnowledgePage", () => {
     expect(screen.getByTestId("knowledge-loading")).toBeInTheDocument();
   });
 
-  it("Should show an Empty error card when the list query fails", () => {
+  it("Should show an Empty error card and retry the failed list query", async () => {
+    const user = userEvent.setup();
     mockGlobalMemoriesError = new Error("Network failure");
     mockGlobalMemories = [];
     renderPage();
     expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
     expect(screen.getByText("Network failure")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry loading knowledge" }));
+    expect(mockRefetchMemories).toHaveBeenCalledTimes(1);
+    expect(mockFetchNextPage).not.toHaveBeenCalled();
   });
 
   it("Should show the empty list fallback when there are no memories", () => {
@@ -601,6 +652,36 @@ describe("KnowledgePage", () => {
 
     expect(screen.getByTestId("knowledge-error")).toBeInTheDocument();
     expect(screen.getByText("Recall failed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry loading knowledge" }));
+    expect(mockRefetchSearch).toHaveBeenCalledTimes(1);
+    expect(mockRefetchMemories).not.toHaveBeenCalled();
+  });
+
+  it("Should preserve recall results and retry a failed recall refresh", async () => {
+    const user = userEvent.setup();
+    mockSearchError = new Error("Recall refresh failed");
+    mockSearchResponse = {
+      results: [
+        {
+          memory: GLOBAL_MEMORIES[0]!,
+          score: 0.91,
+          snippet: "operator",
+          why_recalled: ["fts5"],
+        },
+      ],
+      recall: { blocks: [], header: { content_hash: "h", text: "" } },
+    };
+    renderPage();
+
+    await user.type(screen.getByTestId("knowledge-search-input"), "operator");
+
+    expect(screen.getByTestId("memory-item-global:user_role.md")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-list-pagination-error")).toHaveTextContent(
+      "Recall refresh failed"
+    );
+    await user.click(screen.getByRole("button", { name: "Retry loading knowledge" }));
+    expect(mockRefetchSearch).toHaveBeenCalledTimes(1);
+    expect(mockRefetchMemories).not.toHaveBeenCalled();
   });
 
   it("Should surface a delete failure inline when the mutation rejects", async () => {

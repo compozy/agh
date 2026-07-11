@@ -10,11 +10,21 @@ import { NetworkCreateChannelDialog } from "../components/network-create-channel
 import { createNetworkChannelDraft, sortAgentsForNetwork } from "../lib/network-formatters";
 import { useCreateNetworkChannel } from "./use-network-actions";
 
-export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean }) {
+export function useNetworkCreateChannelAction({
+  enabled,
+  workspaceId,
+}: {
+  enabled: boolean;
+  workspaceId?: string | null;
+}) {
   const navigate = useNavigate();
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
-  const agentsQuery = useAgents(activeWorkspaceId);
-  const createChannel = useCreateNetworkChannel();
+  const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const requestedWorkspaceId = workspaceId ?? activeWorkspaceId;
+  const requestedWorkspace =
+    (workspaces ?? []).find(candidate => candidate.id === requestedWorkspaceId) ??
+    (activeWorkspace?.id === requestedWorkspaceId ? activeWorkspace : undefined);
+  const agentsQuery = useAgents(requestedWorkspaceId);
+  const createChannel = useCreateNetworkChannel({ workspaceId: requestedWorkspaceId });
   const [createOpen, setCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState(createNetworkChannelDraft);
   const sortedAgents = useMemo(
@@ -23,7 +33,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
   );
   const canCreateChannel =
     enabled &&
-    activeWorkspaceId != null &&
+    requestedWorkspaceId != null &&
     createDraft.channelName.trim() !== "" &&
     createDraft.purpose.trim() !== "" &&
     createDraft.selectedAgentNames.length > 0;
@@ -33,7 +43,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
   };
 
   const handleCreateChannel = async () => {
-    if (!enabled || !activeWorkspaceId || !canCreateChannel) {
+    if (!enabled || !requestedWorkspaceId || !canCreateChannel) {
       return;
     }
 
@@ -42,13 +52,13 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
         agent_names: createDraft.selectedAgentNames,
         channel: createDraft.channelName.trim(),
         purpose: createDraft.purpose.trim(),
-        workspace_id: activeWorkspaceId,
+        workspace_id: requestedWorkspaceId,
       });
       const channel = response.channel.channel;
       setCreateDraft(createNetworkChannelDraft());
       setCreateOpen(false);
       void navigate({
-        params: { workspaceId: activeWorkspaceId, channel },
+        params: { workspaceId: requestedWorkspaceId, channel },
         to: "/network/$workspaceId/$channel/threads",
       });
     } catch (error) {
@@ -60,7 +70,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
   const action = enabled ? (
     <Button
       data-testid="network-open-create-dialog"
-      disabled={agentsQuery.isLoading || activeWorkspaceId == null}
+      disabled={agentsQuery.isLoading || requestedWorkspaceId == null}
       onClick={() => setCreateOpen(true)}
       size="sm"
       type="button"
@@ -84,7 +94,7 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
       onPurposeChange={purpose => setCreateDraft(current => ({ ...current, purpose }))}
       onSubmit={handleCreateChannel}
       open={createOpen}
-      workspaceName={activeWorkspace?.name}
+      workspaceName={requestedWorkspace?.name}
     />
   );
 

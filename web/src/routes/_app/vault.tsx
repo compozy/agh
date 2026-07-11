@@ -24,11 +24,13 @@ import {
 import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
 import { VaultListFilters, VaultSecretsList, type VaultSecret } from "@/systems/vault";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadVaultRoute } from "./-vault-preload";
 
 export const Route = createFileRoute("/_app/vault")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Vault", icon: KeyRound },
   }),
+  loader: ({ context }) => preloadVaultRoute(context.queryClient),
   component: VaultPage,
 });
 

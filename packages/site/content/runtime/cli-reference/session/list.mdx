@@ -17,17 +17,23 @@ agh session list [flags]
   # List active sessions
   agh session list
 
-  # Include stopped sessions and filter to a workspace
-  agh session list --all --workspace checkout-api
+  # Page all sessions for one agent in a workspace
+  agh session list --all --workspace checkout-api --agent reviewer --limit 25
 ```
 
 ### Options
 
 ```
-      --all                Include stopped sessions
+      --agent string       Filter by exact agent definition name
+      --all                Include every session state when --state is omitted
+      --cursor string      Continue from an opaque next_cursor
   -h, --help               help for list
-      --limit int          Maximum sessions to return
+      --include-health     Include metadata-only health for returned sessions
+      --limit int          Sessions per page (1-100)
+      --query string       Search session id, name, agent, provider, or channel
       --resumable          Show only sessions eligible for resume attach
+      --sort string        Sort by recent or last_activity
+      --state string       Filter by state (starting|active|stopping|stopped)
       --workspace string   Filter by workspace name or ID
 ```
 

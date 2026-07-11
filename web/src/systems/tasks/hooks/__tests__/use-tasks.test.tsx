@@ -40,6 +40,7 @@ import {
   listTaskRuns,
   listTasks,
 } from "@/systems/tasks/adapters/tasks-api";
+import { buildInboxItemFixture, buildTaskFixture } from "@/systems/tasks/mocks/fixtures";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -50,13 +51,19 @@ function createWrapper() {
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-const taskFixture = { id: "task_001", title: "Review", status: "ready" };
+const taskFixture = buildTaskFixture({ id: "task_001", title: "Review", status: "ready" });
 const runFixture = { id: "run_001", task_id: "task_001", status: "running" };
 const timelineFixture = { event_id: "evt_001", sequence: 1 };
 const treeFixture = { root: { depth: 0, task: { id: "task_001" } } };
 const runDetailFixture = { run: runFixture, task: { id: "task_001" }, summary: {} };
 const dashboardFixture = { totals: { tasks_total: 0 } };
-const inboxFixture = { total: 0, archived_total: 0, unread_total: 0 };
+const inboxFixture = {
+  archived_total: 0,
+  facets: { priorities: [], statuses: [] },
+  groups: [],
+  page: { has_more: false, limit: 1, total: 0 },
+  unread_total: 0,
+};
 
 describe("tasks read hooks", () => {
   beforeEach(() => {
@@ -68,7 +75,11 @@ describe("tasks read hooks", () => {
   });
 
   it("loads tasks list with filters", async () => {
-    vi.mocked(listTasks).mockResolvedValue([taskFixture] as never);
+    vi.mocked(listTasks).mockResolvedValue({
+      facets: { owners: [], statuses: [{ count: 3, status: "ready" }] },
+      page: { has_more: false, limit: 50, total: 3 },
+      tasks: [taskFixture],
+    });
 
     const { result } = renderHook(() => useTasks({ scope: "workspace", workspace: "ws_alpha" }), {
       wrapper: createWrapper(),
@@ -78,8 +89,37 @@ describe("tasks read hooks", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
+    expect(result.current.total).toBe(3);
+
     expect(listTasks).toHaveBeenCalledWith(
       { scope: "workspace", workspace: "ws_alpha" },
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("appends task pages in backend order while preserving the exact first-page total", async () => {
+    vi.mocked(listTasks)
+      .mockResolvedValueOnce({
+        facets: { owners: [], statuses: [] },
+        page: { has_more: true, limit: 1, next_cursor: "next", total: 2 },
+        tasks: [taskFixture],
+      })
+      .mockResolvedValueOnce({
+        facets: { owners: [], statuses: [] },
+        page: { has_more: false, limit: 1, total: 2 },
+        tasks: [{ ...taskFixture, id: "task_002", title: "Second" }],
+      });
+
+    const { result } = renderHook(() => useTasks({ limit: 1 }), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.data).toHaveLength(1));
+    await result.current.fetchNextPage();
+    await waitFor(() => {
+      expect(result.current.data?.map(task => task.id)).toEqual(["task_001", "task_002"]);
+    });
+    expect(result.current.total).toBe(2);
+    expect(listTasks).toHaveBeenNthCalledWith(
+      2,
+      { cursor: "next", limit: 1 },
       expect.any(AbortSignal)
     );
   });
@@ -155,7 +195,7 @@ describe("tasks read hooks", () => {
 
   it("loads dashboard and inbox aggregates", async () => {
     vi.mocked(getTaskDashboard).mockResolvedValue(dashboardFixture as never);
-    vi.mocked(getTaskInbox).mockResolvedValue(inboxFixture as never);
+    vi.mocked(getTaskInbox).mockResolvedValue(inboxFixture);
 
     const dashboard = renderHook(() => useTaskDashboard({ scope: "workspace" }), {
       wrapper: createWrapper(),
@@ -166,10 +206,73 @@ describe("tasks read hooks", () => {
 
     await waitFor(() => {
       expect(dashboard.result.current.data?.totals.tasks_total).toBe(0);
-      expect(inbox.result.current.data?.total).toBe(0);
+      expect(inbox.result.current.data?.page.total).toBe(0);
     });
 
     expect(getTaskDashboard).toHaveBeenCalledWith({ scope: "workspace" }, expect.any(AbortSignal));
     expect(getTaskInbox).toHaveBeenCalledWith({ lane: "approvals" }, expect.any(AbortSignal));
+  });
+
+  it("merges inbox pages by lane without summing exact group or page totals", async () => {
+    const firstItem = buildInboxItemFixture({
+      task: { id: "task_001", title: "First" },
+    });
+    const secondItem = buildInboxItemFixture({
+      task: { id: "task_002", title: "Second" },
+    });
+    vi.mocked(getTaskInbox)
+      .mockResolvedValueOnce({
+        archived_total: 7,
+        facets: {
+          priorities: [{ count: 12, priority: "high" }],
+          statuses: [{ count: 12, status: "ready" }],
+        },
+        groups: [
+          {
+            count: 12,
+            items: [firstItem],
+            lane: "my_work",
+            unread_count: 9,
+          },
+        ],
+        page: { has_more: true, limit: 1, next_cursor: "inbox:1", total: 20 },
+        unread_total: 15,
+      })
+      .mockResolvedValueOnce({
+        archived_total: 7,
+        facets: {
+          priorities: [{ count: 12, priority: "high" }],
+          statuses: [{ count: 12, status: "ready" }],
+        },
+        groups: [
+          {
+            count: 12,
+            items: [firstItem, secondItem],
+            lane: "my_work",
+            unread_count: 9,
+          },
+        ],
+        page: { has_more: false, limit: 1, total: 20 },
+        unread_total: 15,
+      });
+
+    const { result } = renderHook(() => useTaskInbox({ limit: 1 }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.groups[0]?.items).toHaveLength(1));
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.data?.groups[0]?.items).toHaveLength(2));
+
+    expect(result.current.data?.groups[0]?.count).toBe(12);
+    expect(result.current.data?.groups[0]?.unread_count).toBe(9);
+    expect(result.current.data?.page.total).toBe(20);
+    expect(result.current.data?.unread_total).toBe(15);
+    const items = result.current.data?.groups[0]?.items ?? [];
+    expect(items.map(item => item.task.id)).toEqual(["task_001", "task_002"]);
+    expect(getTaskInbox).toHaveBeenNthCalledWith(
+      2,
+      { cursor: "inbox:1", limit: 1 },
+      expect.any(AbortSignal)
+    );
   });
 });

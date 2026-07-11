@@ -253,6 +253,20 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 					},
 				},
 				{
+					name: "Should accept directed capability with work",
+					req: contract.NetworkSendRequest{
+						WorkspaceID: "ws-workspace",
+						SessionID:   "sess-a",
+						Channel:     "builders",
+						Surface:     "thread",
+						ThreadID:    "thread_launch_db",
+						Kind:        "capability",
+						To:          "reviewer.sess-b",
+						WorkID:      "work-1",
+						Body:        json.RawMessage(`{"capability":{"id":"review"}}`),
+					},
+				},
+				{
 					name: "Should reject missing surface",
 					req: contract.NetworkSendRequest{
 						WorkspaceID: "ws-workspace",
@@ -299,6 +313,34 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 						ThreadID:    "thread_launch_db",
 						Kind:        "greet",
 						Body:        json.RawMessage(`{"hello":"world"}`),
+					},
+					wantErr: true,
+				},
+				{
+					name: "Should reject capability without directed target",
+					req: contract.NetworkSendRequest{
+						WorkspaceID: "ws-workspace",
+						SessionID:   "sess-a",
+						Channel:     "builders",
+						Surface:     "thread",
+						ThreadID:    "thread_launch_db",
+						Kind:        "capability",
+						WorkID:      "work-1",
+						Body:        json.RawMessage(`{"capability":{"id":"review"}}`),
+					},
+					wantErr: true,
+				},
+				{
+					name: "Should reject lifecycle say without directed target",
+					req: contract.NetworkSendRequest{
+						WorkspaceID: "ws-workspace",
+						SessionID:   "sess-a",
+						Channel:     "builders",
+						Surface:     "thread",
+						ThreadID:    "thread_launch_db",
+						Kind:        "say",
+						WorkID:      "work-1",
+						Body:        validBody,
 					},
 					wantErr: true,
 				},
@@ -815,7 +857,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 			_ context.Context,
 			ref store.NetworkChannelRef,
 			query store.NetworkThreadQuery,
-		) ([]store.NetworkThreadSummary, error) {
+		) (store.NetworkThreadPage, error) {
 			if ref.WorkspaceID == "" || ref.Channel != "builders" || query.Limit != 5 ||
 				query.After != "thread_before" {
 				t.Fatalf(
@@ -824,7 +866,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 					query,
 				)
 			}
-			return []store.NetworkThreadSummary{{
+			return store.NetworkThreadPage{Threads: []store.NetworkThreadSummary{{
 				WorkspaceID:           ref.WorkspaceID,
 				Channel:               ref.Channel,
 				ThreadID:              threadID,
@@ -840,7 +882,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				DeliveredCount:        3,
 				PromptSizeBytes:       1024,
 				EstimatedPromptTokens: 256,
-			}}, nil
+			}}, Total: 7, Limit: 5, HasMore: true, NextCursor: "opaque-thread-cursor"}, nil
 		},
 		GetThreadFn: func(_ context.Context, ref store.NetworkChannelRef, gotThreadID string) (store.NetworkThreadSummary, error) {
 			if ref.WorkspaceID == "" || ref.Channel != "builders" || gotThreadID != threadID {
@@ -886,7 +928,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 			_ context.Context,
 			ref store.NetworkChannelRef,
 			query store.NetworkDirectRoomQuery,
-		) ([]store.NetworkDirectRoomSummary, error) {
+		) (store.NetworkDirectRoomPage, error) {
 			if ref.WorkspaceID == "" || ref.Channel != "builders" ||
 				query.PeerID != "reviewer.sess-xyz" ||
 				query.Limit != 3 {
@@ -896,7 +938,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 					query,
 				)
 			}
-			return []store.NetworkDirectRoomSummary{{
+			return store.NetworkDirectRoomPage{Directs: []store.NetworkDirectRoomSummary{{
 				WorkspaceID:    ref.WorkspaceID,
 				Channel:        ref.Channel,
 				DirectID:       directID,
@@ -906,7 +948,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				LastActivityAt: openedAt,
 				MessageCount:   1,
 				OpenWorkCount:  1,
-			}}, nil
+			}}, Total: 4, Limit: 3, HasMore: true, NextCursor: "opaque-direct-cursor"}, nil
 		},
 		GetDirectRoomFn: func(_ context.Context, ref store.NetworkChannelRef, gotDirectID string) (store.NetworkDirectRoomSummary, error) {
 			if ref.WorkspaceID == "" || ref.Channel != "builders" || gotDirectID != directID {
@@ -1017,6 +1059,10 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		if got, want := payload.Threads[0].CoordinationCost.PromptSizeBytes, int64(1024); got != want {
 			t.Fatalf("threads[0].CoordinationCost.PromptSizeBytes = %d, want %d", got, want)
 		}
+		if got, want := payload.Page.Total, 7; got != want || payload.Page.Limit != 5 || !payload.Page.HasMore ||
+			payload.Page.NextCursor != "opaque-thread-cursor" {
+			t.Fatalf("threads page = %#v, want total=%d limit=5 has_more cursor", payload.Page, want)
+		}
 	})
 
 	t.Run("Should show thread", func(t *testing.T) {
@@ -1075,6 +1121,9 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		if len(payload.Messages) != 1 || payload.Messages[0].Surface != store.NetworkSurfaceThread {
 			t.Fatalf("thread messages payload = %#v, want thread message", payload.Messages)
 		}
+		if got, want := payload.Page.Limit, store.NetworkMessageDefaultLimit; got != want {
+			t.Fatalf("thread messages page limit = %d, want %d", got, want)
+		}
 		if got, want := payload.Messages[0].SizeBytes, int64(123); got != want {
 			t.Fatalf("thread messages[0].SizeBytes = %d, want %d", got, want)
 		}
@@ -1100,6 +1149,10 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if len(payload.Directs) != 1 || payload.Directs[0].DirectID != directID {
 			t.Fatalf("directs payload = %#v, want direct %s", payload.Directs, directID)
+		}
+		if got, want := payload.Page.Total, 4; got != want || payload.Page.Limit != 3 || !payload.Page.HasMore ||
+			payload.Page.NextCursor != "opaque-direct-cursor" {
+			t.Fatalf("directs page = %#v, want total=%d limit=3 has_more cursor", payload.Page, want)
 		}
 	})
 
@@ -1689,7 +1742,7 @@ func TestBaseHandlersPromoteNetworkThreadTask(t *testing.T) {
 		now := time.Date(2026, 7, 1, 17, 0, 0, 0, time.UTC)
 		var createdSpec taskpkg.CreateTask
 		var writtenOrigin store.NetworkTaskThreadOrigin
-		tasks := testutil.StubTaskManager{
+		tasks := &testutil.StubTaskManager{
 			CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 				createdSpec = spec
 				return &taskpkg.Task{
@@ -2225,6 +2278,8 @@ func TestBaseHandlersNetworkChannelsIncludeHistoryOnlyChannels(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should include history-only channels from persisted message logs", func(t *testing.T) {
+		t.Parallel()
+
 		recordedAt := time.Date(2026, 4, 11, 18, 30, 0, 0, time.UTC)
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2279,6 +2334,72 @@ func TestBaseHandlersNetworkChannelsIncludeHistoryOnlyChannels(t *testing.T) {
 		}
 		if got, want := payload.Channels[0].MessageCount, 1; got != want {
 			t.Fatalf("message_count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should order equal-timestamp persisted channels by causal sequence", func(t *testing.T) {
+		t.Parallel()
+
+		recordedAt := time.Date(2026, 4, 11, 18, 30, 0, 0, time.UTC)
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return nil, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(context.Context, string, string) ([]network.PeerInfo, error) {
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkChannelProjectionsFn: func(
+				_ context.Context,
+				query store.NetworkChannelProjectionQuery,
+			) ([]store.NetworkChannelProjection, error) {
+				if got, want := query.WorkspaceID, "ws-workspace"; got != want {
+					t.Fatalf("workspace_id = %q, want %q", got, want)
+				}
+				return []store.NetworkChannelProjection{
+					{
+						WorkspaceID:          query.WorkspaceID,
+						Channel:              "earlier-sequence",
+						MessageCount:         1,
+						LastActivityAt:       &recordedAt,
+						LastActivitySequence: 10,
+					},
+					{
+						WorkspaceID:          query.WorkspaceID,
+						Channel:              "later-sequence",
+						MessageCount:         1,
+						LastActivityAt:       &recordedAt,
+						LastActivitySequence: 20,
+					},
+				}, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/network/channels",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Channels), 2; got != want {
+			t.Fatalf("len(channels) = %d, want %d", got, want)
+		}
+		if got, want := payload.Channels[0].Channel, "later-sequence"; got != want {
+			t.Fatalf("channels[0].channel = %q, want %q", got, want)
+		}
+		if got, want := payload.Channels[1].Channel, "earlier-sequence"; got != want {
+			t.Fatalf("channels[1].channel = %q, want %q", got, want)
 		}
 	})
 }
@@ -2929,7 +3050,7 @@ func TestBaseHandlersNetworkChannelMessagesTogglePresenceEpisodes(t *testing.T) 
 			if got, want := len(limitPayload.Messages), 1; got != want {
 				t.Fatalf("len(limit presence messages) = %d, want %d", got, want)
 			}
-			if got, want := limitPayload.Messages[0].MessageID, "msg-greet-03"; got != want {
+			if got, want := limitPayload.Messages[0].MessageID, "msg-greet-04"; got != want {
 				t.Fatalf("limit presence messages[0].message_id = %q, want %q", got, want)
 			}
 			if got, want := limitPayload.Messages[0].PresenceCount, 2; got != want {
@@ -3350,25 +3471,29 @@ func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *test
 					if got, want := query.Channel, "builders"; got != want {
 						t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
 					}
-					if query.Limit != 0 {
+					if query.Limit != 2 {
 						t.Fatalf(
-							"ListNetworkMessages() limit = %d, want handler-side pagination",
+							"ListNetworkMessages() limit = %d, want one-row page plus overfetch",
 							query.Limit,
 						)
 					}
-					if query.BeforeMessageID != "" {
-						t.Fatalf(
-							"ListNetworkMessages() before = %q, want empty raw fetch cursor",
-							query.BeforeMessageID,
-						)
+					if !query.PublicOnly {
+						t.Fatal("ListNetworkMessages() public_only = false, want store-owned visibility filter")
 					}
-					if query.AfterMessageID != "" {
+					switch query.AfterMessageID {
+					case "":
+						return []store.NetworkMessageEntry{messages[1], messages[4]}, nil
+					case "msg-say-01":
+						return []store.NetworkMessageEntry{messages[4]}, nil
+					case "msg-direct-01":
+						return nil, sql.ErrNoRows
+					default:
 						t.Fatalf(
-							"ListNetworkMessages() after = %q, want empty raw fetch cursor",
+							"ListNetworkMessages() after = %q, want known visible/hidden cursor",
 							query.AfterMessageID,
 						)
+						return nil, nil
 					}
-					return messages, nil
 				},
 			}
 
@@ -3387,7 +3512,7 @@ func TestBaseHandlersNetworkChannelMessagesPaginateVisiblePublicTimeline(t *test
 			if got, want := len(limitPayload.Messages), 1; got != want {
 				t.Fatalf("len(limit messages) = %d, want %d", got, want)
 			}
-			if got, want := limitPayload.Messages[0].MessageID, "msg-say-01"; got != want {
+			if got, want := limitPayload.Messages[0].MessageID, "msg-say-02"; got != want {
 				t.Fatalf("limit messages[0].message_id = %q, want %q", got, want)
 			}
 
@@ -3672,10 +3797,10 @@ func TestBaseHandlersNetworkPeerMessagesCanIncludePresenceWithoutBroadcasts(t *t
 			if got, want := len(limitPayload.Messages), 1; got != want {
 				t.Fatalf("len(limit peer messages) = %d, want %d", got, want)
 			}
-			if got, want := limitPayload.Messages[0].MessageID, "msg-greet-02"; got != want {
+			if got, want := limitPayload.Messages[0].MessageID, "msg-direct-01"; got != want {
 				t.Fatalf("limit peer messages[0].message_id = %q, want %q", got, want)
 			}
-			if got, want := limitPayload.Messages[0].PresenceCount, 2; got != want {
+			if got, want := limitPayload.Messages[0].PresenceCount, 0; got != want {
 				t.Fatalf("limit peer messages[0].presence_count = %d, want %d", got, want)
 			}
 
@@ -5091,11 +5216,20 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 				if got, want := query.Channel, "builders"; got != want {
 					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
 				}
-				if query.AfterMessageID != "" {
+				if !query.PublicOnly {
+					if query.AfterMessageID != "" || query.Limit != 0 {
+						t.Fatalf("projection ListNetworkMessages() query = %#v, want unbounded channel lookup", query)
+					}
+					return nil, nil
+				}
+				if query.AfterMessageID != "msg-missing" {
 					t.Fatalf(
-						"ListNetworkMessages() after = %q, want empty raw fetch cursor",
+						"ListNetworkMessages() after = %q, want forwarded public cursor",
 						query.AfterMessageID,
 					)
+				}
+				if !query.PublicOnly || query.Limit != 11 {
+					t.Fatalf("ListNetworkMessages() query = %#v, want public overfetch limit 11", query)
 				}
 				return nil, nil
 			},
@@ -5151,9 +5285,15 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 				if got, want := query.Channel, "builders"; got != want {
 					t.Fatalf("ListNetworkMessages() channel = %q, want %q", got, want)
 				}
+				if query.AfterMessageID == "msg-last" {
+					if !query.PublicOnly || query.Limit != 11 {
+						t.Fatalf("ListNetworkMessages() query = %#v, want public overfetch limit 11", query)
+					}
+					return nil, nil
+				}
 				if query.AfterMessageID != "" {
 					t.Fatalf(
-						"ListNetworkMessages() after = %q, want empty raw fetch cursor",
+						"ListNetworkMessages() after = %q, want empty projection lookup cursor",
 						query.AfterMessageID,
 					)
 				}

@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -194,6 +195,10 @@ func statusForSessionError(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, store.ErrSessionInputQueueFull):
 		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, transcript.ErrProjectionIncompatible):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, transcript.ErrProjectionCorrupt):
+		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
 	}

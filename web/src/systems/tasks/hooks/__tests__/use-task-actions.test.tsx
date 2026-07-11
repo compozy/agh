@@ -68,6 +68,8 @@ import {
   retryTaskRun,
   updateTask,
 } from "@/systems/tasks/adapters/tasks-api";
+import { tasksKeys } from "@/systems/tasks/lib/query-keys";
+import { buildTaskFixture } from "@/systems/tasks/mocks/fixtures";
 
 const taskFixture = { id: "task_001", title: "Review", status: "ready" };
 const runFixture = { id: "run_001", task_id: "task_001", status: "queued" };
@@ -97,6 +99,18 @@ describe("task mutation hooks", () => {
     vi.mocked(createTask).mockResolvedValue(taskFixture as never);
 
     const queryClient = buildClient();
+    const listKey = tasksKeys.list({ scope: "global", limit: 1 });
+    const cachedList = {
+      pageParams: [undefined],
+      pages: [
+        {
+          facets: { owners: [], statuses: [{ count: 1, status: "ready" }] },
+          page: { has_more: false, limit: 1, total: 1 },
+          tasks: [buildTaskFixture({ active_run: null, status: "ready" })],
+        },
+      ],
+    };
+    queryClient.setQueryData(listKey, cachedList);
     const spy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useCreateTask(), {
@@ -113,6 +127,7 @@ describe("task mutation hooks", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
+    expect(queryClient.getQueryData(listKey)).toEqual(cachedList);
   });
 
   it("invalidates task detail when updating a task", async () => {

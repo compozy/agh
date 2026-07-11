@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TasksKanbanBoard } from "../tasks-kanban-board";
+import { TasksKanbanBoard as TasksKanbanBoardComponent } from "../tasks-kanban-board";
 import { getKanbanColumns, groupTasksForKanban } from "../../lib/task-grouping";
+import { countTasksByStatus } from "../../lib/task-formatters";
 import type { TaskListItem } from "../../types";
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
@@ -19,6 +21,20 @@ function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
     owner: { kind: "agent_session", ref: "claude" },
     ...overrides,
   } as TaskListItem;
+}
+
+type TestBoardProps = Omit<ComponentProps<typeof TasksKanbanBoardComponent>, "statusCounts"> & {
+  statusCounts?: ComponentProps<typeof TasksKanbanBoardComponent>["statusCounts"];
+};
+
+function TasksKanbanBoard({ statusCounts, ...props }: TestBoardProps) {
+  const tasks = props.columns.flatMap(column => column.tasks);
+  return (
+    <TasksKanbanBoardComponent
+      {...props}
+      statusCounts={statusCounts ?? countTasksByStatus(tasks)}
+    />
+  );
 }
 
 describe("TasksKanbanBoard", () => {
@@ -132,19 +148,24 @@ describe("TasksKanbanBoard", () => {
     expect(onSelectTask).toHaveBeenCalledWith("a");
   });
 
-  it("Should invoke onCreateInColumn from a column add affordance", () => {
-    const onCreateInColumn = vi.fn();
+  it("Should expose a generic create action without promising a target column", () => {
+    const onCreate = vi.fn();
     render(
       <TasksKanbanBoard
         columns={groupTasksForKanban([])}
-        onCreateInColumn={onCreateInColumn}
+        onCreate={onCreate}
         onSelectTask={vi.fn()}
         selectedTaskId={null}
       />
     );
 
-    fireEvent.click(screen.getByTestId("tasks-kanban-column-add-pending"));
-    expect(onCreateInColumn).toHaveBeenCalledWith("pending");
+    const createButtons = screen.getAllByRole("button", { name: "Create task" });
+    expect(createButtons).toHaveLength(getKanbanColumns().length);
+    const firstCreateButton = createButtons[0];
+    if (!firstCreateButton) throw new Error("expected a generic create button");
+    fireEvent.click(firstCreateButton);
+    expect(onCreate).toHaveBeenCalledWith();
+    expect(screen.queryByRole("button", { name: /Add task to/i })).not.toBeInTheDocument();
   });
 
   it("Should render a retry affordance for failed cards and surface their error", () => {
@@ -176,7 +197,7 @@ describe("TasksKanbanBoard", () => {
 
     expect(screen.getByTestId("tasks-kanban-card-error-fail")).toHaveTextContent("boom");
     fireEvent.click(screen.getByTestId("tasks-kanban-card-retry-fail"));
-    expect(onRetryTask).toHaveBeenCalledWith("fail");
+    expect(onRetryTask).toHaveBeenCalledWith("run_fail");
   });
 
   it("Should render loading and error states without crashing", () => {
@@ -189,6 +210,7 @@ describe("TasksKanbanBoard", () => {
       />
     );
     expect(screen.getByTestId("tasks-kanban-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-kanban-column-count-pending")).not.toBeInTheDocument();
 
     rerender(
       <TasksKanbanBoard
@@ -199,6 +221,59 @@ describe("TasksKanbanBoard", () => {
       />
     );
     expect(screen.getByTestId("tasks-kanban-error")).toHaveTextContent("oops");
+  });
+
+  it("Should continue the backend-ordered board through an accessible control", () => {
+    const onLoadMore = vi.fn();
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban([buildTask()])}
+        hasMore
+        onLoadMore={onLoadMore}
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more tasks" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("tasks-kanban-card-task_001")).toBeInTheDocument();
+  });
+
+  it("Should retry the failed catalog operation without requesting another page", () => {
+    const onLoadMore = vi.fn();
+    const onRetry = vi.fn();
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban([buildTask()])}
+        errorMessage="Catalog refresh failed"
+        hasMore
+        onLoadMore={onLoadMore}
+        onRetryLoad={onRetry}
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading tasks" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it("Should label partial columns as loaded of the exact facet total", () => {
+    const tasks = [buildTask({ status: "ready" })];
+    const statusCounts = countTasksByStatus([]);
+    statusCounts.ready = 10;
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban(tasks)}
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+        statusCounts={statusCounts}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-kanban-column-count-pending")).toHaveTextContent("1 of 10");
   });
 });
 

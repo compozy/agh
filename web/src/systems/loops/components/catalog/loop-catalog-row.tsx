@@ -3,7 +3,6 @@ import { Repeat2 } from "lucide-react";
 
 import { ListingRow, Pill } from "@agh/ui";
 
-import type { LoopBindingKind } from "../../lib/loop-bindings";
 import {
   hasHumanGate,
   isUnboundedCap,
@@ -15,16 +14,14 @@ import {
 } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
-import { LoopBindingBadge } from "./loop-binding-badge";
 import { LoopRunButton } from "./loop-run-button";
 
 interface LoopCatalogRowProps {
   entry: LoopCatalogEntry;
-  bindingKinds: readonly LoopBindingKind[];
   onRun: (entry: LoopCatalogEntry) => void;
 }
 
-export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowProps) {
+export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
   const category = loopCategory(entry);
   const inputCount = loopInputCount(entry);
   const unbounded = isUnboundedCap(entry);
@@ -65,7 +62,6 @@ export function LoopCatalogRow({ entry, bindingKinds, onRun }: LoopCatalogRowPro
                 <span>human gate</span>
               </>
             ) : null}
-            <LoopBindingBadge kinds={bindingKinds} />
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>

@@ -925,7 +925,7 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("manager.ListJobs() error = %v", err)
 	}
-	if got, want := len(jobs), 1; got != want {
+	if got, want := len(jobs.Jobs), 1; got != want {
 		t.Fatalf("len(manager.ListJobs()) = %d, want %d", got, want)
 	}
 
@@ -1126,7 +1126,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("manager.ListTriggers(webhook) error = %v", err)
 	}
-	if got, want := len(listedTriggers), 1; got != want {
+	if got, want := len(listedTriggers.Triggers), 1; got != want {
 		t.Fatalf("len(manager.ListTriggers(webhook)) = %d, want %d", got, want)
 	}
 

@@ -68,9 +68,29 @@ describe("loops-api (request construction + error mapping)", () => {
   });
 
   it("Should GET the workspace-scoped catalog", async () => {
-    mockJsonResponse({ loops: [] });
-    await listLoops(WS);
-    await expectFetchRequest({ path: "/api/workspaces/ws_1/loops", method: "GET" });
+    mockJsonResponse({
+      facets: {
+        categories: { delivery: 0 },
+        kinds: { read_only: 0, workspace: 0 },
+        statuses: {},
+      },
+      loops: [],
+      page: { has_more: false, limit: 25, total: 0 },
+    });
+    const result = await listLoops(WS, {
+      category: " delivery ",
+      kind: "read_only",
+      limit: 25,
+      q: " release ",
+      sort: "name",
+      status: "running",
+      cursor: " cursor-2 ",
+    });
+    expect(result.page).toEqual({ has_more: false, limit: 25, total: 0 });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loops?q=release&kind=read_only&category=delivery&status=running&sort=name&cursor=cursor-2&limit=25",
+      method: "GET",
+    });
   });
 
   it("Should map a 404 loop read onto a typed LoopsApiError", async () => {
@@ -286,7 +306,7 @@ describe("loops-api (against MSW mock handlers)", () => {
 
   it("Should resolve the catalog, a definition, runs and a run detail from the fixtures", async () => {
     const loops = await listLoops(WS);
-    expect(loops.map(loop => loop.name)).toEqual(["software-delivery", "reviews-watch"]);
+    expect(loops.loops.map(loop => loop.name)).toEqual(["software-delivery", "reviews-watch"]);
 
     const detail = await getLoop(WS, "software-delivery");
     expect(detail.definition.meta.name).toBe("software-delivery");

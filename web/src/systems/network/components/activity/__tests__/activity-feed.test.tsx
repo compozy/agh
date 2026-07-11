@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
@@ -118,5 +119,31 @@ describe("ActivityFeed", () => {
 
     expect(screen.getByText("[TH]")).toBeInTheDocument();
     expect(screen.getByText("[DM]")).toBeInTheDocument();
+  });
+
+  it("Should expose independent pagination for both counted surfaces", async () => {
+    const user = userEvent.setup();
+    const loadThreads = vi.fn();
+    const loadDirects = vi.fn();
+    render(
+      <ActivityFeed
+        workspaceId={WORKSPACE_ID}
+        channel="ops"
+        directs={[]}
+        directTotal={3}
+        hasMoreDirects
+        hasMoreThreads
+        isLoading={false}
+        onLoadMoreDirects={loadDirects}
+        onLoadMoreThreads={loadThreads}
+        threadTotal={4}
+        threads={[]}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more threads" }));
+    await user.click(screen.getByRole("button", { name: "Load more direct rooms" }));
+    expect(loadThreads).toHaveBeenCalledTimes(1);
+    expect(loadDirects).toHaveBeenCalledTimes(1);
   });
 });

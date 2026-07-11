@@ -2,19 +2,17 @@ import { Plus, RefreshCw, Settings2 } from "lucide-react";
 
 import { Button, Pill, cn } from "@agh/ui";
 
-import type { SessionPayload } from "@/systems/session";
 import type { AgentPayload } from "../types";
 
 export interface AgentPageStatusPillProps {
-  sessions: SessionPayload[];
+  activeCount: number;
 }
 
 /**
  * Pill that surfaces whether any of an agent's sessions are active. Routes
  * compose it into the topbar slot or detail body.
  */
-export function AgentPageStatusPill({ sessions }: AgentPageStatusPillProps) {
-  const activeCount = sessions.filter(session => session.state === "active").length;
+export function AgentPageStatusPill({ activeCount }: AgentPageStatusPillProps) {
   const status =
     activeCount > 0
       ? { label: "ACTIVE", tone: "success" as const }

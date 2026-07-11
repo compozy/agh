@@ -7,8 +7,8 @@ import { StorySurface } from "@/storybook/story-layout";
 
 import { LoopCatalog } from "../catalog/loop-catalog";
 import { LoopCatalogFilters } from "../catalog/loop-catalog-filters";
-import type { LoopBindingKind } from "../../lib/loop-bindings";
 import type { LoopCatalogFilter, LoopKindFilter, LoopStatusFilter } from "../../lib/loop-catalog";
+import { loopCategories, loopStatuses, matchesLoopFilter } from "../../lib/loop-catalog";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopCatalog> = {
@@ -20,7 +20,6 @@ const meta: Meta<typeof LoopCatalog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const BOUND_LOOPS = new Map<string, LoopBindingKind[]>([["software-delivery", ["schedule"]]]);
 const DEFAULT_FILTER: LoopCatalogFilter = { kind: "all", category: null, status: null };
 
 function CatalogHarness({
@@ -33,6 +32,13 @@ function CatalogHarness({
   const [filter, setFilter] = useState<LoopCatalogFilter>(initialFilter);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<ListingViewMode>(initialView);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const entries = loopCatalogFixtures.filter(
+    entry =>
+      matchesLoopFilter(entry, filter) &&
+      (normalizedQuery === "" ||
+        `${entry.name} ${entry.contract.goal}`.toLowerCase().includes(normalizedQuery))
+  );
 
   return (
     <StorySurface className="p-8">
@@ -47,8 +53,8 @@ function CatalogHarness({
             />
             <ListingToolbar.Filters>
               <LoopCatalogFilters
+                categories={loopCategories(loopCatalogFixtures)}
                 categoryFilter={filter.category}
-                entries={loopCatalogFixtures}
                 kindFilter={filter.kind}
                 onCategoryFilterChange={(category: string | null) =>
                   setFilter(current => ({ ...current, category }))
@@ -60,6 +66,7 @@ function CatalogHarness({
                   setFilter(current => ({ ...current, status }))
                 }
                 statusFilter={filter.status}
+                statuses={loopStatuses(loopCatalogFixtures)}
               />
             </ListingToolbar.Filters>
           </ListingToolbar.Leading>
@@ -68,15 +75,18 @@ function CatalogHarness({
           </ListingToolbar.Trailing>
         </ListingToolbar>
         <LoopCatalog
-          boundLoops={BOUND_LOOPS}
-          entries={loopCatalogFixtures}
-          filter={filter}
+          entries={entries}
+          hasActiveFilters={
+            searchQuery.trim() !== "" ||
+            filter.kind !== "all" ||
+            filter.category !== null ||
+            filter.status !== null
+          }
           onClearFilters={() => {
             setFilter(DEFAULT_FILTER);
             setSearchQuery("");
           }}
           onRun={() => {}}
-          searchQuery={searchQuery}
           view={view}
         />
       </div>

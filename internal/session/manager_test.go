@@ -1354,6 +1354,77 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	}
 }
 
+func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a failed single event out of live reload and turn completion", func(t *testing.T) {
+		t.Parallel()
+
+		recordErr := errors.New("projection failed token=super-secret")
+		recorder := &failingSinglePromptRecorder{failErr: recordErr}
+		h := newHarness(t, WithStore(func(context.Context, string, string) (EventRecorder, error) {
+			return recorder, nil
+		}))
+		turnEnds := 0
+		h.manager.SetTurnEndNotifier(func(string) { turnEnds++ })
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				defer close(events)
+				events <- acp.AgentEvent{
+					Type:       acp.EventTypeToolCall,
+					SessionID:  proc.handle.SessionID,
+					TurnID:     req.TurnID,
+					ToolCallID: "call-failed",
+					Title:      "Read",
+				}
+			}()
+			return events, nil
+		}
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if _, active := h.manager.Get(session.ID); active {
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+					!errors.Is(err, ErrSessionNotFound) {
+					t.Errorf("Stop() cleanup error = %v", err)
+				}
+			}
+		})
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		if delivered := collectEvents(t, eventsCh); len(delivered) != 0 {
+			t.Fatalf("Prompt() delivered = %#v, want no unpersisted event", delivered)
+		}
+		if got := countAgentEvents(h.notifier.eventsForSession(session.ID), acp.EventTypeToolCall); got != 0 {
+			t.Fatalf("tool call notifier events = %d, want zero", got)
+		}
+		if turnEnds != 0 {
+			t.Fatalf("turn end notifications = %d, want zero", turnEnds)
+		}
+		waitForCondition(t, "session stopped after single persistence failure", func() bool {
+			_, active := h.manager.Get(session.ID)
+			return !active
+		})
+		meta := readMeta(t, session.MetaPath())
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureTransport {
+			t.Fatalf("stopped session failure = %#v, want transport failure", meta.Failure)
+		}
+		if strings.Contains(meta.Failure.Summary, "super-secret") {
+			t.Fatalf("stopped session failure leaked secret: %q", meta.Failure.Summary)
+		}
+		reloaded, queryErr := recorder.Query(testutil.Context(t), store.EventQuery{})
+		if queryErr != nil {
+			t.Fatalf("Query(reload) error = %v", queryErr)
+		}
+		if got := countEventType(reloaded, acp.EventTypeToolCall); got != 0 {
+			t.Fatalf("reloaded tool_call rows = %d, want zero", got)
+		}
+	})
+}
+
 func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	t.Parallel()
 
@@ -4359,6 +4430,57 @@ func (f *fakeNetworkPeerLifecycle) leaveCall(index int) string {
 
 type fakeEventRecorder struct {
 	closeCalls int
+}
+
+type failingSinglePromptRecorder struct {
+	mu      sync.Mutex
+	failErr error
+	failed  bool
+	events  []store.SessionEvent
+}
+
+func (r *failingSinglePromptRecorder) Record(ctx context.Context, event store.SessionEvent) error {
+	_, err := r.RecordPersisted(ctx, event)
+	return err
+}
+
+func (r *failingSinglePromptRecorder) RecordPersisted(
+	_ context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.failed || event.Type == acp.EventTypeToolCall {
+		r.failed = true
+		return store.SessionEvent{}, r.failErr
+	}
+	event.Sequence = int64(len(r.events) + 1)
+	r.events = append(r.events, event)
+	return event, nil
+}
+
+func (r *failingSinglePromptRecorder) RecordTokenUsage(context.Context, store.TokenUsage) error {
+	return nil
+}
+
+func (r *failingSinglePromptRecorder) Query(
+	context.Context,
+	store.EventQuery,
+) ([]store.SessionEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]store.SessionEvent(nil), r.events...), nil
+}
+
+func (r *failingSinglePromptRecorder) History(
+	context.Context,
+	store.EventQuery,
+) ([]store.TurnHistory, error) {
+	return nil, nil
+}
+
+func (r *failingSinglePromptRecorder) Close(context.Context) error {
+	return nil
 }
 
 func (r *fakeEventRecorder) Record(context.Context, store.SessionEvent) error {

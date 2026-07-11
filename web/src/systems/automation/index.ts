@@ -3,6 +3,8 @@ export type {
   AutomationFireLimit,
   AutomationJob,
   AutomationJobListFilter,
+  AutomationJobsListResponse,
+  AutomationJobStableFilter,
   AutomationKind,
   AutomationRetry,
   AutomationRun,
@@ -18,6 +20,8 @@ export type {
   AutomationTrigger,
   AutomationTriggerFilter,
   AutomationTriggerListFilter,
+  AutomationTriggersListResponse,
+  AutomationTriggerStableFilter,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
   UpdateAutomationJobRequest,
@@ -82,8 +86,6 @@ export {
   describeRetry,
   describeSchedule,
   describeTrigger,
-  filterAutomationJobs,
-  filterAutomationTriggers,
   formatAutomationListSummary,
   formatDate,
   formatDateTime,
@@ -91,8 +93,6 @@ export {
   formatRelativeTime,
   formatRunDuration,
   formatRunTitle,
-  sortAutomationJobs,
-  sortAutomationTriggers,
 } from "./lib/automation-formatters";
 
 // Hooks

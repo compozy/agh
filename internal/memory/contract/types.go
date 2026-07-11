@@ -14,16 +14,17 @@ var ErrNotImplemented = errors.New("memory provider: not implemented")
 
 // Header contains validated metadata parsed from a memory file frontmatter.
 type Header struct {
-	Filename    string      `json:"filename"              yaml:"-"`
-	FilePath    string      `json:"-"                     yaml:"-"`
-	ModTime     time.Time   `json:"mod_time"              yaml:"-"`
-	Name        string      `json:"name"                  yaml:"name"`
-	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
-	Type        Type        `json:"type"                  yaml:"type"`
-	Scope       Scope       `json:"scope,omitempty"       yaml:"scope,omitempty"`
-	AgentName   string      `json:"agent_name,omitempty"  yaml:"agent,omitempty"`
-	AgentTier   AgentTier   `json:"agent_tier,omitempty"  yaml:"agent_tier,omitempty"`
-	Provenance  *Provenance `json:"provenance,omitempty"  yaml:"provenance,omitempty"`
+	Filename    string      `json:"filename"               yaml:"-"`
+	FilePath    string      `json:"-"                      yaml:"-"`
+	ModTime     time.Time   `json:"mod_time"               yaml:"-"`
+	Name        string      `json:"name"                   yaml:"name"`
+	Description string      `json:"description,omitempty"  yaml:"description,omitempty"`
+	Type        Type        `json:"type"                   yaml:"type"`
+	Scope       Scope       `json:"scope,omitempty"        yaml:"scope,omitempty"`
+	WorkspaceID string      `json:"workspace_id,omitempty" yaml:"-"`
+	AgentName   string      `json:"agent_name,omitempty"   yaml:"agent,omitempty"`
+	AgentTier   AgentTier   `json:"agent_tier,omitempty"   yaml:"agent_tier,omitempty"`
+	Provenance  *Provenance `json:"provenance,omitempty"   yaml:"provenance,omitempty"`
 }
 
 // Normalize trims and normalizes the parsed memory header metadata in place.
@@ -32,6 +33,7 @@ func (h *Header) Normalize() {
 	h.Description = strings.TrimSpace(h.Description)
 	h.Type = h.Type.Normalize()
 	h.Scope = h.Scope.Normalize()
+	h.WorkspaceID = strings.TrimSpace(h.WorkspaceID)
 	h.AgentName = strings.TrimSpace(h.AgentName)
 	h.AgentTier = h.AgentTier.Normalize()
 	if h.Provenance != nil {

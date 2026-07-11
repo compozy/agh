@@ -12,17 +12,14 @@ import (
 
 func TestGoUnitTestPackageLimit(t *testing.T) {
 	// t.Setenv forbids t.Parallel (L-002); the whole test stays serial.
-	defaultLimit := runtime.NumCPU() / 2
-	if defaultLimit < 4 {
-		defaultLimit = 4
-	}
+	defaultLimit := goUnitTestPackageLimitFor(runtime.GOMAXPROCS(0), goUnitTestParallelism)
 	cases := []struct {
 		name  string
 		value string
 		want  string
 	}{
 		{
-			name:  "Should default to half the cores floored at four when unset",
+			name:  "Should default to the combined lane capacity when unset",
 			value: "",
 			want:  strconv.Itoa(defaultLimit),
 		},
@@ -35,6 +32,36 @@ func TestGoUnitTestPackageLimit(t *testing.T) {
 			t.Setenv(goTestPackageLimitEnvVar, tc.value)
 			if got := goUnitTestPackageLimit(); got != tc.want {
 				t.Fatalf("goUnitTestPackageLimit() with %q = %q, want %q", tc.value, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGoUnitTestPackageLimitFor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		effectiveCPU int
+		parallelism  int
+		want         int
+	}{
+		{name: "Should keep one group on four CPUs", effectiveCPU: 4, parallelism: 4, want: 1},
+		{name: "Should keep one group on twelve CPUs", effectiveCPU: 12, parallelism: 4, want: 1},
+		{name: "Should allow two groups on sixteen CPUs", effectiveCPU: 16, parallelism: 4, want: 2},
+		{name: "Should allow four groups on thirty two CPUs", effectiveCPU: 32, parallelism: 4, want: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := goUnitTestPackageLimitFor(tt.effectiveCPU, tt.parallelism); got != tt.want {
+				t.Fatalf(
+					"goUnitTestPackageLimitFor(%d, %d) = %d, want %d",
+					tt.effectiveCPU,
+					tt.parallelism,
+					got,
+					tt.want,
+				)
 			}
 		})
 	}

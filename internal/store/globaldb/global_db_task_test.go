@@ -1740,6 +1740,543 @@ func TestGlobalDBListTasksSearchAndActivityOrdering(t *testing.T) {
 	}
 }
 
+func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should filter and count the complete catalog before the page cut", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		for index := range 125 {
+			record := taskRecordForTest(fmt.Sprintf("task-catalog-%03d", index))
+			record.UpdatedAt = base.Add(time.Duration(index) * time.Second)
+			record.Priority = taskpkg.PriorityLow
+			if index%2 == 0 {
+				record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+			} else {
+				record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:bob"}
+			}
+			if index == 3 {
+				record.Status = taskpkg.TaskStatusDraft
+			}
+			if index == 7 {
+				record.Status = taskpkg.TaskStatusBlocked
+				record.Priority = taskpkg.PriorityUrgent
+			}
+			if index == 121 {
+				record.Title = "Needle beyond the former prefix"
+				record.Priority = taskpkg.PriorityHigh
+			}
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+
+		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Search:        "needle",
+			IncludeDrafts: true,
+			Limit:         5,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(search) error = %v", err)
+		}
+		if got, want := page.Total, 1; got != want {
+			t.Fatalf("ListTaskCatalog(search).Total = %d, want %d", got, want)
+		}
+		if got, want := orderedTaskSummaryIDs(page.Tasks), []string{"task-catalog-121"}; !testutil.EqualStringSlices(
+			got,
+			want,
+		) {
+			t.Fatalf("ListTaskCatalog(search) ids = %#v, want %#v", got, want)
+		}
+		if got, want := page.StatusFacets, []taskpkg.CatalogStatusFacet{{
+			Status: taskpkg.TaskStatusReady,
+			Count:  1,
+		}}; !equalTaskCatalogStatusFacets(got, want) {
+			t.Fatalf("ListTaskCatalog(search).StatusFacets = %#v, want %#v", got, want)
+		}
+
+		counting := &countingTaskCatalogExecutor{taskSQLExecutor: globalDB.db}
+		normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			IncludeDrafts: true,
+			Limit:         10,
+		})
+		if err != nil {
+			t.Fatalf("NormalizeCatalogQuery() error = %v", err)
+		}
+		countedPage, err := listTaskCatalogWithExecutor(ctx, counting, normalized)
+		if err != nil {
+			t.Fatalf("listTaskCatalogWithExecutor() error = %v", err)
+		}
+		if got, want := counting.reads, 2; got != want {
+			t.Fatalf("task catalog read statements = %d, want constant %d", got, want)
+		}
+		if got, want := countedPage.Total, 125; got != want {
+			t.Fatalf("listTaskCatalogWithExecutor().Total = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should page without gaps after the captured anchor changes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
+		for index := range 17 {
+			record := taskRecordForTest(fmt.Sprintf("task-cursor-%02d", index))
+			record.UpdatedAt = base.Add(time.Duration(index) * time.Second)
+			record.Priority = []taskpkg.Priority{
+				taskpkg.PriorityLow,
+				taskpkg.PriorityMedium,
+				taskpkg.PriorityHigh,
+				taskpkg.PriorityUrgent,
+			}[index%4]
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+
+		query := taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			IncludeDrafts: true,
+			Sort:          taskpkg.CatalogSortPriority,
+			Limit:         4,
+		}
+		first, err := globalDB.ListTaskCatalog(ctx, query)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(first) error = %v", err)
+		}
+		if !first.HasMore || first.NextCursor == "" {
+			t.Fatalf("ListTaskCatalog(first) page = %#v, want continuation", first)
+		}
+		anchorID := first.Tasks[len(first.Tasks)-1].ID
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE tasks SET updated_at = ? WHERE id = ?`,
+			store.FormatTimestamp(base.Add(24*time.Hour)),
+			anchorID,
+		); err != nil {
+			t.Fatalf("move catalog anchor error = %v", err)
+		}
+
+		seen := make(map[string]struct{}, 17)
+		for _, item := range first.Tasks {
+			seen[item.ID] = struct{}{}
+		}
+		query.Cursor = first.NextCursor
+		for query.Cursor != "" {
+			page, pageErr := globalDB.ListTaskCatalog(ctx, query)
+			if pageErr != nil {
+				t.Fatalf("ListTaskCatalog(next) error = %v", pageErr)
+			}
+			for _, item := range page.Tasks {
+				if _, duplicate := seen[item.ID]; duplicate {
+					t.Fatalf("ListTaskCatalog() duplicated task %q", item.ID)
+				}
+				seen[item.ID] = struct{}{}
+			}
+			query.Cursor = page.NextCursor
+		}
+		if got, want := len(seen), 17; got != want {
+			t.Fatalf("unique paged tasks = %d, want %d", got, want)
+		}
+
+		mismatch := query
+		mismatch.Cursor = first.NextCursor
+		mismatch.Search = "different"
+		if _, err := globalDB.ListTaskCatalog(ctx, mismatch); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf("ListTaskCatalog(mismatched cursor) error = %v, want %v", err, taskpkg.ErrCatalogCursorInvalid)
+		}
+	})
+
+	t.Run("Should derive canonical status before filters and self-filtered facets", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
+
+		running := taskRecordForTest("task-canonical-running")
+		running.Status = taskpkg.TaskStatusReady
+		running.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		running.UpdatedAt = base
+		if err := globalDB.CreateTask(ctx, running); err != nil {
+			t.Fatalf("CreateTask(running) error = %v", err)
+		}
+		run := taskRunForTest("run-canonical-running", running.ID)
+		run.QueuedAt = base.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(running) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs
+			 SET status = 'running', claimed_by_kind = 'daemon', claimed_by_ref = 'scheduler',
+			     session_id = 'sess-canonical-running', claimed_at = ?, started_at = ?
+			 WHERE id = ?`,
+			store.FormatTimestamp(base.Add(2*time.Minute)),
+			store.FormatTimestamp(base.Add(3*time.Minute)),
+			run.ID,
+		); err != nil {
+			t.Fatalf("promote canonical running run error = %v", err)
+		}
+
+		paused := taskRecordForTest("task-canonical-paused")
+		paused.Status = taskpkg.TaskStatusReady
+		paused.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		paused.Paused = true
+		paused.PausedBy = "user:alice"
+		paused.PausedAt = base.Add(4 * time.Minute)
+		paused.PausedReason = "operator pause"
+		paused.UpdatedAt = base.Add(4 * time.Minute)
+		if err := globalDB.CreateTask(ctx, paused); err != nil {
+			t.Fatalf("CreateTask(paused) error = %v", err)
+		}
+
+		dependency := taskRecordForTest("task-canonical-dependency")
+		dependency.Status = taskpkg.TaskStatusPending
+		dependency.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:bob"}
+		dependency.UpdatedAt = base.Add(5 * time.Minute)
+		if err := globalDB.CreateTask(ctx, dependency); err != nil {
+			t.Fatalf("CreateTask(dependency) error = %v", err)
+		}
+		dependent := taskRecordForTest("task-canonical-dependent")
+		dependent.Status = taskpkg.TaskStatusReady
+		dependent.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:bob"}
+		dependent.UpdatedAt = base.Add(6 * time.Minute)
+		if err := globalDB.CreateTask(ctx, dependent); err != nil {
+			t.Fatalf("CreateTask(dependent) error = %v", err)
+		}
+		if err := globalDB.CreateDependency(ctx, taskpkg.Dependency{
+			TaskID:          dependent.ID,
+			DependsOnTaskID: dependency.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+			CreatedAt:       base.Add(7 * time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateDependency() error = %v", err)
+		}
+		completedDependency := taskRecordForTest("task-canonical-completed-dependency")
+		completedDependency.Status = taskpkg.TaskStatusReady
+		completedDependency.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:bob"}
+		completedDependency.UpdatedAt = base.Add(8 * time.Minute)
+		if err := globalDB.CreateTask(ctx, completedDependency); err != nil {
+			t.Fatalf("CreateTask(completed dependency) error = %v", err)
+		}
+		completedRun := taskRunForTest("run-canonical-completed-dependency", completedDependency.ID)
+		completedRun.Status = taskpkg.TaskRunStatusCompleted
+		completedRun.StartedAt = base.Add(9 * time.Minute)
+		completedRun.EndedAt = base.Add(10 * time.Minute)
+		if err := globalDB.CreateTaskRun(ctx, completedRun); err != nil {
+			t.Fatalf("CreateTaskRun(completed dependency) error = %v", err)
+		}
+		released := taskRecordForTest("task-canonical-released-dependent")
+		released.Title = "Released by canonical dependency completion"
+		released.Status = taskpkg.TaskStatusReady
+		released.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:bob"}
+		released.UpdatedAt = base.Add(11 * time.Minute)
+		if err := globalDB.CreateTask(ctx, released); err != nil {
+			t.Fatalf("CreateTask(released dependent) error = %v", err)
+		}
+		if err := globalDB.CreateDependency(ctx, taskpkg.Dependency{
+			TaskID:          released.ID,
+			DependsOnTaskID: completedDependency.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+			CreatedAt:       base.Add(12 * time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateDependency(released) error = %v", err)
+		}
+
+		inProgress, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Status:        taskpkg.TaskStatusInProgress,
+			IncludeDrafts: true,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(in_progress) error = %v", err)
+		}
+		if got, want := orderedTaskSummaryIDs(inProgress.Tasks), []string{running.ID}; !testutil.EqualStringSlices(
+			got,
+			want,
+		) {
+			t.Fatalf("in-progress ids = %#v, want %#v", got, want)
+		}
+		if got, want := inProgress.StatusFacets, []taskpkg.CatalogStatusFacet{{
+			Status: taskpkg.TaskStatusInProgress,
+			Count:  1,
+		}}; !equalTaskCatalogStatusFacets(got, want) {
+			t.Fatalf("in-progress status facets = %#v, want %#v", got, want)
+		}
+
+		blocked, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Status:        taskpkg.TaskStatusBlocked,
+			IncludeDrafts: true,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(blocked) error = %v", err)
+		}
+		if got, want := blocked.Total, 2; got != want {
+			t.Fatalf("blocked total = %d, want %d", got, want)
+		}
+		if got, want := blocked.StatusFacets, []taskpkg.CatalogStatusFacet{{
+			Status: taskpkg.TaskStatusBlocked,
+			Count:  2,
+		}}; !equalTaskCatalogStatusFacets(got, want) {
+			t.Fatalf("blocked status facets = %#v, want %#v", got, want)
+		}
+
+		alice, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			OwnerKind:     taskpkg.OwnerKindHuman,
+			OwnerRef:      "user:alice",
+			IncludeDrafts: true,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(owner) error = %v", err)
+		}
+		if got, want := alice.Total, 2; got != want {
+			t.Fatalf("alice total = %d, want %d", got, want)
+		}
+		if got, want := alice.OwnerFacets, []taskpkg.CatalogOwnerFacet{{
+			Owner: taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"},
+			Count: 2,
+		}}; len(got) != len(want) || got[0] != want[0] {
+			t.Fatalf("alice owner facets = %#v, want %#v", got, want)
+		}
+
+		releasedPage, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Search:        "released by canonical dependency completion",
+			IncludeDrafts: true,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(released dependency) error = %v", err)
+		}
+		if got, want := releasedPage.Total, 1; got != want {
+			t.Fatalf("released dependent total = %d, want %d", got, want)
+		}
+		if got, want := releasedPage.Tasks[0].Status, taskpkg.TaskStatusReady; got != want {
+			t.Fatalf("released dependent status = %q, want %q", got, want)
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB))
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContext("user:alice", taskpkg.OriginKindCLI, "catalog parity")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		enriched, err := manager.ListTasks(ctx, taskpkg.Query{Search: released.Title}, actor)
+		if err != nil {
+			t.Fatalf("ListTasks(enriched parity) error = %v", err)
+		}
+		if len(enriched) != 1 || enriched[0].Status != releasedPage.Tasks[0].Status {
+			t.Fatalf(
+				"catalog/enriched parity = %#v / %#v, want matching canonical status",
+				releasedPage.Tasks,
+				enriched,
+			)
+		}
+	})
+
+	t.Run("Should seek scoped history rows through task indexes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "catalog-plan", t.TempDir())
+		normalized, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeWorkspace,
+			WorkspaceID:   workspaceID,
+			IncludeDrafts: true,
+			Limit:         10,
+		})
+		if err != nil {
+			t.Fatalf("NormalizeCatalogQuery() error = %v", err)
+		}
+		baseWhere, baseArgs := taskCatalogBaseFilter(normalized)
+		where, filterArgs := taskCatalogFilter(normalized)
+		statement := taskCatalogStatement(
+			"SELECT "+taskCatalogSelectColumns+" FROM catalog",
+			baseWhere,
+			where,
+		) + taskCatalogOrderBy(normalized.Sort) + taskCatalogLimitClause(normalized.Limit+1)
+		args := append(append([]any(nil), baseArgs...), filterArgs...)
+		rows, err := globalDB.db.QueryContext(ctx, "EXPLAIN QUERY PLAN "+statement, args...)
+		if err != nil {
+			t.Fatalf("EXPLAIN QUERY PLAN task catalog error = %v", err)
+		}
+		defer func() {
+			if closeErr := rows.Close(); closeErr != nil {
+				t.Fatalf("close task catalog query plan rows error = %v", closeErr)
+			}
+		}()
+
+		details := make([]string, 0)
+		for rows.Next() {
+			var id int
+			var parent int
+			var unused int
+			var detail string
+			if scanErr := rows.Scan(&id, &parent, &unused, &detail); scanErr != nil {
+				t.Fatalf("scan task catalog query plan error = %v", scanErr)
+			}
+			details = append(details, detail)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate task catalog query plan error = %v", err)
+		}
+		plan := strings.Join(details, "\n")
+		for _, indexedSeek := range []string{
+			"SEARCH tr USING INDEX idx_task_runs_task",
+			"SEARCH te USING INDEX idx_task_events_task",
+			"idx_task_dependencies_task",
+		} {
+			if !strings.Contains(plan, indexedSeek) {
+				t.Fatalf("task catalog query plan missing %q:\n%s", indexedSeek, plan)
+			}
+		}
+		for _, globalScan := range []string{"SCAN task_runs", "SCAN task_events", "SCAN task_dependencies"} {
+			if strings.Contains(plan, globalScan) {
+				t.Fatalf("task catalog query plan contains global history scan %q:\n%s", globalScan, plan)
+			}
+		}
+	})
+
+	t.Run("Should treat percent and underscore as literal search text", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		for _, record := range []taskpkg.Task{
+			func() taskpkg.Task {
+				record := taskRecordForTest("task-search-literal")
+				record.Title = "Investigate literal %_ marker"
+				record.Status = taskpkg.TaskStatusReady
+				record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+				return record
+			}(),
+			func() taskpkg.Task {
+				record := taskRecordForTest("task-search-wildcard-decoy")
+				record.Title = "Investigate ordinary marker"
+				record.Status = taskpkg.TaskStatusReady
+				record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+				return record
+			}(),
+		} {
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+		catalog, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeGlobal,
+			Search:        "%_",
+			IncludeDrafts: true,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(literal search) error = %v", err)
+		}
+		got := orderedTaskSummaryIDs(catalog.Tasks)
+		want := []string{"task-search-literal"}
+		if !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("literal catalog search ids = %#v, want %#v", got, want)
+		}
+		inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+			Scope:  taskpkg.CatalogScopeGlobal,
+			Search: "%_",
+		}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
+		if err != nil {
+			t.Fatalf("ListTaskInbox(literal search) error = %v", err)
+		}
+		if got, want := inbox.Total, 1; got != want {
+			t.Fatalf("literal inbox search total = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should bind cursors to the resolved workspace boundary", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "catalog-a", t.TempDir())
+		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "catalog-b", t.TempDir())
+		for index, workspaceID := range []string{workspaceA, workspaceA, workspaceB, workspaceB} {
+			record := workspaceTaskRecordForTest(fmt.Sprintf("task-workspace-%d", index), workspaceID)
+			record.UpdatedAt = record.UpdatedAt.Add(time.Duration(index) * time.Minute)
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+
+		first, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeWorkspace,
+			WorkspaceID:   workspaceA,
+			IncludeDrafts: true,
+			Limit:         1,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(workspace A) error = %v", err)
+		}
+		if first.NextCursor == "" {
+			t.Fatal("ListTaskCatalog(workspace A).NextCursor = empty, want continuation")
+		}
+		_, err = globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeWorkspace,
+			WorkspaceID:   workspaceB,
+			IncludeDrafts: true,
+			Cursor:        first.NextCursor,
+			Limit:         1,
+		})
+		if !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf(
+				"ListTaskCatalog(cross-workspace cursor) error = %v, want %v",
+				err,
+				taskpkg.ErrCatalogCursorInvalid,
+			)
+		}
+	})
+}
+
+func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compute exact metadata and one page with two reads", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		record := taskRecordForTest("task-inbox-two-reads")
+		record.Status = taskpkg.TaskStatusReady
+		record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+		if err := globalDB.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"}
+		query, normalizedActor, err := taskpkg.NormalizeInboxQuery(taskpkg.InboxQuery{
+			Scope: taskpkg.CatalogScopeGlobal,
+			Limit: 10,
+		}, actor)
+		if err != nil {
+			t.Fatalf("NormalizeInboxQuery() error = %v", err)
+		}
+		counting := &countingTaskCatalogExecutor{taskSQLExecutor: globalDB.db}
+		page, err := listTaskInboxWithExecutor(ctx, counting, query, normalizedActor)
+		if err != nil {
+			t.Fatalf("listTaskInboxWithExecutor() error = %v", err)
+		}
+		if got, want := counting.reads, 2; got != want {
+			t.Fatalf("task inbox read statements = %d, want constant %d", got, want)
+		}
+		if got, want := page.Total, 1; got != want {
+			t.Fatalf("task inbox total = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	t.Parallel()
 
@@ -2892,6 +3429,44 @@ func workspaceTaskRecordForTest(id string, workspaceID string) taskpkg.Task {
 	taskRecord.Scope = taskpkg.ScopeWorkspace
 	taskRecord.WorkspaceID = workspaceID
 	return taskRecord
+}
+
+type countingTaskCatalogExecutor struct {
+	taskSQLExecutor
+	reads int
+}
+
+func (e *countingTaskCatalogExecutor) QueryContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (*sql.Rows, error) {
+	e.reads++
+	return e.taskSQLExecutor.QueryContext(ctx, query, args...)
+}
+
+func (e *countingTaskCatalogExecutor) QueryRowContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) *sql.Row {
+	e.reads++
+	return e.taskSQLExecutor.QueryRowContext(ctx, query, args...)
+}
+
+func equalTaskCatalogStatusFacets(
+	left []taskpkg.CatalogStatusFacet,
+	right []taskpkg.CatalogStatusFacet,
+) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func taskBlockRecordForTest(

@@ -3,6 +3,7 @@ import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 
 import type { SessionPayload } from "../types";
 import { sessionDetailOptions, sessionsListOptions } from "./query-options";
+import { flattenSessionPages } from "./session-list-query";
 
 type SessionThreadListAdapter = Parameters<typeof useRemoteThreadListRuntime>[0]["adapter"];
 
@@ -28,7 +29,10 @@ export function createSessionThreadListAdapter({
 }) {
   const adapter = {
     async list() {
-      const sessions = await queryClient.ensureQueryData(sessionsListOptions(workspaceId ?? null));
+      const sessionsPage = await queryClient.ensureInfiniteQueryData(
+        sessionsListOptions(workspaceId ? { workspace: workspaceId } : {})
+      );
+      const sessions = flattenSessionPages(sessionsPage) ?? [];
 
       return {
         threads: sessions.map(toThreadMetadata),

@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 
-import { networkKeys } from "../../lib/query-keys";
-import type { NetworkConversationMessage } from "../../types";
+import {
+  networkDirectMessagesOptions,
+  networkThreadMessagesOptions,
+} from "../../lib/query-options";
+import type {
+  NetworkConversationMessage,
+  NetworkDirectRoomMessagesResponse,
+  NetworkMessagePageParam,
+  NetworkThreadMessagesResponse,
+} from "../../types";
 
 const sendNetworkMessageMock = vi.fn();
 const resolveNetworkDirectRoomMock = vi.fn();
@@ -53,24 +61,70 @@ function createWrapper() {
   return { queryClient, wrapper };
 }
 
+function makeMessage(messageId: string, text: string): NetworkConversationMessage {
+  return {
+    body: { text },
+    channel: "ops",
+    direction: "sent",
+    kind: "say",
+    message_id: messageId,
+    peer_from: "peer-self",
+    text,
+    timestamp: "2026-07-11T00:00:00Z",
+  };
+}
+
+function makeMessageData<
+  TPage extends NetworkThreadMessagesResponse | NetworkDirectRoomMessagesResponse,
+>(pages: TPage[]): InfiniteData<TPage, NetworkMessagePageParam> {
+  return {
+    pages,
+    pageParams: pages.map((_, index) => (index === 0 ? null : { before: `page-${index}` })),
+  };
+}
+
 describe("useSendNetworkMessage", () => {
   beforeEach(() => {
     sendNetworkMessageMock.mockReset();
     toastErrorMock.mockReset();
   });
 
-  it("Should append an optimistic message immediately and replace it on success", async () => {
+  it("Should update only the canonical tail, preserve older pages, and reconcile from the response", async () => {
     const { queryClient, wrapper } = createWrapper();
+    const canonicalKey = networkThreadMessagesOptions("ws_alpha", "ops", "thread-1").queryKey;
+    const filteredKey = networkThreadMessagesOptions("ws_alpha", "ops", "thread-1", {
+      kind: "trace",
+    }).queryKey;
     queryClient.setQueryData(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
-      [] as NetworkConversationMessage[]
+      canonicalKey,
+      makeMessageData([
+        {
+          messages: [makeMessage("tail", "Newest persisted")],
+          page: { has_more: true, limit: 120, next_cursor: "older-cursor" },
+        },
+        {
+          messages: [makeMessage("older", "Older history")],
+          page: { has_more: false, limit: 120 },
+        },
+      ])
+    );
+    queryClient.setQueryData(
+      filteredKey,
+      makeMessageData([
+        {
+          messages: [makeMessage("trace-only", "Filtered history")],
+          page: { has_more: false, limit: 120 },
+        },
+      ])
     );
     sendNetworkMessageMock.mockResolvedValue({
       message: {
-        id: "client-id",
+        id: "server-id",
         kind: "say",
         channel: "ops",
         session_id: "sess-1",
+        surface: "thread",
+        thread_id: "thread-1",
       },
     });
 
@@ -91,32 +145,51 @@ describe("useSendNetworkMessage", () => {
       await Promise.resolve();
     });
 
-    const cacheAfterMutate = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
-    );
+    const cacheAfterMutate =
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(canonicalKey);
     expect(cacheAfterMutate).toBeDefined();
-    expect(cacheAfterMutate?.length).toBe(1);
-    expect(cacheAfterMutate?.[0]?.text).toBe("Hello world");
+    expect(cacheAfterMutate?.pages[0]?.messages.at(-1)?.text).toBe("Hello world");
+    expect(cacheAfterMutate?.pages[1]?.messages[0]?.message_id).toBe("older");
 
     await act(async () => {
       await promise;
     });
 
-    const cacheAfterSuccess = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
-    );
-    expect(cacheAfterSuccess?.length).toBe(1);
-    const replaced = cacheAfterSuccess?.[0] as NetworkConversationMessage & {
+    const cacheAfterSuccess =
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(canonicalKey);
+    expect(cacheAfterSuccess?.pages).toHaveLength(2);
+    const replaced = cacheAfterSuccess?.pages[0]?.messages.at(-1) as NetworkConversationMessage & {
       optimistic?: string;
     };
+    expect(replaced.message_id).toBe("server-id");
+    expect(replaced.thread_id).toBe("thread-1");
     expect(replaced?.optimistic).toBeUndefined();
+    expect(
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(filteredKey)
+    ).toEqual(
+      makeMessageData([
+        {
+          messages: [makeMessage("trace-only", "Filtered history")],
+          page: { has_more: false, limit: 120 },
+        },
+      ])
+    );
   });
 
   it("Should mark the optimistic message as failed when the send rejects", async () => {
     const { queryClient, wrapper } = createWrapper();
+    const key = networkThreadMessagesOptions("ws_alpha", "ops", "thread-1").queryKey;
     queryClient.setQueryData(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
-      [] as NetworkConversationMessage[]
+      key,
+      makeMessageData([
+        { messages: [], page: { has_more: false, limit: 120 } },
+      ] satisfies NetworkThreadMessagesResponse[])
     );
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
 
@@ -135,18 +208,24 @@ describe("useSendNetworkMessage", () => {
       )
     ).rejects.toThrow("boom");
 
-    const cache = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
-    );
-    const failed = cache?.[0] as NetworkConversationMessage & { optimistic?: string };
+    const cache =
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(key);
+    const failed = cache?.pages[0]?.messages[0] as NetworkConversationMessage & {
+      optimistic?: string;
+    };
     expect(failed?.optimistic).toBe("failed");
   });
 
   it("Should never construct a request body containing kind:'direct'", async () => {
     const { queryClient, wrapper } = createWrapper();
+    const key = networkDirectMessagesOptions("ws_alpha", "ops", "direct-1").queryKey;
     queryClient.setQueryData(
-      networkKeys.directMessages("ws_alpha", "ops", "direct-1"),
-      [] as NetworkConversationMessage[]
+      key,
+      makeMessageData([
+        { messages: [], page: { has_more: false, limit: 120 } },
+      ] satisfies NetworkDirectRoomMessagesResponse[])
     );
     sendNetworkMessageMock.mockResolvedValue({
       message: { id: "x", kind: "say", channel: "ops", session_id: "sess-1" },
@@ -175,9 +254,12 @@ describe("useSendNetworkMessage", () => {
 
   it("Should drop the optimistic message when discard is invoked", async () => {
     const { queryClient, wrapper } = createWrapper();
+    const key = networkThreadMessagesOptions("ws_alpha", "ops", "thread-1").queryKey;
     queryClient.setQueryData(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
-      [] as NetworkConversationMessage[]
+      key,
+      makeMessageData([
+        { messages: [], page: { has_more: false, limit: 120 } },
+      ] satisfies NetworkThreadMessagesResponse[])
     );
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
 
@@ -198,10 +280,11 @@ describe("useSendNetworkMessage", () => {
       }
     });
 
-    const cache = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
-    );
-    failedId = cache?.[0]?.message_id ?? "";
+    const cache =
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(key);
+    failedId = cache?.pages[0]?.messages[0]?.message_id ?? "";
     expect(failedId).toBeTruthy();
 
     act(() => {
@@ -218,10 +301,11 @@ describe("useSendNetworkMessage", () => {
       );
     });
 
-    const after = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
-    );
-    expect(after?.length).toBe(0);
+    const after =
+      queryClient.getQueryData<
+        InfiniteData<NetworkThreadMessagesResponse, NetworkMessagePageParam>
+      >(key);
+    expect(after?.pages[0]?.messages).toEqual([]);
   });
 });
 

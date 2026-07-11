@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
@@ -14,8 +15,8 @@ func TestBridgeListRendersScopePlatformAndStatusInHumanOutput(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
-		listBridgesFn: func(context.Context) ([]BridgeRecord, error) {
-			return []BridgeRecord{testBridgeRecord(t)}, nil
+		listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
+			return testBridgeListRecord(t), nil
 		},
 	})
 
@@ -29,6 +30,167 @@ func TestBridgeListRendersScopePlatformAndStatusInHumanOutput(t *testing.T) {
 			t.Fatalf("bridge list human output missing %q: %s", token, stdout)
 		}
 	}
+}
+
+func TestBridgeListForwardsCatalogQueryAndPreservesPageMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward every catalog filter and return the counted response", func(t *testing.T) {
+		t.Parallel()
+
+		var captured BridgeListQuery
+		result := testBridgeListRecord(t)
+		result.Page = contract.CountedCursorPagePayload{
+			NextCursor: "bridge-cursor",
+			HasMore:    true,
+			Total:      75,
+			Limit:      25,
+		}
+		deps := newTestDeps(t, &stubClient{
+			listBridgesFn: func(_ context.Context, query BridgeListQuery) (BridgeListRecord, error) {
+				captured = query
+				return result, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "list",
+			"--scope", "all",
+			"--workspace-id", "ws-alpha",
+			"--q", "needle",
+			"--platform", "telegram",
+			"--status", "ready",
+			"--sort", "name",
+			"--cursor", "bridge-cursor-in",
+			"--limit", "25",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge list json error = %v", err)
+		}
+		want := BridgeListQuery{
+			Scope:       "all",
+			WorkspaceID: "ws-alpha",
+			Search:      "needle",
+			Platform:    "telegram",
+			Status:      "ready",
+			Sort:        "name",
+			Cursor:      "bridge-cursor-in",
+			Limit:       25,
+		}
+		if captured != want {
+			t.Fatalf("ListBridges() query = %#v, want %#v", captured, want)
+		}
+		var decoded BridgeListRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(bridge list) error = %v", err)
+		}
+		if decoded.Page != result.Page || len(decoded.Bridges) != 1 {
+			t.Fatalf("decoded bridge list = %#v, want counted response %#v", decoded, result)
+		}
+	})
+
+	t.Run("Should reject ambiguous workspace filters before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
+				t.Fatal("ListBridges() should not be called for ambiguous workspace filters")
+				return BridgeListRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "list",
+			"--workspace-id", "ws-alpha",
+			"--workspace", "alpha",
+		)
+		if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+			t.Fatalf("bridge list ambiguous workspace error = %v, want validation", err)
+		}
+	})
+
+	for _, output := range []string{"human", "toon", "jsonl"} {
+		t.Run("Should preserve the continuation cursor in "+output+" output", func(t *testing.T) {
+			t.Parallel()
+
+			result := testBridgeListRecord(t)
+			result.Page = contract.CountedCursorPagePayload{
+				NextCursor: "bridge-cursor",
+				HasMore:    true,
+				Total:      75,
+				Limit:      25,
+			}
+			deps := newTestDeps(t, &stubClient{
+				listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
+					return result, nil
+				},
+			})
+			stdout, _, err := executeRootCommand(t, deps, "bridge", "list", "-o", output)
+			if err != nil {
+				t.Fatalf("bridge list %s error = %v", output, err)
+			}
+			if !strings.Contains(stdout, "bridge-cursor") {
+				t.Fatalf("bridge list %s output lost next cursor: %s", output, stdout)
+			}
+			if output == "jsonl" && !strings.Contains(stdout, `"type":"page"`) {
+				t.Fatalf("bridge list jsonl output missing page record: %s", stdout)
+			}
+		})
+	}
+
+	t.Run("Should preserve persisted and effective health status in typed JSONL items", func(t *testing.T) {
+		t.Parallel()
+
+		result := testBridgeListRecord(t)
+		bridgeID := result.Bridges[0].ID
+		result.Bridges[0].Status = bridgepkg.BridgeStatusReady
+		result.BridgeHealth[bridgeID] = contract.BridgeHealthPayload{
+			BridgeInstanceID: bridgeID,
+			Status:           bridgepkg.BridgeStatusError,
+			LastError:        "adapter crashed",
+		}
+		deps := newTestDeps(t, &stubClient{
+			listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
+				return result, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "bridge", "list", "-o", "jsonl")
+		if err != nil {
+			t.Fatalf("bridge list jsonl error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if got, want := len(lines), 2; got != want {
+			t.Fatalf("bridge list jsonl lines = %d, want %d: %s", got, want, stdout)
+		}
+		var item struct {
+			Type   string                       `json:"type"`
+			Bridge contract.BridgePayload       `json:"bridge"`
+			Health contract.BridgeHealthPayload `json:"health"`
+		}
+		if err := json.Unmarshal([]byte(lines[0]), &item); err != nil {
+			t.Fatalf("json.Unmarshal(jsonl item) error = %v", err)
+		}
+		if item.Type != "bridge" || item.Bridge.Status != bridgepkg.BridgeStatusReady ||
+			item.Health.Status != bridgepkg.BridgeStatusError || item.Health.LastError != "adapter crashed" {
+			t.Fatalf("jsonl item = %#v, want typed bridge plus effective error health", item)
+		}
+		var terminal struct {
+			Type   string                              `json:"type"`
+			Page   contract.CountedCursorPagePayload   `json:"page"`
+			Facets contract.BridgeCatalogFacetsPayload `json:"facets"`
+		}
+		if err := json.Unmarshal([]byte(lines[1]), &terminal); err != nil {
+			t.Fatalf("json.Unmarshal(jsonl terminal) error = %v", err)
+		}
+		if terminal.Type != "page" || terminal.Page != result.Page || terminal.Facets.Statuses.Ready != 1 {
+			t.Fatalf("jsonl terminal = %#v, want page and facets", terminal)
+		}
+	})
 }
 
 func TestBridgeGetReturnsStructuredJSONOutput(t *testing.T) {
@@ -628,5 +790,36 @@ func testBridgeRecord(t *testing.T) BridgeRecord {
 		}),
 		CreatedAt: fixedTestNow.Add(-time.Hour),
 		UpdatedAt: fixedTestNow,
+	}
+}
+
+func testBridgeListRecord(t *testing.T) BridgeListRecord {
+	t.Helper()
+
+	item := testBridgeRecord(t)
+	return BridgeListRecord{
+		Bridges: []contract.BridgePayload{{
+			ID:                   item.ID,
+			Scope:                item.Scope,
+			WorkspaceID:          item.WorkspaceID,
+			Platform:             item.Platform,
+			ExtensionName:        item.ExtensionName,
+			DisplayName:          item.DisplayName,
+			Enabled:              item.Enabled,
+			Status:               item.Status,
+			RoutingPolicy:        item.RoutingPolicy,
+			DeliveryDefaults:     contract.BridgeDeliveryDefaultsPayload(item.DeliveryDefaults),
+			NotificationSuppress: item.NotificationSuppress,
+			CreatedAt:            item.CreatedAt,
+			UpdatedAt:            item.UpdatedAt,
+		}},
+		BridgeHealth: map[string]contract.BridgeHealthPayload{
+			item.ID: {BridgeInstanceID: item.ID, Status: bridgepkg.BridgeStatusReady},
+		},
+		Facets: contract.BridgeCatalogFacetsPayload{
+			Platforms: map[string]int{"telegram": 1},
+			Statuses:  contract.BridgeStatusCountsPayload{Ready: 1},
+		},
+		Page: contract.CountedCursorPagePayload{Total: 1, Limit: bridgepkg.DefaultBridgeCatalogLimit},
 	}
 }

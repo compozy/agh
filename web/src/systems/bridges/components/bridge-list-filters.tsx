@@ -18,6 +18,7 @@ export interface BridgeListFiltersProps {
   scopeFilter: BridgeScopeFilter;
   platformFilter: BridgePlatformFilter | null;
   statusFilter: BridgeStatusFilter | null;
+  statuses?: readonly BridgeStatusFilter[];
   onScopeFilterChange: (next: BridgeScopeFilter) => void;
   onPlatformFilterChange: (next: BridgePlatformFilter | null) => void;
   onStatusFilterChange: (next: BridgeStatusFilter | null) => void;
@@ -31,11 +32,12 @@ function BridgeListFilters({
   scopeFilter,
   platformFilter,
   statusFilter,
+  statuses,
   onScopeFilterChange,
   onPlatformFilterChange,
   onStatusFilterChange,
 }: BridgeListFiltersProps) {
-  const fields = useMemo(() => buildBridgeFilterFields(platforms), [platforms]);
+  const fields = useMemo(() => buildBridgeFilterFields(platforms, statuses), [platforms, statuses]);
   const chips = useMemo(
     () =>
       bridgeFiltersToChips({

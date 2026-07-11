@@ -57,7 +57,7 @@ vi.mock("@/systems/status", () => ({
     health: { version: "0.1.0" },
     connectionStatus: "connected",
   }),
-  useStatus: () => ({ data: { user_home_dir: "/workspace/alpha" } }),
+  useDaemonStatus: () => ({ data: { user_home_dir: "/workspace/alpha" } }),
 }));
 
 vi.mock("@/systems/agent", () => ({

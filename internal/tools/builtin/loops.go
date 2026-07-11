@@ -192,7 +192,22 @@ func nativeLoopDescriptor(
 const loopListInputSchema = `{
 	"type":"object",
 	"additionalProperties":false,
-	"properties":{"workspace_id":{"type":"string"}}
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"q":{"type":"string"},
+		"kind":{"type":"string","enum":["read_only","workspace"]},
+		"category":{"type":"string"},
+		"status":{
+			"type":"string",
+			"enum":[
+				"queued","running","watching","needs-approval","paused","done",
+				"no-op","blocked","failed","exhausted","stalled"
+			]
+		},
+		"sort":{"type":"string","enum":["name"]},
+		"cursor":{"type":"string"},
+		"limit":{"type":"integer","minimum":1,"maximum":200}
+	}
 }`
 
 const loopNameInputSchema = `{

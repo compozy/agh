@@ -45,9 +45,15 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
-				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) ([]automationpkg.Job, error) {
+				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
 					listJobQuery = query
-					return []automationpkg.Job{job}, nil
+					return automationpkg.JobListPage{
+						Jobs:       []automationpkg.Job{job},
+						Total:      4,
+						Limit:      query.Limit,
+						HasMore:    true,
+						NextCursor: "job-next",
+					}, nil
 				},
 				GetJobFn: func(_ context.Context, id string) (automationpkg.Job, error) {
 					if id != job.ID {
@@ -83,9 +89,15 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				ListTriggersFn: func(
 					_ context.Context,
 					query automationpkg.TriggerListQuery,
-				) ([]automationpkg.Trigger, error) {
+				) (automationpkg.TriggerListPage, error) {
 					listTriggerQuery = query
-					return []automationpkg.Trigger{trigger}, nil
+					return automationpkg.TriggerListPage{
+						Triggers:   []automationpkg.Trigger{trigger},
+						Total:      6,
+						Limit:      query.Limit,
+						HasMore:    true,
+						NextCursor: "trigger-next",
+					}, nil
 				},
 				GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
 					if id != trigger.ID {
@@ -147,17 +159,21 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationJobsList,
-				Input:  json.RawMessage(`{"scope":"global","source":"dynamic","limit":3}`),
+				Input:  json.RawMessage(`{"scope":"global","source":"package","enabled":false,"q":"review","limit":3}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_jobs_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, jobListResult, []byte(`"job-1"`))
+		requireNativeStructuredContains(t, jobListResult, []byte(`"page"`))
+		requireNativeStructuredContains(t, jobListResult, []byte(`"total":4`))
 		if listJobQuery.Scope != automationpkg.AutomationScopeGlobal ||
-			listJobQuery.Source != automationpkg.JobSourceDynamic ||
+			listJobQuery.Source != automationpkg.JobSourcePackage ||
+			listJobQuery.Enabled == nil || *listJobQuery.Enabled ||
+			listJobQuery.Search != "review" ||
 			listJobQuery.Limit != 3 {
-			t.Fatalf("job list query = %#v, want global dynamic limit", listJobQuery)
+			t.Fatalf("job list query = %#v, want global package disabled limit", listJobQuery)
 		}
 
 		jobGetResult, err := registry.Call(
@@ -288,18 +304,29 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDAutomationTriggersList,
-				Input:  json.RawMessage(`{"scope":"global","event":"session.created","source":"dynamic","limit":4}`),
+				Input: json.RawMessage(`{
+					"scope":"global",
+					"event":"session.created",
+					"source":"package",
+					"enabled":true,
+					"q":"review",
+					"limit":4
+				}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(automation_triggers_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, triggerListResult, []byte(`"trigger-1"`))
+		requireNativeStructuredContains(t, triggerListResult, []byte(`"page"`))
+		requireNativeStructuredContains(t, triggerListResult, []byte(`"total":6`))
 		if listTriggerQuery.Scope != automationpkg.AutomationScopeGlobal ||
 			listTriggerQuery.Event != "session.created" ||
-			listTriggerQuery.Source != automationpkg.JobSourceDynamic ||
+			listTriggerQuery.Source != automationpkg.JobSourcePackage ||
+			listTriggerQuery.Enabled == nil || !*listTriggerQuery.Enabled ||
+			listTriggerQuery.Search != "review" ||
 			listTriggerQuery.Limit != 4 {
-			t.Fatalf("trigger list query = %#v, want event dynamic limit", listTriggerQuery)
+			t.Fatalf("trigger list query = %#v, want event package enabled limit", listTriggerQuery)
 		}
 
 		triggerGetResult, err := registry.Call(
@@ -692,8 +719,8 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		job := nativeAutomationJobFixture("job-1", automationpkg.JobSourceDynamic)
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Automation: apitest.StubAutomationManager{
-				ListJobsFn: func(context.Context, automationpkg.JobListQuery) ([]automationpkg.Job, error) {
-					return []automationpkg.Job{job}, nil
+				ListJobsFn: func(_ context.Context, query automationpkg.JobListQuery) (automationpkg.JobListPage, error) {
+					return automationpkg.JobListPage{Jobs: []automationpkg.Job{job}, Total: 1, Limit: query.Limit}, nil
 				},
 				CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
 					return automationpkg.Job{}, automationpkg.ErrJobNameTaken
@@ -728,6 +755,16 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationJobsList},
 		)
 		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing)
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAutomationJobsList,
+				Input:  json.RawMessage(`{"cursor":"not-a-cursor","limit":1}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonAutomationValidationFailed)
 
 		_, err = registry.Call(
 			t.Context(),

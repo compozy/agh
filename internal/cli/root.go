@@ -241,7 +241,7 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 			Type  string                `json:"type"`
 			Error contract.ErrorPayload `json:"error"`
 		}{
-			Type:  "error",
+			Type:  clientErrorKey,
 			Error: payload,
 		})
 		if marshalErr != nil {

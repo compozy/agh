@@ -38,6 +38,8 @@ type CreateOpts struct {
 // StoreOpener opens the per-session events store for a session directory.
 type StoreOpener func(ctx context.Context, sessionID string, path string) (EventRecorder, error)
 
+type sessionMetaReader func(path string) (store.SessionMeta, error)
+
 // IDGenerator returns unique identifiers for sessions and prompt turns.
 type IDGenerator func() string
 
@@ -79,8 +81,6 @@ type Manager struct {
 	soulLocks             map[string]chan struct{}
 	sessionHealthHookMu   sync.Mutex
 	sessionHealthHookLast map[string]time.Time
-	transcriptCacheMu     sync.Mutex
-	transcriptCache       map[string]*transcriptCacheEntry
 	streamEventsMu        sync.Mutex
 	streamEvents          *sessionEventBroadcaster
 
@@ -109,6 +109,7 @@ type Manager struct {
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    aghconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
+	readSessionMeta              sessionMetaReader
 	openStore, openQueryStore    StoreOpener
 	queryStoreExplicit           bool
 	queryStoreRuntime            *queryStoreRuntime

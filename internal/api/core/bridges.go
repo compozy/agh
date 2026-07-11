@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"net/http"
-	"reflect"
 	"strings"
 	"time"
 
@@ -31,143 +29,36 @@ type taskNotificationCursorReader interface {
 	GetCursor(ctx context.Context, key notifications.CursorKey) (notifications.Cursor, error)
 }
 
-type bridgeListQuery struct {
+type bridgeScopeQuery struct {
 	scope       string
 	workspaceID string
 }
 
-// ListBridges returns all persisted bridge instances.
-func (h *BaseHandlers) ListBridges(c *gin.Context) {
-	bridges, ok := h.bridgeService()
-	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
-		return
-	}
-
-	query, err := h.parseBridgeListQuery(c.Request.Context(), c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	instances, err := bridges.ListInstances(c.Request.Context())
-	if err != nil {
-		h.respondError(c, StatusForBridgeError(err), err)
-		return
-	}
-	instances = filterBridgeInstances(instances, query)
-	bridgeHealth, err := h.bridgeHealthMap(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-	providerCatalog := h.bridgeProviderCatalogForList(c.Request.Context(), bridges, instances)
-
-	payloads := make([]contract.BridgePayload, 0, len(instances))
-	var filteredHealth map[string]contract.BridgeHealthPayload
-	if bridgeHealth != nil {
-		filteredHealth = make(map[string]contract.BridgeHealthPayload, len(instances))
-	}
-	for _, instance := range instances {
-		payloads = append(payloads, BridgePayloadFromBridgeInstance(instance))
-		key := strings.TrimSpace(instance.ID)
-		var health contract.BridgeHealthPayload
-		if bridgeHealth != nil {
-			health = bridgeHealth[key]
-		}
-		enrichedHealth := h.bridgeHealthPayloadForListInstance(
-			c.Request.Context(),
-			bridges,
-			instance,
-			health,
-			providerCatalog,
-		)
-		if filteredHealth != nil || len(enrichedHealth.Diagnostics) > 0 || enrichedHealth.Degradation != nil {
-			if filteredHealth == nil {
-				filteredHealth = make(map[string]contract.BridgeHealthPayload, len(instances))
-			}
-			filteredHealth[key] = enrichedHealth
-		}
-	}
-
-	c.JSON(http.StatusOK, contract.BridgesResponse{Bridges: payloads, BridgeHealth: filteredHealth})
-}
-
-func (h *BaseHandlers) bridgeProviderCatalogForList(
-	ctx context.Context,
-	bridges BridgeService,
-	instances []bridgepkg.BridgeInstance,
-) *bridgeProviderCatalog {
-	if len(instances) == 0 {
-		return nil
-	}
-	loadedCatalog, err := loadBridgeProviderCatalog(ctx, bridges)
-	if err != nil {
-		if h.Logger != nil {
-			h.Logger.Warn(
-				"api: bridge diagnostics provider catalog unavailable; continuing with base health",
-				bridgesErrorKey,
-				err,
-			)
-		}
-		return nil
-	}
-	return &loadedCatalog
-}
-
-func (h *BaseHandlers) bridgeHealthPayloadForListInstance(
-	ctx context.Context,
-	bridges BridgeService,
-	instance bridgepkg.BridgeInstance,
-	health contract.BridgeHealthPayload,
-	providerCatalog *bridgeProviderCatalog,
-) contract.BridgeHealthPayload {
-	if providerCatalog == nil {
-		return bridgeBaseHealthPayload(instance, health)
-	}
-	enrichedHealth, err := h.bridgeHealthPayloadForInstance(
-		ctx,
-		bridges,
-		instance,
-		health,
-		providerCatalog,
-	)
-	if err != nil {
-		if h.Logger != nil {
-			h.Logger.Warn(
-				"api: bridge diagnostics enrichment failed; continuing with base health",
-				"bridge_id",
-				strings.TrimSpace(instance.ID),
-				bridgesErrorKey,
-				err,
-			)
-		}
-		return bridgeBaseHealthPayload(instance, health)
-	}
-	return enrichedHealth
-}
-
-func (h *BaseHandlers) parseBridgeListQuery(ctx context.Context, c *gin.Context) (bridgeListQuery, error) {
+func (h *BaseHandlers) parseBridgeScopeQuery(ctx context.Context, c *gin.Context) (bridgeScopeQuery, error) {
 	scope := strings.ToLower(strings.TrimSpace(c.Query("scope")))
 	switch scope {
 	case "", "all", string(bridgepkg.ScopeGlobal), string(bridgepkg.ScopeWorkspace):
 	default:
-		return bridgeListQuery{}, fmt.Errorf("%s: unsupported bridge list scope %q", h.transportName(), scope)
+		return bridgeScopeQuery{}, fmt.Errorf("%s: unsupported bridge list scope %q", h.transportName(), scope)
 	}
 
 	workspaceID, err := h.bridgeListWorkspaceID(ctx, c)
 	if err != nil {
-		return bridgeListQuery{}, err
+		return bridgeScopeQuery{}, err
 	}
 	if scope == string(bridgepkg.ScopeGlobal) && workspaceID != "" {
-		return bridgeListQuery{}, fmt.Errorf(
+		return bridgeScopeQuery{}, fmt.Errorf(
 			"%s: global bridge list scope cannot include workspace id",
 			h.transportName(),
 		)
 	}
 	if scope == string(bridgepkg.ScopeWorkspace) && workspaceID == "" {
-		return bridgeListQuery{}, fmt.Errorf("%s: workspace bridge list scope requires workspace id", h.transportName())
+		return bridgeScopeQuery{}, fmt.Errorf(
+			"%s: workspace bridge list scope requires workspace id",
+			h.transportName(),
+		)
 	}
-	return bridgeListQuery{scope: scope, workspaceID: workspaceID}, nil
+	return bridgeScopeQuery{scope: scope, workspaceID: workspaceID}, nil
 }
 
 func (h *BaseHandlers) bridgeListWorkspaceID(ctx context.Context, c *gin.Context) (string, error) {
@@ -184,21 +75,7 @@ func (h *BaseHandlers) bridgeListWorkspaceID(ctx context.Context, c *gin.Context
 	return "", nil
 }
 
-func filterBridgeInstances(instances []bridgepkg.BridgeInstance, query bridgeListQuery) []bridgepkg.BridgeInstance {
-	if query.scope == "" && query.workspaceID == "" {
-		return instances
-	}
-
-	filtered := make([]bridgepkg.BridgeInstance, 0, len(instances))
-	for _, instance := range instances {
-		if bridgeInstanceMatchesListQuery(instance, query) {
-			filtered = append(filtered, instance)
-		}
-	}
-	return filtered
-}
-
-func bridgeInstanceMatchesListQuery(instance bridgepkg.BridgeInstance, query bridgeListQuery) bool {
+func bridgeInstanceMatchesListQuery(instance bridgepkg.BridgeInstance, query bridgeScopeQuery) bool {
 	scope := instance.Scope.Normalize()
 	workspaceID := strings.TrimSpace(instance.WorkspaceID)
 	switch query.scope {
@@ -343,71 +220,6 @@ func (h *BaseHandlers) DisableBridge(c *gin.Context) {
 // RestartBridge restarts one bridge instance while preserving route ownership.
 func (h *BaseHandlers) RestartBridge(c *gin.Context) {
 	h.transitionBridge(c, (*BaseHandlers).restartBridge)
-}
-
-// StreamBridgeHealth streams bridge health snapshots over SSE.
-func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
-	if _, ok := h.bridgeService(); !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
-		return
-	}
-
-	query, err := h.parseBridgeListQuery(c.Request.Context(), c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-
-	snapshot, err := h.bridgeHealthStreamSnapshot(c.Request.Context(), query)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	writer, err := PrepareSSE(c)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	if err := h.writeBridgeHealthSnapshot(writer, snapshot); err != nil {
-		if h.Logger != nil {
-			h.Logger.Warn("api: failed to emit initial bridge health snapshot", bridgesErrorKey, err)
-		}
-		return
-	}
-	lastSnapshot := snapshot.BridgeHealth
-
-	ticker := time.NewTicker(h.PollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case <-ticker.C:
-			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(c.Request.Context(), query)
-			if pollErr != nil {
-				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: bridgesErrorKey,
-					Data: ErrorPayloadForError(pollErr),
-				})
-				return
-			}
-			if reflect.DeepEqual(nextSnapshot.BridgeHealth, lastSnapshot) {
-				continue
-			}
-			if err := h.writeBridgeHealthSnapshot(writer, nextSnapshot); err != nil {
-				if h.Logger != nil {
-					h.Logger.Warn("api: failed to emit bridge health snapshot", bridgesErrorKey, err)
-				}
-				return
-			}
-			lastSnapshot = nextSnapshot.BridgeHealth
-		}
-	}
 }
 
 // ListBridgeRoutes returns the persisted routes owned by one bridge instance.
@@ -1122,87 +934,6 @@ func (h *BaseHandlers) bridgeResponse(
 		Bridge: BridgePayloadFromBridgeInstance(instance),
 		Health: health,
 	}, nil
-}
-
-func (h *BaseHandlers) bridgeHealthStreamSnapshot(
-	ctx context.Context,
-	query bridgeListQuery,
-) (contract.BridgeHealthStreamPayload, error) {
-	health, err := h.bridgeHealthMap(ctx)
-	if err != nil {
-		return contract.BridgeHealthStreamPayload{}, err
-	}
-	health, err = h.filterBridgeHealthMap(ctx, health, query)
-	if err != nil {
-		return contract.BridgeHealthStreamPayload{}, err
-	}
-	if health == nil {
-		health = map[string]contract.BridgeHealthPayload{}
-	}
-
-	return contract.BridgeHealthStreamPayload{
-		GeneratedAt:  h.Now().UTC(),
-		BridgeHealth: health,
-	}, nil
-}
-
-func (h *BaseHandlers) filterBridgeHealthMap(
-	ctx context.Context,
-	health map[string]contract.BridgeHealthPayload,
-	query bridgeListQuery,
-) (map[string]contract.BridgeHealthPayload, error) {
-	if query.scope == "" && query.workspaceID == "" {
-		return health, nil
-	}
-
-	bridges, ok := h.bridgeService()
-	if !ok {
-		return nil, errBridgeServiceUnavailable
-	}
-	instances, err := bridges.ListInstances(ctx)
-	if err != nil {
-		return nil, err
-	}
-	instances = filterBridgeInstances(instances, query)
-
-	visibleIDs := make(map[string]struct{}, len(instances))
-	for _, instance := range instances {
-		bridgeID := strings.TrimSpace(instance.ID)
-		if bridgeID == "" {
-			continue
-		}
-		visibleIDs[bridgeID] = struct{}{}
-	}
-	filtered := make(map[string]contract.BridgeHealthPayload, len(visibleIDs))
-	for bridgeID := range visibleIDs {
-		if item, ok := health[bridgeID]; ok {
-			filtered[bridgeID] = item
-		}
-	}
-	return filtered, nil
-}
-
-func (h *BaseHandlers) writeBridgeHealthSnapshot(
-	writer FlushWriter,
-	snapshot contract.BridgeHealthStreamPayload,
-) error {
-	return WriteSSE(writer, SSEMessage{
-		ID:   bridgeHealthSnapshotID(snapshot),
-		Name: "snapshot",
-		Data: snapshot,
-	})
-}
-
-func bridgeHealthSnapshotID(snapshot contract.BridgeHealthStreamPayload) string {
-	timestamp := snapshot.GeneratedAt.UTC().Format(time.RFC3339Nano)
-	payload, err := json.Marshal(snapshot.BridgeHealth)
-	if err != nil {
-		return timestamp
-	}
-
-	hasher := fnv.New64a()
-	_, _ = hasher.Write(payload)
-	return fmt.Sprintf("%s|%016x", timestamp, hasher.Sum64())
 }
 
 func (h *BaseHandlers) bridgeHealthMap(ctx context.Context) (map[string]contract.BridgeHealthPayload, error) {

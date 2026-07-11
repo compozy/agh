@@ -1,17 +1,24 @@
 import type { ReactNode } from "react";
 
-type RouteOptionKey = "component" | "errorComponent" | "notFoundComponent" | "beforeLoad";
+type RouteOptionKey =
+  | "component"
+  | "errorComponent"
+  | "notFoundComponent"
+  | "beforeLoad"
+  | "loader";
 
 type RouteLike = {
   component?: unknown;
   errorComponent?: unknown;
   notFoundComponent?: unknown;
   beforeLoad?: unknown;
+  loader?: unknown;
   options?: {
     component?: unknown;
     errorComponent?: unknown;
     notFoundComponent?: unknown;
     beforeLoad?: unknown;
+    loader?: unknown;
   };
 };
 
@@ -43,4 +50,8 @@ export function routeNotFoundComponent<P>(route: RouteLike): (props: P) => React
 
 export function routeBeforeLoad(route: RouteLike): () => unknown {
   return requireRouteFunction(route, "beforeLoad", "beforeLoad") as () => unknown;
+}
+
+export function routeLoader<TArgs>(route: RouteLike): (args: TArgs) => unknown {
+  return requireRouteFunction(route, "loader", "loader") as (args: TArgs) => unknown;
 }

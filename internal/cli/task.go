@@ -279,60 +279,6 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newTaskListCommand(deps commandDeps) *cobra.Command {
-	var (
-		scopeRaw     string
-		workspaceRef string
-		statusRaw    string
-		ownerKindRaw string
-		ownerRef     string
-		parentTaskID string
-		networkRaw   string
-		last         int
-	)
-
-	cmd := &cobra.Command{
-		Use:   taskListKey,
-		Short: "List tasks",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			query, err := parseTaskListFilters(
-				scopeRaw,
-				workspaceRef,
-				statusRaw,
-				ownerKindRaw,
-				ownerRef,
-				parentTaskID,
-				networkRaw,
-				last,
-			)
-			if err != nil {
-				return err
-			}
-
-			tasks, err := client.ListTasks(cmd.Context(), query)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskSummaryListBundle(tasks))
-		},
-	}
-	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
-	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by task status")
-	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
-	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
-	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
-	cmd.Flags().StringVar(&networkRaw, "channel", "", "Filter by network channel")
-	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N tasks")
-	return cmd
-}
-
 func createTaskRecord(
 	cmd *cobra.Command,
 	deps commandDeps,
@@ -2661,53 +2607,6 @@ func newTaskRunCancelCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func parseTaskListFilters(
-	scopeRaw string,
-	workspaceRef string,
-	statusRaw string,
-	ownerKindRaw string,
-	ownerRef string,
-	parentTaskID string,
-	channelRaw string,
-	last int,
-) (TaskListQuery, error) {
-	scope, workspace, err := resolveTaskScopeWorkspace(scopeRaw, workspaceRef, false)
-	if err != nil {
-		return TaskListQuery{}, err
-	}
-	status, err := parseOptionalTaskStatus(statusRaw)
-	if err != nil {
-		return TaskListQuery{}, err
-	}
-	ownerKind, err := parseOptionalTaskOwnerKind(ownerKindRaw)
-	if err != nil {
-		return TaskListQuery{}, err
-	}
-	trimmedOwnerRef := strings.TrimSpace(ownerRef)
-	if (ownerKind != "" && trimmedOwnerRef == "") || (ownerKind == "" && trimmedOwnerRef != "") {
-		return TaskListQuery{}, errors.New(
-			"cli: --owner-kind and --owner-ref must be provided together",
-		)
-	}
-	if err := validateTaskChannelFlag(channelRaw); err != nil {
-		return TaskListQuery{}, err
-	}
-	if err := validateTaskLast(last); err != nil {
-		return TaskListQuery{}, err
-	}
-
-	return TaskListQuery{
-		Scope:          scope,
-		Workspace:      workspace,
-		Status:         status,
-		OwnerKind:      ownerKind,
-		OwnerRef:       trimmedOwnerRef,
-		ParentTaskID:   strings.TrimSpace(parentTaskID),
-		NetworkChannel: strings.TrimSpace(channelRaw),
-		Limit:          last,
-	}, nil
-}
-
 func parseTaskRunListFilters(
 	statusRaw string,
 	sessionID string,
@@ -3676,63 +3575,6 @@ func taskExecutionProfileDeleteBundle(id string) outputBundle {
 			), nil
 		},
 	}
-}
-
-func taskSummaryListBundle(items []TaskSummaryRecord) outputBundle {
-	return listBundle(
-		items,
-		items,
-		"Tasks",
-		[]string{
-			"ID",
-			taskIdentifierValue,
-			taskScopeValue,
-			taskWorkspaceValue,
-			taskParentValue,
-			taskStatusValue,
-			taskOwnerValue,
-			taskChannelValue,
-			taskTitleValue,
-		},
-		"tasks",
-		[]string{
-			"id",
-			taskIdentifierKey,
-			taskScopeKey,
-			taskWorkspaceIDKey,
-			"parent_task_id",
-			taskStatusKey,
-			taskOwnerKey,
-			taskNetworkChannelKey,
-			taskTitleKey,
-		},
-		func(item TaskSummaryRecord) []string {
-			return []string{
-				stringOrDash(item.ID),
-				stringOrDash(item.Identifier),
-				stringOrDash(string(item.Scope)),
-				stringOrDash(item.WorkspaceID),
-				stringOrDash(item.ParentTaskID),
-				stringOrDash(string(item.Status)),
-				stringOrDash(formatTaskOwnership(item.Owner)),
-				stringOrDash(item.NetworkChannel),
-				stringOrDash(item.Title),
-			}
-		},
-		func(item TaskSummaryRecord) []string {
-			return []string{
-				item.ID,
-				item.Identifier,
-				string(item.Scope),
-				item.WorkspaceID,
-				item.ParentTaskID,
-				string(item.Status),
-				formatTaskOwnership(item.Owner),
-				item.NetworkChannel,
-				item.Title,
-			}
-		},
-	)
 }
 
 func taskDetailBundle(detail *TaskDetailRecord) outputBundle {

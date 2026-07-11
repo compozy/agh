@@ -19,35 +19,37 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
 const { LoopCatalog } = await import("../catalog/loop-catalog");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-type LoopCatalogFilter = import("../../lib/loop-catalog").LoopCatalogFilter;
-type LoopBindingKind = import("../../lib/loop-bindings").LoopBindingKind;
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
 type ListingViewMode = import("@agh/ui").ListingViewMode;
-
-const BOUND = new Map<string, LoopBindingKind[]>([["software-delivery", ["schedule"]]]);
-const DEFAULT_FILTER: LoopCatalogFilter = { kind: "all", category: null, status: null };
 
 function Harness({
   onRun,
   onClearFilters = () => {},
-  filter = DEFAULT_FILTER,
-  searchQuery = "",
+  entries = loopCatalogFixtures,
+  hasActiveFilters = false,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  onLoadMore,
   view = "rows",
 }: {
   onRun: (entry: LoopCatalogEntry) => void;
   onClearFilters?: () => void;
-  filter?: LoopCatalogFilter;
-  searchQuery?: string;
+  entries?: readonly LoopCatalogEntry[];
+  hasActiveFilters?: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
   view?: ListingViewMode;
 }) {
   return (
     <LoopCatalog
-      boundLoops={BOUND}
-      entries={loopCatalogFixtures}
-      filter={filter}
+      entries={entries}
+      hasActiveFilters={hasActiveFilters}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
       onClearFilters={onClearFilters}
+      onLoadMore={onLoadMore}
       onRun={onRun}
-      searchQuery={searchQuery}
       view={view}
     />
   );
@@ -64,30 +66,24 @@ describe("LoopCatalog", () => {
     expect(screen.getByText("Watching")).toBeInTheDocument();
   });
 
-  it("Should show a binding badge only on rows with an attached loop-target automation", () => {
+  it("Should not claim sampled catalog-wide automation bindings", () => {
     render(<Harness onRun={() => {}} />);
-    const badges = screen.getAllByTestId("loop-binding-badge");
-    expect(badges).toHaveLength(1);
-    expect(badges[0].querySelector('[data-binding-kind="schedule"]')).toBeTruthy();
+    expect(screen.queryByTestId("loop-binding-badge")).not.toBeInTheDocument();
   });
 
-  it("Should filter by kind, hiding the non-matching group", () => {
-    render(
-      <Harness filter={{ kind: "read-only", category: null, status: null }} onRun={() => {}} />
-    );
+  it("Should render exactly the server-filtered entries it receives", () => {
+    render(<Harness entries={[loopCatalogFixtures[1]]} onRun={() => {}} />);
     expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-group-read-only")).toBeInTheDocument();
-  });
-
-  it("Should filter by category", () => {
-    render(<Harness filter={{ kind: "all", category: "watch", status: null }} onRun={() => {}} />);
     expect(screen.getByText("reviews-watch")).toBeInTheDocument();
     expect(screen.queryByText("software-delivery")).not.toBeInTheDocument();
   });
 
-  it("Should filter by search query and offer clear filters", () => {
+  it("Should offer clear filters when a server-filtered page is empty", () => {
     const onClearFilters = vi.fn();
-    render(<Harness onClearFilters={onClearFilters} onRun={() => {}} searchQuery="zzz-no-match" />);
+    render(
+      <Harness entries={[]} hasActiveFilters onClearFilters={onClearFilters} onRun={() => {}} />
+    );
     expect(screen.getByTestId("loop-catalog-empty")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("loop-catalog-clear-filters"));
     expect(onClearFilters).toHaveBeenCalledTimes(1);
@@ -135,5 +131,16 @@ describe("LoopCatalog", () => {
     const link = within(row).getByRole("link", { name: "Open software-delivery" });
     const runButton = within(row).getByTestId("loop-catalog-run-software-delivery");
     expect(link).not.toContainElement(runButton);
+  });
+
+  it("Should expose a loading-aware control for the next server page", () => {
+    const onLoadMore = vi.fn();
+    const { rerender } = render(<Harness hasNextPage onLoadMore={onLoadMore} onRun={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Load more loops" }));
+    expect(onLoadMore).toHaveBeenCalledOnce();
+
+    rerender(<Harness hasNextPage isFetchingNextPage onLoadMore={onLoadMore} onRun={() => {}} />);
+    expect(screen.getByTestId("loop-catalog-load-more")).toBeDisabled();
+    expect(screen.getByTestId("loop-catalog-load-more")).toHaveAttribute("aria-busy", "true");
   });
 });

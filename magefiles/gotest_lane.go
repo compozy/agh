@@ -16,7 +16,10 @@ import (
 // runtime-state scrubbing, so test lanes stay safe next to other worktrees and
 // stale QA-lab shell exports cannot couple otherwise-isolated runs.
 
-const goTestPackageLimitEnvVar = "AGH_GO_TEST_P"
+const (
+	goTestPackageLimitEnvVar = "AGH_GO_TEST_P"
+	goUnitTestParallelism    = 4
+)
 
 // ambientRuntimeStateEnvVars are the runtime identity vars a QA lab or dev
 // shell may export (bootstrap env block / worktree isolation envelope). Tests
@@ -34,9 +37,9 @@ var ambientRuntimeStateEnvVars = []string{
 	"PROVIDER_CODEX_HOME",
 }
 
-// goUnitTestPackageLimit resolves the unit lane's `go test -p` cap:
-// AGH_GO_TEST_P override first, else half the cores floored at 4 (equals
-// GOMAXPROCS on 4-core CI runners, halves peak load on wide dev machines).
+// goUnitTestPackageLimit resolves the unit lane's `go test -p` cap. An
+// explicit AGH_GO_TEST_P wins; otherwise the package fan-out accounts for the
+// per-package -parallel budget instead of multiplying it by the CPU count.
 func goUnitTestPackageLimit() string {
 	if raw := strings.TrimSpace(os.Getenv(goTestPackageLimitEnvVar)); raw != "" {
 		if value, err := strconv.Atoi(raw); err == nil && value > 0 {
@@ -44,11 +47,26 @@ func goUnitTestPackageLimit() string {
 		}
 		fmt.Printf("Warning: ignoring invalid %s=%q; using default cap\n", goTestPackageLimitEnvVar, raw)
 	}
-	limit := runtime.NumCPU() / 2
-	if limit < 4 {
-		limit = 4
+	return strconv.Itoa(goUnitTestPackageLimitFor(runtime.GOMAXPROCS(0), goUnitTestParallelism))
+}
+
+func goUnitTestPackageLimitFor(effectiveCPU, parallelism int) int {
+	if effectiveCPU < 1 {
+		effectiveCPU = 1
 	}
-	return strconv.Itoa(limit)
+	if parallelism < 1 {
+		parallelism = 1
+	}
+
+	totalBudget := effectiveCPU / 2
+	if totalBudget < parallelism {
+		totalBudget = parallelism
+	}
+	limit := totalBudget / parallelism
+	if limit < 1 {
+		return 1
+	}
+	return limit
 }
 
 func hermeticGoTestEnv(overrides map[string]string) []string {

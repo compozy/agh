@@ -211,7 +211,7 @@ func TestAutomationTaskHelpersUseExpectedPublicSurfaces(t *testing.T) {
 				t.Fatalf("tasks query = %q, want %q", got, want)
 			}
 			writeJSON(w, aghcontract.TasksResponse{
-				Tasks: []aghcontract.TaskSummaryPayload{{
+				Tasks: []aghcontract.TaskCatalogItemPayload{{
 					ID:          "task-1",
 					Scope:       taskpkg.ScopeWorkspace,
 					WorkspaceID: "ws-1",

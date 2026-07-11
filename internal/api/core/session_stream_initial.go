@@ -20,5 +20,5 @@ func (h *BaseHandlers) sessionStreamInitialEvents(
 }
 
 func sessionStreamNeedsInitialEvents(options sessionStreamOptions) bool {
-	return options.frameMode == contract.SessionStreamFrameRaw || !options.replaySnapshot
+	return options.frameMode == contract.SessionStreamFrameRaw
 }

@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   navigate: vi.fn(),
   toastError: vi.fn(),
+  useAutomationJobs: vi.fn(),
+  useAutomationTriggers: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -19,6 +21,12 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_default" }),
+}));
+
+vi.mock("@/systems/automation", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/automation")>()),
+  useAutomationJobs: mocks.useAutomationJobs,
+  useAutomationTriggers: mocks.useAutomationTriggers,
 }));
 
 vi.mock("@/systems/loops", () => {
@@ -37,13 +45,9 @@ vi.mock("@/systems/loops", () => {
     useCreateLoop: () => ({ isPending: false, mutateAsync: mocks.mutateAsync }),
     useLoop: () => ({ data: { source: "marketplace" } }),
     useLoopRuns: () => ({ data: [] }),
-    useLoops: () => ({ data: [] }),
+    useLoops: () => ({ loops: [] }),
   };
 });
-
-vi.mock("../use-loop-bindings", () => ({
-  useLoopBindings: () => ({ rows: [], isLoading: false }),
-}));
 
 const { useLoopDetail } = await import("../use-loop-detail");
 const { LoopsApiError } = await import("@/systems/loops");
@@ -53,6 +57,26 @@ describe("useLoopDetail", () => {
     mocks.mutateAsync.mockReset();
     mocks.navigate.mockReset();
     mocks.toastError.mockReset();
+    mocks.useAutomationJobs.mockReset();
+    mocks.useAutomationTriggers.mockReset();
+    mocks.useAutomationJobs.mockReturnValue({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      jobs: [],
+      total: 0,
+    });
+    mocks.useAutomationTriggers.mockReturnValue({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      total: 0,
+      triggers: [],
+    });
   });
 
   it("Should surface non-conflict fork failures instead of navigating silently", async () => {
@@ -82,6 +106,35 @@ describe("useLoopDetail", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/loops/$name/editor",
       params: { name: "reviews-watch" },
+    });
+  });
+
+  it("Should query exact loop bindings inside the target workspace with pageable limits", () => {
+    const { result } = renderHook(() => useLoopDetail("reviews-watch"));
+
+    expect(mocks.useAutomationJobs).toHaveBeenCalledWith(
+      {
+        limit: 50,
+        loop: "reviews-watch",
+        scope: "workspace",
+        workspace_id: "ws_default",
+      },
+      { enabled: true }
+    );
+    expect(mocks.useAutomationTriggers).toHaveBeenCalledWith(
+      {
+        limit: 50,
+        loop: "reviews-watch",
+        scope: "workspace",
+        workspace_id: "ws_default",
+      },
+      { enabled: true }
+    );
+    expect(result.current.bindings.jobs).toMatchObject({ loaded: 0, total: 0, hasMore: false });
+    expect(result.current.bindings.triggers).toMatchObject({
+      loaded: 0,
+      total: 0,
+      hasMore: false,
     });
   });
 });

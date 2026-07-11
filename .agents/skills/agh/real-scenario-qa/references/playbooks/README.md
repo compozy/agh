@@ -22,13 +22,13 @@ A playbook is a self-contained startup project that the AGH runtime executes aut
 
 1. Author `<playbook-ref>.md` in this directory.
 2. Conform to `references/playbook-schema.json`. Validate through the markdown-aware loader:
-   `python3 .agents/skills/real-scenario-qa/scripts/validate-playbook.py --repo-root . --playbook "<playbook-ref>"`
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/validate-playbook.py --repo-root . --playbook "<playbook-ref>"`
 3. Provide a single fenced ```` ```json ```` block at the END of the file with the canonical structured spec. Everything above the JSON is human-readable narrative; the bootstrap helper parses ONLY the JSON block.
 4. Add the row to the index table above.
 5. Verify the kickoff_brief contains zero forbidden meta-task phrases (see `references/forbidden-prompt-phrases.md`).
 6. Verify each agent's `system_prompt` is in-persona and never mentions QA, tester, audit, or evaluation.
 7. Smoke-test the bootstrap:
-   `python3 .agents/skills/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "smoke-<playbook>" --playbook "<playbook>" --repo-root .`
+   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "smoke-<playbook>" --playbook "<playbook>" --repo-root .`
 
 ## Anti-patterns (rejected by the auditor)
 

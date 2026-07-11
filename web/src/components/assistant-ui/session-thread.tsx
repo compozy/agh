@@ -8,10 +8,11 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { Activity, ArrowDown } from "lucide-react";
-import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
+import { type ComponentPropsWithoutRef, useEffect, useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
+import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
 import {
   recordSessionDebugEvent,
@@ -210,13 +211,48 @@ function ThreadViewport({
     messages: transcriptMessages,
     status: transcriptStatus,
     error: transcriptError,
+    hasOlder,
+    isFetchingOlder,
+    loadOlder,
     retry: retryTranscript,
   } = useSessionTranscriptThreadState();
+  const olderAnchorRef = useRef<{ messageId: string; offsetTop: number } | null>(null);
   const messageCount = transcriptMessages.length;
   const { virtualizer, showScrollToBottom, scrollToEnd } = useVirtualizedThreadMessages(
     viewportRef,
     transcriptMessages
   );
+  const loadOlderWithAnchor = () => {
+    const viewport = viewportRef.current;
+    if (viewport) {
+      const viewportTop = viewport.getBoundingClientRect().top;
+      const messageRows = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")];
+      const anchorRow =
+        messageRows.find(row => row.getBoundingClientRect().bottom >= viewportTop) ??
+        messageRows[0];
+      const messageId = anchorRow?.dataset.messageId;
+      olderAnchorRef.current =
+        anchorRow && messageId
+          ? { messageId, offsetTop: anchorRow.getBoundingClientRect().top - viewportTop }
+          : null;
+    }
+    loadOlder();
+  };
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const anchor = olderAnchorRef.current;
+    if (!viewport || !anchor || isFetchingOlder) return;
+    const anchorRow = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")].find(
+      row => row.dataset.messageId === anchor.messageId
+    );
+    if (anchorRow) {
+      const nextOffset =
+        anchorRow.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+      viewport.scrollTop += nextOffset - anchor.offsetTop;
+    }
+    olderAnchorRef.current = null;
+  }, [isFetchingOlder, messageCount]);
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -227,6 +263,9 @@ function ThreadViewport({
         data-testid="chat-view"
       >
         <ThreadContentRail inset={contentInset} className="min-h-full">
+          {hasOlder || isFetchingOlder ? (
+            <SessionLoadOlderButton isLoading={isFetchingOlder} onClick={loadOlderWithAnchor} />
+          ) : null}
           <VirtualizedThreadMessages
             agentName={agentName}
             sessionId={sessionId}

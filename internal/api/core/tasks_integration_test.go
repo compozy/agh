@@ -22,7 +22,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 	var capturedList taskpkg.Query
 	var capturedListActor taskpkg.ActorContext
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			capturedCreate = spec
 			capturedCreateActor = actor
@@ -140,7 +140,7 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 	calls := make([]string, 0, 4)
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
-	tasks := testutil.StubTaskManager{
+	tasks := &testutil.StubTaskManager{
 		EnqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			calls = append(calls, "enqueue")
 			return &taskpkg.Run{

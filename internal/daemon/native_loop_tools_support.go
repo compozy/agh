@@ -142,7 +142,14 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 }
 
 type nativeLoopWorkspaceInput struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	WorkspaceID string              `json:"workspace_id,omitempty"`
+	Q           string              `json:"q,omitempty"`
+	Kind        looppkg.CatalogKind `json:"kind,omitempty"`
+	Category    string              `json:"category,omitempty"`
+	Status      looppkg.Status      `json:"status,omitempty"`
+	Sort        string              `json:"sort,omitempty"`
+	Cursor      string              `json:"cursor,omitempty"`
+	Limit       int                 `json:"limit,omitempty"`
 }
 
 type nativeLoopNameInput struct {

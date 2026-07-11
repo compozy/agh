@@ -28,6 +28,8 @@ describe("tasksKeys", () => {
         parent_task_id: "task_parent",
         network_channel: "net",
         query: "review",
+        sort: "priority",
+        cursor: "ignored-cursor",
         limit: 50,
       })
     ).toEqual([
@@ -44,6 +46,7 @@ describe("tasksKeys", () => {
       "task_parent",
       "net",
       "review",
+      "priority",
       "50",
     ]);
 
@@ -62,7 +65,13 @@ describe("tasksKeys", () => {
       "",
       "",
       "",
+      "",
     ]);
+
+    expect(tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "first" })).toEqual(
+      tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "second" })
+    );
+    expect(tasksKeys.list({ sort: "recent" })).not.toEqual(tasksKeys.list({ sort: "priority" }));
   });
 
   it("distinguishes detail, run, timeline, tree, and run-detail keys by id", () => {
@@ -103,10 +112,29 @@ describe("tasksKeys", () => {
         scope: "workspace",
         workspace: "ws_alpha",
         lane: "approvals",
+        status: "ready",
+        priority: "urgent",
         unread: true,
+        cursor: "ignored-cursor",
         limit: 20,
       })
-    ).toEqual(["tasks", "inbox", "workspace", "ws_alpha", "", "", "approvals", "1", "", "20"]);
+    ).toEqual([
+      "tasks",
+      "inbox",
+      "workspace",
+      "ws_alpha",
+      "",
+      "",
+      "approvals",
+      "ready",
+      "urgent",
+      "1",
+      "",
+      "20",
+    ]);
+    expect(tasksKeys.inbox({ lane: "approvals", cursor: "first" })).toEqual(
+      tasksKeys.inbox({ lane: "approvals", cursor: "second" })
+    );
   });
 
   it("Should namespace orchestration roots", () => {

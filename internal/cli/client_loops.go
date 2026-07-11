@@ -19,13 +19,47 @@ type LoopRunListQuery struct {
 	Limit    int
 }
 
-func (c *unixSocketClient) ListLoops(ctx context.Context, workspaceID string) (contract.LoopsResponse, error) {
+type LoopListQuery struct {
+	Search   string
+	Kind     string
+	Category string
+	Status   string
+	Sort     string
+	Cursor   string
+	Limit    int
+}
+
+func (c *unixSocketClient) ListLoops(
+	ctx context.Context,
+	workspaceID string,
+	query LoopListQuery,
+) (contract.LoopsResponse, error) {
 	var response contract.LoopsResponse
 	path := loopWorkspacePath(workspaceID) + "/loops"
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, path, loopListValues(query), nil, &response); err != nil {
 		return contract.LoopsResponse{}, err
 	}
 	return response, nil
+}
+
+func loopListValues(query LoopListQuery) url.Values {
+	values := url.Values{}
+	setLoopListQueryValue(values, "q", query.Search)
+	setLoopListQueryValue(values, "kind", query.Kind)
+	setLoopListQueryValue(values, "category", query.Category)
+	setLoopListQueryValue(values, "status", query.Status)
+	setLoopListQueryValue(values, "sort", query.Sort)
+	setLoopListQueryValue(values, "cursor", query.Cursor)
+	if query.Limit != 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func setLoopListQueryValue(values url.Values, key string, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		values.Set(key, trimmed)
+	}
 }
 
 func (c *unixSocketClient) CreateLoop(

@@ -1,10 +1,16 @@
 package globaldb
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +113,331 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 	if loaded.Source == "" {
 		t.Fatal("loaded.Source = empty, want default source value")
 	}
+}
+
+func TestGlobalDBListBridgeInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return requested rows in caller order and omit missing or foreign ids", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		for _, id := range []string{"brg-a", "brg-b", "brg-foreign"} {
+			if err := globalDB.InsertBridgeInstance(ctx, bridges.BridgeInstance{
+				ID:            id,
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-adapter",
+				DisplayName:   id,
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			}); err != nil {
+				t.Fatalf("InsertBridgeInstance(%s) error = %v", id, err)
+			}
+		}
+
+		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, []string{"brg-b", "brg-missing", "brg-a"})
+		if err != nil {
+			t.Fatalf("ListBridgeInstancesByIDs() error = %v", err)
+		}
+		ids := make([]string, 0, len(instances))
+		for _, instance := range instances {
+			ids = append(ids, instance.ID)
+		}
+		if !slices.Equal(ids, []string{"brg-b", "brg-a"}) {
+			t.Fatalf("ListBridgeInstancesByIDs() ids = %#v, want caller order without missing/foreign ids", ids)
+		}
+	})
+
+	t.Run("Should reject empty and oversized batches", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), nil); err == nil {
+			t.Fatal("ListBridgeInstancesByIDs(nil) error = nil, want non-nil")
+		}
+		ids := make([]string, bridges.MaxBridgeCatalogLimit+1)
+		for index := range ids {
+			ids[index] = fmt.Sprintf("brg-%03d", index)
+		}
+		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), ids); err == nil {
+			t.Fatal("ListBridgeInstancesByIDs(oversized) error = nil, want non-nil")
+		}
+	})
+}
+
+func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not read invalid oversized JSON outside the selected page", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+		if err := globalDB.InsertWorkspace(ctx, aghworkspace.Workspace{
+			ID:        "ws-beta",
+			RootDir:   t.TempDir(),
+			Name:      "Beta",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace(ws-beta) error = %v", err)
+		}
+		for _, instance := range []bridges.BridgeInstance{
+			{
+				ID:            "brg-alpha",
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "slack",
+				ExtensionName: "slack-adapter",
+				DisplayName:   "Alpha",
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			},
+			{
+				ID:            "brg-zulu",
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-adapter",
+				DisplayName:   "Zulu",
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			},
+			{
+				ID:            "brg-foreign",
+				Scope:         bridges.ScopeWorkspace,
+				WorkspaceID:   "ws-beta",
+				Platform:      "slack",
+				ExtensionName: "slack-adapter",
+				DisplayName:   "Foreign",
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			},
+		} {
+			if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+				t.Fatalf("InsertBridgeInstance(%s) error = %v", instance.ID, err)
+			}
+		}
+		invalidOversizedJSON := strings.Repeat("x", 1<<20)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE bridge_instances SET routing_policy = ? WHERE id = ?`,
+			invalidOversizedJSON,
+			"brg-zulu",
+		); err != nil {
+			t.Fatalf("ExecContext(corrupt off-page routing policy) error = %v", err)
+		}
+		if _, err := globalDB.ListBridgeInstances(ctx); err == nil {
+			t.Fatal("ListBridgeInstances() error = nil, want corrupt off-page JSON to fail full hydration")
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE bridge_instances SET status = ? WHERE id = ?`,
+			"foreign-invalid-status",
+			"brg-foreign",
+		); err != nil {
+			t.Fatalf("ExecContext(corrupt foreign catalog metadata) error = %v", err)
+		}
+
+		query := bridges.BridgeCatalogQuery{Scope: "all", WorkspaceID: "ws-alpha", Limit: 1}
+		records, err := globalDB.ListBridgeCatalogRecords(ctx, query)
+		if err != nil {
+			t.Fatalf("ListBridgeCatalogRecords() error = %v", err)
+		}
+		selection, err := bridges.BuildBridgeCatalogRecordPage(
+			records,
+			nil,
+			query,
+		)
+		if err != nil {
+			t.Fatalf("BuildBridgeCatalogRecordPage() error = %v", err)
+		}
+		if len(selection.Items) != 1 || selection.Items[0].Record.ID != "brg-alpha" ||
+			selection.Total != 2 || !selection.HasMore {
+			t.Fatalf("catalog selection = %#v, want alpha-only first page of two records", selection)
+		}
+
+		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, []string{selection.Items[0].Record.ID})
+		if err != nil {
+			t.Fatalf("ListBridgeInstancesByIDs(page) error = %v", err)
+		}
+		page, err := bridges.HydrateBridgeCatalogPage(selection, instances)
+		if err != nil {
+			t.Fatalf("HydrateBridgeCatalogPage() error = %v", err)
+		}
+		if len(page.Items) != 1 || page.Items[0].Instance.ID != "brg-alpha" {
+			t.Fatalf("hydrated page = %#v, want alpha only", page)
+		}
+	})
+}
+
+func TestGlobalDBBridgeListsPropagateRowsCloseErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		list func(context.Context, *GlobalDB) error
+	}{
+		{
+			name: "Should propagate secret binding rows close errors",
+			list: func(ctx context.Context, globalDB *GlobalDB) error {
+				_, err := globalDB.ListBridgeSecretBindings(ctx, "brg-close-error")
+				return err
+			},
+		},
+		{
+			name: "Should propagate route rows close errors",
+			list: func(ctx context.Context, globalDB *GlobalDB) error {
+				_, err := globalDB.ListBridgeRoutes(ctx, "brg-close-error")
+				return err
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openBridgeCloseErrorGlobalDB(t)
+			err := test.list(testutil.Context(t), globalDB)
+			if !errors.Is(err, errBridgeCatalogRowsClose) {
+				t.Fatalf("bridge list error = %v, want joined rows close error", err)
+			}
+		})
+	}
+}
+
+var errBridgeCatalogRowsClose = errors.New("bridge catalog rows close failed")
+
+const bridgeCloseErrorDriverName = "agh-bridge-close-error"
+
+func init() {
+	sql.Register(bridgeCloseErrorDriverName, bridgeCloseErrorDriver{})
+}
+
+type bridgeCloseErrorDriver struct{}
+
+func (bridgeCloseErrorDriver) Open(string) (driver.Conn, error) {
+	return bridgeCloseErrorConn{}, nil
+}
+
+type bridgeCloseErrorConn struct{}
+
+func (bridgeCloseErrorConn) Prepare(string) (driver.Stmt, error) {
+	return nil, errors.New("bridge close-error driver does not prepare statements")
+}
+
+func (bridgeCloseErrorConn) Close() error {
+	return nil
+}
+
+func (bridgeCloseErrorConn) Begin() (driver.Tx, error) {
+	return nil, errors.New("bridge close-error driver does not begin transactions")
+}
+
+func (bridgeCloseErrorConn) QueryContext(
+	ctx context.Context,
+	query string,
+	_ []driver.NamedValue,
+) (driver.Rows, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch {
+	case strings.Contains(query, "FROM bridge_secret_bindings"):
+		return &bridgeCloseErrorRows{
+			columns: []string{
+				"bridge_instance_id",
+				"binding_name",
+				"secret_ref",
+				"kind",
+				"created_at",
+				"updated_at",
+			},
+			values: []driver.Value{
+				"brg-close-error",
+				"bot_token",
+				"vault:bridges/brg-close-error/bot_token",
+				"token",
+				"invalid-created-at",
+				"invalid-updated-at",
+			},
+		}, nil
+	case strings.Contains(query, "FROM bridge_routes"):
+		return &bridgeCloseErrorRows{
+			columns: []string{
+				"routing_key_hash",
+				"scope",
+				"workspace_id",
+				"bridge_instance_id",
+				"peer_id",
+				"thread_id",
+				"group_id",
+				"session_id",
+				"agent_name",
+				"last_activity_at",
+				"created_at",
+				"updated_at",
+			},
+			values: []driver.Value{
+				"route-close-error",
+				string(bridges.ScopeGlobal),
+				nil,
+				"brg-close-error",
+				"peer-1",
+				nil,
+				nil,
+				"sess-1",
+				"coder",
+				"invalid-last-activity-at",
+				"invalid-created-at",
+				"invalid-updated-at",
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("bridge close-error driver: unexpected query %q", query)
+	}
+}
+
+type bridgeCloseErrorRows struct {
+	columns []string
+	values  []driver.Value
+	yielded bool
+}
+
+func (r *bridgeCloseErrorRows) Columns() []string {
+	return append([]string(nil), r.columns...)
+}
+
+func (*bridgeCloseErrorRows) Close() error {
+	return errBridgeCatalogRowsClose
+}
+
+func (r *bridgeCloseErrorRows) Next(destination []driver.Value) error {
+	if r.yielded {
+		return io.EOF
+	}
+	copy(destination, r.values)
+	r.yielded = true
+	return nil
+}
+
+func openBridgeCloseErrorGlobalDB(t *testing.T) *GlobalDB {
+	t.Helper()
+
+	db, err := sql.Open(bridgeCloseErrorDriverName, "")
+	if err != nil {
+		t.Fatalf("sql.Open(bridge close-error driver) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("sql.DB.Close(bridge close-error driver) error = %v", err)
+		}
+	})
+	return &GlobalDB{db: db}
 }
 
 func TestGlobalDBBridgeTargetDirectoryRefresh(t *testing.T) {
@@ -733,6 +1064,99 @@ func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	) {
 		t.Fatalf("DeleteBridgeRoute(after delete) error = %v, want ErrBridgeRouteNotFound", err)
 	}
+}
+
+func TestGlobalDBBridgeCatalogBatchReads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should count routes and load bindings only for requested bridge ids", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		for _, id := range []string{"brg-batch-a", "brg-batch-b", "brg-batch-c"} {
+			if err := globalDB.InsertBridgeInstance(ctx, bridges.BridgeInstance{
+				ID:            id,
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-adapter",
+				DisplayName:   id,
+				Enabled:       true,
+				Status:        bridges.BridgeStatusReady,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+			}); err != nil {
+				t.Fatalf("InsertBridgeInstance(%s) error = %v", id, err)
+			}
+		}
+		for _, route := range []bridges.BridgeRoute{
+			{Scope: bridges.ScopeGlobal, BridgeInstanceID: "brg-batch-a", PeerID: "peer-a1", SessionID: "sess-a1", AgentName: "coder"},
+			{Scope: bridges.ScopeGlobal, BridgeInstanceID: "brg-batch-a", PeerID: "peer-a2", SessionID: "sess-a2", AgentName: "coder"},
+			{Scope: bridges.ScopeGlobal, BridgeInstanceID: "brg-batch-b", PeerID: "peer-b1", SessionID: "sess-b1", AgentName: "coder"},
+			{Scope: bridges.ScopeGlobal, BridgeInstanceID: "brg-batch-c", PeerID: "peer-c1", SessionID: "sess-c1", AgentName: "coder"},
+		} {
+			if err := globalDB.PutBridgeRoute(ctx, route); err != nil {
+				t.Fatalf("PutBridgeRoute(%s/%s) error = %v", route.BridgeInstanceID, route.PeerID, err)
+			}
+		}
+		for _, binding := range []bridges.BridgeSecretBinding{
+			{
+				BridgeInstanceID: "brg-batch-a",
+				BindingName:      "bot_token",
+				SecretRef:        "vault:bridges/brg-batch-a/bot_token",
+				Kind:             "token",
+			},
+			{
+				BridgeInstanceID: "brg-batch-c",
+				BindingName:      "bot_token",
+				SecretRef:        "vault:bridges/brg-batch-c/bot_token",
+				Kind:             "token",
+			},
+		} {
+			if err := globalDB.PutBridgeSecretBinding(ctx, binding); err != nil {
+				t.Fatalf("PutBridgeSecretBinding(%s) error = %v", binding.BridgeInstanceID, err)
+			}
+		}
+
+		ids := []string{"brg-batch-a", "brg-batch-b"}
+		counts, err := globalDB.CountBridgeRoutes(ctx, ids)
+		if err != nil {
+			t.Fatalf("CountBridgeRoutes() error = %v", err)
+		}
+		if counts["brg-batch-a"] != 2 || counts["brg-batch-b"] != 1 || counts["brg-batch-c"] != 0 {
+			t.Fatalf("CountBridgeRoutes() = %#v, want a=2 b=1 without c", counts)
+		}
+
+		bindings, err := globalDB.ListBridgeSecretBindingsForInstances(ctx, ids)
+		if err != nil {
+			t.Fatalf("ListBridgeSecretBindingsForInstances() error = %v", err)
+		}
+		if got, want := len(bindings["brg-batch-a"]), 1; got != want {
+			t.Fatalf("len(bindings[a]) = %d, want %d", got, want)
+		}
+		if got := len(bindings["brg-batch-b"]); got != 0 {
+			t.Fatalf("len(bindings[b]) = %d, want 0", got)
+		}
+		if _, leaked := bindings["brg-batch-c"]; leaked {
+			t.Fatalf("bindings leaked unrequested bridge: %#v", bindings)
+		}
+	})
+
+	t.Run("Should return initialized empty batch results", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		counts, err := globalDB.CountBridgeRoutes(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("CountBridgeRoutes(empty) error = %v", err)
+		}
+		bindings, err := globalDB.ListBridgeSecretBindingsForInstances(testutil.Context(t), nil)
+		if err != nil {
+			t.Fatalf("ListBridgeSecretBindingsForInstances(empty) error = %v", err)
+		}
+		if counts == nil || bindings == nil || len(counts) != 0 || len(bindings) != 0 {
+			t.Fatalf("empty batch results = counts:%#v bindings:%#v, want initialized empty maps", counts, bindings)
+		}
+	})
 }
 
 func TestMigrateBridgeInstanceColumnsAddsMissingColumns(t *testing.T) {

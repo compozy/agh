@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
@@ -105,5 +106,26 @@ describe("DirectsList", () => {
       />
     );
     expect(screen.getByTestId("network-direct-list-skeleton")).toBeInTheDocument();
+  });
+
+  it("Should expose an accessible load-more action when the server has another page", async () => {
+    const user = userEvent.setup();
+    const onLoadMore = vi.fn();
+    render(
+      <DirectsList
+        activeDirectId={null}
+        channel="ops"
+        directs={directs}
+        hasMore
+        isLoading={false}
+        isLoadingMore={false}
+        onLoadMore={onLoadMore}
+        total={2}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more direct rooms" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 });

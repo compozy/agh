@@ -280,8 +280,31 @@ func (s benchmarkBridgeSource) ListRoutes(_ context.Context, bridgeInstanceID st
 	return s.routes[bridgeInstanceID], nil
 }
 
+func (s benchmarkBridgeSource) CountBridgeRoutes(
+	_ context.Context,
+	bridgeInstanceIDs []string,
+) (map[string]int, error) {
+	counts := make(map[string]int, len(bridgeInstanceIDs))
+	for _, bridgeInstanceID := range bridgeInstanceIDs {
+		counts[bridgeInstanceID] = len(s.routes[bridgeInstanceID])
+	}
+	return counts, nil
+}
+
 func (s benchmarkBridgeSource) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {
 	return s.metrics
+}
+
+func (s benchmarkBridgeSource) DeliveryMetricsFor(
+	bridgeInstanceIDs []string,
+) (map[string]bridgepkg.BridgeDeliveryMetrics, error) {
+	metrics := make(map[string]bridgepkg.BridgeDeliveryMetrics, len(bridgeInstanceIDs))
+	for _, id := range bridgeInstanceIDs {
+		if item, ok := s.metrics[id]; ok {
+			metrics[id] = item
+		}
+	}
+	return metrics, nil
 }
 
 func benchmarkRecoveryPayload(i int) json.RawMessage {

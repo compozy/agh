@@ -1248,7 +1248,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 				return []*session.Info{newSessionInfo("sess-1")}, nil
 			},
 		}),
-		WithTaskService(stubTaskManager{}),
+		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) { return observe.Health{Status: "ok"}, nil },
 		}),

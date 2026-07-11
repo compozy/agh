@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import { ListingRow, Eyebrow, Skeleton, SkeletonRows } from "@agh/ui";
+import { Button, ListingRow, Eyebrow, Skeleton, SkeletonRows } from "@agh/ui";
 
 import type { ChannelMember, ChannelMemberRole } from "../../hooks/use-channel-members";
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
@@ -14,6 +14,10 @@ export interface DirectsListProps {
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
   activeDirectId: string | null;
   isLoading: boolean;
+  total?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void | Promise<void>;
   /** Local peer id used to identify which side of `peer_a/peer_b` is "the other peer". */
   selfPeerId?: string;
   members?: ReadonlyArray<ChannelMember>;
@@ -136,6 +140,10 @@ export function DirectsList({
   directs,
   activeDirectId,
   isLoading,
+  total,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
   selfPeerId,
   members,
   onNewDirect,
@@ -175,6 +183,23 @@ export function DirectsList({
           />
         );
       })}
+      {hasMore && onLoadMore ? (
+        <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+          <span className="text-small-body text-muted">
+            {directs.length} of {total ?? directs.length} direct rooms loaded
+          </span>
+          <Button
+            aria-busy={isLoadingMore}
+            aria-label="Load more direct rooms"
+            disabled={isLoadingMore}
+            onClick={() => void onLoadMore()}
+            size="sm"
+            variant="outline"
+          >
+            {isLoadingMore ? "Loading rooms…" : "Load more direct rooms"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

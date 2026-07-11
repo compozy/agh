@@ -339,6 +339,8 @@ func StatusForAutomationError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrAutomationValidation):
 		return http.StatusBadRequest
+	case errors.Is(err, automationpkg.ErrListCursorInvalid):
+		return http.StatusBadRequest
 	case errors.Is(err, looppkg.ErrValidation):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, automationpkg.ErrWebhookSecretRequired):
@@ -385,6 +387,8 @@ func StatusForNetworkError(err error) int {
 	case err == nil:
 		return http.StatusOK
 	case errors.Is(err, ErrNetworkValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, store.ErrNetworkCursorInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, network.ErrLocalPeerNotFound),
 		errors.Is(err, network.ErrTargetPeerNotFound),

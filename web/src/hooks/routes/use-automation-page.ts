@@ -2,4 +2,4 @@
 // production-source line cap); this barrel preserves the original import path.
 export { useAutomationJobsPage } from "./use-automation-jobs-page";
 export { useAutomationTriggersPage } from "./use-automation-triggers-page";
-export type { AutomationCreateSeed } from "./use-automation-page-base";
+export type { AutomationCreateSeed, AutomationRouteSearch } from "./use-automation-page-base";

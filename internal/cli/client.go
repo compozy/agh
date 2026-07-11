@@ -96,7 +96,7 @@ type DaemonClient interface {
 		peerID string,
 		threadID string,
 	) error
-	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error)
+	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) (contract.NetworkThreadsResponse, error)
 	NetworkThread(
 		ctx context.Context,
 		workspaceRef string,
@@ -106,8 +106,8 @@ type DaemonClient interface {
 	NetworkThreadMessages(
 		ctx context.Context,
 		query NetworkConversationMessagesQuery,
-	) ([]NetworkConversationMessageRecord, error)
-	NetworkDirects(ctx context.Context, query NetworkDirectsQuery) ([]NetworkDirectRoomRecord, error)
+	) (contract.NetworkThreadMessagesResponse, error)
+	NetworkDirects(ctx context.Context, query NetworkDirectsQuery) (contract.NetworkDirectRoomsResponse, error)
 	NetworkDirectResolve(
 		ctx context.Context,
 		workspaceRef string,
@@ -123,7 +123,7 @@ type DaemonClient interface {
 	NetworkDirectMessages(
 		ctx context.Context,
 		query NetworkConversationMessagesQuery,
-	) ([]NetworkConversationMessageRecord, error)
+	) (contract.NetworkDirectRoomMessagesResponse, error)
 	NetworkWork(ctx context.Context, workspaceRef string, workID string) (NetworkWorkRecord, error)
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
 	NetworkInbox(ctx context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error)
@@ -160,7 +160,7 @@ type DaemonClient interface {
 	) (BundleActivationRecord, error)
 	DeactivateBundle(ctx context.Context, id string) error
 	BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error)
-	ListBridges(ctx context.Context) ([]BridgeRecord, error)
+	ListBridges(ctx context.Context, query BridgeListQuery) (BridgeListRecord, error)
 	CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error)
 	GetBridge(ctx context.Context, id string) (BridgeRecord, error)
 	UpdateBridge(ctx context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error)
@@ -195,7 +195,7 @@ type DaemonClient interface {
 		id string,
 		request BridgeTestDeliveryRequest,
 	) (BridgeTestDeliveryRecord, error)
-	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error)
+	ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)
 	GetSessionHealth(ctx context.Context, id string) (SessionHealthRecord, error)
@@ -363,14 +363,14 @@ type DaemonClient interface {
 		request MemoryProviderLifecycleRequest,
 	) (MemoryProviderLifecycleRecord, error)
 	CreateMemoryAdhocNote(ctx context.Context, request MemoryAdhocNoteRequest) (MemoryAdhocNoteRecord, error)
-	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error)
+	ListAutomationJobs(ctx context.Context, query AutomationJobQuery) (AutomationJobListRecord, error)
 	CreateAutomationJob(ctx context.Context, request AutomationJobCreateRequest) (JobRecord, error)
 	GetAutomationJob(ctx context.Context, id string) (JobRecord, error)
 	UpdateAutomationJob(ctx context.Context, id string, request AutomationJobUpdateRequest) (JobRecord, error)
 	DeleteAutomationJob(ctx context.Context, id string) error
 	TriggerAutomationJob(ctx context.Context, id string) (RunRecord, error)
 	AutomationJobRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
-	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) ([]TriggerRecord, error)
+	ListAutomationTriggers(ctx context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error)
 	CreateAutomationTrigger(ctx context.Context, request AutomationTriggerCreateRequest) (TriggerRecord, error)
 	GetAutomationTrigger(ctx context.Context, id string) (TriggerRecord, error)
 	UpdateAutomationTrigger(
@@ -382,7 +382,7 @@ type DaemonClient interface {
 	AutomationTriggerRuns(ctx context.Context, id string, query AutomationRunQuery) ([]RunRecord, error)
 	ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error)
 	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
-	ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error)
+	ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error)
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
 	CreateTaskAsAgent(
 		ctx context.Context,
@@ -552,14 +552,6 @@ type DaemonClient interface {
 
 // CreateSessionRequest captures the shared daemon session creation payload.
 type CreateSessionRequest = contract.CreateSessionRequest
-
-// SessionListQuery captures the CLI filters for session list queries.
-type SessionListQuery struct {
-	Workspace string
-	Resumable bool
-	Limit     int
-	Sort      string
-}
 
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
@@ -835,27 +827,6 @@ type MemoryHistoryQuery struct {
 // MemoryHistoryRecord is one redacted memory operation history row.
 type MemoryHistoryRecord = contract.MemoryOperationHistoryPayload
 
-// MemoryDecisionListQuery captures filters for controller decision history.
-type MemoryDecisionListQuery struct {
-	Scope       memcontract.Scope
-	WorkspaceID string
-	AgentName   string
-	AgentTier   memcontract.AgentTier
-	Operation   string
-	Since       time.Time
-	Reason      string
-}
-
-// MemoryListQuery captures filters for Memory v2 list calls.
-type MemoryListQuery struct {
-	MemorySelectorQuery
-	Type            memcontract.Type
-	IncludeShadowed bool
-}
-
-// MemoryListRecord wraps Memory v2 list output.
-type MemoryListRecord = contract.MemoryListResponse
-
 // MemoryEntryRecord wraps one Memory v2 entry.
 type MemoryEntryRecord = contract.MemoryEntryResponse
 
@@ -900,18 +871,6 @@ type MemoryReloadRecord = contract.MemoryReloadResponse
 
 // MemoryScopeShowRecord captures effective memory scope resolution.
 type MemoryScopeShowRecord = contract.MemoryScopeShowResponse
-
-// MemoryDecisionListRecord wraps controller decision history.
-type MemoryDecisionListRecord = contract.MemoryDecisionListResponse
-
-// MemoryDecisionRecord wraps one controller decision.
-type MemoryDecisionRecord = contract.MemoryDecisionResponse
-
-// MemoryDecisionRevertRequest captures a decision revert request.
-type MemoryDecisionRevertRequest = contract.MemoryDecisionRevertRequest
-
-// MemoryDecisionRevertRecord captures a decision revert response.
-type MemoryDecisionRevertRecord = contract.MemoryDecisionRevertResponse
 
 // MemoryRecallTraceRecord captures one redaction-safe recall trace.
 type MemoryRecallTraceRecord = contract.MemoryRecallTraceResponse
@@ -976,8 +935,14 @@ type MemoryAdhocNoteRecord = contract.MemoryAdhocNoteResponse
 // AutomationJobQuery captures CLI filters for automation job list calls.
 type AutomationJobQuery = automationpkg.JobListQuery
 
+// AutomationJobListRecord is one structured automation job page.
+type AutomationJobListRecord = contract.JobsResponse
+
 // AutomationTriggerQuery captures CLI filters for automation trigger list calls.
 type AutomationTriggerQuery = automationpkg.TriggerListQuery
+
+// AutomationTriggerListRecord is one structured automation trigger page.
+type AutomationTriggerListRecord = contract.TriggersResponse
 
 // AutomationRunQuery captures CLI filters for automation run history calls.
 type AutomationRunQuery = automationpkg.RunQuery
@@ -1003,8 +968,11 @@ type TriggerRecord = contract.TriggerPayload
 // RunRecord is the shared automation run payload.
 type RunRecord = contract.RunPayload
 
-// TaskSummaryRecord is the shared list-oriented task payload.
+// TaskSummaryRecord is the shared rich task summary payload.
 type TaskSummaryRecord = contract.TaskSummaryPayload
+
+// TaskCatalogItemRecord is one lean task catalog row.
+type TaskCatalogItemRecord = contract.TaskCatalogItemPayload
 
 // TaskRecord is the shared single-task payload.
 type TaskRecord = contract.TaskPayload
@@ -1169,6 +1137,9 @@ type TaskEventRecord = contract.TaskEventPayload
 
 // TaskListQuery captures CLI filters for task list calls.
 type TaskListQuery = contract.TaskListQuery
+
+// TaskListRecord is the counted task catalog response.
+type TaskListRecord = contract.TasksResponse
 
 // TaskRunListQuery captures CLI filters for task-run list calls.
 type TaskRunListQuery = contract.TaskRunListQuery
@@ -1363,51 +1334,6 @@ type PromoteNetworkThreadTaskRequest = contract.PromoteNetworkThreadTaskRequest
 
 // PromoteNetworkThreadTaskRecord is the shared promotion response payload.
 type PromoteNetworkThreadTaskRecord = contract.PromoteNetworkThreadTaskResponse
-
-// NetworkPeersQuery captures CLI filters for peer listing.
-type NetworkPeersQuery struct {
-	WorkspaceRef string
-	Channel      string
-}
-
-// NetworkSubscriptionsQuery captures CLI filters for delivery preferences.
-type NetworkSubscriptionsQuery struct {
-	WorkspaceRef string
-	Channel      string
-	ThreadID     string
-	PeerID       string
-	Limit        int
-}
-
-// NetworkThreadsQuery captures CLI filters for public-thread listing.
-type NetworkThreadsQuery struct {
-	WorkspaceRef string
-	Channel      string
-	Limit        int
-	After        string
-}
-
-// NetworkDirectsQuery captures CLI filters for direct-room listing.
-type NetworkDirectsQuery struct {
-	WorkspaceRef string
-	Channel      string
-	PeerID       string
-	Limit        int
-	After        string
-}
-
-// NetworkConversationMessagesQuery captures CLI filters for conversation messages.
-type NetworkConversationMessagesQuery struct {
-	WorkspaceRef string
-	Channel      string
-	ThreadID     string
-	DirectID     string
-	Limit        int
-	Before       string
-	After        string
-	Kind         string
-	WorkID       string
-}
 
 // InstallExtensionRequest captures the shared extension install payload.
 type InstallExtensionRequest = contract.InstallExtensionRequest
@@ -1998,23 +1924,21 @@ func (c *unixSocketClient) DeleteNetworkSubscription(
 func (c *unixSocketClient) NetworkThreads(
 	ctx context.Context,
 	query NetworkThreadsQuery,
-) ([]NetworkThreadRecord, error) {
+) (contract.NetworkThreadsResponse, error) {
 	channel, err := requireNetworkPathValue("channel", query.Channel)
 	if err != nil {
-		return nil, err
+		return contract.NetworkThreadsResponse{}, err
 	}
-	var response struct {
-		Threads []NetworkThreadRecord `json:"threads"`
-	}
+	var response contract.NetworkThreadsResponse
 	path, err := networkChannelPath(query.WorkspaceRef, channel)
 	if err != nil {
-		return nil, err
+		return contract.NetworkThreadsResponse{}, err
 	}
 	path += "/threads"
 	if err := c.doJSON(ctx, http.MethodGet, path, networkThreadsValues(query), nil, &response); err != nil {
-		return nil, err
+		return contract.NetworkThreadsResponse{}, err
 	}
-	return response.Threads, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) NetworkThread(
@@ -2039,14 +1963,12 @@ func (c *unixSocketClient) NetworkThread(
 func (c *unixSocketClient) NetworkThreadMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
-) ([]NetworkConversationMessageRecord, error) {
+) (contract.NetworkThreadMessagesResponse, error) {
 	path, err := networkThreadMessagesPath(query.WorkspaceRef, query.Channel, query.ThreadID)
 	if err != nil {
-		return nil, err
+		return contract.NetworkThreadMessagesResponse{}, err
 	}
-	var response struct {
-		Messages []NetworkConversationMessageRecord `json:"messages"`
-	}
+	var response contract.NetworkThreadMessagesResponse
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
@@ -2055,31 +1977,29 @@ func (c *unixSocketClient) NetworkThreadMessages(
 		nil,
 		&response,
 	); err != nil {
-		return nil, err
+		return contract.NetworkThreadMessagesResponse{}, err
 	}
-	return response.Messages, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) NetworkDirects(
 	ctx context.Context,
 	query NetworkDirectsQuery,
-) ([]NetworkDirectRoomRecord, error) {
+) (contract.NetworkDirectRoomsResponse, error) {
 	channel, err := requireNetworkPathValue("channel", query.Channel)
 	if err != nil {
-		return nil, err
+		return contract.NetworkDirectRoomsResponse{}, err
 	}
-	var response struct {
-		Directs []NetworkDirectRoomRecord `json:"directs"`
-	}
+	var response contract.NetworkDirectRoomsResponse
 	path, err := networkChannelPath(query.WorkspaceRef, channel)
 	if err != nil {
-		return nil, err
+		return contract.NetworkDirectRoomsResponse{}, err
 	}
 	path += "/directs"
 	if err := c.doJSON(ctx, http.MethodGet, path, networkDirectsValues(query), nil, &response); err != nil {
-		return nil, err
+		return contract.NetworkDirectRoomsResponse{}, err
 	}
-	return response.Directs, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) NetworkDirectResolve(
@@ -2128,14 +2048,12 @@ func (c *unixSocketClient) NetworkDirect(
 func (c *unixSocketClient) NetworkDirectMessages(
 	ctx context.Context,
 	query NetworkConversationMessagesQuery,
-) ([]NetworkConversationMessageRecord, error) {
+) (contract.NetworkDirectRoomMessagesResponse, error) {
 	path, err := networkDirectMessagesPath(query.WorkspaceRef, query.Channel, query.DirectID)
 	if err != nil {
-		return nil, err
+		return contract.NetworkDirectRoomMessagesResponse{}, err
 	}
-	var response struct {
-		Messages []NetworkConversationMessageRecord `json:"messages"`
-	}
+	var response contract.NetworkDirectRoomMessagesResponse
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
@@ -2144,9 +2062,9 @@ func (c *unixSocketClient) NetworkDirectMessages(
 		nil,
 		&response,
 	); err != nil {
-		return nil, err
+		return contract.NetworkDirectRoomMessagesResponse{}, err
 	}
-	return response.Messages, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) NetworkWork(
@@ -2446,16 +2364,6 @@ func (c *unixSocketClient) BundleNetworkSettings(ctx context.Context) (BundleNet
 	return response.Network, nil
 }
 
-func (c *unixSocketClient) ListBridges(ctx context.Context) ([]BridgeRecord, error) {
-	var response struct {
-		Bridges []BridgeRecord `json:"bridges"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/bridges", nil, nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Bridges, nil
-}
-
 func (c *unixSocketClient) CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
 	var response struct {
 		Bridge BridgeRecord `json:"bridge"`
@@ -2712,73 +2620,11 @@ func (c *unixSocketClient) TestBridgeDelivery(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListSessions(ctx context.Context, query SessionListQuery) ([]SessionRecord, error) {
-	var response struct {
-		Sessions []SessionRecord `json:"sessions"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/sessions", sessionListValues(query), nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Sessions, nil
-}
-
-func (c *unixSocketClient) sessionScopedPath(ctx context.Context, id string, suffix string) (string, error) {
-	sessionID, err := requireNetworkPathValue("session_id", id)
-	if err != nil {
-		return "", err
-	}
-	workspaceRef, err := c.sessionWorkspaceRef(ctx, sessionID)
-	if err != nil {
-		return "", err
-	}
-	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/sessions/" +
-		url.PathEscape(sessionID) + suffix, nil
-}
-
-func (c *unixSocketClient) sessionWorkspaceRef(ctx context.Context, sessionID string) (string, error) {
-	sessions, err := c.ListSessions(ctx, SessionListQuery{})
-	if err != nil {
-		return "", fmt.Errorf("cli: resolve session %q workspace: %w", sessionID, err)
-	}
-	for _, record := range sessions {
-		if strings.TrimSpace(record.ID) != sessionID {
-			continue
-		}
-		workspaceID := strings.TrimSpace(record.WorkspaceID)
-		if workspaceID == "" {
-			return "", fmt.Errorf("cli: session %q has no workspace_id", sessionID)
-		}
-		return workspaceID, nil
-	}
-	return "", fmt.Errorf("cli: session %q not found", sessionID)
-}
-
 func (c *unixSocketClient) CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error) {
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
 	if err := c.doJSON(ctx, http.MethodPost, "/api/sessions", nil, request, &response); err != nil {
-		return SessionRecord{}, err
-	}
-	return response.Session, nil
-}
-
-func (c *unixSocketClient) GetSession(ctx context.Context, id string) (SessionRecord, error) {
-	var response struct {
-		Session SessionRecord `json:"session"`
-	}
-	path, err := c.sessionScopedPath(ctx, id, "")
-	if err != nil {
-		return SessionRecord{}, err
-	}
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		path,
-		nil,
-		nil,
-		&response,
-	); err != nil {
 		return SessionRecord{}, err
 	}
 	return response.Session, nil
@@ -3799,17 +3645,6 @@ func (c *unixSocketClient) MemoryHistory(
 	return response.Operations, nil
 }
 
-func (c *unixSocketClient) ListMemory(
-	ctx context.Context,
-	query MemoryListQuery,
-) (MemoryListRecord, error) {
-	var response MemoryListRecord
-	if err := c.doJSON(ctx, http.MethodGet, "/api/memory", memoryListValues(query), nil, &response); err != nil {
-		return MemoryListRecord{}, err
-	}
-	return response, nil
-}
-
 func (c *unixSocketClient) ShowMemory(
 	ctx context.Context,
 	filename string,
@@ -3962,46 +3797,6 @@ func (c *unixSocketClient) MemoryScopeShow(
 		&response,
 	); err != nil {
 		return MemoryScopeShowRecord{}, err
-	}
-	return response, nil
-}
-
-func (c *unixSocketClient) ListMemoryDecisions(
-	ctx context.Context,
-	query MemoryDecisionListQuery,
-) (MemoryDecisionListRecord, error) {
-	var response MemoryDecisionListRecord
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		"/api/memory/decisions",
-		memoryDecisionValues(query),
-		nil,
-		&response,
-	); err != nil {
-		return MemoryDecisionListRecord{}, err
-	}
-	return response, nil
-}
-
-func (c *unixSocketClient) GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error) {
-	var response MemoryDecisionRecord
-	path := "/api/memory/decisions/" + url.PathEscape(strings.TrimSpace(id))
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
-		return MemoryDecisionRecord{}, err
-	}
-	return response, nil
-}
-
-func (c *unixSocketClient) RevertMemoryDecision(
-	ctx context.Context,
-	id string,
-	request MemoryDecisionRevertRequest,
-) (MemoryDecisionRevertRecord, error) {
-	var response MemoryDecisionRevertRecord
-	path := "/api/memory/decisions/" + url.PathEscape(strings.TrimSpace(id)) + "/revert"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
-		return MemoryDecisionRevertRecord{}, err
 	}
 	return response, nil
 }
@@ -4197,7 +3992,10 @@ func (c *unixSocketClient) CreateMemoryAdhocNote(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListAutomationJobs(ctx context.Context, query AutomationJobQuery) ([]JobRecord, error) {
+func (c *unixSocketClient) ListAutomationJobs(
+	ctx context.Context,
+	query AutomationJobQuery,
+) (AutomationJobListRecord, error) {
 	var response contract.JobsResponse
 	if err := c.doJSON(
 		ctx,
@@ -4207,9 +4005,9 @@ func (c *unixSocketClient) ListAutomationJobs(ctx context.Context, query Automat
 		nil,
 		&response,
 	); err != nil {
-		return nil, err
+		return AutomationJobListRecord{}, err
 	}
-	return response.Jobs, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) CreateAutomationJob(
@@ -4275,7 +4073,7 @@ func (c *unixSocketClient) AutomationJobRuns(
 func (c *unixSocketClient) ListAutomationTriggers(
 	ctx context.Context,
 	query AutomationTriggerQuery,
-) ([]TriggerRecord, error) {
+) (AutomationTriggerListRecord, error) {
 	var response contract.TriggersResponse
 	if err := c.doJSON(
 		ctx,
@@ -4285,9 +4083,9 @@ func (c *unixSocketClient) ListAutomationTriggers(
 		nil,
 		&response,
 	); err != nil {
-		return nil, err
+		return AutomationTriggerListRecord{}, err
 	}
-	return response.Triggers, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) CreateAutomationTrigger(
@@ -4365,12 +4163,12 @@ func (c *unixSocketClient) GetAutomationRun(ctx context.Context, id string) (Run
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error) {
+func (c *unixSocketClient) ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error) {
 	var response contract.TasksResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/tasks", taskValues(query), nil, &response); err != nil {
-		return nil, err
+		return TaskListRecord{}, err
 	}
-	return response.Tasks, nil
+	return response, nil
 }
 
 func (c *unixSocketClient) CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error) {
@@ -5626,23 +5424,6 @@ func decodeSSE(ctx context.Context, body io.ReadCloser, handler SSEHandler) erro
 	return sse.Decode(ctx, body, handler)
 }
 
-func sessionListValues(query SessionListQuery) url.Values {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
-		values.Set("workspace", trimmed)
-	}
-	if query.Resumable {
-		values.Set("resumable", "true")
-	}
-	if query.Limit > 0 {
-		values.Set("limit", strconv.Itoa(query.Limit))
-	}
-	if sortKey := strings.TrimSpace(query.Sort); sortKey != "" {
-		values.Set("sort", sortKey)
-	}
-	return values
-}
-
 func sessionRepairValues(query SessionRepairQuery) url.Values {
 	values := url.Values{}
 	if query.DryRun {
@@ -5666,18 +5447,6 @@ func networkPeersValues(query NetworkPeersQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Channel); trimmed != "" {
 		values.Set("channel", trimmed)
-	}
-	return values
-}
-
-func networkThreadsValues(query NetworkThreadsQuery) url.Values {
-	return networkListValues(query.Limit, query.After)
-}
-
-func networkDirectsValues(query NetworkDirectsQuery) url.Values {
-	values := networkListValues(query.Limit, query.After)
-	if trimmed := strings.TrimSpace(query.PeerID); trimmed != "" {
-		values.Set("peer_id", trimmed)
 	}
 	return values
 }
@@ -6068,17 +5837,6 @@ func memorySelectorValues(query MemorySelectorQuery) url.Values {
 	return values
 }
 
-func memoryListValues(query MemoryListQuery) url.Values {
-	values := memorySelectorValues(query.MemorySelectorQuery)
-	if trimmed := strings.TrimSpace(string(query.Type)); trimmed != "" {
-		values.Set("type", trimmed)
-	}
-	if query.IncludeShadowed {
-		values.Set("include_shadowed", strconv.FormatBool(query.IncludeShadowed))
-	}
-	return values
-}
-
 func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
 	values := memorySelectorValues(MemorySelectorQuery{
 		Scope:       query.Scope,
@@ -6091,68 +5849,6 @@ func memoryHistoryValues(query MemoryHistoryQuery) url.Values {
 	}
 	if !query.Since.IsZero() {
 		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
-	}
-	if query.Limit > 0 {
-		values.Set("limit", strconv.Itoa(query.Limit))
-	}
-	return values
-}
-
-func memoryDecisionValues(query MemoryDecisionListQuery) url.Values {
-	values := memorySelectorValues(MemorySelectorQuery{
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		AgentName:   query.AgentName,
-		AgentTier:   query.AgentTier,
-	})
-	if trimmed := strings.TrimSpace(query.Operation); trimmed != "" {
-		values.Set("op", trimmed)
-	}
-	if !query.Since.IsZero() {
-		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
-	}
-	if trimmed := strings.TrimSpace(query.Reason); trimmed != "" {
-		values.Set("reason", trimmed)
-	}
-	return values
-}
-
-func automationJobValues(query AutomationJobQuery) url.Values {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
-		values.Set("scope", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
-		values.Set("workspace_id", trimmed)
-	}
-	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
-		values.Set("source", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.LoopName); trimmed != "" {
-		values.Set("loop", trimmed)
-	}
-	if query.Limit > 0 {
-		values.Set("limit", strconv.Itoa(query.Limit))
-	}
-	return values
-}
-
-func automationTriggerValues(query AutomationTriggerQuery) url.Values {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
-		values.Set("scope", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
-		values.Set("workspace_id", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.Event); trimmed != "" {
-		values.Set("event", trimmed)
-	}
-	if trimmed := strings.TrimSpace(string(query.Source)); trimmed != "" {
-		values.Set("source", trimmed)
-	}
-	if trimmed := strings.TrimSpace(query.LoopName); trimmed != "" {
-		values.Set("loop", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
@@ -6194,6 +5890,12 @@ func taskValues(query TaskListQuery) url.Values {
 	if trimmed := strings.TrimSpace(string(query.Status)); trimmed != "" {
 		values.Set("status", trimmed)
 	}
+	if trimmed := strings.TrimSpace(string(query.Priority)); trimmed != "" {
+		values.Set("priority", trimmed)
+	}
+	if query.IncludeDrafts {
+		values.Set("include_drafts", "true")
+	}
 	if trimmed := strings.TrimSpace(string(query.OwnerKind)); trimmed != "" {
 		values.Set("owner_kind", trimmed)
 	}
@@ -6205,6 +5907,15 @@ func taskValues(query TaskListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.NetworkChannel); trimmed != "" {
 		values.Set("network_channel", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
+		values.Set("query", trimmed)
+	}
+	if trimmed := strings.TrimSpace(string(query.Sort)); trimmed != "" {
+		values.Set("sort", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Cursor); trimmed != "" {
+		values.Set("cursor", trimmed)
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

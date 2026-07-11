@@ -12,9 +12,12 @@ function render(ui: React.ReactElement) {
 }
 
 let mockLoops: LoopCatalogEntry[] = [];
+let mockLoopsTotal = 0;
 let mockLoopsLoading = false;
 let mockLoopsError: Error | null = null;
 const mockRefetchLoops = vi.fn();
+const mockFetchNextLoops = vi.fn();
+const mockUseLoops = vi.fn();
 
 const routerState = vi.hoisted(() => ({
   navigateMock: vi.fn(),
@@ -124,21 +127,27 @@ vi.mock("@/systems/loops", async () => {
   const actual = await vi.importActual("@/systems/loops");
   return {
     ...actual,
-    useLoops: () => ({
-      data: mockLoops,
-      isLoading: mockLoopsLoading,
-      error: mockLoopsError,
-      refetch: mockRefetchLoops,
-    }),
+    useLoops: (...args: unknown[]) => {
+      mockUseLoops(...args);
+      return {
+        data: mockLoops.length > 0 ? { pageParams: [undefined], pages: [] } : undefined,
+        facets: {
+          categories: { delivery: 1, watch: 1 },
+          kinds: { read_only: 1, workspace: 1 },
+          statuses: { running: 1, watching: 1 },
+        },
+        fetchNextPage: mockFetchNextLoops,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        isLoading: mockLoopsLoading,
+        error: mockLoopsError,
+        loops: mockLoops,
+        refetch: mockRefetchLoops,
+        total: mockLoopsTotal,
+      };
+    },
   };
 });
-
-vi.mock("@/hooks/routes/use-loop-bindings", () => ({
-  useLoopBindingIndex: () => ({
-    byLoop: new Map(),
-    isLoading: false,
-  }),
-}));
 
 import { routeComponent } from "@/test/route-options";
 import { Route } from "../loops";
@@ -148,9 +157,12 @@ const LoopsPage = routeComponent(Route);
 describe("LoopsPage", () => {
   beforeEach(() => {
     mockLoops = [...loopCatalogFixtures];
+    mockLoopsTotal = mockLoops.length;
     mockLoopsLoading = false;
     mockLoopsError = null;
     mockRefetchLoops.mockReset();
+    mockFetchNextLoops.mockReset();
+    mockUseLoops.mockReset();
     routerState.searchListeners.clear();
     routerState.searchParams = {};
     routerState.navigateMock.mockReset();
@@ -165,9 +177,10 @@ describe("LoopsPage", () => {
     expect(screen.getByTestId("loop-group-workspace")).toBeInTheDocument();
   });
 
-  it("Should show total loop count in page head and topbar Runs link", () => {
+  it("Should show the exact server total in page head and topbar Runs link", () => {
+    mockLoopsTotal = 12;
     render(<LoopsPage />);
-    expect(screen.getByTestId("loops-page-count")).toHaveTextContent(String(mockLoops.length));
+    expect(screen.getByTestId("loops-page-count")).toHaveTextContent("12");
     expect(screen.getByTestId("loops-runs-link")).toBeInTheDocument();
     expect(screen.getByTestId("loops-refresh")).toBeInTheDocument();
   });
@@ -182,20 +195,25 @@ describe("LoopsPage", () => {
     expect(screen.getByTestId("loop-catalog-card-grid")).toBeInTheDocument();
   });
 
-  it("Should persist search query in URL and filter rows", async () => {
+  it("Should persist search query in URL and send it to the server catalog", async () => {
     const user = userEvent.setup();
     render(<LoopsPage />);
 
     await user.type(screen.getByTestId("loop-search-input"), "software");
 
     expect(getValidatedSearch()).toMatchObject({ q: "software" });
-    expect(screen.getByText("software-delivery")).toBeInTheDocument();
-    expect(screen.queryByText("reviews-watch")).not.toBeInTheDocument();
+    expect(mockUseLoops).toHaveBeenLastCalledWith(
+      "ws_test",
+      expect.objectContaining({ limit: 50, q: "software", sort: "name" }),
+      true
+    );
   });
 
   it("Should clear filters from the empty state", async () => {
     const user = userEvent.setup();
     routerState.searchParams = { q: "zzz-no-match" };
+    mockLoops = [];
+    mockLoopsTotal = 0;
     render(<LoopsPage />);
 
     expect(screen.getByTestId("loop-catalog-empty")).toBeInTheDocument();
@@ -218,6 +236,7 @@ describe("LoopsPage", () => {
 
   it("Should show empty inventory when the workspace has no loops", () => {
     mockLoops = [];
+    mockLoopsTotal = 0;
     render(<LoopsPage />);
     expect(screen.getByTestId("loops-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-toolbar")).not.toBeInTheDocument();
@@ -226,6 +245,7 @@ describe("LoopsPage", () => {
   it("Should show loading and error states", () => {
     mockLoopsLoading = true;
     mockLoops = [];
+    mockLoopsTotal = 0;
     const { rerender } = render(<LoopsPage />);
     expect(screen.getByTestId("loops-loading")).toBeInTheDocument();
 

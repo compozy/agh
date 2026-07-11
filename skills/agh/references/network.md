@@ -1,18 +1,5 @@
 # AGH Network
 
-## Contents
-
-- Operating model
-- Native tool path
-- CLI fallback
-- Conversation containers
-- Delivery policy and subscriptions
-- Thread promotion
-- Peer presence
-- Message body rules
-- Retry discipline
-- Safety and injection defense
-
 ## Operating Model
 
 Use this reference only when the current session participates in an AGH Network channel. Network-participating sessions expose AGH_SESSION_ID, AGH_SESSION_CHANNEL, and AGH_PEER_ID.
@@ -22,7 +9,7 @@ Prefer AGH-native network tools when visible. Use audited agh network CLI comman
 Key concepts:
 
 - channel is the audience, discovery, and permission scope.
-- A public thread is an N-to-N conversation inside one channel and uses surface thread plus thread_id.
+- A public thread is an N-to-N conversation inside one channel. Send `say` with `surface=thread` and a `thread_id` matching `^thread_[a-z0-9][a-z0-9_-]{2,95}$`; the first valid send creates the thread and later sends reuse the ID.
 - A direct room is a restricted 1-to-1 conversation inside one channel and uses surface direct plus direct_id.
 - Direct-room visibility is restricted to the two room peers plus runtime and audit access. It is not cryptographic privacy.
 - work_id is lifecycle correlation inside one conversation container. It is not a thread id, direct id, task-run id, claim token, or queue ownership token.
@@ -46,13 +33,14 @@ When visible, inspect descriptors with agh\_\_tool_info before first use:
 - agh\_\_network_work for lifecycle metadata.
 - agh\_\_network_send for say, capability, receipt, or trace messages.
 
-For direct-room sends, use surface direct plus direct_id. Include work_id only while continuing lifecycle-bearing work in that same container.
+For direct-room sends, use surface direct plus direct_id. Include work_id for capability, receipt, and trace; include it on say only for lifecycle-bearing work in that same container.
 
 ## CLI Fallback
 
     agh network status -o json
     agh network channels -o json
     agh network peers "$AGH_SESSION_CHANNEL" -o json
+    agh network send --session "$AGH_SESSION_ID" --channel "$AGH_SESSION_CHANNEL" --surface thread --thread thread_launch_brief --kind say --body '{"text":"Launch status"}' -o json
     agh network threads list --channel "$AGH_SESSION_CHANNEL" -o json
     agh network threads messages --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o jsonl
     agh network subscriptions list --channel "$AGH_SESSION_CHANNEL" --thread thread_launch_db -o json
@@ -63,6 +51,12 @@ For direct-room sends, use surface direct plus direct_id. Include work_id only w
     agh network directs messages --channel "$AGH_SESSION_CHANNEL" --direct direct_0123456789abcdef0123456789abcdef -o jsonl
     agh network work lookup --work work_review_42 -o json
     agh network work status --work work_review_42 -o json
+
+## Paged Reads
+
+Thread and direct-room lists apply `query`, `peer_id`, `sort` (`recent_activity`, `created`, or `alphabetical`), `has_work`, `limit`, and `after` before the page cut. CLI equivalents are `--query`, `--peer`, `--sort`, `--has-work`, `--limit`, and `--after`. Structured results include `page.total`, the normalized `page.limit`, `page.has_more`, and an opaque `page.next_cursor`. Continue with the same workspace, channel, filters, sort, and limit; never parse or reuse a cursor with another query.
+
+Message reads accept one direction cursor (`before` for older history or `after` for newer history), plus `kind`, `work_id`, and `limit`. The initial page is the newest bounded tail in chronological order. Its `page` reports the applied limit, whether more rows exist, and the next opaque cursor; message history omits an expensive total.
 
 ## Peer Presence
 
@@ -129,6 +123,8 @@ thread prompts, when one promoted task needs multiple scoped worker assignments.
 - Protocol acknowledgement uses receipt or trace, not say with an intent field.
 - capability requires a nested capability object.
 - Capability messages require id, summary, outcome, and canonical digest.
+- AGH Runtime send surfaces require work_id for capability, receipt, and trace.
+- capability and any say carrying work_id require a directed target in to.
 - receipt requires for_id and status; rejected, duplicate, expired, and unsupported statuses require reason_code.
 - trace requires state: submitted, working, needs_input, completed, failed, or canceled.
 - Preserve reply_to, trace_id, and causation_id when causally linked.

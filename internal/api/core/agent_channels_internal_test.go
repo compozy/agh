@@ -611,8 +611,8 @@ func (s agentCoreNetworkStore) ListThreads(
 	context.Context,
 	store.NetworkChannelRef,
 	store.NetworkThreadQuery,
-) ([]store.NetworkThreadSummary, error) {
-	return nil, nil
+) (store.NetworkThreadPage, error) {
+	return store.NetworkThreadPage{}, nil
 }
 
 func (s agentCoreNetworkStore) GetThread(
@@ -649,8 +649,8 @@ func (s agentCoreNetworkStore) ListDirectRooms(
 	context.Context,
 	store.NetworkChannelRef,
 	store.NetworkDirectRoomQuery,
-) ([]store.NetworkDirectRoomSummary, error) {
-	return nil, nil
+) (store.NetworkDirectRoomPage, error) {
+	return store.NetworkDirectRoomPage{}, nil
 }
 
 func (s agentCoreNetworkStore) GetDirectRoom(

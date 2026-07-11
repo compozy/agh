@@ -28,6 +28,7 @@ import { NotificationPresetsPanel } from "@/systems/notifications";
 import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSettingsHooksExtensionsRoute } from "../-settings-preload";
 import {
   Alert,
   AlertAction,
@@ -60,6 +61,7 @@ export const Route = createFileRoute("/_app/settings/hooks-extensions")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Hooks & extensions", icon: Puzzle },
   }),
+  loader: ({ context }) => preloadSettingsHooksExtensionsRoute(context.queryClient),
   component: HooksExtensionsSettingsPage,
 });
 
@@ -76,7 +78,6 @@ const ALLOWED_KIND_OPTIONS = [
 ];
 
 const MAX_SCOPE_OPTIONS = ["session", "workspace", "global"] as const;
-
 function HooksExtensionsSettingsPage() {
   const page = useSettingsHooksExtensionsPage();
   const notificationPresets = page.notificationPresets ?? [];
@@ -640,7 +641,6 @@ function ExtensionRow({
 type ExtensionTrustReport = NonNullable<
   SettingsExtensionEntry["trust"] | SettingsExtensionMarketplaceEntry["trust"]
 >;
-
 function trustTone(trust: ExtensionTrustReport): "success" | "warning" | "danger" | "neutral" {
   if (trust.decision === "verified" && trust.checksum_verified) return "success";
   if (trust.decision === "allowed_unverified" || trust.allow_unverified) return "warning";

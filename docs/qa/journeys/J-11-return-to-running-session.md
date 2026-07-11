@@ -10,15 +10,19 @@ flowchart TD
     P -->|warm| T1[Transcript renders from cache instantly]
     P -->|cold, >gcTime window| SK[Skeleton — never empty-state copy]
     SK --> T2[Transcript tail paints ≤2 round trips]
-    T1 --> S[SSE opens with after_sequence cursor / snapshot replay]
+    T1 --> S[SSE opens with after_sequence + epoch/generation fences]
     T2 --> S
-    S -->|idle background session, stale cursor| SNAP[Snapshot-on-subscribe seeds a non-empty view]
+    S -->|cold, no cursor| SNAP[Bounded snapshot seeds the current tail]
+    S -->|matching fences| DELTA[Bounded deltas advance the safe cursor]
+    S -->|missing/stale fence or reset cursor| RESET[Reset snapshot names the reason]
     S -->|transcript fetch 5xx| ERR[Retryable error pane + bounded self-heal refetch]
     ERR -->|recovers| T2
     ERR -.->|never recovers| X3[BLOCKER: silent permanent blank]
     S -->|stream drop| BK[Bounded backoff reconnect, gap-free from cursor]
     BK --> LIVE
     SNAP --> LIVE[Live rows resume incrementally]
+    DELTA --> LIVE
+    RESET --> LIVE
     T1 --> ST{Session state while away?}
     ST -->|stopped/failed| BADGE[Badge flips to stopped + failure reason visible, no manual refresh]
     ST -->|still running| LIVE
@@ -49,16 +53,16 @@ journey:
       expected_observable: "Warm cache → transcript rows render immediately; cold (past the gcTime window) → a skeleton, never the 'Start a conversation' empty-state copy"
     - step: 2
       verb: "Wait for the live stream to attach"
-      expected_observable: "SSE opens for the known workspace/session ids independent of the transcript fetch; an idle background session is seeded by a snapshot-on-subscribe frame (non-empty view)"
+      expected_observable: "SSE opens for the known workspace/session ids independent of the transcript fetch; a cold connection receives a bounded snapshot, while a warm reconnect sends `after_sequence`, `epoch`, and `generation` and receives bounded deltas or an explicit reset snapshot"
     - step: 3
       verb: "Observe the live run resume"
-      expected_observable: "New rows apply incrementally from the cursor; a transient stream drop reconnects with bounded backoff, gap-free"
+      expected_observable: "New rows apply incrementally from the safe cursor; empty deltas may advance that cursor, and a transient stream drop reconnects with bounded backoff using the matching fences"
     - step: 4
       verb: "Confirm the session's truthful state"
       expected_observable: "If it ended while away, the badge shows stopped/failed with the failure reason, without a manual refresh; if still running, the running pulse shows (reduced-motion honored)"
   goal:
     observable: "The persisted conversation is visible and current within the heartbeat window; the lifecycle badge matches reality; blank-thread telemetry never fires for this session"
-    side_effects: [telemetry-counters-fired, sse-subscription-opened, transcript-snapshot-served]
+    side_effects: [telemetry-counters-fired, sse-subscription-opened, transcript-snapshot-or-delta-served]
   true_end_state: "Reload the page: the transcript is still present (not optimistic UI), the badge state is truthful, and — for a transient 5xx — the thread self-healed to content rather than staying silently blank. Task 40 counters confirm the empty-while-active event never fired."
   exit:
     natural: "Operator lands on a live, current session thread and continues watching or steering (J-13)."
@@ -80,12 +84,12 @@ design_reference:
     - "Skeleton ≠ empty: a loading transcript must show a skeleton, not the empty-state copy (task 03/04)."
     - "The badge never shows `running` after a terminal event; the failure reason is surfaced without refresh (task 12/22)."
     - "A transient transcript 5xx surfaces a retryable error pane that self-heals — never a silent permanent blank (task 02)."
-    - "Snapshot-on-subscribe seeds an idle background session so the stream is never silently empty after reconnect (task 17)."
+    - "A cold stream starts with a bounded snapshot; a warm reconnect carries `after_sequence`, `epoch`, and `generation`, and only an explicit `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset` snapshot may replace the cached tail (task 17)."
     - "Workspace switch away from an open session redirects WITH a notice naming the session + owning workspace (task 13)."
 
 e2e_backbone:
   runtime:
-    - "E2E-runtime 3: seed a full view on reconnect for an idle background session (snapshot-on-subscribe) (task 17)."
+    - "E2E-runtime 3: exercise cold bounded snapshots, matching-fence deltas, empty-delta cursor advancement, and each explicit reset reason on reconnect (task 17)."
     - "E2E-runtime 4: consistent state across list and detail through spawn → background → stop (task 22)."
   web:
     - "E2E-web 1: open a running session, navigate away, return with the transcript visible — never a blank thread (the hero case, task 01)."

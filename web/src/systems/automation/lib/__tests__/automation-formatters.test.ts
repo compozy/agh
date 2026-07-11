@@ -16,7 +16,6 @@ import {
   formatRelativeTime,
   formatRunDuration,
   formatRunTitle,
-  sortAutomationJobs,
 } from "../automation-formatters";
 
 const triggerFixture = {
@@ -121,10 +120,11 @@ describe("automation formatter helpers", () => {
     expect(automationSourceTone("dynamic")).toBe("info");
     expect(automationSourceTone("config")).toBe("neutral");
     expect(automationSourceLabel("config")).toBe("CONFIG");
+    expect(automationSourceLabel("package")).toBe("PACKAGE");
     expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
   });
 
-  it("formats list summaries and sorts automation records by source then name", () => {
+  it("formats exact totals while disclosing partially loaded pages", () => {
     expect(
       formatAutomationListSummary({
         activeWorkspaceName: "alpha",
@@ -134,7 +134,7 @@ describe("automation formatter helpers", () => {
         totalCount: 4,
         visibleCount: 1,
       })
-    ).toBe("1 job in alpha");
+    ).toBe("Showing 1 of 4 jobs in alpha");
     expect(
       formatAutomationListSummary({
         kind: "jobs",
@@ -143,7 +143,7 @@ describe("automation formatter helpers", () => {
         totalCount: 4,
         visibleCount: 2,
       })
-    ).toBe("2 jobs in global scope");
+    ).toBe("Showing 2 of 4 jobs in global scope");
     expect(
       formatAutomationListSummary({
         kind: "jobs",
@@ -152,7 +152,7 @@ describe("automation formatter helpers", () => {
         totalCount: 4,
         visibleCount: 2,
       })
-    ).toBe("2 jobs matching current search");
+    ).toBe("Showing 2 of 4 jobs matching current search");
     expect(
       formatAutomationListSummary({
         kind: "triggers",
@@ -162,23 +162,5 @@ describe("automation formatter helpers", () => {
         visibleCount: 0,
       })
     ).toBe("0 triggers found");
-
-    expect(
-      sortAutomationJobs([
-        {
-          id: "dynamic",
-          name: "beta",
-          source: "dynamic",
-        },
-        {
-          id: "config",
-          name: "alpha",
-          source: "config",
-        },
-      ] as never)
-    ).toEqual([
-      expect.objectContaining({ id: "config" }),
-      expect.objectContaining({ id: "dynamic" }),
-    ]);
   });
 });

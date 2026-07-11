@@ -18,7 +18,7 @@ This document is a _review surface_ for Pedro to approve/reject before anything 
 
 5. **CLAUDE.md is materially stale on package layout and build commands.** Missing: `internal/scheduler`, `internal/agentidentity`, `internal/situation`, `internal/hooks`, `internal/task`, `internal/network`, `internal/resources`, `packages/site`. Missing build commands: `make codegen`, `make codegen-check`, `make test-e2e-web`, `make test-e2e-nightly`, `make test-integration`. Phase ordering is outdated. (existing_surfaces)
 
-6. **Three new skills exist locally and aren't in dispatch:** `.agents/skills/real-scenario-qa/` (project-local). The pattern was distilled from autonomy `task_18` QA. Not yet wired to the CLAUDE.md skill dispatch table. (existing_surfaces, codex_sessions)
+6. **Three new skills exist locally and aren't in dispatch:** `.agents/skills/agh/real-scenario-qa/` (project-local). The pattern was distilled from autonomy `task_18` QA. Not yet wired to the CLAUDE.md skill dispatch table. (existing_surfaces, codex_sessions)
 
 7. **The greenfield-alpha discipline is real and visible** in the corpus. Renames are hard-cut (`network-rename`, `assistant-ui`, `workspace-menu`), schema migrations are direct rewrites, no compat shims. Reviews flag "preserve old behavior" PRs. (codex_plans, codex_ledger, multiple)
 

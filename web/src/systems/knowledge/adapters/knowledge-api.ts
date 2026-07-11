@@ -7,7 +7,8 @@ import {
 
 import type {
   KnowledgeSelector,
-  MemoryDecisionOp,
+  KnowledgeListFilter,
+  ListMemoryDecisionsParams,
   MemoryDecisionRevertRequest,
   MemoryDecisionRevertResponse,
   MemoryDecisionsResponse,
@@ -16,6 +17,8 @@ import type {
   MemoryEditRequest,
   MemoryEditResponse,
   MemoryHeader,
+  MemoryListPage,
+  MemoryListQuery,
   MemorySearchRequest,
   MemorySearchResponse,
   MemoryWriteRequest,
@@ -54,12 +57,24 @@ function selectorToQuery(selector: KnowledgeSelector | undefined): SelectorParam
   return params;
 }
 
+function listFilterToQuery(filters: KnowledgeListFilter | undefined): MemoryListQuery {
+  const selector = selectorToQuery(filters);
+  return {
+    ...selector,
+    type: filters?.type,
+    sort: filters?.sort,
+    cursor: filters?.cursor?.trim() || undefined,
+    limit: filters?.limit,
+    include_system: filters?.includeSystem,
+  };
+}
+
 export async function listMemories(
-  selector?: KnowledgeSelector,
+  filters?: KnowledgeListFilter,
   signal?: AbortSignal
-): Promise<MemoryHeader[]> {
+): Promise<MemoryListPage> {
   const { data, error, response } = await apiClient.GET("/api/memory", {
-    params: { query: selectorToQuery(selector) },
+    params: { query: listFilterToQuery(filters) },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -68,7 +83,7 @@ export async function listMemories(
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to fetch memories").memories;
+  return requireResponseData(data, response, "Failed to fetch memories");
 }
 
 export async function readMemory(
@@ -176,12 +191,6 @@ export async function searchMemory(
   return requireResponseData(data, response, "Failed to search memory");
 }
 
-export interface ListMemoryDecisionsParams extends KnowledgeSelector {
-  op?: MemoryDecisionOp;
-  since?: string;
-  limit?: number;
-}
-
 export async function listMemoryDecisions(
   params: ListMemoryDecisionsParams,
   signal?: AbortSignal
@@ -192,6 +201,7 @@ export async function listMemoryDecisions(
       query: {
         ...query,
         ...(params.op ? { op: params.op } : {}),
+        ...(params.filename ? { filename: params.filename } : {}),
         ...(params.since ? { since: params.since } : {}),
         ...(typeof params.limit === "number" ? { limit: params.limit } : {}),
       },

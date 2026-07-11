@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/fileutil"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/memory/controller"
 	storepkg "github.com/compozy/agh/internal/store"
@@ -44,27 +43,6 @@ type storedDecision struct {
 	AgentName   string
 	AgentTier   memcontract.AgentTier
 	AppliedAt   *time.Time
-}
-
-// DecisionRecord is the redaction-safe query model for persisted decisions.
-type DecisionRecord struct {
-	Decision    memcontract.Decision
-	WorkspaceID string
-	AgentName   string
-	AgentTier   memcontract.AgentTier
-	AppliedAt   *time.Time
-}
-
-// DecisionListQuery filters persisted controller decisions.
-type DecisionListQuery struct {
-	Scope       memcontract.Scope
-	WorkspaceID string
-	AgentName   string
-	AgentTier   memcontract.AgentTier
-	Operation   string
-	Since       time.Time
-	Reason      string
-	Limit       int
 }
 
 // WriteRejectedEvent captures denied direct memory-write attempts.
@@ -386,25 +364,6 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 	}, nil
 }
 
-// ListDecisionRecords returns persisted controller decisions ordered newest first.
-func (s *Store) ListDecisionRecords(ctx context.Context, query DecisionListQuery) ([]DecisionRecord, error) {
-	if ctx == nil {
-		return nil, errors.New("memory: list decisions context is required")
-	}
-	if err := s.ensureDecisionCatalog(ctx); err != nil {
-		return nil, err
-	}
-	stored, err := s.catalog.listDecisions(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	records := make([]DecisionRecord, 0, len(stored))
-	for _, decision := range stored {
-		records = append(records, decision.record())
-	}
-	return records, nil
-}
-
 // LoadDecisionRecord returns one persisted controller decision.
 func (s *Store) LoadDecisionRecord(ctx context.Context, id string) (DecisionRecord, error) {
 	if ctx == nil {
@@ -469,114 +428,6 @@ func (d storedDecision) record() DecisionRecord {
 		AgentTier:   d.AgentTier.Normalize(),
 		AppliedAt:   d.AppliedAt,
 	}
-}
-
-func (s *Store) writeRaw(
-	ctx context.Context,
-	scope memcontract.Scope,
-	filename string,
-	content []byte,
-	emitEvent bool,
-) error {
-	if ctx == nil {
-		return errors.New("memory: write context is required")
-	}
-	normalizedScope := scope.Normalize()
-	var header memcontract.Header
-	if _, err := parseFrontmatter(content, &header); err != nil {
-		return fmt.Errorf("memory: parse frontmatter %q: %w", filename, fmt.Errorf("%w: %v", ErrValidation, err))
-	}
-	completedHeader, err := s.completeHeaderForScope(normalizedScope, header)
-	if err != nil {
-		return err
-	}
-	header = completedHeader
-	if err := header.Validate(); err != nil {
-		return wrapValidationError("validate frontmatter", filename, err)
-	}
-
-	path, err := s.pathFor(normalizedScope, filename)
-	if err != nil {
-		return err
-	}
-	if normalizedScope == memcontract.ScopeWorkspace && s.catalog != nil {
-		if _, err := s.workspaceIDForRoot(ctx, s.workspaceRoot); err != nil {
-			return err
-		}
-	}
-	unlock := s.lockMutations()
-	defer unlock()
-
-	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return fmt.Errorf("memory: ensure directory %q: %w", filepath.Dir(path), err)
-	}
-	if err := fileutil.AtomicWrite(path, content); err != nil {
-		return fmt.Errorf("memory: write %q: %w", path, err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("memory: stat written file %q: %w", path, err)
-	}
-	header.Filename = filepath.Base(path)
-	header.FilePath = path
-	header.ModTime = info.ModTime()
-	if err := s.syncScopeAfterWriteErr(ctx, normalizedScope, header, content); err != nil {
-		if !emitEvent {
-			return err
-		}
-		s.warn(
-			"memory: sync derived state failed after mutation",
-			"action", "write",
-			"scope", normalizedScope,
-			"filename", strings.TrimSpace(header.Filename),
-			"error", err,
-		)
-	}
-	if emitEvent {
-		s.logMutationEvent("write", normalizedScope, filepath.Base(path))
-	}
-	return nil
-}
-
-func (s *Store) deleteRaw(ctx context.Context, scope memcontract.Scope, filename string, emitEvent bool) error {
-	if ctx == nil {
-		return errors.New("memory: delete context is required")
-	}
-	normalizedScope := scope.Normalize()
-	path, err := s.pathFor(normalizedScope, filename)
-	if err != nil {
-		return err
-	}
-	if normalizedScope == memcontract.ScopeWorkspace && s.catalog != nil {
-		if _, err := s.workspaceIDForRoot(ctx, s.workspaceRoot); err != nil {
-			return err
-		}
-	}
-	unlock := s.lockMutations()
-	defer unlock()
-
-	if err := fileutil.AtomicRemoveFile(path); err != nil {
-		return fmt.Errorf("memory: delete %q: %w", path, err)
-	}
-	if filepath.Base(path) == indexFilename {
-		return nil
-	}
-	if err := s.syncScopeAfterDeleteErr(ctx, normalizedScope, filepath.Base(path)); err != nil {
-		if !emitEvent {
-			return err
-		}
-		s.warn(
-			"memory: sync derived state failed after mutation",
-			"action", "delete",
-			"scope", normalizedScope,
-			"filename", filepath.Base(path),
-			"error", err,
-		)
-	}
-	if emitEvent {
-		s.logMutationEvent("delete", normalizedScope, filepath.Base(path))
-	}
-	return nil
 }
 
 func (s *Store) ListTargets(ctx context.Context, candidate memcontract.Candidate) ([]controller.Target, error) {
@@ -898,93 +749,6 @@ func (c *catalog) loadDecisionByIdempotencyKey(
 		return storedDecision{}, false, err
 	}
 	return decision, true, nil
-}
-
-func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) ([]storedDecision, error) {
-	db, err := c.ensureDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if db == nil {
-		return nil, errors.New("memory: decision catalog is disabled")
-	}
-	sqlText := strings.Join([]string{
-		`SELECT id, candidate_hash, idempotency_key, workspace_id, scope, agent_name,`,
-		`agent_tier, op, targets, target_filename, frontmatter, post_content,`,
-		`post_content_hash, prior_content, confidence, source, rule_trace, llm_trace,`,
-		`reason, prompt_version, applied_at, decided_at`,
-		`FROM memory_decisions`,
-	}, "\n")
-	clauses, args, err := decisionListWhere(query)
-	if err != nil {
-		return nil, err
-	}
-	if len(clauses) > 0 {
-		sqlText += "\nWHERE " + strings.Join(clauses, " AND ")
-	}
-	sqlText += "\nORDER BY decided_at DESC, id DESC\nLIMIT ?"
-	args = append(args, clampMemoryQueryLimit(query.Limit))
-	rows, err := db.QueryContext(ctx, sqlText, args...)
-	if err != nil {
-		return nil, fmt.Errorf("memory: list decisions: %w", err)
-	}
-	defer closeRows(rows, "memory: close decision rows failed")
-	return scanStoredDecisionRows(rows)
-}
-
-func decisionListWhere(query DecisionListQuery) ([]string, []any, error) {
-	clauses := make([]string, 0, 7)
-	args := make([]any, 0, 7)
-	if scope := query.Scope.Normalize(); scope != "" {
-		if err := scope.Validate(); err != nil {
-			return nil, nil, wrapValidationError("list decisions scope", string(query.Scope), err)
-		}
-		clauses = append(clauses, "scope = ?")
-		args = append(args, string(scope))
-	}
-	if workspaceID := strings.TrimSpace(query.WorkspaceID); workspaceID != "" {
-		clauses = append(clauses, "workspace_id = ?")
-		args = append(args, workspaceID)
-	}
-	if agentName := strings.TrimSpace(query.AgentName); agentName != "" {
-		clauses = append(clauses, "agent_name = ?")
-		args = append(args, agentName)
-	}
-	if agentTier := query.AgentTier.Normalize(); agentTier != "" {
-		if err := agentTier.Validate(); err != nil {
-			return nil, nil, wrapValidationError("list decisions agent tier", string(query.AgentTier), err)
-		}
-		clauses = append(clauses, "agent_tier = ?")
-		args = append(args, string(agentTier))
-	}
-	if op := strings.TrimSpace(query.Operation); op != "" {
-		clauses = append(clauses, "op = ?")
-		args = append(args, op)
-	}
-	if !query.Since.IsZero() {
-		clauses = append(clauses, "decided_at >= ?")
-		args = append(args, timeToUnixMillis(query.Since.UTC()))
-	}
-	if reason := strings.TrimSpace(query.Reason); reason != "" {
-		clauses = append(clauses, "reason = ?")
-		args = append(args, reason)
-	}
-	return clauses, args, nil
-}
-
-func scanStoredDecisionRows(rows *sql.Rows) ([]storedDecision, error) {
-	decisions := make([]storedDecision, 0)
-	for rows.Next() {
-		decision, scanErr := scanStoredDecision(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		decisions = append(decisions, decision)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("memory: iterate decisions: %w", err)
-	}
-	return decisions, nil
 }
 
 func scanStoredDecision(scanner interface{ Scan(dest ...any) error }) (storedDecision, error) {

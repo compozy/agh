@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -17,6 +18,13 @@ type sessionEventStreamSubscriber interface {
 		ctx context.Context,
 		sessionID string,
 		afterSequence int64,
+	) (<-chan store.SessionEvent, func(), error)
+}
+
+type sessionEventWakeSubscriber interface {
+	SubscribeSessionEventWakes(
+		ctx context.Context,
+		sessionID string,
 	) (<-chan store.SessionEvent, func(), error)
 }
 
@@ -39,12 +47,30 @@ func (h *BaseHandlers) subscribeSessionEventStream(
 	ctx context.Context,
 	sessionID string,
 	afterSequence int64,
+	frameMode string,
 ) (sessionEventStreamSubscription, error) {
+	if frameMode == contract.SessionStreamFrameTranscript {
+		wakeSubscriber, ok := h.Sessions.(sessionEventWakeSubscriber)
+		if !ok || wakeSubscriber == nil {
+			return sessionEventStreamSubscription{}, nil
+		}
+		events, cancel, err := wakeSubscriber.SubscribeSessionEventWakes(ctx, sessionID)
+		return newSessionEventStreamSubscription(events, cancel, err)
+	}
+
 	subscriber, ok := h.Sessions.(sessionEventStreamSubscriber)
 	if !ok || subscriber == nil {
 		return sessionEventStreamSubscription{}, nil
 	}
 	events, cancel, err := subscriber.SubscribeSessionEvents(ctx, sessionID, afterSequence)
+	return newSessionEventStreamSubscription(events, cancel, err)
+}
+
+func newSessionEventStreamSubscription(
+	events <-chan store.SessionEvent,
+	cancel func(),
+	err error,
+) (sessionEventStreamSubscription, error) {
 	if err != nil {
 		return sessionEventStreamSubscription{}, err
 	}

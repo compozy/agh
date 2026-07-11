@@ -95,6 +95,7 @@ type Manager interface {
 	InspectRun(ctx context.Context, runID string, actor ActorContext) (*InspectView, error)
 	ListTaskRuns(ctx context.Context, taskID string, query RunQuery, actor ActorContext) ([]Run, error)
 	ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error)
+	ListTaskCatalog(ctx context.Context, query CatalogQuery, actor ActorContext) (CatalogPage, error)
 
 	LiveService
 }

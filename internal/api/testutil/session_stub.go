@@ -11,24 +11,25 @@ import (
 )
 
 type StubSessionManager struct {
-	CreateFn          func(context.Context, session.CreateOpts) (*session.Session, error)
-	ListFn            func() []*session.Info
-	ListAllFn         func(context.Context) ([]*session.Info, error)
-	ListSessionsFn    func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
-	StatusFn          func(context.Context, string) (*session.Info, error)
-	EventsFn          func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	HistoryFn         func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn      func(context.Context, string, store.EventQuery) ([]transcript.Entry, error)
-	WatermarkFn       func(context.Context, string) session.TranscriptWatermark
-	RepairFn          func(context.Context, session.RepairOpts) (*session.RepairResult, error)
-	DeleteFn          func(context.Context, string) error
-	StopFn            func(context.Context, string) error
-	StopWithCauseFn   func(context.Context, string, session.StopCause, string) error
-	ResumeFn          func(context.Context, string) (*session.Session, error)
-	AttachSessionFn   func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
-	ClearFn           func(context.Context, string) (*session.Session, error)
-	PromptFn          func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	PromptSyntheticFn func(
+	CreateFn            func(context.Context, session.CreateOpts) (*session.Session, error)
+	ListFn              func() []*session.Info
+	ListAllFn           func(context.Context) ([]*session.Info, error)
+	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
+	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
+	StatusFn            func(context.Context, string) (*session.Info, error)
+	EventsFn            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	HistoryFn           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptPageFn    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+	TranscriptChangesFn func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
+	RepairFn            func(context.Context, session.RepairOpts) (*session.RepairResult, error)
+	DeleteFn            func(context.Context, string) error
+	StopFn              func(context.Context, string) error
+	StopWithCauseFn     func(context.Context, string, session.StopCause, string) error
+	ResumeFn            func(context.Context, string) (*session.Session, error)
+	AttachSessionFn     func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
+	ClearFn             func(context.Context, string) (*session.Session, error)
+	PromptFn            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	PromptSyntheticFn   func(
 		context.Context,
 		string,
 		session.SyntheticPromptOpts,
@@ -68,6 +69,17 @@ func (s StubSessionManager) ListAll(ctx context.Context) ([]*session.Info, error
 		return s.ListAllFn(ctx)
 	}
 	return nil, nil
+}
+
+func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error) {
+	if s.ListPageFn != nil {
+		return s.ListPageFn(ctx, query)
+	}
+	infos, err := s.ListAll(ctx)
+	if err != nil {
+		return session.ListPage{}, err
+	}
+	return stubSessionListPage(infos, query), nil
 }
 
 func (s StubSessionManager) ListSessions(
@@ -129,25 +141,26 @@ func (s StubSessionManager) History(
 	return nil, nil
 }
 
-func (s StubSessionManager) Transcript(
+func (s StubSessionManager) TranscriptPage(
 	ctx context.Context,
 	id string,
-	query store.EventQuery,
-) ([]transcript.Entry, error) {
-	if s.TranscriptFn != nil {
-		return s.TranscriptFn(ctx, id, query)
+	query transcript.PageQuery,
+) (transcript.Page, error) {
+	if s.TranscriptPageFn != nil {
+		return s.TranscriptPageFn(ctx, id, query)
 	}
-	return nil, nil
+	return transcript.Page{}, nil
 }
 
-func (s StubSessionManager) TranscriptWatermark(
+func (s StubSessionManager) TranscriptChanges(
 	ctx context.Context,
 	id string,
-) session.TranscriptWatermark {
-	if s.WatermarkFn != nil {
-		return s.WatermarkFn(ctx, id)
+	query transcript.ChangeQuery,
+) (transcript.ChangePage, error) {
+	if s.TranscriptChangesFn != nil {
+		return s.TranscriptChangesFn(ctx, id, query)
 	}
-	return session.TranscriptWatermark{}
+	return transcript.ChangePage{}, nil
 }
 
 func (s StubSessionManager) RepairSession(

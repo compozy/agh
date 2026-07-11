@@ -417,6 +417,130 @@ func TestManagerSessionHealthEligibility(t *testing.T) {
 }
 
 func TestManagerSessionHealthQueries(t *testing.T) {
+	t.Run("Should derive one catalog page with one durable health batch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseAt := time.Date(2026, 5, 2, 14, 15, 0, 0, time.UTC)
+		clock := newSessionHealthTestClock(baseAt)
+		healthStore := newFakeSessionHealthStore()
+		h := newHarness(t, WithNow(clock.Now), WithSessionHealthStore(healthStore))
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(active cleanup) error = %v", err)
+			}
+		})
+
+		getsBefore, batchesBefore := healthStore.readCounts()
+		healthByID, err := h.manager.SessionHealthForPage(ctx, []*Info{active.Info()})
+		if err != nil {
+			t.Fatalf("SessionHealthForPage() error = %v", err)
+		}
+		getsAfter, batchesAfter := healthStore.readCounts()
+		if getsAfter != getsBefore || batchesAfter-batchesBefore != 1 {
+			t.Fatalf(
+				"health reads = (single %d->%d, batch %d->%d), want exactly one batch",
+				getsBefore,
+				getsAfter,
+				batchesBefore,
+				batchesAfter,
+			)
+		}
+		health, ok := healthByID[active.ID]
+		if !ok {
+			t.Fatalf("SessionHealthForPage() = %#v, want active session", healthByID)
+		}
+		assertSessionHealthState(t, health, heartbeat.SessionHealthStateIdle, heartbeat.SessionHealthHealthy)
+	})
+
+	t.Run("Should preserve durable recovery truth and synthesize missing health conservatively", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseAt := time.Date(2026, 5, 2, 14, 20, 0, 0, time.UTC)
+		clock := newSessionHealthTestClock(baseAt.Add(time.Hour))
+		healthStore := newFakeSessionHealthStore()
+		h := newHarness(t, WithNow(clock.Now), WithSessionHealthStore(healthStore))
+		storedInfo := &Info{
+			ID:          "sess-durable-stale",
+			WorkspaceID: h.workspaceID,
+			AgentName:   "coder",
+			State:       StateActive,
+		}
+		stored := heartbeat.SessionHealth{
+			SessionID:           storedInfo.ID,
+			WorkspaceID:         h.workspaceID,
+			AgentName:           "coder",
+			State:               heartbeat.SessionHealthStateDetached,
+			Health:              heartbeat.SessionHealthStale,
+			IneligibilityReason: string(heartbeat.SessionHealthReasonStale),
+			LastPresenceAt:      baseAt,
+			UpdatedAt:           baseAt,
+		}
+		if _, err := healthStore.UpsertSessionHealth(ctx, stored); err != nil {
+			t.Fatalf("UpsertSessionHealth(stale) error = %v", err)
+		}
+		stoppedInfo := &Info{
+			ID:          "sess-durable-stopped",
+			WorkspaceID: h.workspaceID,
+			AgentName:   "coder",
+			State:       StateStopped,
+		}
+		missingActiveInfo := &Info{
+			ID:          "sess-durable-active-missing",
+			WorkspaceID: h.workspaceID,
+			AgentName:   "coder",
+			State:       StateActive,
+		}
+
+		getsBefore, batchesBefore := healthStore.readCounts()
+		healthByID, err := h.manager.SessionHealthForPage(ctx, []*Info{
+			nil,
+			storedInfo,
+			storedInfo,
+			stoppedInfo,
+			missingActiveInfo,
+		})
+		if err != nil {
+			t.Fatalf("SessionHealthForPage() error = %v", err)
+		}
+		getsAfter, batchesAfter := healthStore.readCounts()
+		if getsAfter != getsBefore || batchesAfter-batchesBefore != 1 {
+			t.Fatalf(
+				"health reads = (single %d->%d, batch %d->%d), want exactly one batch",
+				getsBefore,
+				getsAfter,
+				batchesBefore,
+				batchesAfter,
+			)
+		}
+		if len(healthByID) != 3 {
+			t.Fatalf("SessionHealthForPage() = %#v, want three deduplicated non-nil rows", healthByID)
+		}
+		if got := healthByID[storedInfo.ID]; got != stored {
+			t.Fatalf("stored durable health = %#v, want preserved %#v", got, stored)
+		}
+		assertSessionHealthState(
+			t,
+			healthByID[stoppedInfo.ID],
+			heartbeat.SessionHealthStateStopped,
+			heartbeat.SessionHealthDead,
+		)
+		missing := healthByID[missingActiveInfo.ID]
+		assertSessionHealthState(
+			t,
+			missing,
+			heartbeat.SessionHealthStateDetached,
+			heartbeat.SessionHealthStale,
+		)
+		if missing.EligibleForWake ||
+			missing.IneligibilityReason != string(heartbeat.SessionHealthReasonStale) {
+			t.Fatalf("missing durable health = %#v, want stale and wake-ineligible", missing)
+		}
+	})
+
 	t.Run("Should refresh active rows and query persisted health read models", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseAt := time.Date(2026, 5, 2, 14, 30, 0, 0, time.UTC)
@@ -911,9 +1035,11 @@ func (c *sessionHealthTestClock) Set(now time.Time) {
 }
 
 type fakeSessionHealthStore struct {
-	mu      sync.Mutex
-	rows    map[string]heartbeat.SessionHealth
-	upserts int
+	mu         sync.Mutex
+	rows       map[string]heartbeat.SessionHealth
+	upserts    int
+	gets       int
+	batchLists int
 }
 
 func newFakeSessionHealthStore() *fakeSessionHealthStore {
@@ -955,6 +1081,7 @@ func (s *fakeSessionHealthStore) GetSessionHealth(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.gets++
 	row, ok := s.rows[target]
 	if !ok {
 		return heartbeat.SessionHealth{}, fmt.Errorf(
@@ -964,6 +1091,41 @@ func (s *fakeSessionHealthStore) GetSessionHealth(
 		)
 	}
 	return row, nil
+}
+
+func (s *fakeSessionHealthStore) ListSessionHealthByIDs(
+	ctx context.Context,
+	sessionIDs []string,
+) ([]heartbeat.SessionHealth, error) {
+	if err := fakeSessionHealthContextErr(ctx); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.batchLists++
+	rows := make([]heartbeat.SessionHealth, 0, len(sessionIDs))
+	seen := make(map[string]struct{}, len(sessionIDs))
+	for _, raw := range sessionIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			return nil, fmt.Errorf("%w: session id is required", heartbeat.ErrInvalidSessionHealth)
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		if row, exists := s.rows[id]; exists {
+			rows = append(rows, row)
+		}
+	}
+	sortFakeSessionHealthRows(rows)
+	return rows, nil
+}
+
+func (s *fakeSessionHealthStore) readCounts() (gets int, batchLists int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gets, s.batchLists
 }
 
 func (s *fakeSessionHealthStore) ListSessionHealth(

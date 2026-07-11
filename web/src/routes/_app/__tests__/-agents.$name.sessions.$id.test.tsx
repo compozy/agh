@@ -7,9 +7,11 @@ import { TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotValue } from "@a
 import {
   sessionKeys,
   type InspectorMemoryState,
+  type NormalizedSessionTranscriptResponse,
   type SessionLedgerResponse,
   type SessionPayload,
 } from "@/systems/session";
+import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import { sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { useActiveWorkspaceStore, type WorkspacePayload } from "@/systems/workspace";
 import type { VaultSecret } from "@/systems/vault";
@@ -35,6 +37,24 @@ type SessionInspectorPropsForTest = {
   vaultIsLoading?: boolean;
   vaultError?: Error | null;
 };
+
+function transcriptResponse(
+  messages: typeof sessionTranscriptFixture
+): NormalizedSessionTranscriptResponse {
+  const entries = messages.map((message, index) => ({
+    message,
+    sequence: index + 1,
+    start_sequence: index + 1,
+  }));
+  return {
+    entries,
+    epoch: 1,
+    generation: 1,
+    has_older: false,
+    limit: 200,
+    max_sequence: entries.at(-1)?.sequence ?? 0,
+  };
+}
 
 const {
   mockRedirect,
@@ -121,6 +141,7 @@ vi.mock("@tanstack/react-router", () => ({
       component: () => ReactNode;
     }) => ({
       ...opts,
+      options: opts,
       useParams: () => ({ name: "claude-agent", id: "sess_123" }),
       useLoaderData: () => mockRouteLoaderData,
     }),
@@ -248,7 +269,7 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { prefetchAgentSessionRoute, SessionPage } from "../agents.$name.sessions.$id";
+import { prefetchAgentSessionRoute, Route } from "../agents.$name.sessions.$id";
 import { redirectSessionPermalinkRoute, resolveSessionPermalink } from "../session.$id";
 import {
   fetchSession,
@@ -259,6 +280,8 @@ import {
 } from "@/systems/session/adapters/session-api";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 import { toast } from "sonner";
+
+const SessionPage = Route.options.component!;
 
 function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | null } }) {
   const slot = useTopbarSlotValue();
@@ -447,11 +470,26 @@ describe("Nested agent session route — Topbar slot migration", () => {
     useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_beta" });
     vi.mocked(fetchSessionById).mockResolvedValue(session);
     vi.mocked(fetchSession).mockResolvedValue(session);
-    vi.mocked(fetchSessionTranscript).mockResolvedValue(messages);
-    vi.mocked(fetchSessions).mockResolvedValue([]);
-    queryClient.setQueryData(sessionKeys.list("ws_beta"), [
-      makeSession({ id: session.id, workspace_id: "ws_beta", workspace_path: "/workspace/beta" }),
-    ]);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse(messages));
+    vi.mocked(fetchSessions).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
+    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_beta" }), {
+      pages: [
+        {
+          sessions: [
+            makeSession({
+              id: session.id,
+              workspace_id: "ws_beta",
+              workspace_path: "/workspace/beta",
+            }),
+          ],
+          page: { has_more: false, limit: 50, total: 1 },
+        },
+      ],
+      pageParams: [undefined],
+    });
 
     const loaderData = await prefetchAgentSessionRoute({
       queryClient,
@@ -465,11 +503,11 @@ describe("Nested agent session route — Topbar slot migration", () => {
     const cachedSession = queryClient.getQueryData<SessionPayload>(
       sessionKeys.detail("ws_alpha", session.id)
     );
-    const cachedTranscript = queryClient.getQueryData<typeof messages>(
+    const cachedTranscript = queryClient.getQueryData<SessionTranscriptData>(
       sessionKeys.transcript("ws_alpha", session.id)
     );
     expect(cachedSession).toEqual(session);
-    expect(cachedTranscript).toEqual(messages);
+    expect(cachedTranscript?.pages[0]?.entries.map(entry => entry.message)).toEqual(messages);
 
     mockRouteLoaderData.workspaceId = loaderData.workspaceId;
     mockUseSession.mockReturnValue({
@@ -477,7 +515,9 @@ describe("Nested agent session route — Topbar slot migration", () => {
       isLoading: false,
       error: null,
     });
-    mockRouteTranscriptMessages.push(...(cachedTranscript ?? []));
+    mockRouteTranscriptMessages.push(
+      ...(cachedTranscript?.pages.flatMap(page => page.entries.map(entry => entry.message)) ?? [])
+    );
 
     renderSessionPage();
 
@@ -503,14 +543,17 @@ describe("Nested agent session route — Topbar slot migration", () => {
     ]);
     vi.mocked(fetchSessionById).mockResolvedValue(session);
     vi.mocked(fetchSession).mockResolvedValue(session);
-    vi.mocked(fetchSessionTranscript).mockResolvedValue(messages);
-    vi.mocked(fetchSessions).mockResolvedValue([]);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse(messages));
+    vi.mocked(fetchSessions).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 50, total: 0 },
+    });
 
     const loaderData = await prefetchAgentSessionRoute({
       queryClient,
       sessionId: session.id,
     });
-    expect(fetchWorkspaces).not.toHaveBeenCalled();
+    expect(fetchWorkspaces).toHaveBeenCalledTimes(1);
     mockRouteLoaderData.workspaceId = loaderData.workspaceId;
     mockUseSession.mockReturnValue({
       data: session,
@@ -532,10 +575,55 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(fetchSessionTranscript).toHaveBeenCalledWith(
       "ws_alpha",
       session.id,
+      {},
       expect.any(AbortSignal)
     );
     expect(fetchSessionById).toHaveBeenCalledTimes(1);
     expect(fetchSessionTranscript).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { selection: null, reason: "missing" },
+    { selection: "ws_removed", reason: "stale" },
+  ])(
+    "Should adopt the session workspace when the persisted selection is $reason",
+    async ({ selection }) => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      const session = makeSession();
+      useActiveWorkspaceStore.setState({ selectedWorkspaceId: selection });
+      vi.mocked(fetchWorkspaces).mockResolvedValue([
+        makeWorkspace(),
+        makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+      ]);
+      vi.mocked(fetchSessionById).mockResolvedValue(session);
+      vi.mocked(fetchSession).mockResolvedValue(session);
+      vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
+
+      await prefetchAgentSessionRoute({ queryClient, sessionId: session.id });
+
+      expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_alpha");
+    }
+  );
+
+  it("Should preserve a valid explicit workspace selection when opening a foreign session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const session = makeSession();
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_beta" });
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace(),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+    vi.mocked(fetchSessionById).mockResolvedValue(session);
+    vi.mocked(fetchSession).mockResolvedValue(session);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
+
+    await prefetchAgentSessionRoute({ queryClient, sessionId: session.id });
+
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_beta");
   });
 
   it("Should resolve /session/$id by id once and seed the canonical route cache", async () => {
@@ -545,7 +633,7 @@ describe("Nested agent session route — Topbar slot migration", () => {
     const session = makeSession({ state: "active", badge: "running", attachable: true });
     const messages = sessionTranscriptFixture.slice(0, 2);
     vi.mocked(fetchSessionById).mockResolvedValue(session);
-    vi.mocked(fetchSessionTranscript).mockResolvedValue(messages);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse(messages));
     vi.mocked(fetchSession).mockResolvedValue(session);
 
     const resolved = await resolveSessionPermalink({
@@ -561,12 +649,15 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(fetchSessionTranscript).toHaveBeenCalledWith(
       "ws_alpha",
       session.id,
+      {},
       expect.any(AbortSignal)
     );
     expect(queryClient.getQueryData(sessionKeys.detail("ws_alpha", session.id))).toEqual(session);
-    expect(queryClient.getQueryData(sessionKeys.transcript("ws_alpha", session.id))).toEqual(
-      messages
-    );
+    expect(
+      queryClient
+        .getQueryData<SessionTranscriptData>(sessionKeys.transcript("ws_alpha", session.id))
+        ?.pages[0]?.entries.map(entry => entry.message)
+    ).toEqual(messages);
   });
 
   it("Should resolve /session/$id when supplementary prefetches fail", async () => {
@@ -608,7 +699,7 @@ describe("Nested agent session route — Topbar slot migration", () => {
     });
     const session = makeSession({ state: "active", badge: "running", attachable: true });
     vi.mocked(fetchSessionById).mockResolvedValue(session);
-    vi.mocked(fetchSessionTranscript).mockResolvedValue([]);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
 
     await expect(
       redirectSessionPermalinkRoute({

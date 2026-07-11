@@ -60,7 +60,10 @@ export type {
   TaskInboxView,
   TaskInspectView,
   TaskListFilter,
+  TaskListFacets,
   TaskListItem,
+  TaskListPage,
+  TaskListStableFilter,
   TaskListSortKey,
   TaskOwnerKind,
   TaskPriority,
@@ -337,6 +340,7 @@ export type { TasksListSortProps } from "./components/tasks-list-sort";
 export {
   applyTaskFilterChips,
   buildTaskFilterFields,
+  taskOwnerFilterValue,
   taskFiltersToChips,
 } from "./lib/tasks-list-filters";
 export type {

@@ -3,7 +3,7 @@
 - **Status:** Current runtime contract
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-05-13
+- **Updated:** 2026-07-11
 - **Future profile:** [RFC 004: AGH Network v1](004_agh-network-v1.md) adds auth/proofs/trust-profile behavior; it is not implemented by the current runtime.
 
 ---
@@ -171,13 +171,16 @@ Rules:
 
 ### 3.6 Work
 
-`work_id` identifies lifecycle-bearing work inside exactly one conversation container. It is not a conversation
-identifier, task-run identifier, claim token, queue lease, or routing key.
+`work_id` identifies lifecycle-bearing work inside exactly one conversation container. It is unique within a
+workspace and is not a conversation identifier, task-run identifier, claim token, queue lease, or routing key.
 
 Rules:
 
-- A work unit is bound to exactly one `(workspace_id, channel, surface, thread_id|direct_id)` container.
+- The first valid envelope binds `(workspace_id, work_id)` to exactly one
+  `(channel, surface, thread_id|direct_id)` container.
 - A work unit never spans multiple containers.
+- Reusing a `work_id` in another channel or container inside the same workspace MUST be rejected as
+  `work_container_mismatch`; a new container requires a new `work_id`.
 - `work_id` SHOULD use a `work_` prefix.
 - `work_id` values MUST NOT be empty, whitespace-only, contain path separators or control characters, or exceed
   128 bytes.
@@ -314,8 +317,8 @@ serialized as UTF-8 JSON.
 | ------------ | -------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
 | `greet`      | MUST omit `surface`, `thread_id`, and `direct_id`  | MUST omit `work_id`                              | SHOULD broadcast                                 |
 | `whois`      | MUST omit `surface`, `thread_id`, and `direct_id`  | MUST omit `work_id`                              | MAY target a peer                                |
-| `say`        | MUST carry `surface` and the matching container ID | MAY carry `work_id` only for lifecycle work      | `to` MAY target a visible peer                   |
-| `capability` | MUST carry `surface` and the matching container ID | MUST carry `work_id` when transfer is work-bound | `to` MAY target a peer                           |
+| `say`        | MUST carry `surface` and the matching container ID | MAY carry `work_id` only for lifecycle work      | MUST set `to` when `work_id` is present          |
+| `capability` | MUST carry `surface` and the matching container ID | MUST carry `work_id`                             | MUST target one peer in `to`                     |
 | `receipt`    | MUST carry `surface` and the matching container ID | MUST carry `work_id`                             | SHOULD target the admitted-message sender        |
 | `trace`      | MUST carry `surface` and the matching container ID | MUST carry `work_id`                             | MAY target the work initiator or interested peer |
 
@@ -327,9 +330,10 @@ Receivers MUST enforce these rules before routing:
 2. `surface:"thread"` MUST set `thread_id` and MUST NOT set `direct_id`.
 3. `surface:"direct"` MUST set `direct_id` and MUST NOT set `thread_id`.
 4. `greet` and `whois` MUST omit `surface`, `thread_id`, `direct_id`, and `work_id`.
-5. `receipt` and `trace` MUST set `work_id`.
-6. Unknown `surface` values MUST be rejected as `invalid_surface`.
-7. A work continuation whose `work_id` is bound to a different container MUST be rejected as
+5. `capability`, `receipt`, and `trace` MUST set `work_id`.
+6. `capability` and any `say` carrying `work_id` MUST set `to`.
+7. Unknown `surface` values MUST be rejected as `invalid_surface`.
+8. A work continuation whose `work_id` is bound to a different container MUST be rejected as
    `work_container_mismatch`.
 
 ### 5.2 Processing model
@@ -699,7 +703,8 @@ Rules:
 - `thread_id` is REQUIRED when `surface:"thread"`.
 - `direct_id` is REQUIRED when `surface:"direct"`.
 - `work_id` MAY be present only when the message opens or continues lifecycle-bearing work.
-- `to` MAY target a visible peer without changing the conversation visibility.
+- `to` is REQUIRED when `work_id` is present and otherwise MAY target a visible peer without changing
+  the conversation visibility.
 
 ### 8.5 `capability`
 
@@ -735,7 +740,7 @@ capability model used by local authoring and rich discovery.
 - senders MUST compute `capability.digest` from the canonical structured capability document.
 - receivers MUST reject digest mismatches as `verification_failed`.
 - `surface` and the matching container ID are REQUIRED.
-- `work_id` is REQUIRED when the transfer is part of lifecycle-bearing work.
+- `work_id` and a target peer in `to` are REQUIRED.
 - v0 validates `requirements` syntactically; receivers do not need to resolve every referenced capability ID locally
   before transport.
 
@@ -1310,7 +1315,8 @@ sequenceDiagram
   "surface": "thread",
   "thread_id": "thread_capabilities",
   "from": "capability-curator",
-  "to": null,
+  "to": "release-bot",
+  "work_id": "work_capability_transfer_7",
   "reply_to": null,
   "trace_id": "trace_capability_catalog_7",
   "causation_id": "msg_whois_11",
@@ -1322,7 +1328,7 @@ sequenceDiagram
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
-      "digest": "sha256:4ac7c4d8f64f35672e0e46ae7b8cfb2fd8d8a48fd6a0f4f37ab89f4459ef560f",
+      "digest": "sha256:9f19a533e236700a29866cb9bf0af2d022785faed82ad050f33bd6e29816f052",
       "context_needed": ["repo", "incident bundle"],
       "requirements": ["collect-failing-tests"]
     }

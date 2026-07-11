@@ -1,18 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
+import { flattenNetworkDirects } from "../lib/infinite-data";
 import { networkDirectDetailOptions, networkDirectsOptions } from "../lib/query-options";
-import type { NetworkDirectRoomDetail, NetworkDirectRoomSummary } from "../types";
+import type {
+  NetworkDirectRoomDetail,
+  NetworkDirectRoomSummary,
+  NetworkDirectsListQuery,
+} from "../types";
 
 export interface UseNetworkDirectsResult {
   directs: NetworkDirectRoomSummary[];
+  total: number;
+  hasMore: boolean;
   isLoading: boolean;
+  isLoadingMore: boolean;
+  loadMore: () => Promise<void>;
   error: Error | null;
 }
 
 export interface UseNetworkDirectsOptions {
   enabled?: boolean;
+  workspaceId?: string | null;
+  query?: Omit<NetworkDirectsListQuery, "after">;
   limit?: number;
   peerId?: string;
 }
@@ -22,24 +34,35 @@ export function useNetworkDirects(
   options: UseNetworkDirectsOptions = {}
 ): UseNetworkDirectsResult {
   const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
-  const enabled = options.enabled !== false && Boolean(channel) && activeWorkspaceId != null;
-  const channelKey = channel ?? "";
-  const query = useQuery(
+  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const workspaceId = selectedWorkspaceId ?? "";
+  const enabled = options.enabled !== false && Boolean(channel) && Boolean(selectedWorkspaceId);
+  const query = useInfiniteQuery(
     networkDirectsOptions(
       workspaceId,
-      channelKey,
+      channel ?? "",
       {
+        ...options.query,
         ...(options.limit ? { limit: options.limit } : {}),
         ...(options.peerId ? { peer_id: options.peerId } : {}),
       },
       enabled
     )
   );
+  const loadMore = useCallback(async () => {
+    if (!query.hasNextPage || query.isFetchingNextPage) {
+      return;
+    }
+    await query.fetchNextPage();
+  }, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
 
   return {
-    directs: query.data ?? [],
+    directs: flattenNetworkDirects(query.data),
+    total: query.data?.pages[0]?.page.total ?? 0,
+    hasMore: query.hasNextPage,
     isLoading: enabled && query.isLoading,
+    isLoadingMore: query.isFetchingNextPage,
+    loadMore,
     error: query.error ?? null,
   };
 }
@@ -53,16 +76,19 @@ export interface UseNetworkDirectDetailResult {
 export function useNetworkDirectDetail(
   channel: string | null | undefined,
   directId: string | null | undefined,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean; workspaceId?: string | null } = {}
 ): UseNetworkDirectDetailResult {
   const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
-    options.enabled !== false && Boolean(channel) && Boolean(directId) && activeWorkspaceId != null;
+    options.enabled !== false &&
+    Boolean(channel) &&
+    Boolean(directId) &&
+    Boolean(selectedWorkspaceId);
   const query = useQuery(
     networkDirectDetailOptions(workspaceId, channel ?? "", directId ?? "", enabled)
   );
-
   return {
     direct: query.data ?? null,
     isLoading: enabled && query.isLoading,

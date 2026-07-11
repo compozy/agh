@@ -23,6 +23,7 @@ import {
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 import { MarketplaceView, SkillListFilters, SkillListPanel } from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { preloadSkillsRoute } from "./-skill-preload";
 
 function validateSkillsSearch(search: Record<string, unknown>): SkillsRouteSearch {
   return {
@@ -39,6 +40,8 @@ export const Route = createFileRoute("/_app/skills")({
     topbar: { title: "Skills", icon: Wrench },
   }),
   validateSearch: validateSkillsSearch,
+  loaderDeps: ({ search }) => ({ q: search.q, tab: search.tab }),
+  loader: ({ context, deps }) => preloadSkillsRoute(context.queryClient, deps),
   component: SkillsPage,
 });
 

@@ -106,7 +106,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "d2ac41e4a83a936b03005c123cb28968d7368377bfacce325017c899e5b5bddc",
+        "input_schema_digest": "2d941919351266e7421aaca202fa130fa3b4876451c301d745fab7e3665ada77",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -227,7 +227,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "3c3d57c3262a53a33bfa6ee3e6193cdbdc131e193204ddf9f23917c5edaa9539",
+        "input_schema_digest": "fa48c35aa64e2d1889e94bcc559459008ea7e99567e049187c986dbf6d95cd26",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -249,8 +249,8 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+        "input_schema_digest": "d629eec4936861664284a98cb12fbc8a58b75432121522722c6ed7246e4326c4",
+        "output_schema_digest": "3a9685ace940df52533c5cbc297c30e3510f6099cc721734162c3dc93c59cddd"
     },
     {
         "tool_id": "agh__bridges_status",
@@ -260,7 +260,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "6c54e9d98d69e9bc53a74f9b13e2b32435e1d59cefa29bb683291d2c7bc4e905",
+        "input_schema_digest": "632e1da03bff7eca0065d8d9db3af1d7ebcea79ce4ec6e8ac01e1253bb2396e7",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -662,7 +662,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "5cbece859b6ee0fcc570b237cc51a118fb92797235bb8fe98e263c979ee6289e",
+        "input_schema_digest": "c840726baa45061aae99208419e7737527f1c2addac95b2df7e21add1e41f93c",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -794,7 +794,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "c9c84d613fa3ba8c80de6593e195738b1b203455ae548529b56dd64930952de7",
+        "input_schema_digest": "8ce769b5397a36a8c7627faf138d1ebda62f9f74dae8c8b30387c3c1a3502953",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -937,7 +937,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "0f33824b6f10a7a9544605380bbcd28bd63d03bf6eea3b7fbdb62b2cd4f8ae48",
+        "input_schema_digest": "afbeb8f6b95d86196e500636406fa4aaf6419a5b394a18b01b7b8ca5a1c0cc3c",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1201,7 +1201,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "77feac5246418b30daf69faace630e9a17c172b33f0820b30446ef10a1dd5b7b",
+        "input_schema_digest": "87fc3bfb91eb54fd00caf83710d09dd56ed76cb05d3def2f8f3de6de33975a7e",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1223,7 +1223,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "a43cc5b4876398635c05d14a6c3a2f83d6694db90e9d5a5d38fd4fcd41e9de6d",
+        "input_schema_digest": "dea0c191d2b4924211f3a65fdcb4dda1c5b2608e744afe7cee8e403cbdcc52af",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1267,7 +1267,7 @@
         "read_only": false,
         "destructive": false,
         "open_world": true,
-        "input_schema_digest": "1660b2e7188ce1e2fea742bbc1d6864f5cfd5cd603a11d795ae3fc63ff452d87",
+        "input_schema_digest": "845553345d75ead8c6cef10d86b24ec73c9d7b81674d764c954a937849f91891",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1311,7 +1311,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "4da4613929acf61f4ec56767d468f4e14e67d59f5df69264e2d2164df18fd5a0",
+        "input_schema_digest": "1fdd35990207feaf953ca51404efd7ac27d9e76a438f21af14f089b262a15d6f",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1322,7 +1322,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "8887fb61f5b0a7301e6f7cc43fd65aa28de268a4766c70b916b0ea88d159c487",
+        "input_schema_digest": "dea0c191d2b4924211f3a65fdcb4dda1c5b2608e744afe7cee8e403cbdcc52af",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
@@ -1502,8 +1502,8 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "b2295a1c10d4860d653a7e839b6e0800a3feedfe127819ef2e97c10d04002cde",
-        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+        "input_schema_digest": "8f3fca9a9ffa8149797016ccae0573d5647735bd5f601569287dbe39767a0aa2",
+        "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
     },
     {
         "tool_id": "agh__session_status",
@@ -1656,7 +1656,7 @@
         "read_only": true,
         "destructive": false,
         "open_world": false,
-        "input_schema_digest": "6ada3328a1c13a49de41834af679a116b15872f034cf5aba98ecb57d033c8753",
+        "input_schema_digest": "eed32da0222b3484c1dd7bca8e1923a9b7d684502418ec972ed51d6f2886d727",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

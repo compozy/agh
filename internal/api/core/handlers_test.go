@@ -34,6 +34,8 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
+	var attachCalls atomic.Int32
+	var attachResult store.SessionAttach
 	var repairSeen session.RepairOpts
 	manager := testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -59,6 +61,12 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info := testutil.NewSessionInfo(id)
 			info.CreatedAt = now
 			info.UpdatedAt = now
+			info.TranscriptEpoch = 1
+			if attachResult.SessionID == id {
+				info.AttachedTo = attachResult.AttachedTo
+				info.AttachExpiresAt = &attachResult.AttachExpiresAt
+				info.UpdatedAt = attachResult.AttachedAt
+			}
 			return info, nil
 		},
 		DeleteFn: func(_ context.Context, id string) error {
@@ -74,15 +82,17 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			return nil
 		},
 		AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+			attachCalls.Add(1)
 			if req.SessionID != "sess-a" {
 				t.Fatalf("AttachSession() session id = %q, want sess-a", req.SessionID)
 			}
-			return store.SessionAttach{
+			attachResult = store.SessionAttach{
 				SessionID:       req.SessionID,
 				AttachedTo:      req.AttachedTo,
 				AttachedAt:      req.Now,
 				AttachExpiresAt: req.Now.Add(req.TTL),
-			}, nil
+			}
+			return attachResult, nil
 		},
 		RepairFn: func(_ context.Context, opts session.RepairOpts) (*session.RepairResult, error) {
 			repairSeen = opts
@@ -126,9 +136,13 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				}},
 			}}, nil
 		},
-		TranscriptFn: func(_ context.Context, _ string, _ store.EventQuery) ([]transcript.Entry, error) {
-			return []transcript.Entry{{
-				Sequence: 1,
+		TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+			if id != "sess-a" || query.Limit != 2 || query.BeforeSequence != 9 {
+				t.Fatalf("TranscriptPage() call = %q %#v, want bounded backward page", id, query)
+			}
+			return transcript.Page{Entries: []transcript.Entry{{
+				StartSequence: 1,
+				Sequence:      1,
 				Message: transcript.UIMessage{
 					ID:   "msg-1",
 					Role: transcript.UIRoleUser,
@@ -138,7 +152,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 						State: "done",
 					}},
 				},
-			}}, nil
+			}}, Generation: 4, MaxSequence: 12, HasOlder: true, NextBeforeSequence: 1}, nil
 		},
 	}
 
@@ -269,6 +283,38 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				payload.Attach.AttachExpiresAt,
 			)
 		}
+		if payload.Session.Attachable {
+			t.Fatal("session attachable = true after successful attach, want false")
+		}
+		if !payload.Session.UpdatedAt.Equal(payload.Attach.AttachedAt) {
+			t.Fatalf(
+				"session updated_at = %v, want attach time %v",
+				payload.Session.UpdatedAt,
+				payload.Attach.AttachedAt,
+			)
+		}
+	})
+
+	t.Run("Should reject cross workspace attach before the Manager CAS", func(t *testing.T) {
+		before := attachCalls.Load()
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-other/sessions/sess-a/attach",
+			nil,
+		)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf(
+				"cross-workspace attach status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusNotFound,
+				resp.Body.String(),
+			)
+		}
+		if attachCalls.Load() != before {
+			t.Fatalf("AttachSession() calls = %d after cross-workspace request, want %d", attachCalls.Load(), before)
+		}
 	})
 
 	t.Run("Should repair sessions", func(t *testing.T) {
@@ -357,11 +403,57 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/transcript",
+			"/workspaces/ws-workspace/sessions/sess-a/transcript?before_sequence=9&limit=2",
 			nil,
 		)
 		if transcriptResp.Code != http.StatusOK {
 			t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusOK)
+		}
+		var payload struct {
+			Entries            []transcript.Entry `json:"entries"`
+			Epoch              int64              `json:"epoch"`
+			Generation         int64              `json:"generation"`
+			MaxSequence        int64              `json:"max_sequence"`
+			HasOlder           bool               `json:"has_older"`
+			NextBeforeSequence int64              `json:"next_before_sequence"`
+			Limit              int                `json:"limit"`
+		}
+		if err := json.Unmarshal(transcriptResp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(transcript response) error = %v", err)
+		}
+		if payload.Epoch != 1 || payload.Generation != 4 || payload.MaxSequence != 12 ||
+			!payload.HasOlder || payload.NextBeforeSequence != 1 || payload.Limit != 2 ||
+			len(payload.Entries) != 1 {
+			t.Fatalf("transcript payload = %#v, want complete page envelope", payload)
+		}
+	})
+
+	t.Run("Should reject forward cursors on the backward transcript page endpoint", func(t *testing.T) {
+		transcriptResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/transcript?after_sequence=1",
+			nil,
+		)
+		if transcriptResp.Code != http.StatusBadRequest {
+			t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusBadRequest)
+		}
+		if !strings.Contains(transcriptResp.Body.String(), "after_sequence is not supported") {
+			t.Fatalf("transcript body = %q, want hard-cut cursor error", transcriptResp.Body.String())
+		}
+	})
+
+	t.Run("Should reject a transcript page outside the session workspace", func(t *testing.T) {
+		transcriptResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-other/sessions/sess-a/transcript?before_sequence=9&limit=2",
+			nil,
+		)
+		if transcriptResp.Code != http.StatusNotFound {
+			t.Fatalf("foreign transcript status = %d, want %d", transcriptResp.Code, http.StatusNotFound)
 		}
 	})
 }
@@ -621,20 +713,24 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 			}
 		}
 
-		var transcriptCalls atomic.Int64
+		var transcriptPageCalls atomic.Int64
 		manager := testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
-			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
-				transcriptCalls.Add(1)
+			TranscriptPageFn: func(
+				_ context.Context,
+				id string,
+				query transcript.PageQuery,
+			) (transcript.Page, error) {
+				transcriptPageCalls.Add(1)
 				if id != "sess-a" {
-					t.Fatalf("Transcript() id = %q, want sess-a", id)
+					t.Fatalf("TranscriptPage() id = %q, want sess-a", id)
 				}
 				if query.Limit != 500 {
-					t.Fatalf("Transcript() query = %#v, want single bounded recap read limit 500", query)
+					t.Fatalf("TranscriptPage() query = %#v, want single bounded recap read limit 500", query)
 				}
-				return []transcript.Entry{
+				return transcript.Page{Entries: []transcript.Entry{
 					markerEntry(
 						"marker-provider-before-recovery",
 						1,
@@ -657,7 +753,7 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 						},
 						Sequence: 10,
 					},
-				}, nil
+				}, Generation: 2, MaxSequence: 12}, nil
 			},
 			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
 				t.Fatalf("Events() called with id=%q query=%#v; recap must use one transcript read", id, query)
@@ -723,14 +819,14 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 		if got, want := payload.Recap.Snapshot.QueueGeneration, int64(7); got != want {
 			t.Fatalf("snapshot.queue_generation = %d, want %d", got, want)
 		}
-		if got, want := payload.Recap.Snapshot.EventCursor, int64(10); got != want {
+		if got, want := payload.Recap.Snapshot.EventCursor, int64(12); got != want {
 			t.Fatalf("snapshot.event_cursor = %d, want %d", got, want)
 		}
 		if got, want := payload.Recap.Snapshot.Consistency, "persisted_reads"; got != want {
 			t.Fatalf("snapshot.consistency = %q, want %q", got, want)
 		}
-		if got, want := transcriptCalls.Load(), int64(1); got != want {
-			t.Fatalf("Transcript() calls = %d, want %d", got, want)
+		if got, want := transcriptPageCalls.Load(), int64(1); got != want {
+			t.Fatalf("TranscriptPage() calls = %d, want %d", got, want)
 		}
 	})
 }
@@ -1186,22 +1282,29 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				eventsCalls.Add(1)
 				return nil, nil
 			},
-			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
-				if id != "sess-a" || query.Limit <= 0 {
-					t.Fatalf("Transcript() call = %q %#v, want bounded snapshot read", id, query)
+			TranscriptPageFn: func(_ context.Context, id string, query transcript.PageQuery) (transcript.Page, error) {
+				if id != "sess-a" || query.Limit <= 0 || query.BeforeSequence != 0 {
+					t.Fatalf("TranscriptPage() call = %q %#v, want bounded tail read", id, query)
 				}
-				return []transcript.Entry{{
-					Sequence: 7,
-					Message: transcript.UIMessage{
-						ID:   "msg-7",
-						Role: transcript.UIRoleAssistant,
-						Parts: []transcript.UIMessagePart{{
-							Type:  "text",
-							Text:  "snapshot",
-							State: "done",
-						}},
-					},
-				}}, nil
+				return transcript.Page{
+					Entries: []transcript.Entry{{
+						StartSequence: 7,
+						Sequence:      7,
+						Message: transcript.UIMessage{
+							ID:   "msg-7",
+							Role: transcript.UIRoleAssistant,
+							Parts: []transcript.UIMessagePart{{
+								Type:  "text",
+								Text:  "snapshot",
+								State: "done",
+							}},
+						},
+					}},
+					Generation:         4,
+					MaxSequence:        7,
+					HasOlder:           true,
+					NextBeforeSequence: 7,
+				}, nil
 			},
 		}
 		observer := testutil.StubObserver{
@@ -1219,7 +1322,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&replay=snapshot",
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript",
 			nil,
 		)
 		if streamResp.Code != http.StatusOK {
@@ -1242,13 +1345,15 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t.Fatalf("emitted event type = %q, want %q", got, events.SessionStreamSnapshotServed)
 		}
 		var eventPayload struct {
-			WorkspaceID string `json:"workspace_id"`
-			SessionID   string `json:"session_id"`
-			Epoch       int64  `json:"epoch"`
-			ResetBelow  bool   `json:"reset_below"`
-			Reason      string `json:"reason"`
-			MinSequence int64  `json:"min_sequence"`
-			MaxSequence int64  `json:"max_sequence"`
+			WorkspaceID        string `json:"workspace_id"`
+			SessionID          string `json:"session_id"`
+			Epoch              int64  `json:"epoch"`
+			Generation         int64  `json:"generation"`
+			Reset              bool   `json:"reset"`
+			Reason             string `json:"reason"`
+			MaxSequence        int64  `json:"max_sequence"`
+			HasOlder           bool   `json:"has_older"`
+			NextBeforeSequence int64  `json:"next_before_sequence"`
 		}
 		if err := json.Unmarshal(emitted[0].Raw, &eventPayload); err != nil {
 			t.Fatalf("json.Unmarshal(snapshot event raw) error = %v raw=%s", err, string(emitted[0].Raw))
@@ -1256,15 +1361,17 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		if eventPayload.WorkspaceID != "ws-workspace" ||
 			eventPayload.SessionID != "sess-a" ||
 			eventPayload.Epoch != 3 ||
-			eventPayload.Reason != contract.TranscriptSnapshotReasonSubscribe ||
-			eventPayload.MinSequence != 7 ||
+			eventPayload.Generation != 4 ||
+			eventPayload.Reason != "" ||
 			eventPayload.MaxSequence != 7 ||
-			!eventPayload.ResetBelow {
+			!eventPayload.HasOlder ||
+			eventPayload.NextBeforeSequence != 7 ||
+			eventPayload.Reset {
 			t.Fatalf("snapshot served event payload = %#v", eventPayload)
 		}
 	})
 
-	t.Run("Should serve a snapshot on a stale Last-Event-ID reconnect", func(t *testing.T) {
+	t.Run("Should drain materialized changes on a valid fenced reconnect", func(t *testing.T) {
 		t.Parallel()
 
 		done := make(chan struct{})
@@ -1283,35 +1390,30 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				eventsCalls.Add(1)
 				return nil, nil
 			},
-			TranscriptFn: func(_ context.Context, id string, query store.EventQuery) ([]transcript.Entry, error) {
-				if id != "sess-a" || query.Limit <= 0 {
-					t.Fatalf("Transcript() call = %q %#v, want bounded snapshot read", id, query)
+			TranscriptPageFn: func(context.Context, string, transcript.PageQuery) (transcript.Page, error) {
+				t.Fatal("TranscriptPage() should not be called for a valid reconnect")
+				return transcript.Page{}, nil
+			},
+			TranscriptChangesFn: func(
+				_ context.Context,
+				id string,
+				query transcript.ChangeQuery,
+			) (transcript.ChangePage, error) {
+				if id != "sess-a" || query.AfterSequence != 3 || query.Limit <= 0 {
+					t.Fatalf("TranscriptChanges() call = %q %#v, want changes after 3", id, query)
 				}
-				return []transcript.Entry{
-					{
-						Sequence: 5,
+				return transcript.ChangePage{
+					Entries: []transcript.Entry{{
+						StartSequence: 2,
+						Sequence:      6,
 						Message: transcript.UIMessage{
-							ID:   "msg-user",
-							Role: transcript.UIRoleUser,
-							Parts: []transcript.UIMessagePart{{
-								Type:  "text",
-								Text:  "summarize the launch blockers",
-								State: "done",
-							}},
-						},
-					},
-					{
-						Sequence: 6,
-						Message: transcript.UIMessage{
-							ID:   "msg-assistant",
+							ID:   "repaired-entry",
 							Role: transcript.UIRoleAssistant,
-							Parts: []transcript.UIMessagePart{{
-								Type:  "text",
-								Text:  "snapshot tail",
-								State: "done",
-							}},
 						},
-					},
+					}},
+					Generation:  4,
+					MaxSequence: 6,
+					NextAfter:   6,
 				}, nil
 			},
 		}
@@ -1322,7 +1424,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&replay=snapshot",
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&epoch=2&generation=4",
 			nil,
 			map[string]string{"Last-Event-ID": "3"},
 		)
@@ -1331,26 +1433,21 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		}
 		records := testutil.ParseSSE(t, streamResp.Body.String())
 		if len(records) == 0 {
-			t.Fatal("stream records = 0, want a transcript snapshot on a stale reconnect")
+			t.Fatal("stream records = 0, want a transcript delta on reconnect")
 		}
-		if got := records[0].Event; got != contract.SessionStreamEventTranscriptSnapshot {
-			t.Fatalf("first stream event = %q, want %q", got, contract.SessionStreamEventTranscriptSnapshot)
+		if got := records[0].Event; got != contract.SessionStreamEventTranscriptDelta {
+			t.Fatalf("first stream event = %q, want %q", got, contract.SessionStreamEventTranscriptDelta)
 		}
-		var snapshot contract.TranscriptSnapshotPayload
-		testutil.DecodeSSEData(t, records[0], &snapshot)
-		if len(snapshot.Entries) == 0 {
-			t.Fatal("snapshot entries = 0, want non-empty render inputs for an idle active reconnect")
+		var delta contract.TranscriptDeltaPayload
+		testutil.DecodeSSEData(t, records[0], &delta)
+		if len(delta.Entries) != 1 || delta.Entries[0].StartSequence != 2 {
+			t.Fatalf("delta entries = %#v, want repaired historical entry", delta.Entries)
 		}
-		if snapshot.MinSequence != 5 || snapshot.MaxSequence != 6 {
-			t.Fatalf("snapshot bounds = [%d,%d], want [5,6]", snapshot.MinSequence, snapshot.MaxSequence)
+		if delta.Epoch != 2 || delta.Generation != 4 || delta.Cursor != 6 || delta.MaxSequence != 6 {
+			t.Fatalf("delta fence/cursor = %#v", delta)
 		}
-		if snapshot.Reason != contract.TranscriptSnapshotReasonReconnect {
-			t.Fatalf("snapshot reason = %q, want %q", snapshot.Reason, contract.TranscriptSnapshotReasonReconnect)
-		}
-		// The frame id carries the max sequence so a native Last-Event-ID resume advances past the
-		// stale cursor instead of re-requesting the same empty catch-up window.
 		if records[0].ID != "6" {
-			t.Fatalf("snapshot frame id = %q, want \"6\"", records[0].ID)
+			t.Fatalf("delta frame id = %q, want \"6\"", records[0].ID)
 		}
 		if got := eventsCalls.Load(); got != 0 {
 			t.Fatalf("Events() calls = %d, want 0 — snapshot must not depend on incremental catch-up", got)
@@ -1368,9 +1465,13 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				t.Fatal("Events() should not be called for invalid cursor")
 				return nil, nil
 			},
-			TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
-				t.Fatal("Transcript() should not be called for invalid cursor")
-				return nil, nil
+			TranscriptPageFn: func(context.Context, string, transcript.PageQuery) (transcript.Page, error) {
+				t.Fatal("TranscriptPage() should not be called for invalid cursor")
+				return transcript.Page{}, nil
+			},
+			TranscriptChangesFn: func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error) {
+				t.Fatal("TranscriptChanges() should not be called for invalid cursor")
+				return transcript.ChangePage{}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
@@ -1406,9 +1507,13 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 				t.Fatal("Events() should not be called for invalid Last-Event-ID")
 				return nil, nil
 			},
-			TranscriptFn: func(context.Context, string, store.EventQuery) ([]transcript.Entry, error) {
-				t.Fatal("Transcript() should not be called for invalid Last-Event-ID")
-				return nil, nil
+			TranscriptPageFn: func(context.Context, string, transcript.PageQuery) (transcript.Page, error) {
+				t.Fatal("TranscriptPage() should not be called for invalid Last-Event-ID")
+				return transcript.Page{}, nil
+			},
+			TranscriptChangesFn: func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error) {
+				t.Fatal("TranscriptChanges() should not be called for invalid Last-Event-ID")
+				return transcript.ChangePage{}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
@@ -1417,7 +1522,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/workspaces/ws-workspace/sessions/sess-a/stream?replay=snapshot",
+			"/workspaces/ws-workspace/sessions/sess-a/stream",
 			nil,
 			map[string]string{"Last-Event-ID": "-1"},
 		)
@@ -1431,6 +1536,62 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		}
 		if !strings.Contains(streamResp.Body.String(), "Last-Event-ID") {
 			t.Fatalf("stream negative Last-Event-ID body = %q, want header message", streamResp.Body.String())
+		}
+	})
+
+	t.Run("Should reject the removed transcript replay query", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		for _, query := range []string{"replay=snapshot", "replay="} {
+			streamResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&"+query,
+				nil,
+			)
+			if streamResp.Code != http.StatusBadRequest {
+				t.Fatalf("stream %s status = %d, want %d", query, streamResp.Code, http.StatusBadRequest)
+			}
+			if !strings.Contains(streamResp.Body.String(), "replay query is no longer supported") {
+				t.Fatalf("stream %s body = %q, want removed-query error", query, streamResp.Body.String())
+			}
+		}
+	})
+
+	t.Run("Should reject empty transcript reconnect fences", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		for _, name := range []string{"epoch", "generation"} {
+			streamResp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/workspaces/ws-workspace/sessions/sess-a/stream?frames=transcript&"+name+"=",
+				nil,
+			)
+			if streamResp.Code != http.StatusBadRequest {
+				t.Fatalf("empty %s status = %d, want %d", name, streamResp.Code, http.StatusBadRequest)
+			}
+			if !strings.Contains(streamResp.Body.String(), "value is required when supplied") {
+				t.Fatalf("empty %s body = %q, want required-value error", name, streamResp.Body.String())
+			}
 		}
 	})
 

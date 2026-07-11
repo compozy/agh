@@ -1,6 +1,7 @@
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type MemoryHeader = OperationResponse<"listMemory", 200>["memories"][number];
+export type MemoryListPage = OperationResponse<"listMemory", 200>;
 export type MemoryReadResponse = OperationResponse<"readMemory", 200>;
 export type MemoryWriteResponse = OperationResponse<"writeMemory", 200>;
 export type MemoryEditResponse = OperationResponse<"editMemory", 200>;
@@ -24,6 +25,7 @@ export type MemoryDecisionRevertRequest = OperationRequestBody<"revertMemoryDeci
 export type MemoryListQuery = NonNullable<OperationQuery<"listMemory">>;
 export type MemoryScope = MemoryListQuery["scope"];
 export type MemoryAgentTier = MemoryListQuery["agent_tier"];
+export type MemorySort = MemoryListQuery["sort"];
 export type MemoryType = MemoryHeader["type"];
 
 export type KnowledgeScope = Exclude<MemoryScope, undefined>;
@@ -42,11 +44,25 @@ export interface KnowledgeSelector {
   agentTier?: KnowledgeAgentTier;
 }
 
+export interface ListMemoryDecisionsParams extends KnowledgeSelector {
+  op?: MemoryDecisionOp;
+  filename?: string;
+  since?: string;
+  limit?: number;
+}
+
 export interface KnowledgeMemoryItem extends MemoryHeader {
   key?: string;
 }
 
-export interface KnowledgeFilter extends KnowledgeSelector {
+export interface KnowledgeListFilter extends KnowledgeSelector {
   type?: MemoryType;
+  sort?: MemorySort;
+  cursor?: string;
+  limit?: number;
+  includeSystem?: boolean;
+}
+
+export interface KnowledgeFilter extends KnowledgeListFilter {
   search?: string;
 }

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,8 @@ import {
   useRepairSession,
 } from "../use-session-actions";
 import { sessionKeys } from "../../lib/query-keys";
-import type { SessionPayload } from "../../types";
+import type { SessionTranscriptData } from "../../lib/session-transcript-query";
+import type { SessionMessage, SessionPayload, SessionsResponse } from "../../types";
 
 vi.mock("../../adapters/session-api", () => ({
   clearSessionConversation: vi.fn(),
@@ -75,6 +76,40 @@ const otherWorkspaceSession: SessionPayload = {
   name: "Other workspace session",
 };
 
+function sessionListCache(sessions: SessionPayload[]): InfiniteData<SessionsResponse, unknown> {
+  return {
+    pages: [
+      {
+        sessions,
+        page: { has_more: false, limit: 50, total: sessions.length },
+      },
+    ],
+    pageParams: [undefined],
+  };
+}
+
+function transcriptCache(messageId = "history-1"): SessionTranscriptData {
+  const message: SessionMessage = {
+    id: messageId,
+    role: "assistant",
+    parts: [{ type: "text", text: "existing" }],
+  };
+  return {
+    pages: [
+      {
+        cursor: 1,
+        entries: [{ message, sequence: 1, start_sequence: 1 }],
+        epoch: 1,
+        generation: 1,
+        has_older: false,
+        limit: 200,
+        max_sequence: 1,
+      },
+    ],
+    pageParams: [undefined],
+  };
+}
+
 describe("session actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,15 +120,18 @@ describe("session actions", () => {
     vi.restoreAllMocks();
   });
 
-  it("useCreateSession seeds detail cache, updates matching lists without duplication, and invalidates in background", async () => {
+  it("useCreateSession seeds detail without replacing infinite list caches", async () => {
     vi.mocked(createSession).mockResolvedValue(createdSession);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    queryClient.setQueryData(sessionKeys.list(), [staleCreatedSession, existingSession]);
-    queryClient.setQueryData(sessionKeys.list("ws_alpha"), [existingSession]);
-    queryClient.setQueryData(sessionKeys.list("ws_beta"), [otherWorkspaceSession]);
+    const allSessions = sessionListCache([staleCreatedSession, existingSession]);
+    const workspaceSessions = sessionListCache([existingSession]);
+    const otherWorkspaceSessions = sessionListCache([otherWorkspaceSession]);
+    queryClient.setQueryData(sessionKeys.list(), allSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_alpha" }), workspaceSessions);
+    queryClient.setQueryData(sessionKeys.list({ workspace: "ws_beta" }), otherWorkspaceSessions);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useCreateSession(), {
@@ -114,12 +152,13 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );
-    expect(queryClient.getQueryData(sessionKeys.list())).toEqual([createdSession, existingSession]);
-    expect(queryClient.getQueryData(sessionKeys.list("ws_alpha"))).toEqual([
-      createdSession,
-      existingSession,
-    ]);
-    expect(queryClient.getQueryData(sessionKeys.list("ws_beta"))).toEqual([otherWorkspaceSession]);
+    expect(queryClient.getQueryData(sessionKeys.list())).toEqual(allSessions);
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_alpha" }))).toEqual(
+      workspaceSessions
+    );
+    expect(queryClient.getQueryData(sessionKeys.list({ workspace: "ws_beta" }))).toEqual(
+      otherWorkspaceSessions
+    );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
@@ -133,9 +172,10 @@ describe("session actions", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), [
-      { id: "history-1", role: "assistant", content: "existing" },
-    ]);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+      transcriptCache()
+    );
     queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), [
       { id: "turn-1" },
     ]);
@@ -155,7 +195,7 @@ describe("session actions", () => {
     );
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
-    ).toEqual([]);
+    ).toBeUndefined();
     expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       []
     );
@@ -170,7 +210,7 @@ describe("session actions", () => {
     });
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
 
-    const transcriptSnapshot = [{ id: "history-1", role: "assistant", content: "existing" }];
+    const transcriptSnapshot = transcriptCache();
     const historySnapshot = [{ id: "turn-1" }];
     queryClient.setQueryData(
       sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
@@ -204,9 +244,10 @@ describe("session actions", () => {
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), [
-      { id: "history-1", role: "assistant", content: "existing" },
-    ]);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+      transcriptCache()
+    );
     queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), [
       { id: "turn-1" },
     ]);
@@ -248,7 +289,7 @@ describe("session actions", () => {
     });
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
 
-    const transcriptSnapshot = [{ id: "history-1", role: "assistant", content: "existing" }];
+    const transcriptSnapshot = transcriptCache();
     const historySnapshot = [{ id: "turn-1" }];
     const eventsSnapshot = [{ id: "event-1" }];
     queryClient.setQueryData(

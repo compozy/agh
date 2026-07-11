@@ -12,6 +12,7 @@ import {
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadSettingsGeneralRoute } from "../-settings-preload";
 import {
   Button,
   Eyebrow,
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_app/settings/general")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "General settings", icon: SettingsIcon },
   }),
+  loader: ({ context }) => preloadSettingsGeneralRoute(context.queryClient),
   component: GeneralSettingsPage,
 });
 

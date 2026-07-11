@@ -8,17 +8,17 @@ export type {
 } from "./types";
 
 // Adapters
-export { fetchDaemonStatus, fetchHealth, fetchStatus } from "./adapters/daemon-api";
+export { fetchStatus } from "./adapters/daemon-api";
 
 // Query infrastructure
-export { daemonKeys } from "./lib/query-keys";
-export { daemonHealthOptions, daemonStatusOptions } from "./lib/query-options";
+export { statusKeys } from "./lib/query-keys";
+export { statusOptions } from "./lib/query-options";
 
 // Hooks
 export {
-  deriveDaemonConnectionStatus,
   useDaemonConnectionStatus,
   type ConnectionStatus,
 } from "./hooks/use-daemon-connection-status";
-export { useDaemonHealth } from "./hooks/use-daemon-health";
+export { deriveDaemonConnectionStatus, useDaemonHealth } from "./hooks/use-daemon-health";
+export { useDaemonStatus } from "./hooks/use-daemon-status";
 export { useStatus } from "./hooks/use-status";

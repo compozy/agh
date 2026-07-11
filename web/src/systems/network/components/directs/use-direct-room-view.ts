@@ -10,6 +10,7 @@ import { useOpenWork, type UseOpenWorkResult } from "../../hooks/use-work";
 import type { NetworkConversationMessage } from "../../types";
 
 export interface UseDirectRoomViewArgs {
+  workspaceId: string;
   channel: string;
   directId: string;
   /** Override the local peer id resolution (used for storybook + tests). */
@@ -31,15 +32,22 @@ export interface UseDirectRoomViewResult {
  * and mutation hooks here.
  */
 export function useDirectRoomView({
+  workspaceId,
   channel,
   directId,
   selfPeerId: providedSelfPeer,
 }: UseDirectRoomViewArgs): UseDirectRoomViewResult {
-  const session = useActiveNetworkSession(channel);
+  const session = useActiveNetworkSession(channel, { workspaceId });
   const selfPeerId = providedSelfPeer ?? session.session?.peerId;
-  const room = useDirectRoom({ channel, directId, selfPeerId });
-  const openWork = useOpenWork({ channel, surface: "direct", containerId: directId });
-  const { retry, discard } = useSendNetworkMessage();
+  const room = useDirectRoom({ workspaceId, channel, directId, selfPeerId });
+  const openWork = useOpenWork({
+    workspaceId,
+    channel,
+    surface: "direct",
+    containerId: directId,
+    exactOpenCount: room.detail?.open_work_count,
+  });
+  const { retry, discard } = useSendNetworkMessage({ workspaceId });
 
   const buildSendInput = useCallback(
     (message: NetworkConversationMessage): SendNetworkMessageDirectInput | null => {
