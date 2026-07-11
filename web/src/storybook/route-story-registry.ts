@@ -268,6 +268,13 @@ export const routeStoryRegistry = [
     storyName: "Default",
   },
   {
+    system: "agent",
+    routePath: "/agents/$name/settings",
+    storybookPath: `/agents/${storyAgentNames.fraud}/settings`,
+    title: "systems/agent/routes/AgentSettings",
+    storyName: "Basics",
+  },
+  {
     system: "tasks",
     routePath: "/tasks/$id/edit",
     storybookPath: `/tasks/${storyTaskId}/edit`,

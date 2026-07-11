@@ -17,6 +17,8 @@ import { appendAgentCreateTokens, removeAgentCreateToken } from "../lib/agent-cr
 
 export interface TokenListFieldProps {
   description: string;
+  disabled?: boolean;
+  readOnly?: boolean;
   error?: string;
   label: string;
   onChange: (values: string[]) => void;
@@ -27,6 +29,8 @@ export interface TokenListFieldProps {
 
 export function TokenListField({
   description,
+  disabled = false,
+  readOnly = false,
   error,
   label,
   onChange,
@@ -38,7 +42,7 @@ export function TokenListField({
   const [inputValue, setInputValue] = useState("");
 
   const commit = () => {
-    if (inputValue.trim().length === 0) return;
+    if (disabled || readOnly || inputValue.trim().length === 0) return;
     onChange(appendAgentCreateTokens(values, inputValue));
     setInputValue("");
   };
@@ -56,11 +60,15 @@ export function TokenListField({
       <FieldDescription>{description}</FieldDescription>
       <InputGroup>
         <InputGroupInput
+          aria-disabled={readOnly || undefined}
           aria-invalid={Boolean(error)}
           data-testid={testId + "-input"}
+          disabled={disabled}
+          readOnly={readOnly}
           id={inputId}
           onBlur={commit}
           onChange={event => {
+            if (disabled || readOnly) return;
             const next = event.target.value;
             if (/[,\n]/.test(next)) {
               onChange(appendAgentCreateTokens(values, next));
@@ -77,7 +85,8 @@ export function TokenListField({
           <InputGroupButton
             aria-label={"Add " + label.toLowerCase()}
             data-testid={testId + "-add"}
-            disabled={inputValue.trim().length === 0}
+            disabled={disabled || inputValue.trim().length === 0}
+            aria-disabled={readOnly || undefined}
             onClick={commit}
             size="icon-xs"
           >
@@ -92,8 +101,13 @@ export function TokenListField({
               <span className="max-w-44 truncate">{value}</span>
               <button
                 aria-label={"Remove " + value}
-                className="inline-flex size-4 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-                onClick={() => onChange(removeAgentCreateToken(values, value))}
+                className="inline-flex size-4 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring disabled:pointer-events-none disabled:opacity-50"
+                disabled={disabled}
+                aria-disabled={readOnly || undefined}
+                onClick={() => {
+                  if (disabled || readOnly) return;
+                  onChange(removeAgentCreateToken(values, value));
+                }}
                 type="button"
               >
                 <X aria-hidden="true" className="size-3" />

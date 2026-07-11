@@ -1,6 +1,7 @@
 import { ListChecksIcon } from "lucide-react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { useTopbarSlot } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
 
@@ -69,7 +70,7 @@ describe("TopbarShell", () => {
     expect(screen.getByText("Untitled")).toBeInTheDocument();
   });
 
-  it("Should subscribe to onResolved so route navigation can clear the slot and refocus", () => {
+  it("Should subscribe to onResolved so route navigation can refocus the title", () => {
     matchesMock.mockReturnValue([{ context: { topbar: { title: "Home" } } }]);
     subscribeMock.mockClear();
     render(
@@ -130,5 +131,24 @@ describe("TopbarShell", () => {
     getLatestOnResolvedHandler()({ pathChanged: false });
 
     expect(input).toHaveFocus();
+  });
+
+  it("Should preserve the destination slot when path resolution fires after it publishes", () => {
+    function DestinationRoute() {
+      useTopbarSlot({ actions: <button type="button">New session</button> });
+      return null;
+    }
+
+    matchesMock.mockReturnValue([{ context: { topbar: { title: "Agent" } } }]);
+    subscribeMock.mockClear();
+    render(
+      <TopbarShell>
+        <DestinationRoute />
+      </TopbarShell>
+    );
+
+    expect(screen.getByRole("button", { name: "New session" })).toBeVisible();
+    getLatestOnResolvedHandler()({ pathChanged: true });
+    expect(screen.getByRole("button", { name: "New session" })).toBeVisible();
   });
 });

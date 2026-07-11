@@ -206,7 +206,7 @@ vi.mock("@/systems/workspace", () => ({
 }));
 
 vi.mock("@/systems/agent/hooks/use-agent-create-host", () => ({
-  useAgentCreateHost: () => ({ openDialog: mockOpenCreate }),
+  useAgentCreateHost: () => ({ openDialog: mockOpenCreate, openForDuplicate: vi.fn() }),
 }));
 
 vi.mock("@/systems/agent/components/agent-create-host", () => ({

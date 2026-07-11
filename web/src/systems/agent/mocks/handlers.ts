@@ -31,6 +31,15 @@ function nextDigest(seed: string): string {
   return hex;
 }
 
+function authoredMarkdown(source: string): string {
+  if (!source.startsWith("---\n")) return source;
+
+  const closingDelimiter = source.indexOf("\n---", 4);
+  if (closingDelimiter < 0) return source;
+
+  return source.slice(closingDelimiter + 4).replace(/^\r?\n/, "");
+}
+
 const HEARTBEAT_SUBSET = {
   active_session_only: false,
   allow_active_hours_preferences: true,
@@ -67,7 +76,7 @@ function buildSoulPayload(
     active,
     present: active,
     enabled: true,
-    body: stored?.body ?? "",
+    body: stored ? authoredMarkdown(stored.body) : "",
     digest,
     valid: true,
     validation_status: active ? "valid" : "missing",
@@ -105,6 +114,7 @@ function buildHeartbeatPayload(
     schema_version: 1,
     agent_name: name,
     frontmatter: { enabled, version: 1, context: {}, preferences: {} },
+    guidance_markdown: stored ? authoredMarkdown(stored.body) : "",
     limits: { max_body_bytes: 65536 },
     preferences: { min_interval: "30m", context: {} },
     prompt: emptySoulPrompt(active),

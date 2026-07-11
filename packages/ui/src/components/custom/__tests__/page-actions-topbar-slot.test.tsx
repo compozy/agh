@@ -44,4 +44,29 @@ describe("PageActionsTopbarSlot", () => {
     const root = container.querySelector<HTMLElement>('[data-slot="page-actions-topbar-slot"]');
     expect(root?.dataset.saving).toBe("true");
   });
+
+  it("Should keep Save focusable with aria-disabled when saveBlocked while dirty", () => {
+    const onSave = vi.fn();
+    const { container } = render(
+      <PageActionsTopbarSlot
+        dirty
+        saveBlocked
+        saveBlockedCaption="Fix 1 field before saving"
+        onSave={onSave}
+        onDiscard={vi.fn()}
+      />
+    );
+
+    const save = screen.getByRole("button", { name: "Save changes" });
+    expect(save).toBeEnabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("page-actions-topbar-slot-blocked-caption")).toHaveTextContent(
+      "Fix 1 field before saving"
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="page-actions-topbar-slot"]');
+    expect(root?.dataset.saveBlocked).toBe("true");
+
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+  });
 });

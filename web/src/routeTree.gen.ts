@@ -47,6 +47,7 @@ import { Route as AppTasksIdEditRouteImport } from './routes/_app/tasks.$id.edit
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
+import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppTasksIdRunsRunIdRouteImport } from './routes/_app/tasks.$id.runs.$runId'
 import { Route as AppNetworkWorkspaceIdChannelThreadsRouteImport } from './routes/_app/network.$workspaceId.$channel.threads'
 import { Route as AppNetworkWorkspaceIdChannelDirectsRouteImport } from './routes/_app/network.$workspaceId.$channel.directs'
@@ -246,6 +247,11 @@ const AppLoopsNameConfigureRoute = AppLoopsNameConfigureRouteImport.update({
   path: '/configure',
   getParentRoute: () => AppLoopsNameRoute,
 } as any)
+const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppAgentsNameRoute,
+} as any)
 const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
   id: '/runs/$runId',
   path: '/runs/$runId',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
+  '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
+  '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -414,6 +422,7 @@ export interface FileRoutesById {
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -462,6 +471,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings/'
+    | '/agents/$name/settings'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
@@ -507,6 +517,7 @@ export interface FileRouteTypes {
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings'
+    | '/agents/$name/settings'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
@@ -554,6 +565,7 @@ export interface FileRouteTypes {
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/settings/'
+    | '/_app/agents/$name/settings'
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
     | '/_app/loops/$name/run'
@@ -840,6 +852,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLoopsNameConfigureRouteImport
       parentRoute: typeof AppLoopsNameRoute
     }
+    '/_app/agents/$name/settings': {
+      id: '/_app/agents/$name/settings'
+      path: '/settings'
+      fullPath: '/agents/$name/settings'
+      preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
+      parentRoute: typeof AppAgentsNameRoute
+    }
     '/_app/tasks/$id/runs/$runId': {
       id: '/_app/tasks/$id/runs/$runId'
       path: '/runs/$runId'
@@ -893,10 +912,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAgentsNameRouteChildren {
+  AppAgentsNameSettingsRoute: typeof AppAgentsNameSettingsRoute
   AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
 }
 
 const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
+  AppAgentsNameSettingsRoute: AppAgentsNameSettingsRoute,
   AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
 }
 

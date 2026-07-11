@@ -1,14 +1,21 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 
-import { agentKeys, useAgent, useAgentSessions, type AgentPayload } from "@/systems/agent";
-import {
-  sessionKeys,
-  useSessionCreate,
-  type SessionCreateContextValue,
-  type SessionPayload,
-} from "@/systems/session";
+import { useAgent } from "@/systems/agent/hooks/use-agents";
+import { useAgentSessions } from "@/systems/agent/hooks/use-agent-sessions";
+import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
+import { useAgentDeleteFlow } from "@/systems/agent/hooks/use-agent-delete-flow";
+import type {
+  AgentDetailSearch,
+  AgentDetailTab,
+  AgentInstructionFile,
+  AgentSessionFilter,
+  ResolvedAgentDetailSearch,
+} from "@/systems/agent/lib/agent-detail-search";
+import { resolveAgentDetailSearch } from "@/systems/agent/lib/agent-detail-search";
+import type { AgentSettingsSection } from "@/systems/agent/lib/agent-settings-search";
+import type { AgentPayload } from "@/systems/agent/types";
+import { useSessionCreate, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseAgentDetailPageResult {
@@ -25,21 +32,29 @@ export interface UseAgentDetailPageResult {
   onLoadMoreSessions: () => void;
   sessionsLoading: boolean;
   sessionsError: boolean;
-  isRefreshing: boolean;
+  search: ResolvedAgentDetailSearch;
+  setTab: (tab: AgentDetailTab) => void;
+  setFile: (file: AgentInstructionFile) => void;
+  setFilter: (filter: AgentSessionFilter) => void;
   isCreatingForAgent: boolean;
   newSessionDisabled: boolean;
-  sessionCreate: SessionCreateContextValue;
-  onRefresh: () => void;
-  onConfigure: () => void;
   onNewSession: () => void;
-  onGoHome: () => void;
+  onEditSettings: (section?: AgentSettingsSection) => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onBackToAgents: () => void;
+  deleteDialog: ReturnType<typeof useAgentDeleteFlow>["confirmDialog"];
 }
 
-export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
+export function useAgentDetailPage(
+  name: string,
+  rawSearch: AgentDetailSearch
+): UseAgentDetailPageResult {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { activeWorkspaceId } = useActiveWorkspace();
   const sessionCreate = useSessionCreate();
+  const createHost = useAgentCreateHost();
+  const search = resolveAgentDetailSearch(rawSearch);
   const {
     data: agent,
     isLoading: agentLoading,
@@ -57,26 +72,82 @@ export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
     isLoading: sessionsLoading,
     isError: sessionsError,
   } = useAgentSessions(activeWorkspaceId, name);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const onRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    void Promise.all([
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
-      queryClient.invalidateQueries({ queryKey: agentKeys.all }),
-    ]).finally(() => setIsRefreshing(false));
-  }, [queryClient]);
+  const deleteFlow = useAgentDeleteFlow({
+    agent,
+    workspaceId: activeWorkspaceId,
+  });
 
-  const onConfigure = useCallback(() => {
-    void navigate({ to: "/settings" });
-  }, [navigate]);
+  const setTab = useCallback(
+    (tab: AgentDetailTab) => {
+      void navigate({
+        to: "/agents/$name",
+        params: { name },
+        search: {
+          tab,
+          file: search.file,
+          filter: search.filter,
+        },
+        replace: true,
+      });
+    },
+    [name, navigate, search.file, search.filter]
+  );
+
+  const setFile = useCallback(
+    (file: AgentInstructionFile) => {
+      void navigate({
+        to: "/agents/$name",
+        params: { name },
+        search: {
+          tab: "instructions",
+          file,
+          filter: search.filter,
+        },
+        replace: true,
+      });
+    },
+    [name, navigate, search.filter]
+  );
+
+  const setFilter = useCallback(
+    (filter: AgentSessionFilter) => {
+      void navigate({
+        to: "/agents/$name",
+        params: { name },
+        search: {
+          tab: "sessions",
+          file: search.file,
+          filter,
+        },
+        replace: true,
+      });
+    },
+    [name, navigate, search.file]
+  );
 
   const onNewSession = useCallback(() => {
     sessionCreate.openForAgent(name);
   }, [sessionCreate, name]);
 
-  const onGoHome = useCallback(() => {
-    void navigate({ to: "/" });
+  const onEditSettings = useCallback(
+    (section?: AgentSettingsSection) => {
+      void navigate({
+        to: "/agents/$name/settings",
+        params: { name },
+        search: section ? { section } : {},
+      });
+    },
+    [name, navigate]
+  );
+
+  const onDuplicate = useCallback(() => {
+    if (!agent) return;
+    createHost.openForDuplicate(agent);
+  }, [agent, createHost]);
+
+  const onBackToAgents = useCallback(() => {
+    void navigate({ to: "/agents" });
   }, [navigate]);
 
   return {
@@ -93,13 +164,17 @@ export function useAgentDetailPage(name: string): UseAgentDetailPageResult {
     onLoadMoreSessions,
     sessionsLoading,
     sessionsError,
-    isRefreshing,
+    search,
+    setTab,
+    setFile,
+    setFilter,
     isCreatingForAgent: sessionCreate.isCreating && sessionCreate.pendingAgentName === name,
     newSessionDisabled: !sessionCreate.hasActiveWorkspace,
-    sessionCreate,
-    onRefresh,
-    onConfigure,
     onNewSession,
-    onGoHome,
+    onEditSettings,
+    onDuplicate,
+    onDelete: deleteFlow.openDialog,
+    onBackToAgents,
+    deleteDialog: deleteFlow.confirmDialog,
   };
 }

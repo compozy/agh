@@ -147,9 +147,11 @@ vi.mock("@/systems/agent", () => ({
     open ? <div data-testid="agent-create-dialog" /> : null,
   AgentCreateHostProvider: ({
     openDialog,
+    openForDuplicate: _openForDuplicate,
     children,
   }: {
     openDialog: () => void;
+    openForDuplicate?: (agent: unknown) => void;
     children: ReactNode;
   }) => (
     <div data-testid="agent-create-host">
@@ -159,7 +161,10 @@ vi.mock("@/systems/agent", () => ({
       {children}
     </div>
   ),
-  useAgentCreateHost: () => ({ openDialog: mockOpenAgentCreate }),
+  useAgentCreateHost: () => ({
+    openDialog: mockOpenAgentCreate,
+    openForDuplicate: vi.fn(),
+  }),
 }));
 
 vi.mock("@/systems/session", () => ({

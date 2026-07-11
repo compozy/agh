@@ -18,8 +18,9 @@ describe("AgentCreateHost", () => {
   it("Should expose openDialog to consumers inside the provider", async () => {
     const user = userEvent.setup();
     const openDialog = vi.fn();
+    const openForDuplicate = vi.fn();
     render(
-      <AgentCreateHostProvider openDialog={openDialog}>
+      <AgentCreateHostProvider openDialog={openDialog} openForDuplicate={openForDuplicate}>
         <CreateHostProbe />
       </AgentCreateHostProvider>
     );

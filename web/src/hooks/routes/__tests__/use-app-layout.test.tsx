@@ -95,6 +95,7 @@ vi.mock("@/systems/agent", () => ({
           ? "beta"
           : "alpha",
     openDialog: mockOpenAgentCreate,
+    openForDuplicate: vi.fn(),
     onDraftChange: vi.fn(),
     onOpenChange: vi.fn(),
     onSubmit: vi.fn(),

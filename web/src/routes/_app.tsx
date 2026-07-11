@@ -90,7 +90,10 @@ function AppShell() {
         hasActiveWorkspace: page.activeWorkspace !== undefined,
       }}
     >
-      <AgentCreateHostProvider openDialog={page.agentCreate.openDialog}>
+      <AgentCreateHostProvider
+        openDialog={page.agentCreate.openDialog}
+        openForDuplicate={page.agentCreate.openForDuplicate}
+      >
         <div
           data-testid="app-grid"
           className="grid min-h-0 flex-1 grid-cols-[56px_minmax(0,1fr)] grid-rows-[48px_1fr] overflow-hidden min-[880px]:grid-cols-[56px_220px_minmax(0,1fr)] min-[1100px]:grid-cols-[56px_244px_minmax(0,1fr)]"

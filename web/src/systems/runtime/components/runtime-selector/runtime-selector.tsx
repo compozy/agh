@@ -23,6 +23,8 @@ export interface RuntimeSelectorProps {
   models: RuntimeModelOption[];
   variant?: RuntimeSelectorVariant;
   disabled?: boolean;
+  /** Keeps the trigger focusable and visible while preventing edits. */
+  readOnly?: boolean;
   /** Catalog is loading (drives the list loading state). */
   loading?: boolean;
   /**
@@ -52,6 +54,7 @@ export function RuntimeSelector({
   models,
   variant = "default",
   disabled = false,
+  readOnly = false,
   loading = false,
   catalogLoaded = false,
   modelPlaceholder = "Select model",
@@ -65,7 +68,12 @@ export function RuntimeSelector({
   className,
 }: RuntimeSelectorProps) {
   const controller = useRuntimeSelector({ value, onChange, providers, models, catalogLoaded });
-  const popup = useRuntimeSelectorPopup({ controller, providers, value, disabled });
+  const popup = useRuntimeSelectorPopup({
+    controller,
+    providers,
+    value,
+    disabled: disabled || readOnly,
+  });
   const modelName = controller.selectedModel?.name ?? value.model;
 
   // Provider Settings closes the popup FIRST, then hands off to the surface (which
@@ -91,6 +99,7 @@ export function RuntimeSelector({
         variant={variant}
         open={controller.open}
         disabled={disabled}
+        readOnly={readOnly}
         needsAuth={controller.activeProvider?.needs_auth}
         modelPlaceholder={modelPlaceholder}
         popupId={popup.popupId}

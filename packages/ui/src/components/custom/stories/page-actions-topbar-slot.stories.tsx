@@ -47,3 +47,14 @@ export const Saving: Story = {
     onDiscard: fn(),
   },
 };
+
+/** Validation-blocked — Save stays focusable with aria-disabled + caption. */
+export const SaveBlocked: Story = {
+  args: {
+    dirty: true,
+    saveBlocked: true,
+    saveBlockedCaption: "Fix 1 field before saving",
+    onSave: fn(),
+    onDiscard: fn(),
+  },
+};

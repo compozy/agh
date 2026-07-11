@@ -96,14 +96,20 @@ test.describe("seeded agent detail", () => {
 
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
     await expect(appPage.getByRole("heading", { name: "agent-detail-primary" })).toBeVisible();
-    await expect(appPage.getByRole("heading", { exact: true, name: "MCP Servers" })).toBeVisible();
-    await expect(
-      appPage.getByRole("heading", { exact: true, name: "No MCP servers" })
-    ).toBeVisible();
-    await expect(appPage.getByTestId("agent-sessions-empty")).toBeVisible();
+    await expect(appPage.getByTestId("agent-detail-tabs")).toBeVisible();
+    await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
     await expect(appPage.getByTestId("agent-stats-grid")).not.toContainText(
       String.fromCharCode(0x2014)
     );
+
+    await appPage.getByTestId("agent-tab-configuration").click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("tab")).toBe("configuration");
+    await expect(appPage.getByTestId("agent-configuration-tab")).toBeVisible();
+    await expect(appPage.getByTestId("agent-mcp-empty")).toBeVisible();
+
+    await appPage.getByTestId("agent-tab-sessions").click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("tab")).toBe("sessions");
+    await expect(appPage.getByTestId("agent-sessions-empty")).toBeVisible();
 
     await appPage.getByTestId("agent-page-new-session").click();
     const trigger = appPage.getByTestId("session-create-agent-select");
@@ -117,6 +123,76 @@ test.describe("seeded agent detail", () => {
 
     await trigger.click();
     await expect(secondary).toHaveAttribute("data-checked", "true");
+  });
+
+  test("operator edits agent settings, saves, and returns to overview", async ({ appPage }) => {
+    const ui = sessionLifecycleSelectors(appPage);
+    await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await ui.agentRow("agent-detail-primary").click();
+    await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
+
+    await appPage.getByTestId("agent-page-edit-settings").click();
+    await expect
+      .poll(() => new URL(appPage.url()).pathname)
+      .toBe("/agents/agent-detail-primary/settings");
+    await expect(appPage.getByTestId("agent-settings-page")).toBeVisible();
+    await expect(appPage.getByTestId("agent-settings-basics")).toBeVisible();
+    await expect(appPage.getByTestId("agent-settings-name")).toHaveAttribute("readonly");
+
+    await appPage.getByTestId("agent-settings-nav-instructions").click();
+    await expect
+      .poll(() => new URL(appPage.url()).searchParams.get("section"))
+      .toBe("instructions");
+    const prompt = appPage.getByTestId("agent-settings-prompt");
+    await prompt.fill("Updated prompt for settings journey.");
+    await expect(appPage.getByTestId("agent-settings-unsaved")).toBeVisible();
+    await expect(appPage.getByTestId("agent-settings-page-actions")).toBeVisible();
+
+    const saveResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "PUT" &&
+        response.url().includes("/api/agents/agent-detail-primary")
+    );
+    await appPage.getByRole("button", { name: "Save changes" }).click();
+    expect((await saveResponse).ok()).toBe(true);
+    await expect(appPage.getByTestId("agent-settings-unsaved")).toHaveCount(0);
+
+    await appPage.getByRole("button", { name: /agent-detail-primary/i }).click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
+    await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
+  });
+
+  test("operator duplicates an agent from the overflow menu", async ({ appPage }) => {
+    const ui = sessionLifecycleSelectors(appPage);
+    await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await ui.agentRow("agent-detail-primary").click();
+
+    await appPage.getByTestId("agent-page-overflow").click();
+    await appPage.getByTestId("agent-page-duplicate").click();
+    await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
+    await expect(appPage.getByTestId("agent-create-name")).toHaveValue("");
+    await expect(appPage.getByText("MCP servers are not copied.")).toHaveCount(0);
+  });
+
+  test("operator deletes an agent from settings danger zone with typed confirm", async ({
+    appPage,
+  }) => {
+    const ui = sessionLifecycleSelectors(appPage);
+    await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await ui.agentRow("agent-detail-secondary").click();
+    await appPage.getByTestId("agent-page-edit-settings").click();
+    await appPage.getByTestId("agent-settings-nav-danger").click();
+    await appPage.getByTestId("agent-settings-delete").click();
+    await expect(appPage.getByTestId("agent-delete-dialog")).toBeVisible();
+    await expect(appPage.getByTestId("agent-delete-confirm")).toBeDisabled();
+    await appPage.getByTestId("agent-delete-confirm-typing").fill("agent-detail-secondary");
+    await expect(appPage.getByTestId("agent-delete-confirm")).toBeEnabled();
+    await appPage.getByTestId("agent-delete-confirm").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
+    await expect(ui.agentRow("agent-detail-secondary")).toHaveCount(0);
   });
 
   test("operator creates an agent with a persisted model and reasoning default", async ({

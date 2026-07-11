@@ -118,6 +118,28 @@ function optionOrder(): string[] {
     .filter(Boolean);
 }
 
+describe("RuntimeSelector read-only contract", () => {
+  it("Should keep controls focusable and aria-disabled while preventing the popup from opening", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "gpt-a", reasoning_effort: "" },
+      models: [model("gpt-a")],
+      props: { readOnly: true },
+    });
+
+    const trigger = screen.getByTestId("rt-trigger");
+    const provider = within(trigger).getByRole("button", { name: /^Provider:/ });
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(provider).toHaveAttribute("aria-disabled", "true");
+    expect(provider).not.toBeDisabled();
+    provider.focus();
+    expect(provider).toHaveFocus();
+    await user.click(provider);
+    expect(screen.queryByTestId("runtime-selector-popup")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Reset-on-switch
 // ---------------------------------------------------------------------------

@@ -132,6 +132,43 @@ export {
   type AgentsFleetSearch,
 } from "./lib/agent-fleet-search";
 export {
+  filterAgentSessionsByStatus,
+  resolveAgentDetailSearch,
+  validateAgentDetailSearch,
+  AGENT_DETAIL_TABS,
+  AGENT_INSTRUCTION_FILES,
+  AGENT_SESSION_FILTERS,
+  type AgentDetailSearch,
+  type AgentDetailTab,
+  type AgentInstructionFile,
+  type AgentSessionFilter,
+  type ResolvedAgentDetailSearch,
+} from "./lib/agent-detail-search";
+export {
+  resolveAgentSettingsSearch,
+  validateAgentSettingsSearch,
+  AGENT_SETTINGS_SECTIONS,
+  type AgentSettingsSearch,
+  type AgentSettingsSection,
+} from "./lib/agent-settings-search";
+export {
+  buildSettingsDraftFromAgent,
+  buildUpdateAgentParams,
+  isAgentSettingsDraftDirty,
+  isKnownPermission,
+  validateAgentSettingsDraft,
+  type AgentSettingsDraft,
+  type AgentSettingsValidation,
+} from "./lib/agent-settings-draft";
+export {
+  countPromptWords,
+  formatAbsentList,
+  formatAbsentListLabels,
+  formatAbsentOverride,
+  formatPromptWordCount,
+  formatSkillsPolicyLine,
+} from "./lib/agent-absent-value";
+export {
   collectAgentCategoryOptions,
   compareAgentNamesStable,
   formatAgentFleetAriaLabel,
@@ -193,21 +230,48 @@ export {
   type UseUnsavedGuardOptions,
   type UseUnsavedGuardResult,
 } from "./hooks/use-unsaved-guard";
+export { useAgentSettingsPage } from "./hooks/use-agent-settings-page";
+export { useAgentDeleteFlow, type UseAgentDeleteFlowResult } from "./hooks/use-agent-delete-flow";
 
 // Components
 export { AgentIcon, providerIconMap } from "./components/agent-icon";
 export {
   AgentPageActions,
+  AgentPageMeta,
   AgentPageStatusPill,
   type AgentPageActionsProps,
+  type AgentPageMetaProps,
   type AgentPageStatusPillProps,
 } from "./components/agent-page-header";
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
-export {
-  AgentInfoInspector,
-  type AgentInfoInspectorProps,
-} from "./components/agent-info-inspector";
 export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
+export {
+  AgentDiagnosticsBanner,
+  type AgentDiagnosticsBannerProps,
+} from "./components/agent-diagnostics-banner";
+export {
+  AgentMcpServersPanel,
+  type AgentMcpServersPanelProps,
+} from "./components/agent-mcp-servers-panel";
+export { AgentOverviewTab, type AgentOverviewTabProps } from "./components/agent-overview-tab";
+export {
+  AgentConfigurationTab,
+  type AgentConfigurationTabProps,
+} from "./components/agent-configuration-tab";
+export { AgentSessionsTab, type AgentSessionsTabProps } from "./components/agent-sessions-tab";
+export {
+  AgentInstructionsTab,
+  type AgentInstructionsTabProps,
+} from "./components/agent-instructions-tab";
+export {
+  AgentAuthoredFileEditor,
+  type AgentAuthoredFileEditorProps,
+} from "./components/agent-authored-file-editor";
+export { AgentHeartbeatOps, type AgentHeartbeatOpsProps } from "./components/agent-heartbeat-ops";
+export {
+  AgentSettingsPanels,
+  type AgentSettingsPanelsProps,
+} from "./components/agent-settings-panels";
 export {
   AgentCommandSelect,
   type AgentCommandSelectProps,
