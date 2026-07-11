@@ -172,7 +172,24 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
 	}
-	payload := core.AgentPayloadFromDef(agent)
+	if n.deps.AgentSkills == nil {
+		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
+			req.ToolID,
+			errors.New("daemon: agent definition sync is unavailable"),
+		)
+	}
+	if err := n.deps.AgentSkills.Sync(ctx); err != nil {
+		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
+			req.ToolID,
+			fmt.Errorf("daemon: sync created agent definition: %w", err),
+		)
+	}
+	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
+	if createReq.Scope == contract.AgentCreateScopeWorkspace {
+		entry.Origin = contract.AgentOriginWorkspace
+		entry.WorkspaceID = strings.TrimSpace(scope.WorkspaceID)
+	}
+	payload := core.AgentPayloadFromEntry(entry)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 

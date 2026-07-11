@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/heartbeat"
@@ -111,12 +112,18 @@ type packageOwnedAgentCatalog struct {
 	artifacts session.AgentArtifacts
 }
 
-func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
-	return []aghconfig.AgentDef{aghconfig.CloneAgentDef(c.artifacts.Agent)}, nil
+func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+	return []core.AgentCatalogEntry{{
+		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Origin: contract.AgentOriginGlobal,
+	}}, nil
 }
 
-func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (aghconfig.AgentDef, error) {
-	return aghconfig.CloneAgentDef(c.artifacts.Agent), nil
+func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
+	return core.AgentCatalogEntry{
+		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Origin: contract.AgentOriginGlobal,
+	}, nil
 }
 
 func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
@@ -237,7 +244,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	fixture.Handlers.SoulAuthoring = soulAuthoring
 	fixture.Handlers.HeartbeatStatus = statusSpy
 	fixture.Handlers.HeartbeatWake = wakeSpy
-	fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+	fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 	fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
 	fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
 
@@ -485,7 +492,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/soul",
 			body:   []byte(`{"workspace_id":"ws-1","body":"new soul"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+				fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 			},
 			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -500,7 +507,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/soul",
 			body:   []byte(`{"workspace_id":"ws-1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.DELETE("/agents/:agent_name/soul", fixture.Handlers.DeleteAgentSoul)
+				fixture.Engine.DELETE("/agents/:name/soul", fixture.Handlers.DeleteAgentSoul)
 			},
 			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -515,7 +522,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/heartbeat",
 			body:   []byte(`{"workspace_id":"ws-1","body":"new heartbeat"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
+				fixture.Engine.PUT("/agents/:name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
 			},
 			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -530,7 +537,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/heartbeat/rollback",
 			body:   []byte(`{"workspace_id":"ws-1","revision_id":"rev-hb-1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.POST("/agents/:agent_name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
+				fixture.Engine.POST("/agents/:name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
 			},
 			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -628,7 +635,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul",
 			body:   []byte(`{"body":"# Soul"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+				fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {
@@ -644,7 +651,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul",
 			body:   []byte(`{}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.DELETE("/agents/:agent_name/soul", fixture.Handlers.DeleteAgentSoul)
+				fixture.Engine.DELETE("/agents/:name/soul", fixture.Handlers.DeleteAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {
@@ -660,7 +667,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul/rollback",
 			body:   []byte(`{"revision_id":"rev_1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.POST("/agents/:agent_name/soul/rollback", fixture.Handlers.RollbackAgentSoul)
+				fixture.Engine.POST("/agents/:name/soul/rollback", fixture.Handlers.RollbackAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {

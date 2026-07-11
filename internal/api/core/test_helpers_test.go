@@ -49,6 +49,10 @@ type handlerFixture struct {
 	HomePaths aghconfig.HomePaths
 }
 
+type noOpAgentDefinitionSync struct{}
+
+func (noOpAgentDefinitionSync) Sync(context.Context) error { return nil }
+
 func testConfigWithDisabledNetwork(homePaths aghconfig.HomePaths) aghconfig.Config {
 	return testutil.ConfigWithDisabledNetwork(homePaths)
 }
@@ -262,6 +266,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 		Tasks:                        tasks,
 		Bridges:                      bridges,
 		Workspaces:                   workspaces,
+		AgentDefinitionSync:          noOpAgentDefinitionSync{},
 		MemoryStore:                  store,
 		DreamTrigger:                 dream,
 		HomePaths:                    homePaths,
@@ -293,6 +298,9 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/stream", handlers.StreamSession)
 	engine.GET("/agents", handlers.ListAgents)
 	engine.POST("/agents", handlers.CreateAgent)
+	engine.PUT("/agents/:name", handlers.UpdateAgent)
+	engine.DELETE("/agents/:name", handlers.DeleteAgent)
+	engine.POST("/agents/:name/duplicate", handlers.DuplicateAgent)
 	engine.GET("/agents/:name", handlers.GetAgent)
 	engine.GET("/hooks/catalog", handlers.HookCatalog)
 	engine.GET("/workspaces/:workspace_id/hooks/runs", handlers.HookRuns)

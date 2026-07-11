@@ -1,3 +1,4 @@
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace/types";
 import {
   storyAgentNames,
@@ -86,65 +87,98 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       provider: "claude",
       prompt:
         "Own launch command and consolidate cross-functional launch risk into operator briefings.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.cfo,
       provider: "claude",
       prompt: "Track launch GMV, burn, reserve exposure, and finance approvals in real time.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.product,
       provider: "gemini",
       prompt:
         "Coordinate the launch checklist, unblock decision-makers, and manage the final go-live sequence.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.frontend,
       provider: "codex",
       prompt:
         "QA launch UI surfaces, patch visual regressions, and protect conversion-critical flows.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.marketing,
       provider: "gemini",
       prompt:
         "Sequence launch messaging, CRM sends, ads, and campaign timing across every merchant audience.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.copywriter,
       provider: "claude",
       prompt:
         "Polish launch headlines, pricing claims, lifecycle copy, and support-safe fallback language.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.support,
       provider: "claude",
       prompt:
         "Handle launch-day merchant questions, cluster escalations, and prepare operator-safe responses.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.fraud,
       provider: "claude",
       prompt:
         "Review payout holds, reserve anomalies, and launch-day fraud spikes before merchants are unblocked.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.compliance,
       provider: "qwen-code",
       prompt:
         "Verify claims, policy exceptions, sanctions screens, and KYB evidence before approval.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.release,
       provider: "codex",
       prompt:
         "Run canary verification, rollback guardrails, and launch-readiness checks across payment services.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
       name: storyAgentNames.platform,
       provider: "codex",
       prompt:
         "Investigate webhook drift, partner integrations, and platform stability during launch.",
+      origin: "workspace",
+      workspace_id: primaryWorkspaceFixture.id,
+      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
   ],
   providers: [

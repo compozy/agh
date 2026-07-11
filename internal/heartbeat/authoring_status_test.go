@@ -34,6 +34,110 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		}
 	})
 
+	t.Run("Should purge only revisions owned by the effective definition source", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		if err := fixture.db.DeleteHeartbeatAgentHistory(
+			fixture.ctx,
+			"",
+			"coder",
+			"agents/coder/HEARTBEAT.md",
+		); err == nil {
+			t.Fatal("DeleteHeartbeatAgentHistory(empty workspace) error = nil, want validation error")
+		}
+		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body: validHeartbeatBody(
+				"Inspect workspace source",
+				"Inspect the workspace source before waking.",
+			),
+			Actor: heartbeat.AuthoringIdentity{Kind: string(heartbeat.ActorKindUser), Ref: "tester"},
+		})
+		if err != nil {
+			t.Fatalf("Put(workspace source) error = %v", err)
+		}
+		survivor := created.Revision
+		survivor.ID = "hrev-global-survivor"
+		survivor.SourcePath = "agents/coder/HEARTBEAT.md"
+		survivor.CreatedAt = survivor.CreatedAt.Add(time.Minute)
+		if _, err := fixture.db.AppendHeartbeatRevision(fixture.ctx, survivor); err != nil {
+			t.Fatalf("AppendHeartbeatRevision(global survivor) error = %v", err)
+		}
+		if err := fixture.authoring.PurgeAgentHistory(
+			fixture.ctx,
+			heartbeat.WorkspaceRef{WorkspaceID: fixture.workspaceID},
+			"coder",
+			fixture.agentPath,
+		); err != nil {
+			t.Fatalf("PurgeAgentHistory() error = %v", err)
+		}
+		revisions, err := fixture.db.ListHeartbeatRevisions(fixture.ctx, heartbeat.RevisionListQuery{
+			WorkspaceID: fixture.workspaceID,
+			AgentName:   "coder",
+		})
+		if err != nil {
+			t.Fatalf("ListHeartbeatRevisions() error = %v", err)
+		}
+		if len(revisions) != 1 || revisions[0].ID != survivor.ID || revisions[0].SourcePath != survivor.SourcePath {
+			t.Fatalf("surviving revisions = %#v, want only global source", revisions)
+		}
+	})
+
+	t.Run("Should reject incomplete or untrusted purge targets", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		tests := []struct {
+			name       string
+			service    *heartbeat.ManagedHeartbeatAuthoringService
+			ctx        context.Context
+			workspace  string
+			agentName  string
+			sourcePath string
+		}{
+			{
+				name: "nil context", service: fixture.authoring,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "nil service", ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "missing workspace", service: fixture.authoring, ctx: fixture.ctx,
+				agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "missing agent", service: fixture.authoring, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, sourcePath: fixture.agentPath,
+			},
+			{
+				name: "non-agent source", service: fixture.authoring, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.heartbeatPath,
+			},
+			{
+				name: "outside agents root", service: fixture.authoring, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder",
+				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+			},
+		}
+		for _, tc := range tests {
+			t.Run("Should reject "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				err := tc.service.PurgeAgentHistory(
+					tc.ctx,
+					heartbeat.WorkspaceRef{WorkspaceID: tc.workspace},
+					tc.agentName,
+					tc.sourcePath,
+				)
+				if err == nil {
+					t.Fatal("PurgeAgentHistory(invalid target) error = nil, want validation error")
+				}
+			})
+		}
+	})
+
 	t.Run("Should validate and write HEARTBEAT content with snapshots and revisions", func(t *testing.T) {
 		t.Parallel()
 

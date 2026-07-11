@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
+
 import { useActiveWorkspace } from "../use-active-workspace";
 import { useActiveWorkspaceStore } from "../use-active-workspace-store";
 import {
@@ -94,7 +96,16 @@ describe("workspace hooks", () => {
 
   it("loads one resolved workspace detail", async () => {
     vi.mocked(fetchWorkspace).mockResolvedValue({
-      agents: [{ name: "coder", prompt: "code", provider: "openai" }],
+      agents: [
+        {
+          name: "coder",
+          prompt: "code",
+          provider: "openai",
+          origin: "workspace",
+          workspace_id: "ws_alpha",
+          definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+        },
+      ],
       sessions: [],
       skills: [],
       workspace: {

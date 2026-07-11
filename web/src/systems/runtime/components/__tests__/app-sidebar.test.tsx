@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
+import type { AgentPayload } from "@/systems/agent";
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import {
   resetUserHomeDirStore,
   useUserHomeDirStore,
@@ -19,6 +21,17 @@ const onAddWorkspace = vi.fn();
 const onAddAgent = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
+
+function sidebarAgent(
+  overrides: Partial<AgentPayload> & Pick<AgentPayload, "name" | "provider" | "prompt">
+): AgentPayload {
+  return {
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+    ...overrides,
+  };
+}
 
 type MatchRouteParams = Record<string, string>;
 
@@ -322,8 +335,8 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            { name: "coder", provider: "claude", prompt: "code" },
-            { name: "writer", provider: "openai", prompt: "write" },
+            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
           ],
         })
       );
@@ -337,7 +350,7 @@ describe("AppSidebar", () => {
     it("Should not render session counts, expand toggles, or new-session buttons inside the agent tree", () => {
       renderSidebar(
         makeProps({
-          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
           sessions: [
             {
               id: "s1",
@@ -366,8 +379,8 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            { name: "coder", provider: "claude", prompt: "code" },
-            { name: "writer", provider: "openai", prompt: "write" },
+            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
           ],
           sessions: [
             {
@@ -410,7 +423,7 @@ describe("AppSidebar", () => {
     it("Should show a spinner on agents with at least one running session", () => {
       renderSidebar(
         makeProps({
-          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
           sessions: [
             {
               id: "s_running",
@@ -449,8 +462,8 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            { name: "coder", provider: "claude", prompt: "code" },
-            { name: "writer", provider: "openai", prompt: "write" },
+            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
           ],
         })
       );
@@ -486,19 +499,19 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            {
+            sidebarAgent({
               name: "deals",
               provider: "claude",
               prompt: "deals",
               category_path: ["Marketing", "Sales"],
-            },
-            {
+            }),
+            sidebarAgent({
               name: "outreach",
               provider: "claude",
               prompt: "outreach",
               category_path: ["Operations"],
-            },
-            { name: "writer", provider: "openai", prompt: "write" },
+            }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
           ],
           sessions: [
             {
@@ -551,9 +564,9 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            { name: "coder", provider: "claude", prompt: "code" },
-            { name: "writer", provider: "openai", prompt: "write" },
-            { name: "researcher", provider: "openai", prompt: "research" },
+            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
+            sidebarAgent({ name: "researcher", provider: "openai", prompt: "research" }),
           ],
           sessions: [
             {
@@ -580,8 +593,8 @@ describe("AppSidebar", () => {
       renderSidebar(
         makeProps({
           agents: [
-            { name: "coder", provider: "claude", prompt: "code" },
-            { name: "writer", provider: "openai", prompt: "write" },
+            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
+            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
           ],
           sessions: [
             {
@@ -621,7 +634,7 @@ describe("AppSidebar", () => {
     it("Should not count idle attachable sessions as live", () => {
       renderSidebar(
         makeProps({
-          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
           sessions: [
             {
               id: "s_idle",
@@ -937,9 +950,9 @@ describe("computeAgentsCount", () => {
   it("Should only count agents whose name has at least one running session", () => {
     const result = computeAgentsCount(
       [
-        { name: "alpha", provider: "claude", prompt: "" },
-        { name: "beta", provider: "claude", prompt: "" },
-        { name: "gamma", provider: "claude", prompt: "" },
+        sidebarAgent({ name: "alpha", provider: "claude", prompt: "" }),
+        sidebarAgent({ name: "beta", provider: "claude", prompt: "" }),
+        sidebarAgent({ name: "gamma", provider: "claude", prompt: "" }),
       ],
       [
         {
@@ -977,7 +990,7 @@ describe("computeAgentsCount", () => {
 
   it("Should de-duplicate by agent name when an agent has multiple running sessions", () => {
     const result = computeAgentsCount(
-      [{ name: "alpha", provider: "claude", prompt: "" }],
+      [sidebarAgent({ name: "alpha", provider: "claude", prompt: "" })],
       [
         {
           id: "s1",
@@ -1014,7 +1027,7 @@ describe("computeAgentsCount", () => {
 
   it("Should ignore sessions whose agent_name is not in the tree", () => {
     const result = computeAgentsCount(
-      [{ name: "alpha", provider: "claude", prompt: "" }],
+      [sidebarAgent({ name: "alpha", provider: "claude", prompt: "" })],
       [
         {
           id: "s1",

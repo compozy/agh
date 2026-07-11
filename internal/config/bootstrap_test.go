@@ -361,11 +361,11 @@ func TestEnsureOnboardingAgentCreatesValidProvisioningAgent(t *testing.T) {
 			t.Fatalf("agent name = %q, want %q", agent.Name, OnboardingAgentName)
 		}
 		wantTools := []string{
-			"agh__workspace_list",
-			"agh__workspace_describe",
-			"agh__network_channels",
-			"agh__network_channel_create",
 			"agh__agent_create",
+			"agh__network_channel_create",
+			"agh__network_channels",
+			"agh__workspace_describe",
+			"agh__workspace_list",
 		}
 		if !slices.Equal(agent.Tools, wantTools) {
 			t.Fatalf("onboarding agent tools = %#v, want %#v", agent.Tools, wantTools)

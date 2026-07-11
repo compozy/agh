@@ -82,11 +82,14 @@ type Server struct {
 	workspaces        core.WorkspaceService
 	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
+	agentSync         core.AgentDefinitionSync
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
 	soulAuthoring     core.SoulAuthoringService
+	soulHistoryPurger core.SoulHistoryPurger
 	soulRefresher     core.SoulRefresher
 	heartbeatAuthor   core.HeartbeatAuthoringService
+	heartbeatPurger   core.HeartbeatHistoryPurger
 	heartbeatStatus   core.HeartbeatStatusService
 	heartbeatWake     core.HeartbeatWakeService
 	sessionHealth     core.SessionHealthReader
@@ -111,58 +114,6 @@ type Server struct {
 	serveErr     error
 	streamCancel context.CancelFunc
 	state        serverState
-}
-
-type handlerConfig struct {
-	sessions          core.SessionManager
-	sessionCatalog    core.SessionCatalog
-	tasks             core.TaskService
-	network           core.NetworkService
-	networkStore      core.NetworkStore
-	observer          core.Observer
-	resources         core.ResourceService
-	automation        core.AutomationManager
-	loops             core.LoopService
-	bridges           core.BridgeService
-	notifications     core.NotificationPresetService
-	bundles           core.BundleService
-	supportBundles    core.SupportBundleService
-	tools             core.ToolRegistry
-	toolsets          core.ToolsetRegistry
-	toolApprovals     core.ToolApprovalIssuer
-	settings          core.SettingsService
-	settingsRestart   core.SettingsRestartController
-	settingsUpdate    core.SettingsUpdateController
-	vault             core.VaultService
-	workspaces        core.WorkspaceService
-	onboarding        core.OnboardingStore
-	agentCatalog      core.AgentCatalog
-	modelCatalog      core.ModelCatalogService
-	agentContext      core.AgentContextService
-	soulAuthoring     core.SoulAuthoringService
-	soulRefresher     core.SoulRefresher
-	heartbeatAuthor   core.HeartbeatAuthoringService
-	heartbeatStatus   core.HeartbeatStatusService
-	heartbeatWake     core.HeartbeatWakeService
-	sessionHealth     core.SessionHealthReader
-	wakeEvents        core.HeartbeatWakeEventReader
-	coordinatorConfig core.CoordinatorConfigResolver
-	skillsRegistry    core.SkillsRegistry
-	skillResources    core.SkillResourceSyncer
-	memoryStore       *memory.Store
-	dreamTrigger      core.DreamTrigger
-	memoryExtractor   core.MemoryExtractorService
-	memoryProviders   core.MemoryProviderService
-	memoryLedger      core.MemorySessionLedgerService
-	homePaths         aghconfig.HomePaths
-	config            aghconfig.Config
-	logger            *slog.Logger
-	startedAt         time.Time
-	now               func() time.Time
-	pollInterval      time.Duration
-	agentLoader       core.AgentLoader
-	extensions        ExtensionService
-	hostedMCP         *mcppkg.HostedService
 }
 
 // Handlers expose request/response and SSE endpoints for the AGH API.
@@ -385,13 +336,6 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 func WithSkillResourceSyncer(syncer core.SkillResourceSyncer) Option {
 	return func(server *Server) {
 		server.skillResources = syncer
-	}
-}
-
-// WithAgentCatalog injects the projected resource-backed agent catalog.
-func WithAgentCatalog(catalog core.AgentCatalog) Option {
-	return func(server *Server) {
-		server.agentCatalog = catalog
 	}
 }
 
@@ -682,11 +626,14 @@ func (s *Server) handlerConfig() *handlerConfig {
 		workspaces:        s.workspaces,
 		onboarding:        s.onboarding,
 		agentCatalog:      s.agentCatalog,
+		agentSync:         s.agentSync,
 		modelCatalog:      s.modelCatalog,
 		agentContext:      s.agentContext,
 		soulAuthoring:     s.soulAuthoring,
+		soulHistoryPurger: s.soulHistoryPurger,
 		soulRefresher:     s.soulRefresher,
 		heartbeatAuthor:   s.heartbeatAuthor,
+		heartbeatPurger:   s.heartbeatPurger,
 		heartbeatStatus:   s.heartbeatStatus,
 		heartbeatWake:     s.heartbeatWake,
 		sessionHealth:     s.sessionHealth,
@@ -963,11 +910,14 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Workspaces:                   cfg.workspaces,
 			Onboarding:                   cfg.onboarding,
 			AgentCatalog:                 cfg.agentCatalog,
+			AgentDefinitionSync:          cfg.agentSync,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,
 			SoulAuthoring:                cfg.soulAuthoring,
+			SoulHistoryPurger:            cfg.soulHistoryPurger,
 			SoulRefresher:                cfg.soulRefresher,
 			HeartbeatAuthoring:           cfg.heartbeatAuthor,
+			HeartbeatHistoryPurger:       cfg.heartbeatPurger,
 			HeartbeatStatus:              cfg.heartbeatStatus,
 			HeartbeatWake:                cfg.heartbeatWake,
 			SessionHealth:                cfg.sessionHealth,

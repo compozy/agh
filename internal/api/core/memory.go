@@ -1252,7 +1252,7 @@ func (h *BaseHandlers) respondUnsupportedMemoryOperation(c *gin.Context, operati
 		normalized = unknownValue
 	}
 	err := fmt.Errorf("%w: %s", ErrMemoryUnsupported, normalized)
-	h.respondMemoryError(c, memoryUnsupportedStatus, err, map[string]any{"operation": normalized})
+	h.respondMemoryError(c, memoryUnsupportedStatus, err, map[string]any{handlersOperationKey: normalized})
 }
 
 func memoryErrorCodeForStatus(status int, err error) string {

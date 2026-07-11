@@ -371,6 +371,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/agent/tasks/:run_id/fail",
 		"POST /api/agent/tasks/:run_id/heartbeat",
 		"POST /api/agent/tasks/:run_id/release",
+		"POST /api/agents/:name/duplicate",
 		"POST /api/agent/tasks/claim-next",
 		"POST /api/agents",
 		"POST /api/agents/:name/heartbeat/rollback",
@@ -479,6 +480,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/resolve",
 		"PUT /api/agents/:name/heartbeat",
 		"PUT /api/agents/:name/soul",
+		"PUT /api/agents/:name",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
 		"PUT /api/extensions/:name",
 		"PUT /api/notifications/presets/:name",
@@ -493,6 +495,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/tasks/:id/execution-profile",
 		"PUT /api/vault/secrets",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
+		"DELETE /api/agents/:name",
 		"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:peer_id",
 	}
 	sort.Strings(want)

@@ -24,7 +24,6 @@ import (
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
-	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
 	"github.com/compozy/agh/internal/network"
@@ -149,55 +148,6 @@ type Registry interface {
 type Server interface {
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
-}
-
-// RuntimeDeps captures the composition-root dependencies available to server factories.
-type RuntimeDeps struct {
-	Config              aghconfig.Config
-	HomePaths           aghconfig.HomePaths
-	Logger              *slog.Logger
-	Sessions            SessionManager
-	Tasks               taskpkg.Manager
-	Network             core.NetworkService
-	ToolRegistry        toolspkg.Registry
-	Toolsets            core.ToolsetRegistry
-	ToolApprovals       toolspkg.ApprovalTokenIssuer
-	HostedMCP           *mcppkg.HostedService
-	Observer            Observer
-	Automation          core.AutomationManager
-	Loops               core.LoopService
-	Bridges             core.BridgeService
-	Notifications       core.NotificationPresetService
-	Registry            Registry
-	MemoryStore         *memory.Store
-	MemoryExtractor     core.MemoryExtractorService
-	MemoryProviders     core.MemoryProviderService
-	MemorySessionLedger core.MemorySessionLedgerService
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	WorkspaceService    core.WorkspaceService
-	AgentCatalog        core.AgentCatalog
-	ModelCatalog        core.ModelCatalogService
-	AgentContext        *situation.Service
-	SoulAuthoring       core.SoulAuthoringService
-	SoulRefresher       core.SoulRefresher
-	HeartbeatAuthor     core.HeartbeatAuthoringService
-	HeartbeatStatus     core.HeartbeatStatusService
-	HeartbeatWake       core.HeartbeatWakeService
-	SessionHealth       core.SessionHealthReader
-	WakeEvents          core.HeartbeatWakeEventReader
-	CoordinatorConfig   CoordinatorConfigResolver
-	SkillsRegistry      core.SkillsRegistry
-	SkillResources      core.SkillResourceSyncer
-	DreamTrigger        DreamTrigger
-	Settings            core.SettingsService
-	SettingsRestart     core.SettingsRestartController
-	SettingsUpdate      core.SettingsUpdateController
-	SupportBundles      core.SupportBundleService
-	Vault               core.VaultService
-	Extensions          udsapi.ExtensionService
-	Bundles             core.BundleService
-	Resources           core.ResourceService
-	StartedAt           time.Time
 }
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.

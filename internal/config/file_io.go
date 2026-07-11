@@ -47,6 +47,14 @@ func readOptionalRegularFile(path string, label string) ([]byte, bool, error) {
 }
 
 func writePersistedFile(path string, contents []byte) (err error) {
+	return writePersistedFileMode(path, contents, true)
+}
+
+func writePersistedFileExclusive(path string, contents []byte) (err error) {
+	return writePersistedFileMode(path, contents, false)
+}
+
+func writePersistedFileMode(path string, contents []byte, replace bool) (err error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, privateDirMode); err != nil {
 		return fmt.Errorf("create config directory %q: %w", dir, err)
@@ -75,8 +83,12 @@ func writePersistedFile(path string, contents []byte) (err error) {
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("close temp config file %q: %w", tmpPath, err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("replace config file %q: %w", path, err)
+	if replace {
+		if err := os.Rename(tmpPath, path); err != nil {
+			return fmt.Errorf("replace config file %q: %w", path, err)
+		}
+	} else if err := os.Link(tmpPath, path); err != nil {
+		return fmt.Errorf("create config file %q: %w", path, err)
 	}
 	if err := syncPersistedDir(dir); err != nil {
 		return err

@@ -81,6 +81,103 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 		}
 	})
 
+	t.Run("Should purge only revisions owned by the effective definition source", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newAuthoringFixture(t)
+		if err := fixture.db.DeleteSoulAgentHistory(fixture.ctx, "", "coder", "agents/coder/SOUL.md"); err == nil {
+			t.Fatal("DeleteSoulAgentHistory(empty workspace) error = nil, want validation error")
+		}
+		created, err := fixture.service.Put(fixture.ctx, soul.PutRequest{
+			Target: fixture.target,
+			Body:   validSoulBody("coder", "Workspace source."),
+			Actor:  soul.AuthoringIdentity{Kind: "user", Ref: "tester"},
+			Origin: soul.AuthoringIdentity{Kind: "api", Ref: "test"},
+		})
+		if err != nil {
+			t.Fatalf("Put(workspace source) error = %v", err)
+		}
+		survivor := created.Revision
+		survivor.ID = "srev-global-survivor"
+		survivor.SourcePath = "agents/coder/SOUL.md"
+		survivor.CreatedAt = survivor.CreatedAt.Add(time.Minute)
+		if _, err := fixture.db.AppendSoulRevision(fixture.ctx, survivor); err != nil {
+			t.Fatalf("AppendSoulRevision(global survivor) error = %v", err)
+		}
+		if err := fixture.service.PurgeAgentHistory(
+			fixture.ctx,
+			soul.WorkspaceRef{WorkspaceID: fixture.workspaceID},
+			"coder",
+			fixture.agentPath,
+		); err != nil {
+			t.Fatalf("PurgeAgentHistory() error = %v", err)
+		}
+		revisions, err := fixture.db.ListSoulRevisions(fixture.ctx, soul.RevisionListQuery{
+			WorkspaceID: fixture.workspaceID,
+			AgentName:   "coder",
+		})
+		if err != nil {
+			t.Fatalf("ListSoulRevisions() error = %v", err)
+		}
+		if len(revisions) != 1 || revisions[0].ID != survivor.ID || revisions[0].SourcePath != survivor.SourcePath {
+			t.Fatalf("surviving revisions = %#v, want only global source", revisions)
+		}
+	})
+
+	t.Run("Should reject incomplete or untrusted purge targets", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newAuthoringFixture(t)
+		tests := []struct {
+			name       string
+			service    *soul.ManagedSoulAuthoringService
+			ctx        context.Context
+			workspace  string
+			agentName  string
+			sourcePath string
+		}{
+			{
+				name: "nil context", service: fixture.service,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "nil service", ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "missing workspace", service: fixture.service, ctx: fixture.ctx,
+				agentName: "coder", sourcePath: fixture.agentPath,
+			},
+			{
+				name: "missing agent", service: fixture.service, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, sourcePath: fixture.agentPath,
+			},
+			{
+				name: "non-agent source", service: fixture.service, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.soulPath,
+			},
+			{
+				name: "outside agents root", service: fixture.service, ctx: fixture.ctx,
+				workspace: fixture.workspaceID, agentName: "coder",
+				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+			},
+		}
+		for _, tc := range tests {
+			t.Run("Should reject "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				err := tc.service.PurgeAgentHistory(
+					tc.ctx,
+					soul.WorkspaceRef{WorkspaceID: tc.workspace},
+					tc.agentName,
+					tc.sourcePath,
+				)
+				if err == nil {
+					t.Fatal("PurgeAgentHistory(invalid target) error = nil, want validation error")
+				}
+			})
+		}
+	})
+
 	t.Run("Should validate and write SOUL content with snapshots and revisions", func(t *testing.T) {
 		t.Parallel()
 

@@ -2112,7 +2112,7 @@ func (n *daemonNativeTools) workspaceDescribe(
 	return structuredResult(map[string]any{
 		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
 		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
-		nativeToolsAgentsKey:    core.AgentPayloadsFromDefs(agents),
+		nativeToolsAgentsKey:    core.AgentPayloadsFromEntries(agents),
 		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
 		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	}, workspaceID)
@@ -3376,55 +3376,6 @@ func nativeAuthoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentNam
 		return filepath.Join(root, aghconfig.DirName, aghconfig.AgentsDirName, name, "AGENT.md")
 	}
 	return ""
-}
-
-func (n *daemonNativeTools) workspaceAgents(
-	ctx context.Context,
-	resolved *workspacepkg.ResolvedWorkspace,
-) ([]aghconfig.AgentDef, error) {
-	if resolved == nil {
-		return nil, errors.New("daemon: resolved workspace is required")
-	}
-	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
-	for _, agent := range resolved.Agents {
-		if !aghconfig.IsPublicAgentDef(agent) {
-			continue
-		}
-		name := strings.TrimSpace(agent.Name)
-		if name == "" {
-			continue
-		}
-		merged[name] = agent
-	}
-	if n.deps.AgentCatalog != nil {
-		catalogAgents, err := n.deps.AgentCatalog.ListAgents(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, agent := range catalogAgents {
-			if !aghconfig.IsPublicAgentDef(agent) {
-				continue
-			}
-			name := strings.TrimSpace(agent.Name)
-			if name == "" {
-				continue
-			}
-			if _, exists := merged[name]; exists {
-				continue
-			}
-			merged[name] = agent
-		}
-	}
-	names := make([]string, 0, len(merged))
-	for name := range merged {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	agents := make([]aghconfig.AgentDef, 0, len(names))
-	for _, name := range names {
-		agents = append(agents, merged[name])
-	}
-	return agents, nil
 }
 
 type toolListInput struct {

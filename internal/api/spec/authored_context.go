@@ -4,9 +4,9 @@ import "github.com/compozy/agh/internal/api/contract"
 
 const (
 	authoredContextAPIAgentSoulPath                      = "/api/agent/soul"
-	authoredContextAPIAgentsAgentNameHeartbeatPath       = "/api/agents/{agent_name}/heartbeat"
-	authoredContextAPIAgentsAgentNameHeartbeatStatusPath = "/api/agents/{agent_name}/heartbeat/status"
-	authoredContextAPIAgentsAgentNameSoulPath            = "/api/agents/{agent_name}/soul"
+	authoredContextAPIAgentsAgentNameHeartbeatPath       = "/api/agents/{name}/heartbeat"
+	authoredContextAPIAgentsAgentNameHeartbeatStatusPath = "/api/agents/{name}/heartbeat/status"
+	authoredContextAPIAgentsAgentNameSoulPath            = "/api/agents/{name}/soul"
 	authoredContextSessionInspectPath                    = "/api/workspaces/{workspace_id}/sessions/" +
 		"{session_id}/inspect"
 	authoredContextAgentCallerIdentityIsMissingDescription           = "Agent caller identity is missing"
@@ -85,7 +85,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 		},
 		Responses: []ResponseSpec{
@@ -106,13 +106,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agents/{agent_name}/soul/validate",
+		Path:        "/api/agents/{name}/soul/validate",
 		OperationID: "validateAgentDefinitionSoul",
 		Summary:     "Validate a proposed Soul body for an agent definition",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.AgentSoulValidateByPathRequest{},
 		Responses: []ResponseSpec{
@@ -143,7 +143,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.AgentSoulPutByPathRequest{},
 		Responses: []ResponseSpec{
@@ -175,7 +175,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.AgentSoulDeleteByPathRequest{},
 		Responses: []ResponseSpec{
@@ -193,13 +193,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/agents/{agent_name}/soul/history",
+		Path:        "/api/agents/{name}/soul/history",
 		OperationID: "listAgentSoulHistory",
 		Summary:     "List managed SOUL.md authoring revisions",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 			intQueryParam("limit", "Maximum number of revisions to return"),
 			queryParam("cursor", "Revision cursor", false),
@@ -222,13 +222,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agents/{agent_name}/soul/rollback",
+		Path:        "/api/agents/{name}/soul/rollback",
 		OperationID: "rollbackAgentSoul",
 		Summary:     "Rollback SOUL.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.AgentSoulRollbackByPathRequest{},
 		Responses: []ResponseSpec{
@@ -285,7 +285,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 		},
 		Responses: []ResponseSpec{
@@ -306,13 +306,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agents/{agent_name}/heartbeat/validate",
+		Path:        "/api/agents/{name}/heartbeat/validate",
 		OperationID: "validateAgentHeartbeat",
 		Summary:     "Validate a proposed HEARTBEAT.md body",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.HeartbeatValidateByPathRequest{},
 		Responses: []ResponseSpec{
@@ -343,7 +343,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.HeartbeatPutByPathRequest{},
 		Responses: []ResponseSpec{
@@ -379,7 +379,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.HeartbeatDeleteByPathRequest{},
 		Responses: []ResponseSpec{
@@ -401,13 +401,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/agents/{agent_name}/heartbeat/history",
+		Path:        "/api/agents/{name}/heartbeat/history",
 		OperationID: "listAgentHeartbeatHistory",
 		Summary:     "List managed HEARTBEAT.md authoring revisions",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 			intQueryParam("limit", "Maximum number of revisions to return"),
 			queryParam("cursor", "Revision cursor", false),
@@ -430,13 +430,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agents/{agent_name}/heartbeat/rollback",
+		Path:        "/api/agents/{name}/heartbeat/rollback",
 		OperationID: "rollbackAgentHeartbeat",
 		Summary:     "Rollback HEARTBEAT.md through managed authoring",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.HeartbeatRollbackByPathRequest{},
 		Responses: []ResponseSpec{
@@ -472,7 +472,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 			queryParam("workspace_id", "Workspace id", false),
 			queryParam("session_id", "Session id for wake state and health", false),
 			boolQueryParam("include_session_health", "Include session health when a session id is supplied"),
@@ -492,13 +492,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/agents/{agent_name}/heartbeat/wake",
+		Path:        "/api/agents/{name}/heartbeat/wake",
 		OperationID: "wakeAgentHeartbeat",
 		Summary:     "Request one advisory Heartbeat wake for an eligible session",
 		Tags:        []string{authoredContextAgentsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("agent_name", "Agent name"),
+			pathParam("name", "Agent name"),
 		},
 		RequestBody: contract.HeartbeatWakeByPathRequest{},
 		Responses: []ResponseSpec{

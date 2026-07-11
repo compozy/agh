@@ -46,6 +46,7 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[contract.TaskInboxLane]():                    taskInboxLaneValues(),
 	reflect.TypeFor[contract.CoordinationMessageKind]():          coordinationMessageKindValues(),
 	reflect.TypeFor[contract.AgentCreateScope]():                 agentCreateScopeValues(),
+	reflect.TypeFor[contract.AgentOrigin]():                      agentOriginValues(),
 	reflect.TypeFor[contract.CoordinatorConfigSource]():          coordinatorConfigSourceValues(),
 	reflect.TypeFor[contract.LoopSource]():                       loopSourceValues(),
 	reflect.TypeFor[contract.LoopRunStatus]():                    loopRunStatusValues(),

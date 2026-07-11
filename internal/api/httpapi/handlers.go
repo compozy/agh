@@ -3,7 +3,6 @@ package httpapi
 import (
 	"io/fs"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/api/core"
@@ -40,12 +39,15 @@ type handlerConfig struct {
 	workspaces        core.WorkspaceService
 	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
+	agentSync         core.AgentDefinitionSync
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
 	coordinatorConfig core.CoordinatorConfigResolver
 	soulAuthoring     core.SoulAuthoringService
+	soulHistoryPurger core.SoulHistoryPurger
 	soulRefresher     core.SoulRefresher
 	heartbeatAuthor   core.HeartbeatAuthoringService
+	heartbeatPurger   core.HeartbeatHistoryPurger
 	heartbeatStatus   core.HeartbeatStatusService
 	heartbeatWake     core.HeartbeatWakeService
 	sessionHealth     core.SessionHealthReader
@@ -91,13 +93,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	if cfg.httpPort <= 0 {
 		cfg.httpPort = cfg.config.HTTP.Port
 	}
-	boundHost := strings.TrimSpace(cfg.boundHost)
-	if boundHost == "" {
-		boundHost = strings.TrimSpace(cfg.config.HTTP.Host)
-	}
-	if boundHost == "" {
-		boundHost = handlersLocalhostKey
-	}
+	boundHost := handlerBoundHost(cfg)
 
 	return &Handlers{
 		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{
@@ -128,12 +124,15 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Workspaces:                   cfg.workspaces,
 			Onboarding:                   cfg.onboarding,
 			AgentCatalog:                 cfg.agentCatalog,
+			AgentDefinitionSync:          cfg.agentSync,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,
 			CoordinatorConfig:            cfg.coordinatorConfig,
 			SoulAuthoring:                cfg.soulAuthoring,
+			SoulHistoryPurger:            cfg.soulHistoryPurger,
 			SoulRefresher:                cfg.soulRefresher,
 			HeartbeatAuthoring:           cfg.heartbeatAuthor,
+			HeartbeatHistoryPurger:       cfg.heartbeatPurger,
 			HeartbeatStatus:              cfg.heartbeatStatus,
 			HeartbeatWake:                cfg.heartbeatWake,
 			SessionHealth:                cfg.sessionHealth,

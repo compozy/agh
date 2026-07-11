@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
 	apitest "github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/store"
@@ -266,8 +268,9 @@ func TestNativeAgentCreate(t *testing.T) {
 
 	homePaths := testHomePaths(t)
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-		HomePaths:  homePaths,
-		Workspaces: nativeNetworkTestWorkspaceService(t),
+		HomePaths:   homePaths,
+		Workspaces:  nativeNetworkTestWorkspaceService(t),
+		AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
 	}, nativeApproveAllPolicyInputs())
 
 	t.Run("Should author one global AGENT.md", func(t *testing.T) {
@@ -387,15 +390,22 @@ type nativeAgentCatalogStub struct {
 	agents []aghconfig.AgentDef
 }
 
-func (s nativeAgentCatalogStub) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
-	return append([]aghconfig.AgentDef(nil), s.agents...), nil
+func (s nativeAgentCatalogStub) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+	entries := make([]core.AgentCatalogEntry, 0, len(s.agents))
+	for _, agent := range s.agents {
+		entries = append(entries, core.AgentCatalogEntry{
+			Def:    aghconfig.CloneAgentDef(agent),
+			Origin: contract.AgentOriginGlobal,
+		})
+	}
+	return entries, nil
 }
 
-func (s nativeAgentCatalogStub) GetAgent(_ context.Context, name string) (aghconfig.AgentDef, error) {
+func (s nativeAgentCatalogStub) GetAgent(_ context.Context, name string) (core.AgentCatalogEntry, error) {
 	for _, agent := range s.agents {
 		if agent.Name == name {
-			return agent, nil
+			return core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}, nil
 		}
 	}
-	return aghconfig.AgentDef{}, os.ErrNotExist
+	return core.AgentCatalogEntry{}, os.ErrNotExist
 }

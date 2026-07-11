@@ -87,7 +87,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		return
 	}
 
-	agents, err := h.workspaceDetailAgents(c.Request.Context(), &resolved)
+	agents, err := h.workspaceDetailAgentEntries(c.Request.Context(), &resolved)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -96,21 +96,21 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
 		Sessions:  SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
-		Agents:    AgentPayloadsFromDefs(agents),
+		Agents:    AgentPayloadsFromEntries(agents),
 		Skills:    WorkspaceSkillPayloads(resolved.Skills),
 		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	})
 }
 
-func (h *BaseHandlers) workspaceDetailAgents(
+func (h *BaseHandlers) workspaceDetailAgentEntries(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-) ([]aghconfig.AgentDef, error) {
+) ([]AgentCatalogEntry, error) {
 	if resolved == nil {
 		return nil, errors.New("api: resolved workspace is required")
 	}
 
-	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
+	merged := make(map[string]AgentCatalogEntry, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
 		if !aghconfig.IsPublicAgentDef(agent) {
 			continue
@@ -119,7 +119,7 @@ func (h *BaseHandlers) workspaceDetailAgents(
 		if name == "" {
 			continue
 		}
-		merged[name] = agent
+		merged[name] = h.agentCatalogEntryFromDef(agent, resolved.ID)
 	}
 
 	if h.AgentCatalog != nil {
@@ -129,7 +129,8 @@ func (h *BaseHandlers) workspaceDetailAgents(
 				return nil, err
 			}
 		}
-		for _, agent := range catalogAgents {
+		for _, entry := range catalogAgents {
+			agent := entry.Def
 			if !aghconfig.IsPublicAgentDef(agent) {
 				continue
 			}
@@ -140,7 +141,7 @@ func (h *BaseHandlers) workspaceDetailAgents(
 			if _, exists := merged[name]; exists {
 				continue
 			}
-			merged[name] = agent
+			merged[name] = entry
 		}
 	}
 
@@ -150,7 +151,7 @@ func (h *BaseHandlers) workspaceDetailAgents(
 	}
 	sort.Strings(names)
 
-	agents := make([]aghconfig.AgentDef, 0, len(names))
+	agents := make([]AgentCatalogEntry, 0, len(names))
 	for _, name := range names {
 		agents = append(agents, merged[name])
 	}

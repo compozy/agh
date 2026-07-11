@@ -4,14 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 import type { AgentPayload } from "@/systems/agent";
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
 
 const agents: AgentPayload[] = [
-  { name: "claude-agent", provider: "claude", prompt: "help" },
-  { name: "codex-agent", provider: "codex", prompt: "code" },
+  {
+    name: "claude-agent",
+    provider: "claude",
+    prompt: "help",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "codex-agent",
+    provider: "codex",
+    prompt: "code",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
 ];
 
 const workspace: WorkspacePayload = {
@@ -253,7 +268,16 @@ describe("SessionCreateDialog", () => {
 
   it("Should not render blank agent provider metadata for inherited providers", () => {
     renderDialog({
-      agents: [{ name: "general", provider: "", prompt: "help" }],
+      agents: [
+        {
+          name: "general",
+          provider: "",
+          prompt: "help",
+          origin: "workspace",
+          workspace_id: "ws_alpha",
+          definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+        },
+      ],
       selectedAgentName: "general",
       runtimeValue: { provider: "codex", model: "", reasoning_effort: "" },
     });
