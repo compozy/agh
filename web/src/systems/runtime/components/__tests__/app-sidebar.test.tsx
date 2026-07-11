@@ -18,7 +18,6 @@ import { computeAgentsCount } from "../app-sidebar-counts";
 const onSelectWorkspace = vi.fn();
 const onCollapseChange = vi.fn();
 const onAddWorkspace = vi.fn();
-const onAddAgent = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
 
@@ -155,10 +154,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     activeWorkspace: workspaces[0],
     onSelectWorkspace,
     onAddWorkspace,
-    onAddAgent,
     agents: [],
-    agentsLoading: false,
-    agentsError: false,
     sessions: [],
     ...overrides,
   };
@@ -182,7 +178,6 @@ describe("AppSidebar", () => {
     onSelectWorkspace.mockReset();
     onCollapseChange.mockReset();
     onAddWorkspace.mockReset();
-    onAddAgent.mockReset();
   });
 
   describe("Should render the header slot", () => {
@@ -330,237 +325,34 @@ describe("AppSidebar", () => {
     });
   });
 
-  describe("Should render the agent tree", () => {
-    it("Should render each agent as a flat link to /agents/$name", () => {
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-          ],
-        })
-      );
-
-      const coderRow = screen.getByTestId("agent-row-coder");
-      const writerRow = screen.getByTestId("agent-row-writer");
-      expect(coderRow).toHaveAttribute("href", "/agents/coder");
-      expect(writerRow).toHaveAttribute("href", "/agents/writer");
+  describe("Should place Agents as the first Operate nav item", () => {
+    it("Should link Agents to /agents with fuzzy match coverage", () => {
+      matchedRouteFuzzy["/agents"] = true;
+      renderSidebar(makeProps());
+      const agentsNav = screen.getByTestId("nav-agents");
+      expect(agentsNav).toHaveAttribute("href", "/agents");
+      expect(agentsNav).toHaveAttribute("data-active", "true");
+      expect(screen.getByTestId("nav-active-agents")).toBeInTheDocument();
     });
 
-    it("Should not render session counts, expand toggles, or new-session buttons inside the agent tree", () => {
+    it("Should not render the deleted agent tree, section label, or sidebar create button", () => {
       renderSidebar(
         makeProps({
           agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
-          sessions: [
-            {
-              id: "s1",
-              name: "Session 1",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "idle",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
         })
       );
-
-      expect(screen.queryByTestId("new-session-coder")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("agent-trigger-coder")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("session-row-s1")).not.toBeInTheDocument();
-    });
-
-    it("Should show a static status dot only on agents with at least one idle attachable session", () => {
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-          ],
-          sessions: [
-            {
-              id: "s_active",
-              name: "Live",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "idle",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-            {
-              id: "s_done",
-              name: "Done",
-              agent_name: "writer",
-              provider: "openai",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "stopped",
-              badge: "stopped",
-              attachable: false,
-              available_commands: [],
-              updated_at: "2026-04-06T09:00:00Z",
-              created_at: "2026-04-06T09:00:00Z",
-            },
-          ],
-        })
-      );
-
-      expect(screen.getByTestId("agent-status-dot-coder")).toBeInTheDocument();
-      expect(screen.queryByTestId("agent-running-spinner-coder")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("agent-status-dot-writer")).not.toBeInTheDocument();
-    });
-
-    it("Should show a spinner on agents with at least one running session", () => {
-      renderSidebar(
-        makeProps({
-          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
-          sessions: [
-            {
-              id: "s_running",
-              name: "Running",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "idle",
-              attachable: true,
-              available_commands: [],
-              activity: {
-                turn_id: "turn_001",
-                elapsed_ms: 1_000,
-                elapsed_seconds: 1,
-                idle_seconds: 0,
-                iteration_current: 1,
-                iteration_max: 4,
-              },
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
-
-      expect(screen.getByTestId("agent-running-spinner-coder")).toHaveAccessibleName(
-        "coder has a running session"
-      );
-      expect(screen.queryByTestId("agent-status-dot-coder")).not.toBeInTheDocument();
-    });
-
-    it("Should highlight the agent row whose route is active (fuzzy: covers nested session route)", () => {
-      matchedRouteFuzzy[routeMatchKey("/agents/$name", { name: "coder" })] = true;
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-          ],
-        })
-      );
-      expect(screen.getByTestId("agent-row-coder")).toHaveAttribute("data-active", "true");
-      expect(screen.getByTestId("agent-active-coder")).toBeInTheDocument();
-      expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("data-active", "false");
-      expect(screen.queryByTestId("agent-active-writer")).not.toBeInTheDocument();
-    });
-
-    it("Should show the bootstrap hint when no agents are loaded", () => {
-      renderSidebar(makeProps());
-      expect(screen.getByText("Run `agh install` to bootstrap AGH")).toBeInTheDocument();
-    });
-
-    it("Should show the loading state when agents are loading", () => {
-      renderSidebar(makeProps({ agentsLoading: true, agents: undefined }));
-      expect(screen.getByText("Loading agents...")).toBeInTheDocument();
-    });
-
-    it("Should expose an icon button for creating an agent", () => {
-      renderSidebar(makeProps());
-
-      const button = screen.getByRole("button", { name: "Create agent" });
-      expect(button).toBeInTheDocument();
-
-      fireEvent.click(button);
-
-      expect(onAddAgent).toHaveBeenCalledOnce();
-    });
-
-    it("Should render categorized agents grouped by category_path", () => {
-      matchedRouteFuzzy[routeMatchKey("/agents/$name", { name: "deals" })] = true;
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({
-              name: "deals",
-              provider: "claude",
-              prompt: "deals",
-              category_path: ["Marketing", "Sales"],
-            }),
-            sidebarAgent({
-              name: "outreach",
-              provider: "claude",
-              prompt: "outreach",
-              category_path: ["Operations"],
-            }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-          ],
-          sessions: [
-            {
-              id: "s_active",
-              name: "Live",
-              agent_name: "deals",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
-
-      expect(screen.getByTestId("agent-category-Marketing")).toBeInTheDocument();
-      expect(screen.getByTestId("agent-category-Marketing/Sales")).toBeInTheDocument();
-      expect(screen.getByTestId("agent-category-Operations")).toBeInTheDocument();
-
-      const dealsRow = screen.getByTestId("agent-row-deals");
-      expect(dealsRow).toHaveAttribute("href", "/agents/deals");
-      expect(dealsRow).toHaveAttribute("data-active", "true");
-      expect(screen.getByTestId("agent-active-deals")).toBeInTheDocument();
-      expect(screen.getByTestId("agent-running-spinner-deals")).toBeInTheDocument();
-
-      expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("href", "/agents/writer");
-
-      expect(screen.getByTestId("agent-category-Marketing")).toHaveAttribute(
-        "data-expanded",
-        "true"
-      );
-      expect(screen.getByTestId("agent-category-Marketing/Sales")).toHaveAttribute(
-        "data-expanded",
-        "true"
-      );
-      expect(screen.getByTestId("agent-category-Operations")).toHaveAttribute(
-        "data-expanded",
-        "false"
-      );
+      expect(screen.queryByTestId("agent-row-coder")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("sidebar-create-agent")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Create agent" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Run `agh install` to bootstrap AGH")).not.toBeInTheDocument();
+      expect(screen.queryByText("Loading agents...")).not.toBeInTheDocument();
+      const labels = screen.getAllByTestId("sidebar-section-label").map(node => node.textContent);
+      expect(labels).toEqual(["Operate", "Catalog", "System"]);
     });
   });
 
-  describe("Should render the AGENTS whole-tree live count", () => {
-    it("Should render the live/total label when agents are present", () => {
+  describe("Should render the Agents Operate badge from computeAgentsCount", () => {
+    it("Should render the live/total badge when agents are present", () => {
       renderSidebar(
         makeProps({
           agents: [
@@ -586,7 +378,10 @@ describe("AppSidebar", () => {
           ],
         })
       );
-      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("1/3 live");
+      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("1/3");
+      expect(screen.getByTestId("nav-agents")).toContainElement(
+        screen.getByTestId("agents-live-count")
+      );
     });
 
     it("Should render 2/2 when every agent has a running session", () => {
@@ -628,7 +423,7 @@ describe("AppSidebar", () => {
           ],
         })
       );
-      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("2/2 live");
+      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("2/2");
     });
 
     it("Should not count idle attachable sessions as live", () => {
@@ -654,7 +449,7 @@ describe("AppSidebar", () => {
         })
       );
 
-      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("0/1 live");
+      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("0/1");
     });
 
     it("Should not render the count chip when there are no agents", () => {
@@ -664,15 +459,10 @@ describe("AppSidebar", () => {
   });
 
   describe("Should render the nav section structure", () => {
-    it("Should render Agents, Operate, Catalog, and System section labels in order", () => {
+    it("Should render Operate, Catalog, and System section labels in order", () => {
       renderSidebar(makeProps());
       const labels = screen.getAllByTestId("sidebar-section-label");
-      expect(labels.map(node => node.textContent)).toEqual([
-        "Agents",
-        "Operate",
-        "Catalog",
-        "System",
-      ]);
+      expect(labels.map(node => node.textContent)).toEqual(["Operate", "Catalog", "System"]);
     });
 
     it("Should use the canonical Inter UC eyebrow utility for section headers", () => {
@@ -683,7 +473,7 @@ describe("AppSidebar", () => {
       expect(classes).not.toContain("eyebrow-micro");
     });
 
-    it("Should render Dashboard above Agents as the first nav item", () => {
+    it("Should render Dashboard above Operate as the first nav item", () => {
       renderSidebar(makeProps());
       const nav = screen.getByTestId("sidebar-nav");
       const firstNavLink = nav.querySelector<HTMLAnchorElement>('a[data-testid^="nav-"]');
@@ -700,6 +490,7 @@ describe("AppSidebar", () => {
 
       expect(navLinks).toEqual([
         "nav-dashboard",
+        "nav-agents",
         "nav-network",
         "nav-tasks",
         "nav-loops",
@@ -717,6 +508,7 @@ describe("AppSidebar", () => {
 
     it.each([
       ["dashboard", "/"],
+      ["agents", "/agents"],
       ["network", "/network"],
       ["tasks", "/tasks"],
       ["loops", "/loops"],

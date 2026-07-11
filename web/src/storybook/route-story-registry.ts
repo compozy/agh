@@ -255,6 +255,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "agent",
+    routePath: "/agents",
+    storybookPath: "/agents",
+    title: "systems/agent/routes/AgentsFleet",
+    storyName: "Loaded",
+  },
+  {
+    system: "agent",
     routePath: "/agents/$name",
     storybookPath: `/agents/${storyAgentNames.fraud}`,
     title: "systems/agent/routes/AgentDetail",

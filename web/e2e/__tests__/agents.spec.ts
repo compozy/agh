@@ -29,10 +29,10 @@ test("agent navigation renders the managed default agent after first-run setup",
   const ui = sessionLifecycleSelectors(appPage);
 
   await ensureGlobalWorkspace(runtime);
-  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
 
-  await expect(appPage.getByTestId("agents-empty")).toHaveCount(0);
+  await expect(appPage.getByTestId("agent-fleet-empty")).toHaveCount(0);
   await expect(ui.agentRow("general")).toBeVisible();
 });
 
@@ -86,6 +86,8 @@ test.describe("seeded agent detail", () => {
     const ui = sessionLifecycleSelectors(appPage);
 
     await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
     await expect(ui.agentRow("agent-detail-primary")).toBeVisible();
     await expect(ui.agentRow("agent-detail-secondary")).toBeVisible();
@@ -127,10 +129,10 @@ test.describe("seeded agent detail", () => {
 
     await ensureGlobalWorkspace(runtime);
     const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-    await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
     await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
-    await appPage.getByTestId("sidebar-create-agent").click();
+    await appPage.getByTestId("agents-topbar-create").click();
     await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
     await appPage.getByTestId("agent-create-name").fill("reasoning-default-agent");
     await appPage.getByTestId("agent-create-next").click();
@@ -200,5 +202,87 @@ test.describe("seeded agent detail", () => {
       model: reasoningCatalogModel,
       reasoning_effort: "high",
     });
+  });
+});
+
+test.describe("fleet scan journey", () => {
+  test.use({
+    runtimeOptions: {
+      seed: {
+        mockAgents: [
+          {
+            fixturePath: browserLifecycleFixture,
+            fixtureAgent: "browser-lifecycle-agent",
+            agentName: "fleet-release",
+            category_path: ["Engineering", "Release"],
+          },
+          {
+            fixturePath: browserLifecycleFixture,
+            fixtureAgent: "browser-lifecycle-agent",
+            agentName: "fleet-ops",
+            category_path: ["Operations"],
+          },
+        ],
+      },
+    },
+  });
+
+  test("operator lands on /agents, searches, filters by category, clears, and opens an agent", async ({
+    appPage,
+  }) => {
+    const ui = sessionLifecycleSelectors(appPage);
+    await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
+
+    await expect(ui.agentRow("fleet-release")).toBeVisible();
+    await expect(ui.agentRow("fleet-ops")).toBeVisible();
+
+    await appPage.getByTestId("agent-fleet-search").fill("release");
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("release");
+    await expect(ui.agentRow("fleet-release")).toBeVisible();
+    await expect(ui.agentRow("fleet-ops")).toHaveCount(0);
+
+    await appPage.getByTestId("agent-fleet-filters-add").click();
+    await appPage.getByRole("menuitem", { name: "Category" }).click();
+    await appPage.getByRole("menuitem", { name: "Engineering / Release" }).click();
+    await expect
+      .poll(() => new URL(appPage.url()).searchParams.get("category"))
+      .toBe("Engineering / Release");
+
+    await appPage.getByTestId("agent-fleet-search").fill("ops");
+    await expect(appPage.getByTestId("agent-fleet-filtered-empty")).toBeVisible();
+    await appPage.getByTestId("agent-fleet-clear-filters").click();
+    await expect.poll(() => new URL(appPage.url()).search).toBe("");
+    await expect(ui.agentRow("fleet-ops")).toBeVisible();
+
+    await ui.agentRow("fleet-release").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/fleet-release");
+  });
+});
+
+test.describe("empty-fleet first-contact journey", () => {
+  test.use({
+    runtimeOptions: {
+      seed: {
+        mockAgents: [],
+      },
+    },
+  });
+
+  test("operator sees first-run empty copy and can open New agent", async ({ appPage }) => {
+    const ui = sessionLifecycleSelectors(appPage);
+    await useGlobalWorkspaceIfPrompted(ui);
+    await appPage.getByTestId("nav-agents").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
+
+    await expect(appPage.getByTestId("agent-fleet-empty")).toBeVisible();
+    await expect(appPage.getByText("No agents yet")).toBeVisible();
+    await expect(
+      appPage.getByText("Agents define the provider, model, and instructions a session runs with.")
+    ).toBeVisible();
+    await expect(appPage.getByTestId("agents-topbar-create")).toHaveCount(0);
+    await appPage.getByTestId("agent-fleet-empty-create").click();
+    await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
   });
 });

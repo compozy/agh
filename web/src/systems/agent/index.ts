@@ -124,6 +124,32 @@ export {
   type AgentCategoryLeafNode,
   type AgentCategoryNode,
 } from "./lib/agent-category";
+export {
+  hasActiveAgentFleetFilters,
+  parseAgentFleetCategoryFilter,
+  parseAgentFleetStatusFilter,
+  validateAgentsFleetSearch,
+  type AgentsFleetSearch,
+} from "./lib/agent-fleet-search";
+export {
+  collectAgentCategoryOptions,
+  compareAgentNamesStable,
+  formatAgentFleetAriaLabel,
+  formatAgentFleetMeta,
+  formatAgentOriginLabel,
+  formatCategoryMetaSegment,
+  indexSessionsByAgent,
+  projectAgentFleetRows,
+  sortAgentsByNameStable,
+  type AgentFleetRowModel,
+} from "./lib/agent-fleet-projection";
+export {
+  agentFleetFiltersToChips,
+  agentFleetChipsToFilters,
+  buildAgentFleetFilterFields,
+  type AgentFleetFilterFieldKey,
+  type AgentFleetFilterValues,
+} from "./lib/agent-fleet-filters";
 
 // Hooks
 export {
@@ -181,7 +207,6 @@ export {
   type AgentInfoInspectorProps,
 } from "./components/agent-info-inspector";
 export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
-export { AgentCategoryTree, type AgentCategoryTreeProps } from "./components/agent-category-tree";
 export {
   AgentCommandSelect,
   type AgentCommandSelectProps,
@@ -192,3 +217,12 @@ export {
 } from "./components/agent-command-multi-select";
 export { AgentCreateDialog, type AgentCreateDialogProps } from "./components/agent-create-dialog";
 export { TokenListField, type TokenListFieldProps } from "./components/token-list-field";
+export {
+  AgentCreateHostProvider,
+  type AgentCreateHostProviderProps,
+  type AgentCreateHostValue,
+} from "./components/agent-create-host";
+export { useAgentCreateHost } from "./hooks/use-agent-create-host";
+export { AgentFleetRow, type AgentFleetRowProps } from "./components/agent-fleet-row";
+export { AgentFleetToolbar, type AgentFleetToolbarProps } from "./components/agent-fleet-toolbar";
+export { AgentFleetList, type AgentFleetListProps } from "./components/agent-fleet-list";

@@ -41,44 +41,42 @@ test.use({
   },
 });
 
-test("categorized agents render through the sidebar tree, group inside the session-create command picker, and route on click", async ({
+test("categorized agents surface on the fleet page and group inside the session-create command picker", async ({
   appPage,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
+  await appPage.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
-  // Sidebar: categorized agent appears under its folder; flat agent stays root-level.
-  const folderSegments = categorizedAgentCategory.join("/");
-  const folderTopId = `agent-category-${categorizedAgentCategory[0]}`;
-  await expect(appPage.getByTestId(folderTopId)).toBeVisible();
-  await expect(appPage.getByTestId(`agent-category-${folderSegments}`)).toBeVisible();
-  await appPage.getByTestId(`agent-category-${folderSegments}`).click();
   await expect(ui.agentRow(categorizedAgent)).toBeVisible();
   await expect(ui.agentRow(flatAgent)).toBeVisible();
+  await expect(appPage.getByTestId("agent-fleet-row-link-categorized-agent")).toContainText(
+    "Marketing / Sales"
+  );
 
-  // Open the agent page for the flat agent so the session-create dialog has a valid workspace.
   await ui.agentRow(flatAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${flatAgent}`);
   await expect(ui.agentPageNewSession).toBeVisible();
   await ui.agentPageNewSession.click();
 
-  // Session-create command picker: open it, type the categorized agent's name to confirm it
-  // routes through the AgentCommandSelect (the popover renders the grouped list inside it).
   const trigger = appPage.getByTestId("session-create-agent-select");
   await expect(trigger).toBeVisible();
   await trigger.click();
   const categorizedItem = appPage.getByTestId(`agent-command-item-${categorizedAgent}`);
   await expect(categorizedItem).toBeVisible();
+  const folderSegments = categorizedAgentCategory.join("/");
   const groupedHeading = appPage.getByTestId(`agent-command-group-category:${folderSegments}`);
   await expect(groupedHeading).toBeVisible();
   await expect(groupedHeading).toContainText(categorizedAgentCategory.join(" / "));
   await categorizedItem.click();
   await expect(trigger).toContainText(categorizedAgent);
 
-  // Cancel the dialog and click the categorized leaf in the sidebar to confirm routing.
   await appPage.getByTestId("session-create-dialog-cancel").click();
+  await appPage.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await ui.agentRow(categorizedAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${categorizedAgent}`);
 });

@@ -278,6 +278,8 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 
   await expect(sessionUI.appSidebar).toBeVisible();
 
+  await appPage.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(sessionUI.agentRow(handoffAgentName)).toBeVisible();
   await sessionUI.agentRow(handoffAgentName).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${handoffAgentName}`);

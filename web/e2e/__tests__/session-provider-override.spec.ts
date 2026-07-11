@@ -100,6 +100,8 @@ test("operator can create a provider/model override session and attach without l
     "data-active",
     "true"
   );
+  await appPage.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 
   await ui.agentRow(browserLifecycleAgent).click();
@@ -243,6 +245,8 @@ test("operator persists an advertised model and non-empty reasoning effort on th
 
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
+  await appPage.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 
   await ui.agentRow(browserLifecycleAgent).click();

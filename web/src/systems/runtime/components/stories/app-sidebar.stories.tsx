@@ -65,7 +65,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus four labeled sections (Agents with whole-tree live count, Operate, Catalog, System); the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) alongside the Restart-daemon control. The wordmark lives in the app-shell header one level up.",
+          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus Operate (Agents first with live/total badge), Catalog, and System; the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) alongside the Restart-daemon control. The wordmark lives in the app-shell header one level up.",
       },
     },
   },
@@ -73,10 +73,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     workspaces: workspaceFixtures,
     activeWorkspaceId: workspaceFixtures[1].id,
     onAddWorkspace: () => undefined,
-    onAddAgent: () => undefined,
     agents: agentFixtures,
-    agentsLoading: false,
-    agentsError: false,
     sessions: sessionFixtures,
   },
 };
@@ -116,7 +113,7 @@ export const WithHomeWorkspace: Story = {
   },
 };
 
-export const Categorized: Story = {
+export const AgentsOperateBadge: Story = {
   args: {
     agents: categorizedAgentFixtures,
   },
@@ -124,17 +121,16 @@ export const Categorized: Story = {
     docs: {
       description: {
         story:
-          "Agents grouped by `category_path`. Top-level folders (Engineering, Marketing, Risk, ...) expand by default, multi-level branches (Engineering / Platform, Marketing / Campaigns, Risk / Fraud) demonstrate the nested tree, and root-level agents (Finance, Product, Support) sit alongside the folders.",
+          "Agents is the first Operate nav item. The live/total badge is derived from shell agents+sessions via computeAgentsCount; the per-agent category tree no longer lives in the sidebar.",
       },
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("agent-category-Engineering")).toBeInTheDocument();
-    await expect(canvas.getByTestId("agent-category-Marketing")).toBeInTheDocument();
-    await expect(canvas.getByTestId("agent-category-Risk")).toBeInTheDocument();
-    await expect(canvas.getByTestId("agent-category-Engineering/Platform")).toBeInTheDocument();
-    await expect(canvas.getByTestId("agent-category-Marketing/Campaigns")).toBeInTheDocument();
+    const agentsNav = await canvas.findByTestId("nav-agents");
+    await expect(agentsNav).toHaveAttribute("href", "/agents");
+    await expect(canvas.getByTestId("agents-live-count")).toBeInTheDocument();
+    await expect(canvas.queryByTestId("sidebar-create-agent")).toBeNull();
   },
 };
 

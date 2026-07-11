@@ -25,6 +25,7 @@ import { Route as AppLoopRunsRouteImport } from './routes/_app/loop-runs'
 import { Route as AppKnowledgeRouteImport } from './routes/_app/knowledge'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
 import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
+import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
@@ -133,6 +134,11 @@ const AppBridgesRoute = AppBridgesRouteImport.update({
   path: '/bridges',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgentsRoute = AppAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -216,9 +222,9 @@ const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
   getParentRoute: () => AppBridgesRoute,
 } as any)
 const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
-  id: '/agents/$name',
-  path: '/agents/$name',
-  getParentRoute: () => AppRoute,
+  id: '/$name',
+  path: '/$name',
+  getParentRoute: () => AppAgentsRoute,
 } as any)
 const AppTasksIdEditRoute = AppTasksIdEditRouteImport.update({
   id: '/edit',
@@ -284,6 +290,7 @@ const AppNetworkWorkspaceIdChannelDirectsDirectIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/agents': typeof AppAgentsRouteWithChildren
   '/bridges': typeof AppBridgesRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/agents': typeof AppAgentsRouteWithChildren
   '/bridges': typeof AppBridgesRouteWithChildren
   '/jobs': typeof AppJobsRoute
   '/knowledge': typeof AppKnowledgeRoute
@@ -374,6 +382,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/bridges': typeof AppBridgesRouteWithChildren
   '/_app/jobs': typeof AppJobsRoute
   '/_app/knowledge': typeof AppKnowledgeRoute
@@ -422,6 +431,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
+    | '/agents'
     | '/bridges'
     | '/jobs'
     | '/knowledge'
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
+    | '/agents'
     | '/bridges'
     | '/jobs'
     | '/knowledge'
@@ -511,6 +522,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/design-system'
+    | '/_app/agents'
     | '/_app/bridges'
     | '/_app/jobs'
     | '/_app/knowledge'
@@ -674,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBridgesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agents': {
+      id: '/_app/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/': {
       id: '/_app/settings/'
       path: '/'
@@ -788,10 +807,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/agents/$name': {
       id: '/_app/agents/$name'
-      path: '/agents/$name'
+      path: '/$name'
       fullPath: '/agents/$name'
       preLoaderRoute: typeof AppAgentsNameRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppAgentsRoute
     }
     '/_app/tasks/$id/edit': {
       id: '/_app/tasks/$id/edit'
@@ -872,6 +891,30 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AppAgentsNameRouteChildren {
+  AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
+}
+
+const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
+  AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
+}
+
+const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
+  AppAgentsNameRouteChildren,
+)
+
+interface AppAgentsRouteChildren {
+  AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
+}
+
+const AppAgentsRouteChildren: AppAgentsRouteChildren = {
+  AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
+}
+
+const AppAgentsRouteWithChildren = AppAgentsRoute._addFileChildren(
+  AppAgentsRouteChildren,
+)
 
 interface AppBridgesRouteChildren {
   AppBridgesIdRoute: typeof AppBridgesIdRoute
@@ -1042,19 +1085,8 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
   AppTasksRouteChildren,
 )
 
-interface AppAgentsNameRouteChildren {
-  AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
-}
-
-const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
-  AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
-}
-
-const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
-  AppAgentsNameRouteChildren,
-)
-
 interface AppRouteChildren {
+  AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppBridgesRoute: typeof AppBridgesRouteWithChildren
   AppJobsRoute: typeof AppJobsRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
@@ -1069,11 +1101,11 @@ interface AppRouteChildren {
   AppTriggersRoute: typeof AppTriggersRoute
   AppVaultRoute: typeof AppVaultRoute
   AppIndexRoute: typeof AppIndexRoute
-  AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
   AppSessionIdRoute: typeof AppSessionIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAgentsRoute: AppAgentsRouteWithChildren,
   AppBridgesRoute: AppBridgesRouteWithChildren,
   AppJobsRoute: AppJobsRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
@@ -1088,7 +1120,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppTriggersRoute: AppTriggersRoute,
   AppVaultRoute: AppVaultRoute,
   AppIndexRoute: AppIndexRoute,
-  AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
   AppSessionIdRoute: AppSessionIdRoute,
 }
 

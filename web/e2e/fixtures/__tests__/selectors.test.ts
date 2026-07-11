@@ -53,7 +53,7 @@ describe("session lifecycle selectors", () => {
       `locator:${sessionLifecycleTestIds.permissionAllowOnce}`
     );
     expect(selectors.agentRow("browser-lifecycle-agent")).toBe(
-      "locator:agent-row-browser-lifecycle-agent"
+      "locator:agent-fleet-row-link-browser-lifecycle-agent"
     );
     expect(selectors.agentPageNewSession).toBe("locator:agent-page-new-session");
   });
