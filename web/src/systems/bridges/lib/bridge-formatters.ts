@@ -248,6 +248,27 @@ export function formatBridgeProviderConfig(value: unknown): string {
   return JSON.stringify(providerConfig, null, 2);
 }
 
+export function fingerprintBridgeProviderConfig(
+  value: BridgeProviderConfig | null | undefined
+): string {
+  return JSON.stringify(sortJSONValue(value ?? null));
+}
+
+function sortJSONValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJSONValue);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortJSONValue(entry)])
+  );
+}
+
 export function describeBridgeProviderConfigSchema(
   value?: BridgeProviderConfigSchemaHint | null
 ): string {

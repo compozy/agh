@@ -29,6 +29,7 @@ let mockProvidersData: BridgeProvider[] | undefined;
 let mockProvidersLoading = false;
 let mockProvidersError: Error | null = null;
 const mockRefetchProviders = vi.fn();
+const mockRefetchManifest = vi.fn();
 
 const mockCreateBridgeMutateAsync = vi.fn();
 let mockCreateBridgePending = false;
@@ -173,6 +174,12 @@ vi.mock("@/systems/bridges", async () => {
       refetch: mockRefetchProviders,
     }),
     useBridgeHealthStream: vi.fn(),
+    useSlackBridgeManifest: () => ({
+      data: undefined,
+      error: null,
+      isLoading: false,
+      refetch: mockRefetchManifest,
+    }),
     useCreateBridge: () => ({
       isPending: mockCreateBridgePending,
       mutateAsync: mockCreateBridgeMutateAsync,
@@ -196,7 +203,9 @@ function makeBridge(overrides: Partial<BridgesListResponse["bridges"][number]> =
     platform: "telegram",
     provider_config: {
       mode: "bot",
-      webhook_url: "https://example.test/webhook",
+      webhook: {
+        public_url: "https://example.test/webhook",
+      },
     },
     routing_policy: { include_group: true, include_peer: true, include_thread: true },
     scope: "workspace" as const,
@@ -288,6 +297,7 @@ describe("BridgesPage", () => {
     mockRefetchBridges.mockReset();
     mockFetchNextBridges.mockReset();
     mockRefetchProviders.mockReset();
+    mockRefetchManifest.mockReset();
     toast.success.mockReset();
     toast.error.mockReset();
     routerState.searchListeners.clear();
@@ -402,7 +412,7 @@ describe("BridgesPage", () => {
     await user.selectOptions(screen.getByTestId("bridge-dm-policy-select"), "allowlist");
     fireEvent.change(screen.getByTestId("bridge-provider-config-input"), {
       target: {
-        value: '{"mode":"bot","webhook_url":"https://example.test/webhook"}',
+        value: '{"mode":"bot","webhook":{"public_url":"https://example.test/webhook"}}',
       },
     });
     await user.click(screen.getByTestId("bridge-wizard-next"));

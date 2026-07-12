@@ -312,15 +312,15 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
   await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
 
-  const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "auth_required");
+  const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "disabled");
   expect(initialSnapshots.http.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.uds.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.cli.id).toBe(createdBridge.id);
-  expect(initialSnapshots.http.bridge.enabled).toBe(true);
-  expect(initialSnapshots.uds.bridge.enabled).toBe(true);
-  expect(initialSnapshots.cli.enabled).toBe(true);
-  expect(initialSnapshots.http.health.status).toBe("auth_required");
-  expect(initialSnapshots.uds.health.status).toBe("auth_required");
+  expect(initialSnapshots.http.bridge.enabled).toBe(false);
+  expect(initialSnapshots.uds.bridge.enabled).toBe(false);
+  expect(initialSnapshots.cli.enabled).toBe(false);
+  expect(initialSnapshots.http.health.status).toBe("disabled");
+  expect(initialSnapshots.uds.health.status).toBe("disabled");
   assertNoSensitiveText("initial bridge snapshots", JSON.stringify(initialSnapshots));
 
   await bridgeUI
@@ -354,7 +354,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   ).toBe(true);
   assertNoSensitiveText("bound secret snapshots", JSON.stringify(boundSnapshots));
 
-  await bridgeUI.restartBridgeButton.click();
+  await bridgeUI.enableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })

@@ -181,7 +181,7 @@ export function buildBridgeCreateRequest(
       delivery_defaults: compactBridgeDeliveryDefaults(draft.deliveryDefaults),
       display_name: draft.displayName.trim(),
       dm_policy: parseBridgeDmPolicy(draft.dmPolicy),
-      enabled: true,
+      enabled: false,
       extension_name: provider.extension_name,
       notification_suppress: false,
       platform: provider.platform,

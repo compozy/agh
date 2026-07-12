@@ -1,5 +1,3 @@
-import { describeBridgeTestTarget } from "@/systems/bridges/lib/bridge-formatters";
-import type { BridgeTestDeliveryDraft, TestBridgeDeliveryResponse } from "@/systems/bridges/types";
 import {
   Button,
   Dialog,
@@ -14,6 +12,7 @@ import {
   FieldGroup,
   FieldTitle,
   Input,
+  MetadataList,
   NativeSelect,
   NativeSelectOption,
   Pill,
@@ -23,7 +22,14 @@ import {
   type PillTone,
 } from "@agh/ui";
 
-interface BridgeTestDeliveryDialogProps {
+import { describeBridgeTestTarget } from "../lib/bridge-formatters";
+import type {
+  BridgeTestDeliveryDraft,
+  SendBridgeTestResponse,
+  TestBridgeDeliveryResponse,
+} from "../types";
+
+interface CommonDialogProps {
   bridgeName?: string;
   draft: BridgeTestDeliveryDraft;
   isPending: boolean;
@@ -31,13 +37,26 @@ interface BridgeTestDeliveryDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
   open: boolean;
-  result: TestBridgeDeliveryResponse | null;
 }
+
+type BridgeTestDeliveryDialogProps = CommonDialogProps &
+  (
+    | {
+        intent: "dry-run";
+        result: TestBridgeDeliveryResponse | null;
+      }
+    | {
+        intent: "send-test";
+        result: SendBridgeTestResponse | null;
+      }
+  );
 
 function resultTone(status: string): PillTone {
   switch (status) {
     case "resolved":
     case "ready":
+    case "sent":
+    case "delivered":
       return "success";
     case "error":
     case "failed":
@@ -49,28 +68,137 @@ function resultTone(status: string): PillTone {
   }
 }
 
-export function BridgeTestDeliveryDialog({
-  bridgeName,
+function updateTargetField(
+  draft: BridgeTestDeliveryDraft,
+  field: "group_id" | "peer_id" | "thread_id",
+  value: string
+): BridgeTestDeliveryDraft {
+  return { ...draft, target: { ...draft.target, [field]: value } };
+}
+
+function DeliveryTargetFields({
   draft,
-  isPending,
   onDraftChange,
-  onOpenChange,
-  onSubmit,
-  open,
-  result,
-}: BridgeTestDeliveryDialogProps) {
+}: Pick<CommonDialogProps, "draft" | "onDraftChange">) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Field>
+        <FieldContent>
+          <FieldTitle>Mode</FieldTitle>
+        </FieldContent>
+        <NativeSelect
+          data-testid="test-delivery-mode-select"
+          onChange={event =>
+            onDraftChange({
+              ...draft,
+              target: {
+                ...draft.target,
+                mode:
+                  event.target.value === ""
+                    ? undefined
+                    : (event.target.value as NonNullable<typeof draft.target.mode>),
+              },
+            })
+          }
+          value={draft.target.mode ?? ""}
+        >
+          <NativeSelectOption value="">Use bridge default</NativeSelectOption>
+          <NativeSelectOption value="reply">Reply</NativeSelectOption>
+          <NativeSelectOption value="direct-send">Direct send</NativeSelectOption>
+        </NativeSelect>
+      </Field>
+      {(
+        [
+          ["peer_id", "Peer ID", "peer_123", "test-delivery-peer-input"],
+          ["thread_id", "Thread ID", "thread_456", "test-delivery-thread-input"],
+          ["group_id", "Group ID", "group_789", "test-delivery-group-input"],
+        ] as const
+      ).map(([field, label, placeholder, testId]) => (
+        <Field key={field}>
+          <FieldContent>
+            <FieldTitle>{label}</FieldTitle>
+          </FieldContent>
+          <Input
+            data-testid={testId}
+            onChange={event => onDraftChange(updateTargetField(draft, field, event.target.value))}
+            placeholder={placeholder}
+            value={draft.target[field] ?? ""}
+          />
+        </Field>
+      ))}
+    </div>
+  );
+}
+
+function DryRunResult({ result }: { result: TestBridgeDeliveryResponse }) {
+  return (
+    <Section
+      data-testid="bridge-test-delivery-result"
+      label="Resolved target"
+      right={
+        <Pill mono tone={resultTone(result.status)}>
+          {result.status}
+        </Pill>
+      }
+    >
+      <p className="text-small-body text-fg">{describeBridgeTestTarget(result.delivery_target)}</p>
+      {result.message ? (
+        <p className="mt-2 text-small-body leading-relaxed text-muted">Message: {result.message}</p>
+      ) : null}
+    </Section>
+  );
+}
+
+function SendTestResult({ result }: { result: SendBridgeTestResponse }) {
+  return (
+    <Section
+      data-testid="bridge-send-test-result"
+      label="Delivery result"
+      right={
+        <Pill mono tone={resultTone(result.status)}>
+          {result.status}
+        </Pill>
+      }
+    >
+      <MetadataList className="grid gap-3 sm:grid-cols-2">
+        <MetadataList.Row label="Delivery ID">
+          <span className="break-all font-mono">{result.delivery_id}</span>
+        </MetadataList.Row>
+        <MetadataList.Row label="Target">
+          {describeBridgeTestTarget(result.delivery_target)}
+        </MetadataList.Row>
+        {result.remote_message_id ? (
+          <MetadataList.Row label="Remote message ID">
+            <span className="break-all font-mono">{result.remote_message_id}</span>
+          </MetadataList.Row>
+        ) : null}
+      </MetadataList>
+    </Section>
+  );
+}
+
+export function BridgeTestDeliveryDialog(props: BridgeTestDeliveryDialogProps) {
+  const { bridgeName, draft, intent, isPending, onDraftChange, onOpenChange, onSubmit, open } =
+    props;
+  const sendsMessage = intent === "send-test";
+  const missingMessage = sendsMessage && draft.message.trim() === "";
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-0 p-0 text-fg sm:max-w-2xl" showCloseButton={false} unframed>
         <div
           className="flex max-h-[min(80vh,var(--height-modal-md))] flex-col"
-          data-testid="bridge-test-delivery-dialog"
+          data-intent={intent}
+          data-testid={sendsMessage ? "bridge-send-test-dialog" : "bridge-test-delivery-dialog"}
         >
           <DialogHeader variant="ruled">
-            <DialogTitle>Test Delivery</DialogTitle>
+            <DialogTitle>
+              {sendsMessage ? "Send test message" : "Check delivery target"}
+            </DialogTitle>
             <DialogDescription>
-              Resolve the outbound target for {bridgeName ?? "the selected bridge"} using the saved
-              defaults plus any explicit overrides below.
+              {sendsMessage
+                ? `Send one real provider message through ${bridgeName ?? "the selected bridge"}.`
+                : `Resolve the outbound target for ${bridgeName ?? "the selected bridge"} without sending a provider message.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -80,126 +208,26 @@ export function BridgeTestDeliveryDialog({
                 <FieldContent>
                   <FieldTitle>Message</FieldTitle>
                   <FieldDescription>
-                    Optional message preview echoed back with the resolved delivery target.
+                    {sendsMessage
+                      ? "Required. This content is sent through the provider."
+                      : "Optional preview echoed with the resolved target; no message is sent."}
                   </FieldDescription>
                 </FieldContent>
                 <Textarea
+                  aria-required={sendsMessage}
                   data-testid="test-delivery-message"
-                  onChange={event =>
-                    onDraftChange({
-                      ...draft,
-                      message: event.target.value,
-                    })
-                  }
+                  onChange={event => onDraftChange({ ...draft, message: event.target.value })}
                   placeholder="Deliver a short operator ping."
+                  required={sendsMessage}
                   value={draft.message}
                 />
               </Field>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>Mode</FieldTitle>
-                  </FieldContent>
-                  <NativeSelect
-                    data-testid="test-delivery-mode-select"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        target: {
-                          ...draft.target,
-                          mode:
-                            event.target.value === ""
-                              ? undefined
-                              : (event.target.value as NonNullable<typeof draft.target.mode>),
-                        },
-                      })
-                    }
-                    value={draft.target.mode ?? ""}
-                  >
-                    <NativeSelectOption value="">Use bridge default</NativeSelectOption>
-                    <NativeSelectOption value="reply">Reply</NativeSelectOption>
-                    <NativeSelectOption value="direct-send">Direct send</NativeSelectOption>
-                  </NativeSelect>
-                </Field>
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>Peer ID</FieldTitle>
-                  </FieldContent>
-                  <Input
-                    data-testid="test-delivery-peer-input"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        target: {
-                          ...draft.target,
-                          peer_id: event.target.value,
-                        },
-                      })
-                    }
-                    placeholder="peer_123"
-                    value={draft.target.peer_id ?? ""}
-                  />
-                </Field>
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>Thread ID</FieldTitle>
-                  </FieldContent>
-                  <Input
-                    data-testid="test-delivery-thread-input"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        target: {
-                          ...draft.target,
-                          thread_id: event.target.value,
-                        },
-                      })
-                    }
-                    placeholder="thread_456"
-                    value={draft.target.thread_id ?? ""}
-                  />
-                </Field>
-                <Field>
-                  <FieldContent>
-                    <FieldTitle>Group ID</FieldTitle>
-                  </FieldContent>
-                  <Input
-                    data-testid="test-delivery-group-input"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        target: {
-                          ...draft.target,
-                          group_id: event.target.value,
-                        },
-                      })
-                    }
-                    placeholder="group_789"
-                    value={draft.target.group_id ?? ""}
-                  />
-                </Field>
-              </div>
+              <DeliveryTargetFields draft={draft} onDraftChange={onDraftChange} />
 
-              {result ? (
-                <Section
-                  data-testid="bridge-test-delivery-result"
-                  label="Resolved target"
-                  right={
-                    <Pill mono tone={resultTone(result.status)}>
-                      {result.status}
-                    </Pill>
-                  }
-                >
-                  <p className="text-small-body text-fg">
-                    {describeBridgeTestTarget(result.delivery_target)}
-                  </p>
-                  {result.message ? (
-                    <p className="mt-2 text-small-body leading-relaxed text-muted">
-                      Message: {result.message}
-                    </p>
-                  ) : null}
-                </Section>
+              {intent === "dry-run" && props.result ? <DryRunResult result={props.result} /> : null}
+              {intent === "send-test" && props.result ? (
+                <SendTestResult result={props.result} />
               ) : null}
             </FieldGroup>
           </div>
@@ -209,20 +237,20 @@ export function BridgeTestDeliveryDialog({
               Close
             </Button>
             <Button
-              data-testid="submit-test-delivery"
-              disabled={isPending}
+              data-testid={sendsMessage ? "submit-send-test" : "submit-test-delivery"}
+              disabled={isPending || missingMessage}
               onClick={onSubmit}
               size="sm"
               type="button"
             >
-              {isPending ? (
-                <>
-                  <Spinner className="size-3" />
-                  Resolving…
-                </>
-              ) : (
-                "Resolve Target"
-              )}
+              {isPending ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              {isPending
+                ? sendsMessage
+                  ? "Sending…"
+                  : "Checking…"
+                : sendsMessage
+                  ? "Send message"
+                  : "Check target"}
             </Button>
           </DialogFooter>
         </div>

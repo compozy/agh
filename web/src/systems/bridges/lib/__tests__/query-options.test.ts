@@ -7,6 +7,7 @@ import {
   bridgeSecretBindingsOptions,
   bridgeTargetsOptions,
   bridgesListOptions,
+  slackBridgeManifestOptions,
 } from "@/systems/bridges/lib/query-options";
 
 describe("bridgesListOptions", () => {
@@ -53,6 +54,19 @@ describe("bridgeProvidersOptions", () => {
 
     expect(options.queryKey).toEqual(["bridges", "providers"]);
     expect(options.refetchInterval).toBe(60_000);
+  });
+});
+
+describe("slackBridgeManifestOptions", () => {
+  it("normalizes the persisted instance id and disables blank requests", () => {
+    const enabledOptions = slackBridgeManifestOptions(" brg_slack ");
+    const disabledOptions = slackBridgeManifestOptions("   ");
+
+    expect(enabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", "brg_slack"]);
+    expect(enabledOptions.enabled).toBe(true);
+    expect(enabledOptions.staleTime).toBe(15_000);
+    expect(disabledOptions.queryKey).toEqual(["bridges", "manifest", "slack", ""]);
+    expect(disabledOptions.enabled).toBe(false);
   });
 });
 

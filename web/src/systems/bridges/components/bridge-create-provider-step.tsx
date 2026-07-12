@@ -1,6 +1,7 @@
-import { Plug } from "lucide-react";
+import { FileJson2, Plug } from "lucide-react";
 
 import {
+  ActionResultBanner,
   bridgeKindIconRegistry,
   CatalogCard,
   Eyebrow,
@@ -14,56 +15,24 @@ import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
 import { buildBridgeProviderKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";
 import type { BridgeProvider } from "../types";
 
-interface ProviderStepProps {
+interface BridgeCreateProviderStepProps {
+  onSelect: (providerKey: string) => void;
   providers: BridgeProvider[];
   selectedProviderKey: string;
-  onSelect: (providerKey: string) => void;
+  supportsManifest: boolean;
 }
 
-export function ProviderStep({ providers, selectedProviderKey, onSelect }: ProviderStepProps) {
-  return (
-    <FormSection
-      data-testid="bridge-wizard-section-provider"
-      description="Only providers with healthy runtime state can be selected for bridge creation."
-      icon={Plug}
-      title="Provider"
-    >
-      {providers.length === 0 ? (
-        <div
-          className="rounded bg-canvas-tint px-5 py-8 text-center text-small-body leading-6 text-muted"
-          data-testid="bridge-provider-empty"
-        >
-          No bridge providers are currently available. Install or enable a bridge adapter extension
-          before creating a new bridge.
-        </div>
-      ) : (
-        <div className="grid gap-3 lg:grid-cols-2" data-testid="bridge-wizard-provider-grid">
-          {providers.map(provider => {
-            const providerKey = buildBridgeProviderKey(provider);
-            return (
-              <BridgeProviderCatalogCard
-                key={providerKey}
-                onSelect={() => onSelect(providerKey)}
-                provider={provider}
-                selected={providerKey === selectedProviderKey}
-              />
-            );
-          })}
-        </div>
-      )}
-    </FormSection>
-  );
+interface BridgeProviderCatalogCardProps {
+  onSelect: () => void;
+  provider: BridgeProvider;
+  selected: boolean;
 }
 
 function BridgeProviderCatalogCard({
+  onSelect,
   provider,
   selected,
-  onSelect,
-}: {
-  provider: BridgeProvider;
-  selected: boolean;
-  onSelect: () => void;
-}) {
+}: BridgeProviderCatalogCardProps) {
   const providerKey = buildBridgeProviderKey(provider);
   const selectable = isBridgeProviderSelectable(provider);
 
@@ -74,9 +43,6 @@ function BridgeProviderCatalogCard({
       aria-pressed={selected}
       data-testid={`bridge-provider-card-${providerKey}`}
       onClick={selectable ? onSelect : undefined}
-      role="button"
-      selected={selected}
-      tabIndex={selectable ? 0 : -1}
       onKeyDown={
         selectable
           ? event => {
@@ -87,6 +53,9 @@ function BridgeProviderCatalogCard({
             }
           : undefined
       }
+      role="button"
+      selected={selected}
+      tabIndex={selectable ? 0 : -1}
     >
       <div className="flex items-start gap-3">
         <CatalogCard.Logo size="lg">
@@ -124,5 +93,55 @@ function BridgeProviderCatalogCard({
         )}
       </CatalogCard.Actions>
     </CatalogCard>
+  );
+}
+
+export function BridgeCreateProviderStep({
+  onSelect,
+  providers,
+  selectedProviderKey,
+  supportsManifest,
+}: BridgeCreateProviderStepProps) {
+  return (
+    <FormSection
+      data-testid="bridge-wizard-section-provider"
+      description="Only providers with healthy runtime state can be selected for bridge creation."
+      icon={Plug}
+      title="Provider"
+    >
+      {providers.length === 0 ? (
+        <div
+          className="rounded bg-canvas-tint px-5 py-8 text-center text-small-body leading-6 text-muted"
+          data-testid="bridge-provider-empty"
+        >
+          No bridge providers are currently available. Install or enable a bridge adapter extension
+          before creating a new bridge.
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2" data-testid="bridge-wizard-provider-grid">
+          {providers.map(provider => {
+            const providerKey = buildBridgeProviderKey(provider);
+            return (
+              <BridgeProviderCatalogCard
+                key={providerKey}
+                onSelect={() => onSelect(providerKey)}
+                provider={provider}
+                selected={providerKey === selectedProviderKey}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {supportsManifest && selectedProviderKey ? (
+        <ActionResultBanner
+          data-testid="bridge-manifest-precreate-hint"
+          description="AGH generates the JSON from the persisted bridge ID and saved webhook URL. Create the bridge first, then copy the real manifest into Slack."
+          icon={FileJson2}
+          title="Slack manifest available after creation"
+          tone="info"
+        />
+      ) : null}
+    </FormSection>
   );
 }

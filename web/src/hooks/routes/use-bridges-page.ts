@@ -1,22 +1,16 @@
-import { useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 
 import type { ListingViewMode } from "@agh/ui";
 
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
-  buildBridgeCreateRequest,
   bridgeListFilterForScope,
-  createBridgeCreateDraft,
-  findBridgeProviderByKey,
-  isBridgeProviderSelectable,
   useBridgeHealthStream,
   useBridgeProviders,
   useBridges,
-  useCreateBridge,
 } from "@/systems/bridges";
-import type { BridgeCreateDraft, BridgeScopeFilter } from "@/systems/bridges";
+import type { BridgeScopeFilter } from "@/systems/bridges";
 import {
   parseBridgePlatformFilter,
   parseBridgeScopeFilter,
@@ -25,6 +19,7 @@ import {
   type BridgeStatusFilter,
 } from "@/systems/bridges/lib/bridge-list-filters";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useBridgeCreateFlow } from "./use-bridge-create-flow";
 
 export interface BridgesRouteSearch {
   q?: string;
@@ -47,19 +42,17 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const platformFilter = search.platform ?? null;
   const statusFilter = search.status ?? null;
 
-  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDraft, setCreateDraft] = useState<BridgeCreateDraft>(() =>
-    createBridgeCreateDraft([], activeWorkspaceId)
+  const bridgeListFilters = useMemo(
+    () => ({
+      ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
+      q: searchQuery,
+      platform: platformFilter ?? undefined,
+      status: statusFilter ?? undefined,
+      sort: "name" as const,
+      limit: 50,
+    }),
+    [activeWorkspaceId, platformFilter, scopeFilter, searchQuery, statusFilter]
   );
-
-  const bridgeListFilters = {
-    ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
-    q: searchQuery,
-    platform: platformFilter ?? undefined,
-    status: statusFilter ?? undefined,
-    sort: "name" as const,
-    limit: 50,
-  };
   const bridgeListEnabled = scopeFilter !== "workspace" || Boolean(activeWorkspaceId);
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
@@ -69,12 +62,15 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     filters: bridgeListFilters,
   });
   const providersQuery = useBridgeProviders();
-  const createBridgeMutation = useCreateBridge();
 
   const bridges = bridgesQuery.bridges;
   const bridgeHealth = bridgesQuery.bridgeHealth;
   const providers = providersQuery.data ?? [];
-  const canCreateBridge = providers.some(isBridgeProviderSelectable);
+  const createFlow = useBridgeCreateFlow({
+    activeWorkspaceId,
+    activeWorkspaceName: activeWorkspace?.name,
+    providers,
+  });
 
   const platforms = Object.keys(bridgesQuery.facets?.platforms ?? {});
   const statuses: BridgeStatusFilter[] = [];
@@ -100,49 +96,67 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
         ? providersQuery.error
         : null;
 
-  const updateSearch = (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
-    void navigate({
-      search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
-      to: "/bridges",
-    });
-  };
+  const updateSearch = useCallback(
+    (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
+      void navigate({
+        search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
+        to: "/bridges",
+      });
+    },
+    [navigate]
+  );
 
-  const setSearchQuery = (nextQuery: string) => {
-    updateSearch(current => ({
-      ...current,
-      q: normalizeListingSearchValue(nextQuery),
-    }));
-  };
+  const setSearchQuery = useCallback(
+    (nextQuery: string) => {
+      updateSearch(current => ({
+        ...current,
+        q: normalizeListingSearchValue(nextQuery),
+      }));
+    },
+    [updateSearch]
+  );
 
-  const setView = (nextView: ListingViewMode) => {
-    updateSearch(current => ({
-      ...current,
-      view: nextView === "rows" ? undefined : nextView,
-    }));
-  };
+  const setView = useCallback(
+    (nextView: ListingViewMode) => {
+      updateSearch(current => ({
+        ...current,
+        view: nextView === "rows" ? undefined : nextView,
+      }));
+    },
+    [updateSearch]
+  );
 
-  const setScopeFilter = (next: BridgeScopeFilter) => {
-    updateSearch(current => ({
-      ...current,
-      scope: next === "all" ? undefined : next,
-    }));
-  };
+  const setScopeFilter = useCallback(
+    (next: BridgeScopeFilter) => {
+      updateSearch(current => ({
+        ...current,
+        scope: next === "all" ? undefined : next,
+      }));
+    },
+    [updateSearch]
+  );
 
-  const setPlatformFilter = (next: BridgePlatformFilter | null) => {
-    updateSearch(current => ({
-      ...current,
-      platform: next ?? undefined,
-    }));
-  };
+  const setPlatformFilter = useCallback(
+    (next: BridgePlatformFilter | null) => {
+      updateSearch(current => ({
+        ...current,
+        platform: next ?? undefined,
+      }));
+    },
+    [updateSearch]
+  );
 
-  const setStatusFilter = (next: BridgeStatusFilter | null) => {
-    updateSearch(current => ({
-      ...current,
-      status: next ?? undefined,
-    }));
-  };
+  const setStatusFilter = useCallback(
+    (next: BridgeStatusFilter | null) => {
+      updateSearch(current => ({
+        ...current,
+        status: next ?? undefined,
+      }));
+    },
+    [updateSearch]
+  );
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     updateSearch(current => ({
       ...current,
       platform: undefined,
@@ -150,73 +164,21 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
       scope: undefined,
       status: undefined,
     }));
-  };
+  }, [updateSearch]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     void bridgesQuery.refetch();
     void providersQuery.refetch();
-  };
-
-  const openCreateDialog = () => {
-    setCreateDraft(createBridgeCreateDraft(providers, activeWorkspaceId));
-    setCreateDialogOpen(true);
-  };
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    setCreateDialogOpen(open);
-  };
-
-  const handleCreateBridge = async () => {
-    const provider = findBridgeProviderByKey(providers, createDraft.selectedProviderKey);
-    if (!provider || !isBridgeProviderSelectable(provider)) {
-      toast.error("Select an available bridge provider before creating the bridge.");
-      return;
-    }
-
-    if (createDraft.scope === "workspace" && !activeWorkspaceId) {
-      toast.error("Select an active workspace before creating a workspace-scoped bridge.");
-      return;
-    }
-
-    const requestResult = buildBridgeCreateRequest(createDraft, provider, activeWorkspaceId);
-    if (!requestResult.ok) {
-      toast.error(requestResult.error);
-      return;
-    }
-
-    try {
-      const result = await createBridgeMutation.mutateAsync(requestResult.data);
-      setCreateDialogOpen(false);
-      toast.success(`Created bridge ${result.bridge.display_name}.`);
-      void navigate({
-        params: { id: result.bridge.id },
-        to: "/bridges/$id",
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create bridge");
-    }
-  };
-
-  const createDialogProps = {
-    activeWorkspaceId,
-    activeWorkspaceName: activeWorkspace?.name,
-    draft: createDraft,
-    isPending: createBridgeMutation.isPending,
-    onDraftChange: setCreateDraft,
-    onOpenChange: handleCreateDialogOpenChange,
-    onSubmit: handleCreateBridge,
-    open: isCreateDialogOpen,
-    providers,
-  };
+  }, [bridgesQuery, providersQuery]);
 
   return {
     activeWorkspaceId,
     backgroundError,
     bridgeHealth,
     bridges,
-    canCreateBridge,
+    canCreateBridge: createFlow.canCreateBridge,
     clearFilters,
-    createDialogProps,
+    createDialogProps: createFlow.createDialogProps,
     fatalError,
     hasActiveFilters,
     hasNextPage: bridgesQuery.hasNextPage,
@@ -225,7 +187,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     isInitialLoading,
     isFetchingNextPage: bridgesQuery.isFetchingNextPage,
     loadMore: bridgesQuery.fetchNextPage,
-    openCreateDialog,
+    openCreateDialog: createFlow.openCreateDialog,
     platformFilter,
     platforms,
     providers,

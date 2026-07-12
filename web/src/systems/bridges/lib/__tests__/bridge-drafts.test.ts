@@ -94,7 +94,7 @@ describe("parseBridgeProviderConfig", () => {
 });
 
 describe("buildBridgeCreateRequest", () => {
-  it("preserves provider_config separately from delivery_defaults", () => {
+  it("creates setup instances disabled and preserves provider_config separately", () => {
     const result = buildBridgeCreateRequest(
       makeDraft({
         dmPolicy: "pairing",
@@ -115,7 +115,7 @@ describe("buildBridgeCreateRequest", () => {
         },
         display_name: "Telegram",
         dm_policy: "pairing",
-        enabled: true,
+        enabled: false,
         extension_name: "ext-telegram",
         notification_suppress: false,
         platform: "telegram",
@@ -130,6 +130,43 @@ describe("buildBridgeCreateRequest", () => {
         },
         scope: "workspace",
         workspace_id: "ws_test",
+      },
+      ok: true,
+    });
+  });
+
+  it("serializes all progress controls into delivery_defaults", () => {
+    const result = buildBridgeCreateRequest(
+      makeDraft({
+        deliveryDefaults: {
+          mode: "reply",
+          progress: {
+            grouping: "separate",
+            reactions: true,
+            tool_progress: "verbose",
+            typing: false,
+          },
+        },
+      }),
+      {
+        extension_name: "ext-telegram",
+        platform: "telegram",
+      },
+      "ws_test"
+    );
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          mode: "reply",
+          progress: {
+            grouping: "separate",
+            reactions: true,
+            tool_progress: "verbose",
+            typing: false,
+          },
+        },
+        enabled: false,
       },
       ok: true,
     });
@@ -224,7 +261,7 @@ describe("buildBridgeUpdateRequest", () => {
     });
   });
 
-  it("preserves progress overrides through an unchanged editor round trip", () => {
+  it("serializes all progress controls through the edit round trip", () => {
     const existingBridge: NonNullable<Parameters<typeof createBridgeUpdateDraft>[0]> = {
       delivery_defaults: {
         progress: {

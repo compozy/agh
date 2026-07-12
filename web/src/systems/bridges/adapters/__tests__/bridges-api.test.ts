@@ -19,6 +19,12 @@ import {
   testBridgeDelivery,
   updateBridge,
 } from "@/systems/bridges/adapters/bridges-api";
+import {
+  getSlackBridgeManifest,
+  registerBridgeWebhook,
+  sendBridgeTest,
+  verifyBridge,
+} from "@/systems/bridges/adapters/bridge-setup-api";
 
 const bridgeFixture = {
   created_at: "2026-04-13T12:00:00Z",
@@ -656,5 +662,181 @@ describe("testBridgeDelivery", () => {
         },
       })
     ).rejects.toThrow('Failed to test delivery for bridge "brg_support": 500');
+  });
+});
+
+describe("getSlackBridgeManifest", () => {
+  it("fetches the instance-derived Slack manifest and propagates cancellation", async () => {
+    mockJsonResponse({
+      manifest: {
+        _metadata: { major_version: 1, minor_version: 1 },
+        display_information: {
+          background_color: "#E8572A",
+          description: "AGH Slack bridge",
+          name: "AGH",
+        },
+        features: {
+          bot_user: { always_online: false, display_name: "AGH" },
+          slash_commands: [
+            {
+              command: "/agh",
+              description: "Message AGH",
+              should_escape: false,
+              url: "https://bridge.example.test/slack",
+              usage_hint: "<message>",
+            },
+          ],
+        },
+        oauth_config: { scopes: { bot: ["app_mentions:read"] } },
+        settings: {
+          event_subscriptions: {
+            bot_events: ["app_mention"],
+            request_url: "https://bridge.example.test/slack",
+          },
+          interactivity: {
+            is_enabled: true,
+            request_url: "https://bridge.example.test/slack",
+          },
+          org_deploy_enabled: false,
+          socket_mode_enabled: false,
+          token_rotation_enabled: false,
+        },
+      },
+    });
+    const controller = new AbortController();
+
+    const result = await getSlackBridgeManifest(" brg_slack ", controller.signal);
+
+    expect(result.manifest.display_information.name).toBe("AGH");
+    await expectFetchRequest({
+      path: "/api/bridges/providers/slack/manifest?instance=brg_slack",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws a typed error when the persisted Slack instance is unavailable", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(getSlackBridgeManifest("missing")).rejects.toMatchObject({
+      message: 'Failed to load Slack manifest for bridge "missing": 404',
+      name: "BridgesApiError",
+      status: 404,
+    });
+  });
+});
+
+describe("verifyBridge", () => {
+  it("posts the provider verification request and preserves structured checks", async () => {
+    mockJsonResponse({
+      bridge_instance_id: "brg_support",
+      checks: [
+        { check: "provider.identity", remediation: "", status: "pass" },
+        {
+          check: "webhook.reachability",
+          remediation: "Enable the bridge, then run bridge verification again.",
+          status: "skipped",
+        },
+      ],
+    });
+    const controller = new AbortController();
+
+    const result = await verifyBridge(" brg_support ", controller.signal);
+
+    expect(result.checks.map(check => check.status)).toEqual(["pass", "skipped"]);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/bridges/brg_support/verify",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws a typed error when provider verification is unavailable", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(verifyBridge("brg_support")).rejects.toMatchObject({
+      message: 'Failed to verify bridge "brg_support": 503',
+      name: "BridgesApiError",
+      status: 503,
+    });
+  });
+});
+
+describe("sendBridgeTest", () => {
+  it("posts a real provider delivery with the typed message and target", async () => {
+    mockJsonResponse({
+      bridge_instance_id: "brg_support",
+      delivery_id: "delivery_123",
+      delivery_target: {
+        bridge_instance_id: "brg_support",
+        mode: "direct-send",
+        peer_id: "peer_123",
+      },
+      remote_message_id: "remote_123",
+      status: "delivered",
+    });
+    const payload = {
+      message: "Operator test",
+      target: {
+        bridge_instance_id: "brg_support",
+        mode: "direct-send" as const,
+        peer_id: "peer_123",
+      },
+    };
+    const controller = new AbortController();
+
+    const result = await sendBridgeTest(" brg_support ", payload, controller.signal);
+
+    expect(result.delivery_id).toBe("delivery_123");
+    await expectFetchRequest({
+      body: payload,
+      method: "POST",
+      path: "/api/bridges/brg_support/send-test",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws a typed error when the real delivery path is unavailable", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
+
+    await expect(
+      sendBridgeTest("brg_support", {
+        message: "Operator test",
+        target: { bridge_instance_id: "brg_support" },
+      })
+    ).rejects.toMatchObject({
+      message: 'Failed to send a test through bridge "brg_support": 409',
+      name: "BridgesApiError",
+      status: 409,
+    });
+  });
+});
+
+describe("registerBridgeWebhook", () => {
+  it("posts webhook registration and preserves the provider result", async () => {
+    mockJsonResponse({
+      bridge_instance_id: "brg_telegram",
+      remediation: "",
+      status: "pass",
+    });
+    const controller = new AbortController();
+
+    const result = await registerBridgeWebhook(" brg_telegram ", controller.signal);
+
+    expect(result.status).toBe("pass");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/bridges/brg_telegram/webhook/register",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws a typed error when webhook registration fails at the API boundary", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(registerBridgeWebhook("brg_telegram")).rejects.toMatchObject({
+      message: 'Failed to register the webhook for bridge "brg_telegram": 500',
+      name: "BridgesApiError",
+      status: 500,
+    });
   });
 });

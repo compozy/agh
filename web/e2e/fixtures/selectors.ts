@@ -140,7 +140,13 @@ export const bridgeOperatorTestIds = {
   bridgeDetailPanel: "bridge-detail-panel",
   bridgeEditDialog: "bridge-edit-dialog",
   bridgeListPanel: "bridge-list-panel",
+  bridgeManifestHandoff: "bridge-manifest-handoff",
+  bridgeManifestJson: "bridge-manifest-json",
+  bridgeManifestOpenBridge: "bridge-manifest-open-bridge",
   bridgeRestartRequired: "bridge-restart-required",
+  bridgeSendTestDialog: "bridge-send-test-dialog",
+  bridgeSendTestResult: "bridge-send-test-result",
+  bridgeSetupChecklist: "bridge-setup-checklist",
   bridgeScopeAll: "bridge-scope-all",
   bridgeScopeGlobal: "bridge-scope-global",
   bridgeScopeWorkspace: "bridge-scope-workspace",
@@ -162,15 +168,18 @@ export const bridgeOperatorTestIds = {
   editBridgeButton: "edit-bridge-btn",
   enableBridgeButton: "enable-bridge-btn",
   navBridges: "nav-bridges",
+  openSendTestButton: "open-send-test-btn",
   openTestDeliveryButton: "open-test-delivery-btn",
   restartBridgeButton: "restart-bridge-btn",
   submitBridgeEdit: "submit-bridge-edit",
   submitBridgeCreate: "submit-bridge-create",
+  submitSendTest: "submit-send-test",
   submitTestDelivery: "submit-test-delivery",
   testDeliveryMessage: "test-delivery-message",
   testDeliveryModeSelect: "test-delivery-mode-select",
   testDeliveryPeerInput: "test-delivery-peer-input",
   testDeliveryThreadInput: "test-delivery-thread-input",
+  verifyBridgeButton: "verify-bridge-btn",
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
@@ -396,7 +405,11 @@ export interface BridgeOperatorSelectors {
   enableBridgeButton: Locator;
   item(id: string): Locator;
   listPanel: Locator;
+  manifestHandoff: Locator;
+  manifestJson: Locator;
+  manifestOpenBridge: Locator;
   navBridges: Locator;
+  openSendTestButton: Locator;
   openTestDeliveryButton: Locator;
   providerCard(providerKey: string): Locator;
   restartBridgeButton: Locator;
@@ -408,9 +421,15 @@ export interface BridgeOperatorSelectors {
   scopeWorkspace: Locator;
   searchInput: Locator;
   secretBinding(bindingName: string): Locator;
+  secretCheck(bindingName: string, check: string): Locator;
   secretEnvInput(bindingName: string): Locator;
+  sendTestDialog: Locator;
+  sendTestResult: Locator;
+  setupChecklist: Locator;
+  setupItem(id: string): Locator;
   submitBridgeCreate: Locator;
   submitBridgeEdit: Locator;
+  submitSendTest: Locator;
   submitTestDelivery: Locator;
   testDeliveryDialog: Locator;
   testDeliveryMessage: Locator;
@@ -418,6 +437,7 @@ export interface BridgeOperatorSelectors {
   testDeliveryPeerInput: Locator;
   testDeliveryResult: Locator;
   testDeliveryThreadInput: Locator;
+  verifyBridgeButton: Locator;
   workspaceOnboarding: Locator;
   workspaceUseGlobal: Locator;
 }
@@ -1168,7 +1188,11 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     enableBridgeButton: page.getByTestId(bridgeOperatorTestIds.enableBridgeButton),
     item: (id: string) => page.getByTestId(`bridge-item-${id}`),
     listPanel: page.getByTestId(bridgeOperatorTestIds.bridgeListPanel),
+    manifestHandoff: page.getByTestId(bridgeOperatorTestIds.bridgeManifestHandoff),
+    manifestJson: page.getByTestId(bridgeOperatorTestIds.bridgeManifestJson),
+    manifestOpenBridge: page.getByTestId(bridgeOperatorTestIds.bridgeManifestOpenBridge),
     navBridges: page.getByTestId(bridgeOperatorTestIds.navBridges),
+    openSendTestButton: page.getByTestId(bridgeOperatorTestIds.openSendTestButton),
     openTestDeliveryButton: page.getByTestId(bridgeOperatorTestIds.openTestDeliveryButton),
     providerCard: (providerKey: string) => page.getByTestId(`bridge-provider-card-${providerKey}`),
     restartBridgeButton: page.getByTestId(bridgeOperatorTestIds.restartBridgeButton),
@@ -1181,10 +1205,17 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     searchInput: page.getByTestId(bridgeOperatorTestIds.bridgeSearchInput),
     secretBinding: (bindingName: string) =>
       page.getByTestId(`bridge-secret-binding-${bindingName}`),
+    secretCheck: (bindingName: string, check: string) =>
+      page.getByTestId(`bridge-secret-check-${bindingName}-${check}`),
     secretEnvInput: (bindingName: string) =>
       page.getByTestId(`bridge-secret-env-input-${bindingName}`),
+    sendTestDialog: page.getByTestId(bridgeOperatorTestIds.bridgeSendTestDialog),
+    sendTestResult: page.getByTestId(bridgeOperatorTestIds.bridgeSendTestResult),
+    setupChecklist: page.getByTestId(bridgeOperatorTestIds.bridgeSetupChecklist),
+    setupItem: (id: string) => page.getByTestId(`bridge-setup-item-${id}`),
     submitBridgeCreate: page.getByTestId(bridgeOperatorTestIds.submitBridgeCreate),
     submitBridgeEdit: page.getByTestId(bridgeOperatorTestIds.submitBridgeEdit),
+    submitSendTest: page.getByTestId(bridgeOperatorTestIds.submitSendTest),
     submitTestDelivery: page.getByTestId(bridgeOperatorTestIds.submitTestDelivery),
     testDeliveryDialog: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryDialog),
     testDeliveryMessage: page.getByTestId(bridgeOperatorTestIds.testDeliveryMessage),
@@ -1192,6 +1223,7 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
     testDeliveryPeerInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryPeerInput),
     testDeliveryResult: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryResult),
     testDeliveryThreadInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryThreadInput),
+    verifyBridgeButton: page.getByTestId(bridgeOperatorTestIds.verifyBridgeButton),
     workspaceOnboarding: page.getByTestId(bridgeOperatorTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(bridgeOperatorTestIds.workspaceUseGlobal),
   };

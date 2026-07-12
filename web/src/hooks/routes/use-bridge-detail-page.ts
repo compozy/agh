@@ -6,9 +6,8 @@ import {
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
   bridgeListFilterForScope,
-  compactBridgeDeliveryDefaults,
-  createBridgeTestDeliveryDraft,
   createBridgeUpdateDraft,
+  fingerprintBridgeProviderConfig,
   useBridge,
   useBridgeProviders,
   useBridgeRoutes,
@@ -21,24 +20,15 @@ import {
   usePutBridgeSecretBinding,
   useRestartBridge,
   useResolveBridgeTarget,
-  useTestBridgeDelivery,
   useUpdateBridge,
 } from "@/systems/bridges";
-import type {
-  BridgeResolveTargetResponse,
-  BridgeTestDeliveryDraft,
-  BridgeUpdateDraft,
-  TestBridgeDeliveryResponse,
-} from "@/systems/bridges";
+import type { BridgeResolveTargetResponse, BridgeUpdateDraft } from "@/systems/bridges";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useBridgeDeliveryTests } from "./use-bridge-delivery-tests";
+import { useBridgeSetupFlow } from "./use-bridge-setup-flow";
 
 function bridgeSecretDraftKey(bridgeID: string, bindingName: string) {
   return `${bridgeID}:${bindingName}`;
-}
-
-function createOptionalMessage(value: string): string | undefined {
-  const normalized = value.trim();
-  return normalized === "" ? undefined : normalized;
 }
 
 function useBridgeDetailPage(bridgeId: string) {
@@ -46,7 +36,6 @@ function useBridgeDetailPage(bridgeId: string) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
 
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
-  const [isTestDeliveryDialogOpen, setTestDeliveryDialogOpen] = useState(false);
   const [editDraft, setEditDraft] = useState<BridgeUpdateDraft>(() => createBridgeUpdateDraft());
   const [secretInputValues, setSecretInputValues] = useState<Record<string, string>>({});
   const [restartRequiredByID, setRestartRequiredByID] = useState<Record<string, true>>({});
@@ -54,12 +43,6 @@ function useBridgeDetailPage(bridgeId: string) {
   const [targetResolveInput, setTargetResolveInput] = useState("");
   const [targetResolveResult, setTargetResolveResult] =
     useState<BridgeResolveTargetResponse | null>(null);
-  const [testDeliveryDraft, setTestDeliveryDraft] = useState<BridgeTestDeliveryDraft>(() =>
-    createBridgeTestDeliveryDraft()
-  );
-  const [testDeliveryResult, setTestDeliveryResult] = useState<TestBridgeDeliveryResponse | null>(
-    null
-  );
 
   const deferredTargetSearchQuery = useDeferredValue(targetSearchQuery);
 
@@ -74,7 +57,6 @@ function useBridgeDetailPage(bridgeId: string) {
   const disableBridgeMutation = useDisableBridge();
   const restartBridgeMutation = useRestartBridge();
   const resolveBridgeTargetMutation = useResolveBridgeTarget();
-  const testDeliveryMutation = useTestBridgeDelivery();
 
   const bridges = bridgesQuery.bridges;
   const bridgeHealth = bridgesQuery.bridgeHealth;
@@ -105,6 +87,15 @@ function useBridgeDetailPage(bridgeId: string) {
   const selectedHealth =
     bridgeDetailQuery.data?.health ?? (bridgeId ? bridgeHealth[bridgeId] : undefined);
   const selectedSecretBindings = bridgeSecretBindingsQuery.data ?? [];
+  const setupFactsReady =
+    providersQuery.data !== undefined && bridgeSecretBindingsQuery.data !== undefined;
+  const deliveryTests = useBridgeDeliveryTests(selectedBridge);
+  const setupFlow = useBridgeSetupFlow({
+    bindings: selectedSecretBindings,
+    bridge: setupFactsReady ? selectedBridge : undefined,
+    health: selectedHealth,
+    provider: selectedBridgeProvider,
+  });
   // Strip `${bridgeId}:` prefixes so the panel sees bare binding names.
   let selectedSecretInputMap: Record<string, string> = {};
   if (selectedBridge) {
@@ -165,19 +156,6 @@ function useBridgeDetailPage(bridgeId: string) {
     setEditDialogOpen(open);
   };
 
-  const openTestDeliveryDialog = () => {
-    setTestDeliveryDraft(createBridgeTestDeliveryDraft(selectedBridge));
-    setTestDeliveryResult(null);
-    setTestDeliveryDialogOpen(true);
-  };
-
-  const handleTestDeliveryDialogOpenChange = (open: boolean) => {
-    setTestDeliveryDialogOpen(open);
-    if (!open) {
-      setTestDeliveryResult(null);
-    }
-  };
-
   const handleUpdateBridge = async () => {
     if (!selectedBridge) {
       return;
@@ -196,6 +174,14 @@ function useBridgeDetailPage(bridgeId: string) {
       });
 
       setEditDialogOpen(false);
+      const providerConfigChanged =
+        fingerprintBridgeProviderConfig(selectedBridge.provider_config) !==
+        fingerprintBridgeProviderConfig(result.bridge.provider_config);
+      if (providerConfigChanged) {
+        setupFlow.clearEvidence();
+      } else {
+        setupFlow.clearVerification();
+      }
       markRestartRequired(selectedBridge.id);
       toast.success(`Updated bridge ${result.bridge.display_name}. Restart to apply changes.`);
     } catch (error) {
@@ -242,6 +228,7 @@ function useBridgeDetailPage(bridgeId: string) {
         ...current,
         [bridgeSecretDraftKey(selectedBridge.id, binding.binding_name)]: "",
       }));
+      setupFlow.clearEvidence();
       markRestartRequired(selectedBridge.id);
       toast.success(`Updated secret binding ${bindingName} for ${selectedBridge.display_name}.`);
     } catch (error) {
@@ -264,6 +251,7 @@ function useBridgeDetailPage(bridgeId: string) {
         ...current,
         [bridgeSecretDraftKey(selectedBridge.id, bindingName)]: "",
       }));
+      setupFlow.clearEvidence();
       markRestartRequired(selectedBridge.id);
       toast.success(`Deleted secret binding ${bindingName} for ${selectedBridge.display_name}.`);
     } catch (error) {
@@ -276,6 +264,7 @@ function useBridgeDetailPage(bridgeId: string) {
       return;
     }
 
+    setupFlow.clearVerification();
     try {
       const result = await enableBridgeMutation.mutateAsync({ id: selectedBridge.id });
       clearRestartRequired(result.bridge.id);
@@ -290,6 +279,7 @@ function useBridgeDetailPage(bridgeId: string) {
       return;
     }
 
+    setupFlow.clearVerification();
     try {
       const result = await disableBridgeMutation.mutateAsync({ id: selectedBridge.id });
       toast.success(`Disabled bridge ${result.bridge.display_name}.`);
@@ -303,36 +293,13 @@ function useBridgeDetailPage(bridgeId: string) {
       return;
     }
 
+    setupFlow.clearVerification();
     try {
       const result = await restartBridgeMutation.mutateAsync({ id: selectedBridge.id });
       clearRestartRequired(result.bridge.id);
       toast.success(`Restarted bridge ${result.bridge.display_name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to restart bridge");
-    }
-  };
-
-  const handleTestDelivery = async () => {
-    if (!selectedBridge) {
-      return;
-    }
-
-    try {
-      const result = await testDeliveryMutation.mutateAsync({
-        id: selectedBridge.id,
-        data: {
-          message: createOptionalMessage(testDeliveryDraft.message),
-          target: {
-            bridge_instance_id: selectedBridge.id,
-            ...compactBridgeDeliveryDefaults(testDeliveryDraft.target),
-          },
-        },
-      });
-
-      setTestDeliveryResult(result);
-      toast.success(`Resolved delivery target for ${selectedBridge.display_name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve bridge target");
     }
   };
 
@@ -389,10 +356,13 @@ function useBridgeDetailPage(bridgeId: string) {
     state: {
       isLifecyclePending,
       isLoading: detailLoading,
+      isProviderLoading: providersQuery.isLoading && !providersQuery.data,
       isRoutesLoading: bridgeRoutesQuery.isLoading && !bridgeRoutesQuery.data,
       isSecretBindingPending,
       isSecretBindingsLoading:
         bridgeSecretBindingsQuery.isLoading && !bridgeSecretBindingsQuery.data,
+      providerError: providersQuery.error,
+      secretBindingsError: bridgeSecretBindingsQuery.error,
     },
     targetDirectory: {
       error: bridgeTargetsQuery.error,
@@ -410,7 +380,8 @@ function useBridgeDetailPage(bridgeId: string) {
     onDisableBridge: handleDisableBridge,
     onEnableBridge: handleEnableBridge,
     onOpenEdit: openEditDialog,
-    onOpenTestDelivery: openTestDeliveryDialog,
+    onOpenSendTest: deliveryTests.openSendTest,
+    onOpenTestDelivery: deliveryTests.openDryRun,
     onRestartBridge: handleRestartBridge,
     onSaveSecretBinding: handleSaveSecretBinding,
     onSecretDraftChange: handleSecretInputChange,
@@ -419,6 +390,14 @@ function useBridgeDetailPage(bridgeId: string) {
     routes: bridgeRoutesQuery.data ?? [],
     secretBindings: selectedSecretBindings,
     secretInputValues: selectedSecretInputMap,
+    setup: {
+      isLifecyclePending,
+      isRegistering: setupFlow.isRegistering,
+      isVerifying: setupFlow.isVerifying,
+      onRegisterWebhook: setupFlow.registerWebhook,
+      onVerify: setupFlow.verify,
+      projection: setupFlow.projection,
+    },
     workspaceName:
       selectedBridge?.scope === "workspace" && selectedBridge.workspace_id === activeWorkspaceId
         ? activeWorkspace?.name
@@ -437,23 +416,13 @@ function useBridgeDetailPage(bridgeId: string) {
     provider: selectedBridgeProvider,
   };
 
-  const testDeliveryDialogProps = {
-    bridgeName: selectedBridge?.display_name,
-    draft: testDeliveryDraft,
-    isPending: testDeliveryMutation.isPending,
-    onDraftChange: setTestDeliveryDraft,
-    onOpenChange: handleTestDeliveryDialogOpenChange,
-    onSubmit: handleTestDelivery,
-    open: isTestDeliveryDialogOpen,
-    result: testDeliveryResult,
-  };
-
   return {
     detailPanelProps,
     editDialogProps,
     handleBack,
     selectedBridge,
-    testDeliveryDialogProps,
+    sendTestDialogProps: deliveryTests.sendTestDialogProps,
+    testDeliveryDialogProps: deliveryTests.dryRunDialogProps,
   };
 }
 

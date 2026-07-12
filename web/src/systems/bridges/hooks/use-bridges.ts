@@ -5,6 +5,7 @@ import {
   bridgeSecretBindingsOptions,
   bridgeProvidersOptions,
   bridgeRoutesOptions,
+  slackBridgeManifestOptions,
   bridgeTargetsOptions,
   bridgesListOptions,
 } from "../lib/query-options";
@@ -33,6 +34,10 @@ export function useBridges(filters: BridgeCatalogFilter = {}, options?: { enable
 
 export function useBridgeProviders() {
   return useQuery(bridgeProvidersOptions());
+}
+
+export function useSlackBridgeManifest(instanceID: string, options?: { enabled?: boolean }) {
+  return useQuery(slackBridgeManifestOptions(instanceID, options?.enabled));
 }
 
 export function useBridge(id: string, options?: { enabled?: boolean }) {

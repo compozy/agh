@@ -8,6 +8,7 @@ import {
   listBridgeTargets,
   listBridges,
 } from "../adapters/bridges-api";
+import { getSlackBridgeManifest } from "../adapters/bridge-setup-api";
 import { bridgeKeys } from "./query-keys";
 import { bridgeListRequest, normalizeBridgeCatalogFilter } from "./bridge-list-query";
 import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
@@ -34,6 +35,16 @@ export function bridgeProvidersOptions() {
     queryFn: ({ signal }) => listBridgeProviders(signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: PROVIDERS_REFETCH_INTERVAL,
+  });
+}
+
+export function slackBridgeManifestOptions(instanceID: string, enabled = true) {
+  const normalizedInstanceID = instanceID.trim();
+  return queryOptions({
+    queryKey: bridgeKeys.slackManifest(normalizedInstanceID),
+    queryFn: ({ signal }) => getSlackBridgeManifest(normalizedInstanceID, signal),
+    staleTime: DEFAULT_STALE_TIME,
+    enabled: Boolean(normalizedInstanceID) && enabled,
   });
 }
 

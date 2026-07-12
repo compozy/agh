@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 
 import { storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
+import { projectBridgeSetup, type BridgeSetupProjection } from "@/systems/bridges/lib/bridge-setup";
 import {
   bridgeDetailFixture,
   bridgeProvidersFixture,
@@ -9,127 +11,191 @@ import {
   bridgeRoutesFixture,
   bridgeSecretBindingsFixture,
   bridgeTargetsFixture,
+  bridgeVerifyFixture,
 } from "@/systems/bridges/mocks";
+import type {
+  BridgeHealth,
+  BridgeProvider,
+  BridgeSummary,
+  BridgeVerifyResponse,
+} from "@/systems/bridges/types";
 
 import { BridgeDetailPanel } from "../bridge-detail-panel";
 
 const meta: Meta<typeof BridgeDetailPanel> = {
-  title: "systems/bridges/components/BridgeDetailPanel",
   component: BridgeDetailPanel,
-  parameters: {
-    layout: "fullscreen",
-  },
+  parameters: { layout: "fullscreen" },
+  title: "systems/bridges/components/BridgeDetailPanel",
 };
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+function requireSlackProvider(): BridgeProvider {
+  const provider = bridgeProvidersFixture.find(candidate => candidate.platform === "slack");
+  if (!provider) throw new globalThis.Error("Slack story fixture is missing its provider");
+  return provider;
+}
+
+const slackProvider = requireSlackProvider();
+const slackBridge = bridgeDetailFixture.bridge;
+const slackHealth = bridgeDetailFixture.health;
+const fullyConfiguredProjection = projectBridgeSetup({
+  bindings: bridgeSecretBindingsFixture,
+  bridge: slackBridge,
+  health: slackHealth,
+  provider: slackProvider,
+  registration: null,
+  verification: bridgeVerifyFixture,
+});
+
+const failedSlackBridge: BridgeSummary = {
+  ...slackBridge,
+  enabled: false,
+  status: "disabled",
+};
+const failedSlackHealth: BridgeHealth = {
+  ...slackHealth,
+  status: "disabled",
+};
+const failedSlackVerification: BridgeVerifyResponse = {
+  bridge_instance_id: failedSlackBridge.id,
+  checks: [
+    {
+      check: "provider.identity",
+      remediation: "Replace the rejected Slack bot token, then verify again.",
+      status: "fail",
+    },
+    { check: "webhook.signing_secret", remediation: "", status: "pass" },
+    {
+      check: "webhook.reachability",
+      remediation: "Enable the bridge, then run verification again.",
+      status: "skipped",
+    },
+  ],
+};
+const failedVerifyProjection = projectBridgeSetup({
+  bindings: bridgeSecretBindingsFixture,
+  bridge: failedSlackBridge,
+  health: failedSlackHealth,
+  provider: slackProvider,
+  registration: null,
+  verification: failedSlackVerification,
+});
+
+function setup(projection: BridgeSetupProjection) {
+  return {
+    isLifecyclePending: false,
+    isRegistering: false,
+    isVerifying: false,
+    onRegisterWebhook: () => undefined,
+    onVerify: () => undefined,
+    projection,
+  };
+}
+
+function targetDirectory() {
+  return {
+    error: null,
+    isLoading: false,
+    isResolving: false,
+    onQueryChange: () => undefined,
+    onResolveInputChange: () => undefined,
+    onResolveSubmit: () => undefined,
+    query: "",
+    resolveInput: "Launch room",
+    resolveResult: bridgeResolveTargetFixture,
+    response: bridgeTargetsFixture,
+  };
+}
+
+export const FullyConfigured: Story = {
   render: () => (
     <PanelSurface>
       <BridgeDetailPanel
-        bridge={bridgeDetailFixture.bridge}
+        bridge={slackBridge}
         error={null}
-        health={bridgeDetailFixture.health}
-        state={{ isLoading: false, isRoutesLoading: false }}
+        health={slackHealth}
+        onOpenSendTest={() => undefined}
         onOpenTestDelivery={() => undefined}
-        provider={bridgeProvidersFixture[0]}
+        provider={slackProvider}
         routes={bridgeRoutesFixture}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "telegram-token" }}
-        targetDirectory={{
-          error: null,
-          isLoading: false,
-          isResolving: false,
-          onQueryChange: () => undefined,
-          onResolveInputChange: () => undefined,
-          onResolveSubmit: () => undefined,
-          query: "",
-          resolveInput: "Launch room",
-          resolveResult: bridgeResolveTargetFixture,
-          response: bridgeTargetsFixture,
-        }}
+        setup={setup(fullyConfiguredProjection)}
+        state={{ isLoading: false, isRoutesLoading: false }}
+        targetDirectory={targetDirectory()}
         workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   ),
 };
 
-export const Disabled: Story = {
+export const FailedVerify: Story = {
   render: () => (
     <PanelSurface>
       <BridgeDetailPanel
-        bridge={{
-          ...bridgeDetailFixture.bridge,
-          enabled: false,
-          status: "disabled",
-        }}
+        bridge={failedSlackBridge}
         error={null}
-        health={{ ...bridgeDetailFixture.health, status: "disabled" }}
-        state={{ isLoading: false, isRoutesLoading: false }}
+        health={failedSlackHealth}
+        onOpenSendTest={() => undefined}
         onOpenTestDelivery={() => undefined}
-        provider={bridgeProvidersFixture[0]}
+        provider={slackProvider}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "telegram-token" }}
-        targetDirectory={{
-          error: null,
+        setup={setup(failedVerifyProjection)}
+        state={{ isLoading: false, isRoutesLoading: false }}
+        targetDirectory={targetDirectory()}
+        workspaceName={storyDefaultWorkspaceName}
+      />
+    </PanelSurface>
+  ),
+};
+
+export const BindingsUnavailable: Story = {
+  tags: ["play-fn"],
+  render: () => (
+    <PanelSurface>
+      <BridgeDetailPanel
+        bridge={slackBridge}
+        error={null}
+        health={slackHealth}
+        onOpenSendTest={() => undefined}
+        onOpenTestDelivery={() => undefined}
+        provider={slackProvider}
+        routes={bridgeRoutesFixture}
+        secretBindings={bridgeSecretBindingsFixture}
+        setup={setup(fullyConfiguredProjection)}
+        state={{
           isLoading: false,
-          isResolving: false,
-          onQueryChange: () => undefined,
-          onResolveInputChange: () => undefined,
-          onResolveSubmit: () => undefined,
-          query: "",
-          resolveInput: "",
-          resolveResult: null,
-          response: { ...bridgeTargetsFixture, cache_stale: true },
+          isRoutesLoading: false,
+          secretBindingsError: new globalThis.Error("Vault bindings could not be loaded."),
         }}
         workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const unavailable = await canvas.findByTestId("bridge-secret-bindings-unavailable");
+    unavailable.scrollIntoView({ block: "center" });
+    await expect(unavailable).toBeInTheDocument();
+  },
 };
 
 export const NoRoutes: Story = {
   render: () => (
     <PanelSurface>
       <BridgeDetailPanel
-        bridge={bridgeDetailFixture.bridge}
+        bridge={slackBridge}
         error={null}
-        health={bridgeDetailFixture.health}
-        state={{ isLoading: false, isRoutesLoading: false }}
+        health={slackHealth}
+        onOpenSendTest={() => undefined}
         onOpenTestDelivery={() => undefined}
-        provider={bridgeProvidersFixture[0]}
+        provider={slackProvider}
         routes={[]}
         secretBindings={bridgeSecretBindingsFixture}
-        secretInputValues={{ bot_token: "telegram-token" }}
-        targetDirectory={{
-          error: null,
-          isLoading: false,
-          isResolving: false,
-          onQueryChange: () => undefined,
-          onResolveInputChange: () => undefined,
-          onResolveSubmit: () => undefined,
-          query: "",
-          resolveInput: "merchant",
-          resolveResult: {
-            diagnostic: {
-              category: "bridge",
-              code: "target_ambiguous",
-              data_freshness: "live",
-              id: "bridge_target_resolve:brg_launch_room",
-              message: "Bridge target matched multiple candidates.",
-              severity: "warn",
-              title: "Bridge target is ambiguous",
-            },
-            result: {
-              ambiguous: true,
-              candidates: bridgeTargetsFixture.targets,
-              step: 4,
-            },
-          },
-          response: bridgeTargetsFixture,
-        }}
+        setup={setup(fullyConfiguredProjection)}
+        state={{ isLoading: false, isRoutesLoading: false }}
         workspaceName={storyDefaultWorkspaceName}
       />
     </PanelSurface>
@@ -143,9 +209,11 @@ export const Error: Story = {
         bridge={undefined}
         error={new globalThis.Error("Failed to load bridge details")}
         health={undefined}
-        state={{ isLoading: false, isRoutesLoading: false }}
+        onOpenSendTest={() => undefined}
         onOpenTestDelivery={() => undefined}
         routes={[]}
+        setup={setup(fullyConfiguredProjection)}
+        state={{ isLoading: false, isRoutesLoading: false }}
       />
     </PanelSurface>
   ),

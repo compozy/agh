@@ -1,4 +1,5 @@
 import { Plug, Settings2 } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
 
 import {
   Eyebrow,
@@ -20,9 +21,8 @@ import {
   describeBridgeSecretSlot,
 } from "../lib/bridge-formatters";
 import type { BridgeCreateDraft, BridgeProvider } from "../types";
-import { RuntimeMetadataTile } from "./bridge-runtime-metadata";
 
-interface RuntimeStepProps {
+interface BridgeCreateRuntimeStepProps {
   activeWorkspaceId?: string | null;
   activeWorkspaceName?: string | null;
   draft: BridgeCreateDraft;
@@ -31,15 +31,38 @@ interface RuntimeStepProps {
   providerConfigError?: string;
 }
 
-export function RuntimeStep({
+function RuntimeMetadataTile({
+  children,
+  label,
+  right,
+}: {
+  children: ReactNode;
+  label: string;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded bg-canvas-tint px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <Eyebrow className="text-muted">{label}</Eyebrow>
+        {right ?? null}
+      </div>
+      <div className="text-small-body text-fg">{children}</div>
+    </div>
+  );
+}
+
+export function BridgeCreateRuntimeStep({
   activeWorkspaceId,
   activeWorkspaceName,
   draft,
   onDraftChange,
   provider,
   providerConfigError,
-}: RuntimeStepProps) {
-  const configSchema = describeBridgeProviderConfigSchema(provider.config_schema);
+}: BridgeCreateRuntimeStepProps) {
+  const configSchema = useMemo(
+    () => describeBridgeProviderConfigSchema(provider.config_schema),
+    [provider.config_schema]
+  );
 
   return (
     <>
@@ -56,13 +79,9 @@ export function RuntimeStep({
               <FieldDescription>Surfaces in lists, detail headers, and alerts.</FieldDescription>
             </FieldContent>
             <Input
+              aria-label="Bridge display name"
               data-testid="bridge-display-name-input"
-              onChange={event =>
-                onDraftChange({
-                  ...draft,
-                  displayName: event.target.value,
-                })
-              }
+              onChange={event => onDraftChange({ ...draft, displayName: event.target.value })}
               placeholder={provider.display_name ?? "Support bridge"}
               value={draft.displayName}
             />
@@ -77,6 +96,7 @@ export function RuntimeStep({
               </FieldDescription>
             </FieldContent>
             <NativeSelect
+              aria-label="Bridge scope"
               data-testid="bridge-scope-select"
               onChange={event =>
                 onDraftChange({
@@ -97,7 +117,7 @@ export function RuntimeStep({
 
       <FormSection
         data-testid="bridge-wizard-section-runtime"
-        description="Provider-owned runtime configuration, DM policy, and secret requirements stay separate from generic routing and delivery defaults."
+        description="Provider-owned configuration, DM policy, and secret requirements stay separate from routing and delivery defaults."
         icon={Plug}
         rightLabel={configSchema}
         title="Provider runtime"
@@ -117,7 +137,7 @@ export function RuntimeStep({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Eyebrow className="text-muted">{slot.name}</Eyebrow>
                       <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
-                        <Eyebrow>{slot.required === false ? "OPTIONAL" : "REQUIRED"}</Eyebrow>
+                        {slot.required === false ? "OPTIONAL" : "REQUIRED"}
                       </Pill>
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -142,6 +162,7 @@ export function RuntimeStep({
             </FieldDescription>
           </FieldContent>
           <NativeSelect
+            aria-label="Direct message policy"
             data-testid="bridge-dm-policy-select"
             onChange={event =>
               onDraftChange({
@@ -162,20 +183,16 @@ export function RuntimeStep({
           <FieldContent>
             <FieldTitle>Provider config</FieldTitle>
             <FieldDescription>
-              Enter a JSON object for provider-specific runtime settings such as tenant identifiers,
-              webhook URLs, or provider mode flags.
+              Enter a JSON object for provider-specific settings such as tenant identifiers, webhook
+              URLs, or provider mode flags.
             </FieldDescription>
           </FieldContent>
           <Textarea
             aria-invalid={Boolean(providerConfigError)}
+            aria-label="Provider configuration JSON"
             className="min-h-32 font-mono text-xs"
             data-testid="bridge-provider-config-input"
-            onChange={event =>
-              onDraftChange({
-                ...draft,
-                providerConfigText: event.target.value,
-              })
-            }
+            onChange={event => onDraftChange({ ...draft, providerConfigText: event.target.value })}
             placeholder={`{\n  "mode": "bot"\n}`}
             spellCheck={false}
             value={draft.providerConfigText}
@@ -190,5 +207,19 @@ export function RuntimeStep({
         </Field>
       </FormSection>
     </>
+  );
+}
+
+export function BridgeCreateRuntimeMissingProvider() {
+  return (
+    <FormSection
+      data-testid="bridge-wizard-section-runtime-missing"
+      icon={Plug}
+      title="Provider runtime"
+    >
+      <p className="text-small-body text-muted">
+        Select a provider before configuring runtime details.
+      </p>
+    </FormSection>
   );
 }

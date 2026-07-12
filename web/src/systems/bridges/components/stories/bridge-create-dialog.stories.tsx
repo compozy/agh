@@ -1,18 +1,27 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { storyDefaultWorkspaceId, storyDefaultWorkspaceName } from "@/storybook/fintech-scenario";
 import { createBridgeCreateDraft } from "@/systems/bridges";
-import { bridgeProvidersFixture } from "@/systems/bridges/mocks";
+import { bridgeProvidersFixture, slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
 import { BridgeCreateDialog } from "../bridge-create-dialog";
+import type { BridgeManifestCommittedState } from "../bridge-manifest-handoff";
+
+const manifestJSON = JSON.stringify(slackBridgeManifestFixture.manifest, null, 2);
 
 const meta: Meta<typeof BridgeCreateDialog> = {
   title: "systems/bridges/components/BridgeCreateDialog",
   component: BridgeCreateDialog,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Creates a bridge through provider, runtime, and delivery steps, then presents a committed Slack manifest handoff when supported.",
+      },
+    },
   },
 };
 
@@ -20,14 +29,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function BridgeCreateDialogHarness({
-  initialDraft,
-  onSubmit,
+  manifestState,
+  supportsManifest = false,
 }: {
-  initialDraft?: ReturnType<typeof createBridgeCreateDraft>;
-  onSubmit?: () => void;
+  manifestState?: BridgeManifestCommittedState;
+  supportsManifest?: boolean;
 }) {
   const [draft, setDraft] = useState(
-    initialDraft ?? createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId)
+    createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId)
   );
 
   return (
@@ -36,85 +45,80 @@ function BridgeCreateDialogHarness({
       activeWorkspaceName={storyDefaultWorkspaceName}
       draft={draft}
       isPending={false}
+      manifestState={manifestState}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
-      onSubmit={onSubmit ?? (() => undefined)}
+      onSubmit={() => undefined}
       open
       providers={bridgeProvidersFixture}
+      supportsManifest={supportsManifest}
     />
   );
 }
 
+/** Shows provider selection before any bridge has been persisted. */
 export const Default: Story = {
-  render: () => <BridgeCreateDialogHarness />,
+  args: {},
+  render: () => <BridgeCreateDialogHarness supportsManifest />,
 };
 
-export const ProviderStep: Story = {
-  tags: ["play-fn"],
-  render: () => <BridgeCreateDialogHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(await canvas.findByTestId("bridge-wizard-stepper")).toBeInTheDocument();
-    await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 1 of 3");
-  },
-};
-
+/** Advances to provider-owned runtime configuration. */
 export const RuntimeStep: Story = {
+  args: {},
   tags: ["play-fn"],
-  render: () => <BridgeCreateDialogHarness />,
+  render: () => <BridgeCreateDialogHarness supportsManifest />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const next = await canvas.findByTestId("bridge-wizard-next");
-    await userEvent.click(next);
+    const canvas = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
     await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 2 of 3");
     await expect(canvas.getByTestId("bridge-display-name-input")).toBeInTheDocument();
   },
 };
 
+/** Shows routing, delivery target defaults, and the optional progress override. */
 export const DeliveryStep: Story = {
+  args: {},
   tags: ["play-fn"],
-  render: () => <BridgeCreateDialogHarness />,
+  render: () => <BridgeCreateDialogHarness supportsManifest />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const next = await canvas.findByTestId("bridge-wizard-next");
-    await userEvent.click(next);
+    const canvas = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
     await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
     await expect(canvas.getByTestId("bridge-wizard-progress")).toHaveTextContent("Step 3 of 3");
-    await expect(canvas.getByTestId("submit-bridge-create")).toBeInTheDocument();
+    await expect(canvas.getByTestId("bridge-delivery-progress-mode-select")).toBeInTheDocument();
   },
 };
 
-export const InvalidProviderConfig: Story = {
+/** Shows the deterministic post-create Slack manifest handoff. */
+export const SlackManifestHandoff: Story = {
+  args: {},
   render: () => (
     <BridgeCreateDialogHarness
-      initialDraft={{
-        ...createBridgeCreateDraft(bridgeProvidersFixture, storyDefaultWorkspaceId),
-        providerConfigText: "{ invalid json",
+      manifestState={{
+        bridgeId: "brg_launch_room",
+        isLoading: false,
+        manifestJSON,
+        onOpenBridge: () => undefined,
+        onRetry: () => undefined,
       }}
+      supportsManifest
     />
   ),
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const next = await canvas.findByTestId("bridge-wizard-next");
-    await userEvent.click(next);
-    await expect(canvas.getByTestId("bridge-provider-config-error")).toBeInTheDocument();
-    await expect(canvas.getByTestId("bridge-wizard-next")).toBeDisabled();
-  },
 };
 
-export const SubmitPayload: Story = {
-  tags: ["play-fn"],
-  render: () => {
-    const onSubmit = fn();
-    return <BridgeCreateDialogHarness onSubmit={onSubmit} />;
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
-    await userEvent.click(await canvas.findByTestId("bridge-wizard-next"));
-    const submit = await canvas.findByTestId("submit-bridge-create");
-    await expect(submit).toBeEnabled();
-    await userEvent.click(submit);
-  },
+/** Shows recovery after the bridge persisted but manifest retrieval failed. */
+export const SlackManifestError: Story = {
+  args: {},
+  render: () => (
+    <BridgeCreateDialogHarness
+      manifestState={{
+        bridgeId: "brg_launch_room",
+        error: "The saved webhook URL is not valid for a Slack manifest.",
+        isLoading: false,
+        onOpenBridge: () => undefined,
+        onRetry: () => undefined,
+      }}
+      supportsManifest
+    />
+  ),
 };
