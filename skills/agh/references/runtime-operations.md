@@ -64,9 +64,11 @@ The web first-run wizard blocks the dashboard until this flag is set. Resetting 
 
 Native session tools are read-oriented. Recap, repair, approval, session inspect, and Soul refresh are CLI/HTTP management flows unless the live registry exposes a scoped native tool.
 
-## Messaging Bridge Progress
+## Messaging Bridge Delivery and Progress
 
 Bridge instances own their delivery behavior. Manage them through `agh bridge`, `/api/bridges`, or the equivalent UDS endpoints; do not edit extension state or storage directly. Tool progress is presentation-only bridge delivery data and never becomes session transcript or ACP history.
+
+Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. AGH measures Slack at 40,000 Unicode code points, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 
 Configure the typed `delivery_defaults.progress` block with `tool_progress` (`off`, `new`, `all`, or `verbose`), `grouping` (`accumulate` or `separate`), `typing`, and `reactions`. Slack, Telegram, and Discord default to `new` plus `accumulate` with typing and reactions enabled; other platforms default to `off` plus `accumulate` with both affordances disabled unless the instance overrides them. `new` deduplicates consecutive starts but still emits completed and failed phases.
 

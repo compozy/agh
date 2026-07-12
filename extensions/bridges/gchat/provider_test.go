@@ -257,6 +257,319 @@ func TestExecuteGChatDeliveryPostEditDeleteAndResume(t *testing.T) {
 	}
 }
 
+func TestExecuteGChatDeliveryChunks(t *testing.T) {
+	t.Parallel()
+
+	const maxMessageBytes = 32_000
+
+	t.Run("Should update an explicit reference when local delivery state is empty", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeGChatAPI{}
+		request := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-explicit-edit",
+			1,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		const referencedMessage = "spaces/AAA/messages/referenced"
+		request.Event.Operation = bridgepkg.DeliveryOperationEdit
+		request.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: referencedMessage}
+		request.Event.Content.Text = "edited text"
+
+		ack, state, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			request,
+			deliveryState{},
+		)
+		if err != nil {
+			t.Fatalf("executeGChatDelivery() error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got := len(api.messages); got != 0 {
+			t.Fatalf("CreateMessage calls = %d, want 0", got)
+		}
+		if got, want := api.updates[0].MessageName, referencedMessage; got != want {
+			t.Fatalf("updated message = %q, want %q", got, want)
+		}
+		if got, want := api.updates[0].Text, request.Event.Content.Text; got != want {
+			t.Fatalf("updated text = %q, want %q", got, want)
+		}
+		if ack.RemoteMessageID != referencedMessage || ack.ReplaceRemoteMessageID != referencedMessage {
+			t.Fatalf(
+				"ack remote ids = current:%q replace:%q, want %q",
+				ack.RemoteMessageID,
+				ack.ReplaceRemoteMessageID,
+				referencedMessage,
+			)
+		}
+		if state.RemoteMessageID != referencedMessage || state.ReplaceRemoteMessageID != referencedMessage {
+			t.Fatalf(
+				"state remote ids = current:%q replace:%q, want %q",
+				state.RemoteMessageID,
+				state.ReplaceRemoteMessageID,
+				referencedMessage,
+			)
+		}
+	})
+
+	t.Run("Should create one preview then materialize byte-bounded continuations on final", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeGChatAPI{}
+		text := strings.Repeat("🙂", 9_000)
+		startRequest := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-chunked-create",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+		)
+		startRequest.Event.Content.Text = text
+		wantChunks := bridgesdk.ChunkMessage(text, maxMessageBytes, func(value string) int {
+			return len(value)
+		})
+
+		startAck, startState, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			startRequest,
+			deliveryState{},
+		)
+		if err != nil {
+			t.Fatalf("executeGChatDelivery(start) error = %v", err)
+		}
+		if got, want := len(api.messages), 1; got != want {
+			t.Fatalf("CreateMessage calls = %d, want %d", got, want)
+		}
+		if got, want := api.messages[0].Text, wantChunks[0]; got != want {
+			t.Fatalf("preview text length = %d, want first chunk length %d", len(got), len(want))
+		}
+		if got, want := startAck.RemoteMessageID, "spaces/AAA/messages/msg-1"; got != want {
+			t.Fatalf("start ack.RemoteMessageID = %q, want %q", got, want)
+		}
+
+		finalRequest := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-chunked-create",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		finalRequest.Event.Content.Text = text
+		finalAck, finalState, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			finalRequest,
+			startState,
+		)
+		if err != nil {
+			t.Fatalf("executeGChatDelivery(final) error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got, want := api.updates[0].Text, wantChunks[0]; got != want {
+			t.Fatalf("final preview text length = %d, want first chunk length %d", len(got), len(want))
+		}
+		if got, want := len(api.messages), len(wantChunks); got != want {
+			t.Fatalf("total CreateMessage calls = %d, want %d", got, want)
+		}
+		for index, wantChunk := range wantChunks[1:] {
+			got := api.messages[index+1]
+			if got.Text != wantChunk {
+				t.Fatalf(
+					"continuation %d text length = %d, want exact chunk length %d",
+					index,
+					len(got.Text),
+					len(wantChunk),
+				)
+			}
+			if len(got.Text) > maxMessageBytes {
+				t.Fatalf("continuation %d length = %d, want <= %d", index, len(got.Text), maxMessageBytes)
+			}
+			if got.SpaceName != "spaces/AAA" || got.ThreadName != "spaces/AAA/threads/thread-1" {
+				t.Fatalf(
+					"continuation %d target = (%q, %q), want original space and thread",
+					index,
+					got.SpaceName,
+					got.ThreadName,
+				)
+			}
+		}
+		wantRemoteID := "spaces/AAA/messages/msg-" + strconv.Itoa(len(wantChunks))
+		if finalAck.RemoteMessageID != wantRemoteID || finalState.RemoteMessageID != wantRemoteID {
+			t.Fatalf(
+				"final remote ids = ack:%q state:%q, want %q",
+				finalAck.RemoteMessageID,
+				finalState.RemoteMessageID,
+				wantRemoteID,
+			)
+		}
+	})
+
+	t.Run("Should keep an oversized cumulative preview in one edited message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeGChatAPI{}
+		text := strings.Repeat("preview ", 5_000)
+		request := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-chunked-preview",
+			2,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		request.Event.Content.Text = text
+		wantChunks := bridgesdk.ChunkMessage(text, maxMessageBytes, func(value string) int {
+			return len(value)
+		})
+		remoteID := "spaces/AAA/messages/preview"
+
+		ack, state, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID},
+		)
+		if err != nil {
+			t.Fatalf("executeGChatDelivery() error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got := len(api.messages); got != 0 {
+			t.Fatalf("CreateMessage calls = %d, want 0 for a non-terminal preview", got)
+		}
+		if got, want := api.updates[0].Text, wantChunks[0]; got != want {
+			t.Fatalf(
+				"UpdateMessage text length = %d, want first chunk length %d",
+				len(got),
+				len(want),
+			)
+		}
+		if ack.RemoteMessageID != remoteID || state.RemoteMessageID != remoteID {
+			t.Fatalf(
+				"active remote ids = ack:%q state:%q, want %q",
+				ack.RemoteMessageID,
+				state.RemoteMessageID,
+				remoteID,
+			)
+		}
+	})
+
+	t.Run("Should edit the active message then post final continuations and acknowledge the last", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeGChatAPI{}
+		text := strings.Repeat("final ", 12_000)
+		request := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-chunked-final",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = text
+		wantChunks := bridgesdk.ChunkMessage(text, maxMessageBytes, func(value string) int {
+			return len(value)
+		})
+		remoteID := "spaces/AAA/messages/preview"
+
+		ack, state, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID},
+		)
+		if err != nil {
+			t.Fatalf("executeGChatDelivery() error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got, want := api.updates[0].MessageName, remoteID; got != want {
+			t.Fatalf("updated message = %q, want %q", got, want)
+		}
+		if got, want := api.updates[0].Text, wantChunks[0]; got != want {
+			t.Fatalf(
+				"updated text length = %d, want first chunk length %d",
+				len(got),
+				len(want),
+			)
+		}
+		if got, want := len(api.messages), len(wantChunks)-1; got != want {
+			t.Fatalf("continuation CreateMessage calls = %d, want %d", got, want)
+		}
+		for index, wantChunk := range wantChunks[1:] {
+			got := api.messages[index]
+			if got.Text != wantChunk {
+				t.Fatalf(
+					"continuation %d text length = %d, want exact chunk length %d",
+					index,
+					len(got.Text),
+					len(wantChunk),
+				)
+			}
+			if got.SpaceName != "spaces/AAA" || got.ThreadName != "spaces/AAA/threads/thread-1" {
+				t.Fatalf(
+					"continuation %d target = (%q, %q), want original space and thread",
+					index,
+					got.SpaceName,
+					got.ThreadName,
+				)
+			}
+		}
+		wantRemoteID := "spaces/AAA/messages/msg-" + strconv.Itoa(len(wantChunks)-1)
+		if ack.RemoteMessageID != wantRemoteID || state.RemoteMessageID != wantRemoteID {
+			t.Fatalf(
+				"final remote ids = ack:%q state:%q, want %q",
+				ack.RemoteMessageID,
+				state.RemoteMessageID,
+				wantRemoteID,
+			)
+		}
+		if ack.ReplaceRemoteMessageID != remoteID || state.ReplaceRemoteMessageID != remoteID {
+			t.Fatalf(
+				"replace remote ids = ack:%q state:%q, want %q",
+				ack.ReplaceRemoteMessageID,
+				state.ReplaceRemoteMessageID,
+				remoteID,
+			)
+		}
+	})
+
+	t.Run("Should reject an invalid delivery request before calling Google Chat", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeGChatAPI{}
+		request := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-invalid",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+		)
+		request.Event.BridgeInstanceID = "other-instance"
+
+		if _, _, err := executeGChatDelivery(
+			context.Background(),
+			api,
+			request,
+			deliveryState{},
+		); err == nil {
+			t.Fatal("executeGChatDelivery() error = nil, want invalid request error")
+		}
+		if len(api.messages) != 0 || len(api.updates) != 0 {
+			t.Fatalf("Google Chat calls = creates:%d updates:%d, want zero", len(api.messages), len(api.updates))
+		}
+	})
+}
+
 func TestVerifyGChatBearerTokens(t *testing.T) {
 	t.Parallel()
 

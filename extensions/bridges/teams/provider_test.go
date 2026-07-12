@@ -389,6 +389,307 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 	}
 }
 
+func TestExecuteTeamsDeliveryChunksTerminalContent(t *testing.T) {
+	t.Parallel()
+
+	serviceURL := "https://smba.trafficmanager.net/teams/"
+	conversationID := "19:channel@thread.tacv2"
+	threadID := encodeTeamsThreadID(teamsThreadRef{
+		ConversationID: conversationID + ";messageid=activity-parent",
+		ServiceURL:     serviceURL,
+	})
+	cfg := resolvedInstanceConfig{
+		instanceID: "brg-teams",
+		serviceURL: serviceURL,
+		appID:      "app-id",
+	}
+	routing := bridgepkg.RoutingKey{
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-teams",
+		BridgeInstanceID: "brg-teams",
+		GroupID:          conversationID,
+		ThreadID:         threadID,
+	}
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: "brg-teams",
+		GroupID:          conversationID,
+		ThreadID:         threadID,
+		Mode:             bridgepkg.DeliveryModeReply,
+	}
+	longText := strings.Repeat("teams chunk ", 3_000)
+	lookup := func(string, string) (teamsUserContext, bool) {
+		return teamsUserContext{}, false
+	}
+
+	t.Run("Should post terminal chunks in order and acknowledge the last activity", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 700}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-create",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)
+		if got, want := len(api.sendCalls), len(wantChunks); got != want {
+			t.Fatalf("send calls = %d, want %d chunks", got, want)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.Activity.Text, wantChunks[index]; got != want {
+				t.Fatalf("chunk %d text = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(call.Activity.Text)); got > teamsMaxMessageLen {
+				t.Fatalf("chunk %d length = %d, want <= %d", index, got, teamsMaxMessageLen)
+			}
+			if got, want := call.ConversationID, conversationID; got != want {
+				t.Fatalf("chunk %d conversation = %q, want %q", index, got, want)
+			}
+			if got, want := call.ReplyToID, "activity-parent"; got != want {
+				t.Fatalf("chunk %d reply id = %q, want %q", index, got, want)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+1, len(api.sendCalls))
+			if !strings.HasSuffix(call.Activity.Text, indicator) {
+				t.Fatalf("chunk %d text = %q, want suffix %q", index, call.Activity.Text, indicator)
+			}
+		}
+		ref, err := decodeRemoteMessageID(ack.RemoteMessageID)
+		if err != nil {
+			t.Fatalf("decodeRemoteMessageID() error = %v", err)
+		}
+		if got, want := ref.ActivityID, fmt.Sprintf("activity-%d", 699+len(api.sendCalls)); got != want {
+			t.Fatalf("ack activity id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep an overflowing non-terminal preview in one activity", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 800}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-preview",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("update calls = %d, want %d", got, want)
+		}
+		wantPreview := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)[0]
+		if got := api.updateCalls[0].Activity.Text; got != wantPreview {
+			t.Fatalf("preview text = %q, want %q", got, wantPreview)
+		}
+		if got := len([]rune(api.updateCalls[0].Activity.Text)); got > teamsMaxMessageLen {
+			t.Fatalf("preview length = %d, want <= %d", got, teamsMaxMessageLen)
+		}
+		if !strings.Contains(api.updateCalls[0].Activity.Text, "\n\n(1/") {
+			t.Fatalf("preview text = %q, want first-chunk indicator", api.updateCalls[0].Activity.Text)
+		}
+		if got := len(api.sendCalls); got != 0 {
+			t.Fatalf("send calls = %d, want no preview continuations", got)
+		}
+	})
+
+	t.Run("Should edit the active activity then post terminal continuations", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 900}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-edit",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("update calls = %d, want %d", got, want)
+		}
+		if len(api.sendCalls) == 0 {
+			t.Fatal("send calls = 0, want terminal continuations")
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)
+		if got, want := len(api.sendCalls)+1, len(wantChunks); got != want {
+			t.Fatalf("delivered chunks = %d, want %d", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.Text, wantChunks[0]; got != want {
+			t.Fatalf("updated chunk = %q, want %q", got, want)
+		}
+		totalChunks := len(wantChunks)
+		if got := len([]rune(api.updateCalls[0].Activity.Text)); got > teamsMaxMessageLen {
+			t.Fatalf("updated chunk length = %d, want <= %d", got, teamsMaxMessageLen)
+		}
+		indicator := fmt.Sprintf("\n\n(1/%d)", totalChunks)
+		if !strings.HasSuffix(api.updateCalls[0].Activity.Text, indicator) {
+			t.Fatalf("updated chunk = %q, want suffix %q", api.updateCalls[0].Activity.Text, indicator)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.Activity.Text, wantChunks[index+1]; got != want {
+				t.Fatalf("continuation %d = %q, want %q", index, got, want)
+			}
+			if got, want := call.ReplyToID, "activity-parent"; got != want {
+				t.Fatalf("continuation %d reply id = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(call.Activity.Text)); got > teamsMaxMessageLen {
+				t.Fatalf("continuation %d length = %d, want <= %d", index, got, teamsMaxMessageLen)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+2, totalChunks)
+			if !strings.HasSuffix(call.Activity.Text, indicator) {
+				t.Fatalf("continuation %d = %q, want suffix %q", index, call.Activity.Text, indicator)
+			}
+		}
+		lastRef, err := decodeRemoteMessageID(ack.RemoteMessageID)
+		if err != nil {
+			t.Fatalf("decodeRemoteMessageID() error = %v", err)
+		}
+		if got, want := lastRef.ActivityID, fmt.Sprintf("activity-%d", 899+len(api.sendCalls)); got != want {
+			t.Fatalf("ack activity id = %q, want %q", got, want)
+		}
+		if got := ack.ReplaceRemoteMessageID; got != remoteID {
+			t.Fatalf("ReplaceRemoteMessageID = %q, want %q", got, remoteID)
+		}
+	})
+
+	t.Run("Should keep root continuations at the conversation root", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 1_000}
+		rootThreadID := encodeTeamsThreadID(teamsThreadRef{
+			ConversationID: conversationID,
+			ServiceURL:     serviceURL,
+		})
+		rootRouting := routing
+		rootRouting.ThreadID = rootThreadID
+		rootTarget := target
+		rootTarget.ThreadID = rootThreadID
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-root-edit",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       rootRouting,
+			DeliveryTarget:   rootTarget,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if len(api.sendCalls) == 0 {
+			t.Fatal("send calls = 0, want terminal continuations")
+		}
+		for index, call := range api.sendCalls {
+			if got := call.ReplyToID; got != "" {
+				t.Fatalf("continuation %d reply id = %q, want root", index, got)
+			}
+		}
+	})
+
+	t.Run("Should reject a send response without an activity id", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{sendEmptyActivityID: true}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-empty-id",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: "hello"},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		var transient *bridgesdk.TransientError
+		if !errors.As(err, &transient) {
+			t.Fatalf("executeTeamsDelivery() error = %v, want TransientError", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) || state != (deliveryState{}) {
+			t.Fatalf("unacknowledged delivery = ack:%#v state:%#v, want zero values", ack, state)
+		}
+	})
+
+	t.Run("Should stop without an ack when a terminal continuation fails", func(t *testing.T) {
+		t.Parallel()
+
+		sendErr := errors.New("continuation unavailable")
+		api := &fakeTeamsAPI{sendErr: sendErr}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		initialState := deliveryState{LastSeq: 1, RemoteMessageID: remoteID}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-continuation-failure",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, initialState, nil, lookup,
+		)
+		if !errors.Is(err, sendErr) {
+			t.Fatalf("executeTeamsDelivery() error = %v, want wrapped continuation error", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) || state != initialState {
+			t.Fatalf("failed delivery = ack:%#v state:%#v, want zero ack and unchanged state", ack, state)
+		}
+	})
+}
+
 func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	env := setProviderTestEnv(t)
@@ -1915,6 +2216,9 @@ type fakeTeamsAPI struct {
 	createConversationID string
 	nextActivityID       int
 	validateErr          error
+	sendErr              error
+	sendEmptyActivityID  bool
+	deleteErr            error
 
 	createCalls []teamsCreateConversationRequest
 	sendCalls   []teamsSendCall
@@ -1968,6 +2272,12 @@ func (f *fakeTeamsAPI) SendActivity(
 		ReplyToID:      replyToID,
 		Activity:       activity,
 	})
+	if f.sendErr != nil {
+		return nil, f.sendErr
+	}
+	if f.sendEmptyActivityID {
+		return &teamsResourceResponse{}, nil
+	}
 	id := fmt.Sprintf("activity-%d", f.nextActivityID)
 	f.nextActivityID++
 	return &teamsResourceResponse{ID: id}, nil
@@ -2000,7 +2310,7 @@ func (f *fakeTeamsAPI) DeleteActivity(
 		ConversationID: conversationID,
 		ActivityID:     activityID,
 	})
-	return nil
+	return f.deleteErr
 }
 
 type teamsProviderServerConfig struct{}

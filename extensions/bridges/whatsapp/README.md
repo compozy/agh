@@ -7,8 +7,14 @@ It implements:
 - provider-scoped Host API ownership through `bridges/instances/list`, `bridges/instances/get`, `bridges/instances/report_state`, and `bridges/messages/ingest`
 - hardened webhook ingress with verify-challenge GET handling plus signed POST validation through `X-Hub-Signature-256`
 - direct-message style inbound mapping for WhatsApp Cloud message webhooks
-- outbound text delivery through the Cloud API with 4096-character chunk splitting and shared retry or rate-limit classification
-- restart-safe resume handling through the shared bridge delivery broker
+- outbound text delivery through the Cloud API with shared chunking and retry or rate-limit classification
+- resume handling for the remote message recorded by the shared bridge delivery broker
+
+## Outbound delivery
+
+WhatsApp text messages are limited to 4,096 Unicode code points. AGH splits larger replies on natural boundaries, adds an `(N/M)` marker to every chunk, sends the chunks in order, and acknowledges the last `wamid` returned by the Cloud API.
+
+The Cloud API does not expose text-message editing. When an accumulated delivery changes, AGH posts a new chunk sequence and keeps the prior remote message ID as the replacement reference.
 
 ## Build
 

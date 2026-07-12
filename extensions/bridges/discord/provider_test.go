@@ -359,6 +359,271 @@ func TestExecuteDiscordDeliveryValidatesEditAndDeleteOperations(t *testing.T) {
 	if got, want := api.deleteRequests[0].MessageID, "msg-1"; got != want {
 		t.Fatalf("delete message id = %q, want %q", got, want)
 	}
+
+	t.Run("Should edit an explicit reference without delivery state", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		remoteID := "thread-reference:message-reference"
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-explicit-reference",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: "referenced update"},
+		}}
+
+		ack, state, err := executeDiscordDelivery(ctx, api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got := len(api.postRequests); got != 0 {
+			t.Fatalf("post requests = %d, want 0", got)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].ChannelID, "thread-reference"; got != want {
+			t.Fatalf("update channel = %q, want %q", got, want)
+		}
+		if got, want := api.updateRequests[0].MessageID, "message-reference"; got != want {
+			t.Fatalf("update message id = %q, want %q", got, want)
+		}
+		if got := ack.RemoteMessageID; got != remoteID {
+			t.Fatalf("ack remote message id = %q, want %q", got, remoteID)
+		}
+		if got := state.RemoteMessageID; got != remoteID {
+			t.Fatalf("state remote message id = %q, want %q", got, remoteID)
+		}
+	})
+}
+
+func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
+	t.Parallel()
+
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: "brg-discord",
+		GroupID:          "channel-1",
+		ThreadID:         "thread-1",
+		Mode:             bridgepkg.DeliveryModeReply,
+	}
+	routing := bridgepkg.RoutingKey{
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		BridgeInstanceID: "brg-discord",
+		GroupID:          "channel-1",
+		ThreadID:         "thread-1",
+	}
+	longText := strings.Repeat("discord chunk ", 500)
+
+	t.Run("Should post terminal chunks in order and acknowledge the last message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"}}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-create",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)
+		if got, want := len(api.postRequests), len(wantChunks); got != want {
+			t.Fatalf("post requests = %d, want %d chunks", got, want)
+		}
+		for index, posted := range api.postRequests {
+			if got, want := posted.Content, wantChunks[index]; got != want {
+				t.Fatalf("chunk %d content = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(posted.Content)); got > discordMaxMessageLen {
+				t.Fatalf("chunk %d length = %d, want <= %d", index, got, discordMaxMessageLen)
+			}
+			if got, want := posted.ChannelID, "thread-1"; got != want {
+				t.Fatalf("chunk %d channel = %q, want %q", index, got, want)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+1, len(api.postRequests))
+			if !strings.HasSuffix(posted.Content, indicator) {
+				t.Fatalf("chunk %d content = %q, want suffix %q", index, posted.Content, indicator)
+			}
+		}
+		wantRemoteID := fmt.Sprintf("thread-1:msg-%d", len(api.postRequests))
+		if got := ack.RemoteMessageID; got != wantRemoteID {
+			t.Fatalf("RemoteMessageID = %q, want %q", got, wantRemoteID)
+		}
+	})
+
+	t.Run("Should edit the active message then post terminal continuations", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"}}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:active"}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-edit",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:active"},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if len(api.postRequests) == 0 {
+			t.Fatal("post requests = 0, want terminal continuations")
+		}
+		if got, want := api.updateRequests[0].MessageID, "active"; got != want {
+			t.Fatalf("updated message id = %q, want %q", got, want)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)
+		if got, want := len(api.postRequests)+1, len(wantChunks); got != want {
+			t.Fatalf("delivered chunks = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].Content, wantChunks[0]; got != want {
+			t.Fatalf("updated chunk = %q, want %q", got, want)
+		}
+		totalChunks := len(wantChunks)
+		if got := len([]rune(api.updateRequests[0].Content)); got > discordMaxMessageLen {
+			t.Fatalf("updated chunk length = %d, want <= %d", got, discordMaxMessageLen)
+		}
+		indicator := fmt.Sprintf("\n\n(1/%d)", totalChunks)
+		if !strings.HasSuffix(api.updateRequests[0].Content, indicator) {
+			t.Fatalf("updated chunk = %q, want suffix %q", api.updateRequests[0].Content, indicator)
+		}
+		for index, posted := range api.postRequests {
+			if got, want := posted.Content, wantChunks[index+1]; got != want {
+				t.Fatalf("continuation %d = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(posted.Content)); got > discordMaxMessageLen {
+				t.Fatalf("continuation %d length = %d, want <= %d", index, got, discordMaxMessageLen)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+2, totalChunks)
+			if !strings.HasSuffix(posted.Content, indicator) {
+				t.Fatalf("continuation %d = %q, want suffix %q", index, posted.Content, indicator)
+			}
+		}
+		wantRemoteID := fmt.Sprintf("thread-1:msg-%d", len(api.postRequests))
+		if got := ack.RemoteMessageID; got != wantRemoteID {
+			t.Fatalf("RemoteMessageID = %q, want %q", got, wantRemoteID)
+		}
+		if got, want := ack.ReplaceRemoteMessageID, "thread-1:active"; got != want {
+			t.Fatalf("ReplaceRemoteMessageID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep an overflowing non-terminal preview in one message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2"}}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:active"}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-preview",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:active"},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		wantPreview := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)[0]
+		if got := api.updateRequests[0].Content; got != wantPreview {
+			t.Fatalf("preview content = %q, want %q", got, wantPreview)
+		}
+		if got := len([]rune(api.updateRequests[0].Content)); got > discordMaxMessageLen {
+			t.Fatalf("preview length = %d, want <= %d", got, discordMaxMessageLen)
+		}
+		if !strings.Contains(api.updateRequests[0].Content, "\n\n(1/") {
+			t.Fatalf("preview content = %q, want first-chunk indicator", api.updateRequests[0].Content)
+		}
+		if got := len(api.postRequests); got != 0 {
+			t.Fatalf("post requests = %d, want no preview continuations", got)
+		}
+	})
+
+	t.Run("Should update an explicit reference even when current content matches", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		state := deliveryState{
+			LastSeq:         1,
+			RemoteMessageID: "thread-1:current",
+			LastContent:     "same content",
+		}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-reference",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:target"},
+			Content:          bridgepkg.MessageContent{Text: "same content"},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].MessageID, "target"; got != want {
+			t.Fatalf("updated message id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a post response without a message id", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-empty-response",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: "hello"},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		var transient *bridgesdk.TransientError
+		if !errors.As(err, &transient) {
+			t.Fatalf("executeDiscordDelivery() error = %v, want TransientError", err)
+		}
+	})
 }
 
 func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
@@ -1701,10 +1966,11 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 }
 
 type discordAPIFake struct {
-	postedMessageID string
-	postErr         error
-	updateErr       error
-	deleteErr       error
+	postedMessageID  string
+	postedMessageIDs []string
+	postErr          error
+	updateErr        error
+	deleteErr        error
 
 	postRequests   []discordPostMessageRequest
 	updateRequests []discordUpdateMessageRequest
@@ -1720,7 +1986,11 @@ func (f *discordAPIFake) PostMessage(_ context.Context, req discordPostMessageRe
 		return nil, f.postErr
 	}
 	f.postRequests = append(f.postRequests, req)
-	return &discordPostedMessage{ID: f.postedMessageID}, nil
+	messageID := f.postedMessageID
+	if index := len(f.postRequests) - 1; index < len(f.postedMessageIDs) {
+		messageID = f.postedMessageIDs[index]
+	}
+	return &discordPostedMessage{ID: messageID}, nil
 }
 
 func (f *discordAPIFake) UpdateMessage(_ context.Context, req discordUpdateMessageRequest) error {

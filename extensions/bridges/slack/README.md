@@ -8,7 +8,7 @@ It implements:
 - hardened webhook ingress with method/content-type/body-size/rate-limit/in-flight checks plus Slack signing-secret verification
 - Slack Events API messages plus typed bridge `command`, `action`, and `reaction` ingest flows
 - outbound `chat.postMessage`, `chat.update`, and `chat.delete` behavior for bridge delivery requests
-- restart-safe resume handling through the shared bridge delivery broker
+- resume handling for the remote message recorded by the shared bridge delivery broker
 
 ## Build
 
@@ -56,3 +56,7 @@ Notes:
 - `bot_token` and `signing_secret` are required through bridge secret bindings.
 - `AGH_BRIDGE_SLACK_LISTEN_ADDR` and `AGH_BRIDGE_SLACK_API_BASE_URL` can provide process-level defaults for local development and integration tests.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
+
+## Outbound text
+
+The provider converts common Markdown constructs to Slack mrkdwn before measuring the wire payload. Text over 40,000 Unicode code points is split on natural boundaries with numbered, fence-balanced continuations in the original thread. Streaming previews keep one mutable message; the terminal delivery posts the complete continuation set and acknowledges its last message.

@@ -66,6 +66,7 @@ type deliveryState struct {
 	LastContent            string
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+	PreviewOnly            bool
 }
 
 type telegramProviderConfig struct {
@@ -166,12 +167,14 @@ type telegramSendMessageRequest struct {
 	ChatID          string `json:"chat_id"`
 	Text            string `json:"text"`
 	MessageThreadID int64  `json:"message_thread_id,omitempty"`
+	ParseMode       string `json:"parse_mode,omitempty"`
 }
 
 type telegramEditMessageTextRequest struct {
 	ChatID    string `json:"chat_id"`
 	MessageID int64  `json:"message_id"`
 	Text      string `json:"text"`
+	ParseMode string `json:"parse_mode,omitempty"`
 }
 
 type telegramDeleteMessageRequest struct {
@@ -1135,41 +1138,6 @@ func (p *telegramProvider) reportSideEffectError(action string, err error) {
 	reportSideEffectError(p.stderr, action, err)
 }
 
-func executeDelivery(
-	ctx context.Context,
-	api telegramAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	if err := request.Validate(); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	event := request.Event
-	if event.EventType != bridgepkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
-		return bridgepkg.DeliveryAck{}, state, fmt.Errorf(
-			"telegram: out-of-order delivery seq %d after %d",
-			event.Seq,
-			state.LastSeq,
-		)
-	}
-	state = applyTelegramDeliverySnapshot(state, event, request.Snapshot)
-
-	targetChatID, targetThreadID, err := resolveDeliveryTarget(event)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	switch {
-	case isTelegramDeleteDelivery(event):
-		return executeTelegramDelete(ctx, api, event, request.Snapshot, state)
-	case shouldPostNewMessage(event, state, request):
-		return executeTelegramPost(ctx, api, event, targetChatID, targetThreadID, state)
-	default:
-		return executeTelegramEdit(ctx, api, event, request.Snapshot, state)
-	}
-}
-
 func (p *telegramProvider) resolveTelegramManagedConfigs(
 	session *bridgesdk.Session,
 	managed []subprocess.InitializeBridgeManagedInstance,
@@ -1309,185 +1277,6 @@ func writeTelegramWebhookOK(w http.ResponseWriter) error {
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("OK"))
 	return err
-}
-
-func applyTelegramDeliverySnapshot(
-	state deliveryState,
-	event bridgepkg.DeliveryEvent,
-	snapshot *bridgepkg.DeliverySnapshot,
-) deliveryState {
-	if event.EventType != bridgepkg.DeliveryEventTypeResume || snapshot == nil {
-		return state
-	}
-	state.LastSeq = snapshot.LastAckedSeq
-	if snapshot.LastAckedSeq >= snapshot.LatestSeq {
-		state.LastContent = snapshot.CurrentContent.Text
-	} else {
-		state.LastContent = ""
-	}
-	state.RemoteMessageID = strings.TrimSpace(snapshot.RemoteMessageID)
-	state.ReplaceRemoteMessageID = strings.TrimSpace(snapshot.ReplaceRemoteMessageID)
-	return state
-}
-
-func isTelegramDeleteDelivery(event bridgepkg.DeliveryEvent) bool {
-	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
-		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
-}
-
-func isTerminalTelegramDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
-	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
-		return true
-	}
-	switch normalizeDeliveryEventType(event.EventType) {
-	case bridgepkg.DeliveryEventTypeFinal, bridgepkg.DeliveryEventTypeError, bridgepkg.DeliveryEventTypeDelete:
-		return true
-	default:
-		return false
-	}
-}
-
-func executeTelegramDelete(
-	ctx context.Context,
-	api telegramAPI,
-	event bridgepkg.DeliveryEvent,
-	snapshot *bridgepkg.DeliverySnapshot,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := firstNonEmpty(referenceRemoteMessageID(event.Reference), state.RemoteMessageID)
-	if remoteID == "" && snapshot != nil {
-		remoteID = strings.TrimSpace(snapshot.RemoteMessageID)
-	}
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New(
-			"telegram: delete delivery requires a remote message id",
-		)
-	}
-
-	chatID, messageID, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.DeleteMessage(ctx, telegramDeleteMessageRequest{
-		ChatID:    chatID,
-		MessageID: messageID,
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	ack := newTelegramDeliveryAck(event, remoteID, firstNonEmpty(state.RemoteMessageID, remoteID))
-	state.LastSeq = event.Seq
-	state.LastContent = ""
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeTelegramPost(
-	ctx context.Context,
-	api telegramAPI,
-	event bridgepkg.DeliveryEvent,
-	targetChatID string,
-	targetThreadID string,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	messageThreadID, err := resolveTelegramThreadID(targetThreadID, targetChatID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	sent, err := api.SendMessage(ctx, telegramSendMessageRequest{
-		ChatID:          targetChatID,
-		Text:            event.Content.Text,
-		MessageThreadID: messageThreadID,
-	})
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	remoteID := encodeRemoteMessageID(targetChatID, sent.MessageID)
-	ack := newTelegramDeliveryAck(event, remoteID, state.RemoteMessageID)
-	state.LastSeq = event.Seq
-	state.LastContent = event.Content.Text
-	state.ReplaceRemoteMessageID = state.RemoteMessageID
-	state.RemoteMessageID = remoteID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeTelegramEdit(
-	ctx context.Context,
-	api telegramAPI,
-	event bridgepkg.DeliveryEvent,
-	snapshot *bridgepkg.DeliverySnapshot,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := state.RemoteMessageID
-	if remoteID == "" && snapshot != nil {
-		remoteID = strings.TrimSpace(snapshot.RemoteMessageID)
-	}
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New(
-			"telegram: edit delivery requires a remote message id",
-		)
-	}
-
-	ack := newTelegramDeliveryAck(event, remoteID, firstNonEmpty(state.RemoteMessageID, remoteID))
-	if event.Content.Text == state.LastContent {
-		state.LastSeq = event.Seq
-		state.RemoteMessageID = remoteID
-		state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-		return ack, state, ack.ValidateFor(event)
-	}
-
-	chatID, messageID, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.EditMessageText(ctx, telegramEditMessageTextRequest{
-		ChatID:    chatID,
-		MessageID: messageID,
-		Text:      event.Content.Text,
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	state.LastSeq = event.Seq
-	state.LastContent = event.Content.Text
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func newTelegramDeliveryAck(
-	event bridgepkg.DeliveryEvent,
-	remoteMessageID string,
-	replaceRemoteMessageID string,
-) bridgepkg.DeliveryAck {
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:      event.DeliveryID,
-		Seq:             event.Seq,
-		RemoteMessageID: remoteMessageID,
-	}
-	if strings.TrimSpace(replaceRemoteMessageID) != "" {
-		ack.ReplaceRemoteMessageID = strings.TrimSpace(replaceRemoteMessageID)
-	}
-	return ack
-}
-
-func shouldPostNewMessage(
-	event bridgepkg.DeliveryEvent,
-	state deliveryState,
-	request bridgepkg.DeliveryRequest,
-) bool {
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeStart {
-		return true
-	}
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
-		if request.Snapshot == nil {
-			return state.RemoteMessageID == ""
-		}
-		return strings.TrimSpace(request.Snapshot.RemoteMessageID) == ""
-	}
-	return strings.TrimSpace(state.RemoteMessageID) == ""
 }
 
 func allowDirectMessage(cfg *resolvedInstanceConfig, message telegramMessage) bool {
@@ -1781,11 +1570,15 @@ func classifyTelegramHTTPError(
 			Err: &bridgesdk.HTTPError{StatusCode: statusCode, Message: message},
 		}
 	}
-	return &bridgesdk.HTTPError{
+	httpErr := &bridgesdk.HTTPError{
 		StatusCode: statusCode,
 		Message:    message,
 		RetryAfter: retryAfter,
 	}
+	if statusCode == http.StatusBadRequest && telegramMarkdownParseFailure(message) {
+		return &telegramMarkdownParseError{err: httpErr}
+	}
+	return httpErr
 }
 
 func selectTelegramMessage(update telegramUpdate) *telegramMessage {

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
@@ -167,19 +167,52 @@ func TestWhatsAppOutboundMessagePreservation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should split text on UTF-8 safe boundaries without trimming bytes", func(t *testing.T) {
-		text := "  " + strings.Repeat("a", whatsappMessageLimit-3) + "🙂tail\n "
-		chunks := splitMessage(text)
-		if got := strings.Join(chunks, ""); got != text {
-			t.Fatalf("joined chunks = %q, want exact original %q", got, text)
+	t.Run("Should preserve Unicode text in rune-bounded chunks and acknowledge the last message", func(t *testing.T) {
+		const maxMessageRunes = 4_096
+
+		api := &fakeWhatsAppAPI{nextMessageID: 400}
+		cfg := resolvedInstanceConfig{instanceID: "brg-1", phoneNumberID: "phone-1"}
+		text := "  " + strings.Repeat("🙂", maxMessageRunes) + "tail\n "
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-unicode-chunks",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			text,
+		)
+		wantChunks := bridgesdk.ChunkMessage(text, maxMessageRunes, nil)
+
+		ack, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		if err != nil {
+			t.Fatalf("executeWhatsAppDelivery() error = %v", err)
 		}
-		for idx, chunk := range chunks {
-			if len(chunk) > whatsappMessageLimit {
-				t.Fatalf("len(chunks[%d]) = %d, want <= %d", idx, len(chunk), whatsappMessageLimit)
+		if got, want := len(api.requests), len(wantChunks); got != want {
+			t.Fatalf("SendTextMessage calls = %d, want %d", got, want)
+		}
+		for index, wantChunk := range wantChunks {
+			got := api.requests[index].Text.Body
+			if got != wantChunk {
+				t.Fatalf(
+					"chunk %d rune length = %d, want exact chunk rune length %d",
+					index,
+					len([]rune(got)),
+					len([]rune(wantChunk)),
+				)
 			}
-			if !utf8.ValidString(chunk) {
-				t.Fatalf("chunks[%d] is invalid UTF-8: %q", idx, chunk)
+			if gotRunes := len([]rune(got)); gotRunes > maxMessageRunes {
+				t.Fatalf("chunk %d rune length = %d, want <= %d", index, gotRunes, maxMessageRunes)
 			}
+		}
+		wantRemoteID := fmt.Sprintf("wamid.%d", 400+len(wantChunks)-1)
+		if ack.RemoteMessageID != wantRemoteID {
+			t.Fatalf("ack.RemoteMessageID = %q, want %q", ack.RemoteMessageID, wantRemoteID)
 		}
 	})
 }

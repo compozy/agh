@@ -1,0 +1,38 @@
+# Google Chat Bridge Provider
+
+`extensions/bridges/gchat` connects AGH bridge instances to Google Chat through the Chat REST API. One provider subprocess can own multiple bridge instances with independent ingress modes, routing, credentials, and direct-message policies.
+
+It implements:
+
+- direct webhook, Pub/Sub, or hybrid ingress with Google JWT verification
+- message, action, and reaction mapping into typed bridge envelopes
+- threaded outbound create, edit, and delete operations
+- broker-recorded remote-message state and provider API client reuse
+
+## Outbound delivery
+
+Google Chat accepts messages up to 32,000 UTF-8 bytes. AGH measures the final text payload in bytes and splits larger replies on natural boundaries. Every chunk includes an `(N/M)` marker and stays in the original space and thread.
+
+A non-terminal reply that grows past the limit keeps one bounded preview message. On the terminal update, AGH edits that message with the first chunk, posts the remaining chunks in order, and acknowledges the last Google Chat message name.
+
+## Build
+
+From the repository root:
+
+```bash
+go build -o ./extensions/bridges/gchat/bin/gchat ./extensions/bridges/gchat
+```
+
+## Install
+
+Build the binary first, then install the extension directory:
+
+```bash
+agh extension install ./extensions/bridges/gchat
+```
+
+## Configuration
+
+Bind `credentials_json` to Google service-account credentials. `project_number` is optional and enables direct-webhook audience verification. Provider config selects `direct`, `pubsub`, or `hybrid` ingress and can override webhook, certificate, OAuth token, batching, and direct-message policy settings.
+
+`AGH_BRIDGE_GCHAT_LISTEN_ADDR`, `AGH_BRIDGE_GCHAT_API_BASE_URL`, `AGH_BRIDGE_GCHAT_TOKEN_URL`, `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level overrides for local development and integration tests.

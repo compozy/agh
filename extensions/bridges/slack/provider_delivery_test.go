@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"testing"
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func TestSlackContractIngressRouting(t *testing.T) {
@@ -124,6 +126,50 @@ func TestSlackContractDeliveryRecovery(t *testing.T) {
 			t.Fatalf("PostMessage calls = %d, want %d", got, want)
 		}
 	})
+
+	t.Run("Should reject a reconciled message without a timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		api := &recordingSlackAPI{
+			forcedFindResult:    &slackPostedMessage{TS: " "},
+			hasForcedFindResult: true,
+		}
+		resumeReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-malformed-reconcile",
+			1,
+			bridgepkg.DeliveryEventTypeResume,
+			false,
+		)
+		resumeReq.Event.Resume = &bridgepkg.DeliveryResumeState{
+			LatestEventType: bridgepkg.DeliveryEventTypeStart,
+		}
+		resumeReq.Snapshot = &bridgepkg.DeliverySnapshot{
+			DeliveryID:       resumeReq.Event.DeliveryID,
+			SessionID:        "sess-slack",
+			TurnID:           "turn-slack",
+			BridgeInstanceID: resumeReq.Event.BridgeInstanceID,
+			RoutingKey:       resumeReq.Event.RoutingKey,
+			DeliveryTarget:   resumeReq.Event.DeliveryTarget,
+			LatestSeq:        resumeReq.Event.Seq,
+			LatestEventType:  bridgepkg.DeliveryEventTypeStart,
+			CurrentContent:   resumeReq.Event.Content,
+			LastSentSeq:      resumeReq.Event.Seq,
+			UpdatedAt:        time.Date(2026, 5, 16, 13, 2, 0, 0, time.UTC),
+		}
+
+		_, gotState, err := executeDelivery(context.Background(), api, resumeReq, deliveryState{})
+		var transientErr *bridgesdk.TransientError
+		if !errors.As(err, &transientErr) {
+			t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
+		}
+		if gotState != (deliveryState{}) {
+			t.Fatalf("executeDelivery() state = %#v, want unchanged", gotState)
+		}
+		if got := len(api.posts); got != 0 {
+			t.Fatalf("PostMessage calls = %d, want zero after reconciliation", got)
+		}
+	})
 }
 
 func assertSlackRoutableDirectEnvelope(
@@ -147,8 +193,10 @@ func assertSlackRoutableDirectEnvelope(
 }
 
 type recordingSlackAPI struct {
-	posts    []slackPostMessageRequest
-	messages []slackConversationMessage
+	posts               []slackPostMessageRequest
+	messages            []slackConversationMessage
+	forcedFindResult    *slackPostedMessage
+	hasForcedFindResult bool
 }
 
 func (a *recordingSlackAPI) AuthTest(context.Context) (*slackAuthIdentity, error) {
@@ -177,6 +225,9 @@ func (a *recordingSlackAPI) FindDeliveryMessage(
 ) (*slackPostedMessage, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
+	}
+	if a.hasForcedFindResult {
+		return a.forcedFindResult, nil
 	}
 	for idx := range a.messages {
 		message := a.messages[idx]

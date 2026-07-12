@@ -1,6 +1,6 @@
 # Telegram Bridge Provider
 
-`extensions/bridges/telegram` is the first production bridge provider for AGH. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Telegram runtime.
+`extensions/bridges/telegram` is the production Telegram bridge provider for AGH. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Telegram runtime.
 
 It implements:
 
@@ -8,7 +8,7 @@ It implements:
 - hardened webhook ingress with method/content-type/body-size/rate-limit/in-flight checks plus Telegram secret-token verification
 - direct-chat and group/forum routing identity mapping into bridge v1 inbound envelopes
 - outbound `sendMessage`, `editMessageText`, and `deleteMessage` behavior for bridge delivery requests
-- restart-safe resume handling through the shared bridge delivery broker
+- resume handling for the remote message recorded by the shared bridge delivery broker
 
 ## Build
 
@@ -57,3 +57,7 @@ Notes:
 - `webhook_secret` is optional; when set, inbound requests must include `X-Telegram-Bot-Api-Secret-Token`.
 - `AGH_BRIDGE_TELEGRAM_LISTEN_ADDR` and `AGH_BRIDGE_TELEGRAM_API_BASE_URL` can provide process-level defaults for local development and integration tests.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
+
+## Outbound text
+
+The provider converts common Markdown constructs to Telegram MarkdownV2 before measuring the 4,096 UTF-16 code-unit wire limit. Long text is split on natural boundaries with numbered, fence-balanced continuations in the original topic. Streaming previews keep one mutable message; terminal delivery posts the complete continuation set and acknowledges its last message. A MarkdownV2 parse rejection retries that chunk once as plain text without `parse_mode`.

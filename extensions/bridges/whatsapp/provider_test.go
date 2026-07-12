@@ -159,31 +159,6 @@ func TestVerifyChallengeAndSignature(t *testing.T) {
 	}
 }
 
-func TestSplitMessage(t *testing.T) {
-	t.Parallel()
-
-	short := splitMessage("hello")
-	if got, want := len(short), 1; got != want {
-		t.Fatalf("len(splitMessage(short)) = %d, want %d", got, want)
-	}
-
-	long := strings.Repeat("a", whatsappMessageLimit+10)
-	chunks := splitMessage(long)
-	if got, want := len(chunks), 2; got != want {
-		t.Fatalf("len(splitMessage(long)) = %d, want %d", got, want)
-	}
-	if got, want := len(chunks[0]), whatsappMessageLimit; got != want {
-		t.Fatalf("len(chunks[0]) = %d, want %d", got, want)
-	}
-	if strings.Join(chunks, "") != long {
-		t.Fatalf(
-			"splitMessage() lost content: got len %d want len %d",
-			len(strings.Join(chunks, "")),
-			len(long),
-		)
-	}
-}
-
 func TestExecuteWhatsAppDeliveryPostResumeDeleteAndSplit(t *testing.T) {
 	t.Parallel()
 
@@ -284,7 +259,7 @@ func TestExecuteWhatsAppDeliveryPostResumeDeleteAndSplit(t *testing.T) {
 		1,
 		bridgepkg.DeliveryEventTypeStart,
 		false,
-		strings.Repeat("a", whatsappMessageLimit+20),
+		strings.Repeat("a", whatsappMaxMessageRunes+20),
 	)
 	splitAck, _, err := executeWhatsAppDelivery(
 		context.Background(),
@@ -302,6 +277,309 @@ func TestExecuteWhatsAppDeliveryPostResumeDeleteAndSplit(t *testing.T) {
 	if got, want := len(splitAPI.requests), 2; got != want {
 		t.Fatalf("len(splitAPI.requests) = %d, want %d", got, want)
 	}
+}
+
+func TestExecuteWhatsAppDeliveryRejectsInvalidOrUnacknowledgedSends(t *testing.T) {
+	t.Parallel()
+
+	cfg := resolvedInstanceConfig{
+		instanceID:    "brg-1",
+		phoneNumberID: "123456789",
+	}
+
+	t.Run("Should reject an invalid request before calling the Cloud API", func(t *testing.T) {
+		t.Parallel()
+
+		api := &whatsappDeliveryResponseAPI{}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-invalid",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"hello",
+		)
+		request.Event.BridgeInstanceID = "other-instance"
+
+		if _, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		); err == nil {
+			t.Fatal("executeWhatsAppDelivery() error = nil, want invalid request error")
+		}
+		if got := len(api.requests); got != 0 {
+			t.Fatalf("Cloud API calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject an out-of-order event before calling the Cloud API", func(t *testing.T) {
+		t.Parallel()
+
+		api := &whatsappDeliveryResponseAPI{}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-stale",
+			1,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+			"hello",
+		)
+
+		if _, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{LastSeq: 1},
+		); err == nil {
+			t.Fatal("executeWhatsAppDelivery() error = nil, want out-of-order error")
+		}
+		if got := len(api.requests); got != 0 {
+			t.Fatalf("Cloud API calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should preserve a Cloud API send failure without acknowledging the delivery", func(t *testing.T) {
+		t.Parallel()
+
+		sendErr := errors.New("cloud unavailable")
+		api := &whatsappDeliveryResponseAPI{sendErr: sendErr}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-send-failure",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"hello",
+		)
+
+		ack, state, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		if !errors.Is(err, sendErr) {
+			t.Fatalf("executeWhatsAppDelivery() error = %v, want wrapped send failure", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) || state != (deliveryState{}) {
+			t.Fatalf("failed delivery = ack:%#v state:%#v, want zero values", ack, state)
+		}
+	})
+
+	t.Run("Should classify a response without a message id as transient", func(t *testing.T) {
+		t.Parallel()
+
+		api := &whatsappDeliveryResponseAPI{response: &whatsappSendMessageResponse{}}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-missing-id",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"hello",
+		)
+
+		ack, state, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		var transientErr *bridgesdk.TransientError
+		if !errors.As(err, &transientErr) {
+			t.Fatalf("executeWhatsAppDelivery() error = %T, want *bridgesdk.TransientError", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) || state != (deliveryState{}) {
+			t.Fatalf("unacknowledged delivery = ack:%#v state:%#v, want zero values", ack, state)
+		}
+	})
+
+	t.Run("Should reject whitespace-only text before calling the Cloud API", func(t *testing.T) {
+		t.Parallel()
+
+		api := &whatsappDeliveryResponseAPI{}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-empty-text",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"   ",
+		)
+
+		if _, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		); err == nil {
+			t.Fatal("executeWhatsAppDelivery() error = nil, want empty text error")
+		}
+		if got := len(api.requests); got != 0 {
+			t.Fatalf("Cloud API calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject a delivery without a peer target", func(t *testing.T) {
+		t.Parallel()
+
+		api := &whatsappDeliveryResponseAPI{}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-missing-peer",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"hello",
+		)
+		request.Event.RoutingKey.PeerID = ""
+		request.Event.DeliveryTarget.PeerID = ""
+
+		if _, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		); err == nil {
+			t.Fatal("executeWhatsAppDelivery() error = nil, want missing peer error")
+		}
+		if got := len(api.requests); got != 0 {
+			t.Fatalf("Cloud API calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should classify an empty response message id as transient", func(t *testing.T) {
+		t.Parallel()
+
+		response := &whatsappSendMessageResponse{}
+		response.Messages = append(response.Messages, struct {
+			ID string `json:"id,omitempty"`
+		}{})
+		api := &whatsappDeliveryResponseAPI{response: response}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-empty-id",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+			"hello",
+		)
+
+		_, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		var transientErr *bridgesdk.TransientError
+		if !errors.As(err, &transientErr) {
+			t.Fatalf("executeWhatsAppDelivery() error = %T, want *bridgesdk.TransientError", err)
+		}
+	})
+
+	t.Run("Should replay a resume snapshot that has no acknowledged remote message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeWhatsAppAPI{nextMessageID: 700}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-unacknowledged-resume",
+			1,
+			bridgepkg.DeliveryEventTypeResume,
+			true,
+			"hello",
+		)
+		request.Event.Resume = &bridgepkg.DeliveryResumeState{
+			LatestEventType: bridgepkg.DeliveryEventTypeFinal,
+		}
+		request.Snapshot = &bridgepkg.DeliverySnapshot{
+			DeliveryID:       request.Event.DeliveryID,
+			SessionID:        "sess-1",
+			TurnID:           "turn-1",
+			BridgeInstanceID: request.Event.BridgeInstanceID,
+			RoutingKey:       request.Event.RoutingKey,
+			DeliveryTarget:   request.Event.DeliveryTarget,
+			LatestSeq:        1,
+			LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+			CurrentContent:   bridgepkg.MessageContent{Text: "hello"},
+			Final:            true,
+			UpdatedAt:        time.Date(2026, 4, 15, 12, 10, 0, 0, time.UTC),
+		}
+
+		ack, _, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		if err != nil {
+			t.Fatalf("executeWhatsAppDelivery() error = %v", err)
+		}
+		if got, want := ack.RemoteMessageID, "wamid.700"; got != want {
+			t.Fatalf("ack.RemoteMessageID = %q, want %q", got, want)
+		}
+		if got, want := len(api.requests), 1; got != want {
+			t.Fatalf("Cloud API calls = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestExecuteWhatsAppDeliveryReferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve an explicit replacement reference when local state is empty", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeWhatsAppAPI{nextMessageID: 800}
+		cfg := resolvedInstanceConfig{
+			instanceID:    "brg-1",
+			phoneNumberID: "123456789",
+		}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-explicit-edit",
+			1,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+			"edited text",
+		)
+		const referencedMessage = "wamid.referenced"
+		request.Event.Operation = bridgepkg.DeliveryOperationEdit
+		request.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: referencedMessage}
+
+		ack, state, err := executeWhatsAppDelivery(
+			context.Background(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+		)
+		if err != nil {
+			t.Fatalf("executeWhatsAppDelivery() error = %v", err)
+		}
+		if got, want := len(api.requests), 1; got != want {
+			t.Fatalf("SendTextMessage calls = %d, want %d", got, want)
+		}
+		if got, want := ack.RemoteMessageID, "wamid.800"; got != want {
+			t.Fatalf("ack.RemoteMessageID = %q, want %q", got, want)
+		}
+		if got := ack.ReplaceRemoteMessageID; got != referencedMessage {
+			t.Fatalf("ack.ReplaceRemoteMessageID = %q, want %q", got, referencedMessage)
+		}
+		if got := state.ReplaceRemoteMessageID; got != referencedMessage {
+			t.Fatalf("state.ReplaceRemoteMessageID = %q, want %q", got, referencedMessage)
+		}
+	})
 }
 
 func TestClassifyWhatsAppHTTPError(t *testing.T) {
@@ -733,7 +1011,7 @@ func TestRuntimeDeliveriesCallWhatsAppGraphAPI(t *testing.T) {
 	t.Setenv(whatsappListenAddrEnv, listenAddr)
 	t.Setenv(whatsappAPIBaseEnv, mockAPI.URL())
 
-	_, hostPeer, cleanup := newRuntimePeerPair(t)
+	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 13, 10, 0, 0, time.UTC)
@@ -795,6 +1073,27 @@ func TestRuntimeDeliveriesCallWhatsAppGraphAPI(t *testing.T) {
 	}
 	if got, want := calls[2].Body["type"], "text"; got != want {
 		t.Fatalf("calls[2].Body[type] = %#v, want %q", calls[2].Body["type"], want)
+	}
+
+	sendErr := errors.New("cloud unavailable")
+	runtime.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
+		return fakeWhatsAppAPIError{err: sendErr}
+	}
+	if err := hostPeer.Call(
+		context.Background(),
+		"bridges/deliver",
+		testDeliveryRequest("brg-1", "delivery-failed", 1, bridgepkg.DeliveryEventTypeStart, false, "hello"),
+		&bridgepkg.DeliveryAck{},
+	); err == nil {
+		t.Fatal("hostPeer.Call(failed delivery) error = nil, want non-nil")
+	}
+	records = waitForJSONLinesFile[deliveryMarker](
+		t,
+		env.deliveryPath,
+		func(items []deliveryMarker) bool { return len(items) >= 3 },
+	)
+	if records[2].Ack != nil || !strings.Contains(records[2].Error, sendErr.Error()) {
+		t.Fatalf("failed delivery marker = %#v, want error without ack", records[2])
 	}
 }
 
@@ -1433,6 +1732,28 @@ func TestRunHelpers(t *testing.T) {
 type fakeWhatsAppAPI struct {
 	nextMessageID int
 	requests      []whatsappSendMessageRequest
+}
+
+type whatsappDeliveryResponseAPI struct {
+	response *whatsappSendMessageResponse
+	sendErr  error
+	requests []whatsappSendMessageRequest
+}
+
+func (f *whatsappDeliveryResponseAPI) GetPhoneNumber(
+	context.Context,
+	string,
+) (*whatsappPhoneNumber, error) {
+	return &whatsappPhoneNumber{ID: "123456789"}, nil
+}
+
+func (f *whatsappDeliveryResponseAPI) SendTextMessage(
+	_ context.Context,
+	_ string,
+	request whatsappSendMessageRequest,
+) (*whatsappSendMessageResponse, error) {
+	f.requests = append(f.requests, request)
+	return f.response, f.sendErr
 }
 
 func (f *fakeWhatsAppAPI) GetPhoneNumber(context.Context, string) (*whatsappPhoneNumber, error) {

@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"math/big"
 	"net/http"
@@ -105,7 +106,7 @@ func TestTeamsContractDeliveryReferences(t *testing.T) {
 			api,
 			resolvedInstanceConfig{instanceID: "brg-teams"},
 			request,
-			deliveryState{LastSeq: 1, RemoteMessageID: currentRemote},
+			deliveryState{LastSeq: 1, RemoteMessageID: currentRemote, LastContent: "updated"},
 			nil,
 			func(string, string) (teamsUserContext, bool) {
 				return teamsUserContext{}, false
@@ -119,6 +120,119 @@ func TestTeamsContractDeliveryReferences(t *testing.T) {
 		}
 		if got, want := api.updateCalls[0].ActivityID, "activity-a"; got != want {
 			t.Fatalf("api.updateCalls[0].ActivityID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should edit an explicit reference without delivery state", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{}
+		serviceURL := "https://reference.service.test"
+		remoteID := testTeamsRemoteMessageID("conversation-reference", serviceURL, "activity-reference")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-empty-state-edit",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       testTeamsRoutingKey(),
+			DeliveryTarget:   testTeamsDeliveryTarget(),
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: "referenced update"},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(),
+			api,
+			resolvedInstanceConfig{instanceID: "brg-teams"},
+			request,
+			deliveryState{},
+			nil,
+			func(string, string) (teamsUserContext, bool) {
+				return teamsUserContext{}, false
+			},
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if got := len(api.createCalls); got != 0 {
+			t.Fatalf("create calls = %d, want 0", got)
+		}
+		if got := len(api.sendCalls); got != 0 {
+			t.Fatalf("send calls = %d, want 0", got)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("update calls = %d, want %d", got, want)
+		}
+		if got := api.updateCalls[0].ServiceURL; got != serviceURL {
+			t.Fatalf("update service URL = %q, want %q", got, serviceURL)
+		}
+		if got, want := api.updateCalls[0].ConversationID, "conversation-reference"; got != want {
+			t.Fatalf("update conversation = %q, want %q", got, want)
+		}
+		if got, want := api.updateCalls[0].ActivityID, "activity-reference"; got != want {
+			t.Fatalf("update activity = %q, want %q", got, want)
+		}
+		if got := ack.RemoteMessageID; got != remoteID {
+			t.Fatalf("ack remote message id = %q, want %q", got, remoteID)
+		}
+		if got := state.RemoteMessageID; got != remoteID {
+			t.Fatalf("state remote message id = %q, want %q", got, remoteID)
+		}
+	})
+
+	t.Run("Should keep cross-delivery continuations with the referenced conversation", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 950}
+		serviceURL := "https://service.test"
+		targetRemote := testTeamsRemoteMessageID("conversation-a", serviceURL, "activity-a")
+		threadID := encodeTeamsThreadID(teamsThreadRef{
+			ConversationID: "conversation-b;messageid=parent-b",
+			ServiceURL:     serviceURL,
+		})
+		routing := testTeamsRoutingKey()
+		routing.ThreadID = threadID
+		target := testTeamsDeliveryTarget()
+		target.ThreadID = threadID
+		currentRemote := testTeamsRemoteMessageID("conversation-b", serviceURL, "activity-b")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-cross-reference",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: targetRemote},
+			Content:          bridgepkg.MessageContent{Text: strings.Repeat("teams cross reference ", 2_000)},
+		}}
+
+		_, _, err := executeTeamsDelivery(
+			context.Background(),
+			api,
+			resolvedInstanceConfig{instanceID: "brg-teams", serviceURL: serviceURL},
+			request,
+			deliveryState{LastSeq: 1, RemoteMessageID: currentRemote},
+			nil,
+			func(string, string) (teamsUserContext, bool) {
+				return teamsUserContext{}, false
+			},
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if len(api.sendCalls) == 0 {
+			t.Fatal("send calls = 0, want overflow continuations")
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.ConversationID, "conversation-a"; got != want {
+				t.Fatalf("continuation %d conversation = %q, want %q", index, got, want)
+			}
+			if got, want := call.ReplyToID, ""; got != want {
+				t.Fatalf("continuation %d reply id = %q, want %q", index, got, want)
+			}
 		}
 	})
 
@@ -165,6 +279,44 @@ func TestTeamsContractDeliveryReferences(t *testing.T) {
 		}
 		if got, want := api.deleteCalls[0].ActivityID, "activity-ref"; got != want {
 			t.Fatalf("api.deleteCalls[0].ActivityID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve delivery state when the referenced delete fails", func(t *testing.T) {
+		t.Parallel()
+
+		deleteErr := errors.New("delete unavailable")
+		api := &fakeTeamsAPI{deleteErr: deleteErr}
+		remoteID := testTeamsRemoteMessageID("conversation-delete", "https://service.test", "activity-delete")
+		initialState := deliveryState{LastSeq: 1, RemoteMessageID: remoteID}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-delete-failure",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       testTeamsRoutingKey(),
+			DeliveryTarget:   testTeamsDeliveryTarget(),
+			Seq:              2,
+			Final:            true,
+			EventType:        bridgepkg.DeliveryEventTypeDelete,
+			Operation:        bridgepkg.DeliveryOperationDelete,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(),
+			api,
+			resolvedInstanceConfig{instanceID: "brg-teams"},
+			request,
+			initialState,
+			nil,
+			func(string, string) (teamsUserContext, bool) {
+				return teamsUserContext{}, false
+			},
+		)
+		if !errors.Is(err, deleteErr) {
+			t.Fatalf("executeTeamsDelivery() error = %v, want wrapped delete error", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) || state != initialState {
+			t.Fatalf("failed delete = ack:%#v state:%#v, want zero ack and unchanged state", ack, state)
 		}
 	})
 }

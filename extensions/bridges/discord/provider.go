@@ -84,12 +84,6 @@ type discordProvider struct {
 	wg       sync.WaitGroup
 }
 
-type deliveryState struct {
-	LastSeq                int64
-	RemoteMessageID        string
-	ReplaceRemoteMessageID string
-}
-
 type discordProviderConfig struct {
 	APIBaseURL    string `json:"api_base_url,omitempty"`
 	ApplicationID string `json:"application_id,omitempty"`
@@ -1337,18 +1331,6 @@ func (p *discordProvider) currentSession() *bridgesdk.Session {
 	return p.session
 }
 
-func (p *discordProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
-}
-
-func (p *discordProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
-}
-
 func closeDiscordInboundBatchers(batchers map[*bridgesdk.InboundBatcher]struct{}) {
 	for batcher := range batchers {
 		batcher.Close()
@@ -1372,171 +1354,6 @@ func (p *discordProvider) clearLastError() {
 
 func (p *discordProvider) reportSideEffectError(action string, err error) {
 	reportSideEffectError(p.stderr, action, err)
-}
-
-func executeDiscordDelivery(
-	ctx context.Context,
-	api discordAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	if err := request.Validate(); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	event := request.Event
-	if event.EventType != bridgepkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
-		return bridgepkg.DeliveryAck{}, state, fmt.Errorf(
-			"discord: out-of-order delivery seq %d after %d",
-			event.Seq,
-			state.LastSeq,
-		)
-	}
-	if event.EventType == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
-		state.LastSeq = request.Snapshot.LastAckedSeq
-		state.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
-		state.ReplaceRemoteMessageID = strings.TrimSpace(request.Snapshot.ReplaceRemoteMessageID)
-	}
-
-	channelID, err := resolveDiscordDeliveryChannelID(event)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	switch {
-	case isDiscordDeleteEvent(event):
-		return executeDiscordDelete(ctx, api, request, state)
-	case shouldPostDiscordMessage(event, state, request):
-		return executeDiscordCreate(ctx, api, event, state, channelID)
-	default:
-		return executeDiscordUpdate(ctx, api, request, state)
-	}
-}
-
-func shouldPostDiscordMessage(
-	event bridgepkg.DeliveryEvent,
-	state deliveryState,
-	request bridgepkg.DeliveryRequest,
-) bool {
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeStart {
-		return true
-	}
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
-		if request.Snapshot == nil {
-			return state.RemoteMessageID == ""
-		}
-		return strings.TrimSpace(request.Snapshot.RemoteMessageID) == ""
-	}
-	return strings.TrimSpace(state.RemoteMessageID) == ""
-}
-
-func isDiscordDeleteEvent(event bridgepkg.DeliveryEvent) bool {
-	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
-		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
-}
-
-func executeDiscordDelete(
-	ctx context.Context,
-	api discordAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	event := request.Event
-	remoteID := discordRemoteMessageIDFromRequest(request, state)
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New("discord: delete delivery requires a remote message id")
-	}
-	channelID, messageID, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.DeleteMessage(ctx, discordDeleteMessageRequest{
-		ChannelID: channelID,
-		MessageID: messageID,
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:             event.DeliveryID,
-		Seq:                    event.Seq,
-		RemoteMessageID:        remoteID,
-		ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
-	}
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeDiscordCreate(
-	ctx context.Context,
-	api discordAPI,
-	event bridgepkg.DeliveryEvent,
-	state deliveryState,
-	channelID string,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	sent, err := api.PostMessage(ctx, discordPostMessageRequest{
-		ChannelID: channelID,
-		Content:   event.Content.Text,
-	})
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	remoteID := encodeRemoteMessageID(channelID, sent.ID)
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:      event.DeliveryID,
-		Seq:             event.Seq,
-		RemoteMessageID: remoteID,
-	}
-	state.LastSeq = event.Seq
-	state.ReplaceRemoteMessageID = state.RemoteMessageID
-	state.RemoteMessageID = remoteID
-	if state.ReplaceRemoteMessageID != "" {
-		ack.ReplaceRemoteMessageID = state.ReplaceRemoteMessageID
-	}
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeDiscordUpdate(
-	ctx context.Context,
-	api discordAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	event := request.Event
-	remoteID := discordRemoteMessageIDFromRequest(request, state)
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New("discord: edit delivery requires a remote message id")
-	}
-	channelID, messageID, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.UpdateMessage(ctx, discordUpdateMessageRequest{
-		ChannelID: channelID,
-		MessageID: messageID,
-		Content:   event.Content.Text,
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:             event.DeliveryID,
-		Seq:                    event.Seq,
-		RemoteMessageID:        remoteID,
-		ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
-	}
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func discordRemoteMessageIDFromRequest(request bridgepkg.DeliveryRequest, state deliveryState) string {
-	remoteID := firstNonEmpty(referenceRemoteMessageID(request.Event.Reference), state.RemoteMessageID)
-	if remoteID == "" && request.Snapshot != nil {
-		return strings.TrimSpace(request.Snapshot.RemoteMessageID)
-	}
-	return remoteID
 }
 
 func mapDiscordMessageEvent(

@@ -48,3 +48,9 @@ Bridge v1 support in this provider includes:
 - tenant-aware proactive DM creation when only a user ID is available
 
 Task modules, modal lifecycle flows, and richer Teams UI parity stay out of scope for v1.
+
+## Delivery behavior
+
+Teams accepts up to 28,000 Unicode code points per activity. The provider splits longer terminal replies into ordered activities and adds `(N/M)` on a separate line. It preserves the conversation and reply reference for every continuation.
+
+While an agent response is still streaming, an overflowing preview stays in one editable activity. On the terminal update, the provider edits that activity, posts the remaining chunks as replies, and acknowledges the final activity ID.

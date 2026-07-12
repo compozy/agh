@@ -19,7 +19,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
@@ -42,7 +41,6 @@ const (
 
 	whatsappDefaultAPIBaseURL        = "https://graph.facebook.com"
 	whatsappDefaultAPIVersion        = "v21.0"
-	whatsappMessageLimit             = 4096
 	whatsappWebhookReadHeaderTimeout = 10 * time.Second
 	whatsappWebhookIdleTimeout       = 30 * time.Second
 
@@ -82,12 +80,6 @@ type whatsappProvider struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
-}
-
-type deliveryState struct {
-	LastSeq                int64
-	RemoteMessageID        string
-	ReplaceRemoteMessageID string
 }
 
 type whatsappProviderConfig struct {
@@ -407,83 +399,6 @@ func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session, globalErr
 	} else {
 		p.clearGlobalErrorIfUnchanged(globalErrorSeq)
 	}
-}
-
-func (p *whatsappProvider) handleBridgesDeliver(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	}
-
-	cfg, err := p.waitForInstanceConfig(
-		strings.TrimSpace(request.Event.BridgeInstanceID),
-		500*time.Millisecond,
-	)
-	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		p.setInstanceError(request.Event.BridgeInstanceID, err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError(
-			"write pre-crash delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		p.reportSideEffectError(
-			"write crash marker",
-			writeJSONFile(p.env.crashOncePath, map[string]any{
-				"crashed":            true,
-				"pid":                os.Getpid(),
-				"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-				"bridge_instance_id": cfg.instanceID,
-			}),
-		)
-		os.Exit(23)
-	}
-
-	api := p.apiFactory(cfg)
-	ack, state, err := executeWhatsAppDelivery(
-		ctx,
-		api,
-		cfg,
-		request,
-		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
-	)
-	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setInstanceError(cfg.instanceID, reportErr)
-		} else {
-			p.setInstanceError(cfg.instanceID, err)
-		}
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
-		p.setInstanceError(cfg.instanceID, err)
-	} else {
-		p.clearInstanceError(cfg.instanceID)
-	}
-
-	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	return ack, nil
 }
 
 func (p *whatsappProvider) healthCheck() error {
@@ -1178,22 +1093,6 @@ func (p *whatsappProvider) currentSession() *bridgesdk.Session {
 	return p.session
 }
 
-func (p *whatsappProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
-}
-
-func (p *whatsappProvider) storeDeliveryState(
-	instanceID string,
-	deliveryID string,
-	state deliveryState,
-) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
-}
-
 func (p *whatsappProvider) setLastError(err error) {
 	p.setInstanceError("", err)
 }
@@ -1260,81 +1159,6 @@ func (p *whatsappProvider) clearInstanceError(instanceID string) {
 
 func (p *whatsappProvider) reportSideEffectError(action string, err error) {
 	reportSideEffectError(p.stderr, action, err)
-}
-
-func executeWhatsAppDelivery(
-	ctx context.Context,
-	api whatsappAPI,
-	cfg resolvedInstanceConfig,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	if err := request.Validate(); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	event := request.Event
-	if event.EventType != bridgepkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
-		return bridgepkg.DeliveryAck{}, state, fmt.Errorf(
-			"whatsapp: out-of-order delivery seq %d after %d",
-			event.Seq,
-			state.LastSeq,
-		)
-	}
-	if event.EventType == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
-		state.LastSeq = request.Snapshot.LastAckedSeq
-		state.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
-		state.ReplaceRemoteMessageID = strings.TrimSpace(request.Snapshot.ReplaceRemoteMessageID)
-	}
-
-	if isWhatsAppDeleteDelivery(event) {
-		return bridgepkg.DeliveryAck{}, state, &bridgesdk.PermanentError{
-			Err: errors.New("whatsapp: delete delivery is not supported by the Cloud API"),
-		}
-	}
-
-	targetUserID, err := resolveDeliveryTarget(event)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	text := event.Content.Text
-	if strings.TrimSpace(text) == "" {
-		return bridgepkg.DeliveryAck{}, state, &bridgesdk.PermanentError{
-			Err: errors.New("whatsapp: text delivery content is required"),
-		}
-	}
-
-	// Resume requests with an already-acked remote message do not need to post
-	// again; return the snapshot identity so the broker can continue.
-	if ack, resumed, ok := resumeWhatsAppDelivery(event, request.Snapshot, state); ok {
-		return ack, resumed, ack.ValidateFor(event)
-	}
-
-	remoteID, err := sendWhatsAppDeliveryChunks(ctx, api, cfg.phoneNumberID, targetUserID, text)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	replaceRemoteID := firstNonEmpty(
-		state.RemoteMessageID,
-		func() string {
-			if request.Snapshot == nil {
-				return ""
-			}
-			return strings.TrimSpace(request.Snapshot.RemoteMessageID)
-		}(),
-	)
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:      event.DeliveryID,
-		Seq:             event.Seq,
-		RemoteMessageID: remoteID,
-	}
-	if event.Seq > 1 || replaceRemoteID != "" {
-		ack.ReplaceRemoteMessageID = replaceRemoteID
-	}
-	state.LastSeq = event.Seq
-	state.ReplaceRemoteMessageID = replaceRemoteID
-	state.RemoteMessageID = remoteID
-	return ack, state, ack.ValidateFor(event)
 }
 
 func allowWhatsAppDirectMessage(cfg resolvedInstanceConfig, sender bridgepkg.MessageSender) bool {
@@ -1885,82 +1709,6 @@ func configureWhatsAppBatcher(
 	resolved.batcher = batcher
 }
 
-func isWhatsAppDeleteDelivery(event bridgepkg.DeliveryEvent) bool {
-	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
-		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
-}
-
-func resumeWhatsAppDelivery(
-	event bridgepkg.DeliveryEvent,
-	snapshot *bridgepkg.DeliverySnapshot,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, bool) {
-	if normalizeDeliveryEventType(event.EventType) != bridgepkg.DeliveryEventTypeResume ||
-		snapshot == nil {
-		return bridgepkg.DeliveryAck{}, state, false
-	}
-	remoteMessageID := strings.TrimSpace(snapshot.RemoteMessageID)
-	if remoteMessageID == "" {
-		return bridgepkg.DeliveryAck{}, state, false
-	}
-
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:             event.DeliveryID,
-		Seq:                    event.Seq,
-		RemoteMessageID:        remoteMessageID,
-		ReplaceRemoteMessageID: strings.TrimSpace(snapshot.ReplaceRemoteMessageID),
-	}
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = ack.RemoteMessageID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, true
-}
-
-func sendWhatsAppDeliveryChunks(
-	ctx context.Context,
-	api whatsappAPI,
-	phoneNumberID string,
-	targetUserID string,
-	text string,
-) (string, error) {
-	var remoteID string
-	for _, chunk := range splitMessage(text) {
-		req := whatsappSendMessageRequest{
-			MessagingProduct: providerWhatsappKey,
-			RecipientType:    "individual",
-			To:               targetUserID,
-			Type:             providerTextKey,
-		}
-		req.Text.Body = chunk
-		req.Text.PreviewURL = false
-
-		response, err := api.SendTextMessage(ctx, phoneNumberID, req)
-		if err != nil {
-			return "", err
-		}
-		remoteID, err = lastWhatsAppResponseMessageID(response)
-		if err != nil {
-			return "", err
-		}
-	}
-	return remoteID, nil
-}
-
-func lastWhatsAppResponseMessageID(response *whatsappSendMessageResponse) (string, error) {
-	if response == nil || len(response.Messages) == 0 {
-		return "", &bridgesdk.TransientError{
-			Err: errors.New("whatsapp: send message response omitted a message id"),
-		}
-	}
-	messageID := strings.TrimSpace(response.Messages[len(response.Messages)-1].ID)
-	if messageID == "" {
-		return "", &bridgesdk.TransientError{
-			Err: errors.New("whatsapp: send message response omitted a message id"),
-		}
-	}
-	return messageID, nil
-}
-
 func (c *whatsappGraphClient) GetPhoneNumber(
 	ctx context.Context,
 	phoneNumberID string,
@@ -2145,44 +1893,6 @@ func parseUnixTimestamp(value string) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(seconds, 0).UTC()
-}
-
-func splitMessage(text string) []string {
-	if len(text) <= whatsappMessageLimit {
-		return []string{text}
-	}
-
-	chunks := make([]string, 0, (len(text)/whatsappMessageLimit)+1)
-	remaining := text
-	for len(remaining) > whatsappMessageLimit {
-		breakIndex := whatsappMessageBreakIndex(remaining)
-		chunks = append(chunks, remaining[:breakIndex])
-		remaining = remaining[breakIndex:]
-	}
-	chunks = append(chunks, remaining)
-	return chunks
-}
-
-func whatsappMessageBreakIndex(text string) int {
-	limit := whatsappMessageLimit
-	if len(text) <= limit {
-		return len(text)
-	}
-	safeLimit := limit
-	for safeLimit > 0 && !utf8.RuneStart(text[safeLimit]) {
-		safeLimit--
-	}
-	if safeLimit == 0 {
-		safeLimit = limit
-	}
-	slice := text[:safeLimit]
-	if breakIndex := strings.LastIndex(slice, "\n\n"); breakIndex >= limit/2 {
-		return breakIndex + len("\n\n")
-	}
-	if breakIndex := strings.LastIndex(slice, "\n"); breakIndex >= limit/2 {
-		return breakIndex + len("\n")
-	}
-	return safeLimit
 }
 
 func deliveryStateKey(instanceID string, deliveryID string) string {

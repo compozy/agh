@@ -407,6 +407,192 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	if got, want := resumeAck.RemoteMessageID, "C123:1775866806.100000"; got != want {
 		t.Fatalf("resumeAck.RemoteMessageID = %q, want %q", got, want)
 	}
+
+	t.Run("Should reject malformed successful post responses without advancing state", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name        string
+			content     string
+			postResults []*slackPostedMessage
+		}{
+			{
+				name:        "Should reject a nil post response",
+				content:     "hello",
+				postResults: []*slackPostedMessage{nil},
+			},
+			{
+				name:        "Should reject a blank post timestamp",
+				content:     "hello",
+				postResults: []*slackPostedMessage{{TS: " "}},
+			},
+			{
+				name:    "Should reject a blank continuation timestamp",
+				content: strings.Repeat("continuation ", slackMaxMessageLen),
+				postResults: []*slackPostedMessage{
+					{TS: "1775866807.100000"},
+					{TS: " "},
+				},
+			},
+		}
+		for _, testCase := range cases {
+			testCase := testCase
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				api := &fakeSlackAPI{postResults: testCase.postResults}
+				request := testDeliveryRequest(
+					"brg-slack",
+					"delivery-malformed-post",
+					1,
+					bridgepkg.DeliveryEventTypeFinal,
+					true,
+				)
+				request.Event.Content.Text = testCase.content
+
+				_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+				var transientErr *bridgesdk.TransientError
+				if !errors.As(err, &transientErr) {
+					t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
+				}
+				if gotState != (deliveryState{}) {
+					t.Fatalf("executeDelivery() state = %#v, want unchanged", gotState)
+				}
+			})
+		}
+	})
+
+	t.Run("Should edit the explicitly referenced message without prior state", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{nextTS: "1775866808.100000"}
+		request := testDeliveryRequest(
+			"brg-slack",
+			"delivery-reference-edit",
+			1,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		request.Event.Operation = bridgepkg.DeliveryOperationEdit
+		request.Event.Reference = &bridgepkg.DeliveryMessageReference{
+			RemoteMessageID: "C123:1775866807.100000",
+		}
+		request.Event.Content.Text = "updated"
+
+		ack, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDelivery() error = %v", err)
+		}
+		if got, want := strings.Join(api.methods, ","), "chat.update"; got != want {
+			t.Fatalf("api methods = %q, want %q", got, want)
+		}
+		if got, want := api.updates[0].TS, "1775866807.100000"; got != want {
+			t.Fatalf("updated timestamp = %q, want %q", got, want)
+		}
+		if got, want := ack.RemoteMessageID, request.Event.Reference.RemoteMessageID; got != want {
+			t.Fatalf("ack remote id = %q, want %q", got, want)
+		}
+		if got, want := gotState.RemoteMessageID, ack.RemoteMessageID; got != want {
+			t.Fatalf("state remote id = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep an oversized preview in one message and materialize continuations on final", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{nextTS: "1775866805.100000"}
+		content := strings.Repeat("**bold!** & ", 4_000)
+		startReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+		)
+		startReq.Event.Content.Text = content
+
+		startAck, state, err := executeDelivery(context.Background(), api, startReq, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDelivery(start) error = %v", err)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("PostMessage calls after preview = %d, want %d", got, want)
+		}
+		if got := len([]rune(api.posts[0].Text)); got > slackMaxMessageLen {
+			t.Fatalf("preview wire length = %d, want <= %d", got, slackMaxMessageLen)
+		}
+		if strings.Contains(api.posts[0].Text, "**bold!**") || !strings.Contains(api.posts[0].Text, "&amp;") {
+			t.Fatalf("preview text = %q, want Slack mrkdwn", api.posts[0].Text[:min(len(api.posts[0].Text), 80)])
+		}
+		if !api.posts[0].Mrkdwn {
+			t.Fatal("preview Mrkdwn = false, want true")
+		}
+
+		deltaReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			2,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		deltaReq.Event.Operation = bridgepkg.DeliveryOperationEdit
+		deltaReq.Event.Reference = &bridgepkg.DeliveryMessageReference{
+			RemoteMessageID: startAck.RemoteMessageID,
+		}
+		deltaReq.Event.Content.Text = content
+		_, state, err = executeDelivery(context.Background(), api, deltaReq, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(delta edit) error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls after delta = %d, want %d", got, want)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("PostMessage calls after delta = %d, want preview only (%d)", got, want)
+		}
+
+		finalReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		finalReq.Event.Content.Text = content
+		finalAck, finalState, err := executeDelivery(context.Background(), api, finalReq, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(final) error = %v", err)
+		}
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got := len(api.posts); got < 2 {
+			t.Fatalf("PostMessage calls after final = %d, want preview plus continuation", got)
+		}
+		if got, want := finalAck.RemoteMessageID, finalState.RemoteMessageID; got != want {
+			t.Fatalf("final ACK remote id = %q, want state handle %q", got, want)
+		}
+		if finalAck.RemoteMessageID == startAck.RemoteMessageID {
+			t.Fatalf("final ACK remote id = %q, want last continuation handle", finalAck.RemoteMessageID)
+		}
+		if got, want := api.posts[len(api.posts)-1].ThreadTS, startReq.Event.DeliveryTarget.ThreadID; got != want {
+			t.Fatalf("continuation thread_ts = %q, want %q", got, want)
+		}
+
+		wireBodies := []string{api.updates[len(api.updates)-1].Text}
+		for _, request := range api.posts[1:] {
+			wireBodies = append(wireBodies, request.Text)
+		}
+		for index, body := range wireBodies {
+			if got := len([]rune(body)); got > slackMaxMessageLen {
+				t.Fatalf("final chunk %d wire length = %d, want <= %d", index, got, slackMaxMessageLen)
+			}
+		}
+	})
 }
 
 func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
@@ -1179,12 +1365,16 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	); err != nil {
 		t.Fatalf("hostPeer.Call(start delivery) error = %v", err)
 	}
-	if err := hostPeer.Call(
-		context.Background(),
-		"bridges/deliver",
-		testDeliveryRequest("brg-1", "delivery-1", 2, bridgepkg.DeliveryEventTypeFinal, true),
-		&ack,
-	); err != nil {
+	finalReq := testDeliveryRequest(
+		"brg-1",
+		"delivery-1",
+		2,
+		bridgepkg.DeliveryEventTypeFinal,
+		true,
+	)
+	finalReq.Event.Content.Text = "**Result:** [doc](https://x.y)\n```go\n" +
+		strings.Repeat("fmt.Println(\"hello\")\n", 2_100) + "```"
+	if err := hostPeer.Call(context.Background(), "bridges/deliver", finalReq, &ack); err != nil {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
@@ -1198,8 +1388,8 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	}
 
 	calls := mockAPI.Calls()
-	if got, want := len(calls), 3; got != want {
-		t.Fatalf("len(mockAPI calls) = %d, want %d (auth + post + update)", got, want)
+	if got, want := len(calls), 4; got != want {
+		t.Fatalf("len(mockAPI calls) = %d, want %d (auth + post + update + continuation)", got, want)
 	}
 	if got, want := calls[0].Method, "auth.test"; got != want {
 		t.Fatalf("calls[0].Method = %q, want %q", got, want)
@@ -1209,6 +1399,37 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	}
 	if got, want := calls[2].Method, "chat.update"; got != want {
 		t.Fatalf("calls[2].Method = %q, want %q", got, want)
+	}
+	if got, want := calls[3].Method, "chat.postMessage"; got != want {
+		t.Fatalf("calls[3].Method = %q, want %q", got, want)
+	}
+	if got, want := calls[1].Body["mrkdwn"], true; got != want {
+		t.Fatalf("post mrkdwn = %#v, want %#v", got, want)
+	}
+	if got, want := calls[1].Body["thread_ts"], "1775866805.000000"; got != want {
+		t.Fatalf("post thread_ts = %#v, want %#v", got, want)
+	}
+	if got, want := calls[3].Body["thread_ts"], "1775866805.000000"; got != want {
+		t.Fatalf("continuation thread_ts = %#v, want %#v", got, want)
+	}
+	if got, want := calls[3].Body["mrkdwn"], true; got != want {
+		t.Fatalf("continuation mrkdwn = %#v, want %#v", got, want)
+	}
+	for index, call := range calls[2:] {
+		text, ok := call.Body["text"].(string)
+		if !ok {
+			t.Fatalf("final call %d text = %#v, want string", index, call.Body["text"])
+		}
+		if got := len([]rune(text)); got > slackMaxMessageLen {
+			t.Fatalf("final call %d text length = %d, want <= %d", index, got, slackMaxMessageLen)
+		}
+		if got := strings.Count(text, "```"); got%2 != 0 {
+			t.Fatalf("final call %d fence count = %d, want balanced", index, got)
+		}
+	}
+	firstFinalText, ok := calls[2].Body["text"].(string)
+	if !ok || !strings.Contains(firstFinalText, "*Result:* <https://x.y|doc>") {
+		t.Fatalf("first final text = %#v, want Slack mrkdwn conversion", calls[2].Body["text"])
 	}
 }
 
@@ -2080,24 +2301,40 @@ func TestRunRejectsUnsupportedCommand(t *testing.T) {
 }
 
 type fakeSlackAPI struct {
-	methods []string
-	nextTS  string
+	methods     []string
+	nextTS      string
+	postResults []*slackPostedMessage
+	posts       []slackPostMessageRequest
+	updates     []slackUpdateMessageRequest
 }
 
 func (f fakeSlackAPI) AuthTest(context.Context) (*slackAuthIdentity, error) {
 	return &slackAuthIdentity{UserID: "U_BOT", BotID: "B_BOT"}, nil
 }
 
-func (f *fakeSlackAPI) PostMessage(_ context.Context, _ slackPostMessageRequest) (*slackPostedMessage, error) {
+func (f *fakeSlackAPI) PostMessage(
+	_ context.Context,
+	request slackPostMessageRequest,
+) (*slackPostedMessage, error) {
 	f.methods = append(f.methods, "chat.postMessage")
+	f.posts = append(f.posts, request)
+	callIndex := len(f.posts) - 1
+	if callIndex < len(f.postResults) {
+		return f.postResults[callIndex], nil
+	}
 	if strings.TrimSpace(f.nextTS) == "" {
 		f.nextTS = "1775866805.100000"
 	}
-	return &slackPostedMessage{TS: f.nextTS}, nil
+	timestamp := f.nextTS
+	if len(f.posts) > 1 {
+		timestamp += "-" + strconv.Itoa(len(f.posts))
+	}
+	return &slackPostedMessage{TS: timestamp}, nil
 }
 
-func (f *fakeSlackAPI) UpdateMessage(context.Context, slackUpdateMessageRequest) error {
+func (f *fakeSlackAPI) UpdateMessage(_ context.Context, request slackUpdateMessageRequest) error {
 	f.methods = append(f.methods, "chat.update")
+	f.updates = append(f.updates, request)
 	return nil
 }
 
