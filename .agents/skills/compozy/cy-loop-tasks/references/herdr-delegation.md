@@ -106,13 +106,13 @@ claude --permission-mode auto --model claude-fable-5 "<packet>"
 
 Packet additions for this lane: activate the `qa-report` skill with
 `qa-docs-path=docs/qa`; update journey flows (`docs/qa/journeys/`), scenario
-rows (`docs/qa/state.csv`), and cycle charters (`docs/qa/charters/`);
-register any found bugs in the durable `BUG-NNNN` registry; update the
+files (`docs/qa/scenarios/`), and cycle charters (`docs/qa/charters/`);
+register any found bugs in the content-addressed registry; update the
 provided memory paths; print the exact artifact paths written.
 
 Completion gate — record `--qa-report-done` only when:
 
 - every artifact path the worker reported exists on disk
-- `docs/qa/state.csv` reflects the cycle's scenario rows
+- the affected `docs/qa/scenarios/` files reflect the cycle plan
 - the memory paths were updated
 - HEAD is unchanged (no worker commit)

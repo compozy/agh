@@ -1,6 +1,6 @@
 ---
 name: real-scenario-qa
-description: Runs release-grade AGH QA by selecting a startup playbook, materializing it into an isolated lab, posting one in-persona operator kickoff, observing the AGH runtime under autonomous agent collaboration, and auditing the produced deliverables (TSX pages, scripts, services, runbooks) plus collaboration loops. The QA observer never instructs agents about QA. Delegates planning/execution mechanics to the qa-report + qa-execution pair; findings land in the repo's living docs/qa tree (BUG-NNNN registry, dated reports). Use when validating AGH releases or complex integration features. Do not use for smoke-only checks, static planning, mock-only tests, simple unit-test edits, or architecture brainstorming without execution.
+description: Runs release-grade AGH QA by selecting a startup playbook, materializing it into an isolated lab, posting one in-persona operator kickoff, observing the AGH runtime under autonomous agent collaboration, and auditing the produced deliverables (TSX pages, scripts, services, runbooks) plus collaboration loops. The QA observer never instructs agents about QA. Delegates planning/execution mechanics to the qa-report + qa-execution pair; findings land in the repo's living docs/qa tree (scenario files, content-addressed bugs, dated reports). Use when validating AGH releases or complex integration features. Do not use for smoke-only checks, static planning, mock-only tests, simple unit-test edits, or architecture brainstorming without execution.
 trigger: explicit
 argument-hint: "[playbook-ref]"
 ---
@@ -70,7 +70,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 1. Run the strict auditor against the lab:
    `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
-2. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All bugs go to the repo's global registry `docs/qa/bugs/BUG-NNNN.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/state.csv` rows:
+2. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
    - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
    - **C16** deliverable count short → file a runtime bug (which AGH agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
    - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
@@ -79,7 +79,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 4. If the bug is a playbook authoring mistake (impossible task, missing knowledge file, ambiguous handoff), fix the playbook .md, regenerate the bootstrap, rerun from Step 2.
 5. Re-run the auditor after every fix.
 6. Re-run the broadest verification gate (`make verify` or repository equivalent) after the last code change.
-7. Write the observer report as a dated run report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` using `docs/qa/templates/report.md`, extended with the scenario sections: playbook_compliance counts, collaboration counts, stall diagnosis, cross-surface evidence (CLI/API/Web), the audit verdict, and lab-side evidence indexed by path (journey-log, observation-summary, kickoff jsonl). Update the affected `docs/qa/state.csv` rows.
+7. Write the observer report as a dated run report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` using `docs/qa/templates/report.md`, extended with the scenario sections: playbook_compliance counts, collaboration counts, stall diagnosis, cross-surface evidence (CLI/API/Web), the audit verdict, and lab-side evidence indexed by path (journey-log, observation-summary, kickoff jsonl). Update the affected `docs/qa/scenarios/*.md` verdict fields.
 8. Append the machine-readable QA bootstrap block from `.agents/skills/agh/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the lab.
 
 **Step 7: Tear Down the Lab (MANDATORY)**

@@ -176,8 +176,8 @@ Run only the printed action.
    skill first (e.g. `agh-qa-bootstrap` in AGH) when installed.
 2. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
    (QA-report lane). The worker activates `qa-report` with
-   `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/state.csv`
-   scenario rows, and cycle charters.
+   `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`
+   files, and cycle charters.
 3. Verify the worker evidence (each reported artifact exists, no worker
    commit), then run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
 
@@ -185,7 +185,7 @@ Run only the printed action.
 
 1. Activate `qa-execution` with `qa-docs-path=docs/qa`; it writes the dated
    run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md` and updates
-   `state.csv` verdicts.
+   scenario-file verdicts.
 2. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`,
    adding `--verify-fail` when the report's Final Status is "not ready" or
    any Blocks-Completion/Data-Loss bug is open, else `--verify-pass`.

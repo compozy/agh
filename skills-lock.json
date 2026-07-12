@@ -688,13 +688,13 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/qa-execution/SKILL.md",
-            "computedHash": "db433a542fee92e60c91f8aab75bb6e8b6784b34148f0e232718193c2cdd8f20"
+            "computedHash": "623f211a8f95ce2890bec5432fa25a9b50e8d43b6442daae7ff5417b7b520250"
         },
         "qa-report": {
             "source": "pedronauck/skills",
             "sourceType": "github",
             "skillPath": "skills/mine/qa-report/SKILL.md",
-            "computedHash": "4fe9ad0d0142f082a0dad050910a76499f2a1a0be52d16de4eeb7a1c6bd68feb"
+            "computedHash": "24e0f5ab28d706951e70048bb5a3434966a090e5d0398bad5e0be297f73e2bd1"
         },
         "qmd": {
             "source": "pedronauck/skills",
@@ -944,11 +944,6 @@
             "source": "pedronauck/skills",
             "sourceType": "github",
             "computedHash": "6ed54ac26a2a69e5c8338b010d2bac03f5427daa4453bf7f5e66e061356ce603"
-        },
-        "testing-boss": {
-            "source": "pedronauck/kodebase-go",
-            "sourceType": "github",
-            "computedHash": "860d67709789aae9b98c6a58a97ff4e3ab7f280e4663e7ee656d8c6370a29ea5"
         },
         "testing-boss": {
             "source": "pedronauck/skills",

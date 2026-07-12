@@ -20,7 +20,7 @@ Run before exiting the skill.
 
 - [ ] `qa-report` task body references the `qa-report` skill with `qa-docs-path=docs/qa`.
 - [ ] `qa-execution` task body references `qa-execution` with `qa-docs-path=docs/qa` (and `real-scenario-qa` for release-grade runtime scope).
-- [ ] Neither body references per-round `qa/` trees, `qa-output-path`, `TC-*` test cases, or `verification-report.md` — the living-docs contract is `docs/qa/{state.csv, journeys/, charters/, bugs/BUG-NNNN.md, reports/<date>-<slug>.md}`.
+- [ ] Neither body references per-round `qa/` trees, `qa-output-path`, `TC-*` test cases, or `verification-report.md` — the living-docs contract is `docs/qa/{scenarios/, journeys/, charters/, bugs/BUG-<date>-<slug>.md, reports/<date>-<slug>.md}`; `state.csv` is generated output only.
 
 ## Complexity
 

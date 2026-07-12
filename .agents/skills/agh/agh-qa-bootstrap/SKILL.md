@@ -62,7 +62,7 @@ Bootstrap is infrastructure only. It does not validate AGH behavior, prove live 
 
 **Step 3: Launch Downstream QA with the Manifest**
 
-1. Hand off to the pair with two distinct paths: `qa-report` and `qa-execution` take `qa-docs-path=docs/qa` (the repo's committed living QA tree — state.csv, journeys, charters, bugs registry, dated reports), while `QA_OUTPUT_PATH` stays the lab-side scratch root (journey log, screenshots, observation, kickoff evidence) that reports index by path. Never point the pair's argument at the lab.
+1. Hand off to the pair with two distinct paths: `qa-report` and `qa-execution` take `qa-docs-path=docs/qa` (the repo's committed living QA tree — scenario files, journeys, charters, content-addressed bugs, dated reports), while `QA_OUTPUT_PATH` stays the lab-side scratch root (journey log, screenshots, observation, kickoff evidence) that reports index by path. Never point the pair's argument at the lab.
 2. Downstream QA must execute real operator journeys and live provider-backed agent behavior when reachable. Do not count successful bootstrap, health checks, or generated directories as real-scenario evidence.
 3. When starting provider-backed commands, follow the provider's home policy from the manifest/config:
    - Bound-secret, brokered, or explicitly isolated-home lanes:

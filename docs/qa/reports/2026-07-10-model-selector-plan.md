@@ -36,7 +36,7 @@ Each journey file carries a Mermaid flow (entry → actions → branch points �
 
 ## Coverage matrix — surface → scenario id → charter
 
-Every public CLI/HTTP/UDS/native-tool/web/docs/config surface named in `_spec §11–§12` maps to ≥1 `state.csv` scenario and ≥1 charter.
+Every public CLI/HTTP/UDS/native-tool/web/docs/config surface named in `_spec §11–§12` maps to ≥1 scenario file and ≥1 charter.
 
 | Surface | Entry point | Scenario(s) | Charter |
 |---|---|---|---|
@@ -89,7 +89,7 @@ Dimensions from `qa-report/references/taxonomy.md`: **1 Journeys · 2 Functional
 - [x] Every in-scope journey has ≥1 charter with an assigned canonical persona (J-17→CH-028/034, J-18→CH-029/036, J-19→CH-030, J-20→CH-031, J-21→CH-032/035, J-22→CH-033).
 - [x] Every in-scope scenario row (29) has a stable id, a linked journey, and `qa_status=untested` (planning only — no verdicts assigned).
 - [x] Every charter names persona, journey, scenario ids, exact surfaces/entry points, `evidence_to_capture`, and executable `exit_criteria`, with exactly one canonical tour and a 30/60/90 timebox.
-- [x] Every touched public surface (§11–§12) appears as an `entry_point` on ≥1 row and in the surface→scenario→charter matrix (embedded in the charter set at `charters/_coverage-matrix.md`, summarized above), including CLI list/set/refresh/status, HTTP curated/all + sessions + agent create/read, UDS parity, native list/curate/refresh/status (incl. `agh__provider_models_refresh`/`_status`), config lifecycle, docs pages, and the bundled AGH skill.
+- [x] Every touched public surface (§11–§12) appears as an `entry_point` in ≥1 scenario file and in the surface→scenario→charter matrix above, including CLI list/set/refresh/status, HTTP curated/all + sessions + agent create/read, UDS parity, native list/curate/refresh/status (incl. `agh__provider_models_refresh`/`_status`), config lifecycle, docs pages, and the bundled AGH skill.
 - [x] The five canonical taxonomy dimensions were swept per journey (matrix above); J-18 (wizard / draft / read-back) and J-20 (agent-experiential) now carry their own experiential coverage, leaving one deliberate skip — J-19 cross-device continuity (single-surface onboarding; no cross-device promise) — recorded with reasoning.
 - [x] The adjacent canary journey is named (J-22) and justified with its charter (CH-033).
 - No `TC-*` cases, per-round `qa/` trees, or `verification-report.md` artifacts introduced; no execution evidence or verdict rows fabricated.

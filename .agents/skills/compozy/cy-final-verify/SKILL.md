@@ -118,7 +118,7 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
 2. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
 3. Confirm zero errors, zero warnings, zero test failures in the output.
-4. If both `qa-report` and `qa-execution` skills exist and the project keeps a living QA tracker (e.g. `docs/qa/state.csv`), apply the QA impact flag (see "QA Tracker Impact" below).
+4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact flag (see "QA Tracker Impact" below).
 5. Produce a Verification Report (see template below) with verdict PASS.
 6. Only then run `git commit`.
 
@@ -131,15 +131,15 @@ If the full pipeline has not passed in this session after the last code change, 
 
 ## QA Tracker Impact (living QA docs)
 
-**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps a living QA tracker (e.g. `docs/qa/state.csv`), a completion claim also requires the impact flag — one question, ~1 minute:
+**Only when both `qa-report` and `qa-execution` skills exist.** A green pipeline proves the code works; it does not keep QA verdicts honest. When the project also keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), a completion claim also requires the impact flag — one question, ~1 minute:
 
 > Does this diff change user-visible behavior (UI, CLI verb, API route, config key, user-facing copy)?
 
 - **No** (pure refactor, internal-only): state "no user-visible change" in the completion notes. Done.
-- **New behavior:** add the scenario row(s) to the tracker with status `untested`.
-- **Changed behavior:** reset the affected rows' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
+- **New behavior:** add content-addressed scenario file(s) with `qa_status: untested`.
+- **Changed behavior:** reset the affected files' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
 
-**Flag, don't retest.** Running QA is the QA cycle's job — `untested` rows are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
+**Flag, don't retest.** Running QA is the QA cycle's job — `untested` scenarios are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
 
 ## Spec Contract Parity (PRD/spec workflows)
 

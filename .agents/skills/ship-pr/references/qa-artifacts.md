@@ -21,12 +21,14 @@ The living-docs convention (current, `compozy/agh` and sister repos):
 
 ```
 docs/qa/
-├── state.csv                        # scenario tracker (enum statuses, bug links)
+├── scenarios/<AREA>-<slug>.md       # source-of-truth scenario tracker
 ├── reports/<YYYY-MM-DD>-<scope>.md  # dated run reports (Final Status, matrix, fixes)
-├── bugs/BUG-NNNN.md                 # global bug registry
-├── charters/CH-NNN.md               # session charters (+ per-run debriefs)
+├── bugs/BUG-<YYYYMMDD>-<slug>.md     # global bug registry
+├── charters/CH-<slug>.md             # immutable session charters
 └── evidence/<date>-<scope>/         # checkpoint/failure screenshots
 ```
+
+`state.csv` may exist locally as a gitignored generated view; scenario files are authoritative.
 
 Legacy per-round trees (`.compozy/tasks/<slug>/qa/` with `verification-report.md`, `issues/`, `test-cases/`) may still exist in older branches; the detector falls back to them when no `docs/qa/` is present.
 
@@ -44,7 +46,7 @@ ls "$QA_DIR/bugs" 2>/dev/null | wc -l
 For the PR body, pull these signals — prefer the latest dated report relevant to the branch (match `<scope>` to the branch slug):
 
 - **Final Status** — the report's `## Final Status` verdict line (ready / not ready / ready with blocked items) plus the issues-by-user-impact totals (Blocks-Completion / Data-Loss / Trust-Damage / Friction / Cosmetic).
-- **Bug references** — the `BUG-NNNN` ids filed or updated by this run (from the report's matrix `Issue` column); link the registry files.
+- **Bug references** — the `BUG-<YYYYMMDD>-<slug>` ids filed or updated by this run (from the report's matrix `Issue` column); link the registry files. Grandfathered counter ids remain valid when a report cites them.
 - **Session coverage** — from the report's Session Matrix: which personas walked which journeys/charters.
 - **Screenshot evidence** — pick 2-5 representative PNGs from `docs/qa/evidence/<date>-<scope>/`. Use repo-relative paths so GitHub renders them inline.
 - **Gaps and blocked items** — the report's `Human Verifications Needed` and `Decisions for a Human` sections, plus any disclosed skips.
@@ -79,7 +81,7 @@ For the PR body, pull these signals — prefer the latest dated report relevant 
 
 **Coverage:** 3 personas (Marina/mobile, Rui/casual, Ana/screen-reader) across checkout + settings journeys, Money and Back-Button tours.
 
-**Issues:** 3 (Blocks-Completion: 0, Data-Loss: 0, Trust-Damage: 1, Friction: 2) — BUG-0142 fixed (regression test `web/e2e/checkout-coupon.spec.ts`), BUG-0143/0144 open.
+**Issues:** 3 (Blocks-Completion: 0, Data-Loss: 0, Trust-Damage: 1, Friction: 2) — BUG-20260705-coupon-lost fixed (regression test `web/e2e/checkout-coupon.spec.ts`), two registry bugs open.
 
 **Evidence:**
 - ![money-tour-coupon](docs/qa/evidence/2026-07-05-checkout-v2/CH-031-step4.png)
