@@ -1,6 +1,51 @@
 package bridges
 
-import "errors"
+import (
+	"context"
+	"errors"
+	"fmt"
+)
+
+// LoadDeliveryMetrics hydrates one exact durable scope before health surfaces become available.
+func (b *Broker) LoadDeliveryMetrics(ctx context.Context, query DeliveryLedgerQuery) error {
+	if b == nil {
+		return errors.New("bridges: delivery broker is required")
+	}
+	if ctx == nil {
+		return errors.New("bridges: delivery metrics context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if b.ledgerStore == nil {
+		return errors.New("bridges: delivery ledger store is required")
+	}
+	normalized, err := query.Canonicalize()
+	if err != nil {
+		return err
+	}
+	persisted, err := b.ledgerStore.ListBridgeDeliveryMetrics(ctx, normalized)
+	if err != nil {
+		return fmt.Errorf("bridges: load durable delivery metrics: %w", err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for bridgeInstanceID, entry := range persisted {
+		metrics := b.metricsLocked(bridgeInstanceID)
+		if metrics == nil {
+			continue
+		}
+		metrics.scope = normalized.Scope
+		metrics.workspaceID = normalized.WorkspaceID
+		metrics.droppedByReason = cloneDeliveryDropReasons(entry.DeliveryDroppedByReason)
+		metrics.deliveryFailuresTotal = entry.DeliveryFailuresTotal
+		metrics.lastError = entry.LastError
+		metrics.lastErrorAt = entry.LastErrorAt
+		metrics.lastSuccessAt = entry.LastSuccessAt
+	}
+	return nil
+}
 
 // DeliveryMetrics returns a point-in-time snapshot of all broker telemetry.
 func (b *Broker) DeliveryMetrics() map[string]BridgeDeliveryMetrics {
@@ -75,4 +120,12 @@ func (b *Broker) deliveryMetricsForIDsLocked(ids []string) map[string]BridgeDeli
 		}
 	}
 	return snapshot
+}
+
+func cloneDeliveryDropReasons(reasons map[string]int) map[string]int {
+	cloned := make(map[string]int, len(reasons))
+	for reason, count := range reasons {
+		cloned[reason] = count
+	}
+	return cloned
 }

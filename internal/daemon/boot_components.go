@@ -23,6 +23,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootBundles(ctx, state) },
 		func() error { return d.bootResourceReconcile(ctx, state, cleanup) },
 		func() error { return d.bootExtensions(ctx, state, cleanup) },
+		func() error { return d.bootBridgeDeliveryReconcile(ctx, state) },
 		func() error { return d.bootSettings(ctx, state) },
 		func() error { return d.bootSupportBundles(state) },
 		func() error { return d.bootServers(ctx, state, cleanup) },

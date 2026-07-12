@@ -441,7 +441,7 @@ func TestMapGChatDirectAndPubSubPayloads(t *testing.T) {
 				}
 			}
 		}
-	}`), managed, now)
+	}`), managed, now, nil)
 	if err != nil {
 		t.Fatalf("mapDirectMessageEvent() error = %v", err)
 	}
@@ -506,7 +506,7 @@ func TestMapGChatDirectAndPubSubPayloads(t *testing.T) {
 			Sender:     gchatUser{Name: "users/345", DisplayName: "Carol", Email: "carol@example.com"},
 			Space:      &gchatSpace{Name: "spaces/DM1", Type: "DM"},
 		},
-	}, managed, now)
+	}, managed, now, nil)
 	if err != nil {
 		t.Fatalf("mapPubSubMessageEvent() error = %v", err)
 	}
@@ -553,6 +553,139 @@ func TestMapGChatDirectAndPubSubPayloads(t *testing.T) {
 	}); got != want {
 		t.Fatalf("reaction thread id = %q, want %q", got, want)
 	}
+}
+
+func TestMapGChatReplyContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 12, 17, 0, 0, 0, time.UTC)
+	managed := testBridgeRuntime(t, now, "brg-gchat-replies")
+	managed.Instance.Scope = bridgepkg.ScopeWorkspace
+	managed.Instance.WorkspaceID = "ws-a"
+	parents := bridgesdk.NewParentMessageCache(0)
+
+	t.Run("Should fill quoted reply context from the scoped parent cache", func(t *testing.T) {
+		t.Parallel()
+
+		root, ok, err := mapDirectMessageEvent(mustUnmarshalGChatEvent(t, `{
+			"chat": {
+				"eventTime": "`+now.Format(time.RFC3339Nano)+`",
+				"messagePayload": {
+					"space": {"name": "spaces/AAA", "type": "SPACE"},
+					"message": {
+						"name": "spaces/AAA/messages/root",
+						"text": "original proposal",
+						"createTime": "`+now.Format(time.RFC3339Nano)+`",
+						"sender": {"name": "users/parent", "displayName": "Bob"},
+						"thread": {"name": "spaces/AAA/threads/thread-1"}
+					}
+				}
+			}
+		}`), managed, now, parents)
+		if err != nil || !ok {
+			t.Fatalf("mapDirectMessageEvent(root) = (ok=%v, err=%v), want mapped", ok, err)
+		}
+		if root.Envelope.PlatformMessageID != "spaces/AAA/messages/root" {
+			t.Fatalf("root PlatformMessageID = %q, want cached message id", root.Envelope.PlatformMessageID)
+		}
+		parents.RememberEnvelope(root.Envelope)
+
+		replyEvent := mustUnmarshalGChatEvent(t, `{
+			"chat": {
+				"eventTime": "`+now.Add(time.Minute).Format(time.RFC3339Nano)+`",
+				"messagePayload": {
+					"space": {"name": "spaces/AAA", "type": "SPACE"},
+					"message": {
+						"name": "spaces/AAA/messages/reply",
+						"text": "I agree",
+						"createTime": "`+now.Add(time.Minute).Format(time.RFC3339Nano)+`",
+						"sender": {"name": "users/reply", "displayName": "Alice"},
+						"thread": {"name": "spaces/AAA/threads/thread-1"},
+						"quotedMessageMetadata": {
+							"name": "spaces/AAA/messages/root",
+							"quoteType": "REPLY"
+						}
+					}
+				}
+			}
+		}`)
+		reply, ok, err := mapDirectMessageEvent(replyEvent, managed, now.Add(time.Minute), parents)
+		if err != nil || !ok {
+			t.Fatalf("mapDirectMessageEvent(reply) = (ok=%v, err=%v), want mapped", ok, err)
+		}
+		if reply.Envelope.ReplyToText != "original proposal" ||
+			reply.Envelope.ReplyToAuthorID != "users/parent" ||
+			reply.Envelope.ReplyToAuthorName != "Bob" {
+			t.Fatalf(
+				"reply context = (%q, %q, %q), want cached parent",
+				reply.Envelope.ReplyToText,
+				reply.Envelope.ReplyToAuthorID,
+				reply.Envelope.ReplyToAuthorName,
+			)
+		}
+		if shouldBatchGChatMessage(replyEvent.Chat.MessagePayload.Message) {
+			t.Fatal("shouldBatchGChatMessage(quoted reply) = true, want false")
+		}
+
+		inlineEvent := mustUnmarshalGChatEvent(t, `{
+			"chat": {
+				"eventTime": "`+now.Add(2*time.Minute).Format(time.RFC3339Nano)+`",
+				"messagePayload": {
+					"space": {"name": "spaces/AAA", "type": "SPACE"},
+					"message": {
+						"name": "spaces/AAA/messages/inline-reply",
+						"text": "I agree from a cold process",
+						"createTime": "`+now.Add(2*time.Minute).Format(time.RFC3339Nano)+`",
+						"sender": {"name": "users/reply", "displayName": "Alice"},
+						"thread": {"name": "spaces/AAA/threads/thread-1"},
+						"quotedMessageMetadata": {
+							"name": "spaces/AAA/messages/root",
+							"quoteType": "REPLY",
+							"quotedMessageSnapshot": {
+								"name": "spaces/AAA/messages/root",
+								"text": "provider snapshot proposal",
+								"sender": "users/parent"
+							}
+						}
+					}
+				}
+			}
+		}`)
+		inline, ok, err := mapDirectMessageEvent(
+			inlineEvent,
+			managed,
+			now.Add(2*time.Minute),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil || !ok {
+			t.Fatalf("mapDirectMessageEvent(inline reply) = (ok=%v, err=%v), want mapped", ok, err)
+		}
+		if inline.Envelope.ReplyToText != "provider snapshot proposal" ||
+			inline.Envelope.ReplyToAuthorID != "users/parent" ||
+			inline.Envelope.ReplyToAuthorName != "" {
+			t.Fatalf(
+				"inline reply context = (%q, %q, %q), want provider snapshot without display name",
+				inline.Envelope.ReplyToText,
+				inline.Envelope.ReplyToAuthorID,
+				inline.Envelope.ReplyToAuthorName,
+			)
+		}
+
+		cold, ok, err := mapDirectMessageEvent(
+			replyEvent,
+			managed,
+			now.Add(time.Minute),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil || !ok {
+			t.Fatalf("mapDirectMessageEvent(cold reply) = (ok=%v, err=%v), want mapped", ok, err)
+		}
+		if cold.Envelope.ReplyToText != "" ||
+			cold.Envelope.ReplyToAuthorID != "" ||
+			cold.Envelope.ReplyToAuthorName != "" {
+			t.Fatalf("cold reply context = %#v, want empty cache-miss fields", cold.Envelope)
+		}
+	})
 }
 
 func TestAllowGChatDirectMessagePoliciesAndModeValidation(t *testing.T) {

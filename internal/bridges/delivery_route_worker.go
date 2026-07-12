@@ -112,7 +112,9 @@ func (b *Broker) processQueueItem(route *routeWorker, item deliveryQueueItem) bo
 		return true
 	}
 
-	b.handleSendSuccess(route, deliveryID, eventType, eventSeq, ack)
+	if err := b.handleSendSuccess(route, deliveryID, eventType, eventSeq, ack); err != nil {
+		return false
+	}
 	return false
 }
 
@@ -279,49 +281,6 @@ func (b *Broker) handleSendFailure(route *routeWorker, deliveryID string, reason
 			return
 		}
 		b.recordDeliveryIssueLocked(delivery.bridgeInstanceID, reason.Error())
-	}
-}
-
-func (b *Broker) handleSendSuccess(
-	route *routeWorker,
-	deliveryID string,
-	eventType DeliveryEventType,
-	eventSeq int64,
-	ack DeliveryAck,
-) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	delivery := b.deliveries[deliveryID]
-	if delivery == nil {
-		return
-	}
-
-	if eventSeq > delivery.lastSentSeq {
-		delivery.lastSentSeq = eventSeq
-	}
-	if eventSeq > delivery.lastAckedSeq {
-		delivery.lastAckedSeq = eventSeq
-	}
-	normalizedEventType := normalizeDeliveryEventType(eventType)
-	if normalizedEventType != DeliveryEventTypeProgress {
-		if ack.RemoteMessageID != "" {
-			delivery.remoteMessageID = strings.TrimSpace(ack.RemoteMessageID)
-		}
-		if ack.ReplaceRemoteMessageID != "" {
-			delivery.replaceRemoteMessageID = strings.TrimSpace(ack.ReplaceRemoteMessageID)
-		}
-	}
-	if normalizedEventType == DeliveryEventTypeStart || normalizedEventType == DeliveryEventTypeResume {
-		if delivery.latestSeq > 0 && delivery.latestEventType != DeliveryEventTypeError {
-			delivery.startDelivered = true
-		}
-	}
-	delivery.updatedAt = b.now()
-	b.recordDeliverySuccessLocked(delivery.bridgeInstanceID, delivery.updatedAt)
-
-	if delivery.final && !delivery.hasQueuedItems() {
-		b.removeDeliveryLocked(route, delivery)
 	}
 }
 

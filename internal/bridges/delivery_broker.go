@@ -6,24 +6,28 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 // NewBroker constructs a delivery broker with bounded per-route queues and
 // background workers for negotiated extension delivery.
 func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broker {
 	broker := &Broker{
-		transport:      transport,
-		now:            func() time.Time { return time.Now().UTC() },
-		queueCapacity:  defaultDeliveryQueueCapacity,
-		retryDelay:     defaultDeliveryRetryDelay,
-		requestTimeout: defaultDeliveryRequestTimeout,
-		lifecycleCtx:   context.Background(),
-		deliveries:     make(map[string]*activeDelivery),
-		turnIndex:      make(map[turnIndexKey]string),
-		sessionIndex:   make(map[string]map[string]struct{}),
-		routes:         make(map[string]*routeWorker),
-		bridgeRoutes:   make(map[string]map[string]*routeWorker),
-		metrics:        make(map[string]*instanceDeliveryMetrics),
+		transport:          transport,
+		now:                func() time.Time { return time.Now().UTC() },
+		queueCapacity:      defaultDeliveryQueueCapacity,
+		retryDelay:         defaultDeliveryRetryDelay,
+		requestTimeout:     defaultDeliveryRequestTimeout,
+		lifecycleCtx:       context.Background(),
+		deliveries:         make(map[string]*activeDelivery),
+		turnIndex:          make(map[turnIndexKey]string),
+		sessionIndex:       make(map[string]map[string]struct{}),
+		routes:             make(map[string]*routeWorker),
+		bridgeRoutes:       make(map[string]map[string]*routeWorker),
+		metrics:            make(map[string]*instanceDeliveryMetrics),
+		metricWakeCh:       make(chan struct{}, 1),
+		registrationsReady: true,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -47,6 +51,10 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 		baseCtx = context.Background()
 	}
 	broker.lifecycleCtx, broker.cancel = context.WithCancel(baseCtx)
+	if broker.ledgerStore != nil {
+		broker.wg.Add(1)
+		go broker.runDeliveryMetricPersistence()
+	}
 	return broker
 }
 
@@ -76,6 +84,13 @@ func (b *Broker) Close() {
 		b.cancel()
 	}
 	b.wg.Wait()
+	if b.ledgerStore != nil {
+		flushCtx, cancel := context.WithTimeout(context.Background(), b.requestTimeout)
+		if err := b.flushDirtyDeliveryMetrics(flushCtx, false); err != nil {
+			b.setDeliveryMetricPersistenceError(err)
+		}
+		cancel()
+	}
 }
 
 // RegisterPromptDelivery binds one prompted session turn to a live delivery
@@ -93,6 +108,8 @@ func (b *Broker) RegisterPromptDelivery(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	b.registrationMu.Lock()
+	defer b.registrationMu.Unlock()
 
 	normalized := reg.normalize()
 	if err := normalized.Validate(); err != nil {
@@ -105,14 +122,17 @@ func (b *Broker) RegisterPromptDelivery(
 	}
 
 	b.mu.Lock()
-	deliveryKey := newTurnIndexKey(normalized.SessionID, normalized.TurnID)
-	if existingID, ok := b.turnIndex[deliveryKey]; ok {
-		existing := b.deliveries[existingID]
+	if !b.registrationsReady {
 		b.mu.Unlock()
-		if existing == nil {
-			return nil, ErrDeliveryNotFound
+		return nil, ErrDeliveryReconciliationPending
+	}
+	deliveryKey := newTurnIndexKey(normalized.SessionID, normalized.TurnID)
+	if snapshot, found, lookupErr := b.registeredDeliveryLocked(deliveryKey); found || lookupErr != nil {
+		b.mu.Unlock()
+		if lookupErr != nil {
+			return nil, lookupErr
 		}
-		return b.Snapshot(ctx, existingID)
+		return &snapshot, nil
 	}
 
 	deliveryID, err := b.reserveDeliveryIDLocked(normalized.DeliveryID)
@@ -120,33 +140,75 @@ func (b *Broker) RegisterPromptDelivery(
 		b.mu.Unlock()
 		return nil, err
 	}
-	delivery := newActiveDelivery(deliveryID, routeHash, normalized, b.now())
-	b.deliveries[deliveryID] = delivery
-	b.turnIndex[deliveryKey] = deliveryID
-	if _, ok := b.sessionIndex[normalized.SessionID]; !ok {
-		b.sessionIndex[normalized.SessionID] = make(map[string]struct{})
-	}
-	b.sessionIndex[normalized.SessionID][deliveryID] = struct{}{}
-	route := b.ensureRouteLocked(routeHash, normalized.RoutingKey.BridgeInstanceID, normalized.ExtensionName)
-	var routeToSignal *routeWorker
-	for _, event := range normalized.SeedEvents {
-		seedRoute, err := b.projectDeliveryEventLocked(delivery, event)
-		if err != nil {
-			b.removeDeliveryLocked(route, delivery)
-			b.mu.Unlock()
-			return nil, err
-		}
-		if seedRoute != nil {
-			routeToSignal = seedRoute
-		}
-	}
-	snapshot := cloneDeliverySnapshot(b.snapshotLocked(delivery))
+	createdAt := b.now()
+	delivery := newActiveDelivery(deliveryID, routeHash, normalized, createdAt)
 	b.mu.Unlock()
+
+	if err := b.createDeliveryLedgerRecord(ctx, delivery, createdAt); err != nil {
+		return nil, err
+	}
+
+	b.mu.Lock()
+	snapshot, routeToSignal, publishErr := b.publishPromptDeliveryLocked(
+		delivery,
+		deliveryKey,
+		routeHash,
+		normalized,
+	)
+	b.mu.Unlock()
+	if publishErr != nil {
+		if checkpointErr := b.checkpointInvalidRegistration(ctx, delivery, publishErr); checkpointErr != nil {
+			return nil, errors.Join(publishErr, checkpointErr)
+		}
+		return nil, publishErr
+	}
 
 	if routeToSignal != nil {
 		b.signalRoute(routeToSignal)
 	}
 	return &snapshot, nil
+}
+
+func (b *Broker) publishPromptDeliveryLocked(
+	delivery *activeDelivery,
+	deliveryKey turnIndexKey,
+	routeHash string,
+	registration PromptDeliveryRegistration,
+) (DeliverySnapshot, *routeWorker, error) {
+	b.deliveries[delivery.deliveryID] = delivery
+	b.bindDeliveryMetricIdentityLocked(delivery)
+	b.turnIndex[deliveryKey] = delivery.deliveryID
+	if _, ok := b.sessionIndex[registration.SessionID]; !ok {
+		b.sessionIndex[registration.SessionID] = make(map[string]struct{})
+	}
+	b.sessionIndex[registration.SessionID][delivery.deliveryID] = struct{}{}
+	route := b.ensureRouteLocked(routeHash, registration.RoutingKey.BridgeInstanceID, registration.ExtensionName)
+	var routeToSignal *routeWorker
+	for _, event := range registration.SeedEvents {
+		seedRoute, err := b.projectDeliveryEventLocked(delivery, event)
+		if err != nil {
+			b.removeDeliveryLocked(route, delivery)
+			return DeliverySnapshot{}, nil, err
+		}
+		if seedRoute != nil {
+			routeToSignal = seedRoute
+		}
+	}
+	return cloneDeliverySnapshot(b.snapshotLocked(delivery)), routeToSignal, nil
+}
+
+func (b *Broker) registeredDeliveryLocked(
+	deliveryKey turnIndexKey,
+) (DeliverySnapshot, bool, error) {
+	existingID, found := b.turnIndex[deliveryKey]
+	if !found {
+		return DeliverySnapshot{}, false, nil
+	}
+	existing := b.deliveries[existingID]
+	if existing == nil {
+		return DeliverySnapshot{}, true, ErrDeliveryNotFound
+	}
+	return cloneDeliverySnapshot(b.snapshotLocked(existing)), true, nil
 }
 
 func (b *Broker) reserveDeliveryIDLocked(requestedID string) (string, error) {
@@ -308,8 +370,9 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		reason = "session stopped before delivery completed"
+		reason = sessionStoppedDeliveryMessage
 	}
+	reason = redactpkg.String(reason)
 
 	type pendingSignal struct {
 		route *routeWorker
@@ -331,7 +394,7 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 			DeliveryTarget:   delivery.target,
 			Seq:              delivery.latestSeq + 1,
 			EventType:        DeliveryEventTypeError,
-			Content:          delivery.currentContent,
+			Content:          terminalFailureContent(delivery.currentContent, reason),
 			Final:            true,
 			Operation:        delivery.operation,
 			Reference:        cloneDeliveryReference(delivery.reference),

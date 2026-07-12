@@ -256,6 +256,36 @@ type AutomationWatchEvent struct {
 	RetryJson   string         `json:"retry_json"`
 }
 
+type BridgeDelivery struct {
+	DeliveryID       string         `json:"delivery_id"`
+	SessionID        string         `json:"session_id"`
+	TurnID           string         `json:"turn_id"`
+	RoutingKey       string         `json:"routing_key"`
+	BridgeInstanceID string         `json:"bridge_instance_id"`
+	Scope            string         `json:"scope"`
+	WorkspaceID      sql.NullString `json:"workspace_id"`
+	State            string         `json:"state"`
+	LastSentSeq      int64          `json:"last_sent_seq"`
+	LastAckedSeq     int64          `json:"last_acked_seq"`
+	RemoteMessageID  sql.NullString `json:"remote_message_id"`
+	TerminalError    sql.NullString `json:"terminal_error"`
+	CreatedAt        string         `json:"created_at"`
+	UpdatedAt        string         `json:"updated_at"`
+}
+
+type BridgeDeliveryMetric struct {
+	BridgeInstanceID            string         `json:"bridge_instance_id"`
+	Scope                       string         `json:"scope"`
+	WorkspaceID                 sql.NullString `json:"workspace_id"`
+	DeliveryDroppedTotal        int64          `json:"delivery_dropped_total"`
+	DeliveryDroppedByReasonJson string         `json:"delivery_dropped_by_reason_json"`
+	DeliveryFailuresTotal       int64          `json:"delivery_failures_total"`
+	LastError                   sql.NullString `json:"last_error"`
+	LastErrorAt                 sql.NullString `json:"last_error_at"`
+	LastSuccessAt               sql.NullString `json:"last_success_at"`
+	UpdatedAt                   string         `json:"updated_at"`
+}
+
 type BridgeIngestDedup struct {
 	IdempotencyKey   string `json:"idempotency_key"`
 	BridgeInstanceID string `json:"bridge_instance_id"`

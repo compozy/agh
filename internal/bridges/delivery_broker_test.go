@@ -25,6 +25,204 @@ type fakeDeliveryTransport struct {
 	handler func(context.Context, string, DeliveryRequest) (DeliveryAck, error)
 }
 
+type recordingDeliveryLedgerStore struct {
+	mu                 sync.Mutex
+	records            map[string]DeliveryLedgerRecord
+	metrics            map[string]BridgeDeliveryMetrics
+	creates            []DeliveryLedgerRecord
+	checkpoints        []DeliveryLedgerCheckpoint
+	checkpointFailures int
+	checkpointAttempts int
+	metricPuts         int
+	updates            chan struct{}
+}
+
+var _ DeliveryLedgerStore = (*recordingDeliveryLedgerStore)(nil)
+
+func newRecordingDeliveryLedgerStore() *recordingDeliveryLedgerStore {
+	return &recordingDeliveryLedgerStore{
+		records: make(map[string]DeliveryLedgerRecord),
+		metrics: make(map[string]BridgeDeliveryMetrics),
+		updates: make(chan struct{}, 1),
+	}
+}
+
+func (s *recordingDeliveryLedgerStore) CreateBridgeDelivery(
+	_ context.Context,
+	record DeliveryLedgerRecord,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.records[record.DeliveryID]; exists {
+		return ErrDeliveryLedgerConflict
+	}
+	s.records[record.DeliveryID] = record
+	s.creates = append(s.creates, record)
+	s.signalLocked()
+	return nil
+}
+
+func (s *recordingDeliveryLedgerStore) CheckpointBridgeDelivery(
+	_ context.Context,
+	checkpoint DeliveryLedgerCheckpoint,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checkpointAttempts++
+	if s.checkpointFailures > 0 {
+		s.checkpointFailures--
+		s.signalLocked()
+		return errors.New("temporary delivery ledger failure")
+	}
+	record, exists := s.records[checkpoint.DeliveryID]
+	if !exists {
+		return ErrDeliveryLedgerNotFound
+	}
+	record.State = checkpoint.State
+	record.LastSentSeq = checkpoint.LastSentSeq
+	record.LastAckedSeq = checkpoint.LastAckedSeq
+	if checkpoint.RemoteMessageID != "" {
+		record.RemoteMessageID = checkpoint.RemoteMessageID
+	}
+	record.TerminalError = checkpoint.TerminalError
+	record.UpdatedAt = checkpoint.UpdatedAt
+	s.records[checkpoint.DeliveryID] = record
+	s.checkpoints = append(s.checkpoints, checkpoint)
+	if checkpoint.Metrics != nil {
+		s.metrics[checkpoint.Metrics.BridgeInstanceID] = checkpoint.Metrics.BridgeDeliveryMetrics
+	}
+	s.signalLocked()
+	return nil
+}
+
+func (s *recordingDeliveryLedgerStore) ListBridgeDeliveries(
+	_ context.Context,
+	query DeliveryLedgerQuery,
+) ([]DeliveryLedgerRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records := make([]DeliveryLedgerRecord, 0, len(s.records))
+	for _, record := range s.records {
+		if record.Scope != query.Scope || record.WorkspaceID != query.WorkspaceID {
+			continue
+		}
+		if query.BridgeInstanceID != "" && record.BridgeInstanceID != query.BridgeInstanceID {
+			continue
+		}
+		if query.State != "" && record.State != query.State {
+			continue
+		}
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+func (s *recordingDeliveryLedgerStore) ListBridgeDeliveryMetrics(
+	_ context.Context,
+	query DeliveryLedgerQuery,
+) (map[string]BridgeDeliveryMetrics, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	metrics := make(map[string]BridgeDeliveryMetrics)
+	for bridgeInstanceID, entry := range s.metrics {
+		if query.BridgeInstanceID != "" && bridgeInstanceID != query.BridgeInstanceID {
+			continue
+		}
+		metrics[bridgeInstanceID] = entry
+	}
+	return metrics, nil
+}
+
+func (s *recordingDeliveryLedgerStore) PutBridgeDeliveryMetrics(
+	_ context.Context,
+	record DeliveryMetricRecord,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.metricPuts++
+	s.metrics[record.BridgeInstanceID] = record.BridgeDeliveryMetrics
+	s.signalLocked()
+	return nil
+}
+
+func (s *recordingDeliveryLedgerStore) metricPutCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.metricPuts
+}
+
+func waitForMetricPuts(t *testing.T, store *recordingDeliveryLedgerStore, want int) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for store.metricPutCount() < want {
+		select {
+		case <-store.updates:
+		case <-timer.C:
+			t.Fatalf("metric put count = %d, want at least %d", store.metricPutCount(), want)
+		}
+	}
+}
+
+func (s *recordingDeliveryLedgerStore) snapshot() (
+	[]DeliveryLedgerRecord,
+	[]DeliveryLedgerCheckpoint,
+	map[string]BridgeDeliveryMetrics,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records := append([]DeliveryLedgerRecord(nil), s.creates...)
+	checkpoints := append([]DeliveryLedgerCheckpoint(nil), s.checkpoints...)
+	metrics := make(map[string]BridgeDeliveryMetrics, len(s.metrics))
+	for id, entry := range s.metrics {
+		metrics[id] = entry
+	}
+	return records, checkpoints, metrics
+}
+
+func (s *recordingDeliveryLedgerStore) record(deliveryID string) (DeliveryLedgerRecord, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.records[deliveryID]
+	return record, ok
+}
+
+func (s *recordingDeliveryLedgerStore) checkpointAttemptCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.checkpointAttempts
+}
+
+func (s *recordingDeliveryLedgerStore) checkpointCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.checkpoints)
+}
+
+func (s *recordingDeliveryLedgerStore) signalLocked() {
+	select {
+	case s.updates <- struct{}{}:
+	default:
+	}
+}
+
+func waitForLedgerCheckpoints(t *testing.T, store *recordingDeliveryLedgerStore, want int) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for {
+		checkpointCount := store.checkpointCount()
+		if checkpointCount >= want {
+			return
+		}
+		select {
+		case <-store.updates:
+		case <-timer.C:
+			t.Fatalf("ledger checkpoint count = %d, want at least %d", checkpointCount, want)
+		}
+	}
+}
+
 var _ DeliveryTransport = (*fakeDeliveryTransport)(nil)
 
 func (f *fakeDeliveryTransport) DeliverBridge(
@@ -616,6 +814,400 @@ func TestBrokerSnapshotCapturesActiveDeliveryAfterFailure(t *testing.T) {
 	if got, want := snapshot.RemoteMessageID, "remote-1"; got != want {
 		t.Fatalf("snapshot.RemoteMessageID = %q, want %q", got, want)
 	}
+}
+
+func TestBrokerDurableCheckpointsAvoidDeltaWriteAmplification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should checkpoint start and terminal while skipping every delta", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 15, 0, 0, 0, time.UTC)
+		store := newRecordingDeliveryLedgerStore()
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: fmt.Sprintf("remote-anchor-%d", req.Event.Seq),
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(broker.Close)
+
+		registration := PromptDeliveryRegistration{
+			SessionID:     "sess-durable",
+			TurnID:        "turn-durable",
+			ExtensionName: "ext-telegram",
+			DeliveryID:    "delivery-durable",
+			RoutingKey:    testRoutingKey("brg-durable", "peer-durable"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-durable",
+				PeerID:           "peer-durable",
+				Mode:             DeliveryModeReply,
+			},
+		}
+		registered := mustRegisterTestDelivery(t, broker, registration)
+		creates, checkpoints, initialMetrics := store.snapshot()
+		if got, want := len(creates), 1; got != want {
+			t.Fatalf("CreateBridgeDelivery calls = %d, want %d", got, want)
+		}
+		if got := len(checkpoints); got != 0 {
+			t.Fatalf("CheckpointBridgeDelivery calls after registration = %d, want 0", got)
+		}
+		if len(initialMetrics) != 0 {
+			t.Fatalf("durable metrics after registration = %#v, want none before acknowledgement", initialMetrics)
+		}
+		if got, want := creates[0].State, DeliveryLedgerStateActive; got != want {
+			t.Fatalf("registered ledger state = %q, want %q", got, want)
+		}
+		if got, want := creates[0].Scope, ScopeWorkspace; got != want {
+			t.Fatalf("registered ledger scope = %q, want %q", got, want)
+		}
+		if got, want := creates[0].WorkspaceID, "ws-1"; got != want {
+			t.Fatalf("registered ledger workspace = %q, want %q", got, want)
+		}
+
+		ctx := testutil.Context(t)
+		if err := broker.Deliver(ctx, testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 1)
+
+		for seq := int64(2); seq <= 101; seq++ {
+			if err := broker.Deliver(ctx, testDeliveryEvent(
+				registered.DeliveryID,
+				registered.BridgeInstanceID,
+				registered.RoutingKey,
+				registered.DeliveryTarget,
+				seq,
+				DeliveryEventTypeDelta,
+				fmt.Sprintf("answer %d", seq),
+				false,
+			)); err != nil {
+				t.Fatalf("Deliver(delta %d) error = %v", seq, err)
+			}
+		}
+		if err := broker.Deliver(ctx, testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			102,
+			DeliveryEventTypeFinal,
+			"answer complete",
+			true,
+		)); err != nil {
+			t.Fatalf("Deliver(final) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 2)
+
+		createsAfter, checkpoints, metricsAfter := store.snapshot()
+		if got, want := len(createsAfter), 1; got != want {
+			t.Fatalf("durable create count after delivery = %d, want %d", got, want)
+		}
+		if _, ok := metricsAfter[registered.BridgeInstanceID]; !ok {
+			t.Fatalf("durable metrics after delivery = %#v, want bridge instance entry", metricsAfter)
+		}
+		if got, want := len(checkpoints), 2; got != want {
+			t.Fatalf("durable checkpoint count = %d, want %d (start + terminal only)", got, want)
+		}
+		if got, want := checkpoints[0].LastAckedSeq, int64(1); got != want {
+			t.Fatalf("start checkpoint last acked seq = %d, want %d", got, want)
+		}
+		if got, want := checkpoints[0].RemoteMessageID, "remote-anchor-1"; got != want {
+			t.Fatalf("start checkpoint remote message id = %q, want %q", got, want)
+		}
+		terminal := checkpoints[1]
+		if got, want := terminal.State, DeliveryLedgerStateTerminalOK; got != want {
+			t.Fatalf("terminal checkpoint state = %q, want %q", got, want)
+		}
+		if got, want := terminal.LastAckedSeq, int64(102); got != want {
+			t.Fatalf("terminal checkpoint last acked seq = %d, want %d", got, want)
+		}
+		if got, want := terminal.RemoteMessageID, "remote-anchor-102"; got != want {
+			t.Fatalf("terminal checkpoint remote message id = %q, want %q", got, want)
+		}
+		persisted, ok := store.record(registered.DeliveryID)
+		if !ok {
+			t.Fatal("durable delivery record missing after terminal checkpoint")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalOK; got != want {
+			t.Fatalf("persisted terminal state = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rehydrate terminal failure counters", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 16, 0, 0, 0, time.UTC)
+		store := newRecordingDeliveryLedgerStore()
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: "remote-metrics-1",
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(broker.Close)
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-durable-metrics",
+			TurnID:        "turn-durable-metrics",
+			ExtensionName: "ext-slack",
+			DeliveryID:    "delivery-durable-metrics",
+			RoutingKey:    testRoutingKey("brg-durable-metrics", "peer-durable-metrics"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-durable-metrics",
+				PeerID:           "peer-durable-metrics",
+				Mode:             DeliveryModeReply,
+			},
+		})
+
+		ctx := testutil.Context(t)
+		if err := broker.Deliver(ctx, testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"partial answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 1)
+		errorEvent := testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			2,
+			DeliveryEventTypeError,
+			"partial answer",
+			true,
+		)
+		errorEvent.Error = &DeliveryErrorDetail{Message: "provider failed api_key=sk-durable-secret"}
+		if err := broker.Deliver(ctx, errorEvent); err != nil {
+			t.Fatalf("Deliver(error) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 2)
+
+		restarted := NewBroker(nil, WithDeliveryLedgerStore(store))
+		t.Cleanup(restarted.Close)
+		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+		}); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+		metrics := restarted.DeliveryMetrics()[registered.BridgeInstanceID]
+		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("rehydrated DeliveryFailuresTotal = %d, want %d", got, want)
+		}
+		if got := metrics.LastError; strings.Contains(got, "sk-durable-secret") ||
+			!strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("rehydrated LastError = %q, want redacted durable error", got)
+		}
+		if got, want := metrics.LastErrorAt, now; !got.Equal(want) {
+			t.Fatalf("rehydrated LastErrorAt = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should flush a progress delivery drop before another material acknowledgement", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 16, 30, 0, 0, time.UTC)
+		store := newRecordingDeliveryLedgerStore()
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				if req.Event.EventType == DeliveryEventTypeProgress {
+					return DeliveryAck{}, errors.New("progress provider unavailable")
+				}
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: "remote-drop-flush",
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+			WithDeliveryBrokerRetryDelay(time.Millisecond),
+		)
+		t.Cleanup(broker.Close)
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-durable-drop",
+			TurnID:        "turn-durable-drop",
+			ExtensionName: "ext-slack",
+			DeliveryID:    "delivery-durable-drop",
+			RoutingKey:    testRoutingKey("brg-durable-drop", "peer-progress-queue"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-durable-drop",
+				PeerID:           "peer-progress-queue",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		ctx := testutil.Context(t)
+		if err := broker.Deliver(ctx, testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"partial answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 1)
+		if err := broker.Deliver(ctx, testProgressDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			"call-drop",
+			"agh__terminal",
+			ToolProgressPhaseStarted,
+			2,
+			1,
+			"working",
+		)); err != nil {
+			t.Fatalf("Deliver(progress) error = %v", err)
+		}
+		waitForMetricPuts(t, store, 1)
+
+		restarted := NewBroker(nil, WithDeliveryLedgerStore(store))
+		t.Cleanup(restarted.Close)
+		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+		}); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+		metrics := restarted.DeliveryMetrics()[registered.BridgeInstanceID]
+		if got, want := metrics.DeliveryDroppedTotal, 1; got != want {
+			t.Fatalf("rehydrated DeliveryDroppedTotal = %d, want %d", got, want)
+		}
+		if got, want := metrics.DeliveryDroppedByReason["progress_delivery_failed"], 1; got != want {
+			t.Fatalf("rehydrated progress_delivery_failed = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestBrokerDurableCheckpointRetryDoesNotRedeliverRemoteEvent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry only the store checkpoint after a remote acknowledgement", func(t *testing.T) {
+		t.Parallel()
+
+		store := newRecordingDeliveryLedgerStore()
+		store.checkpointFailures = 2
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: "remote-once",
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRetryDelay(time.Millisecond),
+		)
+		t.Cleanup(broker.Close)
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-checkpoint-retry",
+			TurnID:        "turn-checkpoint-retry",
+			ExtensionName: "ext-slack",
+			RoutingKey:    testRoutingKey("brg-checkpoint-retry", "peer-checkpoint-retry"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-checkpoint-retry",
+				PeerID:           "peer-checkpoint-retry",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		if err := broker.Deliver(testutil.Context(t), testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		waitForLedgerCheckpoints(t, store, 1)
+
+		if got, want := store.checkpointAttemptCount(), 3; got != want {
+			t.Fatalf("checkpoint attempts = %d, want %d", got, want)
+		}
+		if got, want := len(transport.snapshotCalls()), 1; got != want {
+			t.Fatalf("remote delivery calls = %d, want %d despite checkpoint retries", got, want)
+		}
+	})
+}
+
+func TestBrokerRegistrationGateRejectsBeforeReconciliation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject registration until reconciliation opens admission", func(t *testing.T) {
+		t.Parallel()
+
+		broker := NewBroker(nil, WithDeliveryBrokerRegistrationGate())
+		t.Cleanup(broker.Close)
+		registration := PromptDeliveryRegistration{
+			SessionID:     "sess-gated",
+			TurnID:        "turn-gated",
+			ExtensionName: "ext-slack",
+			RoutingKey:    testRoutingKey("brg-gated", "peer-gated"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-gated",
+				PeerID:           "peer-gated",
+				Mode:             DeliveryModeReply,
+			},
+		}
+		if _, err := broker.RegisterPromptDelivery(testutil.Context(t), registration); !errors.Is(
+			err,
+			ErrDeliveryReconciliationPending,
+		) {
+			t.Fatalf("RegisterPromptDelivery(before reconcile) error = %v, want pending reconciliation", err)
+		}
+		broker.CompleteDeliveryReconciliation()
+		if _, err := broker.RegisterPromptDelivery(testutil.Context(t), registration); err != nil {
+			t.Fatalf("RegisterPromptDelivery(after reconcile) error = %v", err)
+		}
+	})
 }
 
 func TestBrokerDeliveryMetricsReflectBacklogAndClearAfterAck(t *testing.T) {

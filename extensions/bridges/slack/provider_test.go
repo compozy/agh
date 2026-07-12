@@ -50,7 +50,7 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 			MIMEType:   "text/plain",
 			URLPrivate: "https://files.example/F1",
 		}},
-	}, managed, now, "Ev1", "T1", now.Unix())
+	}, managed, now, "Ev1", "T1", now.Unix(), nil)
 	if err != nil {
 		t.Fatalf("mapSlackMessageEvent(direct) error = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 		Username:    "bob",
 		Text:        " need summary ",
 		TS:          "1775866801.100000",
-	}, managed, now, "Ev2", "T1", now.Unix())
+	}, managed, now, "Ev2", "T1", now.Unix(), nil)
 	if err != nil {
 		t.Fatalf("mapSlackMessageEvent(channel) error = %v", err)
 	}
@@ -91,6 +91,210 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 	if got, want := channel.Envelope.Content.Text, "need summary"; got != want {
 		t.Fatalf("channel.Envelope.Content.Text = %q, want %q", got, want)
 	}
+}
+
+func TestMapSlackEditAndReplyContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 12, 15, 0, 0, 0, time.UTC)
+	managed := testBridgeRuntime(now, "brg-slack-edits")
+	managed.Instance.Scope = bridgepkg.ScopeWorkspace
+	managed.Instance.WorkspaceID = "ws-a"
+
+	t.Run("Should map message changed and deleted events to typed edits", func(t *testing.T) {
+		t.Parallel()
+
+		parents := bridgesdk.NewParentMessageCache(0)
+		var changedEvent slackMessageEvent
+		if err := json.Unmarshal([]byte(`{
+			"type":"message",
+			"subtype":"message_changed",
+			"channel":"C123",
+			"channel_type":"channel",
+			"message":{
+				"user":"U123",
+				"username":"Alice",
+				"text":"corrected answer",
+				"ts":"1783864800.123456"
+			},
+			"previous_message":{
+				"user":"U123",
+				"username":"Alice",
+				"text":"original answer",
+				"ts":"1783864800.123456"
+			}
+		}`), &changedEvent); err != nil {
+			t.Fatalf("json.Unmarshal(message_changed) error = %v", err)
+		}
+		changed, ignored, err := mapSlackMessageEvent(
+			changedEvent,
+			managed,
+			now,
+			"Ev-edit",
+			"T123",
+			now.Unix(),
+			parents,
+		)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(changed) error = %v", err)
+		}
+		if ignored {
+			t.Fatal("mapSlackMessageEvent(changed) ignored = true, want false")
+		}
+		if got, want := changed.Envelope.EventFamily, bridgepkg.InboundEventFamilyEdit; got != want {
+			t.Fatalf("changed EventFamily = %q, want %q", got, want)
+		}
+		if changed.Envelope.Edit == nil {
+			t.Fatal("changed Edit = nil, want typed payload")
+		}
+		if got, want := changed.Envelope.Edit.MessageID, "1783864800.123456"; got != want {
+			t.Fatalf("changed Edit.MessageID = %q, want %q", got, want)
+		}
+		if got, want := changed.Envelope.Edit.NewText, "corrected answer"; got != want {
+			t.Fatalf("changed Edit.NewText = %q, want %q", got, want)
+		}
+		if got, want := changed.Envelope.Edit.Operation, bridgepkg.InboundEditOperationUpdated; got != want {
+			t.Fatalf("changed Edit.Operation = %q, want %q", got, want)
+		}
+		wantOriginal, err := parseSlackTimestamp("1783864800.123456")
+		if err != nil {
+			t.Fatalf("parseSlackTimestamp() error = %v", err)
+		}
+		if !changed.Envelope.Edit.OriginalTimestamp.Equal(wantOriginal) {
+			t.Fatalf(
+				"changed Edit.OriginalTimestamp = %s, want %s",
+				changed.Envelope.Edit.OriginalTimestamp,
+				wantOriginal,
+			)
+		}
+		if shouldBatchSlackInbound(slackMessageEvent{Subtype: "message_changed"}) {
+			t.Fatal("shouldBatchSlackInbound(message_changed) = true, want false")
+		}
+
+		deleted, ignored, err := mapSlackMessageEvent(slackMessageEvent{
+			Type:        "message",
+			Subtype:     "message_deleted",
+			Channel:     "C123",
+			ChannelType: "channel",
+			DeletedTS:   "1783864800.123456",
+			PreviousMessage: &slackMessageSnapshot{
+				User:     "U123",
+				Username: "Alice",
+				Text:     "corrected answer",
+				TS:       "1783864800.123456",
+			},
+		}, managed, now.Add(time.Minute), "Ev-delete", "T123", now.Add(time.Minute).Unix(), parents)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(deleted) error = %v", err)
+		}
+		if ignored {
+			t.Fatal("mapSlackMessageEvent(deleted) ignored = true, want false")
+		}
+		if deleted.Envelope.Edit == nil ||
+			deleted.Envelope.Edit.Operation != bridgepkg.InboundEditOperationDeleted ||
+			deleted.Envelope.Edit.NewText != "" {
+			t.Fatalf("deleted Edit = %#v, want deleted operation without replacement text", deleted.Envelope.Edit)
+		}
+
+		mapped, ignored, err := mapSlackMessageEvent(slackMessageEvent{
+			Type:        "message",
+			Subtype:     slackMessageSubtypeChanged,
+			Channel:     "C123",
+			ChannelType: "channel",
+			Message: &slackMessageSnapshot{
+				TS:   "1783864801.000000",
+				User: "U123",
+			},
+		}, managed, now.Add(2*time.Minute), "Ev-no-text", "T123", now.Add(2*time.Minute).Unix(), parents)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(textless edit) error = %v", err)
+		}
+		if !ignored {
+			t.Fatalf("mapSlackMessageEvent(textless edit) ignored = false, mapped %#v", mapped)
+		}
+	})
+
+	t.Run("Should fill threaded reply context from the bounded cache and miss without fetching", func(t *testing.T) {
+		t.Parallel()
+
+		parents := bridgesdk.NewParentMessageCache(0)
+		rootEvent := slackMessageEvent{
+			Type:        "message",
+			Channel:     "C123",
+			ChannelType: "channel",
+			User:        "U-parent",
+			Username:    "Bob",
+			Text:        "original proposal",
+			TS:          "1783864800.100000",
+		}
+		root, ignored, err := mapSlackMessageEvent(
+			rootEvent,
+			managed,
+			now,
+			"Ev-root",
+			"T123",
+			now.Unix(),
+			parents,
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(root) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		parents.RememberEnvelope(root.Envelope)
+
+		replyEvent := slackMessageEvent{
+			Type:        "message",
+			Channel:     "C123",
+			ChannelType: "channel",
+			User:        "U-reply",
+			Username:    "Alice",
+			Text:        "I agree",
+			ThreadTS:    rootEvent.TS,
+			TS:          "1783864860.200000",
+		}
+		reply, ignored, err := mapSlackMessageEvent(
+			replyEvent,
+			managed,
+			now.Add(time.Minute),
+			"Ev-reply",
+			"T123",
+			now.Add(time.Minute).Unix(),
+			parents,
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(reply) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		if reply.Envelope.ReplyToText != "original proposal" ||
+			reply.Envelope.ReplyToAuthorID != "U-PARENT" ||
+			reply.Envelope.ReplyToAuthorName != "Bob" {
+			t.Fatalf(
+				"reply context = (%q, %q, %q), want cached parent",
+				reply.Envelope.ReplyToText,
+				reply.Envelope.ReplyToAuthorID,
+				reply.Envelope.ReplyToAuthorName,
+			)
+		}
+		if shouldBatchSlackInbound(replyEvent) {
+			t.Fatal("shouldBatchSlackInbound(threaded reply) = true, want false")
+		}
+
+		cold, ignored, err := mapSlackMessageEvent(
+			replyEvent,
+			managed,
+			now.Add(time.Minute),
+			"Ev-cold",
+			"T123",
+			now.Add(time.Minute).Unix(),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(cold reply) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		if cold.Envelope.ReplyToText != "" ||
+			cold.Envelope.ReplyToAuthorID != "" ||
+			cold.Envelope.ReplyToAuthorName != "" {
+			t.Fatalf("cold reply context = %#v, want empty cache-miss fields", cold.Envelope)
+		}
+	})
 }
 
 func TestMapSlackSlashCommandStableTargetIdentity(t *testing.T) {

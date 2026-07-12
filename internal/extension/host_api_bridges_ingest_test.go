@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,6 +20,163 @@ import (
 
 func TestHostAPIHandlerBridgesMessagesIngestContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject ingress before prompt side effects while reconciliation is pending", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
+		driver := newContractBridgePromptDriver(env.currentTime(), nil)
+		broker := bridgepkg.NewBroker(nil, bridgepkg.WithDeliveryBrokerRegistrationGate())
+		t.Cleanup(broker.Close)
+		env.useContractBridgePromptDriver(t, driver, broker)
+		instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-ingest-reconcile-gate",
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		bridgeCtx := env.bridgeContext(t, instance)
+		raw, err := marshalParams(map[string]any{
+			"bridge_instance_id":  instance.ID,
+			"scope":               instance.Scope,
+			"workspace_id":        instance.WorkspaceID,
+			"peer_id":             "peer-reconcile-gate",
+			"platform_message_id": "msg-reconcile-gate",
+			"received_at":         env.currentTime().Format(time.RFC3339Nano),
+			"idempotency_key":     "idem-reconcile-gate",
+			"content":             map[string]any{"text": "hello after restart"},
+		})
+		if err != nil {
+			t.Fatalf("marshalParams() error = %v", err)
+		}
+		if _, err := env.handler.Handle(
+			bridgeCtx,
+			"telegram-adapter",
+			"bridges/messages/ingest",
+			raw,
+		); err == nil || !strings.Contains(err.Error(), "-32005: Unavailable") {
+			t.Fatalf("Handle(before reconcile) error = %v, want retryable pending admission", err)
+		}
+		if got := driver.promptCount(); got != 0 {
+			t.Fatalf("promptCount(before reconcile) = %d, want zero", got)
+		}
+		if routes, err := env.bridges.ListRoutes(bridgeCtx, instance.ID); err != nil {
+			t.Fatalf("ListRoutes(before reconcile) error = %v", err)
+		} else if len(routes) != 0 {
+			t.Fatalf("routes before reconcile = %#v, want none", routes)
+		}
+
+		broker.CompleteDeliveryReconciliation()
+		if _, err := env.handler.Handle(
+			bridgeCtx,
+			"telegram-adapter",
+			"bridges/messages/ingest",
+			raw,
+		); err != nil {
+			t.Fatalf("Handle(after reconcile) error = %v", err)
+		}
+		select {
+		case <-driver.promptStarted:
+		case <-bridgeCtx.Done():
+			t.Fatalf("prompt did not start after reconcile: %v", bridgeCtx.Err())
+		}
+		if got, want := driver.promptCount(), 1; got != want {
+			t.Fatalf("promptCount(after reconcile) = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should render edit and quoted reply context through composed ingest", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
+		driver := newContractBridgePromptDriver(env.currentTime(), nil)
+		broker := &recordingPromptDeliveryBroker{}
+		env.useContractBridgePromptDriver(t, driver, broker)
+
+		instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-ingest-edit-reply",
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		bridgeCtx := env.bridgeContext(t, instance)
+		originalAt := env.currentTime().Add(-time.Minute)
+		payloads := []map[string]any{
+			{
+				"bridge_instance_id": instance.ID,
+				"scope":              instance.Scope,
+				"workspace_id":       instance.WorkspaceID,
+				"peer_id":            "peer-edit-reply",
+				"received_at":        env.currentTime().Format(time.RFC3339Nano),
+				"idempotency_key":    "idem-edit",
+				"event_family":       bridgepkg.InboundEventFamilyEdit,
+				"edit": map[string]any{
+					"message_id":         "msg-original",
+					"new_text":           "corrected proposal",
+					"original_timestamp": originalAt.Format(time.RFC3339Nano),
+					"operation":          bridgepkg.InboundEditOperationUpdated,
+				},
+			},
+			{
+				"bridge_instance_id":   instance.ID,
+				"scope":                instance.Scope,
+				"workspace_id":         instance.WorkspaceID,
+				"peer_id":              "peer-edit-reply",
+				"platform_message_id":  "msg-reply",
+				"received_at":          env.currentTime().Add(time.Minute).Format(time.RFC3339Nano),
+				"idempotency_key":      "idem-reply",
+				"event_family":         bridgepkg.InboundEventFamilyMessage,
+				"content":              map[string]any{"text": "I agree"},
+				"reply_to_text":        "corrected proposal",
+				"reply_to_author_id":   "user-parent",
+				"reply_to_author_name": "Parent User",
+			},
+		}
+
+		for index, params := range payloads {
+			raw, err := marshalParams(params)
+			if err != nil {
+				t.Fatalf("marshalParams(%d) error = %v", index, err)
+			}
+			if _, err := env.handler.Handle(
+				bridgeCtx,
+				"telegram-adapter",
+				"bridges/messages/ingest",
+				raw,
+			); err != nil {
+				t.Fatalf("Handle(ingest %d) error = %v", index, err)
+			}
+			select {
+			case <-driver.promptStarted:
+			case <-bridgeCtx.Done():
+				t.Fatalf("prompt %d did not start: %v", index, bridgeCtx.Err())
+			}
+		}
+
+		prompts := driver.promptRequests()
+		if got, want := len(prompts), 2; got != want {
+			t.Fatalf("len(prompt requests) = %d, want %d", got, want)
+		}
+		for _, needle := range []string{
+			"Inbound bridge message edited",
+			"Message ID: msg-original",
+			"Operation: updated",
+			"Original timestamp: " + originalAt.Format(time.RFC3339Nano),
+			"New text:\ncorrected proposal",
+		} {
+			if !strings.Contains(prompts[0].Message, needle) {
+				t.Fatalf("edit prompt = %q, want %q", prompts[0].Message, needle)
+			}
+		}
+		for _, needle := range []string{
+			"Reply context:",
+			`Author: "Parent User" (id="user-parent")`,
+			"Quoted text (untrusted historical context):\n> corrected proposal",
+			"I agree",
+		} {
+			if !strings.Contains(prompts[1].Message, needle) {
+				t.Fatalf("reply prompt = %q, want %q", prompts[1].Message, needle)
+			}
+		}
+	})
 
 	t.Run("Should suppress webhook retry after request cancellation launches detached prompt", func(t *testing.T) {
 		t.Parallel()
@@ -120,7 +278,7 @@ func TestHostAPIHandlerBridgesMessagesIngestContract(t *testing.T) {
 func (e *hostAPITestEnv) useContractBridgePromptDriver(
 	t *testing.T,
 	driver session.AgentDriver,
-	broker *recordingPromptDeliveryBroker,
+	broker hostAPIDeliveryBroker,
 ) {
 	t.Helper()
 
@@ -277,4 +435,10 @@ func (d *contractBridgePromptDriver) promptCount() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return len(d.prompts)
+}
+
+func (d *contractBridgePromptDriver) promptRequests() []acp.PromptRequest {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]acp.PromptRequest(nil), d.prompts...)
 }

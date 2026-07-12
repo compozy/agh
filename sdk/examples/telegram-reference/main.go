@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -168,35 +167,6 @@ type ingestMarker struct {
 	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
 	Result   extensioncontract.BridgesMessagesIngestResult `json:"result"`
 	Error    string                                        `json:"error,omitempty"`
-}
-
-type telegramUpdate struct {
-	BridgeInstanceID string           `json:"bridge_instance_id,omitempty"`
-	UpdateID         int64            `json:"update_id"`
-	Message          *telegramMessage `json:"message,omitempty"`
-}
-
-type telegramMessage struct {
-	MessageID       int64        `json:"message_id"`
-	MessageThreadID int64        `json:"message_thread_id,omitempty"`
-	Date            int64        `json:"date"`
-	Chat            telegramChat `json:"chat"`
-	From            telegramUser `json:"from"`
-	Text            string       `json:"text,omitempty"`
-	Caption         string       `json:"caption,omitempty"`
-}
-
-type telegramChat struct {
-	ID    int64  `json:"id"`
-	Type  string `json:"type,omitempty"`
-	Title string `json:"title,omitempty"`
-}
-
-type telegramUser struct {
-	ID        int64  `json:"id"`
-	Username  string `json:"username,omitempty"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
 }
 
 func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, error) {
@@ -699,50 +669,6 @@ func managedInstancesToInstances(items []subprocess.InitializeBridgeManagedInsta
 	return instances
 }
 
-func mapTelegramUpdate(
-	update telegramUpdate,
-	bridgeRuntime subprocess.InitializeBridgeManagedInstance,
-	now func() time.Time,
-) (bridgepkg.InboundMessageEnvelope, error) {
-	if update.Message == nil {
-		return bridgepkg.InboundMessageEnvelope{}, errors.New("telegram-reference: message update is required")
-	}
-	if now == nil {
-		now = func() time.Time { return time.Now().UTC() }
-	}
-
-	message := update.Message
-	receivedAt := now().UTC()
-	if message.Date > 0 {
-		receivedAt = time.Unix(message.Date, 0).UTC()
-	}
-
-	text := strings.TrimSpace(message.Text)
-	if text == "" {
-		text = strings.TrimSpace(message.Caption)
-	}
-
-	senderName := strings.TrimSpace(message.From.FirstName + " " + message.From.LastName)
-	return bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID:  bridgeRuntime.Instance.ID,
-		Scope:             bridgeRuntime.Instance.Scope,
-		WorkspaceID:       bridgeRuntime.Instance.WorkspaceID,
-		PeerID:            strconv.FormatInt(message.Chat.ID, 10),
-		ThreadID:          optionalTelegramID(message.MessageThreadID),
-		PlatformMessageID: strconv.FormatInt(message.MessageID, 10),
-		ReceivedAt:        receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          optionalTelegramID(message.From.ID),
-			Username:    strings.TrimSpace(message.From.Username),
-			DisplayName: senderName,
-		},
-		Content: bridgepkg.MessageContent{
-			Text: text,
-		},
-		IdempotencyKey: fmt.Sprintf("telegram:%s:%d", bridgeRuntime.Instance.ID, update.UpdateID),
-	}, nil
-}
-
 func boundSecretValue(bridgeRuntime subprocess.InitializeBridgeManagedInstance, bindingName string) (string, bool) {
 	trimmed := strings.TrimSpace(bindingName)
 	if trimmed == "" {
@@ -762,13 +688,6 @@ func deliveryStateKey(instanceID string, deliveryID string) string {
 
 func remoteMessageID(instanceID string, deliveryID string, seq int64) string {
 	return fmt.Sprintf("telegram:%s:%s:%d", strings.TrimSpace(instanceID), strings.TrimSpace(deliveryID), seq)
-}
-
-func optionalTelegramID(value int64) string {
-	if value == 0 {
-		return ""
-	}
-	return strconv.FormatInt(value, 10)
 }
 
 func normalizeDeliveryEventType(eventType bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {

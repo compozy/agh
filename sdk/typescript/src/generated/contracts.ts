@@ -1998,7 +1998,16 @@ export interface InboundCommand {
   trigger_id?: string;
 }
 
-export type InboundEventFamily = string;
+export type InboundEditOperation = "updated" | "deleted";
+
+export interface InboundEdit {
+  message_id: string;
+  new_text: string;
+  original_timestamp: ISODateTime;
+  operation: InboundEditOperation;
+}
+
+export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";
 
 export interface MessageSender {
   id?: string;
@@ -2040,15 +2049,19 @@ export interface InboundMessageEnvelope {
   peer_id?: string;
   thread_id?: string;
   group_id?: string;
-  platform_message_id: string;
+  platform_message_id?: string;
   received_at: ISODateTime;
   sender: MessageSender;
-  content: MessageContent;
+  content?: MessageContent;
   attachments?: MessageAttachment[];
   event_family: InboundEventFamily;
   command?: InboundCommand;
   action?: InboundAction;
   reaction?: InboundReaction;
+  edit?: InboundEdit;
+  reply_to_text?: string;
+  reply_to_author_id?: string;
+  reply_to_author_name?: string;
   conversation?: NetworkConversationRef;
   provider_metadata?: JSONValue;
   idempotency_key: string;

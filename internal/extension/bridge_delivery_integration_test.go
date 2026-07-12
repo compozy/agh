@@ -73,6 +73,53 @@ type deliveryIntegrationEnv struct {
 	extensionName string
 }
 
+type signalingDeliveryLedgerStore struct {
+	bridgepkg.DeliveryLedgerStore
+	checkpointed chan bridgepkg.DeliveryLedgerCheckpoint
+}
+
+func (s *signalingDeliveryLedgerStore) CheckpointBridgeDelivery(
+	ctx context.Context,
+	checkpoint bridgepkg.DeliveryLedgerCheckpoint,
+) error {
+	if err := s.DeliveryLedgerStore.CheckpointBridgeDelivery(ctx, checkpoint); err != nil {
+		return err
+	}
+	select {
+	case s.checkpointed <- checkpoint:
+	default:
+	}
+	return nil
+}
+
+type durableRestartDeliveryTransport struct {
+	mu              sync.Mutex
+	remoteMessageID string
+	calls           []bridgepkg.DeliveryRequest
+}
+
+func (t *durableRestartDeliveryTransport) DeliverBridge(
+	_ context.Context,
+	_ string,
+	request bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	t.mu.Lock()
+	t.calls = append(t.calls, request)
+	remoteMessageID := t.remoteMessageID
+	t.mu.Unlock()
+	return bridgepkg.DeliveryAck{
+		DeliveryID:      request.Event.DeliveryID,
+		Seq:             request.Event.Seq,
+		RemoteMessageID: remoteMessageID,
+	}, nil
+}
+
+func (t *durableRestartDeliveryTransport) snapshotCalls() []bridgepkg.DeliveryRequest {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]bridgepkg.DeliveryRequest(nil), t.calls...)
+}
+
 func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 	t.Parallel()
 	descriptorLookup := newDeliveryIntegrationToolRegistry(t)
@@ -436,6 +483,168 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail open from a fresh broker over the same GlobalDB", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
+		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("GlobalDB.Close() error = %v", err)
+			}
+		})
+
+		instance := bridgepkg.BridgeInstance{
+			ID:            "brg-durable-restart",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-durable-restart",
+			DisplayName:   "Durable restart",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		}
+		if err := db.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		routingKey := bridgepkg.RoutingKey{
+			Scope:            instance.Scope,
+			BridgeInstanceID: instance.ID,
+			PeerID:           "peer-durable-restart",
+		}
+		target := bridgepkg.DeliveryTarget{
+			BridgeInstanceID: instance.ID,
+			PeerID:           routingKey.PeerID,
+			Mode:             bridgepkg.DeliveryModeReply,
+		}
+		checkpointed := make(chan bridgepkg.DeliveryLedgerCheckpoint, 2)
+		store := &signalingDeliveryLedgerStore{
+			DeliveryLedgerStore: db,
+			checkpointed:        checkpointed,
+		}
+		firstTransport := &durableRestartDeliveryTransport{remoteMessageID: "remote-durable-restart"}
+		firstBroker := bridgepkg.NewBroker(
+			firstTransport,
+			bridgepkg.WithDeliveryLedgerStore(store),
+			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(firstBroker.Close)
+		registered, err := firstBroker.RegisterPromptDelivery(ctx, bridgepkg.PromptDeliveryRegistration{
+			SessionID:      "sess-durable-restart",
+			TurnID:         "turn-durable-restart",
+			ExtensionName:  instance.ExtensionName,
+			DeliveryID:     "delivery-durable-restart",
+			RoutingKey:     routingKey,
+			DeliveryTarget: target,
+		})
+		if err != nil {
+			t.Fatalf("RegisterPromptDelivery() error = %v", err)
+		}
+		if err := firstBroker.Deliver(ctx, bridgepkg.DeliveryEvent{
+			DeliveryID:       registered.DeliveryID,
+			BridgeInstanceID: instance.ID,
+			RoutingKey:       routingKey,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeStart,
+			Content:          bridgepkg.MessageContent{Text: "partial answer"},
+			Operation:        bridgepkg.DeliveryOperationPost,
+		}); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		select {
+		case checkpoint := <-checkpointed:
+			if checkpoint.RemoteMessageID != "remote-durable-restart" || checkpoint.LastAckedSeq != 1 {
+				t.Fatalf("start checkpoint = %#v, want durable remote anchor at seq 1", checkpoint)
+			}
+		case <-ctx.Done():
+			t.Fatalf("start checkpoint did not persist: %v", ctx.Err())
+		}
+		firstBroker.Close()
+
+		active, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			Scope: instance.Scope,
+			State: bridgepkg.DeliveryLedgerStateActive,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
+		}
+		if got, want := len(active), 1; got != want {
+			t.Fatalf("len(active deliveries) = %d, want %d", got, want)
+		}
+		if got, want := active[0].RemoteMessageID, "remote-durable-restart"; got != want {
+			t.Fatalf("active remote_message_id = %q, want %q", got, want)
+		}
+
+		restartedTransport := &durableRestartDeliveryTransport{remoteMessageID: "remote-durable-restart"}
+		restartedBroker := bridgepkg.NewBroker(
+			restartedTransport,
+			bridgepkg.WithDeliveryLedgerStore(db),
+			bridgepkg.WithDeliveryBrokerRegistrationGate(),
+			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now.Add(time.Minute) }),
+		)
+		t.Cleanup(restartedBroker.Close)
+		query := bridgepkg.DeliveryLedgerQuery{Scope: instance.Scope}
+		if err := restartedBroker.LoadDeliveryMetrics(ctx, query); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+		before := restartedBroker.DeliveryMetrics()[instance.ID]
+		if before.LastSuccessAt.IsZero() {
+			t.Fatal("rehydrated LastSuccessAt = zero, want first-broker checkpoint metrics")
+		}
+		if err := restartedBroker.ReconcileDelivery(ctx, active[0], instance.ExtensionName); err != nil {
+			t.Fatalf("ReconcileDelivery() error = %v", err)
+		}
+
+		calls := restartedTransport.snapshotCalls()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("restarted delivery calls = %d, want %d", got, want)
+		}
+		resume := calls[0]
+		if resume.Event.EventType != bridgepkg.DeliveryEventTypeError || resume.Snapshot != nil {
+			t.Fatalf("restart request = %#v, want fail-open terminal post", resume)
+		}
+		if resume.Event.Operation != bridgepkg.DeliveryOperationPost || resume.Event.Reference != nil {
+			t.Fatalf("restart operation/reference = %q/%#v, want universal post", resume.Event.Operation, resume.Event.Reference)
+		}
+		if !strings.Contains(resume.Event.Content.Text, "session stopped before delivery completed") {
+			t.Fatalf("restart content = %q, want visible stopped-session terminal error", resume.Event.Content.Text)
+		}
+
+		terminal, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			Scope: instance.Scope,
+			State: bridgepkg.DeliveryLedgerStateTerminalError,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(terminal error) error = %v", err)
+		}
+		if got, want := len(terminal), 1; got != want {
+			t.Fatalf("len(terminal deliveries) = %d, want %d", got, want)
+		}
+		if got, want := terminal[0].RemoteMessageID, "remote-durable-restart"; got != want {
+			t.Fatalf("terminal remote_message_id = %q, want %q", got, want)
+		}
+		after := restartedBroker.DeliveryMetrics()[instance.ID]
+		if got, want := after.DeliveryFailuresTotal, before.DeliveryFailuresTotal+1; got != want {
+			t.Fatalf("restarted delivery failures = %d, want %d", got, want)
+		}
+	})
 }
 
 func newDeliveryIntegrationToolRegistry(t *testing.T) *toolspkg.RuntimeRegistry {

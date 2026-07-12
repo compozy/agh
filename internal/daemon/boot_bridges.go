@@ -31,6 +31,7 @@ func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *b
 		d.now,
 		resolver,
 		bridgepkg.WithDeliveryBrokerDescriptorLookup(bridgeToolMetadataLookup{state: state}),
+		bridgepkg.WithDeliveryBrokerRegistrationGate(),
 	)
 	if runtime == nil {
 		return nil

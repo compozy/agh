@@ -30,7 +30,11 @@ func newBridgeRuntime(
 		registry = extensionpkg.NewRegistry(dbSource.DB())
 	}
 
-	brokerOpts = append(brokerOpts, bridgepkg.WithDeliveryBrokerNow(now))
+	brokerOpts = append(
+		brokerOpts,
+		bridgepkg.WithDeliveryLedgerStore(store),
+		bridgepkg.WithDeliveryBrokerNow(now),
+	)
 	return &bridgeRuntime{
 		Service:        bridgepkg.NewRegistry(store, bridgepkg.WithNow(now)),
 		store:          store,

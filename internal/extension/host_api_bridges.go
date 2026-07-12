@@ -190,6 +190,9 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 			RoutingKey:   ingress.routingKey,
 		}, nil
 	}
+	if err := h.checkPromptDeliveryAdmission(ctx); err != nil {
+		return nil, err
+	}
 
 	route, routeCreated, err := h.resolveBridgeIngressRoute(ctx, *ingress.instance, ingress.routingKey)
 	if err != nil {
@@ -217,6 +220,20 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		RouteCreated: routeCreated,
 		RoutingKey:   ingress.routingKey,
 	}, nil
+}
+
+func (h *HostAPIHandler) checkPromptDeliveryAdmission(ctx context.Context) error {
+	if h.deliveryBroker == nil {
+		return nil
+	}
+	checker, ok := h.deliveryBroker.(hostAPIDeliveryAdmissionChecker)
+	if !ok {
+		return nil
+	}
+	if err := checker.CheckPromptDeliveryAdmission(ctx); err != nil {
+		return unavailableRPCError(fmt.Errorf("extension: bridge delivery admission: %w", err))
+	}
+	return nil
 }
 
 func (h *HostAPIHandler) prepareBridgeIngress(
@@ -698,9 +715,13 @@ func bridgePromptNetworkMeta(envelope bridgepkg.InboundMessageEnvelope) acp.Prom
 	if family == "" {
 		family = bridgepkg.InboundEventFamilyMessage
 	}
+	messageID := strings.TrimSpace(envelope.PlatformMessageID)
+	if family == bridgepkg.InboundEventFamilyEdit && envelope.Edit != nil {
+		messageID = strings.TrimSpace(envelope.Edit.MessageID)
+	}
 
 	meta := acp.PromptNetworkMeta{
-		MessageID: envelope.PlatformMessageID,
+		MessageID: messageID,
 		Kind:      string(family),
 		From:      strings.TrimSpace(envelope.PeerID),
 	}
@@ -957,162 +978,6 @@ func bridgeRouteForRoutingKey(
 		LastActivityAt:   activityAt,
 		UpdatedAt:        activityAt,
 	}
-}
-
-func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) string {
-	family := envelope.EventFamily.Normalize()
-	if family == "" {
-		family = bridgepkg.InboundEventFamilyMessage
-	}
-
-	lines := renderInboundMessageFamilyLines(family, envelope)
-	if !envelope.ReceivedAt.IsZero() {
-		lines = append(lines, "Received at: "+envelope.ReceivedAt.UTC().Format(time.RFC3339Nano))
-	}
-	if sender := summarizeInboundSender(envelope.Sender); sender != "" {
-		lines = append(lines, "Sender: "+sender)
-	}
-	if peerID := strings.TrimSpace(envelope.PeerID); peerID != "" {
-		lines = append(lines, "Peer ID: "+peerID)
-	}
-	if threadID := strings.TrimSpace(envelope.ThreadID); threadID != "" {
-		lines = append(lines, "Provider Thread ID: "+threadID)
-	}
-	if groupID := strings.TrimSpace(envelope.GroupID); groupID != "" {
-		lines = append(lines, "Group ID: "+groupID)
-	}
-	if ref, ok, err := envelope.NetworkConversationRef(); err == nil && ok {
-		lines = append(
-			lines,
-			"AGH Network Channel: "+ref.Channel,
-			"AGH Network Surface: "+string(ref.Surface),
-		)
-		switch ref.Surface {
-		case bridgepkg.NetworkConversationSurfaceThread:
-			lines = append(lines, "AGH Thread ID: "+ref.ThreadID)
-		case bridgepkg.NetworkConversationSurfaceDirect:
-			lines = append(lines, "AGH Direct ID: "+ref.DirectID)
-		}
-		if workID := strings.TrimSpace(ref.WorkID); workID != "" {
-			lines = append(lines, "AGH Work ID: "+workID)
-		}
-	}
-
-	if family == bridgepkg.InboundEventFamilyMessage {
-		body := strings.TrimSpace(envelope.Content.Text)
-		if body == "" {
-			body = "[No text body]"
-		}
-		lines = append(lines, "", body)
-
-		if len(envelope.Attachments) > 0 {
-			lines = append(lines, "", "Attachments:")
-			for _, attachment := range envelope.Attachments {
-				lines = append(lines, "- "+summarizeInboundAttachment(attachment))
-			}
-		}
-	}
-
-	return strings.TrimSpace(strings.Join(lines, "\n"))
-}
-
-func renderInboundMessageFamilyLines(
-	family bridgepkg.InboundEventFamily,
-	envelope bridgepkg.InboundMessageEnvelope,
-) []string {
-	switch family {
-	case bridgepkg.InboundEventFamilyCommand:
-		return renderInboundCommandLines(envelope)
-	case bridgepkg.InboundEventFamilyAction:
-		return renderInboundActionLines(envelope)
-	case bridgepkg.InboundEventFamilyReaction:
-		return renderInboundReactionLines(envelope)
-	default:
-		return []string{
-			"Inbound bridge message",
-			"Platform message ID: " + strings.TrimSpace(envelope.PlatformMessageID),
-		}
-	}
-}
-
-func renderInboundCommandLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge command",
-		"Command: " + strings.TrimSpace(envelope.Command.Command),
-	}
-	if text := strings.TrimSpace(envelope.Command.Text); text != "" {
-		lines = append(lines, "Arguments: "+text)
-	}
-	if triggerID := strings.TrimSpace(envelope.Command.TriggerID); triggerID != "" {
-		lines = append(lines, "Trigger ID: "+triggerID)
-	}
-	return lines
-}
-
-func renderInboundActionLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge action",
-		"Action ID: " + strings.TrimSpace(envelope.Action.ActionID),
-	}
-	if messageID := strings.TrimSpace(envelope.Action.MessageID); messageID != "" {
-		lines = append(lines, "Message ID: "+messageID)
-	}
-	if value := strings.TrimSpace(envelope.Action.Value); value != "" {
-		lines = append(lines, "Value: "+value)
-	}
-	if triggerID := strings.TrimSpace(envelope.Action.TriggerID); triggerID != "" {
-		lines = append(lines, "Trigger ID: "+triggerID)
-	}
-	return lines
-}
-
-func renderInboundReactionLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge reaction",
-		"Message ID: " + strings.TrimSpace(envelope.Reaction.MessageID),
-		"Emoji: " + strings.TrimSpace(envelope.Reaction.Emoji),
-	}
-	if rawEmoji := strings.TrimSpace(envelope.Reaction.RawEmoji); rawEmoji != "" {
-		lines = append(lines, "Raw emoji: "+rawEmoji)
-	}
-	if envelope.Reaction.Added {
-		return append(lines, "Change: added")
-	}
-	return append(lines, "Change: removed")
-}
-
-func summarizeInboundSender(sender bridgepkg.MessageSender) string {
-	parts := make([]string, 0, 3)
-	if displayName := strings.TrimSpace(sender.DisplayName); displayName != "" {
-		parts = append(parts, displayName)
-	}
-	if username := strings.TrimSpace(sender.Username); username != "" {
-		parts = append(parts, "@"+username)
-	}
-	if id := strings.TrimSpace(sender.ID); id != "" {
-		parts = append(parts, "id="+id)
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
-}
-
-func summarizeInboundAttachment(attachment bridgepkg.MessageAttachment) string {
-	parts := make([]string, 0, 4)
-	if name := strings.TrimSpace(attachment.Name); name != "" {
-		parts = append(parts, name)
-	}
-	if mimeType := strings.TrimSpace(attachment.MIMEType); mimeType != "" {
-		parts = append(parts, "type="+mimeType)
-	}
-	if id := strings.TrimSpace(attachment.ID); id != "" {
-		parts = append(parts, "id="+id)
-	}
-	if url := strings.TrimSpace(attachment.URL); url != "" {
-		parts = append(parts, "url="+url)
-	}
-	if len(parts) == 0 {
-		return "attachment"
-	}
-	return strings.Join(parts, " ")
 }
 
 func mapBridgeLookupError(instanceID string, err error) error {

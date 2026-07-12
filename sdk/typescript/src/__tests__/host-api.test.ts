@@ -546,12 +546,19 @@ describe("HostAPI", () => {
       expect(params).toEqual({
         bridge_instance_id: "chan-1",
         scope: "global",
-        event_family: "message",
-        platform_message_id: "msg-1",
+        event_family: "edit",
         received_at: "2026-04-11T12:00:00.000Z",
         sender: { id: "user-1" },
-        content: { text: "hello" },
-        idempotency_key: "idem-1",
+        edit: {
+          message_id: "msg-1",
+          new_text: "corrected hello",
+          original_timestamp: "2026-04-11T11:58:00.000Z",
+          operation: "updated",
+        },
+        reply_to_text: "parent text",
+        reply_to_author_id: "user-parent",
+        reply_to_author_name: "Parent User",
+        idempotency_key: "idem-edit-1",
       });
       return {
         session_id: "sess-1",
@@ -633,12 +640,19 @@ describe("HostAPI", () => {
       host.bridges.ingest({
         bridge_instance_id: "chan-1",
         scope: "global",
-        event_family: "message",
-        platform_message_id: "msg-1",
+        event_family: "edit",
         received_at: "2026-04-11T12:00:00.000Z",
         sender: { id: "user-1" },
-        content: { text: "hello" },
-        idempotency_key: "idem-1",
+        edit: {
+          message_id: "msg-1",
+          new_text: "corrected hello",
+          original_timestamp: "2026-04-11T11:58:00.000Z",
+          operation: "updated",
+        },
+        reply_to_text: "parent text",
+        reply_to_author_id: "user-parent",
+        reply_to_author_name: "Parent User",
+        idempotency_key: "idem-edit-1",
       })
     ).resolves.toMatchObject({
       session_id: "sess-1",

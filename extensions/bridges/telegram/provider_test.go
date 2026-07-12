@@ -48,7 +48,7 @@ func TestMapTelegramUpdateDirectAndForumRouting(t *testing.T) {
 			},
 			Text: " hello ",
 		},
-	}, managed, now)
+	}, managed, now, nil)
 	if err != nil {
 		t.Fatalf("mapTelegramUpdate(direct) error = %v", err)
 	}
@@ -79,7 +79,7 @@ func TestMapTelegramUpdateDirectAndForumRouting(t *testing.T) {
 			},
 			Caption: "  from forum  ",
 		},
-	}, managed, now)
+	}, managed, now, nil)
 	if err != nil {
 		t.Fatalf("mapTelegramUpdate(forum) error = %v", err)
 	}
@@ -95,6 +95,210 @@ func TestMapTelegramUpdateDirectAndForumRouting(t *testing.T) {
 	if got, want := forum.Content.Text, "from forum"; got != want {
 		t.Fatalf("forum.Content.Text = %q, want %q", got, want)
 	}
+}
+
+func TestMapTelegramEditsAndReplyContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 12, 16, 0, 0, 0, time.UTC)
+	managed := testBridgeRuntime(now, "brg-telegram-edits")
+	managed.Instance.Scope = bridgepkg.ScopeWorkspace
+	managed.Instance.WorkspaceID = "ws-a"
+
+	t.Run("Should map edited messages and channel posts to typed edits", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name   string
+			update telegramUpdate
+		}{
+			{
+				name: "Should map an edited direct message",
+				update: telegramUpdate{
+					UpdateID: 101,
+					EditedMessage: &telegramMessage{
+						MessageID: 9001,
+						Date:      now.Unix(),
+						EditDate:  now.Add(time.Minute).Unix(),
+						Chat:      telegramChat{ID: 42, Type: "private"},
+						From:      telegramUser{ID: 7, Username: "alice", FirstName: "Alice"},
+						Text:      "corrected direct message",
+					},
+				},
+			},
+			{
+				name: "Should map an edited channel post",
+				update: telegramUpdate{
+					UpdateID: 102,
+					EditedChannelPost: &telegramMessage{
+						MessageID: 9002,
+						Date:      now.Unix(),
+						EditDate:  now.Add(2 * time.Minute).Unix(),
+						Chat:      telegramChat{ID: -100123, Type: "channel", Title: "AGH Updates"},
+						SenderChat: &telegramChat{
+							ID:       -100456,
+							Type:     "channel",
+							Title:    "AGH Updates",
+							Username: "agh_updates",
+						},
+						Caption: "corrected channel post",
+					},
+				},
+			},
+		}
+		for _, testCase := range testCases {
+			testCase := testCase
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				envelope, err := mapTelegramUpdate(
+					testCase.update,
+					managed,
+					now.Add(3*time.Minute),
+					bridgesdk.NewParentMessageCache(0),
+				)
+				if err != nil {
+					t.Fatalf("mapTelegramUpdate() error = %v", err)
+				}
+				message := selectTelegramMessage(testCase.update)
+				if message == nil {
+					t.Fatal("selectTelegramMessage() = nil, want edited message")
+				}
+				if got, want := envelope.EventFamily, bridgepkg.InboundEventFamilyEdit; got != want {
+					t.Fatalf("EventFamily = %q, want %q", got, want)
+				}
+				if envelope.Edit == nil {
+					t.Fatal("Edit = nil, want typed payload")
+				}
+				if got, want := envelope.Edit.MessageID, fmt.Sprint(message.MessageID); got != want {
+					t.Fatalf("Edit.MessageID = %q, want %q", got, want)
+				}
+				if got, want := envelope.Edit.Operation, bridgepkg.InboundEditOperationUpdated; got != want {
+					t.Fatalf("Edit.Operation = %q, want %q", got, want)
+				}
+				if envelope.Edit.NewText == "" {
+					t.Fatal("Edit.NewText = empty, want corrected text")
+				}
+				if got, want := envelope.Edit.OriginalTimestamp, time.Unix(message.Date, 0).UTC(); !got.Equal(want) {
+					t.Fatalf("Edit.OriginalTimestamp = %s, want %s", got, want)
+				}
+				if shouldBatchTelegramInbound(testCase.update) {
+					t.Fatal("shouldBatchTelegramInbound(edit) = true, want false")
+				}
+				if testCase.update.EditedChannelPost != nil {
+					if got, want := envelope.Sender.ID, "-100456"; got != want {
+						t.Fatalf("channel edit sender id = %q, want %q", got, want)
+					}
+					if got, want := envelope.Sender.DisplayName, "AGH Updates"; got != want {
+						t.Fatalf("channel edit sender display name = %q, want %q", got, want)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should fill reply context from the scoped parent cache and degrade on miss", func(t *testing.T) {
+		t.Parallel()
+
+		parents := bridgesdk.NewParentMessageCache(0)
+		root := telegramUpdate{
+			UpdateID: 201,
+			Message: &telegramMessage{
+				MessageID: 8001,
+				Date:      now.Unix(),
+				Chat:      telegramChat{ID: -100123, Type: "supergroup"},
+				From: telegramUser{
+					ID:        7,
+					Username:  "bob",
+					FirstName: "Bob",
+					LastName:  "Example",
+				},
+				Text: "original proposal",
+			},
+		}
+		rootEnvelope, err := mapTelegramUpdate(root, managed, now, parents)
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate(root) error = %v", err)
+		}
+		parents.RememberEnvelope(rootEnvelope)
+
+		reply := telegramUpdate{
+			UpdateID: 202,
+			Message: &telegramMessage{
+				MessageID: 8002,
+				Date:      now.Add(time.Minute).Unix(),
+				Chat:      telegramChat{ID: -100123, Type: "supergroup"},
+				From:      telegramUser{ID: 8, Username: "alice", FirstName: "Alice"},
+				Text:      "I agree",
+				ReplyToMessage: &telegramMessage{
+					MessageID: 8001,
+				},
+			},
+		}
+		envelope, err := mapTelegramUpdate(reply, managed, now.Add(time.Minute), parents)
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate(reply) error = %v", err)
+		}
+		if envelope.ReplyToText != "original proposal" ||
+			envelope.ReplyToAuthorID != "7" ||
+			envelope.ReplyToAuthorName != "Bob Example" {
+			t.Fatalf(
+				"reply context = (%q, %q, %q), want cached parent",
+				envelope.ReplyToText,
+				envelope.ReplyToAuthorID,
+				envelope.ReplyToAuthorName,
+			)
+		}
+		if shouldBatchTelegramInbound(reply) {
+			t.Fatal("shouldBatchTelegramInbound(reply) = true, want false")
+		}
+
+		inlineReply := reply
+		inlineMessage := *reply.Message
+		inlineMessage.ReplyToMessage = &telegramMessage{
+			MessageID: 8001,
+			From: telegramUser{
+				ID:        7,
+				Username:  "bob",
+				FirstName: "Bob",
+				LastName:  "Example",
+			},
+			Text: "provider snapshot proposal",
+		}
+		inlineReply.Message = &inlineMessage
+		inline, err := mapTelegramUpdate(
+			inlineReply,
+			managed,
+			now.Add(time.Minute),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate(inline reply) error = %v", err)
+		}
+		if inline.ReplyToText != "provider snapshot proposal" ||
+			inline.ReplyToAuthorID != "7" ||
+			inline.ReplyToAuthorName != "Bob Example" {
+			t.Fatalf(
+				"inline reply context = (%q, %q, %q), want provider snapshot",
+				inline.ReplyToText,
+				inline.ReplyToAuthorID,
+				inline.ReplyToAuthorName,
+			)
+		}
+
+		cold, err := mapTelegramUpdate(
+			reply,
+			managed,
+			now.Add(time.Minute),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate(cold reply) error = %v", err)
+		}
+		if cold.ReplyToText != "" || cold.ReplyToAuthorID != "" || cold.ReplyToAuthorName != "" {
+			t.Fatalf("cold reply context = %#v, want empty cache-miss fields", cold)
+		}
+	})
 }
 
 func TestAllowDirectMessagePolicies(t *testing.T) {
@@ -1916,6 +2120,31 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	}
 	if got, want := noopRecorder.Code, http.StatusOK; got != want {
 		t.Fatalf("noopRecorder.Code = %d, want %d", got, want)
+	}
+
+	textlessEditRecorder := httptest.NewRecorder()
+	if err := runtime.handleWebhookRequest(textlessEditRecorder, nil, &resolvedInstanceConfig{
+		instanceID: "brg-1",
+		managed:    &managed,
+		dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
+		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
+	}, bridgesdk.WebhookRequest{
+		Body: []byte(`{
+			"update_id":2002,
+			"edited_message":{
+				"message_id":77,
+				"date":1776262200,
+				"edit_date":1776262260,
+				"chat":{"id":42,"type":"private"},
+				"from":{"id":7,"username":"alice"}
+			}
+		}`),
+		ReceivedAt: time.Date(2026, 4, 15, 14, 13, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("handleWebhookRequest(textless edit) error = %v", err)
+	}
+	if got, want := textlessEditRecorder.Code, http.StatusOK; got != want {
+		t.Fatalf("textless edit status = %d, want %d", got, want)
 	}
 
 	listenAddr := reserveListenAddr(t)

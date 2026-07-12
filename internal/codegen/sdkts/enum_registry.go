@@ -28,6 +28,8 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
 	reflect.TypeFor[bridgepkg.DeliveryEventType]():                  bridgepkg.DeliveryEventTypeValues(),
+	reflect.TypeFor[bridgepkg.InboundEventFamily]():                 bridgepkg.InboundEventFamilyValues(),
+	reflect.TypeFor[bridgepkg.InboundEditOperation]():               bridgepkg.InboundEditOperationValues(),
 	reflect.TypeFor[bridgepkg.ToolProgressPhase]():                  bridgepkg.ToolProgressPhaseValues(),
 	reflect.TypeFor[bridgepkg.ControlMethod]():                      bridgepkg.ControlMethodValues(),
 	reflect.TypeFor[bridgepkg.BridgeCheckStatus]():                  bridgepkg.BridgeCheckStatusValues(),

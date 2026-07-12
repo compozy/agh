@@ -290,14 +290,6 @@ type hostAPITaskManager interface {
 	) (*taskpkg.Run, error)
 }
 
-type hostAPIDeliveryBroker interface {
-	RegisterPromptDelivery(
-		ctx context.Context,
-		reg bridgepkg.PromptDeliveryRegistration,
-	) (*bridgepkg.DeliverySnapshot, error)
-	ProjectEvent(ctx context.Context, sessionID string, event bridgepkg.DeliveryProjectionEvent) error
-}
-
 type hostAPISkillsRegistry interface {
 	List() []*skillspkg.Skill
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)

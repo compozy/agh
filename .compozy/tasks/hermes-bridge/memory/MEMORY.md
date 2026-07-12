@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Phase B, Tasks 01–04 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, and `d362403`. Task 05 implementation, focused verification, visual capture, contract audit, deslop audit, and QA impact tracking are complete; its atomic checkpoint is the next loop action.
+- Phase B, Tasks 01–05 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, and `c8ebbcaf`. Task 06 implementation, focused verification, contract audit, deslop audit, docs, and QA impact tracking are complete; its atomic checkpoint is the next loop action.
 - Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
 
 ## Shared Decisions
@@ -16,6 +16,7 @@
 - Provider control is an ephemeral single-instance subprocess with required `service | control` purpose, exact typed method allowlist, zero Host API grants, Manager lifecycle admission/cancellation, globally bounded concurrency, and cancelable per-instance locking.
 - Bound credentials may target only operator-owned provider endpoints. Mutable provider config cannot set API/OAuth/service destinations; webhook reachability is public-HTTPS-only, DNS/IP-pinned, redirect-free, and proxy-free.
 - A generated secret needed by a later manual step must be supplied or explicitly disclosed once before persistence. Hidden generation is allowed only when the daemon consumes the value directly.
+- Inbound edits are a typed `edit` family; reply context is bounded and cache-only. Durable Path A recovery stores checkpoint metadata and metrics, never streamed/progress text, and universally fails open with a new visible terminal error before new registrations are admitted.
 
 ## Shared Learnings
 
@@ -37,9 +38,9 @@
 
 - Unchanged `internal/api/httpapi/static.go` currently reports three `gosec G703` findings during an unfiltered scoped lint. Preserve it as unrelated until its owning workstream resolves it; the final global gate will expose any remaining blocker.
 - Modified Daytona sidecar assets are unrelated worktree changes and must not be included in any workflow checkpoint.
-- Task 09 QA seeds must be reminted above `NB-052` before tracker insertion.
+- Task 09 QA seeds must be reminted above `NB-054` before tracker insertion.
 - No live Slack/Telegram/etc. accounts are available; later QA must continue using isolated fake-provider and public-surface scenarios.
-- Task 06's durable delivery ledger must account for multichunk partial success and the ordered set/cursor of remote IDs. A single last `remote_message_id` cannot prevent prefix duplication on retry or delete/reconcile an entire logical multichunk delivery after restart.
+- The checkpoint-only ledger intentionally does not replay multichunk text after restart. Universal visible fail-open avoids prefix duplication and stale-anchor dependence; future exact multichunk resume would require a separate explicit ordered-handle/content contract.
 
 ## Handoffs
 
@@ -47,4 +48,5 @@
 - Task 03 provides visible progress rendering across all six chat providers, issue-provider no-op ACKs, shared scheduled lifecycle discipline, exact fake-platform contracts, and the low-tier daemon contract E2E.
 - Task 04 provides Slack manifest generation, guided/headless setup, typed provider verification, doctor aggregation, Telegram registration, real send-test, hardened control isolation, public API parity, and generated contracts.
 - Task 05 provides the disabled-first Web setup orchestrator, daemon-owned Slack manifest handoff, state-derived setup checklist, typed verify/register/send-test flows, progress editors, and route-local evidence isolation. `NB-039` and `NB-052` are `untested` inputs to the QA tail.
+- Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-053` and `NB-054` are `untested` inputs to the QA tail.
 - Task 09/10 own living QA planning/execution and tracker retests.

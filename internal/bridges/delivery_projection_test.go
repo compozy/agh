@@ -1531,6 +1531,96 @@ func TestBrokerFailSessionTerminalSurvivesSaturatedQueue(t *testing.T) {
 	})
 }
 
+func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should post a universal terminal error and persist the acknowledgement", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 17, 0, 0, 0, time.UTC)
+		store := newRecordingDeliveryLedgerStore()
+		record := DeliveryLedgerRecord{
+			DeliveryID:       "delivery-restart",
+			SessionID:        "sess-restart",
+			TurnID:           "turn-restart",
+			RoutingKey:       testRoutingKey("brg-restart", "peer-restart"),
+			BridgeInstanceID: "brg-restart",
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			State:            DeliveryLedgerStateActive,
+			LastSentSeq:      7,
+			LastAckedSeq:     6,
+			RemoteMessageID:  "remote-restart",
+			CreatedAt:        now.Add(-time.Minute),
+			UpdatedAt:        now.Add(-time.Minute),
+		}
+		if err := store.CreateBridgeDelivery(testutil.Context(t), record); err != nil {
+			t.Fatalf("CreateBridgeDelivery() error = %v", err)
+		}
+
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, extensionName string, req DeliveryRequest) (DeliveryAck, error) {
+				if got, want := extensionName, "ext-slack"; got != want {
+					t.Fatalf("reconcile extension = %q, want %q", got, want)
+				}
+				if got, want := req.Event.EventType, DeliveryEventTypeError; got != want {
+					t.Fatalf("reconcile event type = %q, want %q", got, want)
+				}
+				if req.Snapshot != nil {
+					t.Fatalf("reconcile snapshot = %#v, want fail-open terminal post", req.Snapshot)
+				}
+				if got := req.Event.Content.Text; !strings.Contains(got, sessionStoppedDeliveryMessage) {
+					t.Fatalf("reconcile content = %q, want visible stopped-session error", got)
+				}
+				if req.Event.Operation != DeliveryOperationPost || req.Event.Reference != nil {
+					t.Fatalf(
+						"reconcile operation/reference = %q/%#v, want universal post",
+						req.Event.Operation,
+						req.Event.Reference,
+					)
+				}
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: record.RemoteMessageID,
+				}, nil
+			},
+		}
+		restarted := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRegistrationGate(),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(restarted.Close)
+
+		if err := restarted.ReconcileDelivery(testutil.Context(t), record, "ext-slack"); err != nil {
+			t.Fatalf("ReconcileDelivery() error = %v", err)
+		}
+		calls := transport.snapshotCalls()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("reconcile transport calls = %d, want %d", got, want)
+		}
+		persisted, ok := store.record(record.DeliveryID)
+		if !ok {
+			t.Fatal("reconciled delivery record missing")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
+			t.Fatalf("reconciled state = %q, want %q", got, want)
+		}
+		if got, want := persisted.LastAckedSeq, int64(8); got != want {
+			t.Fatalf("reconciled last acked seq = %d, want %d", got, want)
+		}
+		if got := persisted.TerminalError; !strings.Contains(got, sessionStoppedDeliveryMessage) {
+			t.Fatalf("reconciled terminal error = %q, want stopped-session error", got)
+		}
+		metrics := restarted.DeliveryMetrics()[record.BridgeInstanceID]
+		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("reconciled failure metrics = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 	t.Parallel()
 

@@ -532,6 +532,32 @@ func TestExecuteLinearDeliveryCommentAndAgentSessionModes(t *testing.T) {
 		t.Fatalf("agentActivities = %#v, want %#v", got, want)
 	}
 
+	failOpen := linearTestDeliveryRequest(
+		"brg-linear-agent",
+		"delivery-agent-fail-open",
+		1,
+		bridgepkg.DeliveryEventTypeError,
+		linearThreadRef{
+			IssueID:        "issue-456",
+			RootCommentID:  "comment-root",
+			AgentSessionID: "session-123",
+		},
+		"session stopped before delivery completed",
+		linearModeAgentSessions,
+	)
+	failOpen.Event.Final = true
+	failOpen.Event.Error = &bridgepkg.DeliveryErrorDetail{
+		Message: "session stopped before delivery completed",
+	}
+	if _, _, err := executeLinearDelivery(context.Background(), api, resolvedInstanceConfig{
+		mode: linearModeAgentSessions,
+	}, failOpen, deliveryState{}); err != nil {
+		t.Fatalf("executeLinearDelivery(agent fail-open terminal post) error = %v", err)
+	}
+	if got := api.agentActivities[len(api.agentActivities)-1]; got != "session stopped before delivery completed" {
+		t.Fatalf("last agent activity = %q, want visible fail-open terminal post", got)
+	}
+
 	agentDelete := agentFinal
 	agentDelete.Event.Seq = 4
 	agentDelete.Event.EventType = bridgepkg.DeliveryEventTypeDelete

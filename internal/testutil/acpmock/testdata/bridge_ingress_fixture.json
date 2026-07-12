@@ -56,11 +56,28 @@
                     ]
                 },
                 {
-                    "name": "follow-up-bridge-summary",
+                    "name": "edited-bridge-summary",
                     "match": {
                         "turn_source": "network",
                         "occurrence": 2,
-                        "user_text": "Provide a follow-up runtime bridge summary",
+                        "network": {
+                            "message_id": "321",
+                            "kind": "edit",
+                            "from": "777"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Bridge summary: ", "edit reused the existing session."]
+                        }
+                    ]
+                },
+                {
+                    "name": "reply-bridge-summary",
+                    "match": {
+                        "turn_source": "network",
+                        "occurrence": 3,
                         "network": {
                             "message_id": "322",
                             "kind": "message",

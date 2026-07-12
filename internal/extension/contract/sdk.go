@@ -202,6 +202,8 @@ var sdkRootTypes = []NamedType{
 	{Name: "InboundCommand", Value: bridgepkg.InboundCommand{}},
 	{Name: "InboundAction", Value: bridgepkg.InboundAction{}},
 	{Name: "InboundReaction", Value: bridgepkg.InboundReaction{}},
+	{Name: "InboundEditOperation", Value: bridgepkg.InboundEditOperation("")},
+	{Name: "InboundEdit", Value: bridgepkg.InboundEdit{}},
 	{Name: "DeliveryEvent", Value: bridgepkg.DeliveryEvent{}},
 	{Name: "DeliveryRequest", Value: bridgepkg.DeliveryRequest{}},
 	{Name: "DeliveryAck", Value: bridgepkg.DeliveryAck{}},

@@ -43,6 +43,7 @@ type telegramProvider struct {
 	env     markerEnv
 	now     func() time.Time
 	session *bridgesdk.Session
+	parents *bridgesdk.ParentMessageCache
 
 	mu             sync.RWMutex
 	lastError      string
@@ -109,20 +110,24 @@ type telegramUpdate struct {
 }
 
 type telegramMessage struct {
-	MessageID       int64        `json:"message_id"`
-	MessageThreadID int64        `json:"message_thread_id,omitempty"`
-	Date            int64        `json:"date"`
-	Chat            telegramChat `json:"chat"`
-	From            telegramUser `json:"from"`
-	Text            string       `json:"text,omitempty"`
-	Caption         string       `json:"caption,omitempty"`
+	MessageID       int64            `json:"message_id"`
+	MessageThreadID int64            `json:"message_thread_id,omitempty"`
+	Date            int64            `json:"date"`
+	EditDate        int64            `json:"edit_date,omitempty"`
+	Chat            telegramChat     `json:"chat"`
+	From            telegramUser     `json:"from"`
+	SenderChat      *telegramChat    `json:"sender_chat,omitempty"`
+	Text            string           `json:"text,omitempty"`
+	Caption         string           `json:"caption,omitempty"`
+	ReplyToMessage  *telegramMessage `json:"reply_to_message,omitempty"`
 }
 
 type telegramChat struct {
-	ID      int64  `json:"id"`
-	Type    string `json:"type,omitempty"`
-	Title   string `json:"title,omitempty"`
-	IsForum bool   `json:"is_forum,omitempty"`
+	ID       int64  `json:"id"`
+	Type     string `json:"type,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Username string `json:"username,omitempty"`
+	IsForum  bool   `json:"is_forum,omitempty"`
 }
 
 type telegramUser struct {
@@ -196,6 +201,7 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 		stderr:         stderr,
 		env:            markerEnvFromProcess(),
 		now:            func() time.Time { return time.Now().UTC() },
+		parents:        bridgesdk.NewParentMessageCache(0),
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
@@ -928,8 +934,11 @@ func (p *telegramProvider) handleWebhookRequest(
 	if message == nil {
 		return writeTelegramWebhookOK(w)
 	}
+	if isUnsupportedTextlessTelegramEdit(update) {
+		return writeTelegramWebhookOK(w)
+	}
 
-	envelope, err := mapTelegramUpdate(update, *cfg.managed, request.ReceivedAt)
+	envelope, err := mapTelegramUpdate(update, *cfg.managed, request.ReceivedAt, nil)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
@@ -939,8 +948,12 @@ func (p *telegramProvider) handleWebhookRequest(
 	if !allowDirectMessage(cfg, *message) {
 		return writeTelegramWebhookOK(w)
 	}
+	applyTelegramReplyContext(&envelope, *message, p.parents)
+	if err := envelope.Validate(); err != nil {
+		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
+	}
 
-	if cfg.batcher != nil {
+	if cfg.batcher != nil && shouldBatchTelegramInbound(update) {
 		if err := cfg.batcher.Enqueue(envelope); err != nil {
 			return &bridgesdk.HTTPError{
 				StatusCode: http.StatusInternalServerError,
@@ -952,6 +965,8 @@ func (p *telegramProvider) handleWebhookRequest(
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 	}
+	rememberTelegramReplyParent(p.parents, envelope, *message)
+	p.parents.RememberEnvelope(envelope)
 
 	return writeTelegramWebhookOK(w)
 }
@@ -1277,74 +1292,6 @@ func identityAllowed(
 		return true
 	}
 	return false
-}
-
-func mapTelegramUpdate(
-	update telegramUpdate,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-) (bridgepkg.InboundMessageEnvelope, error) {
-	message := selectTelegramMessage(update)
-	if message == nil {
-		return bridgepkg.InboundMessageEnvelope{}, errors.New(
-			"telegram: message update is required",
-		)
-	}
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	if message.Date > 0 {
-		receivedAt = time.Unix(message.Date, 0).UTC()
-	}
-
-	text := strings.TrimSpace(message.Text)
-	if text == "" {
-		text = strings.TrimSpace(message.Caption)
-	}
-
-	senderName := strings.TrimSpace(
-		strings.TrimSpace(message.From.FirstName) + " " + strings.TrimSpace(message.From.LastName),
-	)
-	threadID := inboundThreadID(message.Chat, message.MessageThreadID)
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID:  managed.Instance.ID,
-		Scope:             managed.Instance.Scope,
-		WorkspaceID:       managed.Instance.WorkspaceID,
-		PlatformMessageID: strconv.FormatInt(message.MessageID, 10),
-		ReceivedAt:        receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          optionalTelegramID(message.From.ID),
-			Username:    normalizeUsername(message.From.Username),
-			DisplayName: senderName,
-		},
-		Content: bridgepkg.MessageContent{
-			Text: text,
-		},
-		EventFamily:    bridgepkg.InboundEventFamilyMessage,
-		IdempotencyKey: fmt.Sprintf("telegram:%s:%d", managed.Instance.ID, update.UpdateID),
-	}
-
-	if isDirectChat(message.Chat.Type) {
-		envelope.PeerID = strconv.FormatInt(message.Chat.ID, 10)
-		envelope.ThreadID = threadID
-	} else {
-		envelope.GroupID = strconv.FormatInt(message.Chat.ID, 10)
-		envelope.ThreadID = threadID
-	}
-
-	metadata, err := json.Marshal(map[string]any{
-		"chat_id":           message.Chat.ID,
-		"chat_type":         strings.TrimSpace(message.Chat.Type),
-		"is_forum":          message.Chat.IsForum,
-		"message_id":        message.MessageID,
-		"message_thread_id": message.MessageThreadID,
-		"update_id":         update.UpdateID,
-	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-
-	return envelope, envelope.Validate()
 }
 
 func resolveDeliveryTarget(event bridgepkg.DeliveryEvent) (string, string, error) {

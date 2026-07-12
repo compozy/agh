@@ -702,6 +702,322 @@ func TestInboundProviderMetadataRoundTripKeepsFamilySelection(t *testing.T) {
 	}
 }
 
+func TestInboundEditFamilyValidatesUpdateAndDeletion(t *testing.T) {
+	t.Parallel()
+
+	originalTimestamp := time.Date(2026, 7, 12, 14, 30, 0, 0, time.UTC)
+	validEnvelope := func(edit InboundEdit) InboundMessageEnvelope {
+		return InboundMessageEnvelope{
+			BridgeInstanceID: "brg-1",
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			PeerID:           "peer-1",
+			ThreadID:         "thread-1",
+			ReceivedAt:       originalTimestamp.Add(time.Minute),
+			Sender:           MessageSender{ID: "user-1", DisplayName: "Alice"},
+			EventFamily:      InboundEventFamilyEdit,
+			Edit:             &edit,
+			IdempotencyKey:   "idem-edit-1",
+		}
+	}
+
+	t.Run("Should expose edit in the closed inbound event family contract", func(t *testing.T) {
+		t.Parallel()
+
+		got := InboundEventFamilyValues()
+		want := []string{"message", "command", "action", "reaction", "edit"}
+		if len(got) != len(want) {
+			t.Fatalf("InboundEventFamilyValues() length = %d, want %d", len(got), len(want))
+		}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("InboundEventFamilyValues()[%d] = %q, want %q", index, got[index], want[index])
+			}
+		}
+	})
+
+	t.Run("Should expose the closed inbound edit operation contract in stable order", func(t *testing.T) {
+		t.Parallel()
+
+		got := InboundEditOperationValues()
+		want := []string{"updated", "deleted"}
+		if len(got) != len(want) {
+			t.Fatalf("InboundEditOperationValues() length = %d, want %d", len(got), len(want))
+		}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("InboundEditOperationValues()[%d] = %q, want %q", index, got[index], want[index])
+			}
+		}
+	})
+
+	t.Run("Should accept an edited message update with identity text and original timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		event := validEnvelope(InboundEdit{
+			MessageID:         "msg-original",
+			NewText:           "corrected answer",
+			OriginalTimestamp: originalTimestamp,
+			Operation:         InboundEditOperationUpdated,
+		})
+		if err := event.Validate(); err != nil {
+			t.Fatalf("Validate(update edit) error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should accept an explicit deleted message representation", func(t *testing.T) {
+		t.Parallel()
+
+		event := validEnvelope(InboundEdit{
+			MessageID:         "msg-original",
+			OriginalTimestamp: originalTimestamp,
+			Operation:         InboundEditOperationDeleted,
+		})
+		if err := event.Validate(); err != nil {
+			t.Fatalf("Validate(delete edit) error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should require a typed payload for the edit family", func(t *testing.T) {
+		t.Parallel()
+
+		event := validEnvelope(InboundEdit{
+			MessageID:         "msg-original",
+			NewText:           "corrected answer",
+			OriginalTimestamp: originalTimestamp,
+			Operation:         InboundEditOperationUpdated,
+		})
+		event.Edit = nil
+		if err := event.Validate(); err == nil {
+			t.Fatal("Validate(edit without payload) error = nil, want non-nil")
+		}
+	})
+
+	invalidCases := []struct {
+		name string
+		edit InboundEdit
+	}{
+		{
+			name: "Should reject an update without the edited message id",
+			edit: InboundEdit{
+				NewText:           "corrected answer",
+				OriginalTimestamp: originalTimestamp,
+				Operation:         InboundEditOperationUpdated,
+			},
+		},
+		{
+			name: "Should reject an update without new text",
+			edit: InboundEdit{
+				MessageID:         "msg-original",
+				OriginalTimestamp: originalTimestamp,
+				Operation:         InboundEditOperationUpdated,
+			},
+		},
+		{
+			name: "Should reject an update without the original timestamp",
+			edit: InboundEdit{
+				MessageID: "msg-original",
+				NewText:   "corrected answer",
+				Operation: InboundEditOperationUpdated,
+			},
+		},
+		{
+			name: "Should reject an edit without an operation",
+			edit: InboundEdit{
+				MessageID:         "msg-original",
+				NewText:           "corrected answer",
+				OriginalTimestamp: originalTimestamp,
+			},
+		},
+		{
+			name: "Should reject an unsupported edit operation",
+			edit: InboundEdit{
+				MessageID:         "msg-original",
+				NewText:           "corrected answer",
+				OriginalTimestamp: originalTimestamp,
+				Operation:         InboundEditOperation("replaced"),
+			},
+		},
+		{
+			name: "Should reject a deletion that also carries replacement text",
+			edit: InboundEdit{
+				MessageID:         "msg-original",
+				NewText:           "ambiguous replacement",
+				OriginalTimestamp: originalTimestamp,
+				Operation:         InboundEditOperationDeleted,
+			},
+		},
+	}
+	for _, testCase := range invalidCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			event := validEnvelope(testCase.edit)
+			if err := event.Validate(); err == nil {
+				t.Fatal("Validate(edit) error = nil, want typed edit validation failure")
+			}
+		})
+	}
+}
+
+func TestInboundEditFamilyRejectsConflictingPayloads(t *testing.T) {
+	t.Parallel()
+
+	originalTimestamp := time.Date(2026, 7, 12, 14, 30, 0, 0, time.UTC)
+	validEdit := &InboundEdit{
+		MessageID:         "msg-original",
+		NewText:           "corrected answer",
+		OriginalTimestamp: originalTimestamp,
+		Operation:         InboundEditOperationUpdated,
+	}
+	base := InboundMessageEnvelope{
+		BridgeInstanceID: "brg-1",
+		Scope:            ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		PeerID:           "peer-1",
+		ReceivedAt:       originalTimestamp.Add(time.Minute),
+		Sender:           MessageSender{ID: "user-1", DisplayName: "Alice"},
+		EventFamily:      InboundEventFamilyEdit,
+		Edit:             validEdit,
+		IdempotencyKey:   "idem-edit-1",
+	}
+
+	testCases := []struct {
+		name   string
+		mutate func(*InboundMessageEnvelope)
+	}{
+		{
+			name: "Should reject message fields on the edit family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.PlatformMessageID = "msg-conflict"
+				event.Content = MessageContent{Text: "message payload"}
+			},
+		},
+		{
+			name: "Should reject a command payload on the edit family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.Command = &InboundCommand{Command: "/help"}
+			},
+		},
+		{
+			name: "Should reject an action payload on the edit family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.Action = &InboundAction{ActionID: "approve"}
+			},
+		},
+		{
+			name: "Should reject a reaction payload on the edit family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.Reaction = &InboundReaction{MessageID: "msg-original", Emoji: "thumbs_up", Added: true}
+			},
+		},
+		{
+			name: "Should reject an edit payload on the message family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.EventFamily = InboundEventFamilyMessage
+				event.PlatformMessageID = "msg-current"
+				event.Content = MessageContent{Text: "message payload"}
+			},
+		},
+		{
+			name: "Should reject an edit payload on the command family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.EventFamily = InboundEventFamilyCommand
+				event.Command = &InboundCommand{Command: "/help"}
+			},
+		},
+		{
+			name: "Should reject an edit payload on the action family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.EventFamily = InboundEventFamilyAction
+				event.Action = &InboundAction{ActionID: "approve"}
+			},
+		},
+		{
+			name: "Should reject an edit payload on the reaction family",
+			mutate: func(event *InboundMessageEnvelope) {
+				event.EventFamily = InboundEventFamilyReaction
+				event.Reaction = &InboundReaction{MessageID: "msg-original", Emoji: "thumbs_up", Added: true}
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			event := base
+			edit := *validEdit
+			event.Edit = &edit
+			testCase.mutate(&event)
+			if err := event.Validate(); err == nil {
+				t.Fatal("Validate() error = nil, want edit-family mutual-exclusion failure")
+			}
+		})
+	}
+}
+
+func TestInboundMessageEnvelopeReplyContextRoundTripsJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve reply text and author identity through the public JSON contract", func(t *testing.T) {
+		t.Parallel()
+
+		event := InboundMessageEnvelope{
+			BridgeInstanceID:  "brg-1",
+			Scope:             ScopeWorkspace,
+			WorkspaceID:       "ws-1",
+			PeerID:            "peer-1",
+			PlatformMessageID: "msg-reply",
+			ReceivedAt:        time.Date(2026, 7, 12, 14, 31, 0, 0, time.UTC),
+			Sender:            MessageSender{ID: "user-1", DisplayName: "Alice"},
+			Content:           MessageContent{Text: "I agree"},
+			EventFamily:       InboundEventFamilyMessage,
+			ReplyToText:       "Original proposal",
+			ReplyToAuthorID:   "user-parent",
+			ReplyToAuthorName: "Bob",
+			IdempotencyKey:    "idem-reply-1",
+		}
+
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatalf("json.Unmarshal(wire) error = %v", err)
+		}
+		for key, want := range map[string]string{
+			"reply_to_text":        "Original proposal",
+			"reply_to_author_id":   "user-parent",
+			"reply_to_author_name": "Bob",
+		} {
+			if got, ok := wire[key].(string); !ok || got != want {
+				t.Fatalf("wire[%q] = %#v, want %q", key, wire[key], want)
+			}
+		}
+
+		var decoded InboundMessageEnvelope
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(envelope) error = %v", err)
+		}
+		if decoded.ReplyToText != event.ReplyToText ||
+			decoded.ReplyToAuthorID != event.ReplyToAuthorID ||
+			decoded.ReplyToAuthorName != event.ReplyToAuthorName {
+			t.Fatalf(
+				"decoded reply context = (%q, %q, %q), want (%q, %q, %q)",
+				decoded.ReplyToText,
+				decoded.ReplyToAuthorID,
+				decoded.ReplyToAuthorName,
+				event.ReplyToText,
+				event.ReplyToAuthorID,
+				event.ReplyToAuthorName,
+			)
+		}
+	})
+}
+
 func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
 	t.Parallel()
 

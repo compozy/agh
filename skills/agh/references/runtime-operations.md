@@ -89,6 +89,8 @@ The CLI exposes the same fields on `bridge create` and `bridge update`:
 
 Use structured output to inspect the saved resource after mutation. An adapter that has not registered a progress handler acknowledges these events without a provider-side effect; final answer delivery remains independent. Progress previews are daemon-rendered and redacted before they cross the extension boundary.
 
+Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, AGH reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. An unfinished checkpoint becomes a new visible terminal error post, including on append-only providers or when its old remote anchor no longer exists.
+
 ## Diagnostics Order
 
 When a session behaves unexpectedly:

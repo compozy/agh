@@ -32,7 +32,7 @@ func TestSlackContractIngressRouting(t *testing.T) {
 			TS:          "1775866805.100000",
 			Type:        "message",
 			User:        "U123",
-		}, managed, now, "EvMessage", "T123", now.Unix())
+		}, managed, now, "EvMessage", "T123", now.Unix(), nil)
 		if err != nil {
 			t.Fatalf("mapSlackMessageEvent() error = %v", err)
 		}

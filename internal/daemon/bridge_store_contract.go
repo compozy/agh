@@ -19,6 +19,7 @@ type bridgeDedupStore interface {
 
 type bridgeRuntimeStore interface {
 	bridgepkg.RegistryStore
+	bridgepkg.DeliveryLedgerStore
 	bridgepkg.TargetDirectoryStore
 	bridgepkg.ResourceProjectionStore
 	bridgepkg.BridgeTaskSubscriptionStore

@@ -88,6 +88,7 @@ type gchatProvider struct {
 	env     markerEnv
 	now     func() time.Time
 	session *bridgesdk.Session
+	parents *bridgesdk.ParentMessageCache
 
 	mu             sync.RWMutex
 	lastError      string
@@ -241,16 +242,30 @@ type gchatEvent struct {
 }
 
 type gchatMessage struct {
-	Name          string            `json:"name"`
-	Text          string            `json:"text,omitempty"`
-	ArgumentText  string            `json:"argumentText,omitempty"`
-	FormattedText string            `json:"formattedText,omitempty"`
-	CreateTime    string            `json:"createTime,omitempty"`
-	Sender        gchatUser         `json:"sender"`
-	Space         *gchatSpace       `json:"space,omitempty"`
-	Thread        *gchatThread      `json:"thread,omitempty"`
-	Attachment    []gchatAttachment `json:"attachment,omitempty"`
-	Annotations   []gchatAnnotation `json:"annotations,omitempty"`
+	Name                  string                      `json:"name"`
+	Text                  string                      `json:"text,omitempty"`
+	ArgumentText          string                      `json:"argumentText,omitempty"`
+	FormattedText         string                      `json:"formattedText,omitempty"`
+	CreateTime            string                      `json:"createTime,omitempty"`
+	Sender                gchatUser                   `json:"sender"`
+	Space                 *gchatSpace                 `json:"space,omitempty"`
+	Thread                *gchatThread                `json:"thread,omitempty"`
+	Attachment            []gchatAttachment           `json:"attachment,omitempty"`
+	Annotations           []gchatAnnotation           `json:"annotations,omitempty"`
+	QuotedMessageMetadata *gchatQuotedMessageMetadata `json:"quotedMessageMetadata,omitempty"`
+}
+
+type gchatQuotedMessageMetadata struct {
+	Name                  string                      `json:"name,omitempty"`
+	LastUpdateTime        string                      `json:"lastUpdateTime,omitempty"`
+	QuoteType             string                      `json:"quoteType,omitempty"`
+	QuotedMessageSnapshot *gchatQuotedMessageSnapshot `json:"quotedMessageSnapshot,omitempty"`
+}
+
+type gchatQuotedMessageSnapshot struct {
+	Text          string `json:"text,omitempty"`
+	FormattedText string `json:"formattedText,omitempty"`
+	Sender        string `json:"sender,omitempty"`
 }
 
 type gchatSpace struct {
@@ -390,6 +405,7 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		stderr:         stderr,
 		env:            markerEnvFromProcess(),
 		now:            func() time.Time { return time.Now().UTC() },
+		parents:        bridgesdk.NewParentMessageCache(0),
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
@@ -1294,7 +1310,7 @@ func (p *gchatProvider) handleDirectWebhook(
 		}
 		return writeWebhookJSON(w, map[string]any{})
 	}
-	if item, ok, err := mapDirectMessageEvent(event, cfg.managed, request.ReceivedAt); err != nil {
+	if item, ok, err := mapDirectMessageEvent(event, cfg.managed, request.ReceivedAt, nil); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	} else if ok {
 		if cfg.dedup.Mark(item.Envelope.IdempotencyKey) {
@@ -1303,7 +1319,12 @@ func (p *gchatProvider) handleDirectWebhook(
 		if !allowGChatDirectMessage(cfg, item.User, item.Direct) {
 			return writeWebhookJSON(w, map[string]any{})
 		}
-		if cfg.batcher != nil {
+		message := event.Chat.MessagePayload.Message
+		applyGChatReplyContext(&item.Envelope, message, p.parents)
+		if err := item.Envelope.Validate(); err != nil {
+			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		}
+		if cfg.batcher != nil && shouldBatchGChatMessage(event.Chat.MessagePayload.Message) {
 			if err := cfg.batcher.Enqueue(item.Envelope); err != nil {
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
@@ -1312,6 +1333,8 @@ func (p *gchatProvider) handleDirectWebhook(
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		}
+		rememberGChatQuotedParent(p.parents, item.Envelope, message)
+		p.parents.RememberEnvelope(item.Envelope)
 	}
 	return writeWebhookJSON(w, map[string]any{})
 }
@@ -1333,7 +1356,7 @@ func (p *gchatProvider) handlePubSubWebhook(
 
 	switch {
 	case notification.Message != nil:
-		item, mapErr := mapPubSubMessageEvent(notification, cfg.managed, request.ReceivedAt)
+		item, mapErr := mapPubSubMessageEvent(notification, cfg.managed, request.ReceivedAt, nil)
 		if mapErr != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: mapErr.Error()}
 		}
@@ -1343,7 +1366,11 @@ func (p *gchatProvider) handlePubSubWebhook(
 		if !allowGChatDirectMessage(cfg, item.User, item.Direct) {
 			return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 		}
-		if cfg.batcher != nil {
+		applyGChatReplyContext(&item.Envelope, *notification.Message, p.parents)
+		if err := item.Envelope.Validate(); err != nil {
+			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		}
+		if cfg.batcher != nil && shouldBatchGChatMessage(*notification.Message) {
 			if err := cfg.batcher.Enqueue(item.Envelope); err != nil {
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
@@ -1352,6 +1379,8 @@ func (p *gchatProvider) handlePubSubWebhook(
 				return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 			}
 		}
+		rememberGChatQuotedParent(p.parents, item.Envelope, *notification.Message)
+		p.parents.RememberEnvelope(item.Envelope)
 	case notification.Reaction != nil:
 		item, mapErr := mapPubSubReactionEvent(ctx, p.apiFactory(cfg), notification, cfg.managed, request.ReceivedAt)
 		if mapErr != nil {
@@ -1557,6 +1586,7 @@ func mapDirectMessageEvent(
 	event gchatEvent,
 	managed subprocess.InitializeBridgeManagedInstance,
 	receivedAt time.Time,
+	parents *bridgesdk.ParentMessageCache,
 ) (gchatMappedInbound, bool, error) {
 	if event.Chat == nil || event.Chat.MessagePayload == nil {
 		return gchatMappedInbound{}, false, nil
@@ -1573,6 +1603,7 @@ func mapDirectMessageEvent(
 		receivedAt,
 		"direct:"+strings.TrimSpace(message.Name),
 		"direct_webhook",
+		parents,
 	)
 	return item, true, err
 }
@@ -1692,6 +1723,7 @@ func mapPubSubMessageEvent(
 	notification gchatWorkspaceEventNotification,
 	managed subprocess.InitializeBridgeManagedInstance,
 	receivedAt time.Time,
+	parents *bridgesdk.ParentMessageCache,
 ) (gchatMappedInbound, error) {
 	message := notification.Message
 	if message == nil {
@@ -1711,6 +1743,7 @@ func mapPubSubMessageEvent(
 		normalizeReceivedAt(receivedAt, notification.EventTime),
 		"pubsub:"+firstNonEmpty(notification.EventType, strings.TrimSpace(message.Name)),
 		"pubsub_workspace_events",
+		parents,
 	)
 }
 
@@ -1850,66 +1883,6 @@ func buildPubSubReactionItem(
 		Direct:   route.direct,
 		User:     gchatUserIdentity{ID: sender.ID, Username: sender.Username, DisplayName: sender.DisplayName},
 	}
-}
-
-func mapGChatMessage(
-	message gchatMessage,
-	space gchatSpace,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-	idempotencyBase string,
-	source string,
-) (gchatMappedInbound, error) {
-	direct := isDirectSpace(space)
-	threadName := threadNameForMessage(message, direct)
-	threadID := ""
-	if direct || threadName != "" {
-		threadID = encodeGChatThreadID(gchatThreadRef{
-			SpaceName:  strings.TrimSpace(space.Name),
-			ThreadName: threadName,
-			IsDM:       direct,
-		})
-	}
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID:  managed.Instance.ID,
-		Scope:             managed.Instance.Scope,
-		WorkspaceID:       managed.Instance.WorkspaceID,
-		PlatformMessageID: strings.TrimSpace(message.Name),
-		ReceivedAt:        normalizeReceivedAt(receivedAt, message.CreateTime),
-		Sender:            gchatSender(message.Sender),
-		Content: bridgepkg.MessageContent{
-			Text: normalizeGChatText(message),
-		},
-		Attachments:    normalizeGChatAttachments(message.Attachment),
-		EventFamily:    bridgepkg.InboundEventFamilyMessage,
-		IdempotencyKey: fmt.Sprintf("gchat:%s:%s", managed.Instance.ID, strings.TrimSpace(idempotencyBase)),
-	}
-	if direct {
-		envelope.PeerID = strings.TrimSpace(space.Name)
-	} else {
-		envelope.GroupID = strings.TrimSpace(space.Name)
-	}
-	envelope.ThreadID = threadID
-	if metadata, err := json.Marshal(map[string]any{
-		providerSourceKey:     strings.TrimSpace(source),
-		providerSpaceNameKey:  strings.TrimSpace(space.Name),
-		"space_type":          firstNonEmpty(strings.TrimSpace(space.SpaceType), strings.TrimSpace(space.Type)),
-		providerThreadNameKey: threadName,
-		"message_name":        strings.TrimSpace(message.Name),
-	}); err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-
-	item := gchatMappedInbound{
-		Envelope: envelope,
-		Direct:   direct,
-		User: gchatUserIdentity{
-			ID:          envelope.Sender.ID,
-			Username:    envelope.Sender.Username,
-			DisplayName: envelope.Sender.DisplayName,
-		},
-	}
-	return item, item.Envelope.Validate()
 }
 
 func resolveGChatDeliveryTarget(event bridgepkg.DeliveryEvent) (gchatResolvedTarget, error) {

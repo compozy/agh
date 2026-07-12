@@ -35,6 +35,7 @@ func (b *Broker) recordDeliveryDropLocked(bridgeInstanceID string, reason string
 		trimmedReason = "unknown"
 	}
 	metrics.droppedByReason[trimmedReason]++
+	b.markDeliveryMetricsDirtyLocked(metrics)
 }
 
 func (b *Broker) recordDeliveryIssueLocked(bridgeInstanceID string, message string) {
@@ -44,6 +45,7 @@ func (b *Broker) recordDeliveryIssueLocked(bridgeInstanceID string, message stri
 	}
 	metrics.lastError = redactpkg.String(strings.TrimSpace(message))
 	metrics.lastErrorAt = b.now()
+	b.markDeliveryMetricsDirtyLocked(metrics)
 }
 
 func (b *Broker) recordDeliveryFailureLocked(bridgeInstanceID string, message string) {
@@ -54,6 +56,7 @@ func (b *Broker) recordDeliveryFailureLocked(bridgeInstanceID string, message st
 	metrics.deliveryFailuresTotal++
 	metrics.lastError = redactpkg.String(strings.TrimSpace(message))
 	metrics.lastErrorAt = b.now()
+	b.markDeliveryMetricsDirtyLocked(metrics)
 }
 
 func (b *Broker) recordDeliverySuccessLocked(bridgeInstanceID string, deliveredAt time.Time) {

@@ -84,20 +84,27 @@ type activeDelivery struct {
 }
 
 type instanceDeliveryMetrics struct {
+	scope                 Scope
+	workspaceID           string
 	droppedByReason       map[string]int
 	deliveryFailuresTotal int
 	lastError             string
 	lastErrorAt           time.Time
 	lastSuccessAt         time.Time
+	updatedAt             time.Time
+	revision              uint64
+	persistedRevision     uint64
 }
 
 // Broker projects session output into ordered delivery requests for one
 // bridge-capable extension runtime.
 type Broker struct {
-	mu sync.Mutex
+	mu             sync.Mutex
+	registrationMu sync.Mutex
 
 	transport   DeliveryTransport
 	descriptors toolmeta.DescriptorLookup
+	ledgerStore DeliveryLedgerStore
 
 	now            func() time.Time
 	queueCapacity  int
@@ -108,12 +115,16 @@ type Broker struct {
 
 	wg sync.WaitGroup
 
-	deliveries   map[string]*activeDelivery
-	turnIndex    map[turnIndexKey]string
-	sessionIndex map[string]map[string]struct{}
-	routes       map[string]*routeWorker
-	bridgeRoutes map[string]map[string]*routeWorker
-	metrics      map[string]*instanceDeliveryMetrics
+	deliveries       map[string]*activeDelivery
+	turnIndex        map[turnIndexKey]string
+	sessionIndex     map[string]map[string]struct{}
+	routes           map[string]*routeWorker
+	bridgeRoutes     map[string]map[string]*routeWorker
+	metrics          map[string]*instanceDeliveryMetrics
+	metricWakeCh     chan struct{}
+	metricPersistErr error
+
+	registrationsReady bool
 }
 
 func newActiveDelivery(

@@ -57,6 +57,7 @@ type slackProvider struct {
 	env     markerEnv
 	now     func() time.Time
 	session *bridgesdk.Session
+	parents *bridgesdk.ParentMessageCache
 
 	mu             sync.RWMutex
 	lastError      string
@@ -128,20 +129,35 @@ type slackEventTypePayload struct {
 }
 
 type slackMessageEvent struct {
-	BotID       string      `json:"bot_id,omitempty"`
-	Channel     string      `json:"channel,omitempty"`
-	ChannelType string      `json:"channel_type,omitempty"`
-	Edited      *slackEdit  `json:"edited,omitempty"`
-	Files       []slackFile `json:"files,omitempty"`
-	Subtype     string      `json:"subtype,omitempty"`
-	Team        string      `json:"team,omitempty"`
-	TeamID      string      `json:"team_id,omitempty"`
-	Text        string      `json:"text,omitempty"`
-	ThreadTS    string      `json:"thread_ts,omitempty"`
-	TS          string      `json:"ts,omitempty"`
-	Type        string      `json:"type"`
-	User        string      `json:"user,omitempty"`
-	Username    string      `json:"username,omitempty"`
+	BotID           string                `json:"bot_id,omitempty"`
+	Channel         string                `json:"channel,omitempty"`
+	ChannelType     string                `json:"channel_type,omitempty"`
+	DeletedTS       string                `json:"deleted_ts,omitempty"`
+	Edited          *slackEdit            `json:"edited,omitempty"`
+	Files           []slackFile           `json:"files,omitempty"`
+	Message         *slackMessageSnapshot `json:"message,omitempty"`
+	PreviousMessage *slackMessageSnapshot `json:"previous_message,omitempty"`
+	Subtype         string                `json:"subtype,omitempty"`
+	Team            string                `json:"team,omitempty"`
+	TeamID          string                `json:"team_id,omitempty"`
+	Text            string                `json:"text,omitempty"`
+	ThreadTS        string                `json:"thread_ts,omitempty"`
+	TS              string                `json:"ts,omitempty"`
+	Type            string                `json:"type"`
+	User            string                `json:"user,omitempty"`
+	Username        string                `json:"username,omitempty"`
+}
+
+type slackMessageSnapshot struct {
+	BotID    string      `json:"bot_id,omitempty"`
+	Edited   *slackEdit  `json:"edited,omitempty"`
+	Files    []slackFile `json:"files,omitempty"`
+	Text     string      `json:"text,omitempty"`
+	ThreadTS string      `json:"thread_ts,omitempty"`
+	TS       string      `json:"ts,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Username string      `json:"username,omitempty"`
 }
 
 type slackEdit struct {
@@ -337,6 +353,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 		stderr:         stderr,
 		env:            markerEnvFromProcess(),
 		now:            func() time.Time { return time.Now().UTC() },
+		parents:        bridgesdk.NewParentMessageCache(0),
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
@@ -1225,6 +1242,7 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 		payload.EventID,
 		payload.TeamID,
 		payload.EventTime,
+		nil,
 	)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
@@ -1232,7 +1250,14 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 	if ignored {
 		return writeWebhookOK(w)
 	}
-	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, true)
+	return p.dispatchSlackWebhookEnvelope(
+		ctx,
+		w,
+		cfg,
+		mapped,
+		slackEventReplyParentMessageID(event),
+		shouldBatchSlackInbound(event),
+	)
 }
 
 func (p *slackProvider) handleSlackReactionJSONEvent(
@@ -1250,7 +1275,7 @@ func (p *slackProvider) handleSlackReactionJSONEvent(
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
-	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, false)
+	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, "", false)
 }
 
 func (p *slackProvider) dispatchSlackWebhookEnvelope(
@@ -1258,6 +1283,7 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	w http.ResponseWriter,
 	cfg *resolvedInstanceConfig,
 	mapped slackMappedInbound,
+	parentMessageID string,
 	allowBatch bool,
 ) error {
 	if cfg.dedup.Seen(mapped.Envelope.IdempotencyKey) {
@@ -1266,16 +1292,23 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	if !allowSlackDirectMessage(cfg, mapped.User, mapped.Direct) {
 		return writeWebhookOK(w)
 	}
+	if p.parents.EnrichReply(&mapped.Envelope, parentMessageID) {
+		if err := mapped.Envelope.Validate(); err != nil {
+			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		}
+	}
 	if allowBatch && cfg.batcher != nil {
 		if err := cfg.batcher.Enqueue(mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
+		p.parents.RememberEnvelope(mapped.Envelope)
 		cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 		return writeWebhookOK(w)
 	}
 	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 	}
+	p.parents.RememberEnvelope(mapped.Envelope)
 	cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 	return writeWebhookOK(w)
 }
@@ -1416,86 +1449,6 @@ func (p *slackProvider) clearLastError() {
 
 func (p *slackProvider) reportSideEffectError(action string, err error) {
 	reportSideEffectError(p.stderr, action, err)
-}
-
-func mapSlackMessageEvent(
-	event slackMessageEvent,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-	eventID string,
-	teamID string,
-	eventTime int64,
-) (slackMappedInbound, bool, error) {
-	if strings.TrimSpace(event.Channel) == "" || strings.TrimSpace(event.TS) == "" {
-		return slackMappedInbound{}, false, errors.New("slack: message event requires channel and ts")
-	}
-	if isIgnoredSlackMessageEvent(event) {
-		return slackMappedInbound{}, true, nil
-	}
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	if eventTime > 0 {
-		receivedAt = time.Unix(eventTime, 0).UTC()
-	}
-
-	direct := isSlackDirectConversation(event.ChannelType, event.Channel)
-	threadID := inboundSlackThreadID(direct, event.TS, event.ThreadTS)
-	user := slackUserIdentity{
-		ID:          normalizeSlackUserID(event.User),
-		Username:    normalizeUsername(event.Username),
-		DisplayName: firstNonEmpty(strings.TrimSpace(event.Username), normalizeSlackUserID(event.User)),
-	}
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID:  managed.Instance.ID,
-		Scope:             managed.Instance.Scope,
-		WorkspaceID:       managed.Instance.WorkspaceID,
-		PlatformMessageID: strings.TrimSpace(event.TS),
-		ReceivedAt:        receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          user.ID,
-			Username:    user.Username,
-			DisplayName: user.DisplayName,
-		},
-		Content: bridgepkg.MessageContent{
-			Text: strings.TrimSpace(event.Text),
-		},
-		Attachments: normalizeSlackAttachments(event.Files),
-		EventFamily: bridgepkg.InboundEventFamilyMessage,
-		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(eventID),
-			fmt.Sprintf(
-				"slack:%s:message:%s:%s",
-				managed.Instance.ID,
-				strings.TrimSpace(event.Channel),
-				strings.TrimSpace(event.TS),
-			),
-		),
-	}
-	if direct {
-		envelope.PeerID = strings.TrimSpace(event.Channel)
-		envelope.ThreadID = threadID
-	} else {
-		envelope.GroupID = strings.TrimSpace(event.Channel)
-		envelope.ThreadID = threadID
-	}
-	metadata, err := json.Marshal(map[string]any{
-		providerChannelIDKey: strings.TrimSpace(event.Channel),
-		"channel_type":       strings.TrimSpace(event.ChannelType),
-		"event_id":           strings.TrimSpace(eventID),
-		"subtype":            strings.TrimSpace(event.Subtype),
-		providerTeamIDKey:    firstNonEmpty(strings.TrimSpace(event.TeamID), strings.TrimSpace(teamID)),
-		"thread_ts":          strings.TrimSpace(event.ThreadTS),
-		"ts":                 strings.TrimSpace(event.TS),
-		providerTypeKey:      strings.TrimSpace(event.Type),
-	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-	if err := envelope.Validate(); err != nil {
-		return slackMappedInbound{}, false, err
-	}
-	return slackMappedInbound{Envelope: envelope, Direct: direct, User: user}, false, nil
 }
 
 func mapSlackSlashCommand(
@@ -2031,8 +1984,6 @@ func isIgnoredSlackMessageEvent(event slackMessageEvent) bool {
 	}
 	ignoredSubtypes := map[string]struct{}{
 		"bot_message":          {},
-		"message_changed":      {},
-		"message_deleted":      {},
 		"message_replied":      {},
 		"channel_join":         {},
 		"channel_leave":        {},

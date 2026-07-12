@@ -737,6 +737,36 @@ func TestExecuteWhatsAppDeliveryPostResumeDeleteAndSplit(t *testing.T) {
 		t.Fatalf("resumeAck.RemoteMessageID = %q, want %q", got, want)
 	}
 
+	failOpenAPI := &fakeWhatsAppAPI{nextMessageID: 850}
+	failOpenReq := testDeliveryRequest(
+		"brg-1",
+		"delivery-fail-open",
+		8,
+		bridgepkg.DeliveryEventTypeError,
+		true,
+		"session stopped before delivery completed",
+	)
+	failOpenReq.Event.Error = &bridgepkg.DeliveryErrorDetail{
+		Message: "session stopped before delivery completed",
+	}
+	failOpenAck, _, err := executeWhatsAppDelivery(
+		context.Background(),
+		failOpenAPI,
+		cfg,
+		failOpenReq,
+		deliveryState{},
+	)
+	if err != nil {
+		t.Fatalf("executeWhatsAppDelivery(fail-open terminal post) error = %v", err)
+	}
+	if len(failOpenAPI.requests) != 1 ||
+		failOpenAPI.requests[0].Text.Body != "session stopped before delivery completed" {
+		t.Fatalf("fail-open requests = %#v, want one visible terminal post", failOpenAPI.requests)
+	}
+	if failOpenAck.RemoteMessageID == "wamid.resume" {
+		t.Fatalf("fail-open ack = %#v, want newly materialized message", failOpenAck)
+	}
+
 	splitAPI := &fakeWhatsAppAPI{nextMessageID: 900}
 	splitReq := testDeliveryRequest(
 		"brg-1",

@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 var errUnexpectedBridgeRuntimeStoreCall = errors.New("unexpected bridge runtime store stub call")
@@ -40,6 +41,38 @@ type bridgeRuntimeStoreStub struct {
 	listBridgeSecretBindingsFn  func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
 	putBridgeSecretBindingFn    func(context.Context, bridgepkg.BridgeSecretBinding) error
 	deleteBridgeSecretBindingFn func(context.Context, string, string) error
+}
+
+type recordingBridgeDeliveryRuntime struct {
+	fakeExtensionRuntime
+
+	mu    sync.Mutex
+	calls []bridgepkg.DeliveryRequest
+}
+
+func (r *recordingBridgeDeliveryRuntime) DeliverBridge(
+	_ context.Context,
+	_ string,
+	req bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	r.mu.Lock()
+	r.calls = append(r.calls, req)
+	r.mu.Unlock()
+	remoteMessageID := ""
+	if req.Event.Reference != nil {
+		remoteMessageID = req.Event.Reference.RemoteMessageID
+	}
+	return bridgepkg.DeliveryAck{
+		DeliveryID:      req.Event.DeliveryID,
+		Seq:             req.Event.Seq,
+		RemoteMessageID: remoteMessageID,
+	}, nil
+}
+
+func (r *recordingBridgeDeliveryRuntime) deliveryCalls() []bridgepkg.DeliveryRequest {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]bridgepkg.DeliveryRequest(nil), r.calls...)
 }
 
 func (s bridgeRuntimeStoreStub) ListBridgeSecretBindings(
@@ -177,6 +210,234 @@ func TestComposeBridgeRuntime(t *testing.T) {
 		}
 		if runtime.registry == nil {
 			t.Fatal("composeBridgeRuntime(globaldb) registry = nil, want extension registry")
+		}
+	})
+}
+
+func TestBootBridgeDeliveryReconcileCompletesBeforeRegistration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reconcile active rows before opening broker registration", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 18, 0, 0, 0, time.UTC)
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		instance := bridgepkg.BridgeInstance{
+			ID:            "brg-reconcile",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "slack-adapter",
+			DisplayName:   "Slack",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		}
+		if err := db.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		routingKey := bridgepkg.RoutingKey{
+			Scope:            instance.Scope,
+			WorkspaceID:      instance.WorkspaceID,
+			BridgeInstanceID: instance.ID,
+			PeerID:           "peer-reconcile",
+		}
+		if err := db.CreateBridgeDelivery(ctx, bridgepkg.DeliveryLedgerRecord{
+			DeliveryID:       "delivery-reconcile",
+			SessionID:        "sess-reconcile",
+			TurnID:           "turn-reconcile",
+			RoutingKey:       routingKey,
+			BridgeInstanceID: instance.ID,
+			Scope:            instance.Scope,
+			WorkspaceID:      instance.WorkspaceID,
+			State:            bridgepkg.DeliveryLedgerStateActive,
+			CreatedAt:        now.Add(-time.Minute),
+			UpdatedAt:        now.Add(-time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateBridgeDelivery() error = %v", err)
+		}
+		if err := db.CheckpointBridgeDelivery(ctx, bridgepkg.DeliveryLedgerCheckpoint{
+			DeliveryID:      "delivery-reconcile",
+			State:           bridgepkg.DeliveryLedgerStateActive,
+			LastSentSeq:     3,
+			LastAckedSeq:    3,
+			RemoteMessageID: "remote-reconcile",
+			UpdatedAt:       now.Add(-30 * time.Second),
+		}); err != nil {
+			t.Fatalf("CheckpointBridgeDelivery() error = %v", err)
+		}
+
+		runtime := newBridgeRuntime(
+			db,
+			discardLogger(),
+			func() time.Time { return now },
+			nil,
+			bridgepkg.WithDeliveryBrokerRegistrationGate(),
+		)
+		if runtime == nil {
+			t.Fatal("newBridgeRuntime() = nil, want durable runtime")
+		}
+		t.Cleanup(runtime.Close)
+		transport := &recordingBridgeDeliveryRuntime{}
+		runtime.setExtensionRuntime(transport)
+
+		registration := bridgepkg.PromptDeliveryRegistration{
+			SessionID:     "sess-new",
+			TurnID:        "turn-new",
+			ExtensionName: instance.ExtensionName,
+			RoutingKey:    routingKey,
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: instance.ID,
+				PeerID:           routingKey.PeerID,
+				Mode:             bridgepkg.DeliveryModeReply,
+			},
+		}
+		if _, err := runtime.Broker().RegisterPromptDelivery(ctx, registration); !errors.Is(
+			err,
+			bridgepkg.ErrDeliveryReconciliationPending,
+		) {
+			t.Fatalf("RegisterPromptDelivery(before boot reconcile) error = %v, want pending", err)
+		}
+
+		d := &Daemon{}
+		state := &bootState{bridges: runtime, registry: db, logger: discardLogger()}
+		if err := d.bootBridgeDeliveryReconcile(ctx, state); err != nil {
+			t.Fatalf("bootBridgeDeliveryReconcile() error = %v", err)
+		}
+		calls := transport.deliveryCalls()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("reconcile delivery calls = %d, want %d", got, want)
+		}
+		if calls[0].Event.EventType != bridgepkg.DeliveryEventTypeError || calls[0].Snapshot != nil {
+			t.Fatalf("reconcile request = %#v, want fail-open terminal post", calls[0])
+		}
+		if _, err := runtime.Broker().RegisterPromptDelivery(ctx, registration); err != nil {
+			t.Fatalf("RegisterPromptDelivery(after boot reconcile) error = %v", err)
+		}
+		records, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			Scope:       instance.Scope,
+			WorkspaceID: instance.WorkspaceID,
+			State:       bridgepkg.DeliveryLedgerStateTerminalError,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(terminal error) error = %v", err)
+		}
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("terminal reconciled records = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve workspace identity across independent reconciliation scopes", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 18, 30, 0, 0, time.UTC)
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		workspaceIDs := []string{"ws-reconcile-a", "ws-reconcile-b"}
+		for _, workspaceID := range workspaceIDs {
+			if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+				ID:        workspaceID,
+				RootDir:   filepath.Join(t.TempDir(), workspaceID),
+				Name:      workspaceID,
+				CreatedAt: now.Add(-2 * time.Minute),
+				UpdatedAt: now.Add(-2 * time.Minute),
+			}); err != nil {
+				t.Fatalf("InsertWorkspace(%q) error = %v", workspaceID, err)
+			}
+			instanceID := "brg-" + workspaceID
+			instance := bridgepkg.BridgeInstance{
+				ID:            instanceID,
+				Scope:         bridgepkg.ScopeWorkspace,
+				WorkspaceID:   workspaceID,
+				Platform:      "slack",
+				ExtensionName: "slack-adapter",
+				DisplayName:   workspaceID,
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			}
+			if err := db.InsertBridgeInstance(ctx, instance); err != nil {
+				t.Fatalf("InsertBridgeInstance(%q) error = %v", instanceID, err)
+			}
+			routingKey := bridgepkg.RoutingKey{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				BridgeInstanceID: instanceID,
+				PeerID:           "peer-" + workspaceID,
+			}
+			deliveryID := "delivery-" + workspaceID
+			if err := db.CreateBridgeDelivery(ctx, bridgepkg.DeliveryLedgerRecord{
+				DeliveryID:       deliveryID,
+				SessionID:        "session-" + workspaceID,
+				TurnID:           "turn-" + workspaceID,
+				RoutingKey:       routingKey,
+				BridgeInstanceID: instanceID,
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				State:            bridgepkg.DeliveryLedgerStateActive,
+				CreatedAt:        now.Add(-time.Minute),
+				UpdatedAt:        now.Add(-time.Minute),
+			}); err != nil {
+				t.Fatalf("CreateBridgeDelivery(%q) error = %v", deliveryID, err)
+			}
+			if err := db.CheckpointBridgeDelivery(ctx, bridgepkg.DeliveryLedgerCheckpoint{
+				DeliveryID:      deliveryID,
+				State:           bridgepkg.DeliveryLedgerStateActive,
+				LastSentSeq:     1,
+				LastAckedSeq:    1,
+				RemoteMessageID: "remote-" + workspaceID,
+				UpdatedAt:       now.Add(-30 * time.Second),
+			}); err != nil {
+				t.Fatalf("CheckpointBridgeDelivery(%q) error = %v", deliveryID, err)
+			}
+		}
+
+		runtime := newBridgeRuntime(
+			db,
+			discardLogger(),
+			func() time.Time { return now },
+			nil,
+			bridgepkg.WithDeliveryBrokerRegistrationGate(),
+		)
+		if runtime == nil {
+			t.Fatal("newBridgeRuntime() = nil, want durable runtime")
+		}
+		t.Cleanup(runtime.Close)
+		transport := &recordingBridgeDeliveryRuntime{}
+		runtime.setExtensionRuntime(transport)
+		if err := runtime.reconcileBridgeDeliveries(ctx); err != nil {
+			t.Fatalf("reconcileBridgeDeliveries() error = %v", err)
+		}
+
+		calls := transport.deliveryCalls()
+		if got, want := len(calls), len(workspaceIDs); got != want {
+			t.Fatalf("reconcile calls = %d, want %d", got, want)
+		}
+		seen := make(map[string]string, len(calls))
+		for _, call := range calls {
+			workspaceID := call.Event.RoutingKey.WorkspaceID
+			seen[call.Event.DeliveryID] = workspaceID
+			if got, want := call.Event.BridgeInstanceID, "brg-"+workspaceID; got != want {
+				t.Fatalf("reconciled bridge instance = %q, want %q for workspace %q", got, want, workspaceID)
+			}
+		}
+		for _, workspaceID := range workspaceIDs {
+			deliveryID := "delivery-" + workspaceID
+			if got, want := seen[deliveryID], workspaceID; got != want {
+				t.Fatalf("reconciled workspace for %q = %q, want %q", deliveryID, got, want)
+			}
+			rows, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      workspaceID,
+				BridgeInstanceID: "brg-" + workspaceID,
+				State:            bridgepkg.DeliveryLedgerStateTerminalError,
+			})
+			if err != nil {
+				t.Fatalf("ListBridgeDeliveries(%q) error = %v", workspaceID, err)
+			}
+			if len(rows) != 1 || rows[0].WorkspaceID != workspaceID {
+				t.Fatalf("terminal rows for %q = %#v, want exact workspace row", workspaceID, rows)
+			}
 		}
 	})
 }
