@@ -6,6 +6,7 @@ import { Button, Empty, Pill, Skeleton, Spinner, Textarea } from "@agh/ui";
 import {
   useAgentAuthoredFileEditor,
   type AuthoredFileKind,
+  type AuthoredFilePayload,
 } from "../hooks/use-agent-authored-file-editor";
 import type {
   AgentHeartbeatHistoryResponse,
@@ -17,6 +18,7 @@ import type {
 export type { AuthoredFileKind };
 
 export interface AgentAuthoredFileEditorProps {
+  resourceKey: string;
   kind: AuthoredFileKind;
   payload: AgentSoulPayload | AgentHeartbeatPayload | undefined;
   isLoading: boolean;
@@ -26,14 +28,45 @@ export interface AgentAuthoredFileEditorProps {
     diagnostics?: Array<{ message: string; line?: number; source_path?: string }>;
     validation_status?: string;
   }>;
-  onSave: (body: string, expectedDigest: string) => Promise<void>;
-  onRestore: (revisionId: string, expectedDigest: string) => Promise<void>;
+  onSave: (body: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
+  onRestore: (revisionId: string, expectedDigest: string) => Promise<AuthoredFilePayload>;
   onRetry: () => void;
   /** Extra content rendered above the editor (heartbeat status/wake). */
   headerSlot?: ReactNode;
 }
 
+function AuthoredFileWriteRecovery({
+  kind,
+  saveError,
+  conflict,
+  onReload,
+}: {
+  kind: AuthoredFileKind;
+  saveError: string | null;
+  conflict: boolean;
+  onReload: () => void;
+}) {
+  if (!saveError && !conflict) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
+      {saveError ? <p className="text-small-body text-danger">{saveError}</p> : null}
+      {conflict ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onReload}
+          data-testid={`agent-${kind}-reload`}
+        >
+          Reload
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function AgentAuthoredFileEditor({
+  resourceKey,
   kind,
   payload,
   isLoading,
@@ -46,6 +79,7 @@ export function AgentAuthoredFileEditor({
   headerSlot,
 }: AgentAuthoredFileEditorProps) {
   const editor = useAgentAuthoredFileEditor({
+    resourceKey,
     kind,
     payload,
     history,
@@ -53,6 +87,10 @@ export function AgentAuthoredFileEditor({
     onSave,
     onRestore,
   });
+  const handleReload = () => {
+    editor.handleReload();
+    onRetry();
+  };
 
   if (isLoading) {
     return (
@@ -106,11 +144,12 @@ export function AgentAuthoredFileEditor({
           }
           fill={false}
         />
-        {editor.saveError ? (
-          <p className="mt-3 text-small-body text-danger" role="alert">
-            {editor.saveError}
-          </p>
-        ) : null}
+        <AuthoredFileWriteRecovery
+          kind={kind}
+          saveError={editor.saveError}
+          conflict={editor.conflict}
+          onReload={handleReload}
+        />
       </div>
     );
   }
@@ -132,14 +171,14 @@ export function AgentAuthoredFileEditor({
         >
           {editor.status}
         </Pill>
-        {payload && "enabled" in payload ? (
-          <Pill mono tone={payload.enabled ? "success" : "neutral"}>
-            {payload.enabled ? "enabled" : "disabled"}
+        {editor.payload && "enabled" in editor.payload ? (
+          <Pill mono tone={editor.payload.enabled ? "success" : "neutral"}>
+            {editor.payload.enabled ? "enabled" : "disabled"}
           </Pill>
         ) : null}
-        {payload?.source_path ? (
+        {editor.payload?.source_path ? (
           <code className="font-mono text-badge tracking-mono text-muted">
-            {payload.source_path}
+            {editor.payload.source_path}
           </code>
         ) : null}
       </div>
@@ -169,22 +208,12 @@ export function AgentAuthoredFileEditor({
         </ul>
       ) : null}
 
-      {editor.conflict || editor.saveError ? (
-        <div className="flex flex-wrap items-center gap-2" role="alert">
-          <p className="text-small-body text-danger">{editor.saveError}</p>
-          {editor.conflict ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={onRetry}
-              data-testid={`agent-${kind}-reload`}
-            >
-              Reload
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      <AuthoredFileWriteRecovery
+        kind={kind}
+        saveError={editor.saveError}
+        conflict={editor.conflict}
+        onReload={handleReload}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

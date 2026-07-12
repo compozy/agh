@@ -1,5 +1,6 @@
 import {
   apiClient,
+  apiErrorMessage,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
@@ -57,6 +58,15 @@ export function isAgentTargetExists(error: unknown): error is AgentTargetExistsE
     error instanceof AgentTargetExistsError ||
     (error instanceof AgentApiError && error.kind === "target_exists" && error.status === 409)
   );
+}
+
+/** Compose fallback context with backend detail and status — never drop the agent name. */
+function composeAgentApiErrorMessage(fallback: string, response: Response, error: unknown): string {
+  const detail = apiErrorMessage(error);
+  if (detail) {
+    return `${fallback}: ${detail} (${response.status})`;
+  }
+  return `${fallback}: ${response.status}`;
 }
 
 export async function fetchAgents(
@@ -135,11 +145,11 @@ export async function updateAgent(
   if (apiRequestFailed(response, error)) {
     if (response.status === 409) {
       throw new AgentDigestConflictError(
-        defaultApiErrorMessage("Failed to update agent", response, error)
+        composeAgentApiErrorMessage(`Failed to update agent "${name}"`, response, error)
       );
     }
     throw new AgentApiError(
-      defaultApiErrorMessage(`Failed to update agent "${name}"`, response, error),
+      composeAgentApiErrorMessage(`Failed to update agent "${name}"`, response, error),
       response.status
     );
   }
@@ -184,11 +194,11 @@ export async function duplicateAgent(
   if (apiRequestFailed(response, error)) {
     if (response.status === 409) {
       throw new AgentTargetExistsError(
-        defaultApiErrorMessage("Failed to duplicate agent", response, error)
+        composeAgentApiErrorMessage(`Failed to duplicate agent "${sourceName}"`, response, error)
       );
     }
     throw new AgentApiError(
-      defaultApiErrorMessage(`Failed to duplicate agent "${sourceName}"`, response, error),
+      composeAgentApiErrorMessage(`Failed to duplicate agent "${sourceName}"`, response, error),
       response.status
     );
   }

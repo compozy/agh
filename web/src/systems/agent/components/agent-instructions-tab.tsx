@@ -2,21 +2,20 @@ import { useMemo } from "react";
 
 import { Button, DescriptionCard, PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
 
-import type { SessionPayload } from "@/systems/session";
-
-import { useAgentInstructionsTab } from "../hooks/use-agent-instructions-tab";
+import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { AgentAuthoredFileEditor } from "./agent-authored-file-editor";
 import { AgentHeartbeatOps } from "./agent-heartbeat-ops";
+
+export type { AgentInstructionsTabViewModel };
 
 export interface AgentInstructionsTabProps {
   agent: AgentPayload;
   file: AgentInstructionFile;
   onFileChange: (file: AgentInstructionFile) => void;
   onEditAgentPrompt: () => void;
-  workspaceId: string | null;
-  sessions: SessionPayload[];
+  viewModel: AgentInstructionsTabViewModel;
   onNewSession: () => void;
 }
 
@@ -25,12 +24,9 @@ export function AgentInstructionsTab({
   file,
   onFileChange,
   onEditAgentPrompt,
-  workspaceId,
-  sessions,
+  viewModel: page,
   onNewSession,
 }: AgentInstructionsTabProps) {
-  const page = useAgentInstructionsTab({ agent, file, workspaceId, sessions });
-
   const fileItems: PillGroupItem<AgentInstructionFile>[] = useMemo(
     () => [
       { value: "agent", label: "AGENT.md", testId: "agent-file-tab-agent" },
@@ -99,6 +95,8 @@ export function AgentInstructionsTab({
 
       {file === "soul" ? (
         <AgentAuthoredFileEditor
+          key={page.soul.resourceKey}
+          resourceKey={page.soul.resourceKey}
           kind="soul"
           payload={page.soul.payload}
           isLoading={page.soul.isLoading}
@@ -113,6 +111,8 @@ export function AgentInstructionsTab({
 
       {file === "heartbeat" ? (
         <AgentAuthoredFileEditor
+          key={page.heartbeat.resourceKey}
+          resourceKey={page.heartbeat.resourceKey}
           kind="heartbeat"
           payload={page.heartbeat.payload}
           isLoading={page.heartbeat.isLoading}

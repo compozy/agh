@@ -37,7 +37,7 @@ export function AgentSettingsInstructionsSection({
           value={draft.prompt}
           disabled={disabled}
           readOnly={readOnly}
-          aria-disabled={readOnly || undefined}
+          aria-readonly={readOnly || undefined}
           onChange={event => onPatch({ prompt: event.target.value })}
         />
         <FieldError data-testid="agent-settings-prompt-error">{errors.prompt}</FieldError>

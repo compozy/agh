@@ -239,143 +239,145 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 }
 
 func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
-	ctx := testutil.Context(t)
-	db := openDaemonTestGlobalDB(t)
-	kernel, err := resources.NewKernel(db.DB())
-	if err != nil {
-		t.Fatalf("resources.NewKernel() error = %v", err)
-	}
-	agentCodec, err := aghconfig.NewAgentResourceCodec()
-	if err != nil {
-		t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
-	}
-	agentStore, err := resources.NewStore(kernel, agentCodec)
-	if err != nil {
-		t.Fatalf("resources.NewStore(agent) error = %v", err)
-	}
-	skillCodec, err := skillspkg.NewResourceCodec()
-	if err != nil {
-		t.Fatalf("skillspkg.NewResourceCodec() error = %v", err)
-	}
-	skillStore, err := resources.NewStore(kernel, skillCodec)
-	if err != nil {
-		t.Fatalf("resources.NewStore(skill) error = %v", err)
-	}
-	mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
-	if err != nil {
-		t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
-	}
-	mcpStore, err := resources.NewStore(kernel, mcpCodec)
-	if err != nil {
-		t.Fatalf("resources.NewStore(mcp) error = %v", err)
-	}
-	homePaths := agentSkillIntegrationHome(t)
-	resolver, err := workspacepkg.NewResolver(
-		db,
-		workspacepkg.WithHomePaths(homePaths),
-		workspacepkg.WithLogger(discardLogger()),
-	)
-	if err != nil {
-		t.Fatalf("workspace.NewResolver() error = %v", err)
-	}
-	agentCatalog := newResourceCatalog(cloneAgentDef)
-	skillRegistry := skillspkg.NewRegistry(
-		agentSkillIntegrationSkillConfig(homePaths),
-		skillspkg.WithLogger(discardLogger()),
-	)
-	mcpCatalog := newResourceCatalog(cloneDaemonMCPServer)
-	driver := newAgentSkillIntegrationDriver(
-		t,
-		kernel,
-		agentCodec,
-		skillCodec,
-		mcpCodec,
-		agentCatalog,
-		skillRegistry,
-		mcpCatalog,
-	)
-	syncer := newAgentSkillSourceSyncer(
-		kernel,
-		agentStore,
-		agentCodec,
-		newAgentProjector(agentCatalog),
-		skillStore,
-		skillCodec,
-		newSkillProjector(skillRegistry),
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		discardLogger(),
-		func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			return driver.Trigger(ctx, kind, reason)
-		},
-		daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
-	)
-	catalog := agentCatalogDependency(agentCatalog)
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:       "agent-mutation-integration",
-		HomePaths:           homePaths,
-		Workspaces:          resolver,
-		AgentCatalog:        catalog,
-		AgentDefinitionSync: syncer,
-		Logger:              discardLogger(),
-	})
-	gin.SetMode(gin.TestMode)
-	engine := gin.New()
-	engine.POST("/api/agents", handlers.CreateAgent)
-	engine.PUT("/api/agents/:name", handlers.UpdateAgent)
-	engine.DELETE("/api/agents/:name", handlers.DeleteAgent)
-	engine.POST("/api/agents/:name/duplicate", handlers.DuplicateAgent)
-
-	create := performAgentMutationIntegrationRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/agents",
-		contract.CreateAgentRequest{
-			Scope: contract.AgentCreateScopeGlobal,
-			Agent: contract.CreateAgentPayload{
-				Name: "coder", Provider: "claude", Prompt: "Create integration fixtures.",
+	t.Run("Should create update duplicate delete and rebuild an agent definition end to end", func(t *testing.T) {
+		// not parallel: gin.SetMode mutates process-global state.
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		agentCodec, err := aghconfig.NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewAgentResourceCodec() error = %v", err)
+		}
+		agentStore, err := resources.NewStore(kernel, agentCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(agent) error = %v", err)
+		}
+		skillCodec, err := skillspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("skillspkg.NewResourceCodec() error = %v", err)
+		}
+		skillStore, err := resources.NewStore(kernel, skillCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(skill) error = %v", err)
+		}
+		mcpCodec, err := aghconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("aghconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+		mcpStore, err := resources.NewStore(kernel, mcpCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(mcp) error = %v", err)
+		}
+		homePaths := agentSkillIntegrationHome(t)
+		resolver, err := workspacepkg.NewResolver(
+			db,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("workspace.NewResolver() error = %v", err)
+		}
+		agentCatalog := newResourceCatalog(cloneAgentDef)
+		skillRegistry := skillspkg.NewRegistry(
+			agentSkillIntegrationSkillConfig(homePaths),
+			skillspkg.WithLogger(discardLogger()),
+		)
+		mcpCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		driver := newAgentSkillIntegrationDriver(
+			t,
+			kernel,
+			agentCodec,
+			skillCodec,
+			mcpCodec,
+			agentCatalog,
+			skillRegistry,
+			mcpCatalog,
+		)
+		syncer := newAgentSkillSourceSyncer(
+			kernel,
+			agentStore,
+			agentCodec,
+			newAgentProjector(agentCatalog),
+			skillStore,
+			skillCodec,
+			newSkillProjector(skillRegistry),
+			mcpStore,
+			mcpCodec,
+			agentSkillSyncActor(),
+			discardLogger(),
+			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
+				return driver.Trigger(ctx, kind, reason)
 			},
-		},
-	)
-	if create.Code != http.StatusCreated {
-		t.Fatalf("create status = %d, want %d; body=%s", create.Code, http.StatusCreated, create.Body.String())
-	}
-	var created contract.AgentResponse
-	decodeAgentMutationIntegrationResponse(t, create, &created)
-	if _, err := catalog.GetAgent(ctx, "coder"); err != nil {
-		t.Fatalf("catalog.GetAgent(coder after create) error = %v", err)
-	}
+			daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
+		)
+		catalog := agentCatalogDependency(agentCatalog)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:       "agent-mutation-integration",
+			HomePaths:           homePaths,
+			Workspaces:          resolver,
+			AgentCatalog:        catalog,
+			AgentDefinitionSync: syncer,
+			Logger:              discardLogger(),
+		})
+		gin.SetMode(gin.TestMode)
+		engine := gin.New()
+		engine.POST("/api/agents", handlers.CreateAgent)
+		engine.PUT("/api/agents/:name", handlers.UpdateAgent)
+		engine.DELETE("/api/agents/:name", handlers.DeleteAgent)
+		engine.POST("/api/agents/:name/duplicate", handlers.DuplicateAgent)
 
-	update := performAgentMutationIntegrationRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/api/agents/coder",
-		contract.UpdateAgentRequest{
-			Agent: contract.CreateAgentPayload{
-				Name: "coder", Provider: "claude", Model: "claude-opus-4-8", Prompt: "Updated integration fixture.",
+		create := performAgentMutationIntegrationRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/agents",
+			contract.CreateAgentRequest{
+				Scope: contract.AgentCreateScopeGlobal,
+				Agent: contract.CreateAgentPayload{
+					Name: "coder", Provider: "claude", Prompt: "Create integration fixtures.",
+				},
 			},
-			ExpectedDigest: created.Agent.DefinitionDigest,
-		},
-	)
-	if update.Code != http.StatusOK {
-		t.Fatalf("update status = %d, want %d; body=%s", update.Code, http.StatusOK, update.Body.String())
-	}
-	updatedEntry, err := catalog.GetAgent(ctx, "coder")
-	if err != nil {
-		t.Fatalf("catalog.GetAgent(coder after update) error = %v", err)
-	}
-	if updatedEntry.Def.Model != "claude-opus-4-8" {
-		t.Fatalf("updated catalog model = %q, want claude-opus-4-8", updatedEntry.Def.Model)
-	}
+		)
+		if create.Code != http.StatusCreated {
+			t.Fatalf("create status = %d, want %d; body=%s", create.Code, http.StatusCreated, create.Body.String())
+		}
+		var created contract.AgentResponse
+		decodeAgentMutationIntegrationResponse(t, create, &created)
+		if _, err := catalog.GetAgent(ctx, "coder"); err != nil {
+			t.Fatalf("catalog.GetAgent(coder after create) error = %v", err)
+		}
 
-	sourceDir := filepath.Join(homePaths.AgentsDir, "coder")
-	sidecars := map[string]string{
-		"SOUL.md":      "Integration soul.\n",
-		"HEARTBEAT.md": "Integration heartbeat.\n",
-		aghconfig.MCPJSONName: `{
+		update := performAgentMutationIntegrationRequest(
+			t,
+			engine,
+			http.MethodPut,
+			"/api/agents/coder",
+			contract.UpdateAgentRequest{
+				Agent: contract.CreateAgentPayload{
+					Name: "coder", Provider: "claude", Model: "claude-opus-4-8", Prompt: "Updated integration fixture.",
+				},
+				ExpectedDigest: created.Agent.DefinitionDigest,
+			},
+		)
+		if update.Code != http.StatusOK {
+			t.Fatalf("update status = %d, want %d; body=%s", update.Code, http.StatusOK, update.Body.String())
+		}
+		updatedEntry, err := catalog.GetAgent(ctx, "coder")
+		if err != nil {
+			t.Fatalf("catalog.GetAgent(coder after update) error = %v", err)
+		}
+		if updatedEntry.Def.Model != "claude-opus-4-8" {
+			t.Fatalf("updated catalog model = %q, want claude-opus-4-8", updatedEntry.Def.Model)
+		}
+
+		sourceDir := filepath.Join(homePaths.AgentsDir, "coder")
+		sidecars := map[string]string{
+			"SOUL.md":      "Integration soul.\n",
+			"HEARTBEAT.md": "Integration heartbeat.\n",
+			aghconfig.MCPJSONName: `{
   "mcpServers": {
     "integration": {
       "command": "integration-mcp",
@@ -383,87 +385,88 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
     }
   }
 }`,
-	}
-	for name, content := range sidecars {
-		writeAgentSkillIntegrationFile(t, filepath.Join(sourceDir, name), content)
-	}
-	duplicate := performAgentMutationIntegrationRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/agents/coder/duplicate",
-		contract.DuplicateAgentRequest{
-			Name: "reviewer",
-			Overrides: &contract.DuplicateAgentOverrides{
-				Prompt: "Review the integration fixture.",
+		}
+		for name, content := range sidecars {
+			writeAgentSkillIntegrationFile(t, filepath.Join(sourceDir, name), content)
+		}
+		duplicate := performAgentMutationIntegrationRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/agents/coder/duplicate",
+			contract.DuplicateAgentRequest{
+				Name: "reviewer",
+				Overrides: &contract.DuplicateAgentOverrides{
+					Prompt: "Review the integration fixture.",
+				},
 			},
-		},
-	)
-	if duplicate.Code != http.StatusCreated {
-		t.Fatalf("duplicate status = %d, want %d; body=%s", duplicate.Code, http.StatusCreated, duplicate.Body.String())
-	}
-	if _, err := catalog.GetAgent(ctx, "reviewer"); err != nil {
-		t.Fatalf("catalog.GetAgent(reviewer after duplicate) error = %v", err)
-	}
-	for name, want := range sidecars {
-		got, err := os.ReadFile(filepath.Join(homePaths.AgentsDir, "reviewer", name))
-		if err != nil {
-			t.Fatalf("os.ReadFile(duplicate %s) error = %v", name, err)
+		)
+		if duplicate.Code != http.StatusCreated {
+			t.Fatalf("duplicate status = %d, want %d; body=%s", duplicate.Code, http.StatusCreated, duplicate.Body.String())
 		}
-		if string(got) != want {
-			t.Fatalf("duplicate %s = %q, want %q", name, got, want)
+		if _, err := catalog.GetAgent(ctx, "reviewer"); err != nil {
+			t.Fatalf("catalog.GetAgent(reviewer after duplicate) error = %v", err)
 		}
-	}
-
-	pollDone := make(chan error, 1)
-	go func() {
-		for range 8 {
-			if err := syncer.Sync(ctx); err != nil {
-				pollDone <- err
-				return
+		for name, want := range sidecars {
+			got, err := os.ReadFile(filepath.Join(homePaths.AgentsDir, "reviewer", name))
+			if err != nil {
+				t.Fatalf("os.ReadFile(duplicate %s) error = %v", name, err)
+			}
+			if string(got) != want {
+				t.Fatalf("duplicate %s = %q, want %q", name, got, want)
 			}
 		}
-		pollDone <- nil
-	}()
-	deleted := performAgentMutationIntegrationRequest(t, engine, http.MethodDelete, "/api/agents/coder", nil)
-	if deleted.Code != http.StatusOK {
-		t.Fatalf("delete status = %d, want %d; body=%s", deleted.Code, http.StatusOK, deleted.Body.String())
-	}
-	if err := <-pollDone; err != nil {
-		t.Fatalf("poll-equivalent Sync() error = %v", err)
-	}
-	if err := syncer.Sync(ctx); err != nil {
-		t.Fatalf("final Sync() error = %v", err)
-	}
-	if _, err := catalog.GetAgent(ctx, "coder"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("catalog.GetAgent(coder after delete) error = %v, want os.ErrNotExist", err)
-	}
-	if _, err := os.Stat(sourceDir); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("os.Stat(deleted source) error = %v, want os.ErrNotExist", err)
-	}
 
-	rebuiltCatalog := newResourceCatalog(cloneAgentDef)
-	rebuiltSkills := skillspkg.NewRegistry(
-		agentSkillIntegrationSkillConfig(homePaths),
-		skillspkg.WithLogger(discardLogger()),
-	)
-	rebuiltMCP := newResourceCatalog(cloneDaemonMCPServer)
-	bootDriver := newAgentSkillIntegrationDriver(
-		t,
-		kernel,
-		agentCodec,
-		skillCodec,
-		mcpCodec,
-		rebuiltCatalog,
-		rebuiltSkills,
-		rebuiltMCP,
-	)
-	if err := bootDriver.RunBoot(ctx); err != nil {
-		t.Fatalf("bootDriver.RunBoot() error = %v", err)
-	}
-	if _, err := agentCatalogDependency(rebuiltCatalog).GetAgent(ctx, "coder"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("rebuilt catalog GetAgent(coder) error = %v, want os.ErrNotExist", err)
-	}
+		pollDone := make(chan error, 1)
+		go func() {
+			for range 8 {
+				if err := syncer.Sync(ctx); err != nil {
+					pollDone <- err
+					return
+				}
+			}
+			pollDone <- nil
+		}()
+		deleted := performAgentMutationIntegrationRequest(t, engine, http.MethodDelete, "/api/agents/coder", nil)
+		if deleted.Code != http.StatusOK {
+			t.Fatalf("delete status = %d, want %d; body=%s", deleted.Code, http.StatusOK, deleted.Body.String())
+		}
+		if err := <-pollDone; err != nil {
+			t.Fatalf("poll-equivalent Sync() error = %v", err)
+		}
+		if err := syncer.Sync(ctx); err != nil {
+			t.Fatalf("final Sync() error = %v", err)
+		}
+		if _, err := catalog.GetAgent(ctx, "coder"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("catalog.GetAgent(coder after delete) error = %v, want os.ErrNotExist", err)
+		}
+		if _, err := os.Stat(sourceDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(deleted source) error = %v, want os.ErrNotExist", err)
+		}
+
+		rebuiltCatalog := newResourceCatalog(cloneAgentDef)
+		rebuiltSkills := skillspkg.NewRegistry(
+			agentSkillIntegrationSkillConfig(homePaths),
+			skillspkg.WithLogger(discardLogger()),
+		)
+		rebuiltMCP := newResourceCatalog(cloneDaemonMCPServer)
+		bootDriver := newAgentSkillIntegrationDriver(
+			t,
+			kernel,
+			agentCodec,
+			skillCodec,
+			mcpCodec,
+			rebuiltCatalog,
+			rebuiltSkills,
+			rebuiltMCP,
+		)
+		if err := bootDriver.RunBoot(ctx); err != nil {
+			t.Fatalf("bootDriver.RunBoot() error = %v", err)
+		}
+		if _, err := agentCatalogDependency(rebuiltCatalog).GetAgent(ctx, "coder"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("rebuilt catalog GetAgent(coder) error = %v, want os.ErrNotExist", err)
+		}
+	})
 }
 
 func performAgentMutationIntegrationRequest(

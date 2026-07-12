@@ -47,7 +47,7 @@ export function AgentSettingsBasicsSection({
           value={draft.categoryPath}
           disabled={disabled}
           readOnly={readOnly}
-          aria-disabled={readOnly || undefined}
+          aria-readonly={readOnly || undefined}
           onChange={event => onPatch({ categoryPath: event.target.value })}
           placeholder="ops/release"
         />

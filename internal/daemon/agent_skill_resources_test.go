@@ -107,45 +107,48 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 
 func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
 	t.Parallel()
+	t.Run("Should serialize concurrent Sync calls into ordered convergence passes", func(t *testing.T) {
+		t.Parallel()
 
-	entered := make(chan int, 2)
-	release := make(chan struct{})
-	wantErr := errors.New("stop after provider")
-	var calls atomic.Int32
-	syncer := &agentSkillSourceSyncer{
-		providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDesiredResources, error) {
-			call := int(calls.Add(1))
-			entered <- call
-			<-release
-			return agentSkillDesiredResources{}, wantErr
-		}},
-	}
-	firstDone := make(chan error, 1)
-	go func() {
-		firstDone <- syncer.Sync(context.Background())
-	}()
-	if call := <-entered; call != 1 {
-		t.Fatalf("first provider call = %d, want 1", call)
-	}
-	secondDone := make(chan error, 1)
-	go func() {
-		secondDone <- syncer.Sync(context.Background())
-	}()
-	select {
-	case call := <-entered:
-		t.Fatalf("provider call %d entered before the first convergence pass released", call)
-	case <-time.After(25 * time.Millisecond):
-	}
-	close(release)
-	if err := <-firstDone; !errors.Is(err, wantErr) {
-		t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
-	}
-	if call := <-entered; call != 2 {
-		t.Fatalf("second provider call = %d, want 2", call)
-	}
-	if err := <-secondDone; !errors.Is(err, wantErr) {
-		t.Fatalf("second Sync() error = %v, want %v", err, wantErr)
-	}
+		entered := make(chan int, 2)
+		release := make(chan struct{})
+		wantErr := errors.New("stop after provider")
+		var calls atomic.Int32
+		syncer := &agentSkillSourceSyncer{
+			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDesiredResources, error) {
+				call := int(calls.Add(1))
+				entered <- call
+				<-release
+				return agentSkillDesiredResources{}, wantErr
+			}},
+		}
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- syncer.Sync(context.Background())
+		}()
+		if call := <-entered; call != 1 {
+			t.Fatalf("first provider call = %d, want 1", call)
+		}
+		secondDone := make(chan error, 1)
+		go func() {
+			secondDone <- syncer.Sync(context.Background())
+		}()
+		select {
+		case call := <-entered:
+			t.Fatalf("provider call %d entered before the first convergence pass released", call)
+		case <-time.After(25 * time.Millisecond):
+		}
+		close(release)
+		if err := <-firstDone; !errors.Is(err, wantErr) {
+			t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
+		}
+		if call := <-entered; call != 2 {
+			t.Fatalf("second provider call = %d, want 2", call)
+		}
+		if err := <-secondDone; !errors.Is(err, wantErr) {
+			t.Fatalf("second Sync() error = %v, want %v", err, wantErr)
+		}
+	})
 }
 
 func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) {

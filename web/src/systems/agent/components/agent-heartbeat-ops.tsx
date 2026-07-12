@@ -163,10 +163,10 @@ export function AgentHeartbeatOps({
       <Button
         type="button"
         size="sm"
+        disabled={!canWake}
         onClick={() => {
-          if (canWake && selectedSessionId) onWake(selectedSessionId);
+          if (selectedSessionId) onWake(selectedSessionId);
         }}
-        aria-disabled={!canWake}
         data-testid="agent-heartbeat-wake"
         aria-live="polite"
       >

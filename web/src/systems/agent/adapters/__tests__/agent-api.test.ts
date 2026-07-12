@@ -257,7 +257,7 @@ describe("updateAgent", () => {
     });
   });
 
-  it("Should throw AgentDigestConflictError on 409", async () => {
+  it("Should throw AgentDigestConflictError on 409 with agent name, backend detail, and status", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: "definition digest conflict" }), {
         status: 409,
@@ -265,8 +265,37 @@ describe("updateAgent", () => {
       })
     );
 
-    await expect(updateAgent("claude-agent", params)).rejects.toSatisfy(
-      (error: unknown) => error instanceof AgentDigestConflictError && isAgentDigestConflict(error)
+    await expect(updateAgent("claude-agent", params)).rejects.toSatisfy((error: unknown) => {
+      if (!(error instanceof AgentDigestConflictError) || !isAgentDigestConflict(error)) {
+        return false;
+      }
+      return (
+        error.message.includes('Failed to update agent "claude-agent"') &&
+        error.message.includes("definition digest conflict") &&
+        error.message.includes("(409)")
+      );
+    });
+  });
+
+  it("Should include agent name and status on 409 when backend detail is absent", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 409 }));
+
+    await expect(updateAgent("claude-agent", params)).rejects.toSatisfy((error: unknown) => {
+      if (!(error instanceof AgentDigestConflictError)) return false;
+      return error.message === 'Failed to update agent "claude-agent": 409';
+    });
+  });
+
+  it("Should preserve agent name, backend detail, and status on non-conflict failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "provider unavailable" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(updateAgent("claude-agent", params)).rejects.toThrow(
+      'Failed to update agent "claude-agent": provider unavailable (503)'
     );
   });
 });
@@ -344,7 +373,7 @@ describe("duplicateAgent", () => {
     });
   });
 
-  it("Should throw AgentTargetExistsError on 409", async () => {
+  it("Should throw AgentTargetExistsError on 409 with source name, backend detail, and status", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: "agent definition already exists" }), {
         status: 409,
@@ -352,8 +381,28 @@ describe("duplicateAgent", () => {
       })
     );
 
-    await expect(duplicateAgent("claude-agent", params)).rejects.toSatisfy(
-      (error: unknown) => error instanceof AgentTargetExistsError && isAgentTargetExists(error)
+    await expect(duplicateAgent("claude-agent", params)).rejects.toSatisfy((error: unknown) => {
+      if (!(error instanceof AgentTargetExistsError) || !isAgentTargetExists(error)) {
+        return false;
+      }
+      return (
+        error.message.includes('Failed to duplicate agent "claude-agent"') &&
+        error.message.includes("agent definition already exists") &&
+        error.message.includes("(409)")
+      );
+    });
+  });
+
+  it("Should preserve source name, backend detail, and status on non-conflict failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "storage unavailable" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(duplicateAgent("claude-agent", params)).rejects.toThrow(
+      'Failed to duplicate agent "claude-agent": storage unavailable (503)'
     );
   });
 });

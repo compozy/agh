@@ -75,23 +75,20 @@ describe("AgentHeartbeatOps", () => {
     mockWake.mockReset();
     render(<Harness />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("agent-heartbeat-wake")).toHaveAttribute("aria-disabled", "false")
-    );
+    await waitFor(() => expect(screen.getByTestId("agent-heartbeat-wake")).not.toBeDisabled());
     expect(screen.getByText("sent · wake_sent")).toBeInTheDocument();
     await user.click(screen.getByTestId("agent-heartbeat-wake"));
     expect(mockWake).toHaveBeenCalledWith("sess-1");
   });
 
-  it("Should keep Wake now focusable but inert with a truthful reason when session health blocks it", async () => {
+  it("Should disable Wake now and keep the ineligibility reason when session health blocks it", async () => {
     const user = userEvent.setup();
     mockWake.mockReset();
     render(<Harness eligible={false} />);
 
     await waitFor(() => expect(screen.getByTestId("agent-heartbeat-ineligible")).toBeVisible());
     const wake = screen.getByTestId("agent-heartbeat-wake");
-    expect(wake).toHaveAttribute("aria-disabled", "true");
-    expect(wake).not.toBeDisabled();
+    expect(wake).toBeDisabled();
     await user.click(wake);
     expect(mockWake).not.toHaveBeenCalled();
   });

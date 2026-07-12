@@ -69,6 +69,48 @@ describe("agent MSW handlers", () => {
     expect(deletedBody.name).toBe(`${name}-copy`);
   });
 
+  it("Should force duplicate origin from explicit scope across the workspace and global boundary", async () => {
+    const name = primaryAgentFixture.name;
+
+    const toWorkspace = await fetch(`${API}/api/agents/${name}/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${name}-ws`,
+        scope: "workspace",
+        workspace: "ws-test",
+      }),
+    });
+    expect(toWorkspace.status).toBe(201);
+    const workspaceCopy = (await toWorkspace.json()) as {
+      agent: { name: string; origin: string };
+    };
+    expect(workspaceCopy.agent.origin).toBe("workspace");
+
+    const toGlobal = await fetch(`${API}/api/agents/${name}-ws/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${name}-global`,
+        scope: "global",
+      }),
+    });
+    expect(toGlobal.status).toBe(201);
+    const globalCopy = (await toGlobal.json()) as { agent: { name: string; origin: string } };
+    expect(globalCopy.agent.origin).toBe("global");
+
+    const inherited = await fetch(`${API}/api/agents/${name}-ws/duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${name}-inherited`,
+      }),
+    });
+    expect(inherited.status).toBe(201);
+    const inheritedCopy = (await inherited.json()) as { agent: { origin: string } };
+    expect(inheritedCopy.agent.origin).toBe("workspace");
+  });
+
   it("Should round-trip soul and heartbeat authored-file routes", async () => {
     const name = primaryAgentFixture.name;
 

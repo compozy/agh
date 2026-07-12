@@ -224,7 +224,7 @@ export const handlers: HttpHandler[] = [
       ...source,
       ...body.overrides,
       name: body.name,
-      origin: body.scope === "workspace" ? "workspace" : source.origin,
+      origin: body.scope ?? source.origin,
       definition_digest: nextDigest(`dup:${body.name}`),
       ...(body.overrides?.skills ? { skills: body.overrides.skills } : {}),
       ...(body.overrides?.deny_tools ? { deny_tools: body.overrides.deny_tools } : {}),

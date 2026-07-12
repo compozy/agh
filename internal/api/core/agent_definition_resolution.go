@@ -131,6 +131,26 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	}
 }
 
+func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved resolvedAgentDefinition) (string, error) {
+	switch resolved.Entry.Origin {
+	case contract.AgentOriginGlobal:
+		return h.HomePaths.AgentsDir, nil
+	case contract.AgentOriginWorkspace:
+		if resolved.WorkspaceRoot == "" {
+			return "", errors.Join(
+				errAgentDefinitionInvalid,
+				errors.New("source workspace root is unavailable"),
+			)
+		}
+		return filepath.Join(resolved.WorkspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName), nil
+	default:
+		return "", errors.Join(
+			errAgentDefinitionInvalid,
+			fmt.Errorf("unsupported agent origin %q", resolved.Entry.Origin),
+		)
+	}
+}
+
 func (h *BaseHandlers) globalAgentTwinExists(name string, effectiveSourcePath string) bool {
 	path := filepath.Join(
 		h.HomePaths.AgentsDir,

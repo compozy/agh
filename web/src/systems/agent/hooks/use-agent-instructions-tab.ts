@@ -21,6 +21,7 @@ import {
 import { formatPromptWordCount } from "../lib/agent-absent-value";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
+import { buildAuthoredFileResourceKey } from "./use-agent-authored-file-editor";
 
 export interface UseAgentInstructionsTabArgs {
   agent: AgentPayload;
@@ -80,13 +81,11 @@ export function useAgentInstructionsTab({
   );
 
   const soulMissing =
-    soulQuery.data?.validation_status === "missing" ||
-    soulQuery.data?.present === false ||
-    (!soulQuery.isLoading && soulQuery.isFetched && !soulQuery.data?.present);
+    soulQuery.isSuccess &&
+    (soulQuery.data.validation_status === "missing" || soulQuery.data.present === false);
   const heartbeatMissing =
-    heartbeatQuery.data?.validation_status === "missing" ||
-    heartbeatQuery.data?.present === false ||
-    (!heartbeatQuery.isLoading && heartbeatQuery.isFetched && !heartbeatQuery.data?.present);
+    heartbeatQuery.isSuccess &&
+    (heartbeatQuery.data.validation_status === "missing" || heartbeatQuery.data.present === false);
 
   const handleWake = useCallback(
     (sessionId: string) => {
@@ -100,6 +99,7 @@ export function useAgentInstructionsTab({
     soulMissing,
     heartbeatMissing,
     soul: {
+      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "soul"),
       payload: soulQuery.data,
       isLoading: soulQuery.isLoading,
       isError: soulQuery.isError,
@@ -110,18 +110,20 @@ export function useAgentInstructionsTab({
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         }),
       onSave: async (body: string, expectedDigest: string) => {
-        await putSoul.mutateAsync({
+        const result = await putSoul.mutateAsync({
           body,
           expected_digest: expectedDigest,
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         });
+        return result.soul;
       },
       onRestore: async (revisionId: string, expectedDigest: string) => {
-        await rollbackSoul.mutateAsync({
+        const result = await rollbackSoul.mutateAsync({
           revision_id: revisionId,
           expected_digest: expectedDigest,
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         });
+        return result.soul;
       },
       onRetry: () => {
         void soulQuery.refetch();
@@ -129,6 +131,7 @@ export function useAgentInstructionsTab({
       },
     },
     heartbeat: {
+      resourceKey: buildAuthoredFileResourceKey(workspaceId, agent.name, "heartbeat"),
       payload: heartbeatQuery.data,
       isLoading: heartbeatQuery.isLoading,
       isError: heartbeatQuery.isError,
@@ -139,18 +142,20 @@ export function useAgentInstructionsTab({
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         }),
       onSave: async (body: string, expectedDigest: string) => {
-        await putHeartbeat.mutateAsync({
+        const result = await putHeartbeat.mutateAsync({
           body,
           expected_digest: expectedDigest,
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         });
+        return result.heartbeat;
       },
       onRestore: async (revisionId: string, expectedDigest: string) => {
-        await rollbackHeartbeat.mutateAsync({
+        const result = await rollbackHeartbeat.mutateAsync({
           revision_id: revisionId,
           expected_digest: expectedDigest,
           ...(workspaceId ? { workspace_id: workspaceId } : {}),
         });
+        return result.heartbeat;
       },
       onRetry: () => {
         void heartbeatQuery.refetch();
@@ -178,3 +183,5 @@ export function useAgentInstructionsTab({
     },
   };
 }
+
+export type AgentInstructionsTabViewModel = ReturnType<typeof useAgentInstructionsTab>;

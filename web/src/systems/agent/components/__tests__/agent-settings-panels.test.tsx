@@ -161,7 +161,7 @@ describe("AgentSettingsPanels", () => {
   });
 
   it("Should keep fields visible and read-only after mutation denial", () => {
-    render(
+    const view = render(
       <AgentSettingsPanels
         {...props("instructions", {
           mutationDenied: true,
@@ -173,7 +173,23 @@ describe("AgentSettingsPanels", () => {
     expect(screen.getByTestId("agent-settings-mutation-denied")).toBeVisible();
     const prompt = screen.getByTestId("agent-settings-prompt");
     expect(prompt).toHaveAttribute("readonly");
-    expect(prompt).toHaveAttribute("aria-disabled", "true");
+    expect(prompt).toHaveAttribute("aria-readonly", "true");
+    expect(prompt).not.toHaveAttribute("aria-disabled");
     expect(prompt).not.toBeDisabled();
+
+    view.rerender(
+      <AgentSettingsPanels
+        {...props("basics", {
+          mutationDenied: true,
+          readOnly: true,
+          saveError: null,
+        })}
+      />
+    );
+    const category = screen.getByTestId("agent-settings-category");
+    expect(category).toHaveAttribute("readonly");
+    expect(category).toHaveAttribute("aria-readonly", "true");
+    expect(category).not.toHaveAttribute("aria-disabled");
+    expect(category).not.toBeDisabled();
   });
 });

@@ -137,22 +137,86 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 
 	t.Run("Should remove the complete authored directory and report a repeated delete", func(t *testing.T) {
 		t.Parallel()
-		dir := filepath.Join(t.TempDir(), "coder")
+		dir := filepath.Join(t.TempDir(), AgentsDirName, "coder")
+		agentsRoot := filepath.Dir(dir)
 		path := filepath.Join(dir, AgentDefinitionFileName)
 		writeFile(t, path, "definition")
 		writeFile(t, filepath.Join(dir, "SOUL.md"), "soul")
 		writeFile(t, filepath.Join(dir, "HEARTBEAT.md"), "heartbeat")
 		writeFile(t, filepath.Join(dir, "mcp.json"), "{}")
-		if err := DeleteAgentDefinition(path); err != nil {
+		if err := DeleteAgentDefinition(agentsRoot, path); err != nil {
 			t.Fatalf("DeleteAgentDefinition() error = %v", err)
 		}
 		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(deleted directory) error = %v, want os.ErrNotExist", err)
 		}
-		if err := DeleteAgentDefinition(path); !errors.Is(err, ErrAgentDefinitionNotFound) ||
+		if err := DeleteAgentDefinition(agentsRoot, path); !errors.Is(err, ErrAgentDefinitionNotFound) ||
 			!strings.Contains(err.Error(), path) {
 			t.Fatalf("DeleteAgentDefinition(repeat) error = %v", err)
 		}
+	})
+
+	t.Run("Should reject a shallow definition path without removing its parent", func(t *testing.T) {
+		t.Parallel()
+		parent := t.TempDir()
+		definitionPath := filepath.Join(parent, AgentDefinitionFileName)
+		sentinelPath := filepath.Join(parent, "sentinel")
+		writeFile(t, definitionPath, "definition")
+		writeFile(t, sentinelPath, "preserve")
+
+		if err := DeleteAgentDefinition(filepath.Join(parent, AgentsDirName), definitionPath); err == nil {
+			t.Fatal("DeleteAgentDefinition(shallow path) error = nil, want validation error")
+		}
+		if _, err := os.Stat(parent); err != nil {
+			t.Fatalf("os.Stat(parent after rejected delete) error = %v", err)
+		}
+		if got, err := os.ReadFile(sentinelPath); err != nil || string(got) != "preserve" {
+			t.Fatalf("sentinel after rejected delete = %q, error = %v", got, err)
+		}
+	})
+
+	t.Run("Should reject symlinked deletion ancestry", func(t *testing.T) {
+		t.Parallel()
+		realAgentDir := filepath.Join(t.TempDir(), AgentsDirName, "coder")
+		realDefinitionPath := filepath.Join(realAgentDir, AgentDefinitionFileName)
+		sentinelPath := filepath.Join(realAgentDir, "sentinel")
+		writeFile(t, realDefinitionPath, "definition")
+		writeFile(t, sentinelPath, "preserve")
+
+		t.Run("Should reject a symlinked agents directory", func(t *testing.T) {
+			t.Parallel()
+			linkedRoot := t.TempDir()
+			linkedAgentsDir := filepath.Join(linkedRoot, AgentsDirName)
+			if err := os.Symlink(filepath.Dir(realAgentDir), linkedAgentsDir); err != nil {
+				t.Fatalf("os.Symlink(agents directory) error = %v", err)
+			}
+			linkedDefinitionPath := filepath.Join(linkedAgentsDir, "coder", AgentDefinitionFileName)
+			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil {
+				t.Fatal("DeleteAgentDefinition(symlinked agents directory) error = nil, want validation error")
+			}
+			if _, err := os.Stat(sentinelPath); err != nil {
+				t.Fatalf("os.Stat(sentinel after symlinked agents delete) error = %v", err)
+			}
+		})
+
+		t.Run("Should reject a symlinked agent directory", func(t *testing.T) {
+			t.Parallel()
+			linkedAgentsDir := filepath.Join(t.TempDir(), AgentsDirName)
+			if err := os.MkdirAll(linkedAgentsDir, 0o700); err != nil {
+				t.Fatalf("os.MkdirAll(linked agents directory) error = %v", err)
+			}
+			linkedAgentDir := filepath.Join(linkedAgentsDir, "coder")
+			if err := os.Symlink(realAgentDir, linkedAgentDir); err != nil {
+				t.Fatalf("os.Symlink(agent directory) error = %v", err)
+			}
+			linkedDefinitionPath := filepath.Join(linkedAgentDir, AgentDefinitionFileName)
+			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil {
+				t.Fatal("DeleteAgentDefinition(symlinked agent directory) error = nil, want validation error")
+			}
+			if _, err := os.Stat(sentinelPath); err != nil {
+				t.Fatalf("os.Stat(sentinel after symlinked agent delete) error = %v", err)
+			}
+		})
 	})
 
 	t.Run("Should reject invalid lifecycle paths before mutation", func(t *testing.T) {
@@ -192,14 +256,14 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		if origin, workspace := AgentOriginFor(HomePaths{}, "not-an-agent.md"); origin != "" || workspace != "" {
 			t.Fatalf("AgentOriginFor(invalid path) = (%q, %q), want empty classification", origin, workspace)
 		}
-		if err := DeleteAgentDefinition("not-an-agent.md"); err == nil {
+		if err := DeleteAgentDefinition(filepath.Join(t.TempDir(), AgentsDirName), "not-an-agent.md"); err == nil {
 			t.Fatal("DeleteAgentDefinition(invalid path) error = nil, want validation error")
 		}
 		directoryDefinition := filepath.Join(t.TempDir(), AgentDefinitionFileName)
 		if err := os.Mkdir(directoryDefinition, 0o700); err != nil {
 			t.Fatalf("Mkdir(directory definition) error = %v", err)
 		}
-		if err := DeleteAgentDefinition(directoryDefinition); err == nil {
+		if err := DeleteAgentDefinition(filepath.Join(t.TempDir(), AgentsDirName), directoryDefinition); err == nil {
 			t.Fatal("DeleteAgentDefinition(directory) error = nil, want regular-file error")
 		}
 

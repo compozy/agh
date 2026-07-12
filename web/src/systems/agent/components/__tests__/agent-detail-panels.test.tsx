@@ -7,18 +7,13 @@ import { primaryAgentFixture } from "@/systems/agent/testing";
 import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/testing";
 
+import type { AgentInstructionsTabViewModel } from "../../hooks/use-agent-instructions-tab";
 import type { AgentPayload } from "../../types";
 import { AgentConfigurationTab } from "../agent-configuration-tab";
 import { AgentDiagnosticsBanner } from "../agent-diagnostics-banner";
 import { AgentInstructionsTab } from "../agent-instructions-tab";
 import { AgentOverviewTab } from "../agent-overview-tab";
 import { AgentSessionsTab } from "../agent-sessions-tab";
-
-const mockUseAgentInstructionsTab = vi.hoisted(() => vi.fn());
-
-vi.mock("../../hooks/use-agent-instructions-tab", () => ({
-  useAgentInstructionsTab: (args: unknown) => mockUseAgentInstructionsTab(args),
-}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -59,47 +54,55 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   };
 }
 
+function instructionsViewModel(
+  overrides: Partial<AgentInstructionsTabViewModel> = {}
+): AgentInstructionsTabViewModel {
+  return {
+    promptWordCount: "~4 words",
+    soulMissing: true,
+    heartbeatMissing: true,
+    soul: {
+      resourceKey: '["ws-test","coder","soul"]',
+      payload: undefined,
+      isLoading: false,
+      isError: false,
+      history: undefined,
+      onValidate: vi.fn(),
+      onSave: vi.fn(),
+      onRestore: vi.fn(),
+      onRetry: vi.fn(),
+    },
+    heartbeat: {
+      resourceKey: '["ws-test","coder","heartbeat"]',
+      payload: undefined,
+      isLoading: false,
+      isError: false,
+      history: undefined,
+      onValidate: vi.fn(),
+      onSave: vi.fn(),
+      onRestore: vi.fn(),
+      onRetry: vi.fn(),
+      status: undefined,
+      statusLoading: false,
+      statusError: false,
+      onRetryStatus: vi.fn(),
+      activeSessions: [],
+      wakeSessionId: null,
+      setWakeSessionId: vi.fn(),
+      onWake: vi.fn(),
+      waking: false,
+      wakeDecision: undefined,
+      wakeError: null,
+    },
+    ...overrides,
+  };
+}
+
 describe("agent detail panels", () => {
   it("Should render AGENT.md truth, missing badges, and file navigation", async () => {
     const user = userEvent.setup();
     const onFileChange = vi.fn();
     const onEditAgentPrompt = vi.fn();
-    mockUseAgentInstructionsTab.mockReturnValue({
-      promptWordCount: "~4 words",
-      soulMissing: true,
-      heartbeatMissing: true,
-      soul: {
-        payload: undefined,
-        isLoading: false,
-        isError: false,
-        history: undefined,
-        onValidate: vi.fn(),
-        onSave: vi.fn(),
-        onRestore: vi.fn(),
-        onRetry: vi.fn(),
-      },
-      heartbeat: {
-        payload: undefined,
-        isLoading: false,
-        isError: false,
-        history: undefined,
-        onValidate: vi.fn(),
-        onSave: vi.fn(),
-        onRestore: vi.fn(),
-        onRetry: vi.fn(),
-        status: undefined,
-        statusLoading: false,
-        statusError: false,
-        onRetryStatus: vi.fn(),
-        activeSessions: [],
-        wakeSessionId: null,
-        setWakeSessionId: vi.fn(),
-        onWake: vi.fn(),
-        waking: false,
-        wakeDecision: undefined,
-        wakeError: null,
-      },
-    });
 
     render(
       <AgentInstructionsTab
@@ -107,8 +110,7 @@ describe("agent detail panels", () => {
         file="agent"
         onFileChange={onFileChange}
         onEditAgentPrompt={onEditAgentPrompt}
-        workspaceId="ws-test"
-        sessions={[]}
+        viewModel={instructionsViewModel()}
         onNewSession={vi.fn()}
       />
     );
@@ -236,7 +238,13 @@ describe("agent detail panels", () => {
         ]}
       />
     );
-    expect(screen.getAllByTestId("agent-diagnostic-item")).toHaveLength(2);
-    expect(screen.getByText("AGENT.md:3")).toBeVisible();
+    const [frontmatterDiagnostic, providerDiagnostic] =
+      screen.getAllByTestId("agent-diagnostic-item");
+    expect(frontmatterDiagnostic).toHaveTextContent("frontmatter.invalid");
+    expect(frontmatterDiagnostic).toHaveTextContent("Unknown field");
+    expect(frontmatterDiagnostic).toHaveTextContent("AGENT.md:3");
+    expect(providerDiagnostic).toHaveTextContent("provider.missing");
+    expect(providerDiagnostic).toHaveTextContent("Provider is required");
+    expect(providerDiagnostic).toHaveTextContent("AGENT.md");
   });
 });

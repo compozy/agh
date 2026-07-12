@@ -21,9 +21,13 @@ import {
   AgentPageMeta,
   AgentPageStatusPill,
   AgentSessionsTab,
+  useAgentInstructionsTab,
   validateAgentDetailSearch,
   type AgentDetailTab,
+  type AgentInstructionFile,
+  type AgentPayload,
 } from "@/systems/agent";
+import type { SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { preloadAgentDetailRoute } from "./-app-preload";
@@ -42,6 +46,38 @@ export const Route = createFileRoute("/_app/agents/$name")({
       : Promise.resolve(),
   component: AgentDetailPage,
 });
+
+interface AgentInstructionsSectionProps {
+  agent: AgentPayload;
+  file: AgentInstructionFile;
+  onFileChange: (file: AgentInstructionFile) => void;
+  onEditAgentPrompt: () => void;
+  workspaceId: string | null;
+  sessions: SessionPayload[];
+  onNewSession: () => void;
+}
+
+function AgentInstructionsSection({
+  agent,
+  file,
+  onFileChange,
+  onEditAgentPrompt,
+  workspaceId,
+  sessions,
+  onNewSession,
+}: AgentInstructionsSectionProps) {
+  const viewModel = useAgentInstructionsTab({ agent, file, workspaceId, sessions });
+  return (
+    <AgentInstructionsTab
+      agent={agent}
+      file={file}
+      onFileChange={onFileChange}
+      onEditAgentPrompt={onEditAgentPrompt}
+      viewModel={viewModel}
+      onNewSession={onNewSession}
+    />
+  );
+}
 
 function AgentDetailPage() {
   const { name } = Route.useParams();
@@ -183,7 +219,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
           </TabsContent>
 
           <TabsContent value="instructions" className="flex flex-col gap-6">
-            <AgentInstructionsTab
+            <AgentInstructionsSection
               agent={page.agent}
               file={search.file}
               onFileChange={page.setFile}

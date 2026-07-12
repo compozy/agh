@@ -262,7 +262,12 @@ export { AgentSessionsTab, type AgentSessionsTabProps } from "./components/agent
 export {
   AgentInstructionsTab,
   type AgentInstructionsTabProps,
+  type AgentInstructionsTabViewModel,
 } from "./components/agent-instructions-tab";
+export {
+  useAgentInstructionsTab,
+  type UseAgentInstructionsTabArgs,
+} from "./hooks/use-agent-instructions-tab";
 export {
   AgentAuthoredFileEditor,
   type AgentAuthoredFileEditorProps,

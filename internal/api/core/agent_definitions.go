@@ -117,7 +117,12 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	unshadowGlobal := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
-	if err := aghconfig.DeleteAgentDefinition(resolved.Entry.Def.SourcePath); err != nil {
+	agentsRoot, err := h.agentDefinitionAgentsRoot(resolved)
+	if err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
+	if err := aghconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}

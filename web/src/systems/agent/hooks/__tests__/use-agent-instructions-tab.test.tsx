@@ -57,6 +57,7 @@ describe("useAgentInstructionsTab", () => {
       data: { present: false, validation_status: "missing" },
       isLoading: false,
       isFetched: true,
+      isSuccess: true,
       isError: false,
       refetch: mocks.soulRefetch,
     });
@@ -68,6 +69,7 @@ describe("useAgentInstructionsTab", () => {
       data: { present: false, validation_status: "missing" },
       isLoading: false,
       isFetched: true,
+      isSuccess: true,
       isError: false,
       refetch: mocks.heartbeatRefetch,
     });
@@ -81,12 +83,16 @@ describe("useAgentInstructionsTab", () => {
       isError: false,
       refetch: mocks.statusRefetch,
     });
-    mocks.putSoul.mockResolvedValue(undefined);
+    mocks.putSoul.mockResolvedValue({ soul: { present: true, digest: "soul-new" } });
     mocks.validateSoul.mockResolvedValue({ diagnostics: [] });
-    mocks.rollbackSoul.mockResolvedValue(undefined);
-    mocks.putHeartbeat.mockResolvedValue(undefined);
+    mocks.rollbackSoul.mockResolvedValue({ soul: { present: true, digest: "soul-restored" } });
+    mocks.putHeartbeat.mockResolvedValue({
+      heartbeat: { present: true, digest: "heartbeat-new" },
+    });
     mocks.validateHeartbeat.mockResolvedValue({ diagnostics: [] });
-    mocks.rollbackHeartbeat.mockResolvedValue(undefined);
+    mocks.rollbackHeartbeat.mockResolvedValue({
+      heartbeat: { present: true, digest: "heartbeat-restored" },
+    });
   });
 
   it("Should fetch both authored files for truthful missing badges before either file tab is opened", () => {
@@ -103,6 +109,43 @@ describe("useAgentInstructionsTab", () => {
     expect(mocks.useHeartbeat).toHaveBeenCalledWith(primaryAgentFixture.name, "ws-test");
     expect(result.current.soulMissing).toBe(true);
     expect(result.current.heartbeatMissing).toBe(true);
+    expect(result.current.soul.resourceKey).toBe(
+      JSON.stringify(["ws-test", primaryAgentFixture.name, "soul"])
+    );
+    expect(result.current.heartbeat.resourceKey).toBe(
+      JSON.stringify(["ws-test", primaryAgentFixture.name, "heartbeat"])
+    );
+  });
+
+  it("Should not treat query errors or non-success states as missing badges", () => {
+    mocks.useSoul.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetched: true,
+      isSuccess: false,
+      isError: true,
+      refetch: mocks.soulRefetch,
+    });
+    mocks.useHeartbeat.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isFetched: false,
+      isSuccess: false,
+      isError: false,
+      refetch: mocks.heartbeatRefetch,
+    });
+
+    const { result } = renderHook(() =>
+      useAgentInstructionsTab({
+        agent: primaryAgentFixture,
+        file: "agent",
+        workspaceId: "ws-test",
+        sessions: [],
+      })
+    );
+
+    expect(result.current.soulMissing).toBe(false);
+    expect(result.current.heartbeatMissing).toBe(false);
   });
 
   it("Should round-trip workspace and CAS inputs for validate, save, restore, retry, and wake", async () => {
