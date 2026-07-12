@@ -62,6 +62,9 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 	case sessionWriteEvent:
 		event, err := s.writeEvent(req.ctx, req.event)
 		return sessionWriteResult{event: event, err: err}
+	case sessionWriteEventIfAbsent:
+		event, err := s.writeEventIfAbsent(req.ctx, req.event)
+		return sessionWriteResult{event: event, err: err}
 	case sessionWriteEventBatch:
 		events, err := s.writeEventBatch(req.ctx, req.events)
 		return sessionWriteResult{events: events, err: err}
@@ -82,7 +85,7 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 
 func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteResult) int {
 	switch req.kind {
-	case sessionWriteEvent:
+	case sessionWriteEvent, sessionWriteEventIfAbsent:
 		return 1
 	case sessionWriteEventBatch:
 		return len(result.events)

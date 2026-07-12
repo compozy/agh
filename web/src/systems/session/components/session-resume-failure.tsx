@@ -7,7 +7,8 @@ import {
   AlertMeta,
   AlertTitle,
   Button,
-  MetadataList,
+  Eyebrow,
+  MonoId,
   Pill,
   Spinner,
 } from "@agh/ui";
@@ -40,40 +41,33 @@ export function SessionResumeFailure({
   return (
     <Alert
       aria-live="assertive"
-      className="mt-3 w-full px-4 py-3"
+      className="mt-2 w-full"
       data-testid="session-resume-failure"
       variant="danger"
     >
-      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-      <AlertTitle
-        className="flex items-center gap-2 text-sm font-medium"
-        data-testid="session-resume-failure-title"
-      >
-        {title}
-        {hasProviderDetail ? (
-          <Pill mono data-testid="session-resume-failure-provider" tone="danger">
-            {normalizedMissingProvider}
-          </Pill>
-        ) : null}
-      </AlertTitle>
-      <AlertDescription className="text-xs leading-5" data-testid="session-resume-failure-message">
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <AlertTitle data-testid="session-resume-failure-title">{title}</AlertTitle>
+      <AlertDescription data-testid="session-resume-failure-message">
         {hasProviderDetail
           ? `This session was started with provider ${normalizedMissingProvider}, which is not visible in the current workspace configuration. Add the provider back to the workspace or update the agent defaults before retrying.`
           : message}
       </AlertDescription>
       <AlertMeta data-testid="session-resume-failure-meta">
-        <MetadataList className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <MetadataList.Row>
-            <MetadataList.Term>session</MetadataList.Term>
-            <MetadataList.Value className="font-mono">{sessionId}</MetadataList.Value>
-          </MetadataList.Row>
-          {hasAgentDetail ? (
-            <MetadataList.Row>
-              <MetadataList.Term>agent</MetadataList.Term>
-              <MetadataList.Value className="font-mono">{normalizedAgentName}</MetadataList.Value>
-            </MetadataList.Row>
-          ) : null}
-        </MetadataList>
+        {hasProviderDetail ? (
+          <Pill mono size="xs" data-testid="session-resume-failure-provider" tone="danger">
+            {normalizedMissingProvider}
+          </Pill>
+        ) : null}
+        <span className="inline-flex min-w-0 items-center gap-x-1.5">
+          <Eyebrow>session</Eyebrow>
+          <MonoId value={sessionId} />
+        </span>
+        {hasAgentDetail ? (
+          <span className="inline-flex min-w-0 items-center gap-x-1.5">
+            <Eyebrow>agent</Eyebrow>
+            <MonoId value={normalizedAgentName} />
+          </span>
+        ) : null}
       </AlertMeta>
       <AlertActions>
         <Button
@@ -92,7 +86,7 @@ export function SessionResumeFailure({
           onClick={onRetry}
           size="sm"
           type="button"
-          variant="outline"
+          variant="neutral"
         >
           {isRetrying ? (
             <Spinner className="size-3" />

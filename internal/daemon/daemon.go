@@ -431,36 +431,8 @@ type Daemon struct {
 	skillsDone                   chan struct{}
 	loopsCancel                  context.CancelFunc
 	loopsDone                    chan struct{}
-}
-
-type shutdownTargets struct {
-	scheduler           *schedulerRuntime
-	coordinator         *coordinatorRuntime
-	spawnReaper         *spawnReaper
-	tasks               *taskRuntime
-	sessions            SessionManager
-	network             networkRuntime
-	hooks               hookRuntime
-	extensions          extensionRuntime
-	automation          automationRuntime
-	resourceReconcile   resources.ReconcileDriver
-	bridges             *bridgeRuntime
-	httpServer          Server
-	udsServer           Server
-	registry            Registry
-	lock                *Lock
-	closeLogger         func() error
-	infoPath            string
-	dreamRuntime        *consolidation.Runtime
-	memoryExtractor     *daemonMemoryExtractor
-	memoryStore         *memory.Store
-	localMemoryProvider memoryProviderShutdowner
-	modelCatalog        *modelCatalogRuntime
-	skillsCancel        context.CancelFunc
-	skillsDone          chan struct{}
-	loopsCancel         context.CancelFunc
-	loopsDone           chan struct{}
-	retention           observerRetentionStopper
+	goalOutboxCancel             context.CancelFunc
+	goalOutboxDone               chan struct{}
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -1166,6 +1138,8 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		skillsDone:          d.skillsDone,
 		loopsCancel:         d.loopsCancel,
 		loopsDone:           d.loopsDone,
+		goalOutboxCancel:    d.goalOutboxCancel,
+		goalOutboxDone:      d.goalOutboxDone,
 	}
 	if stopper, ok := d.observer.(observerRetentionStopper); ok {
 		targets.retention = stopper
@@ -1209,6 +1183,8 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.skillsDone = nil
 	d.loopsCancel = nil
 	d.loopsDone = nil
+	d.goalOutboxCancel = nil
+	d.goalOutboxDone = nil
 	d.bridges = nil
 	d.network = nil
 	d.toolRegistry = nil
@@ -1248,6 +1224,11 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 		errs,
 		"daemon: stop loops watcher",
 		stopLoopWatcher(ctx, targets.loopsCancel, targets.loopsDone),
+	)
+	appendWrappedError(
+		errs,
+		"daemon: stop Goal session outbox relay",
+		stopGoalSessionOutboxRelay(ctx, targets.goalOutboxCancel, targets.goalOutboxDone),
 	)
 	if targets.resourceReconcile != nil {
 		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))

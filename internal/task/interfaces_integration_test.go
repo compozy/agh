@@ -69,8 +69,11 @@ func (fakeStore) ClearTaskBlock(context.Context, taskpkg.ClearTaskBlockMutation)
 	return taskpkg.TaskBlock{}, nil
 }
 
-func (fakeStore) ClearTaskNeedsAttention(context.Context, taskpkg.NeedsAttentionClearMutation) (taskpkg.Task, error) {
-	return taskpkg.Task{}, nil
+func (fakeStore) ClearTaskNeedsAttention(
+	context.Context,
+	taskpkg.NeedsAttentionClearMutation,
+) (taskpkg.NeedsAttentionClearResult, error) {
+	return taskpkg.NeedsAttentionClearResult{}, nil
 }
 
 func (fakeStore) ExpireTaskBlocks(

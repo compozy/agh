@@ -734,8 +734,19 @@ func watchEventsParkedSubscriptionForKindForTest(
 			Kind:   string(kind),
 			Filter: filter,
 		}},
-		Cursors: map[string]int64{stream: 0},
+		Cursors:   map[string]int64{stream: 0},
+		Contracts: watchEventsContractsForKindForTest(kind),
 	}
+}
+
+func watchEventsContractsForKindForTest(
+	kind hookspkg.HookEvent,
+) map[hookspkg.HookEvent]looppkg.WatchEventsContract {
+	contract, ok := looppkg.SupportedWatchEvents()[kind]
+	if !ok {
+		panic("unsupported watch-events contract in test fixture: " + string(kind))
+	}
+	return map[hookspkg.HookEvent]looppkg.WatchEventsContract{kind: contract}
 }
 
 func watchEventsTaskContextForTest(taskID string) hookspkg.TaskContext {

@@ -13,6 +13,8 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	goalpkg "github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -305,28 +307,325 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			t.Fatalf("tool error leaked raw token: %v", toolErr)
 		}
 	})
+
+	t.Run("Should expose a visible Goal through origin and active binding alias until clear", func(t *testing.T) {
+		t.Parallel()
+
+		visible := true
+		aliasActive := true
+		snapshot := &session.GoalSnapshot{
+			RunID: "run-goal", NodeID: "goal", Objective: "ship safely",
+			OriginSessionID: "session-origin", BoundSessionID: "session-bound",
+			Status: "complete", RunStatus: "done", TurnsUsed: 2, TurnLimit: 4,
+			ContractSummary: "objective satisfied", Context: session.GoalContextSnapshot{
+				State: "unknown", NudgeRatio: 0.8,
+			},
+		}
+		loopSvc := &nativeLoopServiceStub{
+			getSessionGoalFn: func(_ context.Context, workspaceID string, sessionID string) (*session.GoalSnapshot, error) {
+				if workspaceID != "ws-goal" || !visible || sessionID != "session-origin" {
+					return nil, nil
+				}
+				return snapshot, nil
+			},
+			resolveActiveGoalOriginAliasFn: func(
+				_ context.Context,
+				workspaceID looppkg.WorkspaceID,
+				sessionID string,
+			) (string, bool, error) {
+				if workspaceID == "ws-goal" && sessionID == "session-bound" && aliasActive {
+					return "session-origin", true, nil
+				}
+				return "", false, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService { return loopSvc },
+		}, nativeApproveAllPolicyInputs())
+
+		for _, sessionID := range []string{"session-origin", "session-bound"} {
+			scope := toolspkg.Scope{WorkspaceID: "ws-goal", SessionID: sessionID, Operator: true}
+			views, err := registry.OperatorProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatalf("OperatorProjection(%s) error = %v", sessionID, err)
+			}
+			requireNativeToolAvailable(t, views, toolspkg.ToolIDGoalGet)
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDGoalGet,
+				Input:  json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(goal_get %s) error = %v", sessionID, err)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"run_id":"run-goal"`))
+			requireNativeStructuredContains(t, result, []byte(`"live":false`))
+		}
+
+		aliasActive = false
+		aliasViews, err := registry.OperatorProjection(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-goal", SessionID: "session-bound", Operator: true},
+		)
+		if err != nil {
+			t.Fatalf("OperatorProjection(alias revoked) error = %v", err)
+		}
+		requireNativeToolUnavailableWithReason(
+			t,
+			aliasViews,
+			toolspkg.ToolIDGoalGet,
+			toolspkg.ReasonGoalNotActive,
+		)
+
+		visible = false
+		originViews, err := registry.OperatorProjection(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-goal", SessionID: "session-origin", Operator: true},
+		)
+		if err != nil {
+			t.Fatalf("OperatorProjection(cleared) error = %v", err)
+		}
+		requireNativeToolUnavailableWithReason(
+			t,
+			originViews,
+			toolspkg.ToolIDGoalGet,
+			toolspkg.ReasonGoalNotActive,
+		)
+	})
+
+	t.Run("Should report only against the invocation-time prompt identity", func(t *testing.T) {
+		t.Parallel()
+
+		target := goalpkg.ToolReportTarget{
+			Key: goalpkg.TurnKey{
+				WorkspaceID: "ws-goal", LoopRunID: "run-goal", Generation: 2,
+				NodeID: "goal", ItemIndex: 0,
+			},
+			ExpectedControlEpoch: 3, ExpectedBindingEpoch: 4,
+			PromptID: "prompt-current", OriginSessionID: "session-origin",
+			BoundSessionID: "session-bound",
+		}
+		var captured goalpkg.RecordToolReportRequest
+		loopSvc := &nativeLoopServiceStub{
+			findGoalReportTargetFn: func(
+				_ context.Context,
+				workspaceID looppkg.WorkspaceID,
+				sessionID string,
+			) (goalpkg.ToolReportTarget, bool, error) {
+				if workspaceID != "ws-goal" || sessionID != "session-bound" {
+					t.Fatalf("FindGoalReportTarget target = %s/%s", workspaceID, sessionID)
+				}
+				return target, true, nil
+			},
+			recordGoalReportFn: func(
+				_ context.Context,
+				request goalpkg.RecordToolReportRequest,
+			) (goalpkg.ReportIntent, error) {
+				captured = request
+				return goalpkg.ReportIntent{
+					PromptID: request.Target.PromptID, Status: request.Status,
+					EvidenceRef: "sha256:evidence", BindingEpoch: request.Target.ExpectedBindingEpoch,
+					ActorKind: request.ActorKind, ActorID: request.ActorID,
+					RecordedAt: time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC),
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService { return loopSvc },
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-goal", SessionID: "session-bound"}
+		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDGoalReport,
+			Input:  json.RawMessage(`{"status":"blocked","evidence":"waiting on release approval"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(goal_report) error = %v", err)
+		}
+		if captured.Target != target || captured.Status != "blocked" ||
+			captured.Evidence != "waiting on release approval" {
+			t.Fatalf("RecordGoalReport request = %#v", captured)
+		}
+		if captured.ActorKind != string(taskpkg.ActorKindAgentSession) || captured.ActorID != "session-bound" {
+			t.Fatalf("RecordGoalReport actor = %s/%s", captured.ActorKind, captured.ActorID)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"prompt_id":"prompt-current"`))
+		requireNativeStructuredContains(t, result, []byte(`"evidence_ref":"sha256:evidence"`))
+
+		findCalls := 0
+		loopSvc.findGoalReportTargetFn = func(
+			context.Context,
+			looppkg.WorkspaceID,
+			string,
+		) (goalpkg.ToolReportTarget, bool, error) {
+			findCalls++
+			if findCalls == 1 {
+				return target, true, nil
+			}
+			return goalpkg.ToolReportTarget{}, false, nil
+		}
+		captured = goalpkg.RecordToolReportRequest{}
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDGoalReport,
+			Input:  json.RawMessage(`{"status":"complete"}`),
+		})
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonGoalNotActive) {
+			t.Fatalf("Registry.Call(goal_report revoked) error = %#v", err)
+		}
+		if captured.Target.Key.LoopRunID != "" {
+			t.Fatalf("RecordGoalReport called after revoke: %#v", captured)
+		}
+	})
+
+	t.Run("Should return the canonical paginated Goal turn contract", func(t *testing.T) {
+		t.Parallel()
+
+		item := 1
+		next := int64(9)
+		var captured core.GoalTurnListQuery
+		loopSvc := &nativeLoopServiceStub{
+			listGoalTurnsFn: func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				query core.GoalTurnListQuery,
+			) (session.GoalTurnPage, error) {
+				if workspaceID != "ws-goal" || runID != "run-goal" {
+					t.Fatalf("ListGoalTurns target = %s/%s", workspaceID, runID)
+				}
+				captured = query
+				return session.GoalTurnPage{
+					Turns: []session.GoalTurn{{
+						Seq: 9, Generation: 2, NodeID: "goal", ItemIndex: 1,
+						Turn: 3, PromptAttempt: 0, SessionID: "session-bound",
+						BindingHandle: "goal:handle", BindingEpoch: 4, PromptID: "prompt-9",
+						BlockingIssues: []session.GoalBlockingIssue{}, ActorKind: "agent_session",
+						ActorID: "session-bound", StartedAt: time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC),
+					}},
+					NextAfterSeq: &next,
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Loops: func() core.LoopService { return loopSvc },
+		}, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-goal"}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDLoopTurns,
+			Input: json.RawMessage(
+				`{"run_id":"run-goal","node":"goal","item":1,"after_seq":4,"limit":5}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_turns) error = %v", err)
+		}
+		if captured.NodeID != "goal" || captured.ItemIndex == nil || *captured.ItemIndex != item ||
+			captured.AfterSeq != 4 || captured.Limit != 5 {
+			t.Fatalf("ListGoalTurns query = %#v", captured)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"prompt_id":"prompt-9"`))
+		requireNativeStructuredContains(t, result, []byte(`"result_status":null`))
+		requireNativeStructuredContains(t, result, []byte(`"next_after_seq":9`))
+	})
 }
 
 type nativeLoopServiceStub struct {
-	listLoopsFn         func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
-	createLoopFn        func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
-	getLoopFn           func(context.Context, string, string) (contract.LoopResponse, error)
-	patchLoopFn         func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
-	validateLoopFn      func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
-	deleteLoopFn        func(context.Context, string, string) error
-	runLoopFn           func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
-	getLoopConfigFn     func(context.Context, string, string) (contract.LoopConfigResponse, error)
-	putLoopConfigFn     func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
-	listLoopRunsFn      func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
-	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
-	stopLoopRunFn       func(context.Context, string, string) error
-	pauseLoopRunFn      func(context.Context, string, string) error
-	resumeLoopRunFn     func(context.Context, string, string) error
-	approveLoopRunFn    func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
-	listLoopRunEventsFn func(context.Context, string, string, int64) ([]contract.LoopRunEventPayload, error)
+	listLoopsFn            func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error)
+	createLoopFn           func(context.Context, string, contract.CreateLoopRequest) (contract.LoopResponse, error)
+	getLoopFn              func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn            func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
+	validateLoopFn         func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
+	deleteLoopFn           func(context.Context, string, string) error
+	runLoopFn              func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
+	getLoopConfigFn        func(context.Context, string, string) (contract.LoopConfigResponse, error)
+	putLoopConfigFn        func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
+	listLoopRunsFn         func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
+	getLoopRunFn           func(context.Context, string, string) (contract.LoopRunResponse, error)
+	getSessionGoalFn       func(context.Context, string, string) (*session.GoalSnapshot, error)
+	listGoalTurnsFn        func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
+	findGoalReportTargetFn func(
+		context.Context,
+		looppkg.WorkspaceID,
+		string,
+	) (goalpkg.ToolReportTarget, bool, error)
+	resolveActiveGoalOriginAliasFn func(context.Context, looppkg.WorkspaceID, string) (string, bool, error)
+	recordGoalReportFn             func(context.Context, goalpkg.RecordToolReportRequest) (goalpkg.ReportIntent, error)
+	stopLoopRunFn                  func(context.Context, string, string) error
+	pauseLoopRunFn                 func(context.Context, string, string) error
+	resumeLoopRunFn                func(context.Context, string, string) error
+	approveLoopRunFn               func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
+	listLoopRunEventsFn            func(context.Context, string, string, int64) ([]contract.LoopRunEventPayload, error)
 }
 
 var _ core.LoopService = (*nativeLoopServiceStub)(nil)
+
+func (s *nativeLoopServiceStub) GetSessionGoal(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.GoalSnapshot, error) {
+	if s.getSessionGoalFn != nil {
+		return s.getSessionGoalFn(ctx, workspaceID, sessionID)
+	}
+	return nil, errors.New("unexpected GetSessionGoal call")
+}
+
+func (s *nativeLoopServiceStub) ListGoalTurns(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query core.GoalTurnListQuery,
+) (session.GoalTurnPage, error) {
+	if s.listGoalTurnsFn != nil {
+		return s.listGoalTurnsFn(ctx, workspaceID, runID, query)
+	}
+	return session.GoalTurnPage{}, errors.New("unexpected ListGoalTurns call")
+}
+
+func (s *nativeLoopServiceStub) findGoalReportTarget(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	sessionID string,
+) (goalpkg.ToolReportTarget, bool, error) {
+	if s.findGoalReportTargetFn != nil {
+		return s.findGoalReportTargetFn(ctx, workspaceID, sessionID)
+	}
+	return goalpkg.ToolReportTarget{}, false, errors.New("unexpected FindGoalReportTarget call")
+}
+
+func (s *nativeLoopServiceStub) resolveActiveGoalOriginAlias(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	sessionID string,
+) (string, bool, error) {
+	if s.resolveActiveGoalOriginAliasFn != nil {
+		return s.resolveActiveGoalOriginAliasFn(ctx, workspaceID, sessionID)
+	}
+	return "", false, errors.New("unexpected ResolveActiveGoalOriginAlias call")
+}
+
+func (s *nativeLoopServiceStub) recordGoalReport(
+	ctx context.Context,
+	request goalpkg.RecordToolReportRequest,
+) (goalpkg.ReportIntent, error) {
+	if s.recordGoalReportFn != nil {
+		return s.recordGoalReportFn(ctx, request)
+	}
+	return goalpkg.ReportIntent{}, errors.New("unexpected RecordGoalReport call")
+}
+
+func requireNativeToolUnavailableWithReason(
+	t *testing.T,
+	views []toolspkg.ToolView,
+	id toolspkg.ToolID,
+	reason toolspkg.ReasonCode,
+) {
+	t.Helper()
+	view := nativeToolViewByID(views, id)
+	if view == nil || view.Availability.Available ||
+		!slices.Contains(view.Availability.ReasonCodes, reason) {
+		t.Fatalf("%s availability = %#v, want unavailable with %s", id, view, reason)
+	}
+}
 
 func (s *nativeLoopServiceStub) ListLoops(
 	ctx context.Context,
@@ -469,21 +768,36 @@ func (s *nativeLoopServiceStub) GetLoopRun(
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
 }
 
-func (s *nativeLoopServiceStub) StopLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *nativeLoopServiceStub) StopLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	if s.stopLoopRunFn != nil {
 		return s.stopLoopRunFn(ctx, workspaceID, runID)
 	}
 	return errors.New("unexpected StopLoopRun call")
 }
 
-func (s *nativeLoopServiceStub) PauseLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *nativeLoopServiceStub) PauseLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	if s.pauseLoopRunFn != nil {
 		return s.pauseLoopRunFn(ctx, workspaceID, runID)
 	}
 	return errors.New("unexpected PauseLoopRun call")
 }
 
-func (s *nativeLoopServiceStub) ResumeLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *nativeLoopServiceStub) ResumeLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	if s.resumeLoopRunFn != nil {
 		return s.resumeLoopRunFn(ctx, workspaceID, runID)
 	}

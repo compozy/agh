@@ -47,7 +47,15 @@ export type SessionPromptRequest = OperationRequestBody<"sendSessionPrompt">;
 export type SessionPromptResponse =
   | OperationResponse<"sendSessionPrompt", 200>
   | OperationResponse<"sendSessionPrompt", 202>;
-export type SessionPromptPayload = SessionPromptResponse["prompt"];
+type SessionPromptEnvelope = Extract<SessionPromptResponse, { prompt: unknown }>;
+export type SessionPromptPayload = SessionPromptEnvelope["prompt"];
+export type SessionGoalCommandResult = Extract<SessionPromptResponse, { outcome: unknown }>;
+export type SessionPromptResult = SessionPromptPayload | SessionGoalCommandResult;
+export type SessionGoalResponse = OperationResponse<"getSessionGoal", 200>;
+export type SessionGoalSnapshot = NonNullable<SessionGoalResponse["goal"]>;
+export type SessionGoalContext = SessionGoalSnapshot["context"];
+export type SessionGoalStatus = SessionGoalSnapshot["status"];
+export type GoalPromptMeta = NonNullable<SessionEventPayload["goal"]>;
 
 export type SessionLedgerResponse = OperationResponse<"getMemorySessionLedger", 200>;
 export type SessionLedgerMeta = SessionLedgerResponse["meta"];
@@ -119,6 +127,7 @@ export interface AgentEventPayload {
   usage?: TokenUsagePayload;
   runtime?: RuntimeActivityPayload;
   marker?: TranscriptMarkerPayload;
+  goal?: GoalPromptMeta;
   raw?: unknown;
 }
 

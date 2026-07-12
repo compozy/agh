@@ -10,6 +10,7 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
@@ -22,6 +23,14 @@ func (n *daemonNativeTools) loopToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDGoalGet: {
+			call:         n.goalGet,
+			availability: n.goalGetAvailability,
+		},
+		toolspkg.ToolIDGoalReport: {
+			call:         n.goalReport,
+			availability: n.goalReportAvailability,
+		},
 		toolspkg.ToolIDLoopList: {
 			call:         n.loopList,
 			availability: availability,
@@ -48,6 +57,10 @@ func (n *daemonNativeTools) loopToolBindings(
 		},
 		toolspkg.ToolIDLoopRuns: {
 			call:         n.loopRuns,
+			availability: availability,
+		},
+		toolspkg.ToolIDLoopTurns: {
+			call:         n.loopTurns,
 			availability: availability,
 		},
 		toolspkg.ToolIDLoopStop: {
@@ -421,7 +434,7 @@ func (n *daemonNativeTools) loopRunMutation(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
-	mutate func(context.Context, string, string) error,
+	mutate func(context.Context, string, string, taskpkg.ActorContext) error,
 	preview string,
 ) (toolspkg.ToolResult, error) {
 	var input nativeLoopRunIDInput
@@ -432,7 +445,11 @@ func (n *daemonNativeTools) loopRunMutation(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := mutate(ctx, workspaceID, runID); err != nil {
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := mutate(ctx, workspaceID, runID, actor); err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{nativeLoopOKKey: true}, fmt.Sprintf("loop run %s %s", runID, preview))

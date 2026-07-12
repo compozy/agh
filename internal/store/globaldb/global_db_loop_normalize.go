@@ -7,34 +7,12 @@ import (
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/loop/dsl"
 )
 
 func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
-	if strings.TrimSpace(string(run.ID)) == "" {
-		return looppkg.Run{}, fmt.Errorf("%w: loop run id is required", looppkg.ErrValidation)
-	}
-	if strings.TrimSpace(string(run.WorkspaceID)) == "" {
-		return looppkg.Run{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
-	run.LoopName = strings.TrimSpace(run.LoopName)
-	if run.LoopName == "" {
-		return looppkg.Run{}, fmt.Errorf("%w: loop_name is required", looppkg.ErrValidation)
-	}
-	if !run.Status.Valid() {
-		return looppkg.Run{}, fmt.Errorf(
-			"%w: loop status is invalid: %q",
-			looppkg.ErrValidation,
-			run.Status,
-		)
-	}
-	if run.CreatedAt.IsZero() {
-		return looppkg.Run{}, fmt.Errorf("%w: created_at is required", looppkg.ErrValidation)
-	}
-	if run.StartedAt.IsZero() {
-		run.StartedAt = run.CreatedAt
-	}
-	if run.LastProgressAt.IsZero() {
-		run.LastProgressAt = run.CreatedAt
+	if err := normalizeLoopRunIdentity(&run); err != nil {
+		return looppkg.Run{}, err
 	}
 	run.DefinitionDigest = strings.TrimSpace(run.DefinitionDigest)
 	if run.DefinitionDigest == "" {
@@ -42,6 +20,16 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 	}
 	if len(run.DefinitionSnapshot) == 0 || !json.Valid(run.DefinitionSnapshot) {
 		return looppkg.Run{}, fmt.Errorf("%w: definition snapshot must be valid JSON", looppkg.ErrValidation)
+	}
+	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(
+		run.DefinitionSnapshot,
+		run.DefinitionDigest,
+	)
+	if err != nil {
+		return looppkg.Run{}, err
+	}
+	if resolved.DefinitionVersion != run.DefinitionVersion {
+		return looppkg.Run{}, fmt.Errorf("%w: definition snapshot version changed", looppkg.ErrValidation)
 	}
 	run.ActiveGateID = looppkg.NodeID(strings.TrimSpace(string(run.ActiveGateID)))
 	if len(run.ActiveHumanCriteria) == 0 {
@@ -54,7 +42,7 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 		run.ReattemptStrategy = looppkg.ReattemptFailedOnly
 	}
 	if run.BudgetOnExceeded == "" {
-		run.BudgetOnExceeded = "halt"
+		run.BudgetOnExceeded = dsl.BudgetExceededHalt
 	}
 	if run.Inputs == nil {
 		run.Inputs = map[string]any{}
@@ -62,7 +50,45 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
 	}
+	if err := (looppkg.GoalRunPolicy{ContextNudgeRatio: run.GoalContextNudgeRatio}).Validate(); err != nil {
+		return looppkg.Run{}, err
+	}
+	origin := looppkg.RunOrigin{}
+	if run.Origin != nil {
+		origin = *run.Origin
+	}
+	origin = origin.Normalize()
+	if err := origin.Validate(); err != nil {
+		return looppkg.Run{}, err
+	}
+	run.Origin = &origin
 	return run, nil
+}
+
+func normalizeLoopRunIdentity(run *looppkg.Run) error {
+	if strings.TrimSpace(string(run.ID)) == "" {
+		return fmt.Errorf("%w: loop run id is required", looppkg.ErrValidation)
+	}
+	if strings.TrimSpace(string(run.WorkspaceID)) == "" {
+		return fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
+	}
+	run.LoopName = strings.TrimSpace(run.LoopName)
+	if run.LoopName == "" {
+		return fmt.Errorf("%w: loop_name is required", looppkg.ErrValidation)
+	}
+	if !run.Status.Valid() {
+		return fmt.Errorf("%w: loop status is invalid: %q", looppkg.ErrValidation, run.Status)
+	}
+	if run.CreatedAt.IsZero() {
+		return fmt.Errorf("%w: created_at is required", looppkg.ErrValidation)
+	}
+	if run.StartedAt.IsZero() {
+		run.StartedAt = run.CreatedAt
+	}
+	if run.LastProgressAt.IsZero() {
+		run.LastProgressAt = run.CreatedAt
+	}
+	return nil
 }
 
 func normalizeLoopConfigForStore(cfg looppkg.LoopConfig) (looppkg.LoopConfig, error) {

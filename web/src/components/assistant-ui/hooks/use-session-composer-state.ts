@@ -3,7 +3,14 @@ import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 
-export function useSessionComposerState(sessionId: string) {
+export interface SessionComposerState {
+  clearComposer: () => void;
+  setComposerText: (text: string) => void;
+  composerText: string;
+  isRunning: boolean;
+}
+
+export function useSessionComposerState(sessionId: string): SessionComposerState {
   const aui = useAui();
   const draftText = useSessionStore(state => state.drafts[sessionId]?.text ?? "");
   const setDraft = useSessionStore(state => state.setDraft);

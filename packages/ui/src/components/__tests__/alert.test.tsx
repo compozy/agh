@@ -52,7 +52,13 @@ describe("Alert", () => {
     );
 
     expect(screen.getByTestId("alert-meta")).toHaveAttribute("data-slot", "alert-meta");
-    expect(screen.getByTestId("alert-meta").className).toContain("eyebrow");
+    expect(screen.getByTestId("alert-meta").className).toContain("text-form-hint");
+    expect(screen.getByTestId("alert-meta").className).not.toContain("eyebrow");
+    expect(screen.getByText("Reconnect the provider.").className).toContain(
+      "group-has-[>svg]/alert:col-start-2"
+    );
+    expect(screen.getByTestId("alert").className).toContain("gap-y-2");
+    expect(screen.getByTestId("alert").className).toContain("row-span-full");
     expect(screen.getByTestId("alert-actions")).toHaveAttribute("data-slot", "alert-actions");
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(

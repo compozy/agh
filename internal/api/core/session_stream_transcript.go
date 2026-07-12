@@ -23,7 +23,7 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 	sessionID string,
 	info *session.Info,
 	query store.EventQuery,
-	_ []store.SessionEvent,
+	initial []store.SessionEvent,
 	options sessionStreamOptions,
 	subscription sessionEventStreamSubscription,
 ) {
@@ -37,6 +37,7 @@ func (h *BaseHandlers) streamTranscriptSessionEvents(
 		query.AfterSequence,
 		query.Limit,
 		options,
+		initial,
 	)
 	if err != nil {
 		h.writeTranscriptStreamError(writer, fmt.Errorf("initialize transcript stream: %w", err))
@@ -61,7 +62,11 @@ func (h *BaseHandlers) initializeTranscriptStream(
 	cursor int64,
 	limit int,
 	options sessionStreamOptions,
+	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, error) {
+	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, cursor, namedEvents); err != nil {
+		return transcriptStreamState{}, err
+	}
 	if cursor == 0 {
 		snapshot, err := h.writeTranscriptSnapshot(ctx, writer, sessionID, info, limit, false, "")
 		return transcriptStreamState{
@@ -115,7 +120,11 @@ func (h *BaseHandlers) refreshTranscriptStream(
 	info *session.Info,
 	state transcriptStreamState,
 	limit int,
+	namedEvents []store.SessionEvent,
 ) (transcriptStreamState, *session.Info, error) {
+	if err := h.writeGoalSnapshotChangedEvents(ctx, writer, sessionID, state.cursor, namedEvents); err != nil {
+		return state, info, err
+	}
 	latest, err := h.Sessions.Status(ctx, sessionID)
 	if err != nil {
 		return state, info, fmt.Errorf("query transcript stream status: %w", err)
@@ -211,7 +220,7 @@ func (h *BaseHandlers) pollAndStreamSessionTranscript(
 		case <-ticker.C:
 			var err error
 			state, currentInfo, err = h.refreshTranscriptStream(
-				c.Request.Context(), writer, sessionID, currentInfo, state, limit,
+				c.Request.Context(), writer, sessionID, currentInfo, state, limit, nil,
 			)
 			if err != nil {
 				h.writeTranscriptStreamError(writer, err)
@@ -259,7 +268,7 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 			}
 			var err error
 			state, currentInfo, err = h.refreshTranscriptStream(
-				c.Request.Context(), writer, sessionID, currentInfo, state, limit,
+				c.Request.Context(), writer, sessionID, currentInfo, state, limit, []store.SessionEvent{event},
 			)
 			if err != nil {
 				h.writeTranscriptStreamError(writer, err)

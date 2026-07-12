@@ -549,7 +549,6 @@ def seed_qa_evidence_contracts(
     journey_log_path = qa_root / "journey-log.jsonl"
     provider_attempt_path = qa_root / "provider-attempt.json"
     audit_command = real_scenario_script(repo_root, "audit-qa-evidence.py")
-
     scenario_contract = build_scenario_contract(repo_root, scenario_slug, playbook)
     if playbook is not None and scenario_contract_path.exists():
         scenario_contract_path.unlink()

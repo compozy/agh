@@ -116,6 +116,39 @@ func TestMockAgentSelectTurnDoesNotCountUnmatchedPrompts(t *testing.T) {
 	})
 }
 
+func TestStopReasonMapsCompleteACPVocabulary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want acpsdk.StopReason
+	}{
+		{name: "Should default an empty reason to end turn", want: acpsdk.StopReasonEndTurn},
+		{name: "Should map end turn", raw: string(acpsdk.StopReasonEndTurn), want: acpsdk.StopReasonEndTurn},
+		{name: "Should map max tokens", raw: string(acpsdk.StopReasonMaxTokens), want: acpsdk.StopReasonMaxTokens},
+		{
+			name: "Should map max turn requests", raw: string(acpsdk.StopReasonMaxTurnRequests),
+			want: acpsdk.StopReasonMaxTurnRequests,
+		},
+		{name: "Should map refusal", raw: string(acpsdk.StopReasonRefusal), want: acpsdk.StopReasonRefusal},
+		{
+			name: "Should map canceled ACP spelling",
+			raw:  string(acpsdk.StopReasonCancelled),
+			want: acpsdk.StopReasonCancelled,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := stopReason(tt.raw); got != tt.want {
+				t.Fatalf("stopReason(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMockAgentSessionConfigOptions(t *testing.T) {
 	t.Parallel()
 

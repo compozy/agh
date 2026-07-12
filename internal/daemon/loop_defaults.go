@@ -16,7 +16,7 @@ func newLoopDefaultsResolver(
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) looppkg.DefaultsResolver {
 	return func(ctx context.Context, ws looppkg.WorkspaceID) (looppkg.LoopDefaults, error) {
-		cfg, err := resolveLoopDefaultsConfig(ctx, homePaths, workspaceResolver, ws)
+		cfg, err := resolveLoopServiceConfig(ctx, homePaths, workspaceResolver, ws)
 		if err != nil {
 			return looppkg.LoopDefaults{}, err
 		}
@@ -24,7 +24,7 @@ func newLoopDefaultsResolver(
 	}
 }
 
-func resolveLoopDefaultsConfig(
+func resolveLoopServiceConfig(
 	ctx context.Context,
 	homePaths aghconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
@@ -34,13 +34,13 @@ func resolveLoopDefaultsConfig(
 	if workspaceResolver != nil && workspaceID != "" {
 		resolved, err := workspaceResolver.Resolve(ctx, workspaceID)
 		if err != nil {
-			return aghconfig.Config{}, fmt.Errorf("daemon: resolve loop defaults workspace %q: %w", workspaceID, err)
+			return aghconfig.Config{}, fmt.Errorf("daemon: resolve Loop service workspace %q: %w", workspaceID, err)
 		}
 		return resolved.Config, nil
 	}
 	cfg, err := aghconfig.LoadForHome(homePaths)
 	if err != nil {
-		return aghconfig.Config{}, fmt.Errorf("daemon: load loop defaults config: %w", err)
+		return aghconfig.Config{}, fmt.Errorf("daemon: load Loop service config: %w", err)
 	}
 	return cfg, nil
 }

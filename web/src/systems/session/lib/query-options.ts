@@ -5,6 +5,7 @@ import {
   fetchSessionById,
   fetchSessionEvents,
   fetchSessionHistory,
+  fetchSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
@@ -99,6 +100,15 @@ export function sessionHistoryOptions(workspace: string, id: string) {
     queryKey: sessionKeys.history(workspace, id),
     queryFn: ({ signal }) => fetchSessionHistory(workspace, id, signal),
     staleTime: 10_000,
+    enabled: !!workspace && !!id,
+  });
+}
+
+export function sessionGoalOptions(workspace: string, id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.goal(workspace, id),
+    queryFn: ({ signal }) => fetchSessionGoal(workspace, id, signal),
+    staleTime: Number.POSITIVE_INFINITY,
     enabled: !!workspace && !!id,
   });
 }

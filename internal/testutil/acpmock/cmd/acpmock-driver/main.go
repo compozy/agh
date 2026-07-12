@@ -1195,15 +1195,6 @@ func mustRawJSON(raw json.RawMessage) any {
 	return value
 }
 
-func stopReason(raw string) acpsdk.StopReason {
-	switch strings.TrimSpace(raw) {
-	case string(acpsdk.StopReasonCancelled):
-		return acpsdk.StopReasonCancelled
-	default:
-		return acpsdk.StopReasonEndTurn
-	}
-}
-
 func pauseForDelivery(ctx context.Context) error {
 	timer := time.NewTimer(5 * time.Millisecond)
 	defer timer.Stop()

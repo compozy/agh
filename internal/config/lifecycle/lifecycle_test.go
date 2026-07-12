@@ -49,6 +49,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify Goal config as restart required",
+			path:          "goals.context_nudge_ratio",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:    "Should reject unknown paths",
 			path:    "unknown.path",
 			wantErr: true,

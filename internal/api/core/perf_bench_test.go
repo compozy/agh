@@ -178,10 +178,11 @@ func BenchmarkPromptStreamEncoderEmit(b *testing.B) {
 			Timestamp: time.Date(2026, 4, 17, 12, 0, 4, 0, time.UTC),
 		},
 		{
-			Type:       acp.EventTypeDone,
-			TurnID:     "turn-1",
-			StopReason: "end_turn",
-			Timestamp:  time.Date(2026, 4, 17, 12, 0, 5, 0, time.UTC),
+			Type:             acp.EventTypeDone,
+			TurnID:           "turn-1",
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+			Timestamp:        time.Date(2026, 4, 17, 12, 0, 5, 0, time.UTC),
 		},
 	}
 	writer := &benchmarkFlushWriter{}

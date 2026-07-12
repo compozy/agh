@@ -359,6 +359,34 @@ describe("captureRouteState", () => {
       skills_view_visible: true,
     });
 
+    window.history.replaceState(
+      {},
+      "",
+      "/skills/browser-context-skill?content=browser-context-skill"
+    );
+    document.body.innerHTML = `
+      <section data-testid="skill-detail-panel">
+        <button data-testid="skill-enabled-toggle">Enabled</button>
+        <article data-testid="content-body">Skill content</article>
+      </section>
+    `;
+
+    const detailState = await captureRouteState({
+      evaluate: async (callback: () => unknown) => callback(),
+    });
+
+    expect(detailState).toMatchObject({
+      pathname: "/skills/browser-context-skill",
+      skills_active_tab: "installed",
+      skills_content_visible: true,
+      skills_detail_visible: true,
+      skills_enabled_state: "enabled",
+      skills_search_active: false,
+      skills_selected_item: "browser-context-skill",
+      skills_view_visible: true,
+    });
+
+    window.history.replaceState({}, "", "/skills?tab=marketplace");
     document.body.innerHTML = `
       <main data-testid="skills-shell">
         <button data-testid="tab-installed" aria-selected="false"></button>

@@ -28,4 +28,12 @@ var globalSchemaTailMigrations = []store.Migration{
 	networkTimelineSequenceMigration,
 	sessionsCatalogIndexCleanupMigration,
 	networkDirectRoomCreatedIndexMigration,
+	goalDurableStateMigration,
+	loopRunControlActorMigration,
+	goalCheckpointControlCauseMigration,
+	sessionCreationProfilesMigration,
+	loopRunOriginIdentityMigration,
+	goalRecoveryCleanupMigration,
+	goalBindingReplayFencesMigration,
+	goalAdoptionAttemptMigration,
 }

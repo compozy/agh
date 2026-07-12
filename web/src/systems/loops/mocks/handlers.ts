@@ -279,6 +279,13 @@ export const handlers: HttpHandler[] = [
     }
     return HttpResponse.json(detail);
   }),
+  aghApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
+    const runId = String(params.run_id);
+    if (!loopRunDetailByRunId.has(runId)) {
+      return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
+    }
+    return HttpResponse.json({ turns: [], next_after_seq: null });
+  }),
   aghApiMock.get(
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events",
     ({ params, response }) => {

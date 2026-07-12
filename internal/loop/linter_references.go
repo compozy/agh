@@ -150,6 +150,9 @@ func nodeStringFields(node dsl.Node) []namedString {
 }
 
 func nodeParamStringFields(node dsl.Node) []namedString {
+	if node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+		return goalParamStringFields(node)
+	}
 	if node.Class == dsl.NodeClassAction && dsl.ActionKind(node.Kind) == dsl.ActionRunAgent {
 		return paramsStringFieldsWithSkip(
 			"params",
@@ -340,6 +343,12 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		return c.toolOutputSchema(node.Kind)
 	}
 	switch dsl.ActionKind(node.Kind) {
+	case dsl.ActionGoal:
+		var params dsl.GoalParams
+		if err := node.Params.Decode(&params); err != nil || params.OutputSchema == nil {
+			return nil, false
+		}
+		return convertSchema(*params.OutputSchema), true
 	case dsl.ActionRunAgent:
 		var params dsl.RunAgentParams
 		if err := node.Params.Decode(&params); err != nil || len(params.OutputSchema) == 0 {
@@ -347,7 +356,7 @@ func (c *lintContext) actionOutputSchema(node dsl.Node) (refs.Schema, bool) {
 		}
 		return convertSchema(params.OutputSchema), true
 	case dsl.ActionRunLoop:
-		return refs.Schema{"status": jsonSchemaStringType, "outputs": map[string]any{}}, true
+		return refs.Schema{reasonMetaStatus: jsonSchemaStringType, "outputs": map[string]any{}}, true
 	case dsl.ActionTransform:
 		var params dsl.TransformParams
 		if err := node.Params.Decode(&params); err != nil || len(params.Map) == 0 {

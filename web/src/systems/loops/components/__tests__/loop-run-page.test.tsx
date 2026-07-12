@@ -26,6 +26,7 @@ const { LoopWatchEventsPanel } = await import("../run-page/loop-watch-events-pan
 type LoopWatchEventsState = import("../../types").LoopWatchEventsState;
 const { buildRunTimeline } = await import("../../lib/loop-timeline");
 type LoopTimelineGeneration = import("../../lib/loop-timeline").LoopTimelineGeneration;
+type GoalTurnTimelineItem = import("../../hooks/use-goal-turns").GoalTurnTimelineItem;
 const { loopDetailByName, loopRunDetailByRunId } = await import("../../mocks/fixtures");
 type LoopRunRecord = import("../../types").LoopRunRecord;
 
@@ -156,6 +157,63 @@ describe("LoopGenerationCard summary", () => {
       />
     );
     expect(toggle()).toHaveTextContent("1 failed · 1 blocked");
+  });
+
+  it("Should nest only the matching Goal turn axis inside a Goal node card", () => {
+    const goalGeneration: LoopTimelineGeneration = {
+      generation: 2,
+      isLatest: true,
+      nodes: [
+        {
+          nodeId: "goal",
+          classLabel: "action",
+          kind: "goal",
+          status: "running",
+          tone: "accent",
+          pulse: true,
+          isGate: false,
+          isCarriedForward: false,
+          itemIndex: 0,
+        },
+      ],
+    };
+    const matching: GoalTurnTimelineItem = {
+      key: "goal:0:2:1:1:prompt_1",
+      seq: 1,
+      generation: 2,
+      nodeId: "goal",
+      itemIndex: 0,
+      turn: 1,
+      promptAttempt: 1,
+      promptId: "prompt_1",
+      sessionId: "session_1",
+      resultStatus: null,
+      stopReason: null,
+      reasonCode: null,
+      verdictOutcome: null,
+      blockingIssues: [],
+      evidenceRef: null,
+      tokensUsed: null,
+      startedAt: "2026-07-10T12:00:00Z",
+      endedAt: null,
+    };
+    render(
+      <LoopGenerationCard
+        generation={goalGeneration}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive
+        goalTurns={[
+          matching,
+          { ...matching, key: "other-generation", seq: 2, generation: 1, turn: 99 },
+          { ...matching, key: "other-item", seq: 3, itemIndex: 1, turn: 98 },
+        ]}
+      />
+    );
+    const timeline = screen.getByRole("region", { name: "Goal turn timeline" });
+    expect(timeline).toHaveTextContent("Turn 1");
+    expect(timeline).not.toHaveTextContent("Turn 99");
+    expect(timeline).not.toHaveTextContent("Turn 98");
   });
 });
 

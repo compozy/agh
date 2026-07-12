@@ -87,7 +87,7 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - Use `--out` if provided.
    - Otherwise default to `.peer-reviews/<UTC-timestamp-YYYYMMDDTHHMMSSZ>/` at the repository root.
    - Create the directory if it does not exist.
-4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched, reviewable size). If any marker fails, report the failed markers and abort — Opus review on a broken or incomplete change wastes credit and produces noise.
+4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched). If any marker fails, report the failed markers and abort — Opus review on a broken or incomplete change wastes credit and produces noise.
 5. Determine the next review round number by listing existing `impl-review-findings-round*.md`, `impl-review-summary-round*.md`, and legacy `impl-review-result-round*.json*` files (prior local output only — not a compatibility path) in the artifact directory. Start at `round1` when none exist.
 
 **Step 2: Compose the Review Prompt**
@@ -198,7 +198,6 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
 - **`compozy exec` not found:** the skill assumes Compozy CLI is on `PATH`. If absent, fail with the install hint rather than swallowing.
 - **Readiness markers missing:** if Step 1 readiness checks fail, do not run Opus. Print the failed markers and exit so the user can fix the underlying problem first.
 - **Empty diff:** if `git diff` yields no changes, abort. There is nothing to review.
-- **Oversized diff (`> 5000` changed lines or `> 80` files):** warn the user, ask whether to scope down with `--files`, and proceed only on explicit confirmation. Opus review on a sprawling diff produces shallow findings.
 - **Missing findings file:** treat this as an invalid round, not a clean review. Write a validation-error artifact and ask whether to rerun.
 - **Malformed findings frontmatter or missing required sections:** treat this as an invalid round. Do not infer the verdict from stdout.
 - **Existing peer-review files for the round:** never overwrite. Increment to the next `roundN` instead.

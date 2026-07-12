@@ -625,16 +625,17 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.getLoop, adapterMocks.getLoopConfig],
   },
   {
-    name: "loop runs → loopRunsOptions",
+    name: "loop runs → exact filtered loopRunsOptions",
     load: queryClient =>
       invokeLoader(LoopRunsRoute, {
         ...context(queryClient),
+        deps: { origin: "session" as const, origin_session: "session-1" },
         location: { pathname: "/loop-runs" },
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
-        useLoopRuns(workspace.id, {});
+        useLoopRuns(workspace.id, { origin: "session", origin_session: "session-1" });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listLoopRuns],
   },

@@ -172,6 +172,12 @@ func newIntegrationService(
 		) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
 		}),
+		loop.GoalRunPolicyResolverFunc(func(
+			context.Context,
+			loop.WorkspaceID,
+		) (*loop.GoalRunPolicy, error) {
+			return &loop.GoalRunPolicy{ContextNudgeRatio: 0.8}, nil
+		}),
 		loop.WithClock(func() time.Time {
 			return time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
 		}),

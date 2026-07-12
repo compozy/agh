@@ -70,6 +70,7 @@ export interface HintFieldSpec {
 export interface CriteriaFieldSpec extends FieldCommon {
   type: "criteria";
   path: FieldPath;
+  allowedTypes?: readonly ("command" | "agent-judge" | "human" | "extension")[];
 }
 
 export interface EventsFieldSpec extends FieldCommon {

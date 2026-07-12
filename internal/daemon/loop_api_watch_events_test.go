@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -41,6 +42,69 @@ func watchEventsDefinition(nodeID, kind string) *contract.LoopDefinitionDocument
 }
 
 func TestLoopWatchEventsReadModel(t *testing.T) {
+	t.Run("Should project a parked node from the hydrated executed-definition envelope", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := schedulerWatchEventsDefinitionForTest(t)
+		effective, err := looppkg.ResolveEffectiveConfig(
+			resolved,
+			looppkg.DefaultLoopDefaults(),
+			nil,
+			looppkg.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		hydrated, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot, digest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		hydratedJSON, err := json.Marshal(hydrated.Definition)
+		if err != nil {
+			t.Fatalf("json.Marshal(hydrated definition) error = %v", err)
+		}
+		document, err := loopDefinitionDocumentFromJSON(hydratedJSON)
+		if err != nil {
+			t.Fatalf("loopDefinitionDocumentFromJSON() error = %v", err)
+		}
+		ref, err := watchpkg.EventsPendingOutputRef(watchpkg.EventsPendingState{
+			Subscriptions: []watchpkg.EventSubscriptionRef{{
+				Kind:   string(contract.LoopWatchEventTaskBlocked),
+				Filter: `event.task_id == inputs.target_task_id`,
+			}},
+			Cursors: map[string]int64{looppkg.WatchEventsTaskStream: 7},
+		})
+		if err != nil {
+			t.Fatalf("EventsPendingOutputRef() error = %v", err)
+		}
+		state, err := loopWatchEventsReadModel(
+			looppkg.Run{Generation: 1},
+			&document,
+			[]contract.LoopGenerationPayload{{
+				Generation: 1,
+				Outputs: []contract.LoopGenerationOutput{{
+					NodeID:    "watch_tasks",
+					Status:    daemonRuntimeStatusRunning,
+					OutputRef: ref,
+				}},
+			}},
+		)
+		if err != nil {
+			t.Fatalf("loopWatchEventsReadModel() error = %v", err)
+		}
+		if state == nil || len(state.Subscriptions) != 1 ||
+			state.Subscriptions[0].Kind != contract.LoopWatchEventTaskBlocked {
+			t.Fatalf("hydrated watch-events state = %#v, want task.blocked subscription", state)
+		}
+		if got, want := state.Cursors[looppkg.WatchEventsTaskStream], int64(7); got != want {
+			t.Fatalf("hydrated task cursor = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should project subscriptions, cursors, and last_wake_at when parked", func(t *testing.T) {
 		t.Parallel()
 		ref, err := watchpkg.EventsPendingOutputRef(watchpkg.EventsPendingState{

@@ -58,18 +58,33 @@ describe("loopsKeys", () => {
   });
 
   it("Should fold every runs filter dimension into a stable, order-independent key", () => {
-    expect(loopsKeys.runs("ws_a", { loop: "delivery", status: "running", limit: 20 })).toEqual([
-      "loops",
-      "runs",
-      "ws_a",
-      "delivery",
-      "running",
-      "20",
-    ]);
-    expect(loopsKeys.runs("ws_a")).toEqual(["loops", "runs", "ws_a", "", "", ""]);
+    expect(
+      loopsKeys.runs("ws_a", {
+        loop: "delivery",
+        status: "running",
+        origin: "session",
+        origin_session: "session_1",
+        live: true,
+        limit: 20,
+      })
+    ).toEqual(["loops", "runs", "ws_a", "delivery", "running", "session", "session_1", true, "20"]);
+    expect(loopsKeys.runs("ws_a")).toEqual(["loops", "runs", "ws_a", "", "", "", "", "", ""]);
     expect(loopsKeys.runs("ws_a", { loop: "delivery" })).not.toEqual(
       loopsKeys.runs("ws_a", { loop: "watch" })
     );
+  });
+
+  it("Should key Goal turn pages by their stable run and axis filters", () => {
+    expect(loopsKeys.goalTurns("ws_a", "run_1", { node: "goal", item: 0, limit: 50 })).toEqual([
+      "loops",
+      "goal-turns",
+      "ws_a",
+      "run_1",
+      "goal",
+      "0",
+      "50",
+    ]);
+    expect(loopsKeys.goalTurns("ws_a", "run_1")).not.toEqual(loopsKeys.goalTurns("ws_a", "run_2"));
   });
 
   it("Should encode the stream resume seed distinctly per run and after_sequence", () => {

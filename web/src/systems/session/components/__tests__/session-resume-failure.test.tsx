@@ -22,11 +22,24 @@ describe("SessionResumeFailure", () => {
     expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
       "Attach failed: provider no longer available"
     );
-    expect(screen.getByTestId("session-resume-failure-title").className).toContain("text-sm");
-    expect(screen.getByTestId("session-resume-failure-message").className).toContain("text-xs");
-    expect(screen.getByTestId("session-resume-failure-meta").className).toContain("eyebrow");
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveAttribute(
+      "data-slot",
+      "alert-title"
+    );
+    expect(screen.getByTestId("session-resume-failure-message")).toHaveAttribute(
+      "data-slot",
+      "alert-description"
+    );
+    expect(screen.getByTestId("session-resume-failure-meta").className).not.toContain("eyebrow");
+    expect(screen.getByTestId("session-resume-failure-meta").className).toContain("text-form-hint");
     expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("sess_123");
     expect(screen.getByTestId("session-resume-failure-meta")).toHaveTextContent("claude-agent");
+    expect(screen.getByTestId("session-resume-failure-meta").textContent).not.toMatch(
+      /SESS_123|CLAUDE-AGENT/
+    );
+    expect(screen.getByTestId("session-resume-failure-retry").className).toContain(
+      "bg-btn-default-fill"
+    );
   });
 
   it("falls back to the raw message when no provider could be parsed", () => {

@@ -523,7 +523,7 @@ func (e *PromptStreamEncoder) finish(writer FlushWriter, event acp.AgentEvent) e
 	e.finished = true
 
 	finishPayload := promptFinishPayload{Type: "finish"}
-	if finishReason := promptAISDKFinishReason(event.StopReason); finishReason != "" {
+	if finishReason := promptAISDKFinishReason(event.PromptStopReason); finishReason != "" {
 		finishPayload.FinishReason = finishReason
 	}
 
@@ -535,8 +535,8 @@ func (e *PromptStreamEncoder) finish(writer FlushWriter, event acp.AgentEvent) e
 	return WriteSSERaw(writer, "", "[DONE]")
 }
 
-func promptAISDKFinishReason(stopReason string) string {
-	switch strings.TrimSpace(stopReason) {
+func promptAISDKFinishReason(stopReason acp.PromptStopReason) string {
+	switch strings.TrimSpace(string(stopReason)) {
 	case "", "end_turn":
 		return promptStreamStopKey
 	case "max_tokens":

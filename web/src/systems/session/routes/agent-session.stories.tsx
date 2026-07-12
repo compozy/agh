@@ -2,10 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
-import { storyAgentNames, storySessionIds } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { primarySessionFixture, sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
 import { storybookMswParameters } from "@/storybook/msw";
-import { StorybookRouteCanvas, appRouteParameters } from "@/storybook/route-story-meta";
+import {
+  StorybookRouteCanvas,
+  StorybookWorkspaceSetup,
+  appRouteParameters,
+} from "@/storybook/route-story-meta";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/session/routes/AgentSession",
@@ -15,7 +19,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Nested session chat route under an agent. Mirrors the previous routes/app/session stories , transcript hydration, stopped session, permission prompt, loading and not-found behaviors , through the canonical /agents/$name/sessions/$id URL.",
+          "Nested session chat route under an agent. Mirrors the previous routes/app/session stories — transcript hydration, stopped session, permission prompt, loading and not-found behaviors — through the canonical /agents/$name/sessions/$id URL.",
       },
     },
   },
@@ -53,6 +57,7 @@ function transcriptPayload<T>(messages: T[]) {
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters(fraudSessionRoute),
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
 };
 
 /**
@@ -71,6 +76,7 @@ export const Loading: Story = {
       ],
     }),
   },
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
 };
 
 /**
@@ -79,6 +85,7 @@ export const Loading: Story = {
 export const Stopped: Story = {
   args: {},
   parameters: appRouteParameters(marketingStoppedSessionRoute),
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.growth} />,
 };
 
 /**
@@ -96,10 +103,11 @@ export const PendingPermission: Story = {
       ],
     }),
   },
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
 };
 
 /**
- * Not-found session behavior , toast fires and navigation falls back to the parent agent route.
+ * Not-found session behavior — toast fires and navigation falls back to the parent agent route.
  */
 export const NotFoundRedirect: Story = {
   args: {},
@@ -116,4 +124,5 @@ export const NotFoundRedirect: Story = {
       ],
     }),
   },
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
 };

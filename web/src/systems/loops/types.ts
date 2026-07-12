@@ -78,3 +78,6 @@ export type LoopRunActionResult = OperationResponse<"pauseLoopRun", 200>;
 // Status vocabulary ---------------------------------------------------------
 
 export type LoopRunStatus = LoopRun["status"];
+export type GoalTurnPage = OperationResponse<"listGoalTurns", 200>;
+export type GoalTurn = GoalTurnPage["turns"][number];
+export type GoalTurnFilter = OperationQuery<"listGoalTurns">;

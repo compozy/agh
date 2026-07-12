@@ -217,7 +217,8 @@ func watchEventsDoorbellSubscriptionsForTest(
 				Kind:   string(kind),
 				Filter: filter,
 			}},
-			Cursors: map[string]int64{stream: 0},
+			Cursors:   map[string]int64{stream: 0},
+			Contracts: watchEventsContractsForKindForTest(kind),
 		})
 	}
 	return entries

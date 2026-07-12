@@ -489,6 +489,28 @@
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
+        "tool_id": "agh__goal_get",
+        "native_name": "goal_get",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "c840726baa45061aae99208419e7737527f1c2addac95b2df7e21add1e41f93c",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__goal_report",
+        "native_name": "goal_report",
+        "toolsets": ["agh__loops"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "584385c2ee046656936145d03409503d104b33ae557818b8592598e19ce59cdc",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
         "tool_id": "agh__hooks_create",
         "native_name": "hooks_create",
         "toolsets": ["agh__hooks"],
@@ -729,6 +751,17 @@
         "destructive": true,
         "open_world": false,
         "input_schema_digest": "82177116a28ac395232d3289c460505d1363ed5b188766a9e9951bd1396733d8",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__loop_turns",
+        "native_name": "loop_turns",
+        "toolsets": ["agh__loops"],
+        "risk": "read",
+        "read_only": true,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "f39fa7a128e7484e65fb3a2880e4110cdcf223ef87ba9a27c6b1996cbf717966",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

@@ -49,33 +49,34 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
-	ID               string
-	Name             string
-	AgentName        string
-	Provider         string
-	Model            string
-	ReasoningEffort  string
-	WorkspaceID      string
-	Workspace        string
-	Channel          string
-	Type             Type
-	Lineage          *store.SessionLineage
-	State            State
-	StopReason       store.StopReason
-	StopDetail       string
-	Failure          *store.SessionFailure
-	ACPSessionID     string
-	ACPCaps          acp.Caps
-	Liveness         *store.SessionLivenessMeta
-	Sandbox          *store.SessionSandboxMeta
-	SoulSnapshotID   string
-	SoulDigest       string
-	ParentSoulDigest string
-	AttachedTo       string
-	AttachExpiresAt  *time.Time
-	TranscriptEpoch  int64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                 string
+	Name               string
+	AgentName          string
+	Provider           string
+	Model              string
+	ReasoningEffort    string
+	WorkspaceID        string
+	Workspace          string
+	Channel            string
+	Type               Type
+	Lineage            *store.SessionLineage
+	State              State
+	StopReason         store.StopReason
+	StopDetail         string
+	Failure            *store.SessionFailure
+	ACPSessionID       string
+	ACPCaps            acp.Caps
+	AdvertisedCommands []store.SessionAdvertisedCommand
+	Liveness           *store.SessionLivenessMeta
+	Sandbox            *store.SessionSandboxMeta
+	SoulSnapshotID     string
+	SoulDigest         string
+	ParentSoulDigest   string
+	AttachedTo         string
+	AttachExpiresAt    *time.Time
+	TranscriptEpoch    int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -101,6 +102,7 @@ type Session struct {
 	failure              *store.SessionFailure
 	ACPSessionID         string
 	ACPCaps              acp.Caps
+	AdvertisedCommands   []store.SessionAdvertisedCommand
 	Liveness             *store.SessionLivenessMeta
 	Sandbox              *store.SessionSandboxMeta
 	SoulSnapshotID       string
@@ -111,6 +113,9 @@ type Session struct {
 	TranscriptEpoch      int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	creationProfile      *store.SessionCreationProfile
+	creationOptions      *store.SessionCreationOptions
+	creationIdentity     *store.SessionCreationIdentity
 
 	sessionDir string
 	metaPath   string
@@ -143,42 +148,35 @@ func (s *Session) Info() *Info {
 	}
 
 	return &Info{
-		ID:               s.ID,
-		Name:             s.Name,
-		AgentName:        s.AgentName,
-		Provider:         s.Provider,
-		Model:            s.Model,
-		ReasoningEffort:  s.ReasoningEffort,
-		WorkspaceID:      s.WorkspaceID,
-		Workspace:        s.Workspace,
-		Channel:          s.Channel,
-		Type:             normalizeSessionType(s.Type),
-		Lineage:          store.NormalizeSessionLineage(s.ID, s.Lineage),
-		State:            s.State,
-		StopReason:       s.stopReason,
-		StopDetail:       s.stopDetail,
-		Failure:          store.CloneSessionFailure(s.failure),
-		ACPSessionID:     s.ACPSessionID,
-		ACPCaps:          acpCaps,
-		Liveness:         store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:          cloneSessionSandboxMeta(s.Sandbox),
-		SoulSnapshotID:   s.SoulSnapshotID,
-		SoulDigest:       s.SoulDigest,
-		ParentSoulDigest: s.ParentSoulDigest,
-		AttachedTo:       strings.TrimSpace(s.AttachedTo),
-		AttachExpiresAt:  cloneSessionTimePtr(s.AttachExpiresAt),
-		TranscriptEpoch:  s.TranscriptEpoch,
-		CreatedAt:        s.CreatedAt,
-		UpdatedAt:        s.UpdatedAt,
+		ID:                 s.ID,
+		Name:               s.Name,
+		AgentName:          s.AgentName,
+		Provider:           s.Provider,
+		Model:              s.Model,
+		ReasoningEffort:    s.ReasoningEffort,
+		WorkspaceID:        s.WorkspaceID,
+		Workspace:          s.Workspace,
+		Channel:            s.Channel,
+		Type:               normalizeSessionType(s.Type),
+		Lineage:            store.NormalizeSessionLineage(s.ID, s.Lineage),
+		State:              s.State,
+		StopReason:         s.stopReason,
+		StopDetail:         s.stopDetail,
+		Failure:            store.CloneSessionFailure(s.failure),
+		ACPSessionID:       s.ACPSessionID,
+		ACPCaps:            acpCaps,
+		AdvertisedCommands: store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
+		Liveness:           store.CloneSessionLivenessMeta(s.Liveness),
+		Sandbox:            cloneSessionSandboxMeta(s.Sandbox),
+		SoulSnapshotID:     s.SoulSnapshotID,
+		SoulDigest:         s.SoulDigest,
+		ParentSoulDigest:   s.ParentSoulDigest,
+		AttachedTo:         strings.TrimSpace(s.AttachedTo),
+		AttachExpiresAt:    cloneSessionTimePtr(s.AttachExpiresAt),
+		TranscriptEpoch:    s.TranscriptEpoch,
+		CreatedAt:          s.CreatedAt,
+		UpdatedAt:          s.UpdatedAt,
 	}
-}
-
-func cloneSessionTimePtr(value *time.Time) *time.Time {
-	if value == nil || value.IsZero() {
-		return nil
-	}
-	normalized := value.UTC()
-	return &normalized
 }
 
 // SessionDir reports the on-disk session directory path.
@@ -904,46 +902,6 @@ func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
 	if s.stopCause == cause && strings.TrimSpace(detail) != "" {
 		s.stopDetail = strings.TrimSpace(detail)
 	}
-}
-
-// Meta returns the current metadata snapshot for persistence.
-func (s *Session) Meta() store.SessionMeta {
-	if s == nil {
-		return store.SessionMeta{}
-	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return store.SessionMeta{
-		ID:                   s.ID,
-		Name:                 s.Name,
-		AgentName:            s.AgentName,
-		Provider:             s.Provider,
-		Model:                s.Model,
-		ReasoningEffort:      s.ReasoningEffort,
-		EffectivePermissions: s.EffectivePermissions,
-		WorkspaceID:          s.WorkspaceID,
-		Channel:              s.Channel,
-		SessionType:          string(normalizeSessionType(s.Type)),
-		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
-		State:                string(s.State),
-		StopReason:           stopReasonPointer(s.stopReason),
-		StopDetail:           s.stopDetail,
-		Failure:              store.CloneSessionFailure(s.failure),
-		ACPSessionID:         stringPointer(s.ACPSessionID),
-		Liveness:             store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:              cloneSessionSandboxMeta(s.Sandbox),
-		SoulSnapshotID:       s.SoulSnapshotID,
-		SoulDigest:           s.SoulDigest,
-		ParentSoulDigest:     s.ParentSoulDigest,
-		CreatedAt:            s.CreatedAt,
-		UpdatedAt:            s.UpdatedAt,
-	}
-}
-
-func (s *Session) meta() store.SessionMeta {
-	return s.Meta()
 }
 
 func normalizeSessionType(sessionType Type) Type {

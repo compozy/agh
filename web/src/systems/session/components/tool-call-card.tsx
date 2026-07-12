@@ -23,6 +23,9 @@ export interface SessionToolCallRowProps {
   turnSettled?: boolean;
 }
 
+/** Tools with specialized expanded renderers own input+output — no card-level JSON. */
+const SPECIALIZED_TOOLS = new Set(["Bash", "Read", "Write", "Edit", "Grep", "Glob"]);
+
 function formatJsonSource(input: Record<string, unknown> | undefined): string {
   if (!input || Object.keys(input).length === 0) return "";
   try {
@@ -92,9 +95,22 @@ export const SessionToolCallRow = memo(
     const inputJson = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
     const copyPayload = useMemo(() => formatToolPayload(message), [message]);
     const hasOutput = !toolResultIsEmpty(message.toolResult);
+    const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
     const errorText =
       typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
     const errorMessage = status === "failed" ? errorText : undefined;
+    const showGenericInput = !isSpecialized && Boolean(inputJson);
+    const showExpandedBody = isSpecialized || hasOutput;
+    const copyAction = (
+      <CopyIconButton
+        value={copyPayload}
+        copyLabel="Copy tool payload"
+        copiedLabel="Tool payload copied"
+        copyFailedLabel="Tool payload copy failed"
+        className="text-subtle hover:text-fg"
+      />
+    );
+
     return (
       <div data-testid="tool-call-row">
         <ToolCallRow
@@ -104,29 +120,15 @@ export const SessionToolCallRow = memo(
           status={status}
           runtimeError={runtimeError}
           errorMessage={errorMessage}
+          actions={copyAction}
           defaultExpanded={defaultExpanded || status === "failed"}
         >
-          <div className="flex min-w-0 items-center justify-end">
-            <CopyIconButton
-              value={copyPayload}
-              copyLabel="Copy tool payload"
-              copiedLabel="Tool payload copied"
-              copyFailedLabel="Tool payload copy failed"
-              className="text-subtle hover:text-fg"
-            />
-          </div>
-          {inputJson ? (
+          {showGenericInput ? (
             <ToolCallRow.Input>
-              <CodeBlock
-                code={inputJson}
-                language="json"
-                density="compact"
-                showPrompt={false}
-                copyable={false}
-              />
+              <CodeBlock code={inputJson} density="compact" showPrompt={false} copyable={false} />
             </ToolCallRow.Input>
           ) : null}
-          {hasOutput ? (
+          {showExpandedBody ? (
             <ToolCallRow.Output>
               <ExpandedToolContent message={message} />
             </ToolCallRow.Output>

@@ -94,6 +94,9 @@ export async function listLoopRuns(
         query: {
           loop: normalizeOptionalText(filters.loop),
           status: normalizeOptionalText(filters.status),
+          origin: normalizeOptionalText(filters.origin),
+          origin_session: normalizeOptionalText(filters.origin_session),
+          live: filters.live,
           limit: filters.limit,
         },
       },

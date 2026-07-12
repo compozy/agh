@@ -12,15 +12,24 @@ import (
 )
 
 const (
-	generationOutputPending       = "pending"
-	generationOutputEnqueued      = "enqueued"
-	generationOutputRunning       = "running"
-	generationOutputAwaitingChild = "awaiting_child"
-	generationOutputSucceeded     = "succeeded"
-	generationOutputFailed        = "failed"
+	generationOutputPending        = "pending"
+	generationOutputEnqueued       = "enqueued"
+	generationOutputRunning        = "running"
+	generationOutputAwaitingChild  = "awaiting_child"
+	generationOutputControlPending = GenerationOutputStatusControlPending
+	generationOutputAwaitingGoal   = GenerationOutputStatusAwaitingGoal
+	generationOutputSucceeded      = "succeeded"
+	generationOutputFailed         = "failed"
 
 	childLoopTimeoutReason     = "child_loop_timeout"
 	blockingIssuesRepeatedCode = "blocking_issues_repeated"
+)
+
+const (
+	// GenerationOutputStatusControlPending identifies a completed worker whose Loop control is unsettled.
+	GenerationOutputStatusControlPending = "control_pending"
+	// GenerationOutputStatusAwaitingGoal identifies a settled pause or approval gate awaiting re-entry.
+	GenerationOutputStatusAwaitingGoal = "awaiting_goal"
 )
 
 // CoordinatorTaskRunReader is the task-run read seam required by the loop coordinator.
@@ -53,8 +62,6 @@ type CoordinatorRunner struct {
 	taskRuns           CoordinatorTaskRunReader
 	store              Store
 	outputs            GenerationOutputReader
-	resolver           DefinitionResolver
-	defaultsResolver   DefaultsResolver
 	hooks              HookDispatcher
 	gateEvaluator      gate.GateEvaluator
 	actionRegistry     *ActionRegistry
@@ -72,7 +79,6 @@ func NewCoordinatorRunner(
 	taskRuns CoordinatorTaskRunReader,
 	loopStore Store,
 	outputs GenerationOutputReader,
-	resolver DefinitionResolver,
 	logger *slog.Logger,
 	opts ...CoordinatorRunnerOption,
 ) (*CoordinatorRunner, error) {
@@ -85,9 +91,6 @@ func NewCoordinatorRunner(
 	if outputs == nil {
 		return nil, fmt.Errorf("%w: generation output reader is required", ErrValidation)
 	}
-	if resolver == nil {
-		return nil, fmt.Errorf("%w: loop definition resolver is required", ErrValidation)
-	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -95,7 +98,6 @@ func NewCoordinatorRunner(
 		taskRuns:           taskRuns,
 		store:              loopStore,
 		outputs:            outputs,
-		resolver:           resolver,
 		logger:             logger,
 		now:                time.Now,
 		watchSilenceWindow: DefaultWatchSilenceWindow,
@@ -146,7 +148,7 @@ func (r *CoordinatorRunner) Run(
 	if err := coordinatorFSM.transition(ctx, coordinatorEventDerive); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	resolved, err := r.resolver.ResolveLoop(ctx, loopRun.WorkspaceID, loopRun.LoopName)
+	resolved, err := r.resolvePinnedDefinition(ctx, loopRun)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
@@ -177,7 +179,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		return task.CoordinatorCompletionPlan{}, err
 	}
 	resolved = executionResolved
-	effective, err := r.resolveCoordinatorEffectiveConfig(ctx, run, resolved)
+	effective, err := pinnedEffectiveConfig(resolved)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}

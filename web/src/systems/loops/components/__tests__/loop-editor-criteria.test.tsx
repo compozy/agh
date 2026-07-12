@@ -4,11 +4,17 @@ import { describe, expect, it } from "vitest";
 
 import { LoopEditorCriteria } from "../editor/loop-editor-criteria";
 
-function Harness({ initial = [] as unknown[] }: { initial?: unknown[] }) {
+function Harness({
+  initial = [] as unknown[],
+  allowedTypes,
+}: {
+  initial?: unknown[];
+  allowedTypes?: readonly ("command" | "agent-judge" | "human" | "extension")[];
+}) {
   const [value, setValue] = useState<unknown>(initial);
   return (
     <div>
-      <LoopEditorCriteria value={value} onChange={setValue} />
+      <LoopEditorCriteria value={value} onChange={setValue} allowedTypes={allowedTypes} />
       <output data-testid="json">{JSON.stringify(value)}</output>
     </div>
   );
@@ -64,5 +70,39 @@ describe("LoopEditorCriteria", () => {
       "criterion_3",
       "criterion_4",
     ]);
+  });
+
+  it("Should restrict Goal judge criteria to command, agent-judge, and extension", () => {
+    render(
+      <LoopEditorCriteria
+        value={[{ id: "judge", type: "command", check: "make verify" }]}
+        onChange={() => undefined}
+        allowedTypes={["command", "agent-judge", "extension"]}
+      />
+    );
+    const options = screen
+      .getAllByRole("option")
+      .map(option => (option as HTMLOptionElement).value);
+    expect(options).toEqual(["command", "agent-judge", "extension", "exit_zero", "stdout_match"]);
+    expect(options).not.toContain("human");
+  });
+
+  it("Should normalize rendered and added criteria to the allowed type set", () => {
+    render(
+      <Harness
+        initial={[{ id: "judge", type: "human", prompt: "approve?" }]}
+        allowedTypes={["agent-judge", "extension"]}
+      />
+    );
+
+    expect(screen.getByLabelText("Criterion type")).toHaveValue("agent-judge");
+    fireEvent.click(screen.getByTestId("loop-editor-criteria-add"));
+
+    const json = JSON.parse(screen.getByTestId("json").textContent || "[]");
+    expect(json.map((criterion: { type: string }) => criterion.type)).toEqual([
+      "agent-judge",
+      "agent-judge",
+    ]);
+    expect(json[1]).toMatchObject({ agent: "", rubric: "" });
   });
 });

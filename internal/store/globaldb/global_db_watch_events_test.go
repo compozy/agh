@@ -837,15 +837,16 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 		if err := globalDB.CreateTask(ctx, targetTask); err != nil {
 			t.Fatalf("CreateTask(target) error = %v", err)
 		}
+		resolved := compileWatchEventsIntegrationDefinitionForTest(t)
 		loopRun := testLoopRun("watch-events-integration", now, looppkg.StatusRunning)
+		pinLoopRunDefinitionForTest(t, &loopRun, resolved)
 		loopRun.WorkspaceID = "ws-a"
 		loopRun.Inputs = map[string]any{"target_task_id": targetTask.ID}
 		created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		resolved := compileWatchEventsIntegrationDefinitionForTest(t)
-		runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB, resolved)
+		runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB)
 		actor := coordinatorActorContextForTest()
 		firstClaim := claimCoordinatorRunForTest(
 			ctx,
@@ -1028,7 +1029,6 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 			t,
 			globalDB,
 			created,
-			compileAutomationWatchEventsIntegrationDefinitionForTest(t),
 			wakeRun,
 			now.Add(44*time.Second),
 			"watch_automation",
@@ -1434,7 +1434,6 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 			t,
 			globalDB,
 			created,
-			compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t),
 			runs[0],
 			now.Add(4*time.Second),
 			"watch_network_messages",
@@ -1514,7 +1513,6 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 				t,
 				globalDB,
 				created,
-				compileCoordinatorStoppedWatchEventsIntegrationDefinitionForTest(t),
 				runs[0],
 				now.Add(4*time.Second),
 				"watch_coordinator",
@@ -1603,7 +1601,6 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 				t,
 				globalDB,
 				created,
-				compileEventPostRecordWatchEventsIntegrationDefinitionForTest(t),
 				runs[0],
 				now.Add(5*time.Second),
 				"watch_session_events",
@@ -1760,18 +1757,16 @@ func parkWatchEventsLoopForRecoveryTest(
 	if err := globalDB.CreateTask(ctx, targetTask); err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)
 	}
+	resolved := compileWatchEventsIntegrationDefinitionForTest(t)
 	loopRun := testLoopRun("watch-events-recovery", now, looppkg.StatusRunning)
+	pinLoopRunDefinitionForTest(t, &loopRun, resolved)
 	loopRun.WorkspaceID = "ws-a"
 	loopRun.Inputs = map[string]any{"target_task_id": targetTask.ID}
 	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	runner := newGlobalDBWatchEventsCoordinatorForTest(
-		t,
-		globalDB,
-		compileWatchEventsIntegrationDefinitionForTest(t),
-	)
+	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB)
 	claim := claimCoordinatorRunForTest(ctx, t, globalDB, created.ID, "run-watch-events-recovery-first", now)
 	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
 	if err != nil {
@@ -1807,13 +1802,14 @@ func parkWatchEventsLoopWithDefinitionForTest(
 ) looppkg.Run {
 	t.Helper()
 	loopRun := testLoopRun(loopRunID, now, looppkg.StatusRunning)
+	pinLoopRunDefinitionForTest(t, &loopRun, resolved)
 	loopRun.WorkspaceID = "ws-a"
 	loopRun.Inputs = inputs
 	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart(%s) error = %v", loopRunID, err)
 	}
-	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB, resolved)
+	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB)
 	claim := claimCoordinatorRunForTest(ctx, t, globalDB, created.ID, "run-"+loopRunID+"-first", now)
 	plan, err := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
 	if err != nil {
@@ -1843,13 +1839,12 @@ func claimAndRunWatchEventsWakeForTest(
 	t *testing.T,
 	globalDB *GlobalDB,
 	loopRun looppkg.Run,
-	resolved *looppkg.ResolvedDefinition,
 	wakeRun taskpkg.Run,
 	now time.Time,
 	watchNodeID string,
 ) ([]looppkg.WatchEvent, map[string]looppkg.GenerationOutput) {
 	t.Helper()
-	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB, resolved)
+	runner := newGlobalDBWatchEventsCoordinatorForTest(t, globalDB)
 	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 		RunID:            wakeRun.ID,
 		Scope:            taskpkg.ScopeWorkspace,
@@ -2311,18 +2306,12 @@ func compileNetworkMessageWatchEventsIntegrationDefinitionForTest(t *testing.T) 
 func newGlobalDBWatchEventsCoordinatorForTest(
 	t *testing.T,
 	globalDB *GlobalDB,
-	resolved *looppkg.ResolvedDefinition,
 ) *looppkg.CoordinatorRunner {
 	t.Helper()
 	runner, err := looppkg.NewCoordinatorRunner(
 		globalDB,
 		globalDB,
 		globalDB,
-		looppkg.DefinitionResolverFunc(
-			func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
-				return resolved, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		looppkg.WithCoordinatorWatchEventsLedger(globalDB),
 	)
@@ -2330,6 +2319,33 @@ func newGlobalDBWatchEventsCoordinatorForTest(
 		t.Fatalf("NewCoordinatorRunner() error = %v", err)
 	}
 	return runner
+}
+
+func pinLoopRunDefinitionForTest(
+	t *testing.T,
+	run *looppkg.Run,
+	resolved *looppkg.ResolvedDefinition,
+) {
+	t.Helper()
+	if resolved == nil {
+		t.Fatal("resolved Loop definition is required")
+	}
+	effective, err := looppkg.ResolveEffectiveConfig(
+		resolved,
+		looppkg.DefaultLoopDefaults(),
+		nil,
+		looppkg.LoopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+	}
+	snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+	}
+	run.DefinitionVersion = resolved.DefinitionVersion
+	run.DefinitionDigest = digest
+	run.DefinitionSnapshot = slices.Clone(snapshot)
 }
 
 func watchEventsGenerationOutputsByNode(

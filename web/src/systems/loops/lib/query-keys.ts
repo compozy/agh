@@ -1,5 +1,10 @@
 import { normalizeLoopCatalogFilter } from "./loops-list-query";
-import type { LoopCatalogStableFilter, LoopRunsFilter, LoopStreamFilter } from "../types";
+import type {
+  GoalTurnFilter,
+  LoopCatalogStableFilter,
+  LoopRunsFilter,
+  LoopStreamFilter,
+} from "../types";
 
 function normalizeText(value?: string | null): string {
   // Trim to match the adapter's `normalizeOptionalText`, so a whitespace-padded
@@ -9,6 +14,10 @@ function normalizeText(value?: string | null): string {
 
 function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
+}
+
+function normalizeBoolean(value?: boolean): boolean | "" {
+  return value === undefined ? "" : value;
 }
 
 /**
@@ -57,12 +66,30 @@ export const loopsKeys = {
       workspaceId,
       normalizeText(filters.loop),
       normalizeText(filters.status),
+      normalizeText(filters.origin),
+      normalizeText(filters.origin_session),
+      normalizeBoolean(filters.live),
       normalizeNumber(filters.limit),
     ] as const,
 
   runDetails: () => [...loopsKeys.all, "run-detail"] as const,
   runDetail: (workspaceId: string, runId: string) =>
     [...loopsKeys.runDetails(), workspaceId, runId] as const,
+
+  goalTurnsRoot: () => [...loopsKeys.all, "goal-turns"] as const,
+  goalTurns: (
+    workspaceId: string,
+    runId: string,
+    filters: Pick<GoalTurnFilter, "node" | "item" | "limit"> = {}
+  ) =>
+    [
+      ...loopsKeys.goalTurnsRoot(),
+      workspaceId,
+      runId,
+      normalizeText(filters.node),
+      normalizeNumber(filters.item),
+      normalizeNumber(filters.limit),
+    ] as const,
 
   // SSE stream resume seed (after_sequence + Last-Event-ID intent).
   streamsRoot: () => [...loopsKeys.all, "stream"] as const,

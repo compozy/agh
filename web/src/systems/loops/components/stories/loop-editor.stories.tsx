@@ -30,6 +30,34 @@ function overCeilingDetail(): LoopDetail {
   };
 }
 
+function goalDetail(): LoopDetail {
+  const graph = delivery.definition.graph as unknown as RawGraph;
+  const goal = {
+    id: "ship_goal_surfaces",
+    class: "action",
+    kind: "goal",
+    params: {
+      agent: "implementer",
+      objective: "Ship the complete Goal operator surfaces.",
+      judge: [{ id: "verified", type: "command", check: "make verify", expect: "exit_zero" }],
+      max_turns: 20,
+      on_exhausted: "halt",
+    },
+    session: { mode: "continuous" },
+    retry: { max_attempts: 2, on_failure: "fresh_session" },
+  };
+  return {
+    ...delivery,
+    definition: {
+      ...delivery.definition,
+      graph: {
+        ...graph,
+        nodes: [goal, ...graph.nodes],
+      } as unknown as LoopDetail["definition"]["graph"],
+    },
+  };
+}
+
 function editorHandlers(detail: LoopDetail) {
   // The override getLoop must win, but keep the loop handlers (validate lints the posted
   // definition) so the auto-validate still surfaces the fan_out_ceiling_exceeded issue.
@@ -59,6 +87,18 @@ type Story = StoryObj<typeof meta>;
  *  inspector, linter dock (all invariants pass), and the read-only Start summary. */
 export const Editor: Story = {
   args: { workspaceId: WS, name: "software-delivery" },
+};
+
+/** Goal authoring block selected in the inspector, including the closed judge,
+ *  exhaustion, continuous-session, and pre-submit retry fields. */
+export const GoalBlock: Story = {
+  args: { workspaceId: WS, name: "software-delivery" },
+  parameters: { msw: { handlers: editorHandlers(goalDetail()) } },
+  render: args => (
+    <StorySurface className="flex h-[1100px] p-0">
+      <LoopEditor {...args} />
+    </StorySurface>
+  ),
 };
 
 /** A fan-out node over the daemon ceiling: the shared linter returns a per-node 422 —

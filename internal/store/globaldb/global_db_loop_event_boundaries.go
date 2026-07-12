@@ -84,7 +84,7 @@ func loopGateVerdictEventPayload(
 		return map[string]any{
 			loopRunEventPayloadKeyNodeID:     gateID,
 			loopRunEventPayloadKeyGeneration: generation,
-			"verdict":                        loopRunEventVerdictRevise,
+			loopRunEventPayloadKeyVerdict:    loopRunEventVerdictRevise,
 			loopRunEventPayloadKeyReason:     strings.TrimSpace(terminal.ReasonCode),
 			"route":                          strings.TrimSpace(terminal.Status),
 			"details":                        cloneLoopEventRawJSON(terminal.Details),
@@ -102,7 +102,7 @@ func loopGateVerdictEventPayload(
 		}
 		criterionPayload := map[string]any{
 			"id":                         strings.TrimSpace(criterion.ID),
-			"type":                       string(criterion.Type),
+			loopRunEventPayloadKeyType:   string(criterion.Type),
 			loopRunEventPayloadKeyStatus: status,
 			"note":                       string(criterion.Outcome),
 		}
@@ -121,7 +121,7 @@ func loopGateVerdictEventPayload(
 	payload := map[string]any{
 		loopRunEventPayloadKeyNodeID:     firstNonEmptyString(gateID, "definition_of_done"),
 		loopRunEventPayloadKeyGeneration: generation,
-		"verdict":                        verdictLabel,
+		loopRunEventPayloadKeyVerdict:    verdictLabel,
 		loopRunEventPayloadKeyReason: firstNonEmptyString(
 			verdict.Route.ReasonCode,
 			string(verdict.Outcome),

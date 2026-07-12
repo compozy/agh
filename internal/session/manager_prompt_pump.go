@@ -138,6 +138,7 @@ func (m *Manager) finishPromptPump(
 		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
 		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
 	}
+	m.finishManagedInputPrompt(lifecycleCtx, session, turnState)
 	if session != nil {
 		session.clearCurrentTurnID()
 		session.clearCurrentTurnSource()

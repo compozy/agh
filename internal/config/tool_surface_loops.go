@@ -2,8 +2,12 @@ package config
 
 import "maps"
 
-func loopDefaultToolPathKinds() map[string]ValueKind {
+func loopAndGoalToolPathKinds() map[string]ValueKind {
 	return map[string]ValueKind{
+		goalMaxTurnsPath:                                ConfigValueInt,
+		goalContextNudgeRatioPath:                       ConfigValueFloat,
+		goalOutboxBatchSizePath:                         ConfigValueInt,
+		goalOutboxPollIntervalPath:                      ConfigValueDuration,
 		"loops.defaults.delivery.iteration_cap":         ConfigValueInt,
 		"loops.defaults.delivery.no_progress.window":    ConfigValueInt,
 		"loops.defaults.delivery.gates.max_revisions":   ConfigValueInt,

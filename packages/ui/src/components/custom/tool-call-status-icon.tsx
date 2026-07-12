@@ -20,7 +20,7 @@ type GlyphStatus = Exclude<ToolCallStatus, "pending" | "running">;
 const TONE_CLASS: Record<GlyphStatus, string> = {
   failed: "text-danger",
   success: "text-success",
-  empty: "text-faint",
+  empty: "text-subtle",
 };
 
 const ICON: Record<GlyphStatus, React.ElementType> = {
@@ -53,7 +53,7 @@ export function ToolCallStatusIcon({ status, className }: ToolCallStatusIconProp
         data-slot="tool-call-row-status"
         data-status={status}
         aria-label={label}
-        className={cn("size-3 shrink-0 text-info", className)}
+        className={cn("size-3 shrink-0 text-muted", className)}
       />
     );
   }

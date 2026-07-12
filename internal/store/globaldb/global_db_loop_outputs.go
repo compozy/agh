@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
@@ -53,6 +54,44 @@ func (g *GlobalDB) ListGenerationOutputs(
 		return nil, fmt.Errorf("store: iterate loop run %q generation %d outputs: %w", runID, generation, err)
 	}
 	return outputs, nil
+}
+
+// LookupLoopGenerationOutputStatus returns the output correlated with one worker task run.
+func (g *GlobalDB) LookupLoopGenerationOutputStatus(
+	ctx context.Context,
+	loopRunID string,
+	taskRunID string,
+) (string, bool, error) {
+	if err := g.checkReady(ctx, "lookup loop generation output status"); err != nil {
+		return "", false, err
+	}
+	loopRunID = strings.TrimSpace(loopRunID)
+	taskRunID = strings.TrimSpace(taskRunID)
+	if loopRunID == "" || taskRunID == "" {
+		return "", false, fmt.Errorf("%w: loop_run_id and task_run_id are required", looppkg.ErrValidation)
+	}
+	var status string
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT status
+		 FROM loop_generation_outputs
+		 WHERE loop_run_id = ? AND task_run_id = ?
+		 ORDER BY generation DESC
+		 LIMIT 1`,
+		loopRunID,
+		taskRunID,
+	).Scan(&status); err != nil {
+		if errorsIsNoRows(err) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf(
+			"store: lookup loop run %q output for task run %q: %w",
+			loopRunID,
+			taskRunID,
+			err,
+		)
+	}
+	return strings.TrimSpace(status), true, nil
 }
 
 type generationOutputScanner interface {
@@ -114,6 +153,22 @@ func sweepOrphanedLoopOutputBlobsWithExecutor(ctx context.Context, exec taskSQLE
 		   SELECT 1
 		   FROM loop_generation_outputs
 		   WHERE loop_generation_outputs.output_ref = loop_output_blobs.output_ref
+		 )
+		 AND NOT EXISTS (
+		   SELECT 1
+		   FROM loop_goal_turns
+		   WHERE loop_goal_turns.evidence_ref = loop_output_blobs.output_ref
+		      OR loop_goal_turns.prompt_ref = loop_output_blobs.output_ref
+		 )
+		 AND NOT EXISTS (
+		   SELECT 1
+		   FROM loop_goal_judge_attempts
+		   WHERE loop_goal_judge_attempts.evidence_ref = loop_output_blobs.output_ref
+		 )
+		 AND NOT EXISTS (
+		   SELECT 1
+		   FROM loop_goal_checkpoints
+		   WHERE loop_goal_checkpoints.report_evidence_ref = loop_output_blobs.output_ref
 		 )`,
 	); err != nil {
 		return fmt.Errorf("store: sweep orphaned loop output blobs: %w", err)

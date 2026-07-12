@@ -53,6 +53,18 @@ const aghEventDataSchema = z
         elapsed_seconds: z.number().optional(),
       })
       .optional(),
+    goal: z
+      .object({
+        kind: z.enum(["goal-work", "goal-continuation", "goal-compaction"]),
+        run_id: z.string(),
+        node_id: z.string(),
+        generation: z.number(),
+        item_index: z.number(),
+        turn: z.number().nullable(),
+        prompt_attempt: z.number(),
+        prompt_id: z.string(),
+      })
+      .optional(),
     raw: z.unknown().optional(),
   })
   .passthrough();

@@ -58,6 +58,23 @@ describe("LoopRunsView", () => {
     expect(rows[0].getAttribute("data-params")).toContain("looprun_");
   });
 
+  it("Should label a session-origin Run with its exact origin session", () => {
+    render(
+      <LoopRunsView
+        runs={[
+          {
+            ...loopRunFixtures[0],
+            started_origin_kind: "session",
+            started_origin_ref: "session_42",
+          },
+        ]}
+        outcome="all"
+        onOutcomeChange={() => undefined}
+      />
+    );
+    expect(screen.getByTestId("loop-run-row")).toHaveTextContent("session · session_42");
+  });
+
   it("Should filter the tables to the selected outcome", () => {
     render(<Harness />);
     fireEvent.click(screen.getByTestId("loop-outcome-done"));

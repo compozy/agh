@@ -7,11 +7,11 @@ import {
   type ThreadMessage,
   useAuiState,
 } from "@assistant-ui/react";
-import { Activity, ArrowDown } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { type ComponentPropsWithoutRef, useEffect, useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { MessageMarkdown } from "@/systems/session/components/message-markdown";
+import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
 import {
@@ -26,8 +26,12 @@ import {
 } from "./session-thread-content-rail";
 import { useThreadProviderIdentity } from "./hooks/use-thread-provider-identity";
 import { useVirtualizedThreadMessages } from "./hooks/use-virtualized-thread-messages";
+import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { MessageActions } from "./message-actions";
+import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
+import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
 import { formatMessageError } from "./session-thread-error";
+import { SessionThreadErrorBoundary } from "./session-thread-error-boundary";
 import { AssistantMessageTimeline } from "./session-timeline-render";
 import { ThreadStatePane } from "./session-thread-states";
 import { VIRTUAL_MESSAGE_ESTIMATE } from "./timeline-row-estimates";
@@ -35,58 +39,17 @@ import { VIRTUAL_MESSAGE_ESTIMATE } from "./timeline-row-estimates";
 export { formatMessageError };
 
 interface SessionThreadProps extends SessionComposerProps {
+  sessionId: string;
   agentName: string;
+  workspaceId?: string;
 }
 
 function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
-  return (
-    <div className="text-sm leading-7 text-fg">
-      <MessageMarkdown content={text} streaming={state?.type === "running"} />
-    </div>
-  );
-}
-
-function formatDataPreview(data: unknown): string | null {
-  if (data === undefined || data === null) {
-    return null;
-  }
-
-  if (typeof data === "string") {
-    return data;
-  }
-
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return String(data);
-  }
+  return <SessionMessageText text={text} streaming={state?.type === "running"} />;
 }
 
 function SessionDataPart(part: DataMessagePartProps<unknown>) {
-  const preview = formatDataPreview(part.data);
-  const clippedPreview =
-    preview && preview.length > 180 ? `${preview.slice(0, 180).trimEnd()}...` : preview;
-
-  return (
-    <div
-      data-testid="session-data-part"
-      className={cn(
-        "my-2 flex w-full min-w-0 items-start gap-2 rounded-lg border px-3 py-2",
-        "border-line bg-canvas-soft text-form-input text-muted"
-      )}
-    >
-      <Activity aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-info" />
-      <div className="min-w-0">
-        <div className="text-card-title text-fg">Data event</div>
-        <div className="truncate text-form-label text-subtle">{part.name}</div>
-        {clippedPreview ? (
-          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-small-body text-muted">
-            {clippedPreview}
-          </pre>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <SessionDataEventCard name={part.name} data={part.data} />;
 }
 
 function SessionMessageErrorNotice() {
@@ -107,7 +70,7 @@ function SessionMessageErrorNotice() {
       role="alert"
       data-testid="session-message-error"
       className={cn(
-        "rounded-md border px-3 py-2 text-sm",
+        "rounded-md border px-3 py-2 text-small-body",
         "border-danger/30 bg-danger/8",
         "text-danger"
       )}
@@ -119,7 +82,7 @@ function SessionMessageErrorNotice() {
 
 function UserMessage() {
   return (
-    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end py-3">
+    <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pb-4 pt-1">
       <div className="flex min-w-0 max-w-[min(80%,42rem)] flex-col items-end gap-1">
         <div className={cn("w-full rounded-xl border px-4 py-3", "border-line bg-canvas-soft")}>
           <MessagePrimitive.Parts
@@ -140,12 +103,26 @@ function UserMessage() {
 }
 
 function AssistantMessage() {
+  const isRunning = useAuiState(state => {
+    const status = state.message.status;
+    return status?.type === "running" || status?.type === "incomplete";
+  });
+
   return (
-    <MessagePrimitive.Root className="group/message flex w-full min-w-0 py-3">
+    <MessagePrimitive.Root
+      className={cn("group/message flex w-full min-w-0 pt-1", isRunning ? "pb-2" : "pb-4")}
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <AssistantMessageTimeline />
+        <SessionThreadErrorBoundary>
+          <AssistantMessageTimeline />
+        </SessionThreadErrorBoundary>
         <SessionMessageErrorNotice />
-        <MessageActions align="start" copyLabel="Copy message" testId="assistant-message-actions" />
+        <MessageActions
+          align="start"
+          copyLabel="Copy message"
+          goalPrefill
+          testId="assistant-message-actions"
+        />
       </div>
     </MessagePrimitive.Root>
   );
@@ -404,6 +381,7 @@ export function VirtualizedThreadMessages({
 export function SessionThread({
   sessionId,
   agentName,
+  workspaceId,
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
@@ -417,29 +395,35 @@ export function SessionThread({
   onSteerQueuedPrompt,
   contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,
 }: SessionThreadProps) {
+  const composerState = useSessionComposerState(sessionId);
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ThreadViewport
-        agentName={agentName}
-        sessionId={sessionId}
-        isSessionRunning={isSessionRunning}
-        contentInset={contentInset}
-      />
-      <SessionComposer
-        sessionId={sessionId}
-        contentInset={contentInset}
-        canPrompt={canPrompt}
-        onCancelPrompt={onCancelPrompt}
-        onQueuePrompt={onQueuePrompt}
-        onInterruptPrompt={onInterruptPrompt}
-        onSteerPrompt={onSteerPrompt}
-        isBusyInputPending={isBusyInputPending}
-        isSessionRunning={isSessionRunning}
-        allowBusyInput={allowBusyInput}
-        queuedPrompts={queuedPrompts}
-        onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-        onSteerQueuedPrompt={onSteerQueuedPrompt}
-      />
+      <SessionComposerPrefillProvider setComposerText={composerState.setComposerText}>
+        {workspaceId ? (
+          <SessionGoalHeaderContainer sessionId={sessionId} workspaceId={workspaceId} />
+        ) : null}
+        <ThreadViewport
+          agentName={agentName}
+          sessionId={sessionId}
+          isSessionRunning={isSessionRunning}
+          contentInset={contentInset}
+        />
+        <SessionComposer
+          composerState={composerState}
+          contentInset={contentInset}
+          canPrompt={canPrompt}
+          onCancelPrompt={onCancelPrompt}
+          onQueuePrompt={onQueuePrompt}
+          onInterruptPrompt={onInterruptPrompt}
+          onSteerPrompt={onSteerPrompt}
+          isBusyInputPending={isBusyInputPending}
+          isSessionRunning={isSessionRunning}
+          allowBusyInput={allowBusyInput}
+          queuedPrompts={queuedPrompts}
+          onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+          onSteerQueuedPrompt={onSteerQueuedPrompt}
+        />
+      </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>
   );
 }

@@ -155,6 +155,7 @@ type stubClient struct {
 		agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
 	listLoopRunsFn   func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
+	listGoalTurnsFn  func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
 	getLoopRunFn     func(context.Context, string, string) (contract.LoopRunResponse, error)
 	stopLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) error
 	pauseLoopRunFn   func(context.Context, string, string, agentidentity.Credentials) error
@@ -1472,6 +1473,18 @@ func (s *stubClient) ListLoopRuns(
 		return s.listLoopRunsFn(ctx, workspaceID, query)
 	}
 	return contract.LoopRunsResponse{}, errors.New("unexpected ListLoopRuns call")
+}
+
+func (s *stubClient) ListGoalTurns(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query GoalTurnListQuery,
+) (contract.GoalTurnPage, error) {
+	if s.listGoalTurnsFn != nil {
+		return s.listGoalTurnsFn(ctx, workspaceID, runID, query)
+	}
+	return contract.GoalTurnPage{}, errors.New("unexpected ListGoalTurns call")
 }
 
 func (s *stubClient) GetLoopRun(

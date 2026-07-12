@@ -21,29 +21,76 @@ type loopSessionPolicyGate struct {
 	agentResolver     loopSessionAgentResolver
 }
 
+type loopSessionPolicyResolution struct {
+	workspace workspacepkg.ResolvedWorkspace
+	agent     aghconfig.ResolvedAgent
+}
+
 func (g *loopSessionPolicyGate) apply(
 	ctx context.Context,
 	opts *session.CreateOpts,
 	agentName string,
 	allowedTools []string,
 ) error {
+	_, err := g.applyResolved(ctx, opts, agentName, allowedTools)
+	return err
+}
+
+func (g *loopSessionPolicyGate) applyResolved(
+	ctx context.Context,
+	opts *session.CreateOpts,
+	agentName string,
+	allowedTools []string,
+) (loopSessionPolicyResolution, error) {
 	if opts == nil {
-		return errors.New("daemon: loop session options are required")
+		return loopSessionPolicyResolution{}, errors.New("daemon: loop session options are required")
 	}
 	resolved, err := g.resolveWorkspace(ctx, *opts)
 	if err != nil {
-		return err
+		return loopSessionPolicyResolution{}, err
 	}
-	policy, err := g.resolvePolicy(agentName, &resolved)
+	agentDef, err := g.resolveAgent(agentName, &resolved)
 	if err != nil {
-		return err
+		return loopSessionPolicyResolution{}, fmt.Errorf(
+			"%w: resolve loop session agent policy for %q: %w",
+			looppkg.ErrValidation,
+			strings.TrimSpace(agentName),
+			err,
+		)
 	}
+	resolvedAgent, err := resolved.Config.ResolveSessionAgentWithRuntime(agentDef, opts.Provider, opts.Model)
+	if err != nil {
+		return loopSessionPolicyResolution{}, fmt.Errorf(
+			"%w: resolve loop session policy for %q: %w",
+			looppkg.ErrValidation,
+			strings.TrimSpace(agentName),
+			err,
+		)
+	}
+	policy := sessionPolicyFromResolvedAgentWorkspace(resolvedAgent, &resolved)
 	applySessionSandboxPolicy(opts, policy)
 	applySessionPermissionPolicy(opts, policy)
 	if err := applyAllowedToolsNarrowing(opts, allowedTools); err != nil {
-		return err
+		return loopSessionPolicyResolution{}, err
 	}
-	return nil
+	cwd, err := session.ResolveSessionCWD(resolved.RootDir, opts.CWD)
+	if err != nil {
+		return loopSessionPolicyResolution{}, err
+	}
+	opts.CWD = cwd
+	opts.Provider = strings.TrimSpace(resolvedAgent.Provider)
+	opts.Model = strings.TrimSpace(resolvedAgent.Model)
+	if runtimeMode := normalizeSessionRuntimeMode(policy.Runtime.Mode); runtimeMode != "" {
+		opts.RuntimeMode = string(runtimeMode)
+	}
+	if permissions := strings.TrimSpace(string(opts.Permissions)); permissions != "" {
+		resolvedAgent.Permissions = permissions
+	}
+	if len(opts.AllowedToolsOverride) > 0 {
+		resolvedAgent.Tools = append([]string(nil), opts.AllowedToolsOverride...)
+		resolvedAgent.Toolsets = nil
+	}
+	return loopSessionPolicyResolution{workspace: resolved, agent: resolvedAgent}, nil
 }
 
 func (g *loopSessionPolicyGate) resolveWorkspace(
@@ -77,34 +124,6 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 		)
 	}
 	return resolved, nil
-}
-
-func (g *loopSessionPolicyGate) resolvePolicy(
-	agentName string,
-	resolved *workspacepkg.ResolvedWorkspace,
-) (SessionPolicy, error) {
-	if resolved == nil {
-		return SessionPolicy{}, errors.New("daemon: resolved loop session workspace is required")
-	}
-	agentDef, err := g.resolveAgent(agentName, resolved)
-	if err != nil {
-		return SessionPolicy{}, fmt.Errorf(
-			"%w: resolve loop session agent policy for %q: %w",
-			looppkg.ErrValidation,
-			strings.TrimSpace(agentName),
-			err,
-		)
-	}
-	resolvedAgent, err := resolved.Config.ResolveAgent(agentDef)
-	if err != nil {
-		return SessionPolicy{}, fmt.Errorf(
-			"%w: resolve loop session policy for %q: %w",
-			looppkg.ErrValidation,
-			strings.TrimSpace(agentName),
-			err,
-		)
-	}
-	return sessionPolicyFromResolvedAgentWorkspace(resolvedAgent, resolved), nil
 }
 
 func (g *loopSessionPolicyGate) resolveAgent(

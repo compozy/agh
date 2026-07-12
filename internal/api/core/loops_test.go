@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -214,7 +215,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			t,
 			engine,
 			http.MethodGet,
-			"/workspaces/ws-1/loop-runs?loop=alpha&status=running&limit=10",
+			"/workspaces/ws-1/loop-runs?loop=alpha&status=running&origin=session&origin_session=session-1&live=true&limit=10",
 			nil,
 		)
 		assertLoopStatus(t, runsResp.Code, http.StatusOK, runsResp.Body.String())
@@ -374,6 +375,121 @@ func TestLoopHandlersExposeUDSStartKind(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if payload.Run == nil || payload.Run.ID != "run-uds" {
 			t.Fatalf("POST /run UDS payload = %#v", payload)
+		}
+	})
+}
+
+func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve snapshot and open-turn nullability", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.getSessionGoalFn = func(
+			_ context.Context,
+			workspaceID string,
+			sessionID string,
+		) (*session.GoalSnapshot, error) {
+			if workspaceID != "ws-1" || sessionID != "sess-1" {
+				t.Fatalf("GetSessionGoal() target = %s/%s", workspaceID, sessionID)
+			}
+			return &session.GoalSnapshot{
+				RunID: "run-1", NodeID: "converge", Objective: "Ship the change",
+				OriginSessionID: "sess-1", BoundSessionID: "sess-bound",
+				Status: "active", RunStatus: "running", TurnsUsed: 1, TurnLimit: 3, Live: true,
+				ContractSummary: "All checks pass",
+				Context:         session.GoalContextSnapshot{State: "pending", NudgeRatio: 0},
+			}, nil
+		}
+		service.listGoalTurnsFn = func(
+			_ context.Context,
+			workspaceID string,
+			runID string,
+			query core.GoalTurnListQuery,
+		) (session.GoalTurnPage, error) {
+			if workspaceID != "ws-1" || runID != "run-1" || query.NodeID != "converge" ||
+				query.ItemIndex == nil || *query.ItemIndex != 0 || query.AfterSeq != 4 || query.Limit != 2 {
+				t.Fatalf("ListGoalTurns() query = %s/%s %#v", workspaceID, runID, query)
+			}
+			next := int64(5)
+			return session.GoalTurnPage{
+				Turns: []session.GoalTurn{{
+					Seq: 5, Generation: 2, NodeID: "converge", ItemIndex: 0, Turn: 2,
+					PromptAttempt: 1, SessionID: "sess-bound", BindingHandle: "goal:hash",
+					BindingEpoch: 2, PromptID: "prompt-5", BlockingIssues: []session.GoalBlockingIssue{},
+					ActorKind: "agent", ActorID: "goal:run-1", StartedAt: fixedLoopTime(),
+				}},
+				NextAfterSeq: &next,
+			}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+
+		snapshotResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-1/sessions/sess-1/goal",
+			nil,
+		)
+		assertLoopStatus(t, snapshotResponse.Code, http.StatusOK, snapshotResponse.Body.String())
+		var snapshot contract.SessionGoalResponse
+		testutil.DecodeJSONResponse(t, snapshotResponse, &snapshot)
+		if snapshot.Goal == nil || snapshot.Goal.RunID != "run-1" || snapshot.Goal.Context.NudgeRatio != 0 {
+			t.Fatalf("GET session Goal = %#v", snapshot)
+		}
+		for _, field := range []string{`"used":null`, `"size":null`, `"ratio":null`, `"reported_at":null`} {
+			if !strings.Contains(snapshotResponse.Body.String(), field) {
+				t.Fatalf("GET session Goal body missing %s: %s", field, snapshotResponse.Body.String())
+			}
+		}
+
+		turnsResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-1/loop-runs/run-1/turns?node=converge&item=0&after_seq=4&limit=2",
+			nil,
+		)
+		assertLoopStatus(t, turnsResponse.Code, http.StatusOK, turnsResponse.Body.String())
+		var page contract.GoalTurnPage
+		testutil.DecodeJSONResponse(t, turnsResponse, &page)
+		if len(page.Turns) != 1 || page.Turns[0].ResultStatus != nil || page.NextAfterSeq == nil ||
+			*page.NextAfterSeq != 5 || page.Turns[0].BlockingIssues == nil {
+			t.Fatalf("GET Goal turns = %#v", page)
+		}
+	})
+
+	t.Run("Should return null after clear and reject invalid turn filters", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		_, engine := newLoopHandlerFixture(t, "udsapi", service)
+		nullResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/workspaces/ws-1/sessions/sess-1/goal",
+			nil,
+		)
+		assertLoopStatus(t, nullResponse.Code, http.StatusOK, nullResponse.Body.String())
+		if strings.TrimSpace(nullResponse.Body.String()) != `{"goal":null}` {
+			t.Fatalf("GET cleared Goal body = %q", nullResponse.Body.String())
+		}
+
+		for _, path := range []string{
+			"/workspaces/ws-1/loop-runs/run-1/turns?limit=201",
+			"/workspaces/ws-1/loop-runs/run-1/turns?after_seq=-1",
+			"/workspaces/ws-1/loop-runs/run-1/turns?item=0",
+		} {
+			response := performRequest(t, engine, http.MethodGet, path, nil)
+			assertLoopStatus(t, response.Code, http.StatusUnprocessableEntity, response.Body.String())
+			var result contract.GoalCommandResult
+			testutil.DecodeJSONResponse(t, response, &result)
+			if result.Outcome != contract.GoalOutcomeError || result.ReasonCode == nil ||
+				*result.ReasonCode != contract.GoalReasonTurnFilterInvalid {
+				t.Fatalf("GET Goal turns invalid result = %#v", result)
+			}
 		}
 	})
 }
@@ -748,11 +864,13 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.PUT("/loops/:name/annotations", handlers.PutLoopAnnotations)
 	workspace.GET("/loop-runs", handlers.ListLoopRuns)
 	workspace.GET("/loop-runs/:run_id", handlers.GetLoopRun)
+	workspace.GET("/loop-runs/:run_id/turns", handlers.ListGoalTurns)
 	workspace.POST("/loop-runs/:run_id/stop", handlers.StopLoopRun)
 	workspace.POST("/loop-runs/:run_id/pause", handlers.PauseLoopRun)
 	workspace.POST("/loop-runs/:run_id/resume", handlers.ResumeLoopRun)
 	workspace.POST("/loop-runs/:run_id/approve", handlers.ApproveLoopRun)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
+	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
 }
 
 type stubLoopService struct {
@@ -769,6 +887,8 @@ type stubLoopService struct {
 	putAnnotationsFn    func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
 	listLoopRunsFn      func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
+	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
+	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
 	stopLoopRunFn       func(context.Context, string, string) error
 	pauseLoopRunFn      func(context.Context, string, string) error
 	resumeLoopRunFn     func(context.Context, string, string) error
@@ -832,7 +952,9 @@ func happyLoopService(t testing.TB) *stubLoopService {
 			return contract.LoopAnnotationsResponse{Annotations: annotations}, nil
 		},
 		listLoopRunsFn: func(_ context.Context, workspaceID string, query core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
-			if workspaceID != "ws-1" || query.LoopName != "alpha" || query.Status != "running" || query.Limit != 10 {
+			if workspaceID != "ws-1" || query.LoopName != "alpha" || query.Status != "running" ||
+				query.Origin != "session" || query.OriginSession != "session-1" || query.Live == nil ||
+				!*query.Live || query.Limit != 10 {
 				return contract.LoopRunsResponse{}, errors.New("unexpected loop run query")
 			}
 			return contract.LoopRunsResponse{
@@ -845,6 +967,12 @@ func happyLoopService(t testing.TB) *stubLoopService {
 				Run:         *loopRunPayload("run-1", looppkg.StatusRunning),
 				Generations: []contract.LoopGenerationPayload{{Generation: 1}},
 			}, nil
+		},
+		getSessionGoalFn: func(context.Context, string, string) (*session.GoalSnapshot, error) {
+			return nil, nil
+		},
+		listGoalTurnsFn: func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error) {
+			return session.GoalTurnPage{Turns: []session.GoalTurn{}}, nil
 		},
 		stopLoopRunFn: func(context.Context, string, string) error {
 			return nil
@@ -968,15 +1096,47 @@ func (s *stubLoopService) GetLoopRun(
 	return s.getLoopRunFn(ctx, workspaceID, runID)
 }
 
-func (s *stubLoopService) StopLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *stubLoopService) GetSessionGoal(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.GoalSnapshot, error) {
+	return s.getSessionGoalFn(ctx, workspaceID, sessionID)
+}
+
+func (s *stubLoopService) ListGoalTurns(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	query core.GoalTurnListQuery,
+) (session.GoalTurnPage, error) {
+	return s.listGoalTurnsFn(ctx, workspaceID, runID, query)
+}
+
+func (s *stubLoopService) StopLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	return s.stopLoopRunFn(ctx, workspaceID, runID)
 }
 
-func (s *stubLoopService) PauseLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *stubLoopService) PauseLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	return s.pauseLoopRunFn(ctx, workspaceID, runID)
 }
 
-func (s *stubLoopService) ResumeLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *stubLoopService) ResumeLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	_ taskpkg.ActorContext,
+) error {
 	return s.resumeLoopRunFn(ctx, workspaceID, runID)
 }
 

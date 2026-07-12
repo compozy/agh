@@ -18,7 +18,7 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 	graph dsl.Graph,
 	topology controlTopology,
 	existing []GenerationOutput,
-) ([]GenerationOutput, *GenerationOutput, bool, []task.CoordinatorStopSpec, error) {
+) ([]GenerationOutput, *GenerationOutput, *task.CoordinatorTerminal, bool, []task.CoordinatorStopSpec, error) {
 	outputs := generationOutputMap(existing)
 	for _, node := range graph.Nodes {
 		if _, inFanOut := topology.inFanOutBody(node.ID); inFanOut {
@@ -39,21 +39,31 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 	}
 	live := false
 	loopStops := make([]task.CoordinatorStopSpec, 0)
+	controlTerminals := make([]goalControlCandidate, 0, 1)
 	for key, output := range outputs {
-		refreshed, isLive, stops, err := r.refreshGenerationOutputFromTaskRun(
+		refreshed, isLive, stops, controlTerminal, err := r.refreshGenerationOutputFromTaskRun(
 			ctx,
 			run,
 			graph,
 			output,
 		)
 		if err != nil {
-			return nil, nil, false, nil, err
+			return nil, nil, nil, false, nil, err
 		}
 		outputs[key] = refreshed
 		loopStops = append(loopStops, stops...)
 		if isLive {
 			live = true
 		}
+		if controlTerminal != nil {
+			controlTerminals = append(controlTerminals, goalControlCandidate{
+				key:      key,
+				terminal: *controlTerminal,
+			})
+		}
+	}
+	if live {
+		keepDeferredGoalTerminalsPending(outputs, controlTerminals)
 	}
 	ordered := make([]GenerationOutput, 0, len(outputs))
 	for _, output := range outputs {
@@ -66,7 +76,23 @@ func (r *CoordinatorRunner) refreshGenerationOutputs(
 		return ordered[i].NodeID < ordered[j].NodeID
 	})
 	failed := selectFailedOutput(ordered)
-	return ordered, failed, live, loopStops, nil
+	return ordered, failed, selectGoalControlTerminal(controlTerminals), live, loopStops, nil
+}
+
+func keepDeferredGoalTerminalsPending(
+	outputs map[generationOutputKey]GenerationOutput,
+	candidates []goalControlCandidate,
+) {
+	for _, candidate := range candidates {
+		if candidate.terminal.Status != string(StatusBlocked) &&
+			candidate.terminal.Status != string(StatusExhausted) {
+			continue
+		}
+		output := outputs[candidate.key]
+		output.Status = generationOutputControlPending
+		output.OutputRef = ""
+		outputs[candidate.key] = output
+	}
 }
 
 func selectFailedOutput(outputs []GenerationOutput) *GenerationOutput {
@@ -93,41 +119,49 @@ func (r *CoordinatorRunner) refreshGenerationOutputFromTaskRun(
 	parent Run,
 	graph dsl.Graph,
 	output GenerationOutput,
-) (GenerationOutput, bool, []task.CoordinatorStopSpec, error) {
+) (GenerationOutput, bool, []task.CoordinatorStopSpec, *task.CoordinatorTerminal, error) {
 	switch output.Status {
 	case generationOutputAwaitingChild:
-		return r.refreshAwaitingChildOutput(ctx, parent, graph, output)
+		refreshed, live, stops, err := r.refreshAwaitingChildOutput(ctx, parent, graph, output)
+		return refreshed, live, stops, nil, err
 	case generationOutputSucceeded, generationOutputFailed, generationOutputPending:
-		return output, false, nil, nil
+		return output, false, nil, nil, nil
 	}
 	taskRunID := strings.TrimSpace(output.TaskRunID)
 	if taskRunID == "" {
+		if output.Status == generationOutputControlPending || output.Status == generationOutputAwaitingGoal {
+			return GenerationOutput{}, false, nil, nil, invalidActionControlError("task_run_id", "")
+		}
 		return output, output.Status == generationOutputRunning ||
-			output.Status == generationOutputEnqueued, nil, nil
+			output.Status == generationOutputEnqueued, nil, nil, nil
 	}
 	run, err := r.taskRuns.GetTaskRun(ctx, taskRunID)
 	if err != nil {
-		return GenerationOutput{}, false, nil, err
+		return GenerationOutput{}, false, nil, nil, err
 	}
 	switch run.Status.Normalize() {
 	case task.TaskRunStatusCompleted:
+		if output.Status == generationOutputControlPending || output.Status == generationOutputAwaitingGoal {
+			refreshed, terminal, controlErr := resolveGoalActionControl(parent, output, run)
+			return refreshed, false, nil, terminal, controlErr
+		}
 		output.Status = generationOutputSucceeded
-		return output, false, nil, nil
+		return output, false, nil, nil, nil
 	case task.TaskRunStatusFailed, task.TaskRunStatusCanceled:
 		output.Status = generationOutputFailed
 		if output.OutputRef == "" {
 			output.OutputRef = failureReasonCode(run.Error)
 		}
-		return output, false, nil, nil
+		return output, false, nil, nil, nil
 	case task.TaskRunStatusQueued:
 		output.Status = generationOutputEnqueued
-		return output, true, nil, nil
+		return output, true, nil, nil, nil
 	case task.TaskRunStatusClaimed, task.TaskRunStatusStarting, task.TaskRunStatusRunning:
 		output.Status = generationOutputRunning
-		return output, true, nil, nil
+		return output, true, nil, nil, nil
 	default:
 		output.Status = generationOutputRunning
-		return output, true, nil, nil
+		return output, true, nil, nil, nil
 	}
 }
 

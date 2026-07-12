@@ -3,6 +3,7 @@ package transcript
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1183,11 +1184,12 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 				Text:      "text 5",
 			}),
 			mustUIAgentSessionEvent(t, "ev-done", 6, timestamp.Add(5*time.Second), acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				SessionID:  "sess-mixed",
-				TurnID:     "turn-mixed",
-				Timestamp:  timestamp.Add(5 * time.Second),
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				SessionID:        "sess-mixed",
+				TurnID:           "turn-mixed",
+				Timestamp:        timestamp.Add(5 * time.Second),
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}),
 		}
 
@@ -1238,11 +1240,12 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 				Text:      "answer",
 			}),
 			mustUIAgentSessionEvent(t, "ev-done", 4, timestamp.Add(3*time.Second), acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				SessionID:  "sess-reasoning",
-				TurnID:     "turn-reasoning",
-				Timestamp:  timestamp.Add(3 * time.Second),
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				SessionID:        "sess-reasoning",
+				TurnID:           "turn-reasoning",
+				Timestamp:        timestamp.Add(3 * time.Second),
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}),
 		}
 
@@ -1372,15 +1375,20 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		t.Parallel()
 
 		payload, err := MarshalAgentEvent(acp.AgentEvent{
-			Type:      acp.EventTypeAgentMessage,
-			SessionID: "acp-1",
-			TurnID:    "turn-1",
-			RequestID: "req-1",
-			Timestamp: time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
-			Text:      "hello",
-			Title:     "assistant",
-			Error:     "",
-			Raw:       json.RawMessage(`{"chunk":1}`),
+			Type:             acp.EventTypeAgentMessage,
+			SessionID:        "acp-1",
+			TurnID:           "turn-1",
+			RequestID:        "req-1",
+			Timestamp:        time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
+			Text:             "hello",
+			Title:            "assistant",
+			Error:            "",
+			PromptStopReason: acp.PromptStopReasonMaxTokens,
+			AvailableCommands: acp.NewAvailableCommandSet([]store.SessionAdvertisedCommand{
+				{Name: "compact", Description: "Compact context"},
+				{Name: "review", Description: "Review changes"},
+			}),
+			Raw: json.RawMessage(`{"chunk":1}`),
 		})
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent() error = %v", err)
@@ -1404,6 +1412,15 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if got, want := event.Text, "hello"; got != want {
 			t.Fatalf("Text = %q, want %q", got, want)
+		}
+		if got, want := event.PromptStopReason, acp.PromptStopReasonMaxTokens; got != want {
+			t.Fatalf("PromptStopReason = %q, want %q", got, want)
+		}
+		if got, want := event.AvailableCommands.Values(), []store.SessionAdvertisedCommand{
+			{Name: "compact", Description: "Compact context"},
+			{Name: "review", Description: "Review changes"},
+		}; !slices.EqualFunc(got, want, store.SessionAdvertisedCommandsEqual) {
+			t.Fatalf("AvailableCommands = %#v, want %#v", got, want)
 		}
 		if len(event.Raw) != 0 {
 			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))

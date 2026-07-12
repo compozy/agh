@@ -318,6 +318,23 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		if _, err := globalDB.CreateLoopRunForStart(ctx, alpha, dsl.ConcurrencyAllow); err != nil {
 			t.Fatalf("CreateLoopRunForStart(alpha) error = %v", err)
 		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET
+				origin_kind = 'session',
+				origin_session_id = ?,
+				origin_creation_profile_ref = ?,
+				origin_policy_spec_digest = ?,
+				origin_creation_digest = ?
+			 WHERE id = ?`,
+			"session-a",
+			"profile:session-a",
+			"policy:session-a",
+			"creation:session-a",
+			string(alpha.ID),
+		); err != nil {
+			t.Fatalf("set alpha session origin error = %v", err)
+		}
 		alphaDone := testLoopRun("looprun-api-alpha-done", now.Add(-time.Minute), looppkg.StatusRunning)
 		alphaDone.WorkspaceID = "ws-a"
 		alphaDone.LoopName = "delivery"
@@ -366,6 +383,47 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 		if foreign[0].ID != beta.ID || foreign[0].WorkspaceID != "ws-b" {
 			t.Fatalf("ListLoopRuns(foreign) run = %#v", foreign[0])
+		}
+
+		live := true
+		sessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID:     "ws-a",
+			OriginKind:      "session",
+			OriginSessionID: "session-a",
+			Live:            &live,
+			Limit:           10,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(session live) error = %v", err)
+		}
+		if got, want := len(sessionRuns), 1; got != want || sessionRuns[0].ID != alpha.ID {
+			t.Fatalf("ListLoopRuns(session live) = %#v, want only %q", sessionRuns, alpha.ID)
+		}
+
+		foreignSessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID:     "ws-b",
+			OriginSessionID: "session-a",
+			Limit:           10,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(foreign session) error = %v", err)
+		}
+		if len(foreignSessionRuns) != 0 {
+			t.Fatalf("ListLoopRuns(foreign session) = %#v, want none", foreignSessionRuns)
+		}
+
+		terminal := false
+		catalogRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			WorkspaceID: "ws-a",
+			OriginKind:  "catalog",
+			Live:        &terminal,
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns(catalog terminal) error = %v", err)
+		}
+		if got, want := len(catalogRuns), 1; got != want || catalogRuns[0].ID != alphaDone.ID {
+			t.Fatalf("ListLoopRuns(catalog terminal) = %#v, want only %q", catalogRuns, alphaDone.ID)
 		}
 	})
 }

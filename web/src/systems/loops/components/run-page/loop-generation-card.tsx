@@ -5,14 +5,17 @@ import { Pill, PillDot, type PillTone } from "@agh/ui";
 
 import type { LoopChannelMessage, LoopGateVerdict } from "../../lib/loop-events";
 import type { LoopTimelineGeneration } from "../../lib/loop-timeline";
+import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { LoopNodeRow } from "./loop-node-row";
 import { LoopRunChannel } from "./loop-run-channel";
+import { GoalTurnTimeline } from "./goal-turn-timeline";
 
 interface LoopGenerationCardProps {
   generation: LoopTimelineGeneration;
   gateVerdicts: Record<string, LoopGateVerdict>;
   channelMessages: LoopChannelMessage[];
   isLive: boolean;
+  goalTurns?: readonly GoalTurnTimelineItem[];
 }
 
 /** Channel-posting action nodes embed the converse-and-decide transcript (ADR-021). */
@@ -55,6 +58,7 @@ export function LoopGenerationCard({
   gateVerdicts,
   channelMessages,
   isLive,
+  goalTurns = [],
 }: LoopGenerationCardProps) {
   const [open, setOpen] = useState(generation.isLatest);
   const summary = generationSummary(generation);
@@ -96,6 +100,18 @@ export function LoopGenerationCard({
                 node={node}
                 gateVerdict={node.isGate ? gateVerdicts[node.nodeId] : undefined}
               >
+                {node.kind === "goal" ? (
+                  <GoalTurnTimeline
+                    className="mt-3"
+                    live={isLive && generation.isLatest && node.status === "running"}
+                    turns={goalTurns.filter(
+                      turn =>
+                        turn.generation === generation.generation &&
+                        turn.nodeId === node.nodeId &&
+                        (node.itemIndex === undefined || turn.itemIndex === node.itemIndex)
+                    )}
+                  />
+                ) : null}
                 {generation.isLatest && node.kind === CHANNEL_NODE_KIND ? (
                   <LoopRunChannel
                     messages={channelMessages}

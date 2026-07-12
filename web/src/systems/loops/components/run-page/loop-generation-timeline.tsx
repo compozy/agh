@@ -1,9 +1,10 @@
 import { GitBranch } from "lucide-react";
 
-import { Empty } from "@agh/ui";
+import { Button, Empty, Spinner } from "@agh/ui";
 
 import type { LoopChannelMessage, LoopGateVerdict } from "../../lib/loop-events";
 import type { LoopTimelineGeneration } from "../../lib/loop-timeline";
+import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { LoopGenerationCard } from "./loop-generation-card";
 
 interface LoopGenerationTimelineProps {
@@ -11,6 +12,10 @@ interface LoopGenerationTimelineProps {
   gateVerdicts: Record<string, LoopGateVerdict>;
   channelMessages: LoopChannelMessage[];
   isLive: boolean;
+  goalTurns?: readonly GoalTurnTimelineItem[];
+  hasMoreGoalTurns?: boolean;
+  isLoadingMoreGoalTurns?: boolean;
+  onLoadMoreGoalTurns?: () => void;
 }
 
 /**
@@ -24,6 +29,10 @@ export function LoopGenerationTimeline({
   gateVerdicts,
   channelMessages,
   isLive,
+  goalTurns = [],
+  hasMoreGoalTurns = false,
+  isLoadingMoreGoalTurns = false,
+  onLoadMoreGoalTurns,
 }: LoopGenerationTimelineProps) {
   if (generations.length === 0) {
     return (
@@ -44,8 +53,22 @@ export function LoopGenerationTimeline({
           gateVerdicts={gateVerdicts}
           channelMessages={channelMessages}
           isLive={isLive}
+          goalTurns={goalTurns}
         />
       ))}
+      {hasMoreGoalTurns && onLoadMoreGoalTurns ? (
+        <Button
+          className="self-center"
+          disabled={isLoadingMoreGoalTurns}
+          onClick={onLoadMoreGoalTurns}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {isLoadingMoreGoalTurns ? <Spinner className="size-3" /> : null}
+          Load more Goal turns
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -211,6 +211,7 @@ type ResponseSpec struct {
 	Status      int
 	Description string
 	Body        any
+	Bodies      []any
 	ContentType string
 }
 
@@ -3354,12 +3355,13 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.SendPromptRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Prompt accepted", Body: contract.SendPromptResultResponse{}},
-			{Status: 202, Description: "Prompt queued or staged", Body: contract.SendPromptResultResponse{}},
+			promptSuccessResponse(200, "Prompt accepted or Goal command completed"),
+			promptSuccessResponse(202, "Prompt queued, staged, or Goal command started"),
 			{Status: 400, Description: "Invalid prompt request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
+			promptGoalErrorResponse(404, specSessionNotFoundDescription),
+			promptGoalErrorResponse(409, specSessionPromptConflictDescription),
 			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
+			promptGoalErrorResponse(422, "Goal command is invalid or cannot transition"),
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -5779,7 +5781,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, sessionTranscriptOperations()...)
 	ops = append(ops, notificationPresetOperations()...)
 	ops = append(ops, authoredContextOperations()...)
-	ops = append(ops, loopsOperations()...)
+	ops = append(ops, append(loopsOperations(), goalOperations()...)...)
 	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)
 	ops = append(ops, providerOperations()...)
@@ -5885,53 +5887,6 @@ func WriteFile(path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o600)
-}
-
-func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Operation, error) {
-	operation := openapi3.NewOperation()
-	operation.OperationID = spec.OperationID
-	operation.Summary = spec.Summary
-	operation.Tags = append([]string(nil), spec.Tags...)
-	operation.Extensions = map[string]any{
-		"x-agh-transports": spec.Transports,
-	}
-
-	for _, param := range spec.Parameters {
-		operation.AddParameter(buildParameter(param))
-	}
-
-	if spec.RequestBody != nil {
-		schemaRef, err := schemaRefForValue(spec.RequestBody, schemas)
-		if err != nil {
-			return nil, fmt.Errorf("request body schema: %w", err)
-		}
-		operation.RequestBody = &openapi3.RequestBodyRef{
-			Value: openapi3.NewRequestBody().
-				WithContent(openapi3.NewContentWithJSONSchemaRef(schemaRef)).
-				WithDescription("JSON request body"),
-		}
-		operation.RequestBody.Value.Required = !spec.RequestBodyOptional
-	}
-
-	for _, response := range spec.Responses {
-		resp := openapi3.NewResponse().WithDescription(response.Description)
-		if response.Body != nil {
-			schemaRef, err := schemaRefForValue(response.Body, schemas)
-			if err != nil {
-				return nil, fmt.Errorf("response %d schema: %w", response.Status, err)
-			}
-			contentType := response.ContentType
-			if contentType == "" {
-				contentType = "application/json"
-			}
-			resp.WithContent(openapi3.Content{
-				contentType: &openapi3.MediaType{Schema: schemaRef},
-			})
-		}
-		operation.AddResponse(response.Status, resp)
-	}
-
-	return operation, nil
 }
 
 func resourceScopeKindValues() []string {
@@ -6282,7 +6237,9 @@ func parseJSONField(field reflect.StructField) (name string, omitEmpty bool, ski
 }
 
 func setStringEnum(schema *openapi3.Schema, values []string) {
+	nullable := schema.Nullable
 	*schema = *openapi3.NewStringSchema()
+	schema.Nullable = nullable
 	schema.Enum = make([]any, 0, len(values))
 	for _, value := range values {
 		schema.Enum = append(schema.Enum, value)

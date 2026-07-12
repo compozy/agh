@@ -72,7 +72,7 @@ export function SessionComposerQueuedPrompts({
           key={prompt.id}
           data-testid="composer-queued-prompt-row"
           className={cn(
-            "group/queued flex min-w-0 items-center gap-2 px-3 py-1.5",
+            "group/queued flex min-w-0 items-center gap-2 px-2.5 py-1.5",
             index > 0 && "border-t border-line"
           )}
         >

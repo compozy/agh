@@ -70,6 +70,10 @@ const (
 	TransitionCausePromote TransitionCause = "promote"
 	// TransitionCauseOperatorStop records an operator stop/cancel request.
 	TransitionCauseOperatorStop TransitionCause = "operator_stop"
+	// TransitionCauseGoalReplace records an expected-run inline Goal replacement.
+	TransitionCauseGoalReplace TransitionCause = "goal_replace"
+	// TransitionCauseGoalClear records an inline Goal clear that also stops a live Run.
+	TransitionCauseGoalClear TransitionCause = "goal_clear"
 	// TransitionCausePauseBoundary records a generation boundary honoring pause_requested.
 	TransitionCausePauseBoundary TransitionCause = "pause_boundary"
 	// TransitionCauseOperatorResume records operator resume.
@@ -176,33 +180,37 @@ type LoopDefaults struct {
 
 // Run is the durable loop_run aggregate returned by the service.
 type Run struct {
-	ID                  RunID
-	WorkspaceID         WorkspaceID
-	LoopName            string
-	Status              Status
-	Generation          int
-	ReattemptStrategy   ReattemptStrategy
-	CreatedAt           time.Time
-	StartedAt           time.Time
-	LastProgressAt      time.Time
-	StartedBy           task.ActorIdentity
-	StartedOrigin       task.Origin
-	DefinitionVersion   int
-	DefinitionDigest    string
-	DefinitionSnapshot  json.RawMessage
-	ActiveGateID        NodeID
-	ActiveHumanCriteria json.RawMessage
-	BudgetApprovalSeq   int
-	StartMetadata       map[string]any
-	ConsecutiveFailures int
-	IterationCap        int
-	BudgetTokens        int
-	BudgetWallSec       int
-	BudgetOnExceeded    dsl.BudgetExceeded
-	TokensUsed          int64
-	ParentLoopRunID     RunID
-	PauseRequested      bool
-	Inputs              map[string]any
+	ID                    RunID
+	WorkspaceID           WorkspaceID
+	LoopName              string
+	Status                Status
+	Generation            int
+	ReattemptStrategy     ReattemptStrategy
+	CreatedAt             time.Time
+	StartedAt             time.Time
+	LastProgressAt        time.Time
+	StartedBy             task.ActorIdentity
+	StartedOrigin         task.Origin
+	DefinitionVersion     int
+	DefinitionDigest      string
+	DefinitionSnapshot    json.RawMessage
+	ActiveGateID          NodeID
+	ActiveHumanCriteria   json.RawMessage
+	BudgetApprovalSeq     int
+	StartMetadata         map[string]any
+	ConsecutiveFailures   int
+	IterationCap          int
+	BudgetTokens          int
+	BudgetWallSec         int
+	BudgetOnExceeded      dsl.BudgetExceeded
+	TokensUsed            int64
+	ParentLoopRunID       RunID
+	PauseRequested        bool
+	ControlActor          task.ActorIdentity
+	ControlRequestedAt    time.Time
+	GoalContextNudgeRatio float64
+	Origin                *RunOrigin
+	Inputs                map[string]any
 }
 
 // DefinitionSnapshot is the content-addressed executed definition pinned by one or more runs.
@@ -294,7 +302,13 @@ type Store interface {
 		generation int,
 		gateID NodeID,
 	) (map[string]gate.HumanDecision, error)
-	SetLoopRunPauseRequested(ctx context.Context, ws WorkspaceID, runID RunID, requested bool) error
+	SetLoopRunPauseRequested(
+		ctx context.Context,
+		ws WorkspaceID,
+		runID RunID,
+		requested bool,
+		actor task.ActorContext,
+	) error
 	UpsertLoopConfig(ctx context.Context, ws WorkspaceID, loopName string, cfg LoopConfig) error
 	GetLoopConfig(ctx context.Context, ws WorkspaceID, loopName string) (*LoopConfig, error)
 }
@@ -302,11 +316,34 @@ type Store interface {
 // Service is the task_04 loop aggregate API surface.
 type Service interface {
 	Start(ctx context.Context, ws WorkspaceID, name string, inputs Inputs, actor task.ActorContext) (*Run, error)
+	StartInline(
+		ctx context.Context,
+		ws WorkspaceID,
+		definition dsl.Definition,
+		inputs Inputs,
+		origin RunOrigin,
+		actor task.ActorContext,
+	) (*Run, error)
+	ReplaceInline(
+		ctx context.Context,
+		expectedRunID RunID,
+		ws WorkspaceID,
+		definition dsl.Definition,
+		inputs Inputs,
+		origin RunOrigin,
+		actor task.ActorContext,
+	) (InlineReplaceResult, error)
+	ClearInlineGoal(
+		ctx context.Context,
+		ws WorkspaceID,
+		originSessionID string,
+		actor task.ActorContext,
+	) error
 	DryRun(ctx context.Context, ws WorkspaceID, name string, inputs Inputs) (*PlanPreview, error)
-	Stop(ctx context.Context, ws WorkspaceID, runID RunID, reason StopReason) error
-	Pause(ctx context.Context, ws WorkspaceID, runID RunID) error
+	Stop(ctx context.Context, ws WorkspaceID, runID RunID, reason StopReason, actor task.ActorContext) error
+	Pause(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error
 	// Resume clears pause_requested on running runs or transitions paused runs back to running.
-	Resume(ctx context.Context, ws WorkspaceID, runID RunID) error
+	Resume(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error
 	Approve(
 		ctx context.Context,
 		ws WorkspaceID,

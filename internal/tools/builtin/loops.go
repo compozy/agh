@@ -2,9 +2,36 @@ package builtin
 
 import toolspkg "github.com/compozy/agh/internal/tools"
 
-const loopKey = "loop"
+const (
+	loopKey = "loop"
+	goalKey = "goal"
+)
 
 var loopTools = []toolspkg.Descriptor{
+	nativeLoopDescriptor(
+		toolspkg.ToolIDGoalGet,
+		"goal_get",
+		"Goal Get",
+		"Read the visible Goal projection for the caller session, including terminal state until clear.",
+		goalGetInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{goalKey, descriptorKeywordStatus, "session"},
+		[]string{"goal status", "current goal", "session goal"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDGoalReport,
+		"goal_report",
+		"Goal Report",
+		"Record a completion or blocker intent for the caller session's current Goal prompt.",
+		goalReportInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		[]string{goalKey, "report", descriptorKeywordUpdate},
+		[]string{"report goal complete", "report goal blocked", "goal evidence"},
+	),
 	nativeLoopDescriptor(
 		toolspkg.ToolIDLoopList,
 		"loop_list",
@@ -88,6 +115,18 @@ var loopTools = []toolspkg.Descriptor{
 		false,
 		[]string{loopKey, "runs", descriptorKeywordStatus},
 		[]string{"loop runs", "list loop runs"},
+	),
+	nativeLoopDescriptor(
+		toolspkg.ToolIDLoopTurns,
+		"loop_turns",
+		"Loop Turns",
+		"List one Loop run's total-order Goal turn audit with cursor and node/item filters.",
+		loopTurnsInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		[]string{loopKey, goalKey, "turns", "audit"},
+		[]string{"goal turns", "loop turn audit", "goal history"},
 	),
 	nativeLoopDescriptor(
 		toolspkg.ToolIDLoopStop,
@@ -210,6 +249,19 @@ const loopListInputSchema = `{
 	}
 }`
 
+const goalGetInputSchema = loopListInputSchema
+
+const goalReportInputSchema = `{
+	"type":"object",
+	"required":["status"],
+	"additionalProperties":false,
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"status":{"type":"string","enum":["complete","blocked"]},
+		"evidence":{"type":"string","maxLength":16384}
+	}
+}`
+
 const loopNameInputSchema = `{
 	"type":"object",
 	"required":["name"],
@@ -274,6 +326,20 @@ const loopRunsInputSchema = `{
 		"loop_name":{"type":"string"},
 		"status":{"type":"string"},
 		"limit":{"type":"integer","minimum":1}
+	}
+}`
+
+const loopTurnsInputSchema = `{
+	"type":"object",
+	"required":["run_id"],
+	"additionalProperties":false,
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"run_id":{"type":"string","minLength":1},
+		"node":{"type":"string","minLength":1},
+		"item":{"type":"integer","minimum":0},
+		"after_seq":{"type":"integer","minimum":0},
+		"limit":{"type":"integer","minimum":1,"maximum":200}
 	}
 }`
 

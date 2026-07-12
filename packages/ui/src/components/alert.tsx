@@ -23,7 +23,9 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "font-medium tracking-eyebrow group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong",
+        "text-item-title font-medium text-fg-strong",
+        "group-has-[>svg]/alert:col-start-2",
+        "[&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg",
         className
       )}
       {...props}
@@ -36,7 +38,10 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "text-small-body text-balance md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg-strong [&_p:not(:last-child)]:mb-4",
+        "text-form-input leading-normal text-muted text-balance md:text-pretty",
+        "group-has-[>svg]/alert:col-start-2",
+        "[&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg",
+        "[&_p:not(:last-child)]:mb-2",
         className
       )}
       {...props}
@@ -55,7 +60,8 @@ function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-meta"
       className={cn(
-        "eyebrow mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-current/75 group-has-[>svg]/alert:col-start-2",
+        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-form-hint text-muted",
+        "group-has-[>svg]/alert:col-start-2",
         className
       )}
       {...props}
@@ -68,7 +74,8 @@ function AlertActions({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-actions"
       className={cn(
-        "mt-2 flex flex-wrap items-center justify-end gap-2 group-has-[>svg]/alert:col-start-2",
+        "mt-1 flex flex-wrap items-center justify-end gap-1.5",
+        "group-has-[>svg]/alert:col-start-2",
         className
       )}
       {...props}

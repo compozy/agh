@@ -16,10 +16,12 @@ import (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
+	DesiredSessionID string
 	AgentName        string
 	Provider         string
 	Model            string
 	ReasoningEffort  string
+	CWD              string
 	SandboxRef       string
 	DisableSandbox   bool
 	Permissions      aghconfig.PermissionMode
@@ -28,11 +30,15 @@ type CreateOpts struct {
 	WorkspacePath    string
 	Channel          string
 	PromptOverlay    string
+	ContractOverlay  string
+	RuntimeMode      string
 	Type             Type
 	Lineage          *store.SessionLineage
 	ParentSoulDigest string
 	// AllowedToolsOverride is a concrete subset narrowing of the resolved agent tool policy.
 	AllowedToolsOverride []string
+	CreationProfile      *store.SessionCreationProfile
+	CreationIdentity     *store.SessionCreationIdentity
 }
 
 // StoreOpener opens the per-session events store for a session directory.
@@ -67,12 +73,15 @@ type Option func(*Manager)
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
-	mu           sync.RWMutex
-	sessions     map[string]*Session
-	pending      map[string]struct{}
-	finalizing   map[string]chan struct{}
-	promptDrains map[chan struct{}]struct{}
-	spawnMu      sync.Mutex
+	mu                 sync.RWMutex
+	sessions           map[string]*Session
+	pending            map[string]struct{}
+	finalizing         map[string]chan struct{}
+	promptDrains       map[chan struct{}]struct{}
+	spawnMu            sync.Mutex
+	managedInputMu     sync.Mutex
+	managedInputLeases map[string]managedInputLease
+	goalCommandMu      sync.RWMutex
 
 	syntheticMu           sync.Mutex
 	syntheticQueues       map[string][]queuedSyntheticPrompt
@@ -92,6 +101,8 @@ type Manager struct {
 	inputAugmenter               PromptInputAugmenter
 	inputQueue                   *inputqueue.Service
 	inputQueueStore              store.SessionInputQueueStore
+	managedInputLifecycle        ManagedInputLifecycle
+	goalCommandHandler           GoalCommandHandler
 	startupOverlay               StartupPromptOverlay
 	hooks                        HookSet
 	sandbox                      *sandbox.Registry
@@ -105,6 +116,7 @@ type Manager struct {
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    aghconfig.HomePaths

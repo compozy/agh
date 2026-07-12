@@ -6,7 +6,8 @@ import {
   formatMessageTimestamp,
   formatMessageTimestampFull,
 } from "@/systems/session/lib/format-timestamp";
-import { CopyIconButton } from "@agh/ui";
+import { Button, CopyIconButton } from "@agh/ui";
+import { useSessionComposerPrefill } from "./hooks/use-session-composer-prefill";
 
 interface MessageActionsState {
   /** The message's markdown text answer, joined and trimmed (empty for a pure tool turn). */
@@ -85,7 +86,7 @@ export function deriveMessageActions(message: {
 // keyboard users; `pointer-events` gate keeps the hidden row from intercepting
 // clicks over the message body.
 const REVEAL_CLASS_NAME = cn(
-  "flex items-center gap-2 text-small-body text-subtle tabular-nums",
+  "flex items-center gap-2 text-small-body text-muted tabular-nums",
   "opacity-0 pointer-events-none transition-opacity duration-slow motion-reduce:transition-none",
   "group-hover/message:opacity-100 group-hover/message:pointer-events-auto",
   "focus-within:opacity-100 focus-within:pointer-events-auto"
@@ -96,9 +97,16 @@ export interface MessageActionsProps {
   align: "start" | "end";
   copyLabel: string;
   testId: string;
+  goalPrefill?: boolean;
 }
 
-export function MessageActions({ align, copyLabel, testId }: MessageActionsProps) {
+export function MessageActions({
+  align,
+  copyLabel,
+  testId,
+  goalPrefill = false,
+}: MessageActionsProps) {
+  const setComposerText = useSessionComposerPrefill();
   const message = useAuiState(
     state => state.message as { content?: unknown; status?: { type?: string } }
   );
@@ -129,6 +137,19 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       data-testid={`${testId}-copy`}
     />
   );
+  const useAsGoal =
+    goalPrefill && setComposerText ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className="px-1 text-muted hover:text-fg"
+        data-testid={`${testId}-goal-prefill`}
+        onClick={() => setComposerText(`/goal ${source}`)}
+      >
+        Use as Goal
+      </Button>
+    ) : null;
 
   return (
     <div
@@ -143,6 +164,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       ) : (
         <>
           {copy}
+          {useAsGoal}
           {timestamp}
         </>
       )}

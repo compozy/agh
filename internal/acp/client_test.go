@@ -812,6 +812,11 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 		if !slices.Contains(eventTypes, EventTypeDone) {
 			t.Fatalf("Prompt() event types = %#v, want done", eventTypes)
 		}
+		for _, event := range events {
+			if event.Type == EventTypeDone && event.PromptStopReason != PromptStopReasonEndTurn {
+				t.Fatalf("Prompt() stop reason = %q, want %q", event.PromptStopReason, PromptStopReasonEndTurn)
+			}
+		}
 		if proc.SessionID != "sess-new" {
 			t.Fatalf("Start() session id = %q, want %q", proc.SessionID, "sess-new")
 		}

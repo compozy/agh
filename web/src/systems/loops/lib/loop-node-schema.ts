@@ -17,6 +17,7 @@ import {
   watchEventsFields,
   watchSourceFields,
 } from "./loop-node-fields";
+import { goalFields } from "./loop-node-goal-fields";
 
 export type {
   CriteriaFieldSpec,
@@ -60,6 +61,7 @@ export function buildNodeFields(
     if (kind === "sub-loop") return subLoopFields(raw);
   }
   if (nodeClass === "action") {
+    if (kind === "goal") return goalFields(raw);
     if (kind === "run-agent") return runAgentFields(raw);
     if (kind === "run-loop") return runLoopFields(raw);
     if (kind === "transform") return transformFields(raw);

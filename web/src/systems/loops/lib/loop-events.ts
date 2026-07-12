@@ -49,6 +49,30 @@ export interface LoopApprovalRequest {
   facts: LoopApprovalFact[];
 }
 
+export interface LoopGoalTurnLive {
+  seq: number;
+  generation: number;
+  nodeId: string;
+  itemIndex: number;
+  turn: number;
+  promptAttempt: number;
+  promptId: string;
+  sessionId: string;
+  bindingHandle: string;
+  bindingEpoch: number;
+  actorKind: string;
+  actorId: string;
+  resultStatus: string | null;
+  stopReason: string | null;
+  reasonCode: string | null;
+  verdictOutcome: string | null;
+  blockingIssues: { id: string; note: string }[];
+  evidenceRef: string | null;
+  tokensUsed: number | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
 export interface LoopRunLiveState {
   events: LoopLiveEvent[];
   channelMessages: LoopChannelMessage[];
@@ -57,6 +81,7 @@ export interface LoopRunLiveState {
   needsApproval: LoopApprovalRequest | null;
   /** Latest token count from `token_tick`, overlaid on the polled run when fresher. */
   tokensUsed: number | null;
+  goalTurns: LoopGoalTurnLive[];
 }
 
 export function emptyLoopRunLiveState(): LoopRunLiveState {
@@ -66,6 +91,7 @@ export function emptyLoopRunLiveState(): LoopRunLiveState {
     gateVerdicts: {},
     needsApproval: null,
     tokensUsed: null,
+    goalTurns: [],
   };
 }
 
@@ -81,6 +107,9 @@ const KIND_TONE: Record<string, LoopLiveEvent["tone"]> = {
   token_tick: "ok",
   needs_approval: "warn",
   status_changed: "neutral",
+  goal_turn_started: "neutral",
+  goal_turn_completed: "ok",
+  goal_status_changed: "warn",
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -130,6 +159,12 @@ function eventMessage(kind: string, payload: Record<string, unknown> | null): st
       return str(payload.title, "human approval requested");
     case "status_changed":
       return str(payload.status, "status changed");
+    case "goal_turn_started":
+      return `turn ${numOrString(payload.turn, "?")} started`;
+    case "goal_turn_completed":
+      return `turn ${numOrString(payload.turn, "?")} · ${str(payload.result_status, "completed")}`;
+    case "goal_status_changed":
+      return `${str(payload.from, "goal")} → ${str(payload.to, "status")}`;
     default:
       return kind;
   }
@@ -200,6 +235,51 @@ function parseApproval(payload: Record<string, unknown>): LoopApprovalRequest {
   };
 }
 
+function blockingIssues(value: unknown): { id: string; note: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => {
+    const record = asRecord(item);
+    return { id: str(record?.id), note: str(record?.note) };
+  });
+}
+
+function applyGoalTurn(
+  turns: LoopGoalTurnLive[],
+  frame: LoopRunEventFrame,
+  payload: Record<string, unknown>,
+  completed: boolean
+): LoopGoalTurnLive[] {
+  const promptId = str(payload.prompt_id);
+  if (!promptId) return turns;
+  const index = turns.findIndex(turn => turn.promptId === promptId);
+  const previous = index >= 0 ? turns[index] : undefined;
+  const next: LoopGoalTurnLive = {
+    seq: num(payload.seq) ?? previous?.seq ?? num(frame.seq) ?? 0,
+    generation: num(payload.generation) ?? previous?.generation ?? 0,
+    nodeId: str(payload.node_id, previous?.nodeId),
+    itemIndex: num(payload.item_index) ?? previous?.itemIndex ?? 0,
+    turn: num(payload.turn) ?? previous?.turn ?? 0,
+    promptAttempt: num(payload.prompt_attempt) ?? previous?.promptAttempt ?? 0,
+    promptId,
+    sessionId: str(payload.session_id, previous?.sessionId),
+    bindingHandle: str(payload.binding_handle, previous?.bindingHandle),
+    bindingEpoch: num(payload.binding_epoch) ?? previous?.bindingEpoch ?? 0,
+    actorKind: str(payload.actor_kind, previous?.actorKind),
+    actorId: str(payload.actor_id, previous?.actorId),
+    resultStatus: completed ? str(payload.result_status) || null : null,
+    stopReason: completed ? str(payload.stop_reason) || null : null,
+    reasonCode: completed ? str(payload.reason_code) || null : null,
+    verdictOutcome: completed ? str(payload.verdict_outcome) || null : null,
+    blockingIssues: completed ? blockingIssues(payload.blocking_issues) : [],
+    evidenceRef: completed ? str(payload.evidence_ref) || null : null,
+    tokensUsed: completed ? (num(payload.tokens_used) ?? null) : null,
+    startedAt: previous?.startedAt || str(frame.at),
+    endedAt: completed ? str(frame.at) || null : null,
+  };
+  if (index < 0) return [...turns, next];
+  return turns.map((turn, turnIndex) => (turnIndex === index ? next : turn));
+}
+
 /**
  * Folds one SSE frame into the run-page live state: every frame appends a rail line
  * (bounded), and the structured kinds (`gate_verdict`, `channel_msg`, `needs_approval`,
@@ -239,6 +319,12 @@ export function applyLoopEventFrame(
       if (total !== undefined) next.tokensUsed = total;
       break;
     }
+    case "goal_turn_started":
+      next.goalTurns = applyGoalTurn(state.goalTurns, frame, payload, false);
+      break;
+    case "goal_turn_completed":
+      next.goalTurns = applyGoalTurn(state.goalTurns, frame, payload, true);
+      break;
     default:
       break;
   }

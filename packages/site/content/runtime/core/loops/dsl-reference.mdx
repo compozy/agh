@@ -98,24 +98,25 @@ Every node shares an envelope — `id`, `class`, `kind` — plus optional `sessi
 
 ### Node classes
 
-| Class     | Openness | Kinds                                                  |
-| --------- | -------- | ------------------------------------------------------ |
-| `action`  | **open** | `run-agent`, `run-loop`, `transform`, or any tool ID   |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`     |
-| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events` |
+| Class     | Openness | Kinds                                                        |
+| --------- | -------- | ------------------------------------------------------------ |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `sub-loop`           |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`       |
 
 ### Action nodes
 
-Three action kinds are reserved; every other action `kind` is a literal **tool ID**
+Four action kinds are reserved; every other action `kind` is a literal **tool ID**
 (`agh__*`, `ext__*`, or `mcp__*`) resolved through the runtime tool registry — so every native,
 extension, and MCP tool is a Loop action for free.
 
-| Kind        | Params                                                                                                            |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `model?`, `allowed_tools?`, `max_turns?`       |
-| `run-loop`  | `loop` (name), `inputs`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`) |
-| `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                         |
-| any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                 |
+| Kind        | Params                                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `model?`, `allowed_tools?`, `max_turns?`                                |
+| `run-loop`  | `loop` (name), `inputs`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                          |
+| `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                                  |
+| `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`; see the [Goal node reference](/runtime/core/loops/goal-node) |
+| any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                          |
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.

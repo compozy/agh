@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -102,10 +103,13 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		return contract.LoopRunsResponse{}, err
 	}
 	runs, err := s.persistence.ListLoopRuns(ctx, looppkg.RunListQuery{
-		WorkspaceID: ws,
-		LoopName:    strings.TrimSpace(query.LoopName),
-		Status:      looppkg.Status(strings.TrimSpace(query.Status)),
-		Limit:       query.Limit,
+		WorkspaceID:     ws,
+		LoopName:        strings.TrimSpace(query.LoopName),
+		Status:          looppkg.Status(strings.TrimSpace(query.Status)),
+		OriginKind:      strings.TrimSpace(query.Origin),
+		OriginSessionID: strings.TrimSpace(query.OriginSession),
+		Live:            query.Live,
+		Limit:           query.Limit,
 	})
 	if err != nil {
 		return contract.LoopRunsResponse{}, err
@@ -143,9 +147,27 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	}
 	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
 	if err != nil {
-		return contract.LoopRunResponse{}, err
+		return contract.LoopRunResponse{}, fmt.Errorf(
+			"daemon: load executed definition snapshot %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
 	}
-	executedDefinition, err := loopDefinitionDocumentFromJSON(snapshot.Definition)
+	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+	if err != nil {
+		return contract.LoopRunResponse{}, fmt.Errorf(
+			"daemon: hydrate executed definition %q for run %q: %w",
+			run.DefinitionDigest,
+			run.ID,
+			err,
+		)
+	}
+	executedDefinitionJSON, err := json.Marshal(resolved.Definition)
+	if err != nil {
+		return contract.LoopRunResponse{}, fmt.Errorf("daemon: marshal executed Loop definition: %w", err)
+	}
+	executedDefinition, err := loopDefinitionDocumentFromJSON(executedDefinitionJSON)
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
@@ -165,28 +187,43 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	}, nil
 }
 
-func (s *daemonLoopAPIService) StopLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *daemonLoopAPIService) StopLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	actor taskpkg.ActorContext,
+) error {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return err
 	}
-	return s.aggregate.Stop(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), looppkg.StopReasonOperator)
+	return s.aggregate.Stop(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), looppkg.StopReasonOperator, actor)
 }
 
-func (s *daemonLoopAPIService) PauseLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *daemonLoopAPIService) PauseLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	actor taskpkg.ActorContext,
+) error {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return err
 	}
-	return s.aggregate.Pause(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)))
+	return s.aggregate.Pause(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), actor)
 }
 
-func (s *daemonLoopAPIService) ResumeLoopRun(ctx context.Context, workspaceID string, runID string) error {
+func (s *daemonLoopAPIService) ResumeLoopRun(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	actor taskpkg.ActorContext,
+) error {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return err
 	}
-	return s.aggregate.Resume(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)))
+	return s.aggregate.Resume(ctx, ws, looppkg.RunID(strings.TrimSpace(runID)), actor)
 }
 
 func (s *daemonLoopAPIService) ApproveLoopRun(

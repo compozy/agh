@@ -30,9 +30,14 @@ func (g *GlobalDB) ListParkedWatchEventSubscriptions(
 			lr.loop_name,
 			lr.generation,
 			lr.inputs_json,
+			lr.definition_digest,
+			lds.definition_json,
 			lgo.node_id,
 			COALESCE(lgo.output_ref, '')
 		   FROM loop_runs lr
+		   JOIN loop_definition_snapshots lds
+		     ON lds.workspace_id = lr.workspace_id
+		    AND lds.definition_digest = lr.definition_digest
 		   JOIN loop_generation_outputs lgo
 		     ON lgo.loop_run_id = lr.id
 		    AND lgo.generation = lr.generation
@@ -69,9 +74,14 @@ func (g *GlobalDB) ListParkedWatchEventSubscriptionsForLoopRun(
 			lr.loop_name,
 			lr.generation,
 			lr.inputs_json,
+			lr.definition_digest,
+			lds.definition_json,
 			lgo.node_id,
 			COALESCE(lgo.output_ref, '')
 		   FROM loop_runs lr
+		   JOIN loop_definition_snapshots lds
+		     ON lds.workspace_id = lr.workspace_id
+		    AND lds.definition_digest = lr.definition_digest
 		   JOIN loop_generation_outputs lgo
 		     ON lgo.loop_run_id = lr.id
 		    AND lgo.generation = lr.generation
@@ -110,9 +120,14 @@ func (g *GlobalDB) ListParkedWatchEventSubscriptionsPage(
 			lr.loop_name,
 			lr.generation,
 			lr.inputs_json,
+			lr.definition_digest,
+			lds.definition_json,
 			lgo.node_id,
 			COALESCE(lgo.output_ref, '')
 		   FROM loop_runs lr
+		   JOIN loop_definition_snapshots lds
+		     ON lds.workspace_id = lr.workspace_id
+		    AND lds.definition_digest = lr.definition_digest
 		   JOIN loop_generation_outputs lgo
 		     ON lgo.loop_run_id = lr.id
 		    AND lgo.generation = lr.generation
@@ -174,6 +189,8 @@ func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventS
 	var (
 		subscription looppkg.ParkedWatchEventSubscription
 		inputsRaw    string
+		digest       string
+		snapshotRaw  string
 		outputRef    string
 	)
 	if err := row.Scan(
@@ -182,6 +199,8 @@ func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventS
 		&subscription.LoopName,
 		&subscription.Generation,
 		&inputsRaw,
+		&digest,
+		&snapshotRaw,
 		&subscription.NodeID,
 		&outputRef,
 	); err != nil {
@@ -201,6 +220,13 @@ func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventS
 	if !ok {
 		return looppkg.ParkedWatchEventSubscription{}, nil
 	}
+	resolved, err := looppkg.LoadExecutedDefinitionSnapshot(json.RawMessage(snapshotRaw), digest)
+	if err != nil {
+		return looppkg.ParkedWatchEventSubscription{}, fmt.Errorf(
+			"store: load parked watch-events definition: %w",
+			err,
+		)
+	}
 	subscription.WorkspaceID = strings.TrimSpace(subscription.WorkspaceID)
 	subscription.LoopRunID = strings.TrimSpace(subscription.LoopRunID)
 	subscription.LoopName = strings.TrimSpace(subscription.LoopName)
@@ -208,6 +234,7 @@ func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventS
 	subscription.Inputs = inputs
 	subscription.Subscriptions = state.Subscriptions
 	subscription.Cursors = state.Cursors
+	subscription.Contracts = resolved.WatchEventsContracts
 	return subscription, nil
 }
 

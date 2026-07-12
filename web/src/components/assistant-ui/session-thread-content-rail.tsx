@@ -7,8 +7,8 @@ export type SessionThreadContentInset = "px-4" | "px-8";
 export const SESSION_THREAD_CONTENT_INSET_DEFAULT: SessionThreadContentInset = "px-4";
 
 /**
- * Shared full-width content rail applied to both the transcript viewport and the
- * composer so the two surfaces align on one inset.
+ * Shared reading column applied to both the transcript viewport and the
+ * composer so the two surfaces align on one measure (`--width-thread-column`).
  */
 export function ThreadContentRail({
   inset,
@@ -22,7 +22,7 @@ export function ThreadContentRail({
 } & Omit<ComponentPropsWithoutRef<"div">, "className" | "children">) {
   return (
     <div
-      className={cn("w-full min-w-0", inset, className)}
+      className={cn("mx-auto w-full min-w-0 max-w-(--width-thread-column)", inset, className)}
       data-testid="thread-content-rail"
       {...props}
     >

@@ -19,9 +19,9 @@ export interface PermissionPromptProps {
 type PromptTone = "warning" | "danger";
 
 /**
- * High-stakes tools that affect the filesystem or the network.,
- * permission prompts for these tools render with the `danger` tone (tile +
- * tint) so the operator cannot scroll past them without a deliberate decision.
+ * High-stakes tools that affect the filesystem or the network.
+ * Permission prompts for these tools render with the `danger` tone (icon signal)
+ * so the operator cannot scroll past them without a deliberate decision.
  */
 const HIGH_STAKES_TOOLS = new Set([
   "Bash",
@@ -103,7 +103,7 @@ export function PermissionPrompt({
 
   return isResolved ? null : (
     <div
-      className="sticky top-2 z-10 w-full py-2"
+      className="sticky top-2 z-10 w-full py-1.5"
       data-testid="permission-prompt"
       data-tone={tone}
       data-sticky="true"
@@ -111,41 +111,36 @@ export function PermissionPrompt({
       aria-label="Permission required"
     >
       <div
-        className={cn(
-          "flex w-full min-w-0 gap-3 rounded-lg p-3 shadow-highlight",
-          isHighStakes ? "bg-danger-tint" : "bg-warning-tint"
-        )}
+        className="flex w-full min-w-0 gap-2.5 rounded-md border border-line bg-canvas-soft px-3 py-2.5"
         data-testid="permission-prompt-card"
       >
         <PermissionToneTile tone={tone} />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <header className="flex flex-col gap-1">
+          <header className="flex flex-col gap-0.5">
             <Eyebrow
               data-testid="permission-prompt-eyebrow"
               className={cn(isHighStakes ? "text-danger" : "text-warning")}
             >
               Permission Required
             </Eyebrow>
-            <p className="text-small-body text-fg">
+            <p className="text-form-input leading-snug text-muted">
               The agent is requesting permission before it continues this turn.
             </p>
           </header>
-          <dl className="flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted">
-            <div className="flex items-center gap-1.5">
-              <dt className="text-subtle">Tool</dt>
-              <dd className="font-mono text-fg">{permission.toolName}</dd>
-            </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-form-label">
+            <dt className="eyebrow text-muted">Tool</dt>
+            <dd className="font-mono text-fg">{permission.toolName}</dd>
             {permission.action ? (
-              <div className="flex items-center gap-1.5">
-                <dt className="text-subtle">Action</dt>
-                <dd>{permission.action}</dd>
-              </div>
+              <>
+                <dt className="eyebrow text-muted">Action</dt>
+                <dd className="text-fg">{permission.action}</dd>
+              </>
             ) : null}
             {permission.resource ? (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <dt className="text-subtle">Resource</dt>
-                <dd className="truncate font-mono text-fg">{permission.resource}</dd>
-              </div>
+              <>
+                <dt className="eyebrow text-muted">Resource</dt>
+                <dd className="min-w-0 truncate font-mono text-fg">{permission.resource}</dd>
+              </>
             ) : null}
           </dl>
           {Object.keys(permission.toolInput).length > 0 ? (
@@ -153,22 +148,23 @@ export function PermissionPrompt({
               code={JSON.stringify(permission.toolInput, null, 2)}
               copyable={false}
               data-testid="permission-tool-input"
+              density="compact"
               showPrompt={false}
-              tone={isHighStakes ? "danger" : "warning"}
               truncateLines={6}
+              wrapLines
             />
           ) : null}
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             {decisionOptions.includes("allow-once") ? (
               <Button
-                variant={isHighStakes ? "outline" : "default"}
+                variant="outline"
                 size="sm"
                 disabled={isSubmitting}
                 onClick={() => handleDecision("allow-once")}
                 data-testid="permission-allow-once"
               >
                 <Check className="size-3" />
-                Allow Once
+                Allow once
               </Button>
             ) : null}
             {decisionOptions.includes("allow-always") ? (
@@ -180,19 +176,19 @@ export function PermissionPrompt({
                 data-testid="permission-allow-always"
               >
                 <ShieldCheck className="size-3" />
-                Allow Always
+                Allow always
               </Button>
             ) : null}
             {decisionOptions.includes("reject-once") ? (
               <Button
-                variant="outline"
+                variant={isHighStakes ? "destructive" : "outline"}
                 size="sm"
                 disabled={isSubmitting}
                 onClick={() => handleDecision("reject-once")}
                 data-testid="permission-reject-once"
               >
                 <X className="size-3" />
-                Reject Once
+                Reject once
               </Button>
             ) : null}
             {decisionOptions.includes("reject-always") ? (
@@ -204,7 +200,7 @@ export function PermissionPrompt({
                 data-testid="permission-reject-always"
               >
                 <ShieldOff className="size-3" />
-                Reject Always
+                Reject always
               </Button>
             ) : null}
           </div>
@@ -226,12 +222,12 @@ function PermissionToneTile({ tone }: PermissionToneTileProps) {
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded",
-        "text-canvas",
-        isDanger ? "bg-danger" : "bg-warning"
+        "flex size-6 shrink-0 items-center justify-center rounded-sm",
+        "bg-elevated",
+        isDanger ? "text-danger" : "text-warning"
       )}
     >
-      <ShieldAlert className="size-3" />
+      <ShieldAlert className="size-3.5" strokeWidth={1.75} />
     </span>
   );
 }
@@ -263,19 +259,13 @@ export function PermissionDataPart({
 
 function PermissionRejectedNotice({ permission }: { permission: PermissionRequest }) {
   return (
-    <div className="w-full py-2" data-testid="permission-rejected-notice" role="status">
-      <div
-        className={cn(
-          "flex w-full min-w-0 items-start gap-2 rounded-md border px-3 py-2",
-          "border-danger/30 bg-danger/8",
-          "text-xs text-danger"
-        )}
-      >
-        <ShieldOff aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+    <div className="w-full py-1.5" data-testid="permission-rejected-notice" role="status">
+      <div className="flex w-full min-w-0 items-start gap-2 rounded-md border border-line bg-canvas-soft px-3 py-2">
+        <ShieldOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-danger" />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-fg">Permission Rejected</div>
-          <div className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-muted">
-            <span className="font-mono">{permission.toolName}</span>
+          <div className="text-small-body font-medium text-fg-strong">Permission Rejected</div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-form-label text-muted">
+            <span className="font-mono text-fg">{permission.toolName}</span>
             {permission.resource ? <span className="truncate">{permission.resource}</span> : null}
           </div>
         </div>

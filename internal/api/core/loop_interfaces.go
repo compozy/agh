@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -56,9 +57,16 @@ type LoopService interface {
 	) (contract.LoopAnnotationsResponse, error)
 	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
-	StopLoopRun(ctx context.Context, workspaceID string, runID string) error
-	PauseLoopRun(ctx context.Context, workspaceID string, runID string) error
-	ResumeLoopRun(ctx context.Context, workspaceID string, runID string) error
+	GetSessionGoal(ctx context.Context, workspaceID string, sessionID string) (*session.GoalSnapshot, error)
+	ListGoalTurns(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		query GoalTurnListQuery,
+	) (session.GoalTurnPage, error)
+	StopLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
+	PauseLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
+	ResumeLoopRun(ctx context.Context, workspaceID string, runID string, actor taskpkg.ActorContext) error
 	ApproveLoopRun(
 		ctx context.Context,
 		workspaceID string,
@@ -76,7 +84,18 @@ type LoopService interface {
 
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.
 type LoopRunListQuery struct {
-	LoopName string
-	Status   string
-	Limit    int
+	LoopName      string
+	Status        string
+	Origin        string
+	OriginSession string
+	Live          *bool
+	Limit         int
+}
+
+// GoalTurnListQuery contains validated public turn-audit filters.
+type GoalTurnListQuery struct {
+	NodeID    string
+	ItemIndex *int
+	AfterSeq  int64
+	Limit     int
 }

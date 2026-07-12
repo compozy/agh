@@ -17,6 +17,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/toolruntime"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -1507,6 +1508,52 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 	if events[3].Type != EventTypeSystem {
 		t.Fatalf("system event = %#v, want system", events[3])
 	}
+}
+
+func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
+	t.Run("Should retain the complete typed ACP command replacement set", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-commands", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		update := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "available_commands_update",
+				"availableCommands": []map[string]any{
+					{
+						"name":        " compact ",
+						"description": " Compact context ",
+						"input":       map[string]any{"hint": " optional focus "},
+					},
+					{"name": "", "description": "Ignored"},
+				},
+			}),
+		})
+		if err := proc.handleSessionUpdate(update); err != nil {
+			t.Fatalf("handleSessionUpdate(available_commands_update) error = %v", err)
+		}
+
+		events := collectEventsUntilCount(t, active.events, 1)
+		if got, want := events[0].Type, EventTypeAvailableCommands; got != want {
+			t.Fatalf("event type = %q, want %q", got, want)
+		}
+		if got, want := events[0].Title, SystemEventTitleAvailableCommandsUpdate; got != want {
+			t.Fatalf("event title = %q, want %q", got, want)
+		}
+		if got, want := events[0].AvailableCommands.Values(), []store.SessionAdvertisedCommand{{
+			Name:        "compact",
+			Description: "Compact context",
+			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
+		}}; !slices.EqualFunc(got, want, store.SessionAdvertisedCommandsEqual) {
+			t.Fatalf("available commands = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *testing.T) {

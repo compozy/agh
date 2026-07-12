@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -248,6 +249,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 
 		store := newFakeLoopStore()
 		halt := dsl.BudgetExceededHalt
+		iterationCap := 12
 		var resolvedWorkspace loop.WorkspaceID
 		svc := newTestServiceWithOptions(
 			t,
@@ -260,7 +262,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 				resolvedWorkspace = ws
 				return loop.LoopDefaults{
 					Delivery: loop.LoopConfig{
-						IterationCap:     new(12),
+						IterationCap:     new(iterationCap),
 						NoProgressWindow: new(5),
 						BudgetTokens:     new(0),
 						BudgetWallSec:    new(0),
@@ -290,12 +292,236 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 				len(run.DefinitionSnapshot),
 			)
 		}
+		iterationCap = 99
 		snapshot, err := store.GetLoopDefinitionSnapshot(context.Background(), "ws-config", run.DefinitionDigest)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
 		if snapshot.Digest != run.DefinitionDigest || snapshot.Version != run.DefinitionVersion {
 			t.Fatalf("snapshot = %#v, want digest/version from run %#v", snapshot, run)
+		}
+		hydrated, err := loop.LoadExecutedDefinitionSnapshot(snapshot.Definition, snapshot.Digest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		if got, want := hydrated.EffectiveConfig.IterationCap, 12; got != want {
+			t.Fatalf("pinned iteration cap = %d, want %d after defaults mutation", got, want)
+		}
+	})
+}
+
+func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start a snapshot-only session Goal with pinned origin and policy", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, validDefinition())
+		run, err := svc.StartInline(
+			context.Background(),
+			"ws-1",
+			inlineGoalDefinition("ship the release", "judge-v1"),
+			loop.Inputs{},
+			inlineGoalOrigin("session-origin"),
+			humanActor(t),
+		)
+		if err != nil {
+			t.Fatalf("StartInline() error = %v", err)
+		}
+		if run.LoopName != loop.InlineGoalLoopName || run.Origin.Kind != loop.RunOriginSession ||
+			run.Origin.SessionID != "session-origin" || run.GoalContextNudgeRatio != 0.8 {
+			t.Fatalf("StartInline() run = %#v", run)
+		}
+		if len(run.DefinitionSnapshot) == 0 || store.createCount() != 1 {
+			t.Fatalf("StartInline() snapshot bytes = %d creates = %d", len(run.DefinitionSnapshot), store.createCount())
+		}
+	})
+
+	t.Run("Should reject a missing resolved judge before any write", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, validDefinition())
+		_, err := svc.StartInline(
+			context.Background(),
+			"ws-1",
+			inlineGoalDefinition("ship the release", ""),
+			loop.Inputs{},
+			inlineGoalOrigin("session-origin"),
+			humanActor(t),
+		)
+		var reason *loop.ReasonError
+		if !errors.As(err, &reason) || reason.Code != loop.ReasonCodeGoalJudgeUnavailable {
+			t.Fatalf("StartInline() error = %v, want %q", err, loop.ReasonCodeGoalJudgeUnavailable)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("StartInline() creates = %d, want 0", store.createCount())
+		}
+	})
+
+	t.Run("Should prepare replacement before atomically revoking the expected Run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		old := seedFakeRun(store, loop.StatusRunning)
+		old.LoopName = loop.InlineGoalLoopName
+		origin := inlineGoalOrigin("session-origin")
+		old.Origin = &origin
+		store.seed(old)
+		svc := newTestService(t, store, validDefinition())
+		result, err := svc.ReplaceInline(
+			context.Background(),
+			old.ID,
+			"ws-1",
+			inlineGoalDefinition("ship the safer release", "judge-v1"),
+			loop.Inputs{},
+			inlineGoalOrigin("session-origin"),
+			humanActor(t),
+		)
+		if err != nil {
+			t.Fatalf("ReplaceInline() error = %v", err)
+		}
+		if result.ReplacedRunID != old.ID || result.Run == nil || result.Run.ID == old.ID {
+			t.Fatalf("ReplaceInline() result = %#v", result)
+		}
+		if got := store.mustRun(t, old.ID); got.Status != loop.StatusFailed {
+			t.Fatalf("replaced Run status = %q, want failed", got.Status)
+		}
+	})
+
+	t.Run("Should leave the old Run live when replacement compilation fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		old := seedFakeRun(store, loop.StatusRunning)
+		old.LoopName = loop.InlineGoalLoopName
+		origin := inlineGoalOrigin("session-origin")
+		old.Origin = &origin
+		store.seed(old)
+		svc := newTestService(t, store, validDefinition())
+		invalid := inlineGoalDefinition("ship the release", "judge-v1")
+		invalid.Graph.Nodes[0].Params["objective"] = ""
+		if _, err := svc.ReplaceInline(
+			context.Background(), old.ID, "ws-1", invalid, loop.Inputs{},
+			inlineGoalOrigin("session-origin"), humanActor(t),
+		); err == nil {
+			t.Fatal("ReplaceInline(invalid) error = nil")
+		}
+		if got := store.mustRun(t, old.ID); got.Status != loop.StatusRunning {
+			t.Fatalf("old Run status = %q, want running", got.Status)
+		}
+	})
+
+	t.Run("Should clear the newest inline Goal through the atomic store boundary", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		active := seedFakeRun(store, loop.StatusRunning)
+		active.LoopName = loop.InlineGoalLoopName
+		origin := inlineGoalOrigin("session-origin")
+		active.Origin = &origin
+		store.seed(active)
+		svc := newTestService(t, store, validDefinition())
+		if err := svc.ClearInlineGoal(
+			context.Background(),
+			"ws-1",
+			"session-origin",
+			humanActor(t),
+		); err != nil {
+			t.Fatalf("ClearInlineGoal() error = %v", err)
+		}
+		if got := store.mustRun(t, active.ID); got.Status != loop.StatusFailed {
+			t.Fatalf("cleared Run status = %q, want failed", got.Status)
+		}
+	})
+}
+
+func TestServiceStartShouldPinGoalRunPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve and persist the workspace Goal context policy", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		resolved := compileDefinition(t, validDefinition())
+		var resolvedWorkspace loop.WorkspaceID
+		svc, err := loop.NewService(
+			store,
+			loop.DefinitionResolverFunc(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (*loop.ResolvedDefinition, error) {
+				return resolved, nil
+			}),
+			loop.GoalRunPolicyResolverFunc(func(
+				_ context.Context,
+				ws loop.WorkspaceID,
+			) (*loop.GoalRunPolicy, error) {
+				resolvedWorkspace = ws
+				return &loop.GoalRunPolicy{ContextNudgeRatio: 0}, nil
+			}),
+			loop.WithClock(func() time.Time {
+				return time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+			}),
+			loop.WithRunIDFactory(func() loop.RunID { return "looprun-goal-policy" }),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		run, err := svc.Start(context.Background(), "ws-goal-policy", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if resolvedWorkspace != "ws-goal-policy" {
+			t.Fatalf("Goal policy resolver workspace = %q, want ws-goal-policy", resolvedWorkspace)
+		}
+		if run.GoalContextNudgeRatio != 0 {
+			t.Fatalf("GoalContextNudgeRatio = %v, want explicit zero", run.GoalContextNudgeRatio)
+		}
+		if stored := store.mustRun(t, run.ID); stored.GoalContextNudgeRatio != 0 {
+			t.Fatalf("stored GoalContextNudgeRatio = %v, want explicit zero", stored.GoalContextNudgeRatio)
+		}
+	})
+
+	t.Run("Should fail before creating a Run when Goal policy resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		resolved := compileDefinition(t, validDefinition())
+		wantErr := errors.New("workspace Goal config unavailable")
+		svc, err := loop.NewService(
+			store,
+			loop.DefinitionResolverFunc(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (*loop.ResolvedDefinition, error) {
+				return resolved, nil
+			}),
+			loop.GoalRunPolicyResolverFunc(func(
+				context.Context,
+				loop.WorkspaceID,
+			) (*loop.GoalRunPolicy, error) {
+				return nil, wantErr
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+
+		_, err = svc.Start(context.Background(), "ws-goal-policy", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("Start() error = %v, want %v", err, wantErr)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0", store.createCount())
 		}
 	})
 }
@@ -373,14 +599,14 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Pause(context.Background(), "ws-1", run.ID); err != nil {
+		if err := svc.Pause(context.Background(), "ws-1", run.ID, humanActor(t)); err != nil {
 			t.Fatalf("Pause() error = %v", err)
 		}
 		stored := store.mustRun(t, run.ID)
 		if stored.Status != loop.StatusRunning || !stored.PauseRequested {
 			t.Fatalf("stored run = %#v, want running with pause_requested", stored)
 		}
-		if err := svc.Pause(context.Background(), "ws-1", run.ID); err != nil {
+		if err := svc.Pause(context.Background(), "ws-1", run.ID, humanActor(t)); err != nil {
 			t.Fatalf("Pause() second call error = %v, want idempotent nil", err)
 		}
 	})
@@ -398,13 +624,13 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		store.seed(paused)
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Resume(context.Background(), "ws-1", running.ID); err != nil {
+		if err := svc.Resume(context.Background(), "ws-1", running.ID, humanActor(t)); err != nil {
 			t.Fatalf("Resume(running) error = %v", err)
 		}
 		if got := store.mustRun(t, running.ID); got.PauseRequested {
 			t.Fatalf("running PauseRequested = true, want false")
 		}
-		if err := svc.Resume(context.Background(), "ws-1", paused.ID); err != nil {
+		if err := svc.Resume(context.Background(), "ws-1", paused.ID, humanActor(t)); err != nil {
 			t.Fatalf("Resume(paused) error = %v", err)
 		}
 		if got := store.mustRun(t, paused.ID); got.Status != loop.StatusRunning || got.PauseRequested {
@@ -527,6 +753,172 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 		if got := store.mustRun(t, run.ID); got.Status != loop.StatusNeedsApproval {
 			t.Fatalf("budget run status = %q, want needs-approval", got.Status)
+		}
+	})
+}
+
+func TestServiceShouldAllocateTypedGoalGrantsFromDurableControl(t *testing.T) {
+	t.Run("Should extend the effective turn limit by the pinned node limit exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusNeedsApproval)
+		run.ID = "run-goal-turn-extension"
+		run.ActiveGateID = loop.SyntheticGoalGateID(
+			"converge",
+			1,
+			0,
+			loop.ReasonCodeGoalTurnsExhausted,
+		)
+		definition := singleNodeDefinition(validGoalNode("converge", ""))
+		definition.Graph.Nodes[0].Params["max_turns"] = 4
+		resolved, err := loop.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(Goal definition) error = %v", err)
+		}
+		effective, err := loop.ResolveEffectiveConfig(
+			resolved,
+			loop.DefaultLoopDefaults(),
+			nil,
+			loop.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		encoded, digest, err := loop.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		run.DefinitionVersion = resolved.DefinitionVersion
+		run.DefinitionDigest = digest
+		store.seed(run)
+		store.snapshots[string(run.WorkspaceID)+"/"+run.DefinitionDigest] = loop.DefinitionSnapshot{
+			WorkspaceID: run.WorkspaceID,
+			Digest:      run.DefinitionDigest,
+			Version:     run.DefinitionVersion,
+			Definition:  encoded,
+		}
+		store.goalControl = &loop.GoalControlState{
+			WorkspaceID:  run.WorkspaceID,
+			LoopRunID:    run.ID,
+			Generation:   1,
+			NodeID:       "converge",
+			ControlEpoch: 1,
+			GoalStatus:   "budget-limited",
+			TurnsUsed:    4,
+			TurnLimit:    4,
+			TaskRunID:    "goal-segment-1",
+			GateID:       run.ActiveGateID,
+			Cause:        loop.ReasonCodeGoalTurnsExhausted,
+			RunStatus:    loop.StatusNeedsApproval,
+		}
+		var activated task.Run
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithGoalRunActivator(loop.GoalRunActivatorFunc(func(_ context.Context, run task.Run) {
+				activated = run
+			})),
+		)
+		if err := svc.Approve(
+			context.Background(),
+			run.WorkspaceID,
+			run.ID,
+			run.ActiveGateID,
+			loop.GateDecisionApprove,
+			humanActor(t),
+		); err != nil {
+			t.Fatalf("Approve(turn extension) error = %v", err)
+		}
+		grant := store.lastGoalReactivation(t)
+		if grant.Kind != loop.GoalGrantTurnExtension || grant.Scope != loop.GoalGrantScopeTurnLimit ||
+			grant.TurnIncrement != 4 {
+			t.Fatalf("turn-extension grant = %#v", grant)
+		}
+		if len(grant.Decisions) != 1 || grant.Decisions[0].GateID != run.ActiveGateID {
+			t.Fatalf("turn-extension decisions = %#v", grant.Decisions)
+		}
+		if activated.ID != "goal-successor" {
+			t.Fatalf("activated Goal successor = %#v, want goal-successor", activated)
+		}
+	})
+
+	t.Run("Should map approval causes to exact budget and reseed grant scopes", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name      string
+			cause     loop.ReasonCode
+			openTurn  bool
+			wantKind  loop.GoalGrantKind
+			wantScope loop.GoalGrantScope
+		}{
+			{
+				name: "session-origin reseed", cause: loop.ReasonCodeGoalReseedConfirmationRequired,
+				wantKind: loop.GoalGrantReseed, wantScope: loop.GoalGrantScopeRotateBinding,
+			},
+			{
+				name: "pre-submit budget", cause: loop.ReasonCodeGoalBudgetFenced,
+				wantKind: loop.GoalGrantBudget, wantScope: loop.GoalGrantScopeWorkAndSettle,
+			},
+			{
+				name: "open-turn budget", cause: loop.ReasonCodeGoalBudgetFenced, openTurn: true,
+				wantKind: loop.GoalGrantBudget, wantScope: loop.GoalGrantScopeSettleCurrent,
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should allocate "+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				store := newFakeLoopStore()
+				run := seedFakeRun(store, loop.StatusNeedsApproval)
+				run.ID = loop.RunID("run-goal-grant-" + strings.ReplaceAll(tc.name, " ", "-"))
+				run.ActiveGateID = loop.SyntheticGoalGateID("converge", 1, 0, tc.cause)
+				store.seed(run)
+				store.goalControl = &loop.GoalControlState{
+					WorkspaceID: run.WorkspaceID, LoopRunID: run.ID, Generation: 1,
+					NodeID: "converge", ControlEpoch: 1, GoalStatus: "awaiting-control",
+					TurnsUsed: 1, TurnLimit: 3, TaskRunID: "goal-segment-1",
+					GateID: run.ActiveGateID, Cause: tc.cause, OpenTurn: tc.openTurn,
+					RunStatus: loop.StatusNeedsApproval,
+				}
+				svc := newTestService(t, store, validDefinition())
+				if err := svc.Approve(
+					context.Background(), run.WorkspaceID, run.ID, run.ActiveGateID,
+					loop.GateDecisionApprove, humanActor(t),
+				); err != nil {
+					t.Fatalf("Approve(%s) error = %v", tc.name, err)
+				}
+				grant := store.lastGoalReactivation(t)
+				if grant.Kind != tc.wantKind || grant.Scope != tc.wantScope || grant.TurnIncrement != 0 {
+					t.Fatalf("%s grant = %#v", tc.name, grant)
+				}
+			})
+		}
+	})
+
+	t.Run("Should consume a plain Resume grant at successor reactivation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusPaused)
+		run.ID = "run-goal-plain-resume"
+		store.seed(run)
+		store.goalControl = &loop.GoalControlState{
+			WorkspaceID: run.WorkspaceID, LoopRunID: run.ID, Generation: 1,
+			NodeID: "converge", ControlEpoch: 1, GoalStatus: "paused",
+			TurnsUsed: 1, TurnLimit: 3, TaskRunID: "goal-segment-1",
+			Cause: loop.ReasonCode(loop.TransitionCausePauseBoundary), RunStatus: loop.StatusPaused,
+		}
+		svc := newTestService(t, store, validDefinition())
+		if err := svc.Resume(context.Background(), run.WorkspaceID, run.ID, humanActor(t)); err != nil {
+			t.Fatalf("Resume(plain Goal control) error = %v", err)
+		}
+		grant := store.lastGoalReactivation(t)
+		if grant.Kind != loop.GoalGrantPlainResume || grant.Scope != loop.GoalGrantScopeReactivate ||
+			grant.TurnIncrement != 0 {
+			t.Fatalf("plain-resume grant = %#v", grant)
 		}
 	})
 }
@@ -693,6 +1085,55 @@ func TestCostShouldBeDisplayOnly(t *testing.T) {
 	})
 }
 
+func inlineGoalDefinition(objective string, judgeModel string) dsl.Definition {
+	definition := validDefinition()
+	definition.Meta.Name = loop.InlineGoalLoopName
+	definition.Meta.Version = 1
+	definition.Concurrency = dsl.ConcurrencyAllow
+	definition.Inputs = map[string]dsl.Input{}
+	definition.Contract.Goal = objective
+	definition.Contract.DefinitionOfDone = "The objective is satisfied according to the Goal judge."
+	definition.Contract.ModelDefaults = nil
+	if strings.TrimSpace(judgeModel) != "" {
+		definition.Contract.ModelDefaults = &dsl.ModelDefaults{Judge: judgeModel}
+	}
+	definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
+		ID:    "goal",
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionGoal),
+		Session: &dsl.SessionSpec{
+			Mode: dsl.SessionModeContinuous,
+		},
+		Params: dsl.NodeParams{
+			"agent":     "operator-agent",
+			"objective": objective,
+			"judge": []dsl.GateCriterion{{
+				ID: "objective_satisfied", Type: dsl.CriterionAgentJudge, Rubric: objective,
+			}},
+			"max_turns": 3,
+			"output_schema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"status": map[string]any{
+						"type": "string", "enum": []string{"complete", "blocked"},
+					},
+				},
+			},
+		},
+	}}, Edges: []dsl.Edge{}}
+	return definition
+}
+
+func inlineGoalOrigin(sessionID string) loop.RunOrigin {
+	return loop.RunOrigin{
+		Kind:               loop.RunOriginSession,
+		SessionID:          sessionID,
+		CreationProfileRef: "profile:sha256:origin",
+		PolicySpecDigest:   "policy:sha256:origin",
+		CreationDigest:     "creation:sha256:origin",
+	}
+}
+
 func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 	t.Parallel()
 
@@ -706,11 +1147,15 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 		) (*loop.ResolvedDefinition, error) {
 			return nil, nil
 		})
-		if _, err := loop.NewService(nil, resolver); !errors.Is(err, loop.ErrValidation) {
+		goalPolicy := testGoalRunPolicyResolver(0.8)
+		if _, err := loop.NewService(nil, resolver, goalPolicy); !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("NewService(nil store) error = %v, want ErrValidation", err)
 		}
-		if _, err := loop.NewService(newFakeLoopStore(), nil); !errors.Is(err, loop.ErrValidation) {
+		if _, err := loop.NewService(newFakeLoopStore(), nil, goalPolicy); !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("NewService(nil resolver) error = %v, want ErrValidation", err)
+		}
+		if _, err := loop.NewService(newFakeLoopStore(), resolver, nil); !errors.Is(err, loop.ErrValidation) {
+			t.Fatalf("NewService(nil Goal policy resolver) error = %v, want ErrValidation", err)
 		}
 	})
 
@@ -746,7 +1191,7 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		if err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator); err != nil {
+		if err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator, humanActor(t)); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
 		stored := store.mustRun(t, run.ID)
@@ -766,7 +1211,7 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusDone)
 		svc := newTestService(t, store, validDefinition())
 
-		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator)
+		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReasonOperator, humanActor(t))
 		if !errors.Is(err, loop.ErrInvalidTransition) {
 			t.Fatalf("Stop() error = %v, want ErrInvalidTransition", err)
 		}
@@ -779,12 +1224,89 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 		run := seedFakeRun(store, loop.StatusRunning)
 		svc := newTestService(t, store, validDefinition())
 
-		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReason("unknown"))
+		err := svc.Stop(context.Background(), "ws-1", run.ID, loop.StopReason("unknown"), humanActor(t))
 		if !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("Stop(unknown reason) error = %v, want ErrValidation", err)
 		}
 		if got := store.mustRun(t, run.ID); got.Status != loop.StatusRunning {
 			t.Fatalf("stored status = %q, want original running", got.Status)
+		}
+	})
+
+	t.Run("Should atomically stop Goal state before revoking its exact prompt lease", func(t *testing.T) {
+		t.Parallel()
+
+		base := newFakeLoopStore()
+		run := seedFakeRun(base, loop.StatusRunning)
+		lease := loop.GoalPromptLease{
+			QueueEntryID: "queue-goal-stop", SessionID: "session-goal-stop", OwnerKind: "goal",
+			LoopRunID: string(run.ID), TaskRunID: "task-run-goal-stop", RunGeneration: 1,
+			PromptAttempt: 2, ControlEpoch: 3, BindingEpoch: 4,
+			PromptID: "prompt-goal-stop", PromptKind: "work",
+		}
+		store := &atomicGoalStopStore{
+			fakeLoopStore: base,
+			result: loop.GoalRunStopResult{
+				RevokedPromptLeases: []loop.GoalPromptLease{lease},
+			},
+		}
+		var revoked []loop.GoalPromptLease
+		var reasons []string
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(
+				func(got loop.GoalPromptLease, reason string) {
+					revoked = append(revoked, got)
+					reasons = append(reasons, reason)
+				},
+			)),
+		)
+		actor := humanActor(t)
+		if err := svc.Stop(context.Background(), run.WorkspaceID, run.ID, loop.StopReasonOperator, actor); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if got := base.mustRun(t, run.ID); got.Status != loop.StatusFailed {
+			t.Fatalf("stored status = %q, want failed", got.Status)
+		}
+		request := store.lastRequest(t)
+		if request.WorkspaceID != run.WorkspaceID || request.RunID != run.ID ||
+			request.ExpectedStatus != loop.StatusRunning || request.Actor != actor || request.StoppedAt.IsZero() {
+			t.Fatalf("atomic Goal stop request = %#v", request)
+		}
+		if !reflect.DeepEqual(revoked, []loop.GoalPromptLease{lease}) ||
+			!reflect.DeepEqual(reasons, []string{string(loop.TransitionCauseOperatorStop)}) {
+			t.Fatalf("post-commit revocations = %#v reasons = %#v", revoked, reasons)
+		}
+	})
+
+	t.Run("Should not revoke a Goal prompt lease when the atomic stop rolls back", func(t *testing.T) {
+		t.Parallel()
+
+		base := newFakeLoopStore()
+		run := seedFakeRun(base, loop.StatusRunning)
+		wantErr := errors.New("atomic Goal stop failed")
+		store := &atomicGoalStopStore{fakeLoopStore: base, err: wantErr}
+		var revokeCalls int
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(func(loop.GoalPromptLease, string) {
+				revokeCalls++
+			})),
+		)
+		if err := svc.Stop(
+			context.Background(), run.WorkspaceID, run.ID, loop.StopReasonOperator, humanActor(t),
+		); !errors.Is(err, wantErr) {
+			t.Fatalf("Stop() error = %v, want %v", err, wantErr)
+		}
+		if revokeCalls != 0 {
+			t.Fatalf("post-commit revoke calls = %d, want 0", revokeCalls)
+		}
+		if got := base.mustRun(t, run.ID); got.Status != loop.StatusRunning {
+			t.Fatalf("stored status = %q, want running", got.Status)
 		}
 	})
 }
@@ -797,7 +1319,7 @@ func newTestService(t *testing.T, store *fakeLoopStore, def dsl.Definition) loop
 
 func newTestServiceWithOptions(
 	t *testing.T,
-	store *fakeLoopStore,
+	store loop.Store,
 	def dsl.Definition,
 	opts ...loop.Option,
 ) loop.Service {
@@ -822,12 +1344,63 @@ func newTestServiceWithOptions(
 		) (*loop.ResolvedDefinition, error) {
 			return resolved, nil
 		}),
+		testGoalRunPolicyResolver(0.8),
 		options...,
 	)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return svc
+}
+
+func testGoalRunPolicyResolver(ratio float64) loop.GoalRunPolicyResolver {
+	return loop.GoalRunPolicyResolverFunc(func(
+		context.Context,
+		loop.WorkspaceID,
+	) (*loop.GoalRunPolicy, error) {
+		return &loop.GoalRunPolicy{ContextNudgeRatio: ratio}, nil
+	})
+}
+
+type atomicGoalStopStore struct {
+	*fakeLoopStore
+	mu       sync.Mutex
+	requests []loop.GoalRunStopRequest
+	result   loop.GoalRunStopResult
+	err      error
+}
+
+func (s *atomicGoalStopStore) StopGoalRun(
+	ctx context.Context,
+	request loop.GoalRunStopRequest,
+) (loop.GoalRunStopResult, error) {
+	s.mu.Lock()
+	s.requests = append(s.requests, request)
+	s.mu.Unlock()
+	if s.err != nil {
+		return loop.GoalRunStopResult{}, s.err
+	}
+	if err := s.CompareAndSwapLoopRunStatus(
+		ctx,
+		request.RunID,
+		request.ExpectedStatus,
+		loop.StatusFailed,
+		loop.TransitionCauseOperatorStop,
+		request.StoppedAt,
+	); err != nil {
+		return loop.GoalRunStopResult{}, err
+	}
+	return s.result, nil
+}
+
+func (s *atomicGoalStopStore) lastRequest(t *testing.T) loop.GoalRunStopRequest {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.requests) == 0 {
+		t.Fatal("atomic Goal stop request count = 0, want 1")
+	}
+	return s.requests[len(s.requests)-1]
 }
 
 func compileDefinition(t *testing.T, def dsl.Definition) *loop.ResolvedDefinition {
@@ -866,13 +1439,15 @@ type fakeTransition struct {
 }
 
 type fakeLoopStore struct {
-	mu          sync.Mutex
-	runs        map[loop.RunID]loop.Run
-	configs     map[string]loop.LoopConfig
-	snapshots   map[string]loop.DefinitionSnapshot
-	decisions   map[string]map[string]gate.HumanDecision
-	transitions []fakeTransition
-	creates     int
+	mu                sync.Mutex
+	runs              map[loop.RunID]loop.Run
+	configs           map[string]loop.LoopConfig
+	snapshots         map[string]loop.DefinitionSnapshot
+	decisions         map[string]map[string]gate.HumanDecision
+	transitions       []fakeTransition
+	goalControl       *loop.GoalControlState
+	goalReactivations []loop.GoalReactivationRequest
+	creates           int
 }
 
 func newFakeLoopStore() *fakeLoopStore {
@@ -907,6 +1482,16 @@ func (s *fakeLoopStore) lastTransition(t *testing.T) fakeTransition {
 		t.Fatal("transition count = 0, want at least one")
 	}
 	return s.transitions[len(s.transitions)-1]
+}
+
+func (s *fakeLoopStore) lastGoalReactivation(t *testing.T) loop.GoalReactivationRequest {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.goalReactivations) == 0 {
+		t.Fatal("Goal reactivation count = 0, want at least one")
+	}
+	return s.goalReactivations[len(s.goalReactivations)-1]
 }
 
 func (s *fakeLoopStore) createCount() int {
@@ -965,6 +1550,86 @@ func (s *fakeLoopStore) CreateLoopRunForStart(
 	return run, nil
 }
 
+func (s *fakeLoopStore) CreateInlineLoopRunForStart(
+	ctx context.Context,
+	run loop.Run,
+) (loop.Run, error) {
+	return s.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+}
+
+func (s *fakeLoopStore) ReplaceInlineLoopRun(
+	_ context.Context,
+	request loop.InlineReplaceStoreRequest,
+) (loop.InlineReplaceStoreResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if request.Run == nil {
+		return loop.InlineReplaceStoreResult{}, loop.ErrValidation
+	}
+	old, ok := s.runs[request.ExpectedRunID]
+	if !ok || old.WorkspaceID != request.Run.WorkspaceID || !old.Status.Live() ||
+		old.Origin.Kind != loop.RunOriginSession || old.Origin.SessionID != request.Run.Origin.SessionID {
+		return loop.InlineReplaceStoreResult{}, &loop.ReasonError{
+			Code: loop.ReasonCodeGoalReplaceStale,
+			Err:  loop.ErrTransitionConflict,
+		}
+	}
+	old.Status = loop.StatusFailed
+	s.runs[old.ID] = old
+	created := *request.Run
+	created.Status = loop.StatusRunning
+	s.runs[created.ID] = created
+	s.creates++
+	s.snapshots[string(created.WorkspaceID)+"/"+created.DefinitionDigest] = loop.DefinitionSnapshot{
+		WorkspaceID: created.WorkspaceID,
+		Digest:      created.DefinitionDigest,
+		Version:     created.DefinitionVersion,
+		Definition:  created.DefinitionSnapshot,
+		ByteSize:    len(created.DefinitionSnapshot),
+		CreatedAt:   created.StartedAt,
+		LastUsedAt:  created.StartedAt,
+	}
+	return loop.InlineReplaceStoreResult{
+		ReplacedRunID: old.ID,
+		ReplacedRun:   old,
+		Run:           created,
+	}, nil
+}
+
+func (s *fakeLoopStore) ClearInlineGoal(
+	_ context.Context,
+	request loop.InlineGoalClearStoreRequest,
+) (loop.InlineGoalClearStoreResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var newest *loop.Run
+	for _, candidate := range s.runs {
+		if candidate.WorkspaceID != request.WorkspaceID || candidate.Origin == nil ||
+			candidate.Origin.Kind != loop.RunOriginSession ||
+			candidate.Origin.SessionID != request.OriginSessionID {
+			continue
+		}
+		current := candidate
+		if newest == nil || current.CreatedAt.After(newest.CreatedAt) {
+			newest = &current
+		}
+	}
+	if newest == nil {
+		return loop.InlineGoalClearStoreResult{}, &loop.ReasonError{
+			Code: loop.ReasonCodeGoalNotActive,
+			Err:  loop.ErrTransitionConflict,
+		}
+	}
+	result := loop.InlineGoalClearStoreResult{Run: *newest}
+	if newest.Status.Live() {
+		newest.Status = loop.StatusFailed
+		s.runs[newest.ID] = *newest
+		result.Run = *newest
+		result.Terminalized = true
+	}
+	return result, nil
+}
+
 func (s *fakeLoopStore) GetLoopRun(
 	_ context.Context,
 	ws loop.WorkspaceID,
@@ -987,6 +1652,45 @@ func (s *fakeLoopStore) GetLoopRunByID(_ context.Context, runID loop.RunID) (loo
 		return loop.Run{}, loop.ErrRunNotFound
 	}
 	return run, nil
+}
+
+func (s *fakeLoopStore) LoadAwaitingGoalControl(
+	_ context.Context,
+	workspaceID loop.WorkspaceID,
+	runID loop.RunID,
+) (loop.GoalControlState, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.goalControl == nil || s.goalControl.WorkspaceID != workspaceID || s.goalControl.LoopRunID != runID {
+		return loop.GoalControlState{}, false, nil
+	}
+	return *s.goalControl, true, nil
+}
+
+func (s *fakeLoopStore) ReactivateGoalRun(
+	_ context.Context,
+	req loop.GoalReactivationRequest,
+) (loop.GoalReactivationResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.goalControl == nil || s.goalControl.ControlEpoch != req.State.ControlEpoch {
+		return loop.GoalReactivationResult{}, loop.ErrTransitionConflict
+	}
+	s.goalReactivations = append(s.goalReactivations, req)
+	run, ok := s.runs[req.State.LoopRunID]
+	if !ok {
+		return loop.GoalReactivationResult{}, loop.ErrRunNotFound
+	}
+	run.Status = loop.StatusRunning
+	run.ActiveGateID = ""
+	run.ActiveHumanCriteria = []byte(`[]`)
+	s.runs[run.ID] = run
+	s.goalControl = nil
+	return loop.GoalReactivationResult{
+		Run:          task.Run{ID: "goal-successor"},
+		ControlEpoch: req.State.ControlEpoch + 1,
+		GrantID:      int64(len(s.goalReactivations)),
+	}, nil
 }
 
 func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
@@ -1102,6 +1806,7 @@ func (s *fakeLoopStore) SetLoopRunPauseRequested(
 	ws loop.WorkspaceID,
 	runID loop.RunID,
 	requested bool,
+	actor task.ActorContext,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1110,6 +1815,13 @@ func (s *fakeLoopStore) SetLoopRunPauseRequested(
 		return loop.ErrRunNotFound
 	}
 	run.PauseRequested = requested
+	if requested {
+		run.ControlActor = actor.Actor
+		run.ControlRequestedAt = time.Now().UTC()
+	} else {
+		run.ControlActor = task.ActorIdentity{}
+		run.ControlRequestedAt = time.Time{}
+	}
 	s.runs[runID] = run
 	return nil
 }

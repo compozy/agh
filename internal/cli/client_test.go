@@ -30,6 +30,110 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
+func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, status int, body string) *unixSocketClient {
+		t.Helper()
+		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodPost &&
+				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				response := newHTTPResponse(status, body)
+				response.Header.Set("Content-Type", "application/json")
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{Transport: transport},
+		}
+		client.streamClient = client.httpClient
+		return client
+	}
+
+	t.Run("Should decode a successful direct Goal result", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(
+			t,
+			http.StatusOK,
+			`{"outcome":"status","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+		)
+		record, err := client.SendSessionPrompt(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "/goal status"},
+		)
+		if err != nil {
+			t.Fatalf("SendSessionPrompt(Goal status) error = %v", err)
+		}
+		if record.Goal == nil || record.Goal.Outcome != contract.GoalOutcomeStatus {
+			t.Fatalf("SendSessionPrompt(Goal status) = %#v", record)
+		}
+	})
+
+	t.Run("Should surface one direct Goal result through the streaming JSONL seam", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(
+			t,
+			http.StatusAccepted,
+			`{"outcome":"started","reason_code":null,"snapshot":null,"replaced_run_id":null}`,
+		)
+		var events []SSEEvent
+		err := client.StreamPromptSession(t.Context(), "sess-1", "/goal ship", func(event SSEEvent) error {
+			events = append(events, event)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("StreamPromptSession(Goal start) error = %v", err)
+		}
+		if len(events) != 1 || events[0].Event != goalResultEventName {
+			t.Fatalf("StreamPromptSession(Goal start) events = %#v", events)
+		}
+		var result contract.GoalCommandResult
+		if err := json.Unmarshal(events[0].Data, &result); err != nil {
+			t.Fatalf("decode streamed Goal result error = %v", err)
+		}
+		if result.Outcome != contract.GoalOutcomeStarted {
+			t.Fatalf("streamed Goal result = %#v", result)
+		}
+	})
+
+	t.Run("Should preserve a structured Goal error body", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(
+			t,
+			http.StatusConflict,
+			`{"outcome":"error","reason_code":"goal_replace_required","snapshot":null,"replaced_run_id":null}`,
+		)
+		_, err := client.SendSessionPrompt(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "/goal ship"},
+		)
+		var goalErr *goalCommandAPIError
+		if !errors.As(err, &goalErr) {
+			t.Fatalf("SendSessionPrompt(Goal conflict) error = %T %[1]v", err)
+		}
+		if goalErr.statusCode != http.StatusConflict ||
+			goalErr.result.ReasonCode == nil ||
+			*goalErr.result.ReasonCode != contract.GoalReasonReplaceRequired {
+			t.Fatalf("Goal command error = %#v", goalErr)
+		}
+	})
+}
+
 func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -3598,10 +3702,8 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 
 	err := client.doSSE(
 		context.Background(),
-		http.MethodGet,
 		"/api/logs/stream",
 		logsListValues(LogsListQuery{Since: time.Now().UTC()}),
-		nil,
 		"cursor-9",
 		func(SSEEvent) error {
 			return nil

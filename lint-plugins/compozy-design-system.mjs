@@ -375,6 +375,8 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
   "width-modal-sm",
   "width-modal-md",
   "width-modal-lg",
+  "width-modal-xl",
+  "width-thread-column",
   "size-catalog-logo",
   "size-provider-logo-well",
   "size-pill-group-badge",

@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { Eyebrow } from "./eyebrow";
 
 export type MetricTone = "default" | "accent" | "success" | "warning" | "danger";
 export type MetricSize = "default" | "lg";
@@ -49,11 +48,9 @@ const SIZE_CONTAINER_CLASS: Record<MetricSize, string> = {
 };
 
 /**
- * Metric card , mono eyebrow label + Inter 24/28px/510 value + optional inline
- * detail or subtext line. Surface container with 12px radius; semantic tone
- * colors the value. Per DESIGN.md §4 "Metric Cards" and the proposal at
- * `docs/design/new-proposal/agh-refined-7.html` (`.dash__card-value` for
- * `size="lg"`).
+ * Metric card — sentence-case Inter label (DESIGN.md §9: not an eyebrow) +
+ * Inter 24/28px value + optional inline detail or subtext. Surface container
+ * with rounded-lg; semantic tone colors the value.
  */
 function Metric({
   label,
@@ -77,9 +74,9 @@ function Metric({
       )}
       {...props}
     >
-      <Eyebrow data-slot="metric-label" className="block truncate leading-4 text-subtle">
+      <span data-slot="metric-label" className="block truncate text-form-label text-muted">
         {label}
-      </Eyebrow>
+      </span>
       <div data-slot="metric-value-row" className="flex min-w-0 items-baseline gap-2">
         <span
           data-slot="metric-value"

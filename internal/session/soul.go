@@ -256,7 +256,7 @@ func (m *Manager) prepareSessionStartSoul(
 	if spec == nil {
 		return errors.New("session: start spec is required")
 	}
-	if spec.startAction == "resume" {
+	if spec.startAction == sessionStartActionResume {
 		return m.prepareResumeSoul(ctx, spec)
 	}
 

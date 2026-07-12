@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -749,6 +750,48 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	}
 }
 
+func TestManagerLatestSessionEventByType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the newest typed event for active and stopped sessions", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		sess := createSession(t, h)
+		ctx := testutil.Context(t)
+		for revision := 1; revision <= 2; revision++ {
+			if err := h.manager.AppendSessionEventIfAbsent(ctx, GoalEvent{
+				EventID:         fmt.Sprintf("goal-snapshot-%d", revision),
+				SessionID:       sess.ID,
+				SyntheticTurnID: "goal-snapshot:" + sess.ID,
+				AgentName:       "system",
+				Type:            EventTypeGoalSnapshotChanged,
+				Content:         json.RawMessage(fmt.Sprintf(`{"revision":%d}`, revision)),
+				CreatedAt:       time.Now().UTC().Add(time.Duration(revision) * time.Second),
+			}); err != nil {
+				t.Fatalf("AppendSessionEventIfAbsent(%d) error = %v", revision, err)
+			}
+		}
+
+		assertLatest := func(state string) {
+			t.Helper()
+			event, err := h.manager.LatestSessionEventByType(ctx, sess.ID, EventTypeGoalSnapshotChanged)
+			if err != nil {
+				t.Fatalf("LatestSessionEventByType(%s) error = %v", state, err)
+			}
+			if event == nil || event.ID != "goal-snapshot-2" {
+				t.Fatalf("LatestSessionEventByType(%s) = %#v, want goal-snapshot-2", state, event)
+			}
+		}
+
+		assertLatest("active")
+		if err := h.manager.Stop(ctx, sess.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		assertLatest("stopped")
+	})
+}
+
 func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 	t.Parallel()
 
@@ -1425,6 +1468,9 @@ type queryRecorderStub struct {
 	closeCalls  int
 	queryCalls  []store.EventQuery
 	historyCall []store.EventQuery
+	appendErrs  []error
+	appendCalls int
+	onAppend    func()
 }
 
 func (s *queryRecorderStub) Record(context.Context, store.SessionEvent) error {
@@ -1433,6 +1479,24 @@ func (s *queryRecorderStub) Record(context.Context, store.SessionEvent) error {
 
 func (s *queryRecorderStub) RecordTokenUsage(context.Context, store.TokenUsage) error {
 	return nil
+}
+
+func (s *queryRecorderStub) AppendEventIfAbsent(
+	_ context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	s.appendCalls++
+	if s.onAppend != nil {
+		s.onAppend()
+	}
+	if len(s.appendErrs) > 0 {
+		err := s.appendErrs[0]
+		s.appendErrs = s.appendErrs[1:]
+		if err != nil {
+			return store.SessionEvent{}, err
+		}
+	}
+	return event, nil
 }
 
 func (s *queryRecorderStub) Query(_ context.Context, query store.EventQuery) ([]store.SessionEvent, error) {

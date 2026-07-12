@@ -169,6 +169,11 @@ type contextSensitiveRunStore struct {
 	*inMemoryManagerStore
 }
 
+type adjacentRecoveredEventStore struct {
+	*inMemoryManagerStore
+	adjacent EventRecord
+}
+
 type deleteTaskStore struct {
 	*inMemoryManagerStore
 	getTaskErrByID             map[string]error
@@ -232,6 +237,37 @@ func (s *contextSensitiveRunStore) UpdateTaskRun(ctx context.Context, run Run) e
 		return ctx.Err()
 	}
 	return s.inMemoryManagerStore.UpdateTaskRun(ctx, run)
+}
+
+func (s *adjacentRecoveredEventStore) ClearTaskNeedsAttention(
+	ctx context.Context,
+	mutation NeedsAttentionClearMutation,
+) (NeedsAttentionClearResult, error) {
+	result, err := s.inMemoryManagerStore.ClearTaskNeedsAttention(ctx, mutation)
+	if err != nil {
+		return NeedsAttentionClearResult{}, err
+	}
+	adjacentAt := result.Event.Event.Timestamp.Add(time.Nanosecond)
+	if err := s.appendTaskEventForTest(
+		result.Task.ID,
+		"",
+		taskWatchEventRecovered,
+		ActorContext{
+			Actor:     mutation.ClearedBy,
+			Origin:    mutation.Origin,
+			Authority: Authority{Write: true},
+		},
+		map[string]any{"at": adjacentAt},
+		adjacentAt,
+	); err != nil {
+		return NeedsAttentionClearResult{}, err
+	}
+	adjacentID := fmt.Sprintf("evt-%d", s.nextEventSequence)
+	s.adjacent, err = s.GetTaskEventRecord(ctx, adjacentID)
+	if err != nil {
+		return NeedsAttentionClearResult{}, err
+	}
+	return result, nil
 }
 
 func (o *recordingTaskEventObserver) OnTaskEvent(_ context.Context, record EventRecord) {
@@ -928,14 +964,14 @@ func (s *inMemoryManagerStore) ClearTaskBlock(
 func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 	_ context.Context,
 	mutation NeedsAttentionClearMutation,
-) (Task, error) {
+) (NeedsAttentionClearResult, error) {
 	trimmedTaskID := strings.TrimSpace(mutation.TaskID)
 	taskRecord, ok := s.tasks[trimmedTaskID]
 	if !ok {
-		return Task{}, ErrTaskNotFound
+		return NeedsAttentionClearResult{}, ErrTaskNotFound
 	}
 	if taskRecord.NeedsAttention == nil {
-		return Task{}, fmt.Errorf(
+		return NeedsAttentionClearResult{}, fmt.Errorf(
 			"%w: task %q is not escalated",
 			ErrInvalidStatusTransition,
 			trimmedTaskID,
@@ -944,6 +980,7 @@ func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 	taskRecord.NeedsAttention = nil
 	taskRecord.UpdatedAt = mutation.ClearedAt.UTC()
 	s.tasks[trimmedTaskID] = cloneTask(taskRecord)
+	eventID := fmt.Sprintf("evt-%d", s.nextEventSequence+1)
 	if err := s.appendTaskEventForTest(
 		taskRecord.ID,
 		"",
@@ -956,9 +993,13 @@ func (s *inMemoryManagerStore) ClearTaskNeedsAttention(
 		map[string]any{"at": mutation.ClearedAt.UTC()},
 		mutation.ClearedAt.UTC(),
 	); err != nil {
-		return Task{}, err
+		return NeedsAttentionClearResult{}, err
 	}
-	return cloneTask(taskRecord), nil
+	event, err := s.GetTaskEventRecord(context.Background(), eventID)
+	if err != nil {
+		return NeedsAttentionClearResult{}, err
+	}
+	return NeedsAttentionClearResult{Task: cloneTask(taskRecord), Event: event}, nil
 }
 
 func (s *inMemoryManagerStore) ExpireTaskBlocks(
@@ -5500,11 +5541,13 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 	t.Run("Should recover an escalated task and auto-enqueue when ready", func(t *testing.T) {
 		t.Parallel()
 
-		store := newInMemoryManagerStore()
+		store := &adjacentRecoveredEventStore{inMemoryManagerStore: newInMemoryManagerStore()}
 		recoveredHooks := 0
+		eventObserver := &recordingTaskEventObserver{}
 		manager := newTaskManagerForTestWithOptions(
 			t,
 			store,
+			WithEventObserver(eventObserver),
 			WithTaskRunHooks(recordingTaskRunHooks{
 				taskRecovered: func(
 					_ context.Context,
@@ -5560,6 +5603,33 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 		); err != nil {
 			t.Fatalf("ClearTaskBlock(final) error = %v", err)
 		}
+		view, err := manager.GetTask(context.Background(), taskRecord.ID, actor)
+		if err != nil {
+			t.Fatalf("GetTask(before recover) error = %v", err)
+		}
+		firstStreamCtx, cancelFirstStream := context.WithCancel(t.Context())
+		defer cancelFirstStream()
+		firstStream, err := manager.Stream(
+			firstStreamCtx,
+			taskRecord.ID,
+			StreamQuery{AfterSequence: view.Task.LatestEventSeq},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("Stream(first observer) error = %v", err)
+		}
+		secondStreamCtx, cancelSecondStream := context.WithCancel(t.Context())
+		defer cancelSecondStream()
+		secondStream, err := manager.Stream(
+			secondStreamCtx,
+			taskRecord.ID,
+			StreamQuery{AfterSequence: view.Task.LatestEventSeq},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("Stream(second observer) error = %v", err)
+		}
+		observerBaseline := len(eventObserver.records)
 
 		recovered, err := manager.RecoverTask(
 			context.Background(),
@@ -5576,8 +5646,24 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 		if recoveredHooks != 1 {
 			t.Fatalf("task.recovered hooks = %d, want 1", recoveredHooks)
 		}
-		if got, want := countTaskEventsByType(store.events, taskWatchEventRecovered), 1; got != want {
+		if got, want := countTaskEventsByType(store.events, taskWatchEventRecovered), 2; got != want {
 			t.Fatalf("task.recovered events = %d, want %d", got, want)
+		}
+		if got, want := len(eventObserver.records), observerBaseline+1; got != want {
+			t.Fatalf("task event observer records = %d, want %d", got, want)
+		}
+		deliveredRecord := eventObserver.records[observerBaseline]
+		persistedRecord, err := store.GetTaskEventRecord(context.Background(), deliveredRecord.Event.ID)
+		if err != nil {
+			t.Fatalf("GetTaskEventRecord(recovered) error = %v", err)
+		}
+		assertTaskEventRecordEqual(t, deliveredRecord, persistedRecord)
+		if deliveredRecord.Event.ID == store.adjacent.Event.ID {
+			t.Fatalf("delivered recovered event id = adjacent id %q", deliveredRecord.Event.ID)
+		}
+		for subscriberIndex, stream := range []<-chan StreamEvent{firstStream, secondStream} {
+			event := awaitTaskStreamEvent(t, stream)
+			assertTaskStreamEventMatchesRecord(t, subscriberIndex, event, deliveredRecord)
 		}
 		if got, want := len(store.runs), 1; got != want {
 			t.Fatalf("runs after recover auto-enqueue = %d, want %d", got, want)
@@ -10470,6 +10556,48 @@ func equalInt64Slices(left []int64, right []int64) bool {
 		}
 	}
 	return true
+}
+
+func assertTaskEventRecordEqual(t *testing.T, got EventRecord, want EventRecord) {
+	t.Helper()
+
+	if got.Sequence != want.Sequence ||
+		got.Event.ID != want.Event.ID ||
+		got.Event.TaskID != want.Event.TaskID ||
+		got.Event.RunID != want.Event.RunID ||
+		got.Event.EventType != want.Event.EventType ||
+		got.Event.Actor != want.Event.Actor ||
+		got.Event.Origin != want.Event.Origin ||
+		string(got.Event.Payload) != string(want.Event.Payload) ||
+		!got.Event.Timestamp.Equal(want.Event.Timestamp) {
+		t.Fatalf("task event record = %#v, want %#v", got, want)
+	}
+}
+
+func assertTaskStreamEventMatchesRecord(
+	t *testing.T,
+	subscriberIndex int,
+	got StreamEvent,
+	want EventRecord,
+) {
+	t.Helper()
+
+	if got.Sequence != want.Sequence ||
+		got.Type != want.Event.EventType ||
+		got.Timeline.Sequence != want.Sequence ||
+		got.Timeline.EventID != want.Event.ID ||
+		got.Timeline.EventType != want.Event.EventType ||
+		got.Timeline.Actor != want.Event.Actor ||
+		got.Timeline.Origin != want.Event.Origin ||
+		string(got.Timeline.Payload) != string(want.Event.Payload) ||
+		!got.Timeline.Timestamp.Equal(want.Event.Timestamp) {
+		t.Fatalf(
+			"subscriber %d stream event = %#v, want record %#v",
+			subscriberIndex,
+			got,
+			want,
+		)
+	}
 }
 
 func awaitTaskStreamEvent(t *testing.T, stream <-chan StreamEvent) StreamEvent {

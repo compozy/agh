@@ -24,7 +24,7 @@ persona:
 
 - **Who:** the developer who replaced `compozy tasks run` with the `software-delivery` Loop. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, and J-24 triage-work-at-scale.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, and J-24 triage-work-at-scale. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 
 ## Lea — First-time Adopter
 
@@ -42,7 +42,7 @@ persona:
 
 - **Who:** a Compozy user meeting Loops for the first time. Arrives at the catalog, expects arrive-and-use to be **no harder than Compozy today** — if running a default-enrolled `dev-cycle` Loop is one step harder, she abandons and the design failed (use-cases §2, PRD Time-to-value).
 - **What they reveal:** onboarding friction on the catalog → run-form → run path, unclear primary action, confusing input form, the "what will this cost / how do I stop it" first-run anxiety, empty states.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run; **J-26 first conversational Goal/replace/draft**.
 
 ## Marina — Reviewer / Evaluator
 
@@ -60,7 +60,7 @@ persona:
 
 - **Who:** the team lead / evaluator (PRD secondary persona). Doesn't author Loops; she scans the global **Runs** "Awaiting you" queue, opens a run, reads the contract + outcome, and approves or requests changes. Frequently mobile — the approval gate is the realistic touch surface.
 - **What they reveal:** truthful-outcome trust (is a waiting run shown as waiting, not done?), approval routing correctness, mobile layout of the run page / approval card / Runs KPIs, discoverability of the "needs a look" queue, start-binding attach flow.
-- **Owns journeys:** J-03 observe-and-approve, J-09 automation-start-bindings, J-08 watch-and-maintain (evaluator view).
+- **Owns journeys:** J-03 observe-and-approve, J-09 automation-start-bindings, J-08 watch-and-maintain (evaluator view); **J-27 mobile Goal observation/discovery**.
 
 ## Ada — Autonomous Agent Operator
 
@@ -78,7 +78,7 @@ persona:
 
 - **Who:** an ACP agent (PRD primary persona "Autonomous agent") driving Loops via `agh__loop_*` native tools over CLI/HTTP/UDS. **Ada is a non-human actor** — QA role-plays her to verify AGH's agent-manageability premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold. Zero patience for ambiguous or non-parseable output.
 - **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart.
-- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona).
+- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona). **Goal:** J-29 structured operation and recovery.
 
 ## Sol — Accessibility-Reliant Operator
 
@@ -96,7 +96,7 @@ persona:
 
 - **Who:** an operator who relies on VoiceOver/NVDA and keyboard-only interaction. AGH's truthful-UI rule ("color carries state") is an accessibility risk if state is signalled by **color alone** — Sol is the leash that keeps status legible without sight.
 - **What they reveal:** status pills that are color-only (the 11 states must be announced/labelled, not just tinted), focus traps and escape in the Configure sheet + approval dialog, reduced-motion honored on the running/watching pulse, keyboard reachability of the editor canvas and its inspector, unannounced live SSE updates (dynamic content), missing labels on auto-generated input fields.
-- **Owns journeys:** cross-cutting a11y lens on J-03 observe-and-approve and J-05 configure (see CH-011); also informs J-01 run-form and J-06 editor; **model-selector:** a11y lens on J-17 start-a-session-through-the-unified-runtime-selector (see CH-034). **On the session surface:** cross-cutting a11y lens on J-13 follow-a-live-run (see CH-020) — live SSE updates must be announced, the 11 lifecycle states legible without color, the streaming/working pulse gated by reduced-motion, and the redesigned tool rows/composer keyboard-reachable.
+- **Owns journeys:** cross-cutting a11y lens on J-03 observe-and-approve and J-05 configure (see CH-011); also informs J-01 run-form and J-06 editor; **model-selector:** a11y lens on J-17 start-a-session-through-the-unified-runtime-selector (see CH-034). **On the session surface:** cross-cutting a11y lens on J-13 follow-a-live-run (see CH-020) — live SSE updates must be announced, the 11 lifecycle states legible without color, the streaming/working pulse gated by reduced-motion, and the redesigned tool rows/composer keyboard-reachable. **On Goal:** J-27 chip/timeline/editor accessibility (CH-040).
 
 ---
 

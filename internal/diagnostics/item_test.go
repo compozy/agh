@@ -167,6 +167,22 @@ func TestRedactJSONRedactsRecursiveSecrets(t *testing.T) {
 			t.Fatalf("RedactJSON() = %s, want safe field preserved", got)
 		}
 	})
+
+	t.Run("Should preserve non-string JSON scalar types", func(t *testing.T) {
+		t.Parallel()
+
+		redacted, err := RedactJSON([]byte(`{"count":7,"ratio":0.5,"enabled":true,"missing":null}`))
+		if err != nil {
+			t.Fatalf("RedactJSON() error = %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(redacted, &got); err != nil {
+			t.Fatalf("json.Unmarshal(RedactJSON()) error = %v", err)
+		}
+		if got["count"] != float64(7) || got["ratio"] != 0.5 || got["enabled"] != true || got["missing"] != nil {
+			t.Fatalf("RedactJSON() scalars = %#v, want numeric/bool/null types preserved", got)
+		}
+	})
 }
 
 func TestStructuredErrorCarriesDiagnosticAndCause(t *testing.T) {

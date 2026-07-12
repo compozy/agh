@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
@@ -247,6 +248,16 @@ func TestLoopErrorHelpers(t *testing.T) {
 		{
 			name: "Should map unavailable Loop catalogs to service unavailable",
 			err:  looppkg.ErrCatalogUnavailable,
+			want: http.StatusServiceUnavailable,
+		},
+		{
+			name: "Should preserve missing actor identity as unauthorized",
+			err:  agentidentity.ErrIdentityRequired,
+			want: http.StatusUnauthorized,
+		},
+		{
+			name: "Should preserve unavailable actor lookup as service unavailable",
+			err:  agentidentity.ErrIdentityLookupUnavailable,
 			want: http.StatusServiceUnavailable,
 		},
 		{

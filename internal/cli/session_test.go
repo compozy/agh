@@ -960,6 +960,110 @@ func TestSessionPromptRendersReturnedEvents(t *testing.T) {
 	}
 }
 
+func TestSessionPromptRendersStructuredGoalResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render a flat structured Goal status result", func(t *testing.T) {
+		t.Parallel()
+
+		result := contract.GoalCommandResult{
+			Outcome: contract.GoalOutcomeStatus,
+			Snapshot: &contract.GoalSnapshot{
+				RunID: "run-goal", NodeID: "goal", Objective: "ship safely",
+				OriginSessionID: "sess-1", BoundSessionID: "sess-1",
+				Status: "active", RunStatus: contract.LoopRunStatusRunning,
+				TurnsUsed: 1, TurnLimit: 4, Live: true, ContractSummary: "objective satisfied",
+				Context: contract.GoalContextSnapshot{State: contract.GoalContextUnknown, NudgeRatio: 0.8},
+			},
+		}
+		deps := newTestDeps(t, &stubClient{
+			sendSessionPromptFn: func(
+				_ context.Context,
+				id string,
+				request SessionPromptRequest,
+			) (SessionPromptRecord, error) {
+				if id != "sess-1" || request.Message != "/goal status" {
+					t.Fatalf("SendSessionPrompt() = %q/%q", id, request.Message)
+				}
+				return SessionPromptRecord{Goal: &result}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "prompt", "sess-1", "/goal status", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt Goal json) error = %v", err)
+		}
+		var decoded contract.GoalCommandResult
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(Goal command result) error = %v", err)
+		}
+		if decoded.Outcome != contract.GoalOutcomeStatus || decoded.Snapshot == nil ||
+			decoded.Snapshot.RunID != "run-goal" {
+			t.Fatalf("Goal command result = %#v", decoded)
+		}
+		var wrapped map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &wrapped); err != nil {
+			t.Fatalf("json.Unmarshal(Goal command object) error = %v", err)
+		}
+		if _, nested := wrapped["goal"]; nested {
+			t.Fatalf("Goal command JSON was nested: %s", stdout)
+		}
+	})
+
+	t.Run("Should surface Goal conflicts in structured formats", func(t *testing.T) {
+		t.Parallel()
+
+		for _, format := range []string{"json", "jsonl"} {
+			t.Run("Should render the conflict as "+format, func(t *testing.T) {
+				t.Parallel()
+
+				reason := contract.GoalReasonReplaceRequired
+				goalConflict := func() error {
+					return &goalCommandAPIError{
+						statusCode: 409,
+						status:     "Conflict",
+						result: contract.GoalCommandResult{
+							Outcome: contract.GoalOutcomeError, ReasonCode: &reason,
+						},
+					}
+				}
+				errorDeps := newTestDeps(t, &stubClient{
+					sendSessionPromptFn: func(
+						context.Context,
+						string,
+						SessionPromptRequest,
+					) (SessionPromptRecord, error) {
+						return SessionPromptRecord{}, goalConflict()
+					},
+					streamPromptSessionFn: func(context.Context, string, string, SSEHandler) error {
+						return goalConflict()
+					},
+				})
+				exitCode, _, stderr := executeRootCommandWithExit(
+					t,
+					errorDeps,
+					"session", "prompt", "sess-1", "/goal ship", "-o", format,
+				)
+				if exitCode == 0 {
+					t.Fatalf("Goal conflict %s exit code = 0", format)
+				}
+				var errorResult contract.GoalCommandResult
+				if err := json.Unmarshal([]byte(strings.TrimSpace(stderr)), &errorResult); err != nil {
+					t.Fatalf("json.Unmarshal(Goal conflict %s) error = %v; output=%q", format, err, stderr)
+				}
+				if errorResult.Outcome != contract.GoalOutcomeError || errorResult.ReasonCode == nil ||
+					*errorResult.ReasonCode != contract.GoalReasonReplaceRequired {
+					t.Fatalf("Goal conflict %s = %#v", format, errorResult)
+				}
+			})
+		}
+	})
+}
+
 func TestSessionPromptBusyInputActions(t *testing.T) {
 	t.Run("Should send explicit queue mode", func(t *testing.T) {
 		t.Parallel()
@@ -1182,6 +1286,45 @@ func TestSessionPromptJSONLOutput(t *testing.T) {
 		wantTypes := []string{"start", "text-start", "text-delta", "text-end", "finish"}
 		if !reflect.DeepEqual(partTypes, wantTypes) {
 			t.Fatalf("prompt jsonl part types = %#v, want %#v", partTypes, wantTypes)
+		}
+	})
+
+	t.Run("Should emit one direct line for a structured Goal result", func(t *testing.T) {
+		t.Parallel()
+
+		result := contract.GoalCommandResult{Outcome: contract.GoalOutcomeCleared}
+		deps := newTestDeps(t, &stubClient{
+			streamPromptSessionFn: func(
+				_ context.Context,
+				id string,
+				message string,
+				handler SSEHandler,
+			) error {
+				if id != "sess-1" || message != "/goal clear" {
+					t.Fatalf("StreamPromptSession() = %q/%q", id, message)
+				}
+				return handler(SSEEvent{Event: goalResultEventName, Data: mustJSON(t, result)})
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "prompt", "sess-1", "/goal clear", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt Goal jsonl) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 1 {
+			t.Fatalf("Goal prompt jsonl lines = %d, output=%q", len(lines), stdout)
+		}
+		var decoded contract.GoalCommandResult
+		if err := json.Unmarshal([]byte(lines[0]), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(Goal prompt jsonl) error = %v", err)
+		}
+		if decoded.Outcome != contract.GoalOutcomeCleared {
+			t.Fatalf("Goal prompt jsonl = %#v", decoded)
 		}
 	})
 }

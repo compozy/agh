@@ -10,6 +10,7 @@ import (
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/loop/dsl/refs"
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/task"
 )
@@ -35,31 +36,39 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		resolved := &ResolvedDefinition{
-			Definition: dsl.Definition{
-				Graph: dsl.Graph{
-					Nodes: []dsl.Node{
-						{
-							ID:       "load",
-							Class:    dsl.NodeClassSource,
-							Kind:     string(dsl.SourceInput),
-							InputRef: "load",
-						},
-						{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+		resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{
+			Inputs: map[string]dsl.Input{"load": {Type: dsl.InputTypeString}},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID:       "load",
+						Class:    dsl.NodeClassSource,
+						Kind:     string(dsl.SourceInput),
+						InputRef: "load",
 					},
-					Edges: []dsl.Edge{{From: "load", To: "agent"}},
+					{
+						ID:    "agent",
+						Class: dsl.NodeClassAction,
+						Kind:  string(dsl.ActionRunAgent),
+						Params: dsl.NodeParams{
+							"agent":  "codex",
+							"prompt": "Process the loaded input",
+						},
+					},
 				},
+				Edges: []dsl.Edge{{From: "load", To: "agent"}},
 			},
-		}
+		})
+		loopRun, snapshot := pinCoordinatorResolvedForTest(
+			t,
+			loopRun,
+			resolved,
+			snapshotEffectiveConfig(),
+		)
 		runner, err := NewCoordinatorRunner(
 			&coordinatorRunnerTaskRunReader{run: taskRun},
-			coordinatorRunnerLoopStore{run: loopRun},
+			coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 			coordinatorRunnerOutputs{},
-			DefinitionResolverFunc(
-				func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-					return resolved, nil
-				},
-			),
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
 		)
 		if err != nil {
@@ -106,62 +115,75 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 }
 
 func TestCoordinatorRunnerShouldResolveFanOutFromWorkspaceDefaults(t *testing.T) {
-	t.Run("Should use workspace defaults resolver for fan-out width", func(t *testing.T) {
+	t.Run("Should use the Run-pinned fan-out width", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-		loopRun := Run{
-			ID:          "looprun-workspace-defaults",
-			WorkspaceID: "ws-defaults",
-			LoopName:    "delivery",
-			Status:      StatusRunning,
-			Generation:  1,
-		}
-		resolved := &ResolvedDefinition{
-			Definition: dsl.Definition{
-				Graph: dsl.Graph{
-					Nodes: []dsl.Node{
-						{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
-						{ID: "split", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
-					},
-					Edges: []dsl.Edge{{From: "load", To: "split"}},
+		resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
+					{ID: "split", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
 				},
+				Edges: []dsl.Edge{{From: "load", To: "split"}},
 			},
-		}
+		})
 		fanOut := 7
-		var resolvedWorkspace WorkspaceID
-		runner, err := NewCoordinatorRunner(
-			&coordinatorRunnerTaskRunReader{},
-			coordinatorRunnerLoopStore{run: loopRun},
-			coordinatorRunnerOutputs{},
-			DefinitionResolverFunc(
-				func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-					return resolved, nil
-				},
-			),
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
-			WithCoordinatorDefaultsResolver(
-				func(_ context.Context, ws WorkspaceID) (LoopDefaults, error) {
-					resolvedWorkspace = ws
-					defaults := DefaultLoopDefaults()
-					defaults.Delivery.FanOutWidth = &fanOut
-					return defaults, nil
-				},
-			),
-		)
+		resolved.EffectiveConfig = snapshotEffectiveConfig()
+		resolved.EffectiveConfig.FanOutWidth = fanOut
+		effective, err := pinnedEffectiveConfig(resolved)
 		if err != nil {
-			t.Fatalf("NewCoordinatorRunner() error = %v", err)
-		}
-
-		effective, err := runner.resolveCoordinatorEffectiveConfig(ctx, loopRun, resolved)
-		if err != nil {
-			t.Fatalf("resolveCoordinatorEffectiveConfig() error = %v", err)
+			t.Fatalf("pinnedEffectiveConfig() error = %v", err)
 		}
 		if got, want := coordinatorFanOutWidth(effective), fanOut; got != want {
 			t.Fatalf("fan-out width = %d, want %d", got, want)
 		}
-		if got, want := resolvedWorkspace, loopRun.WorkspaceID; got != want {
-			t.Fatalf("resolved workspace = %q, want %q", got, want)
+	})
+}
+
+func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should copy the Run context nudge ratio into every Goal action input", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal)}
+		resolved := &ResolvedDefinition{Definition: dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}}}
+		run := Run{
+			ID:                    "looprun-goal-policy",
+			WorkspaceID:           "ws-goal-policy",
+			Inputs:                map[string]any{},
+			GoalContextNudgeRatio: 0,
+			Origin: &RunOrigin{
+				Kind: RunOriginSession, SessionID: "session-origin",
+				CreationProfileRef: "profile-origin", PolicySpecDigest: "policy-origin",
+				CreationDigest: "creation-origin",
+			},
+		}
+		actor, err := task.DeriveDaemonActorContext("loop-goal-policy-test", "")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		input, err := actionExecutionInput(
+			task.Run{ID: "taskrun-goal-policy"},
+			actor,
+			run,
+			resolved,
+			EffectiveConfig{},
+			node,
+			coordinatorActionRunMetadata{Generation: 1, GoalSegmentEpoch: 1},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("actionExecutionInput() error = %v", err)
+		}
+		if input.GoalContextNudgeRatio == nil || *input.GoalContextNudgeRatio != 0 {
+			t.Fatalf("GoalContextNudgeRatio = %#v, want pinned explicit zero", input.GoalContextNudgeRatio)
+		}
+		if input.OriginSessionID != run.Origin.SessionID ||
+			input.OriginCreationProfileRef != run.Origin.CreationProfileRef ||
+			input.OriginPolicySpecDigest != run.Origin.PolicySpecDigest ||
+			input.OriginCreationDigest != run.Origin.CreationDigest {
+			t.Fatalf("action origin identity = %#v, want %#v", input, run.Origin)
 		}
 	})
 }
@@ -206,14 +228,8 @@ func TestCoordinatorRunnerShouldResolveNoProgressWindowFromWorkspaceDefaults(t *
 			}},
 			dsl.Definition{
 				Graph:    coordinatorTestGraph(),
-				Contract: dsl.Contract{NoProgress: dsl.NoProgress{Window: 0}},
+				Contract: dsl.Contract{NoProgress: dsl.NoProgress{Window: 2}},
 			},
-			WithCoordinatorDefaultsResolver(func(context.Context, WorkspaceID) (LoopDefaults, error) {
-				window := 2
-				defaults := DefaultLoopDefaults()
-				defaults.Delivery.NoProgressWindow = &window
-				return defaults, nil
-			}),
 		)
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
@@ -233,57 +249,29 @@ func TestCoordinatorRunnerShouldResolveNoProgressWindowFromWorkspaceDefaults(t *
 }
 
 func TestCoordinatorRunnerShouldApplyGateRevisionsFromWorkspaceDefaults(t *testing.T) {
-	t.Run("Should rewrite gate node max revisions with workspace default", func(t *testing.T) {
+	t.Run("Should rewrite gate node max revisions with the Run-pinned value", func(t *testing.T) {
 		t.Parallel()
 
-		loopRun := Run{
-			ID:          "looprun-default-gate-revisions",
-			WorkspaceID: "ws-defaults",
-			LoopName:    "delivery",
-			Status:      StatusRunning,
-		}
-		resolved := &ResolvedDefinition{
-			Definition: dsl.Definition{
-				Graph: dsl.Graph{
-					Nodes: []dsl.Node{
-						{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
-						{
-							ID:           "review_gate",
-							Class:        dsl.NodeClassControl,
-							Kind:         string(dsl.ControlGate),
-							MaxRevisions: 1,
-						},
+		resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
+					{
+						ID:           "review_gate",
+						Class:        dsl.NodeClassControl,
+						Kind:         string(dsl.ControlGate),
+						MaxRevisions: 1,
 					},
-					Edges: []dsl.Edge{{From: "load", To: "review_gate"}},
 				},
+				Edges: []dsl.Edge{{From: "load", To: "review_gate"}},
 			},
-		}
+		})
 		gateRevisions := 6
-		runner, err := NewCoordinatorRunner(
-			&coordinatorRunnerTaskRunReader{},
-			coordinatorRunnerLoopStore{run: loopRun},
-			coordinatorRunnerOutputs{},
-			DefinitionResolverFunc(
-				func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-					return resolved, nil
-				},
-			),
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
-			WithCoordinatorDefaultsResolver(
-				func(context.Context, WorkspaceID) (LoopDefaults, error) {
-					defaults := DefaultLoopDefaults()
-					defaults.Delivery.GateMaxRevisions = &gateRevisions
-					return defaults, nil
-				},
-			),
-		)
+		resolved.EffectiveConfig = snapshotEffectiveConfig()
+		resolved.EffectiveConfig.GateMaxRevisions = gateRevisions
+		effective, err := pinnedEffectiveConfig(resolved)
 		if err != nil {
-			t.Fatalf("NewCoordinatorRunner() error = %v", err)
-		}
-
-		effective, err := runner.resolveCoordinatorEffectiveConfig(context.Background(), loopRun, resolved)
-		if err != nil {
-			t.Fatalf("resolveCoordinatorEffectiveConfig() error = %v", err)
+			t.Fatalf("pinnedEffectiveConfig() error = %v", err)
 		}
 		rewritten := coordinatorResolvedWithEffectiveConfig(resolved, effective)
 		node := rewritten.Definition.Graph.Nodes[1]
@@ -549,10 +537,10 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 			Status:         generationOutputAwaitingChild,
 			ChildLoopRunID: string(childRun.ID),
 		}}}})
-		runner.store = coordinatorRunnerLoopStore{runs: map[RunID]Run{
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
 			loopRun.ID:  loopRun,
 			childRun.ID: childRun,
-		}}
+		})
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
 		if err != nil {
@@ -604,10 +592,10 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 			NodeID:     "agent",
 			Status:     generationOutputPending,
 		}}}})
-		runner.store = coordinatorRunnerLoopStore{runs: map[RunID]Run{
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
 			loopRun.ID:  loopRun,
 			childRun.ID: childRun,
-		}}
+		})
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
 		if err != nil {
@@ -684,10 +672,10 @@ func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {
 				Timeout: "1s",
 			}}},
 		)
-		runner.store = coordinatorRunnerLoopStore{runs: map[RunID]Run{
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
 			loopRun.ID:  loopRun,
 			childRun.ID: childRun,
-		}}
+		})
 		runner.now = func() time.Time { return now.Add(2 * time.Second) }
 
 		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
@@ -1981,29 +1969,22 @@ func newCoordinatorRunnerForTestWithDefinition(
 	if runs == nil {
 		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
+	resolved := resolvedCoordinatorDefinitionForTest(t, def)
 	definitionDefaults := LoopDefaults{
 		Delivery: definitionConfigLayer(def),
 		Watch:    definitionConfigLayer(def),
 	}
-	options := []CoordinatorRunnerOption{
-		WithCoordinatorDefaultsResolver(
-			func(context.Context, WorkspaceID) (LoopDefaults, error) {
-				return definitionDefaults, nil
-			},
-		),
+	effective, err := ResolveEffectiveConfig(resolved, definitionDefaults, nil, LoopConfig{})
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
 	}
+	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
+	options := []CoordinatorRunnerOption{}
 	options = append(options, opts...)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun},
+		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
-		DefinitionResolverFunc(
-			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-				return &ResolvedDefinition{
-					Definition: def,
-				}, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		options...,
 	)
@@ -2011,6 +1992,84 @@ func newCoordinatorRunnerForTestWithDefinition(
 		t.Fatalf("NewCoordinatorRunner() error = %v", err)
 	}
 	return runner
+}
+
+func pinCoordinatorResolvedForTest(
+	t *testing.T,
+	run Run,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+) (Run, *DefinitionSnapshot) {
+	t.Helper()
+
+	snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+	}
+	run.DefinitionVersion = resolved.DefinitionVersion
+	run.DefinitionDigest = digest
+	return run, &DefinitionSnapshot{
+		WorkspaceID: run.WorkspaceID,
+		Digest:      digest,
+		Version:     resolved.DefinitionVersion,
+		Definition:  snapshotJSON,
+		ByteSize:    len(snapshotJSON),
+	}
+}
+
+func setCoordinatorRunnerRunsForTest(
+	t *testing.T,
+	runner *CoordinatorRunner,
+	runs map[RunID]Run,
+) {
+	t.Helper()
+
+	store, ok := runner.store.(coordinatorRunnerLoopStore)
+	if !ok {
+		t.Fatalf("coordinator store type = %T, want coordinatorRunnerLoopStore", runner.store)
+	}
+	if _, exists := runs[store.run.ID]; exists {
+		runs[store.run.ID] = store.run
+	}
+	store.runs = runs
+	runner.store = store
+}
+
+func resolvedCoordinatorDefinitionForTest(t *testing.T, definition dsl.Definition) *ResolvedDefinition {
+	t.Helper()
+
+	resolved, err := NewCompiler().Compile(definition)
+	if err == nil {
+		return resolved
+	}
+	definition.Normalize()
+	toolSchemas := map[string]ToolSchemaSnapshot{}
+	openKinds := map[string]struct{}{}
+	collectOpenActionKinds(definition.Graph, openKinds)
+	for kind := range openKinds {
+		toolSchemas[kind] = ToolSchemaSnapshot{
+			ToolID:            kind,
+			InputSchema:       []byte(`{}`),
+			InputSchemaDigest: "test:" + kind,
+		}
+	}
+	return &ResolvedDefinition{
+		Definition:        foldDefinitionDefaults(definition),
+		DefinitionVersion: definition.Meta.Version,
+		Templates:         map[string]*refs.Template{},
+		Conditions:        map[string]*refs.Condition{},
+		ToolSchemas:       toolSchemas,
+		WatchEventsContracts: referencedWatchEventsContracts(
+			definition,
+			SupportedWatchEvents(),
+		),
+		Defaults: ResolvedDefaults{
+			FanOutBatchSize: 1,
+			RunLoopMode:     dsl.RunLoopAwait,
+			Concurrency:     definition.Concurrency,
+		},
+		compiled: true,
+	}
 }
 
 func newCoordinatorRunnerForStopWhenTest(
@@ -2051,9 +2110,22 @@ func newCoordinatorRunnerForStopWhenTest(
 			Edges: []dsl.Edge{{From: "fetch_issues", To: "verify_gate"}},
 		},
 	})
+	effective, err := ResolveEffectiveConfig(
+		resolved,
+		LoopDefaults{
+			Delivery: definitionConfigLayer(resolved.Definition),
+			Watch:    definitionConfigLayer(resolved.Definition),
+		},
+		nil,
+		LoopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+	}
+	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{coordinatorRun.ID: coordinatorRun}},
-		coordinatorRunnerLoopStore{run: loopRun},
+		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 			{
 				Generation: 1,
@@ -2068,11 +2140,6 @@ func newCoordinatorRunnerForStopWhenTest(
 				OutputRef:  `{"outcome":"approved","route":{"action":"continue"}}`,
 			},
 		}}},
-		DefinitionResolverFunc(
-			func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error) {
-				return resolved, nil
-			},
-		),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorGateEvaluator(gateEvaluatorFunc(
 			func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
@@ -2285,8 +2352,9 @@ func (r coordinatorRunnerOutputs) ListGenerationOutputs(
 }
 
 type coordinatorRunnerLoopStore struct {
-	run  Run
-	runs map[RunID]Run
+	run      Run
+	runs     map[RunID]Run
+	snapshot *DefinitionSnapshot
 }
 
 func (s coordinatorRunnerLoopStore) CreateLoopRunForStart(
@@ -2313,10 +2381,13 @@ func (s coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunI
 }
 
 func (s coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
-	context.Context,
-	WorkspaceID,
-	string,
+	_ context.Context,
+	workspaceID WorkspaceID,
+	digest string,
 ) (DefinitionSnapshot, error) {
+	if s.snapshot != nil && s.snapshot.WorkspaceID == workspaceID && s.snapshot.Digest == digest {
+		return *s.snapshot, nil
+	}
 	panic("GetLoopDefinitionSnapshot should not be called")
 }
 
@@ -2361,6 +2432,7 @@ func (s coordinatorRunnerLoopStore) SetLoopRunPauseRequested(
 	WorkspaceID,
 	RunID,
 	bool,
+	task.ActorContext,
 ) error {
 	panic("SetLoopRunPauseRequested should not be called")
 }

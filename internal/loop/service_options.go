@@ -46,6 +46,20 @@ func WithHookDispatcher(hooks HookDispatcher) Option {
 	}
 }
 
+// WithGoalRunActivator injects the post-commit activation path for Goal successor workers.
+func WithGoalRunActivator(activator GoalRunActivator) Option {
+	return func(s *service) {
+		s.goalRunActivator = activator
+	}
+}
+
+// WithGoalPromptLeaseRevoker injects post-commit cancellation for exact managed Goal prompt leases.
+func WithGoalPromptLeaseRevoker(revoker GoalPromptLeaseRevoker) Option {
+	return func(s *service) {
+		s.goalLeaseRevoker = revoker
+	}
+}
+
 func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefaults, error) {
 	if s.defaultsResolver == nil {
 		return s.defaults, nil

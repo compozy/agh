@@ -3,7 +3,6 @@ import { memo, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { PermissionDataPart } from "@/systems/session/components/permission-prompt";
 import { RuntimeActivityNotice } from "@/systems/session/components/runtime-activity-notice";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
@@ -13,12 +12,15 @@ import { isAgentEventPayload, resolveToolResult } from "@/systems/session/lib/me
 import type { AghPermissionData } from "@/systems/session/types";
 import type { UIMessage } from "@/systems/session/types";
 import { Button, Eyebrow } from "@agh/ui";
+import { Link } from "@tanstack/react-router";
+import type { GoalPromptMeta } from "@/systems/session/types";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
   TimelineRowContext,
   type TimelineRowSharedState,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
+import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
 import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionWorkingRowView } from "./session-working-row";
 import {
@@ -34,26 +36,12 @@ import {
   visibleWorkEntries,
 } from "./session-timeline.logic";
 
-function formatDataPreview(data: unknown): string | null {
-  if (data === undefined || data === null) return null;
-  if (typeof data === "string") return data;
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return String(data);
-  }
-}
-
 function isAghPermissionData(value: unknown): value is AghPermissionData {
   return isAgentEventPayload(value) && typeof value.request_id === "string";
 }
 
 function SessionTextRowView({ row }: { row: SessionTextRow }) {
-  return (
-    <div className="text-sm leading-7 text-fg">
-      <MessageMarkdown content={row.part.text} streaming={row.part.state === "running"} />
-    </div>
-  );
+  return <SessionMessageText text={row.part.text} streaming={row.part.state === "running"} />;
 }
 
 function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
@@ -85,28 +73,7 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
     );
   }
 
-  const preview = formatDataPreview(row.part.data);
-  const clippedPreview =
-    preview && preview.length > 180 ? `${preview.slice(0, 180).trimEnd()}...` : preview;
-  return (
-    <div
-      data-testid="session-data-part"
-      className={cn(
-        "my-2 flex w-full min-w-0 items-start gap-2 rounded-lg border px-3 py-2",
-        "border-line bg-canvas-soft text-form-input text-muted"
-      )}
-    >
-      <div className="min-w-0">
-        <div className="text-card-title text-fg">Data event</div>
-        <div className="truncate text-form-label text-subtle">{row.part.name}</div>
-        {clippedPreview ? (
-          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-small-body text-muted">
-            {clippedPreview}
-          </pre>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <SessionDataEventCard name={row.part.name} data={row.part.data} />;
 }
 
 function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
@@ -288,8 +255,37 @@ function renderTimelineRows(rows: readonly SessionRow[]): ReactNode {
   return rows.map(row => <TimelineRowContent key={row.id} row={row} />);
 }
 
+const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
+  "goal-work": "Goal work",
+  "goal-continuation": "Goal continuation",
+  "goal-compaction": "Goal compaction",
+};
+
+function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
+  const turn = goal.turn === null ? null : `turn ${goal.turn}`;
+  return (
+    <div
+      className="mb-1 flex flex-wrap items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2.5 py-1.5"
+      data-testid="goal-prompt-meta"
+    >
+      <Eyebrow className="text-info">{GOAL_PROMPT_LABELS[goal.kind]}</Eyebrow>
+      <span className="font-mono text-badge text-subtle">
+        {goal.node_id} · generation {goal.generation}
+        {turn ? ` · ${turn}` : ""}
+      </span>
+      <Link
+        className="ml-auto text-small-body text-muted hover:text-fg"
+        params={{ runId: goal.run_id }}
+        to="/loop-runs/$runId"
+      >
+        Open run
+      </Link>
+    </div>
+  );
+}
+
 export function AssistantMessageTimeline() {
-  const { expandedTurns, rows, toggleChangedFiles, toggleTurn, toggleWorkGroup } =
+  const { expandedTurns, goal, rows, toggleChangedFiles, toggleTurn, toggleWorkGroup } =
     useAssistantMessageTimeline();
   // The toggle callbacks are already stable (`useCallback`), so this value's
   // identity changes only when `expandedTurns` does (a turn toggle) — never while
@@ -301,6 +297,7 @@ export function AssistantMessageTimeline() {
 
   return (
     <TimelineRowContext.Provider value={sharedState}>
+      {goal ? <GoalPromptNotice goal={goal} /> : null}
       {renderTimelineRows(rows)}
     </TimelineRowContext.Provider>
   );

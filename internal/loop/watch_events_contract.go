@@ -67,9 +67,9 @@ const (
 
 // WatchEventsContract describes one supported watch-events family row.
 type WatchEventsContract struct {
-	Kind          hooks.HookEvent
-	Stream        string
-	LedgerTypes   []string
-	PayloadFields []string
-	RequiredVars  []string
+	Kind          hooks.HookEvent `json:"kind"`
+	Stream        string          `json:"stream"`
+	LedgerTypes   []string        `json:"ledger_types"`
+	PayloadFields []string        `json:"payload_fields"`
+	RequiredVars  []string        `json:"required_vars"`
 }

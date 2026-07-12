@@ -2,6 +2,7 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
@@ -10,6 +11,9 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
 )
+
+// ErrEventIdentityCollision reports a deterministic event ID reused with different content.
+var ErrEventIdentityCollision = errors.New("store: session event identity collision")
 
 // Record appends a session event using the dedicated writer goroutine.
 func (s *SessionDB) Record(ctx context.Context, event store.SessionEvent) error {
@@ -20,6 +24,30 @@ func (s *SessionDB) Record(ctx context.Context, event store.SessionEvent) error 
 // RecordPersisted appends a session event and returns the stored row with sequence metadata.
 func (s *SessionDB) RecordPersisted(ctx context.Context, event store.SessionEvent) (store.SessionEvent, error) {
 	return s.recordSessionEvent(ctx, event)
+}
+
+// AppendEventIfAbsent inserts one deterministic event or returns its byte-identical existing row.
+func (s *SessionDB) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	if s == nil {
+		return store.SessionEvent{}, errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return store.SessionEvent{}, errors.New("store: append event context is required")
+	}
+	normalized, err := s.normalizeSessionEvent(event)
+	if err != nil {
+		return store.SessionEvent{}, err
+	}
+	normalized.ID = strings.TrimSpace(normalized.ID)
+	if normalized.ID == "" {
+		return store.SessionEvent{}, errors.New("store: append-if-absent event id is required")
+	}
+	return s.enqueueWritePersisted(ctx, sessionWriteRequest{
+		ctx: ctx, kind: sessionWriteEventIfAbsent, event: normalized, result: make(chan sessionWriteResult, 1),
+	})
 }
 
 // RecordPersistedBatch appends session events in one writer-owned transaction.
@@ -154,6 +182,73 @@ func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) (s
 		return store.SessionEvent{}, fmt.Errorf("store: persisted %d rows for one session event", len(persisted))
 	}
 	return persisted[0], nil
+}
+
+func (s *SessionDB) writeEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = s.now()
+	}
+	var persisted store.SessionEvent
+	err := store.ExecuteWriteNoCheckpoint(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		existing, err := s.scanSessionEvent(tx.QueryRowContext(
+			ctx,
+			`SELECT `+sessionEventColumns+` FROM events WHERE id = ?`,
+			event.ID,
+		))
+		if err == nil {
+			if !sessionEventsHaveIdenticalIdentity(existing, event) {
+				return fmt.Errorf("%w: %s", ErrEventIdentityCollision, event.ID)
+			}
+			persisted = existing
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		sequence, err := nextEventSequence(ctx, tx)
+		if err != nil {
+			return err
+		}
+		event.Sequence = sequence
+		state, err := loadProjectionState(ctx, tx)
+		if err != nil {
+			return err
+		}
+		projector, err := transcript.NewProjector(state, projectionSQLResolver{db: tx})
+		if err != nil {
+			return err
+		}
+		assignment, err := projector.Assign(ctx, event)
+		if err != nil {
+			return err
+		}
+		if err := insertSessionEvent(ctx, tx, event, assignment.Entry.Key); err != nil {
+			return err
+		}
+		affected := map[string]struct{}{assignment.Entry.Key: {}}
+		for _, key := range assignment.CompletedKeys {
+			affected[key] = struct{}{}
+		}
+		if err := persistIncrementalTranscriptProjection(ctx, tx, s.sessionID, projector, affected); err != nil {
+			return err
+		}
+		persisted = event
+		return nil
+	})
+	if err != nil {
+		return store.SessionEvent{}, err
+	}
+	return persisted, nil
+}
+
+func sessionEventsHaveIdenticalIdentity(existing store.SessionEvent, candidate store.SessionEvent) bool {
+	return existing.ID == candidate.ID && existing.SessionID == candidate.SessionID &&
+		existing.TurnID == candidate.TurnID && existing.Type == candidate.Type &&
+		existing.AgentName == candidate.AgentName && existing.Content == candidate.Content &&
+		existing.Timestamp.Equal(candidate.Timestamp)
 }
 
 func (s *SessionDB) writeEventBatch(

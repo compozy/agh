@@ -72,19 +72,20 @@ type SteerPromptRequest struct {
 
 // SendPromptResultPayload reports non-streaming busy-input outcomes.
 type SendPromptResultPayload struct {
-	Status                     string     `json:"status"`
-	Mode                       PromptMode `json:"mode,omitempty"`
-	Queued                     bool       `json:"queued,omitempty"`
-	Staged                     bool       `json:"staged,omitempty"`
-	Interrupted                bool       `json:"interrupted,omitempty"`
-	QueueEntryID               string     `json:"queue_entry_id,omitempty"`
-	QueuePosition              int        `json:"queue_position,omitempty"`
-	QueueGeneration            int64      `json:"queue_generation,omitempty"`
-	EstimatedSendAt            *time.Time `json:"estimated_send_at,omitempty"`
-	PreviousTurnID             string     `json:"previous_turn_id,omitempty"`
-	NewTurnID                  string     `json:"new_turn_id,omitempty"`
-	CanceledQueuedEntries      int        `json:"canceled_queued_entries,omitempty"`
-	FallbackModeIfNoToolResult PromptMode `json:"fallback_mode_if_no_tool_result,omitempty"`
+	Status                     string             `json:"status"`
+	Mode                       PromptMode         `json:"mode,omitempty"`
+	Queued                     bool               `json:"queued,omitempty"`
+	Staged                     bool               `json:"staged,omitempty"`
+	Interrupted                bool               `json:"interrupted,omitempty"`
+	QueueEntryID               string             `json:"queue_entry_id,omitempty"`
+	QueuePosition              int                `json:"queue_position,omitempty"`
+	QueueGeneration            int64              `json:"queue_generation,omitempty"`
+	EstimatedSendAt            *time.Time         `json:"estimated_send_at,omitempty"`
+	PreviousTurnID             string             `json:"previous_turn_id,omitempty"`
+	NewTurnID                  string             `json:"new_turn_id,omitempty"`
+	CanceledQueuedEntries      int                `json:"canceled_queued_entries,omitempty"`
+	FallbackModeIfNoToolResult PromptMode         `json:"fallback_mode_if_no_tool_result,omitempty"`
+	Goal                       *GoalCommandResult `json:"goal,omitempty"`
 }
 
 // SessionPayload is the shared session response payload.
@@ -108,16 +109,17 @@ type SessionPayload struct {
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
-	StopDetail   string                  `json:"stop_detail,omitempty"`
-	Failure      *SessionFailurePayload  `json:"failure,omitempty"`
-	ACPSessionID string                  `json:"acp_session_id,omitempty"`
-	ACPCaps      *ACPCapsPayload         `json:"acp_caps,omitempty"`
-	Activity     *RuntimeActivityPayload `json:"activity,omitempty"`
-	Sandbox      *SessionSandboxPayload  `json:"sandbox,omitempty"`
-	Lineage      *SessionLineagePayload  `json:"lineage,omitempty"`
-	Health       *SessionHealthPayload   `json:"health,omitempty"`
-	CreatedAt    time.Time               `json:"created_at"`
-	UpdatedAt    time.Time               `json:"updated_at"`
+	StopDetail        string                       `json:"stop_detail,omitempty"`
+	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
+	ACPSessionID      string                       `json:"acp_session_id,omitempty"`
+	ACPCaps           *ACPCapsPayload              `json:"acp_caps,omitempty"`
+	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands"`
+	Activity          *RuntimeActivityPayload      `json:"activity,omitempty"`
+	Sandbox           *SessionSandboxPayload       `json:"sandbox,omitempty"`
+	Lineage           *SessionLineagePayload       `json:"lineage,omitempty"`
+	Health            *SessionHealthPayload        `json:"health,omitempty"`
+	CreatedAt         time.Time                    `json:"created_at"`
+	UpdatedAt         time.Time                    `json:"updated_at"`
 }
 
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by
@@ -202,30 +204,6 @@ type SessionSandboxPayload struct {
 	ProviderStateJSON json.RawMessage `json:"provider_state_json,omitempty"`
 }
 
-// ACPCapsPayload is the JSON representation of ACP capabilities.
-type ACPCapsPayload struct {
-	SupportsLoadSession bool                         `json:"supports_load_session"`
-	SupportedModes      []string                     `json:"supported_modes,omitempty"`
-	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
-}
-
-// SessionConfigOptionPayload is one active ACP session config option.
-type SessionConfigOptionPayload struct {
-	ID          string                            `json:"id"`
-	Label       string                            `json:"label,omitempty"`
-	Description string                            `json:"description,omitempty"`
-	Kind        string                            `json:"kind"`
-	Current     string                            `json:"current,omitempty"`
-	Values      []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-// SessionConfigOptionValuePayload is one selectable value for an active ACP config option.
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-}
-
 // OpenAIModelListResponse is the OpenAI-compatible model list projection.
 type OpenAIModelListResponse struct {
 	Object string               `json:"object"`
@@ -290,6 +268,7 @@ type SessionEventPayload struct {
 	RootSessionID   string                 `json:"root_session_id,omitempty"`
 	SpawnDepth      int                    `json:"spawn_depth"`
 	Content         json.RawMessage        `json:"content"`
+	Goal            *GoalPromptMeta        `json:"goal,omitempty"`
 	StopReason      store.StopReason       `json:"stop_reason,omitempty"`
 	StopDetail      string                 `json:"stop_detail,omitempty"`
 	Failure         *SessionFailurePayload `json:"failure,omitempty"`
@@ -405,23 +384,26 @@ type AgentMCPServerJSON struct {
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
 type AgentEventPayload struct {
-	Type       string                  `json:"type"`
-	SessionID  string                  `json:"session_id,omitempty"`
-	TurnID     string                  `json:"turn_id,omitempty"`
-	RequestID  string                  `json:"request_id,omitempty"`
-	Timestamp  time.Time               `json:"timestamp"`
-	Text       string                  `json:"text,omitempty"`
-	Title      string                  `json:"title,omitempty"`
-	ToolCallID string                  `json:"tool_call_id,omitempty"`
-	StopReason string                  `json:"stop_reason,omitempty"`
-	Action     string                  `json:"action,omitempty"`
-	Resource   string                  `json:"resource,omitempty"`
-	Decision   string                  `json:"decision,omitempty"`
-	Error      string                  `json:"error,omitempty"`
-	Failure    *SessionFailurePayload  `json:"failure,omitempty"`
-	Usage      *TokenUsagePayload      `json:"usage,omitempty"`
-	Runtime    *RuntimeActivityPayload `json:"runtime,omitempty"`
-	Raw        json.RawMessage         `json:"raw,omitempty"`
+	Type              string                       `json:"type"`
+	SessionID         string                       `json:"session_id,omitempty"`
+	TurnID            string                       `json:"turn_id,omitempty"`
+	RequestID         string                       `json:"request_id,omitempty"`
+	Timestamp         time.Time                    `json:"timestamp"`
+	Text              string                       `json:"text,omitempty"`
+	Title             string                       `json:"title,omitempty"`
+	ToolCallID        string                       `json:"tool_call_id,omitempty"`
+	StopReason        string                       `json:"stop_reason,omitempty"`
+	PromptStopReason  ACPPromptStopReason          `json:"prompt_stop_reason,omitempty"`
+	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands,omitempty"`
+	Action            string                       `json:"action,omitempty"`
+	Resource          string                       `json:"resource,omitempty"`
+	Decision          string                       `json:"decision,omitempty"`
+	Error             string                       `json:"error,omitempty"`
+	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
+	Goal              *GoalPromptMeta              `json:"goal,omitempty"`
+	Usage             *TokenUsagePayload           `json:"usage,omitempty"`
+	Runtime           *RuntimeActivityPayload      `json:"runtime,omitempty"`
+	Raw               json.RawMessage              `json:"raw,omitempty"`
 }
 
 // SessionUsagePayload is the aggregated per-session token-usage summary sourced

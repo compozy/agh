@@ -143,6 +143,47 @@ func (s *Service) ClaimNext(
 	return s.store.ClaimNextSessionInput(ctx, strings.TrimSpace(sessionID), s.now())
 }
 
+// PeekNext returns the next eligible input without mutating its queue state.
+func (s *Service) PeekNext(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionInputQueueEntry, bool, error) {
+	target := strings.TrimSpace(sessionID)
+	entry, found, err := s.store.PeekNextSessionInput(ctx, target)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
+			"inputqueue: peek next input for session %q: %w",
+			target,
+			err,
+		)
+	}
+	return entry, found, nil
+}
+
+// Get returns one exact durable queue entry.
+func (s *Service) Get(
+	ctx context.Context,
+	sessionID string,
+	entryID string,
+) (store.SessionInputQueueEntry, error) {
+	target := strings.TrimSpace(sessionID)
+	targetEntry := strings.TrimSpace(entryID)
+	entry, err := s.store.GetSessionInputQueueEntry(
+		ctx,
+		target,
+		targetEntry,
+	)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf(
+			"inputqueue: get input %q for session %q: %w",
+			targetEntry,
+			target,
+			err,
+		)
+	}
+	return entry, nil
+}
+
 // MarkSent records successful dispatch.
 func (s *Service) MarkSent(ctx context.Context, sessionID string, entryID string) error {
 	return s.store.MarkSessionInputSent(ctx, sessionID, entryID, s.now())

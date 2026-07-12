@@ -214,6 +214,12 @@ func normalizeCancelRun(req CancelRun) (CancelRun, error) {
 func normalizeRunResult(result RunResult) (RunResult, error) {
 	normalized := result
 	normalized.Value = normalizeRawJSON(normalized.Value)
+	if normalized.CoordinatorControl != nil {
+		control := *normalized.CoordinatorControl
+		control.Kind = strings.TrimSpace(control.Kind)
+		control.Payload = normalizeRawJSON(control.Payload)
+		normalized.CoordinatorControl = &control
+	}
 	if err := normalized.Validate("run_result"); err != nil {
 		return RunResult{}, err
 	}

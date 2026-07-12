@@ -174,6 +174,9 @@ export function useSessionPageControls(
       }
 
       const result = await queuePromptMutation.mutateAsync({ id: sessionId, message: text });
+      if ("outcome" in result) {
+        return;
+      }
       const queueEntryId = result.queue_entry_id;
       if (result.queued && queueEntryId) {
         setQueuedPrompts(prev => [...prev, { id: queueEntryId, text }]);

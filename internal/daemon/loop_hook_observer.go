@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,6 +29,18 @@ type loopHookCoordinatorStore interface {
 		origin taskpkg.Origin,
 		now time.Time,
 	) (taskpkg.Run, bool, error)
+	LookupLoopGenerationOutputStatus(
+		ctx context.Context,
+		loopRunID string,
+		taskRunID string,
+	) (string, bool, error)
+	ListGenerationOutputs(
+		ctx context.Context,
+		runID looppkg.RunID,
+		generation int,
+	) ([]looppkg.GenerationOutput, error)
+	GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error)
+	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 }
 
 type loopNodeTerminalDispatcher interface {
@@ -132,13 +145,36 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 	if err := o.store.AdvanceLoopRunProgress(ctx, loopRunID, payload.Timestamp); err != nil {
 		errs = append(errs, err)
 	}
+	suppress, suppressErr := o.suppressIntermediateGoalTerminal(ctx, loopRunID, payload.RunID)
+	if suppressErr != nil {
+		errs = append(errs, suppressErr)
+	}
 	if err := o.enqueueNodeTerminalWake(ctx, payload); err != nil {
 		errs = append(errs, err)
 	}
-	if _, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, loopPayload); err != nil {
-		errs = append(errs, fmt.Errorf("dispatch loop.node.terminal: %w", err))
+	if !suppress && suppressErr == nil {
+		_, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, loopPayload)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("dispatch loop.node.terminal: %w", err))
+		}
 	}
 	return errors.Join(errs...)
+}
+
+func (o *loopNativeHookObserver) suppressIntermediateGoalTerminal(
+	ctx context.Context,
+	loopRunID string,
+	taskRunID string,
+) (bool, error) {
+	status, found, err := o.store.LookupLoopGenerationOutputStatus(ctx, loopRunID, strings.TrimSpace(taskRunID))
+	if err != nil {
+		return true, fmt.Errorf("lookup loop generation output status: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+	return status == looppkg.GenerationOutputStatusControlPending ||
+		status == looppkg.GenerationOutputStatusAwaitingGoal, nil
 }
 
 func (o *loopNativeHookObserver) enqueueNodeTerminalWake(
@@ -166,6 +202,9 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 	payload hookspkg.LoopTerminalPayload,
 ) error {
 	var errs []error
+	if err := o.dispatchSettledGoalNodeTerminals(ctx, payload); err != nil {
+		errs = append(errs, err)
+	}
 	parentWakeAdded, err := o.enqueueParentAwaitWake(ctx, payload)
 	if err != nil {
 		errs = append(errs, err)
@@ -180,6 +219,104 @@ func (o *loopNativeHookObserver) OnLoopTerminal(
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminals(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) error {
+	loopStatus := looppkg.Status(strings.TrimSpace(payload.Status))
+	if loopStatus != looppkg.StatusBlocked && loopStatus != looppkg.StatusExhausted {
+		return nil
+	}
+	if payload.Generation <= 0 {
+		return fmt.Errorf("daemon: settled Goal node hook requires a positive generation")
+	}
+	outputs, err := o.store.ListGenerationOutputs(ctx, looppkg.RunID(payload.LoopRunID), payload.Generation)
+	if err != nil {
+		return fmt.Errorf("daemon: list settled Goal outputs: %w", err)
+	}
+	var errs []error
+	for _, output := range outputs {
+		if output.Status != hookAgentEventsFailedKey || strings.TrimSpace(output.TaskRunID) == "" {
+			continue
+		}
+		if err := o.dispatchSettledGoalNodeTerminal(ctx, payload, output); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (o *loopNativeHookObserver) dispatchSettledGoalNodeTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+	output looppkg.GenerationOutput,
+) error {
+	run, err := o.store.GetTaskRun(ctx, strings.TrimSpace(output.TaskRunID))
+	if err != nil {
+		return fmt.Errorf("daemon: load settled Goal task run %q: %w", output.TaskRunID, err)
+	}
+	if run.Status.Normalize() != taskpkg.TaskRunStatusCompleted || !isLoopActionControlEnvelope(run.Result) {
+		return nil
+	}
+	control, err := looppkg.DecodeActionControlResult(run.Result)
+	if err != nil {
+		return fmt.Errorf("daemon: decode settled Goal task run %q: %w", run.ID, err)
+	}
+	if control.Disposition != looppkg.ActionDispositionBlocked &&
+		control.Disposition != looppkg.ActionDispositionExhausted {
+		return nil
+	}
+	taskRecord, err := o.store.GetTask(ctx, run.TaskID)
+	if err != nil {
+		return fmt.Errorf("daemon: load settled Goal task %q: %w", run.TaskID, err)
+	}
+	details, err := json.Marshal(control)
+	if err != nil {
+		return fmt.Errorf("daemon: marshal settled Goal control: %w", err)
+	}
+	nodePayload := hookspkg.LoopNodeTerminalPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     hookspkg.HookLoopNodeTerminal,
+			Timestamp: payload.Timestamp,
+		},
+		LoopContext: hookspkg.LoopContext{
+			LoopRunID:             strings.TrimSpace(payload.LoopRunID),
+			WorkspaceID:           strings.TrimSpace(payload.WorkspaceID),
+			LoopName:              strings.TrimSpace(payload.LoopName),
+			Generation:            output.Generation,
+			TaskID:                strings.TrimSpace(run.TaskID),
+			RunID:                 strings.TrimSpace(run.ID),
+			RunKind:               run.RunKind.Normalize().String(),
+			NodeID:                strings.TrimSpace(output.NodeID),
+			CoordinationChannelID: strings.TrimSpace(run.CoordinationChannelID),
+			NetworkChannel:        strings.TrimSpace(run.NetworkChannel),
+			SessionID:             strings.TrimSpace(run.SessionID),
+			ActorKind:             strings.TrimSpace(payload.ActorKind),
+			ActorID:               strings.TrimSpace(payload.ActorID),
+			OriginKind:            string(run.Origin.Kind.Normalize()),
+			OriginRef:             strings.TrimSpace(run.Origin.Ref),
+		},
+		TaskStatus: string(taskRecord.Status.Normalize()),
+		RunStatus:  run.Status.Normalize().String(),
+		Error:      string(control.Cause),
+		Details:    details,
+	}
+	if _, err := o.dispatcher.DispatchLoopNodeTerminal(ctx, nodePayload); err != nil {
+		return fmt.Errorf("dispatch settled Goal loop.node.terminal: %w", err)
+	}
+	return nil
+}
+
+func isLoopActionControlEnvelope(raw json.RawMessage) bool {
+	var envelope struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return false
+	}
+	return strings.TrimSpace(envelope.Kind) == looppkg.CoordinatorControlKindLoopAction
 }
 
 func (o *loopNativeHookObserver) enqueueParentAwaitWake(

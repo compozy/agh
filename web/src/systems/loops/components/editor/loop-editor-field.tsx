@@ -292,8 +292,12 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
           value={getAtPath(raw, field.path)}
           suggestions={props.suggestions}
           disabled={disabled}
+          allowedTypes={field.allowedTypes}
           onChange={criteria => onChange(field.path, criteria)}
         />
+        {field.hint ? (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-subtle">{field.hint}</p>
+        ) : null}
       </div>
     );
   }

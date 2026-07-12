@@ -16,7 +16,12 @@ const sessionInputGenerationColumn = "input_generation"
 const sessionInputQueueColumns = `
 	id, session_id, status, mode, text, session_generation, task_run_id, run_generation,
 	attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary,
-	canceled_at, updated_at
+	canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch,
+	prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable,
+	activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at,
+	terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason,
+	terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used,
+	terminal_at
 `
 
 // EnqueueSessionInput appends one queued operator input entry under the configured cap.
@@ -203,6 +208,8 @@ func (g *GlobalDB) ClaimNextSessionInput(
 			FROM session_input_queue
 			WHERE session_id = ?
 			  AND status = ?
+			  AND dispatchable = 1
+			  AND owner_kind IS NULL
 			  AND session_generation = (
 				SELECT input_generation FROM sessions WHERE id = ?
 			  )
@@ -220,18 +227,23 @@ func (g *GlobalDB) ClaimNextSessionInput(
 			return scanErr
 		}
 		nowRaw := store.FormatTimestamp(now)
-		if _, updateErr := exec.ExecContext(ctx, `
+		result, updateErr := exec.ExecContext(ctx, `
 			UPDATE session_input_queue
 			SET status = ?, dispatch_started_at = ?, attempt_count = attempt_count + 1, updated_at = ?
-			WHERE id = ? AND session_id = ? AND status = ?`,
+			WHERE id = ? AND session_id = ? AND status = ?
+			  AND dispatchable = 1 AND owner_kind IS NULL`,
 			store.SessionInputQueueStatusDispatching,
 			nowRaw,
 			nowRaw,
 			claimed.ID,
 			target,
 			store.SessionInputQueueStatusQueued,
-		); updateErr != nil {
+		)
+		if updateErr != nil {
 			return fmt.Errorf("store: mark session input dispatching: %w", updateErr)
+		}
+		if err := requireGoalRowsAffected(result, "mark human session input dispatching"); err != nil {
+			return err
 		}
 		refreshed, getErr := getSessionInputQueueEntry(ctx, exec, target, claimed.ID)
 		if getErr != nil {
@@ -247,215 +259,50 @@ func (g *GlobalDB) ClaimNextSessionInput(
 	return entry, ok, nil
 }
 
-// MarkSessionInputSent records successful dispatch for one queue entry.
-func (g *GlobalDB) MarkSessionInputSent(
+// PeekNextSessionInput returns the oldest eligible human or managed row without claiming it.
+func (g *GlobalDB) PeekNextSessionInput(
 	ctx context.Context,
 	sessionID string,
-	entryID string,
-	now time.Time,
-) error {
-	return g.updateSessionInputTerminal(
-		ctx,
-		"mark session input sent",
-		sessionID,
-		entryID,
-		store.SessionInputQueueStatusSent,
-		"",
-		now,
-	)
-}
-
-// ReleaseSessionInput returns a leased entry to the queued state after a dispatch race.
-func (g *GlobalDB) ReleaseSessionInput(ctx context.Context, sessionID string, entryID string, now time.Time) error {
-	if err := g.checkReady(ctx, "release session input"); err != nil {
-		return err
-	}
-	target := strings.TrimSpace(sessionID)
-	entryID = strings.TrimSpace(entryID)
-	if target == "" || entryID == "" {
-		return errors.New("store: session id and queue entry id are required")
-	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	nowRaw := store.FormatTimestamp(now.UTC())
-	result, err := g.db.ExecContext(ctx, `
-		UPDATE session_input_queue
-		SET status = ?, dispatch_started_at = NULL, updated_at = ?
-		WHERE id = ? AND session_id = ? AND status = ?`,
-		store.SessionInputQueueStatusQueued,
-		nowRaw,
-		entryID,
-		target,
-		store.SessionInputQueueStatusDispatching,
-	)
-	if err != nil {
-		return fmt.Errorf("store: release session input: %w", err)
-	}
-	return requireSessionInputRowsAffected(result, "release session input", entryID)
-}
-
-// MarkSessionInputFailed records a dispatch failure for one queue entry.
-func (g *GlobalDB) MarkSessionInputFailed(
-	ctx context.Context,
-	sessionID string,
-	entryID string,
-	summary string,
-	now time.Time,
-) error {
-	return g.updateSessionInputTerminal(
-		ctx,
-		"mark session input failed",
-		sessionID,
-		entryID,
-		store.SessionInputQueueStatusFailed,
-		summary,
-		now,
-	)
-}
-
-func (g *GlobalDB) updateSessionInputTerminal(
-	ctx context.Context,
-	action string,
-	sessionID string,
-	entryID string,
-	status string,
-	summary string,
-	now time.Time,
-) error {
-	if err := g.checkReady(ctx, action); err != nil {
-		return err
-	}
-	target := strings.TrimSpace(sessionID)
-	entryID = strings.TrimSpace(entryID)
-	if target == "" || entryID == "" {
-		return errors.New("store: session id and queue entry id are required")
-	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	nowRaw := store.FormatTimestamp(now.UTC())
-	column := "sent_at"
-	if status == store.SessionInputQueueStatusFailed {
-		column = "failed_at"
-	}
-	query := fmt.Sprintf(`
-		UPDATE session_input_queue
-		SET status = ?, %s = ?, failure_summary = ?, updated_at = ?
-		WHERE id = ? AND session_id = ? AND status = ?`, column)
-	result, err := g.db.ExecContext(
-		ctx,
-		query,
-		status,
-		nowRaw,
-		strings.TrimSpace(summary),
-		nowRaw,
-		entryID,
-		target,
-		store.SessionInputQueueStatusDispatching,
-	)
-	if err != nil {
-		return fmt.Errorf("store: %s: %w", action, err)
-	}
-	return requireSessionInputRowsAffected(result, action, entryID)
-}
-
-// CancelSessionInput cancels one pending queue entry.
-func (g *GlobalDB) CancelSessionInput(
-	ctx context.Context,
-	sessionID string,
-	entryID string,
-	now time.Time,
-) (store.SessionInputQueueEntry, error) {
-	if err := g.checkReady(ctx, "cancel session input"); err != nil {
-		return store.SessionInputQueueEntry{}, err
-	}
-	target := strings.TrimSpace(sessionID)
-	entryID = strings.TrimSpace(entryID)
-	if target == "" || entryID == "" {
-		return store.SessionInputQueueEntry{}, errors.New("store: session id and queue entry id are required")
-	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	var entry store.SessionInputQueueEntry
-	err := g.withImmediateTransaction(ctx, "cancel session input", func(exec globalSQLExecutor) error {
-		existing, getErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
-		if getErr != nil {
-			return getErr
-		}
-		if existing.Status == store.SessionInputQueueStatusSent ||
-			existing.Status == store.SessionInputQueueStatusFailed ||
-			existing.Status == store.SessionInputQueueStatusCanceled {
-			entry = existing
-			return nil
-		}
-		nowRaw := store.FormatTimestamp(now.UTC())
-		if _, updateErr := exec.ExecContext(ctx, `
-			UPDATE session_input_queue
-			SET status = ?, canceled_at = ?, updated_at = ?
-			WHERE id = ? AND session_id = ?`,
-			store.SessionInputQueueStatusCanceled,
-			nowRaw,
-			nowRaw,
-			entryID,
-			target,
-		); updateErr != nil {
-			return fmt.Errorf("store: cancel session input: %w", updateErr)
-		}
-		updated, getUpdatedErr := getSessionInputQueueEntry(ctx, exec, target, entryID)
-		if getUpdatedErr != nil {
-			return getUpdatedErr
-		}
-		entry = updated
-		return nil
-	})
-	if err != nil {
-		return store.SessionInputQueueEntry{}, err
-	}
-	return entry, nil
-}
-
-// CancelPendingSessionInputs cancels stale entries older than the supplied generation.
-func (g *GlobalDB) CancelPendingSessionInputs(
-	ctx context.Context,
-	sessionID string,
-	generation int64,
-	now time.Time,
-) (int, error) {
-	if err := g.checkReady(ctx, "cancel pending session inputs"); err != nil {
-		return 0, err
+) (store.SessionInputQueueEntry, bool, error) {
+	if err := g.checkReady(ctx, "peek next session input"); err != nil {
+		return store.SessionInputQueueEntry{}, false, err
 	}
 	target := strings.TrimSpace(sessionID)
 	if target == "" {
-		return 0, errors.New("store: session id is required")
+		return store.SessionInputQueueEntry{}, false, errors.New("store: session id is required")
 	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	nowRaw := store.FormatTimestamp(now.UTC())
-	result, err := g.db.ExecContext(ctx, `
-		UPDATE session_input_queue
-		SET status = ?, canceled_at = ?, updated_at = ?
+	entry, err := scanSessionInputQueueEntry(g.db.QueryRowContext(ctx, `
+		SELECT `+sessionInputQueueColumns+`
+		FROM session_input_queue
 		WHERE session_id = ?
-		  AND session_generation < ?
-		  AND status IN (?, ?)`,
-		store.SessionInputQueueStatusCanceled,
-		nowRaw,
-		nowRaw,
-		target,
-		generation,
-		store.SessionInputQueueStatusQueued,
-		store.SessionInputQueueStatusDispatching,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("store: cancel pending session inputs: %w", err)
+		  AND status = 'queued'
+		  AND terminal_at IS NULL
+		  AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?)
+		  AND (
+			(owner_kind IS NULL AND dispatchable = 1)
+			OR (owner_kind = 'goal' AND dispatchable = 0 AND fence_kind IS NULL)
+		  )
+		ORDER BY enqueued_at ASC, id ASC
+		LIMIT 1`, target, target))
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.SessionInputQueueEntry{}, false, nil
 	}
-	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("store: count canceled session inputs: %w", err)
+		return store.SessionInputQueueEntry{}, false, err
 	}
-	return int(rows), nil
+	return entry, true, nil
+}
+
+// GetSessionInputQueueEntry returns one exact queue entry for durable await/recovery.
+func (g *GlobalDB) GetSessionInputQueueEntry(
+	ctx context.Context,
+	sessionID string,
+	entryID string,
+) (store.SessionInputQueueEntry, error) {
+	if err := g.checkReady(ctx, "get session input queue entry"); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	return getSessionInputQueueEntry(ctx, g.db, strings.TrimSpace(sessionID), strings.TrimSpace(entryID))
 }
 
 // AdvanceSessionInputGeneration increments the session generation used to fence stale queue entries.
@@ -636,113 +483,4 @@ func countPendingSessionInputs(ctx context.Context, exec globalSQLExecutor, sess
 		return 0, fmt.Errorf("store: count pending session inputs: %w", err)
 	}
 	return count, nil
-}
-
-func getSessionInputQueueEntry(
-	ctx context.Context,
-	exec globalSQLExecutor,
-	sessionID string,
-	entryID string,
-) (store.SessionInputQueueEntry, error) {
-	entry, err := scanSessionInputQueueEntry(exec.QueryRowContext(ctx, `
-		SELECT `+sessionInputQueueColumns+`
-		FROM session_input_queue
-		WHERE session_id = ? AND id = ?`,
-		sessionID,
-		entryID,
-	))
-	if errors.Is(err, sql.ErrNoRows) {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
-	}
-	return entry, err
-}
-
-func scanSessionInputQueueEntry(row interface {
-	Scan(dest ...any) error
-}) (store.SessionInputQueueEntry, error) {
-	var entry store.SessionInputQueueEntry
-	var runGeneration sql.NullInt64
-	var dispatchStartedAt sql.NullString
-	var sentAt sql.NullString
-	var failedAt sql.NullString
-	var canceledAt sql.NullString
-	var enqueuedAtRaw string
-	var updatedAtRaw string
-	if err := row.Scan(
-		&entry.ID,
-		&entry.SessionID,
-		&entry.Status,
-		&entry.Mode,
-		&entry.Text,
-		&entry.SessionGeneration,
-		&entry.TaskRunID,
-		&runGeneration,
-		&entry.AttemptCount,
-		&enqueuedAtRaw,
-		&dispatchStartedAt,
-		&sentAt,
-		&failedAt,
-		&entry.FailureSummary,
-		&canceledAt,
-		&updatedAtRaw,
-	); err != nil {
-		return store.SessionInputQueueEntry{}, err
-	}
-	if runGeneration.Valid {
-		value := runGeneration.Int64
-		entry.RunGeneration = &value
-	}
-	parsedEnqueuedAt, err := store.ParseTimestamp(enqueuedAtRaw)
-	if err != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input enqueued_at: %w", err)
-	}
-	entry.EnqueuedAt = parsedEnqueuedAt
-	parsedUpdatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input updated_at: %w", err)
-	}
-	entry.UpdatedAt = parsedUpdatedAt
-	var parseErr error
-	entry.DispatchStartedAt, parseErr = parseOptionalSessionInputTimestamp(dispatchStartedAt)
-	if parseErr != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf(
-			"store: parse session input dispatch_started_at: %w",
-			parseErr,
-		)
-	}
-	entry.SentAt, parseErr = parseOptionalSessionInputTimestamp(sentAt)
-	if parseErr != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input sent_at: %w", parseErr)
-	}
-	entry.FailedAt, parseErr = parseOptionalSessionInputTimestamp(failedAt)
-	if parseErr != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input failed_at: %w", parseErr)
-	}
-	entry.CanceledAt, parseErr = parseOptionalSessionInputTimestamp(canceledAt)
-	if parseErr != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input canceled_at: %w", parseErr)
-	}
-	return entry, nil
-}
-
-func parseOptionalSessionInputTimestamp(value sql.NullString) (*time.Time, error) {
-	if !value.Valid || strings.TrimSpace(value.String) == "" {
-		return nil, nil
-	}
-	parsed, err := store.ParseTimestamp(value.String)
-	if err != nil {
-		return nil, err
-	}
-	return &parsed, nil
-}
-
-func requireSessionInputRowsAffected(result sql.Result, action string, id string) error {
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for %s %q: %w", action, id, err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, id)
-	}
-	return nil
 }

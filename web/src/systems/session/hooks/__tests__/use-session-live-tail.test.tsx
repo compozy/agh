@@ -1,6 +1,7 @@
 // Suite: useSessionLiveTail
-// Invariant: the infinite transcript cache owns cursor/fences and preserves loaded history.
-// Boundary IN: REST transcript pages, transcript SSE frames, and session terminal frames.
+// Invariants: the infinite transcript cache owns cursor/fences and preserves loaded history;
+// Goal snapshot frames invalidate only the exact Goal cache without mutating transcript pages.
+// Boundary IN: REST transcript pages, transcript SSE frames, Goal frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -576,6 +577,72 @@ describe("useSessionLiveTail", () => {
     act(() => sources[0]?.onerror?.(new Event("error")));
     await act(async () => vi.advanceTimersByTimeAsync(250));
     expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=44&epoch=4&generation=7`);
+  });
+
+  it("Should invalidate Goal without advancing the transcript cursor or replacing pages", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const transcriptKey = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+    const goalKey = sessionKeys.goal(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData(
+      transcriptKey,
+      seededTranscriptData(
+        transcriptPage([textMessage("tail-3", "Tail 3"), textMessage("tail-4", "Tail 4")], {
+          firstSequence: 3,
+          hasOlder: true,
+          limit: 2,
+          nextBeforeSequence: 3,
+        }),
+        transcriptPage([textMessage("older-1", "Older 1"), textMessage("older-2", "Older 2")], {
+          firstSequence: 1,
+          limit: 2,
+        })
+      )
+    );
+    queryClient.setQueryData(goalKey, null);
+
+    const { result, sources } = renderLiveTail({ queryClient });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(sources).toHaveLength(1);
+        expect(result.current.status).toBe("success");
+      });
+    });
+
+    const transcriptBefore = queryClient.getQueryData<SessionTranscriptData>(transcriptKey);
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      sources[0]?.emit(
+        "goal_snapshot_changed",
+        {
+          bound_session_id: SESSION_ID,
+          cause: "status",
+          revision: 7,
+          run_id: "run-goal-1",
+          session_id: SESSION_ID,
+        },
+        "99"
+      );
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: goalKey,
+      exact: true,
+    });
+    expect(queryClient.getQueryData<SessionTranscriptData>(transcriptKey)).toBe(transcriptBefore);
+    expect(
+      transcriptBefore?.pages.map(page => page.entries.map(entry => entry.start_sequence))
+    ).toEqual([
+      [3, 4],
+      [1, 2],
+    ]);
+
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+
+    expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=4&epoch=1&generation=1`);
   });
 
   it("Should reject a mismatched delta and reconnect without replacing history", async () => {

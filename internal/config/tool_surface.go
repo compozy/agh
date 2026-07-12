@@ -277,7 +277,7 @@ var (
 		toolSurfaceTaskOrchestrationReviewFailurePolicyPath:           ConfigValueString,
 		toolSurfaceTaskRecoveryAllowAgentForcePath:                    ConfigValueBool,
 		toolSurfaceToolsDefaultMaxResultBytesPath:                     ConfigValueInt64,
-	}, loopDefaultToolPathKinds())
+	}, loopAndGoalToolPathKinds())
 )
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.

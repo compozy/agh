@@ -32,7 +32,7 @@ const REASONING_MARKDOWN = [
 function ThinkingFrame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface>
-      <div className="w-full max-w-2xl rounded-2xl border border-line bg-canvas py-3 pr-3 pl-2">
+      <div className="w-full max-w-2xl rounded-md border border-line bg-canvas py-2 pr-2 pl-1.5">
         {children}
       </div>
     </CenteredSurface>

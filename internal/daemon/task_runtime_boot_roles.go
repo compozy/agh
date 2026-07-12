@@ -125,6 +125,7 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 	if state.notifier != nil {
 		state.notifier.AddTaskRunEnqueuedObserver(dispatcher)
 	}
+	state.tasks.activation.Store(dispatcher)
 	dispatcher.Recover(ctx)
 	state.tasks.roles.Store(runtime)
 	return nil
@@ -180,22 +181,12 @@ func taskManagerOptions(
 
 func newLoopCoordinatorRunner(
 	store taskStore,
-	catalog *resourceCatalog[looppkg.ResourceSpec],
 	hooks looppkg.HookDispatcher,
 	watchPoller watchpkg.Poller,
 	gateEvaluator gate.GateEvaluator,
 	actions *looppkg.ActionRegistry,
-	compilerFactory func(context.Context) *looppkg.Compiler,
-	homePaths aghconfig.HomePaths,
-	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
 ) (*looppkg.CoordinatorRunner, error) {
-	if catalog == nil {
-		if logger != nil {
-			logger.Warn("daemon: loop coordinator disabled because loop catalog is unavailable")
-		}
-		return nil, nil
-	}
 	loopStore, ok := store.(looppkg.Store)
 	if !ok {
 		if logger != nil {
@@ -214,14 +205,7 @@ func newLoopCoordinatorRunner(
 		}
 		return nil, nil
 	}
-	resolver := &daemonLoopDefinitionResolver{
-		catalog:         catalog,
-		compilerFactory: compilerFactory,
-	}
 	options := []looppkg.CoordinatorRunnerOption{
-		looppkg.WithCoordinatorDefaultsResolver(
-			newLoopDefaultsResolver(homePaths, workspaceResolver),
-		),
 		looppkg.WithCoordinatorHookDispatcher(hooks),
 	}
 	if watchPoller != nil {
@@ -242,7 +226,6 @@ func newLoopCoordinatorRunner(
 		store,
 		loopStore,
 		outputs,
-		resolver,
 		logger,
 		options...,
 	)
@@ -283,40 +266,23 @@ func newBootLoopCoordinatorRunner(
 		}),
 		gate.WithToolCaller(toolRegistry),
 	)
-	actionOptions := []looppkg.ActionRegistryOption{
-		looppkg.WithActionSessionBinder(&loopActionSessionBinder{
-			sessions:            state.sessions,
-			globalWorkspacePath: homePaths.HomeDir,
-			policyGate:          policyGate,
-		}),
-		looppkg.WithActionLoopStarter(lazyLoopStarter{current: func() looppkg.ActionLoopStarter {
-			if state == nil {
-				return nil
-			}
-			starter, ok := state.deps.Loops.(looppkg.ActionLoopStarter)
-			if !ok {
-				return nil
-			}
-			return starter
-		}}),
-	}
-	if conversations, ok := state.registry.(looppkg.ChannelResultConversationStore); ok {
-		actionOptions = append(actionOptions, looppkg.WithActionChannelResultStore(conversations))
-	}
-	actions, err := looppkg.NewActionRegistry(toolRegistry, actionOptions...)
+	actions, err := newBootLoopActionRegistry(
+		store,
+		state,
+		homePaths.HomeDir,
+		toolRegistry,
+		policyGate,
+		gateEvaluator,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return newLoopCoordinatorRunner(
 		store,
-		state.loopCatalog,
 		hooks,
 		daemonExtensionWatchPoller{runtime: state.currentExtensionRuntime},
 		gateEvaluator,
 		actions,
-		newLoopCompilerFactory(toolRegistry),
-		homePaths,
-		workspaceResolver,
 		state.logger,
 	)
 }

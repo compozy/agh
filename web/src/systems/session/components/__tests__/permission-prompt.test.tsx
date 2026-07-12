@@ -60,7 +60,7 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(root.getAttribute("data-sticky")).toBe("true");
   });
 
-  it("Should render a 24x24 tone tile coloured danger for high-stakes filesystem/network tools", () => {
+  it("Should render a tone tile with danger signal for high-stakes filesystem/network tools", () => {
     render(
       <PermissionPrompt
         permission={mockPermission}
@@ -76,7 +76,7 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(tile.getAttribute("data-tone")).toBe("danger");
   });
 
-  it("Should fall back to warning tone (tile + tint) for non-high-stakes tools", () => {
+  it("Should fall back to warning tone for non-high-stakes tools", () => {
     const safePermission: PermissionRequest = {
       ...mockPermission,
       toolName: "TodoWrite",

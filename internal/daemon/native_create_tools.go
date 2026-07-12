@@ -173,7 +173,7 @@ func (n *daemonNativeTools) agentCreate(
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
 	}
 	payload := core.AgentPayloadFromDef(agent)
-	return structuredResult(map[string]any{"agent": payload}, "agent "+payload.Name)
+	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 
 func (n *daemonNativeTools) agentCreateRequest(

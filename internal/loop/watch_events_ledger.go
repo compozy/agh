@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/compozy/agh/internal/hooks"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 )
 
@@ -36,6 +37,7 @@ type ParkedWatchEventSubscription struct {
 	Inputs        map[string]any
 	Subscriptions []watchpkg.EventSubscriptionRef
 	Cursors       map[string]int64
+	Contracts     map[hooks.HookEvent]WatchEventsContract
 }
 
 // ParkedWatchEventScanCursor resumes a deterministic parked-subscription scan.

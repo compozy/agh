@@ -183,6 +183,8 @@ func (o GenerationOutput) validate() error {
 		generationOutputEnqueued,
 		generationOutputRunning,
 		generationOutputAwaitingChild,
+		generationOutputControlPending,
+		generationOutputAwaitingGoal,
 		generationOutputSucceeded,
 		generationOutputFailed:
 		return nil

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/loop/dsl"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -18,7 +19,7 @@ func applyCoordinatorBudgetBoundary(
 	result *taskpkg.CoordinatorCompletionResult,
 ) error {
 	budgetStatus := looppkg.StatusExhausted
-	if string(loopRun.BudgetOnExceeded) == "escalate" {
+	if loopRun.BudgetOnExceeded == dsl.BudgetExceededEscalate {
 		budgetStatus = looppkg.StatusNeedsApproval
 	}
 	if err := updateLoopBoundaryStatusWithExecutor(

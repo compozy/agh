@@ -151,7 +151,10 @@ type BlockStore interface {
 	BlockReader
 	CreateTaskBlock(ctx context.Context, mutation CreateTaskBlockMutation) (BlockMutationResult, error)
 	ClearTaskBlock(ctx context.Context, mutation ClearTaskBlockMutation) (TaskBlock, error)
-	ClearTaskNeedsAttention(ctx context.Context, mutation NeedsAttentionClearMutation) (Task, error)
+	ClearTaskNeedsAttention(
+		ctx context.Context,
+		mutation NeedsAttentionClearMutation,
+	) (NeedsAttentionClearResult, error)
 	ExpireTaskBlocks(ctx context.Context, mutation ExpireTaskBlocksMutation) (ExpireTaskBlocksResult, error)
 	BlockTaskAndReleaseRun(
 		ctx context.Context,

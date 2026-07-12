@@ -650,6 +650,29 @@ describe("SessionChatRuntimeProvider", () => {
     expect(merged.map(message => message.id)).toEqual(["server_assistant_001"]);
   });
 
+  it("Should prefill a settled draft reply as a Goal through the thread composer store", async () => {
+    transcriptMessages = [
+      {
+        id: "assistant-draft-goal",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Expand the release checks and cite each result.",
+            state: "done",
+          },
+        ],
+      },
+    ];
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await user.click(await screen.findByRole("button", { name: "Use as Goal" }));
+    expect(screen.getByRole("textbox", { name: "Session prompt" })).toHaveValue(
+      "/goal Expand the release checks and cite each result."
+    );
+  });
+
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {
     const runtimeMessages = toReadonlyThreadMessages([
       {

@@ -87,6 +87,40 @@ describe("loop node schema", () => {
     expect(keys(fields)).toContain("produces");
   });
 
+  it("Should render Goal as a first-class action with its closed operational contract", () => {
+    const raw: RawLoopNode = {
+      id: "goal",
+      class: "action",
+      kind: "goal",
+      params: {},
+    };
+    const fields = buildNodeFields(raw);
+    expect(fields.find(field => "key" in field && field.key === "judge")).toMatchObject({
+      type: "criteria",
+      path: ["params", "judge"],
+      allowedTypes: ["command", "agent-judge", "extension"],
+    });
+    expect(fields.find(field => "key" in field && field.key === "max_turns")).toMatchObject({
+      type: "number",
+      path: ["params", "max_turns"],
+    });
+    expect(fields.find(field => "key" in field && field.key === "on_exhausted")).toMatchObject({
+      type: "select",
+      path: ["params", "on_exhausted"],
+      options: ["halt", "escalate"],
+    });
+    expect(fields.find(field => "key" in field && field.key === "session_mode")).toMatchObject({
+      path: ["session", "mode"],
+      options: ["continuous"],
+    });
+    expect(fields.find(field => "key" in field && field.key === "retry")).toMatchObject({
+      type: "fold",
+      fields: expect.arrayContaining([
+        expect.objectContaining({ key: "max_attempts", path: ["retry", "max_attempts"] }),
+      ]),
+    });
+  });
+
   it("Should render an input node's input_ref as an editable select over the declared inputs", () => {
     const raw: RawLoopNode = { id: "slug", class: "source", kind: "input", input_ref: "" };
     const fields = buildNodeFields(raw, {

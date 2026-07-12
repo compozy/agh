@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
 
-// The nine enumerated Loop-run SSE kinds the run page binds (techspec §observability,
+// The twelve enumerated Loop-run SSE kinds the run page binds (techspec §observability,
 // L-017). Kept local to the test so a drift in the hook's subscription list is caught.
 const LOOP_EVENT_KINDS = [
   "node_running",
@@ -18,6 +18,9 @@ const LOOP_EVENT_KINDS = [
   "token_tick",
   "needs_approval",
   "status_changed",
+  "goal_turn_started",
+  "goal_turn_completed",
+  "goal_status_changed",
 ] as const;
 
 class FakeLoopStreamEventSource {
@@ -206,9 +209,20 @@ describe("useLoopStream", () => {
     act(() => {
       eventSource.emitNamed("token_tick", buildFrame({ kind: "token_tick" }));
       eventSource.emitNamed("channel_msg", buildFrame({ kind: "channel_msg" }));
+      eventSource.emitNamed("goal_turn_started", buildFrame({ kind: "goal_turn_started" }));
+      eventSource.emitNamed("goal_turn_completed", buildFrame({ kind: "goal_turn_completed" }));
     });
-    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(4));
     expect(invalidateQueries).not.toHaveBeenCalled();
+
+    act(() => {
+      eventSource.emitNamed("goal_status_changed", buildFrame({ kind: "goal_status_changed" }));
+    });
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(5));
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
   });
 
   it("Should not reopen the EventSource when only onEvent identity changes", async () => {

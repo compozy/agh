@@ -18,6 +18,7 @@ type StubSessionManager struct {
 	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn            func(context.Context, string) (*session.Info, error)
 	EventsFn            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	LatestEventFn       func(context.Context, string, string) (*store.SessionEvent, error)
 	HistoryFn           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	TranscriptPageFn    func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
 	TranscriptChangesFn func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
@@ -126,6 +127,17 @@ func (s StubSessionManager) Events(
 ) ([]store.SessionEvent, error) {
 	if s.EventsFn != nil {
 		return s.EventsFn(ctx, id, query)
+	}
+	return nil, nil
+}
+
+func (s StubSessionManager) LatestSessionEventByType(
+	ctx context.Context,
+	id string,
+	eventType string,
+) (*store.SessionEvent, error) {
+	if s.LatestEventFn != nil {
+		return s.LatestEventFn(ctx, id, eventType)
 	}
 	return nil, nil
 }

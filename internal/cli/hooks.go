@@ -372,7 +372,7 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		runs,
 		runs,
 		"Hook Runs",
-		[]string{"Hook", hooksEventValue, "Outcome", cliDurationValue, hooksErrorValue},
+		[]string{"Hook", hooksEventValue, taskOutcomeValue, cliDurationValue, hooksErrorValue},
 		"runs",
 		[]string{
 			"hook_name",

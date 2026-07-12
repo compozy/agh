@@ -16,6 +16,9 @@ import (
 
 const (
 	loopActionRun     = "loop_run"
+	loopActionStop    = "loop_stop"
+	loopActionPause   = "loop_pause"
+	loopActionResume  = "loop_resume"
 	loopActionApprove = "loop_approve"
 )
 
@@ -258,21 +261,36 @@ func (h *BaseHandlers) GetLoopRun(c *gin.Context) {
 // StopLoopRun requests operator stop for one Loop run.
 func (h *BaseHandlers) StopLoopRun(c *gin.Context) {
 	h.mutateLoopRun(c, func(service LoopService) error {
-		return service.StopLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"))
+		workspaceID := c.Param("workspace_id")
+		actor, err := h.taskActorContextForWorkspace(c, loopActionStop, workspaceID)
+		if err != nil {
+			return err
+		}
+		return service.StopLoopRun(c.Request.Context(), workspaceID, c.Param("run_id"), actor)
 	})
 }
 
 // PauseLoopRun requests operator pause for one Loop run.
 func (h *BaseHandlers) PauseLoopRun(c *gin.Context) {
 	h.mutateLoopRun(c, func(service LoopService) error {
-		return service.PauseLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"))
+		workspaceID := c.Param("workspace_id")
+		actor, err := h.taskActorContextForWorkspace(c, loopActionPause, workspaceID)
+		if err != nil {
+			return err
+		}
+		return service.PauseLoopRun(c.Request.Context(), workspaceID, c.Param("run_id"), actor)
 	})
 }
 
 // ResumeLoopRun resumes one paused Loop run.
 func (h *BaseHandlers) ResumeLoopRun(c *gin.Context) {
 	h.mutateLoopRun(c, func(service LoopService) error {
-		return service.ResumeLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"))
+		workspaceID := c.Param("workspace_id")
+		actor, err := h.taskActorContextForWorkspace(c, loopActionResume, workspaceID)
+		if err != nil {
+			return err
+		}
+		return service.ResumeLoopRun(c.Request.Context(), workspaceID, c.Param("run_id"), actor)
 	})
 }
 
@@ -391,11 +409,24 @@ func ParseLoopRunListQuery(c *gin.Context) (LoopRunListQuery, error) {
 	if err != nil {
 		return LoopRunListQuery{}, err
 	}
-	return LoopRunListQuery{
-		LoopName: strings.TrimSpace(c.Query("loop")),
-		Status:   strings.TrimSpace(c.Query("status")),
-		Limit:    limit,
-	}, nil
+	query := LoopRunListQuery{
+		LoopName:      strings.TrimSpace(c.Query("loop")),
+		Status:        strings.TrimSpace(c.Query("status")),
+		Origin:        strings.TrimSpace(c.Query("origin")),
+		OriginSession: strings.TrimSpace(c.Query("origin_session")),
+		Limit:         limit,
+	}
+	if raw, present := c.GetQuery("live"); present {
+		if strings.TrimSpace(raw) == "" {
+			return LoopRunListQuery{}, errors.New("live must be nonempty")
+		}
+		live, err := ParseOptionalBool(raw)
+		if err != nil {
+			return LoopRunListQuery{}, err
+		}
+		query.Live = &live
+	}
+	return query, nil
 }
 
 func (h *BaseHandlers) respondLoopError(c *gin.Context, err error) {

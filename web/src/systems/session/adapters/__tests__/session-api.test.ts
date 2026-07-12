@@ -25,6 +25,7 @@ import {
   fetchSessions,
   repairSession,
   resumeSession,
+  sendSessionPrompt,
   stopSession,
 } from "../session-api";
 
@@ -379,6 +380,29 @@ describe("cancelSessionPrompt", () => {
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt/cancel",
       signal: controller.signal,
+    });
+  });
+});
+
+describe("sendSessionPrompt", () => {
+  it("returns a direct Goal result without requiring a prompt envelope", async () => {
+    const goalResult = {
+      outcome: "cleared" as const,
+      reason_code: null,
+      replaced_run_id: null,
+      snapshot: null,
+    };
+    mockJsonResponse(goalResult);
+
+    const result = await sendSessionPrompt(WORKSPACE_ID, "sess-001", {
+      message: "/goal clear",
+    });
+
+    expect(result).toEqual(goalResult);
+    await expectFetchRequest({
+      body: { message: "/goal clear" },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/prompt",
     });
   });
 });

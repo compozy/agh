@@ -15,6 +15,9 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	goalpkg "github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -27,17 +30,35 @@ type loopAPIPersistence interface {
 	looppkg.AnnotationStore
 }
 
+type loopGoalAPIPersistence interface {
+	goalpkg.TurnReader
+	goalpkg.SessionProjectionReader
+}
+
+type loopSessionStatusReader interface {
+	Status(context.Context, string) (*session.Info, error)
+}
+
+type loopAPIWorkspaceResolver interface {
+	workspacepkg.RuntimeResolver
+	Get(context.Context, string) (workspacepkg.Workspace, error)
+}
+
 type daemonLoopAPIService struct {
 	aggregate         looppkg.Service
 	persistence       loopAPIPersistence
 	catalogRuns       looppkg.CatalogRunReader
+	goalPersistence   loopGoalAPIPersistence
 	resolver          *daemonLoopDefinitionResolver
 	catalog           *resourceCatalog[looppkg.ResourceSpec]
 	publisher         loopResourcePublisher
 	toolRegistry      toolspkg.Registry
-	workspaceResolver *workspacepkg.Resolver
+	workspaceResolver loopAPIWorkspaceResolver
 	homePaths         aghconfig.HomePaths
 	now               func() time.Time
+	goalContext       *loopGoalContextRuntime
+	sessionStatus     loopSessionStatusReader
+	creationStore     store.SessionCreationStore
 	publishMu         sync.Mutex
 }
 
@@ -91,11 +112,20 @@ func newDaemonLoopAPIService(
 	options := []looppkg.Option{
 		looppkg.WithClock(now),
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
+		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
+	}
+	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
+		options = append(options, looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{sessions: revoker}))
 	}
 	if state.notifier != nil {
 		options = append(options, looppkg.WithHookDispatcher(state.notifier))
 	}
-	aggregate, err := looppkg.NewService(persistence, resolver, options...)
+	aggregate, err := looppkg.NewService(
+		persistence,
+		resolver,
+		newGoalRunPolicyResolver(homePaths, state.workspaceResolver),
+		options...,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop aggregate api service: %w", err)
 	}
@@ -103,6 +133,7 @@ func newDaemonLoopAPIService(
 		aggregate:         aggregate,
 		persistence:       persistence,
 		catalogRuns:       persistence,
+		goalPersistence:   goalPersistenceFromRegistry(state.registry),
 		resolver:          resolver,
 		catalog:           state.loopCatalog,
 		publisher:         state.loopResources,
@@ -110,9 +141,27 @@ func newDaemonLoopAPIService(
 		workspaceResolver: state.workspaceResolver,
 		homePaths:         homePaths,
 		now:               now,
+		goalContext:       &loopGoalContextRuntime{sessions: state.sessions},
+		sessionStatus:     state.sessions,
+		creationStore:     sessionCreationStoreFromRegistry(state.registry),
 	}, nil
 }
 
+func goalPersistenceFromRegistry(registry any) loopGoalAPIPersistence {
+	persistence, ok := registry.(loopGoalAPIPersistence)
+	if !ok {
+		return nil
+	}
+	return persistence
+}
+
+func sessionCreationStoreFromRegistry(registry any) store.SessionCreationStore {
+	persistence, ok := registry.(store.SessionCreationStore)
+	if !ok {
+		return nil
+	}
+	return persistence
+}
 func (s *daemonLoopAPIService) CreateLoop(
 	ctx context.Context,
 	workspaceID string,

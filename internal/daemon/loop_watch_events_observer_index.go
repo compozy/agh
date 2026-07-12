@@ -32,9 +32,8 @@ func (o *loopWatchEventsObserver) refreshLoopRun(ctx context.Context, loopRunID 
 func (o *loopWatchEventsObserver) replaceIndex(entries []looppkg.ParkedWatchEventSubscription) {
 	byKind := make(map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription)
 	byLoopRun := make(map[string]map[hookspkg.HookEvent]struct{})
-	supported := looppkg.SupportedWatchEvents()
 	for _, entry := range entries {
-		indexParkedWatchEventSubscription(byKind, byLoopRun, supported, entry)
+		indexParkedWatchEventSubscription(byKind, byLoopRun, entry)
 	}
 	o.mu.Lock()
 	o.byKind = byKind
@@ -49,9 +48,8 @@ func (o *loopWatchEventsObserver) replaceLoopRun(
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.removeLoopRunLocked(loopRunID)
-	supported := looppkg.SupportedWatchEvents()
 	for _, entry := range entries {
-		indexParkedWatchEventSubscription(o.byKind, o.byLoopRun, supported, entry)
+		indexParkedWatchEventSubscription(o.byKind, o.byLoopRun, entry)
 	}
 }
 
@@ -96,7 +94,6 @@ func (o *loopWatchEventsObserver) subscriptionsForKind(
 func indexParkedWatchEventSubscription(
 	byKind map[hookspkg.HookEvent][]looppkg.ParkedWatchEventSubscription,
 	byLoopRun map[string]map[hookspkg.HookEvent]struct{},
-	supported map[hookspkg.HookEvent]looppkg.WatchEventsContract,
 	entry looppkg.ParkedWatchEventSubscription,
 ) {
 	cloned := cloneParkedWatchEventSubscription(entry)
@@ -107,7 +104,7 @@ func indexParkedWatchEventSubscription(
 	seen := map[hookspkg.HookEvent]struct{}{}
 	for _, ref := range cloned.Subscriptions {
 		kind := hookspkg.HookEvent(strings.TrimSpace(ref.Kind))
-		if _, ok := supported[kind]; !ok {
+		if _, ok := cloned.Contracts[kind]; !ok {
 			continue
 		}
 		if _, ok := seen[kind]; ok {
@@ -128,5 +125,6 @@ func cloneParkedWatchEventSubscription(
 	src.Inputs = maps.Clone(src.Inputs)
 	src.Subscriptions = append(src.Subscriptions[:0:0], src.Subscriptions...)
 	src.Cursors = maps.Clone(src.Cursors)
+	src.Contracts = maps.Clone(src.Contracts)
 	return src
 }

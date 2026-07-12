@@ -59,6 +59,12 @@ type loopCommandClient interface {
 		credentials agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
 	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
+	ListGoalTurns(
+		ctx context.Context,
+		workspaceID string,
+		runID string,
+		query GoalTurnListQuery,
+	) (contract.GoalTurnPage, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
 	StopLoopRun(ctx context.Context, workspaceID string, runID string, credentials agentidentity.Credentials) error
 	PauseLoopRun(ctx context.Context, workspaceID string, runID string, credentials agentidentity.Credentials) error

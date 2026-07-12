@@ -33,6 +33,21 @@ describe("loop palette", () => {
     }
     const fanOut = LOOP_PALETTE[1].items.find(item => item.kindLabel === "fan-out")!.buildRaw("f");
     expect(fanOut).toMatchObject({ kind: "fan-out", batch_size: 1, max_parallel: 1 });
+    const goal = LOOP_PALETTE[0].items.find(item => item.kindLabel === "goal")!.buildRaw("goal");
+    expect(goal).toEqual({
+      id: "goal",
+      class: "action",
+      kind: "goal",
+      params: {
+        agent: "",
+        objective: "",
+        judge: [{ id: "criterion_1", type: "command", check: "" }],
+        max_turns: 20,
+        on_exhausted: "halt",
+      },
+      session: { mode: "continuous" },
+      retry: { max_attempts: 2, on_failure: "fresh_session" },
+    });
   });
 
   it("Should generate a unique snake_case node id, suffixing on collision", () => {

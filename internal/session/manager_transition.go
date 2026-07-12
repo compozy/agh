@@ -25,6 +25,13 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 	}
 	info := session.Info()
 	if register {
+		meta := session.Meta()
+		if identity := creationIdentityFromMeta(meta); identity != nil {
+			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {
+				return err
+			}
+			return nil
+		}
 		if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
 			return fmt.Errorf("session: register catalog state for %q: %w", session.ID, err)
 		}
@@ -51,8 +58,37 @@ func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta store.
 	if info == nil {
 		return nil
 	}
+	if identity := creationIdentityFromMeta(meta); identity != nil {
+		return m.registerSessionCreation(ctx, info, meta, *identity)
+	}
 	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
 		return fmt.Errorf("session: register catalog state from metadata for %q: %w", meta.ID, err)
+	}
+	return nil
+}
+
+func (m *Manager) registerSessionCreation(
+	ctx context.Context,
+	info *Info,
+	meta store.SessionMeta,
+	identity store.SessionCreationIdentity,
+) error {
+	if m.creationStore == nil || meta.CreationProfile == nil {
+		return fmt.Errorf("session: creation store/profile is unavailable for %q", meta.ID)
+	}
+	profileRef, err := m.creationStore.PutSessionCreationProfile(ctx, *meta.CreationProfile)
+	if err != nil {
+		return fmt.Errorf("session: persist creation profile for %q: %w", meta.ID, err)
+	}
+	if profileRef != identity.CreationProfileRef {
+		return fmt.Errorf("session: creation profile ref changed for %q", meta.ID)
+	}
+	if _, err := m.creationStore.RegisterSessionWithCreationIdentity(
+		ctx,
+		sessionCatalogInfoFromRuntime(info),
+		identity,
+	); err != nil {
+		return fmt.Errorf("session: register creation identity for %q: %w", meta.ID, err)
 	}
 	return nil
 }

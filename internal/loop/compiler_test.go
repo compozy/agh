@@ -130,6 +130,36 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 	})
 }
 
+func TestCompilerShouldFoldGoalDefaultsWithoutMutatingInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should default a missing goal session to continuous and exhaustion to halt", func(t *testing.T) {
+		t.Parallel()
+
+		def := singleNodeDefinition(validGoalNode("converge", ""))
+		originalParams := requireNode(t, &def, "converge").Params
+		resolved, err := loop.NewCompiler().Compile(def)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		inputNode := requireNode(t, &def, "converge")
+		if inputNode.Session != nil {
+			t.Fatalf("Compile() mutated input Session = %#v, want nil", inputNode.Session)
+		}
+		if _, ok := originalParams["on_exhausted"]; ok {
+			t.Fatalf("Compile() mutated input params = %#v", originalParams)
+		}
+
+		goal := requireNode(t, &resolved.Definition, "converge")
+		if goal.Session == nil || goal.Session.Mode != "continuous" {
+			t.Fatalf("resolved Session = %#v, want mode continuous", goal.Session)
+		}
+		if got := goal.Params["on_exhausted"]; got != "halt" {
+			t.Fatalf("resolved on_exhausted = %#v, want halt", got)
+		}
+	})
+}
+
 func TestCompilerShouldCompileWatchEventsFiltersWithEventEnv(t *testing.T) {
 	t.Parallel()
 

@@ -32,11 +32,19 @@ type loopRunScanValues struct {
 	startMetadataRaw  string
 	parentID          sql.NullString
 	pauseRequested    int
+	controlActorKind  sql.NullString
+	controlActorID    sql.NullString
+	controlRequested  sql.NullString
 	inputsRaw         string
 	startedByKind     string
 	startedByRef      string
 	startedOriginKind string
 	startedOriginRef  string
+	originKind        string
+	originSessionID   sql.NullString
+	originProfileRef  sql.NullString
+	originPolicy      sql.NullString
+	originCreation    sql.NullString
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -74,12 +82,21 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.run.TokensUsed,
 		&v.parentID,
 		&v.pauseRequested,
+		&v.controlActorKind,
+		&v.controlActorID,
+		&v.controlRequested,
 		&v.inputsRaw,
 		&v.run.IterationCap,
 		&v.startedByKind,
 		&v.startedByRef,
 		&v.startedOriginKind,
 		&v.startedOriginRef,
+		&v.run.GoalContextNudgeRatio,
+		&v.originKind,
+		&v.originSessionID,
+		&v.originProfileRef,
+		&v.originPolicy,
+		&v.originCreation,
 	)
 }
 
@@ -105,6 +122,20 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		run.ParentLoopRunID = looppkg.RunID(v.parentID.String)
 	}
 	run.PauseRequested = v.pauseRequested != 0
+	if v.controlActorKind.Valid || v.controlActorID.Valid || v.controlRequested.Valid {
+		if !v.controlActorKind.Valid || !v.controlActorID.Valid || !v.controlRequested.Valid {
+			return looppkg.Run{}, fmt.Errorf("%w: loop control actor identity is incomplete", looppkg.ErrValidation)
+		}
+		run.ControlActor = taskpkg.ActorIdentity{
+			Kind: taskpkg.ActorKind(strings.TrimSpace(v.controlActorKind.String)),
+			Ref:  strings.TrimSpace(v.controlActorID.String),
+		}
+		requestedAt, err := parseLoopRunTimestamp(v.controlRequested.String)
+		if err != nil {
+			return looppkg.Run{}, fmt.Errorf("store: parse loop control requested_at: %w", err)
+		}
+		run.ControlRequestedAt = requestedAt
+	}
 	run.StartedBy = taskpkg.ActorIdentity{
 		Kind: taskpkg.ActorKind(strings.TrimSpace(v.startedByKind)),
 		Ref:  strings.TrimSpace(v.startedByRef),
@@ -113,6 +144,17 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		Kind: taskpkg.OriginKind(strings.TrimSpace(v.startedOriginKind)),
 		Ref:  strings.TrimSpace(v.startedOriginRef),
 	}
+	origin := looppkg.RunOrigin{
+		Kind:               looppkg.RunOriginKind(strings.TrimSpace(v.originKind)),
+		SessionID:          strings.TrimSpace(v.originSessionID.String),
+		CreationProfileRef: strings.TrimSpace(v.originProfileRef.String),
+		PolicySpecDigest:   strings.TrimSpace(v.originPolicy.String),
+		CreationDigest:     strings.TrimSpace(v.originCreation.String),
+	}.Normalize()
+	if err := origin.Validate(); err != nil {
+		return looppkg.Run{}, err
+	}
+	run.Origin = &origin
 	if err := json.Unmarshal([]byte(v.inputsRaw), &run.Inputs); err != nil {
 		return looppkg.Run{}, fmt.Errorf("store: decode loop run inputs: %w", err)
 	}

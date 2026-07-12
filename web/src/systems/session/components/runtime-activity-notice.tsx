@@ -74,7 +74,7 @@ function activityMeta(activity: RuntimeActivityPayload | undefined): string | nu
   const elapsed = formatDuration(activity?.elapsed_seconds);
   const idle = formatDuration(activity?.idle_seconds);
   if (elapsed && idle) {
-    return `${elapsed} elapsed, ${idle} idle`;
+    return `${elapsed} elapsed · ${idle} idle`;
   }
   if (elapsed) {
     return `${elapsed} elapsed`;
@@ -165,6 +165,8 @@ function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPa
   return marker?.kind || event.title || event.type;
 }
 
+const NOTICE_CLASS = "my-1.5 w-full min-w-0";
+
 export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
   if (isSessionErrorEvent(event)) {
     const failureKind = event.failure?.kind?.trim();
@@ -174,14 +176,14 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         role="alert"
         data-testid="session-error-notice"
         data-tone="danger"
-        className="my-2 w-full min-w-0 px-3 py-2"
+        className={NOTICE_CLASS}
         variant="danger"
       >
-        <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+        <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
         <AlertTitle>Session failed</AlertTitle>
         {failureKind ? (
           <AlertMeta data-testid="session-error-meta">
-            <Pill mono tone="danger">
+            <Pill mono size="xs" tone="danger">
               {failureKind}
             </Pill>
           </AlertMeta>
@@ -202,13 +204,17 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         role={tone === "info" ? "status" : "alert"}
         data-testid="transcript-marker-notice"
         data-tone={tone}
-        className="my-2 w-full min-w-0 px-3 py-2"
-        variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "accent"}
+        className={NOTICE_CLASS}
+        variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}
       >
-        <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+        <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
         <AlertTitle>Transcript marker</AlertTitle>
         <AlertMeta data-testid="transcript-marker-kind">
-          <Pill mono tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}>
+          <Pill
+            mono
+            size="xs"
+            tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}
+          >
             {markerLabel(marker, event)}
           </Pill>
         </AlertMeta>
@@ -225,22 +231,62 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
 
   const isWarning = event.type === "runtime_warning";
   const activity = event.runtime;
-  const Icon = isWarning ? AlertTriangle : Activity;
-  const title = event.text?.trim() || (isWarning ? "Runtime warning" : "Still working");
   const detail = describeActivity(activity);
   const meta = activityMeta(activity);
 
+  // Progress stays a quiet in-thread meta row — WorkingIndicator owns activity chrome.
+  if (!isWarning) {
+    const title = event.text?.trim() || detail;
+    return (
+      <div
+        role="status"
+        data-testid="runtime-activity-notice"
+        data-tone="progress"
+        className="my-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-1"
+      >
+        <Activity aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+        <span className="min-w-0 truncate text-small-body text-fg">{title}</span>
+        {meta ? (
+          <span
+            className="text-form-hint text-muted tabular-nums"
+            data-testid="runtime-activity-meta"
+          >
+            {meta}
+          </span>
+        ) : null}
+        {title !== detail ? (
+          <span
+            className="min-w-0 truncate text-form-hint text-muted"
+            data-testid="runtime-activity-detail"
+          >
+            {detail}
+          </span>
+        ) : (
+          <span className="sr-only" data-testid="runtime-activity-detail">
+            {detail}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  const title = event.text?.trim() || "Runtime warning";
+
   return (
     <Alert
-      role={isWarning ? "alert" : "status"}
+      role="alert"
       data-testid="runtime-activity-notice"
-      data-tone={isWarning ? "warning" : "progress"}
-      className="my-2 w-full min-w-0 px-3 py-2"
-      variant={isWarning ? "warning" : "accent"}
+      data-tone="warning"
+      className={NOTICE_CLASS}
+      variant="warning"
     >
-      <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
       <AlertTitle>{title}</AlertTitle>
-      {meta ? <AlertMeta data-testid="runtime-activity-meta">{meta}</AlertMeta> : null}
+      {meta ? (
+        <AlertMeta data-testid="runtime-activity-meta">
+          <span className="tabular-nums">{meta}</span>
+        </AlertMeta>
+      ) : null}
       <AlertDescription className="truncate" data-testid="runtime-activity-detail">
         {detail}
       </AlertDescription>

@@ -980,6 +980,81 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 		}
 		requireIssueID(t, result.BlockingIssues, JudgeMalformedOutputIssueID)
 	})
+
+	t.Run("Should preserve reported zero and aggregate multiple judge token totals", func(t *testing.T) {
+		t.Parallel()
+
+		responses := []JudgeResponse{
+			{
+				Raw:        `{"verdict":"approved","evidence":{"criterion":"first"}}`,
+				TokensUsed: 0, TokensReported: true,
+			},
+			{
+				Raw:        `{"verdict":"approved","evidence":{"criterion":"second"}}`,
+				TokensUsed: 7, TokensReported: true,
+			},
+		}
+		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
+			func(context.Context, JudgeRequest) (JudgeResponse, error) {
+				response := responses[0]
+				responses = responses[1:]
+				return response, nil
+			},
+		)))
+		var reports []int64
+		verdict, err := evaluator.Evaluate(context.Background(), Gate{
+			ID: "judge-usage", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{
+				{ID: "first", Type: dsl.CriterionAgentJudge, Rubric: "Check first"},
+				{ID: "second", Type: dsl.CriterionAgentJudge, Rubric: "Check second"},
+			},
+		}, GateInput{
+			Placement: PlacementInBody,
+			Contract:  validContract(),
+			JudgeUsageReporter: JudgeUsageReporterFunc(func(tokens int64) {
+				reports = append(reports, tokens)
+			}),
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		requireOutcome(t, verdict, VerdictOutcomeApproved)
+		if !slices.Equal(reports, []int64{7}) {
+			t.Fatalf("judge usage reports = %#v, want aggregate 7", reports)
+		}
+	})
+
+	t.Run("Should report a real zero for a zero-token judge", func(t *testing.T) {
+		t.Parallel()
+
+		evaluator := NewEvaluator(WithJudgeRunner(judgeRunnerFunc(
+			func(context.Context, JudgeRequest) (JudgeResponse, error) {
+				return JudgeResponse{
+					Raw:            `{"verdict":"approved","evidence":{"criterion":"zero"}}`,
+					TokensReported: true,
+				}, nil
+			},
+		)))
+		var reports []int64
+		_, err := evaluator.Evaluate(context.Background(), Gate{
+			ID: "judge-zero", VerdictPolicy: dsl.VerdictPolicyFixedPasses,
+			Criteria: []dsl.GateCriterion{{
+				ID: "zero", Type: dsl.CriterionAgentJudge, Rubric: "Check zero",
+			}},
+		}, GateInput{
+			Placement: PlacementInBody,
+			Contract:  validContract(),
+			JudgeUsageReporter: JudgeUsageReporterFunc(func(tokens int64) {
+				reports = append(reports, tokens)
+			}),
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if !slices.Equal(reports, []int64{0}) {
+			t.Fatalf("judge usage reports = %#v, want reported zero", reports)
+		}
+	})
 }
 
 func TestEvaluatorAdaptersAndDefaults(t *testing.T) {

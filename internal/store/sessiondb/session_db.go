@@ -108,16 +108,6 @@ const (
 	sessionStateClosed
 )
 
-type sessionWriteKind int
-
-const (
-	sessionWriteEvent sessionWriteKind = iota + 1
-	sessionWriteEventBatch
-	sessionWriteUsage
-	sessionWriteHookRun
-	sessionWriteClear
-)
-
 type sessionWriteRequest struct {
 	ctx    context.Context
 	kind   sessionWriteKind

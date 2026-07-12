@@ -15,15 +15,8 @@ import (
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/situation"
-	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
-
-// The production global store MUST satisfy the scheduler's StarvationStore so the convergence
-// backstop is statically wired, never silently disabled by a failed runtime type assertion.
-var _ schedulerpkg.StarvationStore = (*globaldb.GlobalDB)(nil)
-var _ schedulerpkg.TaskSource = schedulerTaskSource{}
-var _ schedulerpkg.LoopCoordinatorBackstop = schedulerTaskSource{}
 
 const (
 	schedulerRuntimeTaskKey = "task"
@@ -40,12 +33,6 @@ const (
 type schedulerRuntime struct {
 	scheduler *schedulerpkg.Scheduler
 	waker     *schedulerSessionWaker
-}
-
-type schedulerTaskSource struct {
-	manager            *taskpkg.Service
-	store              taskStore
-	watchEventsGapScan *loopWatchEventsGapScanState
 }
 
 type effectiveTaskPauseStore interface {
@@ -205,9 +192,10 @@ func newSchedulerRuntime(
 
 	scheduler, err := schedulerpkg.New(
 		schedulerTaskSource{
-			manager:            manager,
-			store:              store,
-			watchEventsGapScan: newLoopWatchEventsGapScanState(),
+			manager:             manager,
+			store:               store,
+			watchEventsGapScan:  newLoopWatchEventsGapScanState(),
+			coordinatorBackstop: tasks.coordinatorBackstop,
 		},
 		schedulerSessionSource{sessions: sessions, situation: situation, logger: logger},
 		waker,

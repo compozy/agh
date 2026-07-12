@@ -134,6 +134,30 @@ func WithSessionHealthStore(store HealthStore) Option {
 func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	return func(manager *Manager) {
 		manager.sessionCatalog = catalog
+		if creationStore, ok := catalog.(store.SessionCreationStore); ok {
+			manager.creationStore = creationStore
+		}
+	}
+}
+
+// WithManagedInputLifecycle injects the daemon-owned managed prompt callbacks.
+func WithManagedInputLifecycle(lifecycle ManagedInputLifecycle) Option {
+	return func(manager *Manager) {
+		manager.managedInputLifecycle = lifecycle
+	}
+}
+
+// WithGoalCommandHandler injects the daemon-owned authenticated `/goal` dispatcher.
+func WithGoalCommandHandler(handler GoalCommandHandler) Option {
+	return func(manager *Manager) {
+		manager.goalCommandHandler = handler
+	}
+}
+
+// WithSessionCreationStore injects the immutable session creation catalog.
+func WithSessionCreationStore(creationStore store.SessionCreationStore) Option {
+	return func(manager *Manager) {
+		manager.creationStore = creationStore
 	}
 }
 

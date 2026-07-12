@@ -13,6 +13,7 @@ import {
   getLoopAnnotations,
   getLoopConfig,
   getLoopRun,
+  listGoalTurns,
   listLoopRuns,
   listLoops,
   patchLoop,
@@ -180,10 +181,37 @@ describe("loops-api (request construction + error mapping)", () => {
       runs: [],
       aggregates: { total: 0, live: 0, terminal: 0, succeeded: 0, failed: 0 },
     });
-    await listLoopRuns(WS, { loop: "software-delivery", status: "running", limit: 10 });
+    await listLoopRuns(WS, {
+      loop: "software-delivery",
+      status: "running",
+      origin: "session",
+      origin_session: "session_1",
+      live: true,
+      limit: 10,
+    });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs?loop=software-delivery&status=running&limit=10",
+      path: "/api/workspaces/ws_1/loop-runs?loop=software-delivery&status=running&origin=session&origin_session=session_1&live=true&limit=10",
       method: "GET",
+    });
+  });
+
+  it("Should paginate Goal turns with run-scoped filters and preserve after_seq zero", async () => {
+    mockJsonResponse({ turns: [], next_after_seq: null });
+    await listGoalTurns(WS, "run_1", {
+      node: "goal",
+      item: 0,
+      after_seq: 0,
+      limit: 25,
+    });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/turns?node=goal&item=0&after_seq=0&limit=25",
+      method: "GET",
+    });
+
+    mockJsonResponse({ error: "missing" }, { status: 404 });
+    await expect(listGoalTurns(WS, "missing")).rejects.toMatchObject({
+      status: 404,
+      message: expect.stringContaining("missing"),
     });
   });
 

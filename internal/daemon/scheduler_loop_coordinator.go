@@ -15,6 +15,9 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 	now time.Time,
 	actor taskpkg.ActorContext,
 ) (int, error) {
+	if s.coordinatorBackstop != nil {
+		return s.coordinatorBackstop.RunLoopCoordinatorBackstop(ctx, now, actor)
+	}
 	if err := s.enqueueWatchEventsGapWakes(ctx, actor.Origin, now); err != nil {
 		return 0, err
 	}

@@ -158,6 +158,7 @@ func (c *lintContext) lintKindsAndSchemas() {
 			c.add(node.ID, refs.CodeUnknownReference, "node class %q is not supported", node.Class)
 		}
 	}
+	c.lintContinuousGoalHandles()
 }
 
 func (c *lintContext) lintActionNode(node dsl.Node) {
@@ -177,49 +178,6 @@ func (c *lintContext) lintActionNode(node dsl.Node) {
 	}
 	if _, ok := c.linter.tools.Snapshot(node.Kind); !ok {
 		c.add(node.ID, CodeUnknownActionKind, "action ToolID %q is not resolvable", node.Kind)
-	}
-}
-
-func (c *lintContext) lintReservedActionNode(node dsl.Node) {
-	switch dsl.ActionKind(node.Kind) {
-	case dsl.ActionRunAgent:
-		var params dsl.RunAgentParams
-		if err := node.Params.Decode(&params); err != nil {
-			c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params are invalid: %v", err)
-			return
-		}
-		if strings.TrimSpace(params.Agent) == "" {
-			c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params.agent is required")
-		}
-		if strings.TrimSpace(params.Prompt) == "" {
-			c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params.prompt is required")
-		}
-	case dsl.ActionRunLoop:
-		var params dsl.RunLoopParams
-		if err := node.Params.Decode(&params); err != nil {
-			c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params are invalid: %v", err)
-			return
-		}
-		if strings.TrimSpace(params.Loop) == "" {
-			c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params.loop is required")
-		}
-		if params.Mode != "" && params.Mode != dsl.RunLoopAwait &&
-			params.Mode != dsl.RunLoopDetach {
-			c.add(
-				node.ID,
-				refs.CodeUnresolvablePath,
-				"run-loop params.mode must be await or detach",
-			)
-		}
-	case dsl.ActionTransform:
-		var params dsl.TransformParams
-		if err := node.Params.Decode(&params); err != nil {
-			c.add(node.ID, refs.CodeUnresolvablePath, "transform params are invalid: %v", err)
-			return
-		}
-		if len(params.Map) == 0 {
-			c.add(node.ID, refs.CodeUnresolvablePath, "transform params.map is required")
-		}
 	}
 }
 

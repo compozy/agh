@@ -303,6 +303,11 @@ func (c LeaseCompletion) Normalize(defaultNow time.Time) (LeaseCompletion, error
 	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
 	normalized.CreatedTaskIDs = normalizeCreatedTaskIDs(normalized.CreatedTaskIDs)
 	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
+	result, err := normalizeRunResult(normalized.Result)
+	if err != nil {
+		return LeaseCompletion{}, err
+	}
+	normalized.Result = result
 	if err := normalized.Validate("lease_completion"); err != nil {
 		return LeaseCompletion{}, err
 	}

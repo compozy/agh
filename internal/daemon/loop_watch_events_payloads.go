@@ -298,7 +298,7 @@ func watchEventsLoopTerminalEvent(
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Channel:     strings.TrimSpace(payload.NetworkChannel),
 		Payload: map[string]any{
-			"status":                     strings.TrimSpace(payload.Status),
+			daemonStatusField:            strings.TrimSpace(payload.Status),
 			"to":                         strings.TrimSpace(payload.Status),
 			"cause":                      strings.TrimSpace(payload.Cause),
 			"reason_code":                strings.TrimSpace(payload.ReasonCode),
@@ -328,7 +328,7 @@ func watchEventsLoopNodeTerminalEvent(
 			"generation":                 payload.Generation,
 			coordinatorRuntimeTaskIDKey:  strings.TrimSpace(payload.TaskID),
 			"task_run_id":                strings.TrimSpace(payload.RunID),
-			"status":                     strings.TrimSpace(payload.TaskStatus),
+			daemonStatusField:            strings.TrimSpace(payload.TaskStatus),
 			"run_status":                 strings.TrimSpace(payload.RunStatus),
 			watchEventsPayloadErrorKey:   strings.TrimSpace(payload.Error),
 			watchEventsPayloadDetailsKey: watchEventsRawJSONValue(payload.Details),

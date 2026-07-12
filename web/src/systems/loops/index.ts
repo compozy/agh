@@ -38,6 +38,9 @@ export type {
   LoopStartBinding,
   LoopStreamFilter,
   LoopValidationIssue,
+  GoalTurn,
+  GoalTurnFilter,
+  GoalTurnPage,
   LoopWatchEventSubscription,
   LoopWatchEventsState,
   PatchLoopRequest,
@@ -59,6 +62,7 @@ export {
   getLoopConfig,
   getLoopRun,
   listLoopRuns,
+  listGoalTurns,
   listLoops,
   patchLoop,
   pauseLoopRun,
@@ -71,6 +75,7 @@ export {
 } from "./adapters/loops-api";
 
 // Query infrastructure
+export type { GoalControlAction } from "./lib/goal-control-action";
 export { loopsKeys } from "./lib/query-keys";
 export {
   loopAnnotationsOptions,
@@ -244,6 +249,7 @@ export type {
   LoopApprovalRequest,
   LoopChannelMessage,
   LoopGateVerdict,
+  LoopGoalTurnLive,
   LoopLiveEvent,
   LoopRunLiveState,
 } from "./lib/loop-events";
@@ -296,6 +302,8 @@ export type { UseLoopConfigureResult } from "./hooks/use-loop-configure";
 
 // SSE stream hook
 export { useLoopStream } from "./hooks/use-loop-stream";
+export { mergeGoalTurns, mergeGoalTurnTimeline, useGoalTurns } from "./hooks/use-goal-turns";
+export type { GoalTurnTimelineItem, UseGoalTurnsOptions } from "./hooks/use-goal-turns";
 export type {
   LoopStreamEventSource,
   LoopStreamEventSourceFactory,
@@ -329,6 +337,7 @@ export { LoopRunContractHeader } from "./components/run-page/loop-run-contract-h
 export { LoopRunControls } from "./components/run-page/loop-run-controls";
 export { LoopRunMeters } from "./components/run-page/loop-run-meters";
 export { LoopGenerationTimeline } from "./components/run-page/loop-generation-timeline";
+export { GoalTurnTimeline } from "./components/run-page/goal-turn-timeline";
 export { LoopGenerationCard } from "./components/run-page/loop-generation-card";
 export { LoopNodeRow } from "./components/run-page/loop-node-row";
 export { LoopGateCard } from "./components/run-page/loop-gate-card";

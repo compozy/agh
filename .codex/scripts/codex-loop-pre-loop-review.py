@@ -27,13 +27,14 @@ sys.dont_write_bytecode = True
 HEADER = "AGH_PRE_LOOP_REVIEW"
 DEFAULT_COMPOZY_TIMEOUT = "8m"
 SCRIPT_RELATIVE = Path(".codex/scripts/codex-loop-pre-loop-review.py")
-STATE_IO_RELATIVE = Path(".agents/skills/cy-codex-loop/scripts/_state_io.py")
-CY_MARKERS = ("$cy-codex-loop", "/cy-codex-loop", ".agents/skills/cy-codex-loop")
+STATE_IO_RELATIVE = Path(".agents/skills/compozy/cy-loop-tasks/scripts/_state_io.py")
+CY_MARKERS = ("$cy-loop-tasks", "/cy-loop-tasks", ".agents/skills/compozy/cy-loop-tasks")
 CY_ACTION_PATTERNS = (
     re.compile(r"^executed task_\d+$"),
     re.compile(r"^slice .+"),
     re.compile(r"^qa-report produced$"),
     re.compile(r"^qa-execution produced$"),
+    re.compile(r"^peer-review round .+"),
     re.compile(r"^round .+ closed$"),
     re.compile(r"^coderabbit round .+"),
 )
@@ -133,7 +134,7 @@ def build_cy_target(payload: dict[str, Any], workspace: Path) -> ReviewTarget | 
     if not prompt_has_marker and not prompt_has_task_ref:
         return None
     if not state_path or not state_path.exists():
-        warning = "cy-codex-loop task evidence was present, but no matching state.yaml was found."
+        warning = "cy-loop-tasks task evidence was present, but no matching state.yaml was found."
         return build_generic_target(payload, workspace, warning)
 
     state = load_cy_state(workspace, state_path)
@@ -143,7 +144,7 @@ def build_cy_target(payload: dict[str, Any], workspace: Path) -> ReviewTarget | 
             return build_generic_target(
                 payload,
                 workspace,
-                f"cy-codex-loop state exists at {relative(workspace, state_path)}, but no reviewable iteration was found.",
+                f"cy-loop-tasks state exists at {relative(workspace, state_path)}, but no reviewable iteration was found.",
             )
         return None
 
@@ -157,7 +158,7 @@ def build_cy_target(payload: dict[str, Any], workspace: Path) -> ReviewTarget | 
             return build_generic_target(
                 payload,
                 workspace,
-                f"cy-codex-loop latest task target {task_stem} has status {status or 'missing'}, not completed.",
+                f"cy-loop-tasks latest task target {task_stem} has status {status or 'missing'}, not completed.",
             )
         return build_cy_task_target(payload, workspace, slug, task_stem, state_path, latest)
 
@@ -180,15 +181,15 @@ def find_slug(payload: dict[str, Any], workspace: Path) -> str | None:
 def load_cy_state(workspace: Path, state_path: Path) -> dict[str, Any]:
     state_io_path = workspace / STATE_IO_RELATIVE
     if not state_io_path.exists():
-        raise ValueError(f"missing cy-codex-loop state parser: {relative(workspace, state_io_path)}")
+        raise ValueError(f"missing cy-loop-tasks state parser: {relative(workspace, state_io_path)}")
     spec = importlib.util.spec_from_file_location("cy_state_io", state_io_path)
     if spec is None or spec.loader is None:
-        raise ValueError(f"cannot load cy-codex-loop state parser: {state_io_path}")
+        raise ValueError(f"cannot load cy-loop-tasks state parser: {state_io_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     state = module.load(state_path)
     if not isinstance(state, dict):
-        raise ValueError(f"cy-codex-loop state is not a mapping: {relative(workspace, state_path)}")
+        raise ValueError(f"cy-loop-tasks state is not a mapping: {relative(workspace, state_path)}")
     return state
 
 
@@ -219,9 +220,9 @@ def build_cy_task_target(
     shared_memory = slug_dir / "memory" / "MEMORY.md"
     prompt = "\n\n".join(
         [
-            review_preamble("cy-codex-loop-task", f"{slug}/{task_stem}"),
+            review_preamble("cy-loop-tasks-task", f"{slug}/{task_stem}"),
             payload_context(payload),
-            "## cy-codex-loop latest iteration\n\n" + json.dumps(latest, indent=2, sort_keys=True),
+            "## cy-loop-tasks latest iteration\n\n" + json.dumps(latest, indent=2, sort_keys=True),
             file_section(workspace, task_path, 60000),
             file_section(workspace, task_memory, 30000),
             file_section(workspace, shared_memory, 45000),
@@ -231,7 +232,7 @@ def build_cy_task_target(
         ]
     )
     return ReviewTarget(
-        mode="cy-codex-loop-task",
+        mode="cy-loop-tasks-task",
         target=f"{slug}/{task_stem}",
         slug=slug,
         task_stem=task_stem,
@@ -253,7 +254,7 @@ def build_cy_phase_target(
         [
             review_preamble(mode, f"{slug}: {action}"),
             payload_context(payload),
-            "## cy-codex-loop latest iteration\n\n" + json.dumps(latest, indent=2, sort_keys=True),
+            "## cy-loop-tasks latest iteration\n\n" + json.dumps(latest, indent=2, sort_keys=True),
             file_section(workspace, slug_dir / "memory" / "MEMORY.md", 45000),
             file_section(workspace, state_path, 30000),
             git_context(workspace, include_diff=False),
@@ -265,12 +266,8 @@ def build_cy_phase_target(
 
 def classify_cy_phase(action: str) -> str:
     if action.startswith("slice "):
-        return "cy-codex-loop-slice"
-    if action in {"qa-report produced", "qa-execution produced"}:
-        return "cy-codex-loop-phase"
-    if action.startswith("round ") or action.startswith("coderabbit round"):
-        return "cy-codex-loop-phase"
-    return "cy-codex-loop-phase"
+        return "cy-loop-tasks-slice"
+    return "cy-loop-tasks-phase"
 
 
 def build_generic_target(
@@ -378,7 +375,7 @@ def output_contract() -> str:
 Return concise Markdown and start exactly with:
 
 {HEADER}
-Mode: <cy-codex-loop-task|cy-codex-loop-slice|cy-codex-loop-phase|generic>
+Mode: <cy-loop-tasks-task|cy-loop-tasks-slice|cy-loop-tasks-phase|generic>
 Target: <review target>
 Verdict: <PASS|FIX>
 Confidence: <0..1>

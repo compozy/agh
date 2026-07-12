@@ -93,7 +93,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    expect(indicator?.getAttribute("class")).toContain("text-info");
+    expect(indicator?.getAttribute("class")).toContain("text-muted");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent("Reading...");
   });
@@ -117,7 +117,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("empty");
     expect(indicator?.getAttribute("aria-label")).toBe("Empty");
-    expect(indicator?.getAttribute("class")).toContain("text-faint");
+    expect(indicator?.getAttribute("class")).toContain("text-subtle");
   });
 
   it("Should promote a neutral tool to success only once the turn settles, never before", () => {
@@ -167,37 +167,37 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     expect(headingEl?.className).toContain("text-muted");
   });
 
-  it("Should toggle the inline Input body by click and keyboard", () => {
+  it("Should toggle the specialized output body by click and keyboard", () => {
     render(<SessionToolCallRow message={makeToolMessage()} />);
-    const trigger = screen.getByRole("button");
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    expect(rowTrigger).not.toBeNull();
+    expect(rowTrigger).toHaveAttribute("aria-expanded", "false");
     expect(queryBody()).toBeNull();
 
-    fireEvent.click(trigger);
+    fireEvent.click(rowTrigger as HTMLElement);
     expect(queryBody()).not.toBeNull();
-    expect(document.querySelector('[data-slot="tool-call-row-input"]')).toHaveTextContent(
-      '"file_path"'
-    );
+    expect(document.querySelector('[data-slot="tool-call-row-output"]')).not.toBeNull();
+    expect(screen.getByTestId("read-content")).toHaveTextContent("/src/main.ts");
 
-    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.keyDown(rowTrigger as HTMLElement, { key: "Enter" });
     expect(queryBody()).toBeNull();
-    fireEvent.keyDown(trigger, { key: " " });
+    fireEvent.keyDown(rowTrigger as HTMLElement, { key: " " });
     expect(queryBody()).not.toBeNull();
   });
 
   it("Should keep the body open when interacting inside it so text selection stays safe", () => {
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    fireEvent.click(rowTrigger as HTMLElement);
+    expect(rowTrigger).toHaveAttribute("aria-expanded", "true");
     expect(queryBody()).not.toBeNull();
 
-    const input = document.querySelector<HTMLElement>('[data-slot="tool-call-row-input"]');
-    expect(input).not.toBeNull();
-    fireEvent.pointerDown(input as HTMLElement);
-    fireEvent.click(input as HTMLElement);
+    const output = document.querySelector<HTMLElement>('[data-slot="tool-call-row-output"]');
+    expect(output).not.toBeNull();
+    fireEvent.pointerDown(output as HTMLElement);
+    fireEvent.click(output as HTMLElement);
 
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(rowTrigger).toHaveAttribute("aria-expanded", "true");
     expect(queryBody()).not.toBeNull();
   });
 
@@ -211,8 +211,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
         })}
       />
     );
-    const trigger = screen.getByRole("button");
-    fireEvent.click(trigger);
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    fireEvent.click(rowTrigger as HTMLElement);
 
     expect(document.querySelector('[data-slot="tool-call-row-output"]')).not.toBeNull();
     expect(queryBody()).toHaveTextContent("abc");
@@ -233,7 +233,8 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
       />
     );
 
-    fireEvent.click(screen.getByRole("button"));
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    fireEvent.click(rowTrigger as HTMLElement);
 
     expect(screen.getByTestId("edit-content")).toBeInTheDocument();
     expect(queryBody()).toHaveTextContent("/src/app.ts");
@@ -252,21 +253,25 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
       />
     );
 
-    fireEvent.click(screen.getByRole("button"));
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    fireEvent.click(rowTrigger as HTMLElement);
 
     expect(queryToolName()).toHaveTextContent("mcp__context7__resolve-library-id");
     expect(queryBody()).toHaveTextContent('"libraryName": "react"');
     expect(queryBody()).toHaveTextContent("/websites/react_dev");
   });
 
-  it("Should keep Output absent while the tool is still running", () => {
+  it("Should render specialized tool output while the tool is still running", () => {
     render(<SessionToolCallRow message={makeToolMessage()} />);
-    fireEvent.click(screen.getByRole("button"));
+    const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
+    fireEvent.click(rowTrigger as HTMLElement);
 
-    expect(document.querySelector('[data-slot="tool-call-row-output"]')).toBeNull();
+    expect(document.querySelector('[data-slot="tool-call-row-output"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="tool-call-row-input"]')).toBeNull();
+    expect(screen.getByTestId("read-content")).toHaveTextContent("/src/main.ts");
   });
 
-  it("Should copy the structured tool payload from the expanded body", async () => {
+  it("Should copy the structured tool payload from the trailing actions cluster", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -274,7 +279,6 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     });
     render(<SessionToolCallRow message={makeToolMessage({ toolResult: { content: "abc" } })} />);
 
-    fireEvent.click(screen.getByRole("button"));
     fireEvent.click(screen.getByRole("button", { name: "Copy tool payload" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));

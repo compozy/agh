@@ -20,8 +20,11 @@ const loopRunSelectColumnsSQL = `
 	last_progress_at, definition_version, definition_digest, active_gate_id,
 	active_human_criteria_json, budget_approval_seq, start_metadata_json,
 	consecutive_failures, budget_tokens, budget_wall_sec,
-	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, iteration_cap,
-	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref`
+	budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested,
+	control_actor_kind, control_actor_id, control_requested_at, inputs_json, iteration_cap,
+	started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
+	goal_context_nudge_ratio, origin_kind, origin_session_id,
+	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest`
 
 // CreateLoopRunForStart atomically applies the loop concurrency policy and persists a new run.
 func (g *GlobalDB) CreateLoopRunForStart(
@@ -36,13 +39,12 @@ func (g *GlobalDB) CreateLoopRunForStart(
 	if err != nil {
 		return looppkg.Run{}, err
 	}
-	inputsJSON, err := json.Marshal(normalized.Inputs)
-	if err != nil {
-		return looppkg.Run{}, fmt.Errorf("store: marshal loop run inputs: %w", err)
+	if normalized.Origin.Kind != looppkg.RunOriginCatalog {
+		return looppkg.Run{}, fmt.Errorf("%w: catalog start requires catalog Run origin", looppkg.ErrValidation)
 	}
-	startMetadataJSON, err := json.Marshal(normalized.StartMetadata)
+	inputsJSON, startMetadataJSON, err := marshalLoopRunCreatePayload(normalized)
 	if err != nil {
-		return looppkg.Run{}, fmt.Errorf("store: marshal loop run start metadata: %w", err)
+		return looppkg.Run{}, err
 	}
 	if policy == "" {
 		policy = dsl.ConcurrencyForbid
@@ -54,31 +56,40 @@ func (g *GlobalDB) CreateLoopRunForStart(
 		if decisionErr != nil {
 			return decisionErr
 		}
-		if err := upsertLoopDefinitionSnapshot(ctx, exec, created, g.now()); err != nil {
-			return err
-		}
-		if err := insertLoopRun(ctx, exec, created, inputsJSON, startMetadataJSON); err != nil {
-			return err
-		}
-		if created.Status == looppkg.StatusRunning {
-			if _, _, err := g.reserveLoopCoordinatorRunWithExecutor(
-				ctx,
-				exec,
-				created,
-				loopCoordinatorStartOrigin(),
-				created.CreatedAt,
-				loopCoordinatorRunID(created.ID, created.Generation+1),
-				loopCoordinatorIdempotencyKey(created.ID, created.Generation+1),
-			); err != nil {
-				return err
-			}
-		}
-		return nil
+		return g.persistStartedLoopRunWithExecutor(ctx, exec, created, inputsJSON, startMetadataJSON)
 	})
 	if err != nil {
 		return looppkg.Run{}, err
 	}
 	return created, nil
+}
+
+func (g *GlobalDB) persistStartedLoopRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	inputsJSON []byte,
+	startMetadataJSON []byte,
+) error {
+	if err := upsertLoopDefinitionSnapshot(ctx, exec, run, g.now()); err != nil {
+		return err
+	}
+	if err := insertLoopRun(ctx, exec, run, inputsJSON, startMetadataJSON); err != nil {
+		return err
+	}
+	if run.Status != looppkg.StatusRunning {
+		return nil
+	}
+	_, _, err := g.reserveLoopCoordinatorRunWithExecutor(
+		ctx,
+		exec,
+		run,
+		loopCoordinatorStartOrigin(),
+		run.CreatedAt,
+		loopCoordinatorRunID(run.ID, run.Generation+1),
+		loopCoordinatorIdempotencyKey(run.ID, run.Generation+1),
+	)
+	return err
 }
 
 func applyLoopStartConcurrencyPolicy(
@@ -127,8 +138,10 @@ func insertLoopRun(
 			active_human_criteria_json, budget_approval_seq, start_metadata_json,
 			consecutive_failures, iteration_cap, budget_tokens, budget_wall_sec,
 			budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json,
-			started_by_kind, started_by_ref, started_origin_kind, started_origin_ref
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
+			goal_context_nudge_ratio, origin_kind, origin_session_id,
+			origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(run.ID),
 		string(run.WorkspaceID),
 		run.LoopName,
@@ -157,6 +170,12 @@ func insertLoopRun(
 		run.StartedBy.Ref,
 		string(run.StartedOrigin.Kind),
 		run.StartedOrigin.Ref,
+		run.GoalContextNudgeRatio,
+		string(run.Origin.Kind),
+		nullString(run.Origin.SessionID),
+		nullString(run.Origin.CreationProfileRef),
+		nullString(run.Origin.PolicySpecDigest),
+		nullString(run.Origin.CreationDigest),
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert loop run %q: %w", run.ID, err)
@@ -171,6 +190,18 @@ func insertLoopRun(
 		looppkg.TransitionCauseStart,
 		run.CreatedAt,
 	)
+}
+
+func marshalLoopRunCreatePayload(run looppkg.Run) ([]byte, []byte, error) {
+	inputsJSON, err := json.Marshal(run.Inputs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: marshal loop run inputs: %w", err)
+	}
+	startMetadataJSON, err := json.Marshal(run.StartMetadata)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: marshal loop run start metadata: %w", err)
+	}
+	return inputsJSON, startMetadataJSON, nil
 }
 
 // GetLoopRun loads one workspace-scoped loop_run.
@@ -295,79 +326,9 @@ func (g *GlobalDB) CompareAndSwapLoopRunStatus(
 		ctx,
 		"transition loop run status",
 		func(exec taskSQLExecutor) error {
-			current, err := getLoopRunByIDWithExecutor(ctx, exec, runID)
-			if err != nil {
-				return err
-			}
-			result, err := exec.ExecContext(
-				ctx,
-				`UPDATE loop_runs
-			 SET status = ?,
-			     pause_requested = CASE WHEN ? IN (?, ?, ?, ?, ?, ?, ?, ?) THEN 0 ELSE pause_requested END,
-			     active_gate_id = CASE WHEN ? != ? THEN '' ELSE active_gate_id END,
-			     active_human_criteria_json = CASE WHEN ? != ? THEN '[]' ELSE active_human_criteria_json END
-			 WHERE id = ? AND status = ?`,
-				string(to),
-				string(to),
-				string(looppkg.StatusRunning),
-				string(looppkg.StatusPaused),
-				string(looppkg.StatusDone),
-				string(looppkg.StatusNoOp),
-				string(looppkg.StatusBlocked),
-				string(looppkg.StatusFailed),
-				string(looppkg.StatusExhausted),
-				string(looppkg.StatusStalled),
-				string(to),
-				string(looppkg.StatusNeedsApproval),
-				string(to),
-				string(looppkg.StatusNeedsApproval),
-				string(runID),
-				string(from),
-			)
-			if err != nil {
-				return fmt.Errorf("store: transition loop run %q: %w", runID, err)
-			}
-			affected, err := result.RowsAffected()
-			if err != nil {
-				return fmt.Errorf("store: rows affected for loop run %q transition: %w", runID, err)
-			}
-			if affected == 0 {
-				return fmt.Errorf("%w: run_id=%s from=%s to=%s", looppkg.ErrTransitionConflict, runID, from, to)
-			}
-			if err := appendLoopRunStatusEvent(ctx, exec, runID, current.WorkspaceID, from, to, cause, at); err != nil {
-				return err
-			}
-			if to.Terminal() {
-				if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-					return err
-				}
-			}
-			return nil
+			return compareAndSwapLoopRunStatusWithExecutor(ctx, exec, runID, from, to, cause, at)
 		},
 	)
-}
-
-// SetLoopRunPauseRequested updates the durable operator pause intent.
-func (g *GlobalDB) SetLoopRunPauseRequested(
-	ctx context.Context,
-	ws looppkg.WorkspaceID,
-	runID looppkg.RunID,
-	requested bool,
-) error {
-	if err := g.checkReady(ctx, "set loop run pause requested"); err != nil {
-		return err
-	}
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET pause_requested = ? WHERE workspace_id = ? AND id = ?`,
-		boolToInt(requested),
-		string(ws),
-		string(runID),
-	)
-	if err != nil {
-		return fmt.Errorf("store: set loop run %q pause_requested: %w", runID, err)
-	}
-	return requireRowsAffected(result, looppkg.ErrRunNotFound, string(runID), "loop run")
 }
 
 // UpsertLoopConfig persists a no-fork per-loop config override.

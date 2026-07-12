@@ -21,7 +21,7 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	def := resolved.Definition
 	graph := def.Graph
 	topology := newControlTopology(graph)
-	normalized, failed, live, loopStops, err := r.refreshGenerationOutputs(
+	normalized, failed, controlTerminal, live, loopStops, err := r.refreshGenerationOutputs(
 		ctx,
 		run,
 		generation,
@@ -34,6 +34,12 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	}
 	plan := coordinatorFinisherPlan(run, generation, normalized, loopStops)
 	plan.GenerationInFlight = live
+	if controlTerminal != nil {
+		return r.buildGoalControlFinisherPlan(
+			ctx, taskRun, run, generation, resolved, effective, topology,
+			fanOutWidth, plan, normalized, live, controlTerminal,
+		)
+	}
 	if failed != nil {
 		return r.buildFailedGenerationPlan(
 			ctx,
@@ -65,6 +71,45 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 		normalized,
 		live,
 	)
+}
+
+func (r *CoordinatorRunner) buildGoalControlFinisherPlan(
+	ctx context.Context,
+	taskRun task.Run,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	effective EffectiveConfig,
+	topology controlTopology,
+	fanOutWidth int,
+	plan task.CoordinatorCompletionPlan,
+	normalized []GenerationOutput,
+	live bool,
+	controlTerminal *task.CoordinatorTerminal,
+) (task.CoordinatorCompletionPlan, error) {
+	goalPlan, err := r.buildLiveGenerationPlan(
+		ctx,
+		taskRun,
+		run,
+		generation,
+		resolved,
+		effective,
+		topology,
+		r.gateEvaluator,
+		fanOutWidth,
+		r.watchRuntime(),
+		r.watchEventsRuntime(),
+		plan,
+		normalized,
+		live,
+	)
+	if err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	goalPlan.Terminal = controlTerminal
+	goalPlan.Yield = false
+	goalPlan.GenerationInFlight = goalPlan.GenerationInFlight || len(goalPlan.NodeRuns) > 0
+	return goalPlan, nil
 }
 
 func (r *CoordinatorRunner) buildLiveGenerationPlan(
@@ -127,6 +172,7 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 		gateEvaluator,
 		plan,
 		advancedOutputs,
+		outputBlobs,
 		live,
 	)
 }
@@ -142,6 +188,7 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 	gateEvaluator gate.GateEvaluator,
 	plan task.CoordinatorCompletionPlan,
 	advancedOutputs []GenerationOutput,
+	outputBlobs []GenerationOutputBlob,
 	live bool,
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
@@ -153,6 +200,7 @@ func (r *CoordinatorRunner) finishLiveGenerationPlan(
 		topology,
 		gateEvaluator,
 		advancedOutputs,
+		outputBlobs,
 	)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
@@ -279,6 +327,7 @@ func appendReadyNodeRunsToPlan(
 	topology controlTopology,
 	gateEvaluator gate.GateEvaluator,
 	advancedOutputs []GenerationOutput,
+	outputBlobs []GenerationOutputBlob,
 ) (bool, error) {
 	postReserveOutputs := cloneGenerationOutputs(sortedGenerationOutputs(advancedOutputs))
 	if err := appendReadyNodeRunsControlAware(
@@ -295,11 +344,12 @@ func appendReadyNodeRunsToPlan(
 	if len(plan.NodeRuns) == 0 {
 		return false, nil
 	}
-	plan.PostReserveSnapshot = &task.GenerationSnapshot{
-		LoopRunID:  string(run.ID),
-		Generation: generation,
-		Payload:    GenerationSnapshotPayload{Outputs: postReserveOutputs},
-	}
+	plan.PostReserveSnapshot = generationSnapshotWithOutputs(
+		run.ID,
+		generation,
+		postReserveOutputs,
+		outputBlobs,
+	)
 	return true, nil
 }
 

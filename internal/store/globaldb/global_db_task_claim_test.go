@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
@@ -2402,7 +2404,13 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	if err := globalDB.SetLoopRunPauseRequested(ctx, loopRun.WorkspaceID, loopRun.ID, true); err != nil {
+	if err := globalDB.SetLoopRunPauseRequested(
+		ctx,
+		loopRun.WorkspaceID,
+		loopRun.ID,
+		true,
+		coordinatorActorContextForTest(),
+	); err != nil {
 		t.Fatalf("SetLoopRunPauseRequested() error = %v", err)
 	}
 	claim := claimCoordinatorRunForTest(
@@ -2483,7 +2491,13 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldKeepNodeOutputsPendingWh
 			name: "pause",
 			beforePlan: func(ctx context.Context, t *testing.T, db *GlobalDB, run looppkg.Run) {
 				t.Helper()
-				if err := db.SetLoopRunPauseRequested(ctx, run.WorkspaceID, run.ID, true); err != nil {
+				if err := db.SetLoopRunPauseRequested(
+					ctx,
+					run.WorkspaceID,
+					run.ID,
+					true,
+					coordinatorActorContextForTest(),
+				); err != nil {
 					t.Fatalf("SetLoopRunPauseRequested() error = %v", err)
 				}
 			},
@@ -2610,7 +2624,13 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 			name: "pause",
 			before: func(ctx context.Context, t *testing.T, db *GlobalDB, run looppkg.Run) {
 				t.Helper()
-				if err := db.SetLoopRunPauseRequested(ctx, run.WorkspaceID, run.ID, true); err != nil {
+				if err := db.SetLoopRunPauseRequested(
+					ctx,
+					run.WorkspaceID,
+					run.ID,
+					true,
+					coordinatorActorContextForTest(),
+				); err != nil {
 					t.Fatalf("SetLoopRunPauseRequested() error = %v", err)
 				}
 			},
@@ -2953,7 +2973,13 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 	if err != nil {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
-	if err := globalDB.SetLoopRunPauseRequested(ctx, loopRun.WorkspaceID, loopRun.ID, true); err != nil {
+	if err := globalDB.SetLoopRunPauseRequested(
+		ctx,
+		loopRun.WorkspaceID,
+		loopRun.ID,
+		true,
+		coordinatorActorContextForTest(),
+	); err != nil {
 		t.Fatalf("SetLoopRunPauseRequested() error = %v", err)
 	}
 	claim := claimCoordinatorRunForTest(
@@ -3178,7 +3204,13 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 			if err != nil {
 				t.Fatalf("CreateLoopRunForStart() error = %v", err)
 			}
-			if err := globalDB.SetLoopRunPauseRequested(ctx, loopRun.WorkspaceID, loopRun.ID, true); err != nil {
+			if err := globalDB.SetLoopRunPauseRequested(
+				ctx,
+				loopRun.WorkspaceID,
+				loopRun.ID,
+				true,
+				coordinatorActorContextForTest(),
+			); err != nil {
 				t.Fatalf("SetLoopRunPauseRequested() error = %v", err)
 			}
 			claim := claimCoordinatorRunForTest(
@@ -4121,6 +4153,273 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	}
 }
 
+func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
+	t.Run("Should preserve task completion while leaving the Goal output control pending", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
+		definition := dsl.Definition{
+			APIVersion: dsl.APIVersion,
+			Kind:       dsl.KindLoop,
+			Meta:       dsl.Meta{Name: "goal-control-pending", Version: 1},
+			Contract: dsl.Contract{
+				Goal:             "Settle Goal control truthfully",
+				DefinitionOfDone: "The Goal control boundary is durable",
+				IterationCap:     3,
+				NoProgress:       dsl.NoProgress{Window: 1},
+			},
+			Graph: dsl.Graph{Nodes: []dsl.Node{{
+				ID:    "converge",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionGoal),
+				Params: dsl.NodeParams{
+					"agent":     "worker",
+					"objective": "Reach the Goal control boundary",
+					"judge": []any{
+						map[string]any{"id": "done", "type": "agent-judge", "rubric": "Approve when done"},
+					},
+					"max_turns":    3,
+					"on_exhausted": dsl.GoalOnExhaustedHalt,
+					"output_schema": map[string]any{
+						"status": map[string]any{
+							"type": "string",
+							"enum": []any{"complete", "blocked"},
+						},
+					},
+				},
+			}}},
+		}
+		resolvedDefinition, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(Goal definition) error = %v", err)
+		}
+		effective, err := looppkg.ResolveEffectiveConfig(
+			resolvedDefinition,
+			looppkg.DefaultLoopDefaults(),
+			nil,
+			looppkg.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(
+			resolvedDefinition,
+			effective,
+		)
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+		}
+		seed := testLoopRun("looprun-goal-control-pending", now, looppkg.StatusRunning)
+		seed.Generation = 1
+		seed.DefinitionVersion = resolvedDefinition.DefinitionVersion
+		seed.DefinitionDigest = digest
+		seed.DefinitionSnapshot = snapshot
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			seed,
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		taskRecord := taskRecordForTest("task-goal-control-pending")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		const runID = "run-goal-control-pending"
+		reservation := queuedRunReservationForTest(
+			taskRecord.ID,
+			runID,
+			"goal-control-pending",
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+			"",
+			json.RawMessage(`{"generation":1,"node_id":"converge","item_index":0}`),
+			now,
+		)
+		reservation.RunKind = taskpkg.RunKindWorker
+		reservation.LoopRunID = string(loopRun.ID)
+		if _, _, _, err := globalDB.ReserveQueuedRun(ctx, reservation); err != nil {
+			t.Fatalf("ReserveQueuedRun(worker) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id
+			) VALUES (?, 1, 'converge', 0, 'enqueued', ?)`,
+			string(loopRun.ID),
+			runID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "worker-goal-control-pending",
+			ClaimedBy: &taskpkg.ActorIdentity{
+				Kind: taskpkg.ActorKindDaemon,
+				Ref:  "worker",
+			},
+			LeaseDuration: time.Minute,
+			Now:           now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		control := looppkg.ActionControl{
+			Disposition:  looppkg.ActionDispositionPaused,
+			GoalStatus:   "paused",
+			Cause:        "operator_pause",
+			CheckpointID: "checkpoint-goal-control-pending",
+		}
+		controlPayload, err := json.Marshal(control)
+		if err != nil {
+			t.Fatalf("json.Marshal(control) error = %v", err)
+		}
+		completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:      coordinatorActorContextForTest(),
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result: taskpkg.RunResult{CoordinatorControl: &taskpkg.CoordinatorControlResult{
+				Kind:    "loop_action",
+				Payload: controlPayload,
+			}},
+			TokensUsed: 7,
+			Now:        now.Add(2 * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("CompleteRunLease() error = %v", err)
+		}
+		var storedControl taskpkg.CoordinatorControlResult
+		if err := json.Unmarshal(completed.Result, &storedControl); err != nil {
+			t.Fatalf("json.Unmarshal(completed.Result) error = %v", err)
+		}
+		if got, want := storedControl.Kind, "loop_action"; got != want {
+			t.Fatalf("stored control kind = %q, want %q", got, want)
+		}
+		var outputStatus string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'converge' AND item_index = 0`,
+			string(loopRun.ID),
+		).Scan(&outputStatus); err != nil {
+			t.Fatalf("query generation output error = %v", err)
+		}
+		if got, want := outputStatus, "control_pending"; got != want {
+			t.Fatalf("generation output status = %q, want %q", got, want)
+		}
+		loopEvents, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		for _, event := range loopEvents {
+			if event.Kind == loopRunEventNodeSucceeded || event.Kind == loopRunEventNodeFailed {
+				t.Fatalf("unexpected intermediate node terminal event: %#v", event)
+			}
+		}
+		taskEvents, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEvents() error = %v", err)
+		}
+		completedEvents := 0
+		for _, event := range taskEvents {
+			if event.EventType == string(hookspkg.HookTaskRunCompleted) {
+				completedEvents++
+			}
+		}
+		if got, want := completedEvents, 1; got != want {
+			t.Fatalf("task.run.completed count = %d, want %d", got, want)
+		}
+
+		recovered, err := globalDB.ReconcileLoopCoordinatorsOnBoot(
+			ctx,
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "boot-goal-control"},
+			now.Add(3*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot() error = %v", err)
+		}
+		if len(recovered) > 1 {
+			t.Fatalf("recovered coordinators = %#v, want at most one Loop coordinator", recovered)
+		}
+		if len(recovered) == 1 && (recovered[0].RunKind != taskpkg.RunKindCoordinator ||
+			recovered[0].LoopRunID != string(loopRun.ID)) {
+			t.Fatalf("recovered coordinator = %#v, want this Loop Run", recovered[0])
+		}
+		coordinatorClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      string(loopRun.WorkspaceID),
+			RunKind:          taskpkg.RunKindCoordinator,
+			ClaimerSessionID: "coordinator-goal-control",
+			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(4 * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(recovered coordinator) error = %v", err)
+		}
+		runner, err := looppkg.NewCoordinatorRunner(
+			globalDB,
+			globalDB,
+			globalDB,
+			slog.Default(),
+		)
+		if err != nil {
+			t.Fatalf("NewCoordinatorRunner() error = %v", err)
+		}
+		plan, err := runner.Run(ctx, taskpkg.RunID(coordinatorClaim.Run.ID))
+		if err != nil {
+			t.Fatalf("Run(recovered coordinator) error = %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(looppkg.StatusPaused) {
+			t.Fatalf("recovered coordinator terminal = %#v, want paused", plan.Terminal)
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+			RunID:      coordinatorClaim.Run.ID,
+			ClaimToken: coordinatorClaim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan:       plan,
+			Now:        now.Add(5 * time.Second),
+		}, looppkg.NewStoreFinalizer()); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(recovered) error = %v", err)
+		}
+		settledRun, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID(settled) error = %v", err)
+		}
+		if settledRun.Status != looppkg.StatusPaused {
+			t.Fatalf("settled Run status = %q, want paused", settledRun.Status)
+		}
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'converge' AND item_index = 0`,
+			string(loopRun.ID),
+		).Scan(&outputStatus); err != nil {
+			t.Fatalf("query settled Goal output error = %v", err)
+		}
+		if outputStatus != "awaiting_goal" {
+			t.Fatalf("settled Goal output = %q, want awaiting_goal", outputStatus)
+		}
+		replayed, err := globalDB.ReconcileLoopCoordinatorsOnBoot(
+			ctx,
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "boot-goal-control"},
+			now.Add(6*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(replay) error = %v", err)
+		}
+		if len(replayed) != 0 {
+			t.Fatalf("replayed coordinators = %#v, want none after settlement", replayed)
+		}
+	})
+}
+
 func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testing.T) {
 	t.Parallel()
 
@@ -4512,6 +4811,8 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 	}
 	keepPayload := json.RawMessage(`{"body":"keep"}`)
 	keepRef := looppkg.OutputRefForPayload(keepPayload)
+	reportPayload := json.RawMessage(`"goal report evidence"`)
+	reportRef := looppkg.OutputRefForPayload(reportPayload)
 	orphanPayload := json.RawMessage(`{"body":"orphan"}`)
 	orphanRef := looppkg.OutputRefForPayload(orphanPayload)
 	err = globalDB.withTaskImmediateTransaction(ctx, "seed loop output retention", func(exec taskSQLExecutor) error {
@@ -4519,6 +4820,9 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 			return err
 		}
 		if err := upsertLoopOutputBlobWithExecutor(ctx, exec, orphanRef, orphanPayload, now); err != nil {
+			return err
+		}
+		if err := upsertLoopOutputBlobWithExecutor(ctx, exec, reportRef, reportPayload, now); err != nil {
 			return err
 		}
 		_, err := exec.ExecContext(
@@ -4532,7 +4836,21 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 		if err != nil {
 			return err
 		}
-		return nil
+		_, err = exec.ExecContext(
+			ctx,
+			`INSERT INTO loop_goal_checkpoints (
+				loop_run_id, generation, node_id, item_index, control_epoch, phase, goal_status,
+				turn_limit, context_nudge_ratio, report_prompt_id, report_status,
+				report_evidence_ref, report_binding_epoch, report_actor_kind, report_actor_id,
+				report_recorded_at, updated_at
+			) VALUES (?, 1, 'goal', 0, 1, 'prompting', 'active', 3, 0.8,
+				'prompt-report', 'blocked', ?, 1, 'agent_session', 'session-report', ?, ?)`,
+			string(loopRun.ID),
+			reportRef,
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		)
+		return err
 	})
 	if err != nil {
 		t.Fatalf("seed loop output retention error = %v", err)
@@ -4571,6 +4889,13 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 	}
 	if string(loaded) != string(keepPayload) {
 		t.Fatalf("kept payload = %s, want %s", loaded, keepPayload)
+	}
+	loadedReport, err := getLoopOutputByRefWithExecutor(ctx, globalDB.db, reportRef)
+	if err != nil {
+		t.Fatalf("getLoopOutputByRefWithExecutor(report) error = %v", err)
+	}
+	if string(loadedReport) != string(reportPayload) {
+		t.Fatalf("kept report payload = %s, want %s", loadedReport, reportPayload)
 	}
 	if _, err := getLoopOutputByRefWithExecutor(ctx, globalDB.db, orphanRef); !errors.Is(
 		err,

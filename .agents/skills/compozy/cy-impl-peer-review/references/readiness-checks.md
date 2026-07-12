@@ -39,7 +39,3 @@ If any `*.sql` schema file changed (column add/drop, index change, constraint ch
 ## Marker 7: Surface Co-Ship Statement
 
 For backend changes, the user (or the matching task file) has named the web/docs impact: either the diff includes the web/docs changes, or there is an explicit "no impact" rationale that the reviewer can validate. A backend-only diff with no impact analysis is a `cy-web-docs-impact` violation and Opus will flag it correctly — but the skill should call it out before spending Opus credit.
-
-## Marker 8: Scope is Reviewable
-
-`git diff main...HEAD --stat` reports ≤ 5000 changed lines and ≤ 80 files. Larger diffs require explicit user confirmation and a `--files` scoping pass — Opus produces shallow findings on sprawling diffs (cy-review-round prioritization rule applies here too).

@@ -28,6 +28,7 @@ const (
 	loopRunKey        = "run"
 	loopStatusKey     = "status"
 	loopRunsKey       = "runs"
+	loopTurnsKey      = "turns"
 	loopStopKey       = "stop"
 	loopPauseKey      = "pause"
 	loopResumeKey     = "resume"
@@ -38,7 +39,7 @@ const (
 
 func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "loop",
+		Use:   loopLoopKey,
 		Short: "Manage Loop definitions and runs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -53,6 +54,7 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopRunCommand(deps))
 	cmd.AddCommand(newLoopStatusCommand(deps))
 	cmd.AddCommand(newLoopRunsCommand(deps))
+	cmd.AddCommand(newLoopTurnsCommand(deps))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopStopKey, "Stop one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopPauseKey, "Pause one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopResumeKey, "Resume one Loop run"))

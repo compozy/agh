@@ -73,3 +73,24 @@ Seed material: `_seeds/qa-e2e-playbook.md` §10 (first-automation backlog) and `
 - Suggested layer: E2E runtime (produce each state) + web component (map each state to its distinct pill, reduced-motion-gated pulse, no coercion).
 - Spec sketch: drive/seed a run into each of the 11 states; assert a distinct truthful pill per state and that `exhausted`/`stalled`/`needs-approval`/`no-op`/`blocked` are never rendered as `done`/`failed`. The terminal `blocked` (external dependency impossible, ADR-022) has a `state.csv` owner (LP-038, J-08) but needs a *behavioral* seed that walks a run into it — e.g. a J-08 watch-source missing a credential, or a refused `run-loop` cycle — not only a rendered pill. True end state: all 11 states render distinctly and truthfully across the web + structured surfaces.
 - Status: proposed
+
+## AB-010: Goal real-daemon browser journey harness
+- Source: J-26, J-27 / GL-001..GL-016, GL-022..GL-024, GL-033, GL-035 / `_tests.md` E2E-web 1..10
+- Why automate: high-value stable journey whose component/Storybook coverage does not yet pin the complete composer → session chip → Run timeline → editor flow against one real daemon. Task 08 walks it manually with Playwright and indexed screenshots; repeated release cycles should not depend on manual seed assembly.
+- Suggested layer: E2E browser (`make test-e2e-web`) with daemon-side Goal session/editor seed fixtures.
+- Spec sketch: start at `{goal:null}`, submit a Goal, drive two rejections and approval, pause/resume, replace/draft, external discovery, clear, turn pagination, Runs origin filter, and one editor-authored snapshot-pinned Run. True end state: reload shows daemon-owned truth with no polling, duplicate turn, fabricated context, stale replacement, or resurrected history.
+- Status: proposed
+
+## AB-011: Goal stop-reason context and budget profile matrix
+- Source: J-28 / GL-017..GL-021, GL-038, GL-040 / `_tests.md` runtime 5..7
+- Why automate: regression-prone recovery semantics require deterministic ACP profiles; Task 08 executes the matrix manually over the acpmock backbone, but every stop-reason/context/budget branch should graduate into the serialized runtime E2E lane.
+- Suggested layer: E2E runtime (`make test-e2e-runtime`) plus focused GlobalDB integration for restart baselines/grants.
+- Spec sketch: profiles emit all five stop reasons, reporting/silent/stale usage, effective/ineffective compaction, and token/wall crossings before and inside a turn; assert judge/no-judge routing, exact grant scopes, one reseed, and no post-crossing effect. True end state: public snapshot/turn audit survives restart with no replay.
+- Status: proposed
+
+## AB-012: Goal public-parity and crash-phase replay harness
+- Source: J-29 / GL-025..GL-032, GL-034, GL-036, GL-037, GL-039 / Codex round-8 R-002
+- Why automate: cross-surface parity and the no-blind-replay guarantee span HTTP/UDS/CLI/native tools plus several crash boundaries. Task 08 performs the live comparison and fault-injection matrix; the active borrowed-origin daemon adoption route also lacks one direct persisted-witness regression assertion.
+- Suggested layer: API/integration parity harness + E2E runtime crash matrix + direct real-GlobalDB daemon binder integration.
+- Spec sketch: byte/semantic-compare every structured Goal operation, prove internal `/goal` text remains literal, restart at pre-claim/queued/post-claim/post-response/post-judge/control-notifier phases, and assert generation-scoped origin adoption persists/replays the exact attempt. True end state: one workspace-scoped audit and no duplicate external effect.
+- Status: proposed

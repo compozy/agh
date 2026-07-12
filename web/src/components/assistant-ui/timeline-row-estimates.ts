@@ -16,7 +16,7 @@ export const VIRTUAL_MESSAGE_ESTIMATE = 144;
 // A right-aligned user prompt is typically one or two lines.
 const USER_MESSAGE_ESTIMATE = 64;
 
-// Vertical rhythm around an assistant message (`py-3` + inter-row gaps).
+// Vertical rhythm around an assistant message (`pt-1` + content-aware `pb-2`/`pb-4`).
 const MESSAGE_VERTICAL_PADDING = 28;
 
 // Typical rendered height (px) per SessionRow kind. `work` is per visible tool row.

@@ -59,22 +59,22 @@ func (g *GlobalDB) completeRunLeaseWithExecutor(
 	if err := g.verifyCompletionCreatedTaskClaims(ctx, exec, current, normalized.CreatedTaskIDs); err != nil {
 		return taskpkg.Run{}, err
 	}
-	resultPayload, outputRef, err := g.storeLoopResultPayloadByRefIfLarge(ctx, exec, current, normalized)
+	resultPayload, err := normalized.Result.StoredValue()
 	if err != nil {
 		return taskpkg.Run{}, err
+	}
+	resultPayload = normalizeTaskJSON(resultPayload)
+	outputRef := ""
+	if normalized.Result.CoordinatorControl == nil {
+		resultPayload, outputRef, err = g.storeLoopResultPayloadByRefIfLarge(ctx, exec, current, normalized)
+		if err != nil {
+			return taskpkg.Run{}, err
+		}
 	}
 	if err := completeRunLeaseRowWithExecutor(ctx, exec, current, normalized, resultPayload); err != nil {
 		return taskpkg.Run{}, err
 	}
-	if err := recordLoopNodeTerminalWithExecutor(
-		ctx,
-		exec,
-		current,
-		"success",
-		loopNodeTerminalOutputRef(outputRef, resultPayload),
-		resultPayload,
-		normalized.Now,
-	); err != nil {
+	if err := recordCompletedRunLoopOutput(ctx, exec, current, normalized, outputRef, resultPayload); err != nil {
 		return taskpkg.Run{}, err
 	}
 	if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
@@ -104,6 +104,35 @@ func (g *GlobalDB) completeRunLeaseWithExecutor(
 		return taskpkg.Run{}, err
 	}
 	return updated, nil
+}
+
+func recordCompletedRunLoopOutput(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current taskpkg.Run,
+	completion taskpkg.LeaseCompletion,
+	outputRef string,
+	resultPayload json.RawMessage,
+) error {
+	if completion.Result.CoordinatorControl != nil {
+		return updateLoopNodeOutputStatusWithExecutor(
+			ctx,
+			exec,
+			current,
+			strings.TrimSpace(current.LoopRunID),
+			looppkg.GenerationOutputStatusControlPending,
+			"",
+		)
+	}
+	return recordLoopNodeTerminalWithExecutor(
+		ctx,
+		exec,
+		current,
+		"success",
+		loopNodeTerminalOutputRef(outputRef, resultPayload),
+		resultPayload,
+		completion.Now,
+	)
 }
 
 func (g *GlobalDB) storeLoopResultPayloadByRefIfLarge(
@@ -256,7 +285,7 @@ func recordLoopNodeTerminalWithExecutor(
 		status = loopNodeOutputFailed
 		failureDelta = 1
 	}
-	if err := updateLoopNodeOutputTerminalWithExecutor(ctx, exec, run, loopRunID, status, outputRef); err != nil {
+	if err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef); err != nil {
 		return err
 	}
 	result, err := exec.ExecContext(
@@ -292,7 +321,7 @@ func recordLoopNodeTerminalWithExecutor(
 	)
 }
 
-func updateLoopNodeOutputTerminalWithExecutor(
+func updateLoopNodeOutputStatusWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run taskpkg.Run,

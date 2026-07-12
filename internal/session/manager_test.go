@@ -1889,10 +1889,11 @@ func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testin
 				Text:      "first prompt complete",
 			}
 			events <- acp.AgentEvent{
-				Type:       acp.EventTypeDone,
-				TurnID:     req.TurnID,
-				Timestamp:  ts,
-				StopReason: "end_turn",
+				Type:             acp.EventTypeDone,
+				TurnID:           req.TurnID,
+				Timestamp:        ts,
+				StopReason:       string(acp.PromptStopReasonEndTurn),
+				PromptStopReason: acp.PromptStopReasonEndTurn,
 			}
 		}()
 		return events, nil
@@ -3079,6 +3080,30 @@ func TestWaitForPromptDrains(t *testing.T) {
 
 		if err := <-waitDone; err != nil {
 			t.Fatalf("WaitForPromptDrains() error = %v", err)
+		}
+	})
+
+	t.Run("Should make shutdown wait for every tracked prompt drain", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		finishDrain := h.manager.trackPromptDrain()
+		shutdownDone := make(chan error, 1)
+		go func() {
+			ctx, cancel := context.WithTimeout(testutil.Context(t), 2*time.Second)
+			defer cancel()
+			shutdownDone <- h.manager.Shutdown(ctx)
+		}()
+
+		select {
+		case err := <-shutdownDone:
+			t.Fatalf("Shutdown() returned before prompt drain completed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		finishDrain()
+		if err := <-shutdownDone; err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
 		}
 	})
 }
@@ -4898,11 +4923,12 @@ func (d *fakeDriver) Prompt(
 			Text:      "reply",
 		}
 		events <- acp.AgentEvent{
-			Type:       acp.EventTypeDone,
-			SessionID:  fakeProc.handle.SessionID,
-			TurnID:     req.TurnID,
-			Timestamp:  ts,
-			StopReason: "end_turn",
+			Type:             acp.EventTypeDone,
+			SessionID:        fakeProc.handle.SessionID,
+			TurnID:           req.TurnID,
+			Timestamp:        ts,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
 			Usage: &acp.TokenUsage{
 				TurnID:      req.TurnID,
 				TotalTokens: &totalTokens,

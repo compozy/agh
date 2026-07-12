@@ -33,21 +33,6 @@ const (
 	LoopRunStatusStalled       LoopRunStatus = "stalled"
 )
 
-// LoopRunEventKind is the public loop run event stream vocabulary.
-type LoopRunEventKind string
-
-const (
-	LoopRunEventNodeRunning       LoopRunEventKind = "node_running"
-	LoopRunEventNodeSucceeded     LoopRunEventKind = "node_succeeded"
-	LoopRunEventNodeFailed        LoopRunEventKind = "node_failed"
-	LoopRunEventGateVerdict       LoopRunEventKind = "gate_verdict"
-	LoopRunEventGenerationStarted LoopRunEventKind = "generation_started"
-	LoopRunEventChannelMsg        LoopRunEventKind = "channel_msg"
-	LoopRunEventTokenTick         LoopRunEventKind = "token_tick"
-	LoopRunEventNeedsApproval     LoopRunEventKind = "needs_approval"
-	LoopRunEventStatusChanged     LoopRunEventKind = "status_changed"
-)
-
 // LoopNodeClass is the public loop graph node class vocabulary.
 type LoopNodeClass string
 

@@ -314,15 +314,16 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document
         .querySelector<HTMLElement>('[data-testid^="memory-item-"][data-state="selected"]')
         ?.textContent?.trim() || undefined;
+    const skillsDetailRouteItem = readPathContainerId(/\/skills\/([^/?#]+)/);
     const skillsActiveTab = document.querySelector('[data-testid="marketplace-view"]')
       ? "marketplace"
-      : document.querySelector('[data-testid="skill-list-panel"]')
+      : document.querySelector('[data-testid="skill-list-panel"]') || skillsDetailRouteItem
         ? "installed"
         : undefined;
     const skillsSelectedItem =
       [...document.querySelectorAll<HTMLElement>('[data-testid^="skill-item-"]')]
         .find(element => element.dataset.state === "selected")
-        ?.dataset.testid?.replace(/^skill-item-/, "") || undefined;
+        ?.dataset.testid?.replace(/^skill-item-/, "") || skillsDetailRouteItem;
     const skillsEnabledText = readText("skill-enabled-toggle")?.toLowerCase();
     const skillsEnabledState = skillsEnabledText?.includes("disabled")
       ? "disabled"
@@ -431,7 +432,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             ?.value ??
           "") !== "",
       skills_selected_item: skillsSelectedItem,
-      skills_view_visible: document.querySelector('[data-testid="skills-shell"]') !== null,
+      skills_view_visible:
+        document.querySelector('[data-testid="skills-shell"]') !== null ||
+        document.querySelector('[data-testid="skill-detail-panel"]') !== null,
       sandbox_action_result_visible:
         document.querySelector('[data-testid="sandbox-page-action-result"]') !== null,
       sandbox_delete_dialog_open:

@@ -36,7 +36,7 @@ func newLoopStatusCommand(deps commandDeps) *cobra.Command {
 }
 
 func newLoopRunsCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef, loopName, status string
+	var workspaceRef, loopName, status, origin, originSession string
 	var limit int
 	cmd := &cobra.Command{
 		Use:   loopRunsKey,
@@ -48,9 +48,11 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			response, err := client.ListLoopRuns(cmd.Context(), workspaceID, LoopRunListQuery{
-				LoopName: strings.TrimSpace(loopName),
-				Status:   strings.TrimSpace(status),
-				Limit:    limit,
+				LoopName:      strings.TrimSpace(loopName),
+				Status:        strings.TrimSpace(status),
+				Origin:        strings.TrimSpace(origin),
+				OriginSession: strings.TrimSpace(originSession),
+				Limit:         limit,
 			})
 			if err != nil {
 				return err
@@ -62,9 +64,88 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
 	cmd.Flags().StringVar(&loopName, loopLoopKey, "", "Filter by Loop name")
 	cmd.Flags().StringVar(&status, loopStatusKey, "", "Filter by Loop run status")
+	cmd.Flags().StringVar(&origin, "origin", "", "Filter by run origin: catalog or session")
+	cmd.Flags().StringVar(&originSession, "origin-session", "", "Filter by origin session ID")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum runs to return")
 	mustMarkFlagRequired(cmd, loopWorkspaceKey)
 	return cmd
+}
+
+func newLoopTurnsCommand(deps commandDeps) *cobra.Command {
+	var workspaceRef, runID, nodeID string
+	var itemIndex, limit int
+	var afterSeq int64
+	cmd := &cobra.Command{
+		Use:   loopTurnsKey,
+		Short: "List one Loop run's Goal turn audit",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
+			if err != nil {
+				return err
+			}
+			id, err := requiredLoopFlag("run", runID)
+			if err != nil {
+				return err
+			}
+			query, err := goalTurnListQueryFromFlags(cmd, nodeID, itemIndex, afterSeq, limit)
+			if err != nil {
+				return err
+			}
+			page, err := client.ListGoalTurns(cmd.Context(), workspaceID, id, query)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, loopTurnsOutputBundle(page))
+		},
+	}
+	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Workspace path, name, or ID")
+	cmd.Flags().StringVar(&runID, "run", "", "Loop run ID")
+	cmd.Flags().StringVar(&nodeID, "node", "", "Filter by Goal node ID")
+	cmd.Flags().IntVar(&itemIndex, "item", 0, "Filter by nonnegative item index")
+	cmd.Flags().Int64Var(&afterSeq, "after-seq", 0, "Resume after this run-wide Goal sequence")
+	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 200; defaults to 50")
+	mustMarkFlagRequired(cmd, loopWorkspaceKey)
+	mustMarkFlagRequired(cmd, "run")
+	return cmd
+}
+
+func goalTurnListQueryFromFlags(
+	cmd *cobra.Command,
+	nodeID string,
+	itemIndex int,
+	afterSeq int64,
+	limit int,
+) (GoalTurnListQuery, error) {
+	nodeID = strings.TrimSpace(nodeID)
+	if cmd.Flags().Changed("node") && nodeID == "" {
+		return GoalTurnListQuery{}, fmt.Errorf("cli: --node must be nonempty when present")
+	}
+	if afterSeq < 0 {
+		return GoalTurnListQuery{}, fmt.Errorf("cli: --after-seq must be nonnegative")
+	}
+	if cmd.Flags().Changed("limit") && (limit < 1 || limit > 200) {
+		return GoalTurnListQuery{}, fmt.Errorf("cli: --limit must be between 1 and 200")
+	}
+	query := GoalTurnListQuery{NodeID: nodeID, AfterSeq: afterSeq, Limit: limit}
+	if cmd.Flags().Changed("item") {
+		if itemIndex < 0 {
+			return GoalTurnListQuery{}, fmt.Errorf("cli: --item must be nonnegative")
+		}
+		if nodeID == "" {
+			return GoalTurnListQuery{}, fmt.Errorf("cli: --item requires --node")
+		}
+		query.ItemIndex = &itemIndex
+	}
+	return query, nil
+}
+
+func loopTurnsOutputBundle(page contract.GoalTurnPage) outputBundle {
+	bundle := loopOutputBundle(page, fmt.Sprintf("%d Goal turns", len(page.Turns)))
+	bundle.jsonl = func(cmd *cobra.Command) error {
+		return writeJSONLines(cmd, page.Turns)
+	}
+	return bundle
 }
 
 func newLoopRunActionCommand(deps commandDeps, verb string, short string) *cobra.Command {

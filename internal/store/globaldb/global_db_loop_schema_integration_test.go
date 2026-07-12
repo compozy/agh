@@ -62,13 +62,6 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
-		"started_at",
-		"definition_version",
-		"definition_digest",
-		"active_gate_id",
-		"active_human_criteria_json",
-		"budget_approval_seq",
-		"start_metadata_json",
 		"consecutive_failures",
 		"budget_tokens",
 		"budget_wall_sec",
@@ -83,6 +76,24 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"started_by_ref",
 		"started_origin_kind",
 		"started_origin_ref",
+		"started_at",
+		"definition_version",
+		"definition_digest",
+		"active_gate_id",
+		"active_human_criteria_json",
+		"budget_approval_seq",
+		"start_metadata_json",
+		"origin_kind",
+		"origin_session_id",
+		"goal_cleared_at",
+		"budget_version",
+		"goal_context_nudge_ratio",
+		"control_actor_kind",
+		"control_actor_id",
+		"control_requested_at",
+		"origin_creation_profile_ref",
+		"origin_policy_spec_digest",
+		"origin_creation_digest",
 	})
 	assertTableColumns(t, globalDB.db, "loop_generation_outputs", []string{
 		"loop_run_id",
@@ -93,6 +104,9 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"output_ref",
 		"task_run_id",
 		"child_loop_run_id",
+		"goal_status",
+		"goal_turns_used",
+		"goal_turn_limit",
 	})
 	assertTableColumns(t, globalDB.db, "loop_output_blobs", []string{
 		"output_ref",
@@ -220,4 +234,5 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	)
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
+	assertGoalDurableStateSchema(t, globalDB)
 }
