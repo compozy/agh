@@ -16,7 +16,7 @@ export function useMeasure<T extends HTMLElement = HTMLElement>(): UseMeasureRes
   const [bounds, setBounds] = React.useState<MeasuredBounds>({ width: 0, height: 0 });
   const observerRef = React.useRef<ResizeObserver | null>(null);
 
-  const refCallback = React.useCallback((node: T | null) => {
+  const refCallback = (node: T | null) => {
     observerRef.current?.disconnect();
     if (!node || typeof ResizeObserver === "undefined") {
       observerRef.current = null;
@@ -32,7 +32,7 @@ export function useMeasure<T extends HTMLElement = HTMLElement>(): UseMeasureRes
     });
     observer.observe(node);
     observerRef.current = observer;
-  }, []);
+  };
 
   React.useEffect(() => () => observerRef.current?.disconnect(), []);
 

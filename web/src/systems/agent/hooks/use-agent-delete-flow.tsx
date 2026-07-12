@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -29,18 +29,18 @@ export function useAgentDeleteFlow({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const openDialog = useCallback(() => {
+  const openDialog = () => {
     setError(null);
     setOpen(true);
-  }, []);
+  };
 
-  const closeDialog = useCallback(() => {
+  const closeDialog = () => {
     if (deleteAgent.isPending) return;
     setOpen(false);
     setError(null);
-  }, [deleteAgent.isPending]);
+  };
 
-  const onConfirm = useCallback(() => {
+  const onConfirm = () => {
     if (!agent) return;
     setError(null);
     deleteAgent.mutate(
@@ -63,21 +63,24 @@ export function useAgentDeleteFlow({
         },
       }
     );
-  }, [agent, deleteAgent, navigate, workspaceId]);
+  };
 
-  const description = useMemo(() => {
-    if (!agent) return null;
-    const base = (
+  const baseDescription = agent ? (
+    <>
+      This removes the agent definition for <code className="font-mono text-fg">{agent.name}</code>.
+      Existing session records are kept.
+    </>
+  ) : null;
+  const description = agent ? (
+    agent.origin === "workspace" ? (
       <>
-        This removes the agent definition for{" "}
-        <code className="font-mono text-fg">{agent.name}</code>. Existing session records are kept.
+        {baseDescription} If a global definition with this name exists, it will become active after
+        delete.
       </>
-    );
-    if (agent.origin !== "workspace") return base;
-    return (
-      <>{base} If a global definition with this name exists, it will become active after delete.</>
-    );
-  }, [agent]);
+    ) : (
+      baseDescription
+    )
+  ) : null;
 
   const confirmDialog = (
     <ConfirmDialog

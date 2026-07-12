@@ -1,5 +1,6 @@
 import { ActivitySquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 import { Button, Empty, Eyebrow, Pill, Skeleton, SkeletonRows } from "@agh/ui";
 
@@ -27,6 +28,17 @@ export interface ActivityFeedProps {
 interface ActivityFeedPagination {
   status: "available" | "loading";
   onLoadMore: () => void | Promise<void>;
+}
+
+async function loadMore(
+  pagination: ActivityFeedPagination,
+  fallbackMessage: string
+): Promise<void> {
+  try {
+    await pagination.onLoadMore();
+  } catch (error) {
+    toast.error(error instanceof Error && error.message ? error.message : fallbackMessage);
+  }
 }
 
 type ThreadEntry = {
@@ -133,12 +145,14 @@ export function ActivityFeed({
   const resolvedThreadTotal = threadTotal === undefined ? threads.length : threadTotal;
   const resolvedDirectTotal = directTotal === undefined ? directs.length : directTotal;
   const entries = buildEntries(workspaceId, channel, threads, directs, sort);
+  const threadPagination = pagination?.threads;
+  const directPagination = pagination?.directs;
 
   if (status === "loading" && entries.length === 0) {
     return <ActivityFeedSkeleton />;
   }
 
-  if (entries.length === 0 && !pagination?.threads && !pagination?.directs) {
+  if (entries.length === 0 && !threadPagination && !directPagination) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <Empty
@@ -214,30 +228,28 @@ export function ActivityFeed({
           </Link>
         );
       })}
-      {pagination?.threads || pagination?.directs ? (
+      {threadPagination || directPagination ? (
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
-          {pagination.threads ? (
+          {threadPagination ? (
             <Button
-              aria-busy={pagination.threads.status === "loading"}
-              disabled={pagination.threads.status === "loading"}
-              onClick={() => void pagination.threads?.onLoadMore()}
+              aria-busy={threadPagination.status === "loading"}
+              disabled={threadPagination.status === "loading"}
+              onClick={() => void loadMore(threadPagination, "Failed to load more threads.")}
               size="sm"
               variant="outline"
             >
-              {pagination.threads.status === "loading" ? "Loading threads…" : "Load more threads"}
+              {threadPagination.status === "loading" ? "Loading threads…" : "Load more threads"}
             </Button>
           ) : null}
-          {pagination.directs ? (
+          {directPagination ? (
             <Button
-              aria-busy={pagination.directs.status === "loading"}
-              disabled={pagination.directs.status === "loading"}
-              onClick={() => void pagination.directs?.onLoadMore()}
+              aria-busy={directPagination.status === "loading"}
+              disabled={directPagination.status === "loading"}
+              onClick={() => void loadMore(directPagination, "Failed to load more direct rooms.")}
               size="sm"
               variant="outline"
             >
-              {pagination.directs.status === "loading"
-                ? "Loading rooms…"
-                : "Load more direct rooms"}
+              {directPagination.status === "loading" ? "Loading rooms…" : "Load more direct rooms"}
             </Button>
           ) : null}
         </div>

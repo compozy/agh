@@ -1,5 +1,4 @@
 import { ListFilter } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -37,16 +36,12 @@ function BridgeListFilters({
   onPlatformFilterChange,
   onStatusFilterChange,
 }: BridgeListFiltersProps) {
-  const fields = useMemo(() => buildBridgeFilterFields(platforms, statuses), [platforms, statuses]);
-  const chips = useMemo(
-    () =>
-      bridgeFiltersToChips({
-        platform: platformFilter,
-        scope: scopeFilter,
-        status: statusFilter,
-      }),
-    [platformFilter, scopeFilter, statusFilter]
-  );
+  const fields = buildBridgeFilterFields(platforms, statuses);
+  const chips = bridgeFiltersToChips({
+    platform: platformFilter,
+    scope: scopeFilter,
+    status: statusFilter,
+  });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyBridgeFilterChips(next, {

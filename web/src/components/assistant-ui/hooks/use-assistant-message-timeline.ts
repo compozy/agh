@@ -1,5 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import {
@@ -137,97 +137,76 @@ function goalPromptMeta(content: unknown): GoalPromptMeta | null {
  * the scroll container before the synchronous state flush, then corrects
  * `scrollTop` by the height delta so newly revealed rows never jump the view.
  */
-function useAnchorPreservingToggle() {
-  return useCallback((button: HTMLElement | null, update: () => void) => {
-    const viewport = button?.closest<HTMLElement>('[data-testid="chat-view"]');
-    const previousHeight = viewport?.scrollHeight ?? 0;
-    const previousTop = viewport?.scrollTop ?? 0;
-    flushSync(update);
-    if (!viewport) return;
-    const delta = viewport.scrollHeight - previousHeight;
-    viewport.scrollTop = previousTop + delta;
-  }, []);
+function anchorPreservingToggle(button: HTMLElement | null, update: () => void): void {
+  const viewport = button?.closest<HTMLElement>('[data-testid="chat-view"]');
+  const previousHeight = viewport?.scrollHeight ?? 0;
+  const previousTop = viewport?.scrollTop ?? 0;
+  flushSync(update);
+  if (!viewport) return;
+  const delta = viewport.scrollHeight - previousHeight;
+  viewport.scrollTop = previousTop + delta;
 }
 
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }
   );
-  const parts = useMemo(() => {
-    const base = toTimelineParts(message);
-    const workingPart = deriveWorkingPart(message, base);
-    return workingPart ? [...base, workingPart] : base;
-  }, [message]);
-  const interruptedTurns = useMemo(
-    () =>
-      interruptedTurnIds(
-        message.content,
-        typeof message.id === "string" && message.id.length > 0 ? message.id : undefined
-      ),
-    [message.content, message.id]
+  const baseParts = toTimelineParts(message);
+  const workingPart = deriveWorkingPart(message, baseParts);
+  const parts = workingPart ? [...baseParts, workingPart] : baseParts;
+  const interruptedTurns = interruptedTurnIds(
+    message.content,
+    typeof message.id === "string" && message.id.length > 0 ? message.id : undefined
   );
-  const goal = useMemo(() => goalPromptMeta(message.content), [message.content]);
+  const goal = goalPromptMeta(message.content);
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Set<string>>(() => new Set());
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(() => new Set());
   const [expandedChangedFiles, setExpandedChangedFiles] = useState<Set<string>>(() => new Set());
   const stableRef = useRef<StableSessionRowsState>(EMPTY_STABLE_SESSION_ROWS);
 
-  const rows = useMemo(() => {
-    const derived = deriveSessionRows(parts, {
-      foldSettledTurns: true,
-      interruptedTurnIds: interruptedTurns,
-      expandedWorkGroupIds: expandedWorkGroups,
-      expandedTurnIds: expandedTurns,
-      expandedChangedFilesIds: expandedChangedFiles,
+  const derivedRows = deriveSessionRows(parts, {
+    foldSettledTurns: true,
+    interruptedTurnIds: interruptedTurns,
+    expandedWorkGroupIds: expandedWorkGroups,
+    expandedTurnIds: expandedTurns,
+    expandedChangedFilesIds: expandedChangedFiles,
+  });
+  const stableRows = computeStableSessionRows(derivedRows, stableRef.current);
+  stableRef.current = stableRows;
+  const rows = stableRows.result;
+
+  const toggleWorkGroup = (groupId: string, button: HTMLElement | null) => {
+    anchorPreservingToggle(button, () => {
+      setExpandedWorkGroups(previous => {
+        const next = new Set(previous);
+        if (next.has(groupId)) next.delete(groupId);
+        else next.add(groupId);
+        return next;
+      });
     });
-    const stable = computeStableSessionRows(derived, stableRef.current);
-    stableRef.current = stable;
-    return stable.result;
-  }, [parts, interruptedTurns, expandedWorkGroups, expandedTurns, expandedChangedFiles]);
+  };
 
-  const anchorToggle = useAnchorPreservingToggle();
-
-  const toggleWorkGroup = useCallback(
-    (groupId: string, button: HTMLElement | null) => {
-      anchorToggle(button, () => {
-        setExpandedWorkGroups(previous => {
-          const next = new Set(previous);
-          if (next.has(groupId)) next.delete(groupId);
-          else next.add(groupId);
-          return next;
-        });
+  const toggleTurn = (turnId: string, button: HTMLElement | null) => {
+    anchorPreservingToggle(button, () => {
+      setExpandedTurns(previous => {
+        const next = new Set(previous);
+        if (next.has(turnId)) next.delete(turnId);
+        else next.add(turnId);
+        return next;
       });
-    },
-    [anchorToggle]
-  );
+    });
+  };
 
-  const toggleTurn = useCallback(
-    (turnId: string, button: HTMLElement | null) => {
-      anchorToggle(button, () => {
-        setExpandedTurns(previous => {
-          const next = new Set(previous);
-          if (next.has(turnId)) next.delete(turnId);
-          else next.add(turnId);
-          return next;
-        });
+  const toggleChangedFiles = (rowId: string, button: HTMLElement | null) => {
+    anchorPreservingToggle(button, () => {
+      setExpandedChangedFiles(previous => {
+        const next = new Set(previous);
+        if (next.has(rowId)) next.delete(rowId);
+        else next.add(rowId);
+        return next;
       });
-    },
-    [anchorToggle]
-  );
-
-  const toggleChangedFiles = useCallback(
-    (rowId: string, button: HTMLElement | null) => {
-      anchorToggle(button, () => {
-        setExpandedChangedFiles(previous => {
-          const next = new Set(previous);
-          if (next.has(rowId)) next.delete(rowId);
-          else next.add(rowId);
-          return next;
-        });
-      });
-    },
-    [anchorToggle]
-  );
+    });
+  };
 
   return {
     expandedTurns,

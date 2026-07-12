@@ -74,6 +74,25 @@ describe("Topbar", () => {
     expect(screen.getByTestId("action-btn")).toBeInTheDocument();
   });
 
+  it("Should publish a slot without rerendering its producer subtree", () => {
+    let producerRenders = 0;
+    function Setup() {
+      producerRenders += 1;
+      useTopbarSlot({ title: "Live title" });
+      return null;
+    }
+
+    render(
+      <TopbarSlotProvider>
+        <Setup />
+        <Topbar route={{ title: "Static title" }} />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.getByText("Live title")).toBeInTheDocument();
+    expect(producerRenders).toBe(1);
+  });
+
   it("Should let the slot override route title and count for live data", () => {
     function Setup() {
       useTopbarSlot({ title: "Live title", count: 42 });

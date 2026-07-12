@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity, AlertCircle, Download, ExternalLink } from "lucide-react";
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
 import type { SettingsObservabilitySection } from "@/systems/settings";
@@ -52,18 +52,12 @@ function formatBytes(bytes: number): string {
 function ObservabilitySettingsPage() {
   const page = useSettingsObservabilityPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
-  const setValidationError = useCallback(
-    (key: string) => (message: string | null) => {
-      setValidationErrors(current =>
-        current[key] === message ? current : { ...current, [key]: message }
-      );
-    },
-    []
-  );
-  const isInvalid = useMemo(
-    () => Object.values(validationErrors).some(message => message !== null),
-    [validationErrors]
-  );
+  const setValidationError = (key: string) => (message: string | null) => {
+    setValidationErrors(current =>
+      current[key] === message ? current : { ...current, [key]: message }
+    );
+  };
+  const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtimeForSlot = page.envelope?.runtime;
   const draftForSlot = page.draft;
   const totalStorageForSlot = runtimeForSlot
@@ -437,14 +431,14 @@ function SupportBundleSection() {
     consentError ??
     (supportBundle.error instanceof Error ? supportBundle.error.message : undefined);
 
-  const handleCreate = useCallback(async () => {
+  const handleCreate = async () => {
     if (!approved) {
       setConsentError("Approval is required before creating a support bundle.");
       return;
     }
     setConsentError(null);
     await supportBundle.create({ includeStatus: true, yes: true });
-  }, [approved, supportBundle]);
+  };
 
   return (
     <Section divided label="Support bundle" note="redacted daemon archive">

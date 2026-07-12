@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Brain, Play } from "lucide-react";
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsMemoryPage } from "@/hooks/routes/use-settings-memory-page";
 import type { SettingsMemorySection } from "@/systems/settings";
@@ -43,18 +43,12 @@ function formatHealthTimestamp(timestamp: string): string {
 function MemorySettingsPage() {
   const page = useSettingsMemoryPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
-  const setValidationError = useCallback<ValidationSetter>(
-    (key: string) => (message: string | null) => {
-      setValidationErrors(current =>
-        current[key] === message ? current : { ...current, [key]: message }
-      );
-    },
-    []
-  );
-  const isInvalid = useMemo(
-    () => Object.values(validationErrors).some(message => message !== null),
-    [validationErrors]
-  );
+  const setValidationError: ValidationSetter = (key: string) => (message: string | null) => {
+    setValidationErrors(current =>
+      current[key] === message ? current : { ...current, [key]: message }
+    );
+  };
+  const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const healthForSlot = page.envelope?.health;
   useTopbarSlot({
     tabs: healthForSlot ? (

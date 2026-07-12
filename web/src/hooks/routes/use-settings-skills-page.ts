@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import { useAgents, type AgentPayload } from "@/systems/agent";
@@ -89,11 +89,11 @@ export function useSettingsSkillsPage() {
   const disabledMutation = useUpdateSettingsSkills();
   const policyMutation = useUpdateSettingsSkills();
 
-  const agents = useMemo(() => sortAgents(agentsQuery.data ?? []), [agentsQuery.data]);
+  const agents = sortAgents(agentsQuery.data ?? []);
   const workspaces: WorkspacePayload[] = workspaceQuery.data ?? [];
 
   const [selection, setSelection] = useState<SkillsScopeSelection>({ scope: "global" });
-  const filter = useMemo(() => selectionToFilter(selection), [selection]);
+  const filter = selectionToFilter(selection);
   const query = useSettingsSkills(filter);
   const envelope = query.data ?? null;
 
@@ -140,52 +140,44 @@ export function useSettingsSkillsPage() {
   }, [draft, envelope]);
 
   const availableScopes = envelope?.available_scopes ?? ["global"];
-  const selectedAgent = useMemo(
-    () =>
-      selection.scope === "agent"
-        ? (agents.find(agent => agent.name === selection.agentName) ?? null)
-        : null,
-    [agents, selection]
-  );
-  const selectedWorkspaceContext = useMemo(
-    () =>
-      selection.scope === "agent" && selection.workspaceId
-        ? (workspaces.find(workspace => workspace.id === selection.workspaceId) ?? null)
-        : null,
-    [selection, workspaces]
-  );
+  const selectedAgent =
+    selection.scope === "agent"
+      ? (agents.find(agent => agent.name === selection.agentName) ?? null)
+      : null;
+  const selectedWorkspaceContext =
+    selection.scope === "agent" && selection.workspaceId
+      ? (workspaces.find(workspace => workspace.id === selection.workspaceId) ?? null)
+      : null;
 
-  const isDisabledDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return !sameDisabled(envelope.config.disabled_skills, draft.disabled_skills);
-  }, [draft, envelope]);
+  const isDisabledDirty =
+    envelope && draft
+      ? !sameDisabled(envelope.config.disabled_skills, draft.disabled_skills)
+      : false;
 
-  const isPolicyDirty = useMemo(() => {
-    if (!envelope || !draft || selection.scope === "agent") return false;
-    return !samePolicy(envelope.config, draft);
-  }, [draft, envelope, selection.scope]);
+  const isPolicyDirty =
+    envelope && draft && selection.scope !== "agent" ? !samePolicy(envelope.config, draft) : false;
 
-  const resetScopedState = useCallback(() => {
+  const resetScopedState = () => {
     disabledMutation.reset();
     policyMutation.reset();
     setLastDisabledLabel(null);
     setLastPolicyLabel(null);
-  }, [disabledMutation, policyMutation]);
+  };
 
-  const handleResetDisabled = useCallback(() => {
+  const handleResetDisabled = () => {
     if (!envelope || !draft) return;
     setDraft({ ...draft, disabled_skills: cloneDisabled(envelope.config) });
-  }, [draft, envelope]);
+  };
 
-  const handleResetPolicy = useCallback(() => {
+  const handleResetPolicy = () => {
     if (!envelope || !draft || selection.scope === "agent") return;
     setDraft({
       ...envelope.config,
       disabled_skills: draft.disabled_skills,
     });
-  }, [draft, envelope, selection.scope]);
+  };
 
-  const handleSaveDisabled = useCallback(() => {
+  const handleSaveDisabled = () => {
     if (!envelope || !draft) return;
     const body: SettingsUpdateSkillsRequest = {
       config: {
@@ -201,9 +193,9 @@ export function useSettingsSkillsPage() {
         },
       }
     );
-  }, [disabledMutation, draft, envelope, filter]);
+  };
 
-  const handleSavePolicy = useCallback(() => {
+  const handleSavePolicy = () => {
     if (!envelope || !draft || selection.scope === "agent") return;
     const body: SettingsUpdateSkillsRequest = {
       config: {
@@ -219,30 +211,27 @@ export function useSettingsSkillsPage() {
         },
       }
     );
-  }, [draft, envelope, filter, policyMutation, selection.scope]);
+  };
 
-  const toggleDisabled = useCallback(
-    (name: string) => {
-      if (!draft) return;
-      const current = draft.disabled_skills ?? [];
-      const next = current.includes(name)
-        ? current.filter(entry => entry !== name)
-        : [...current, name].sort();
-      setDraft({ ...draft, disabled_skills: next });
-    },
-    [draft]
-  );
+  const toggleDisabled = (name: string) => {
+    if (!draft) return;
+    const current = draft.disabled_skills ?? [];
+    const next = current.includes(name)
+      ? current.filter(entry => entry !== name)
+      : [...current, name].sort();
+    setDraft({ ...draft, disabled_skills: next });
+  };
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void query.refetch();
-  }, [query]);
+  };
 
-  const selectGlobal = useCallback(() => {
+  const selectGlobal = () => {
     resetScopedState();
     setSelection({ scope: "global" });
-  }, [resetScopedState]);
+  };
 
-  const selectAgentScope = useCallback(() => {
+  const selectAgentScope = () => {
     if (agents.length === 0) {
       return;
     }
@@ -255,38 +244,32 @@ export function useSettingsSkillsPage() {
           : pickDefaultAgentName(agents),
       workspaceId: current.scope === "agent" ? current.workspaceId : undefined,
     }));
-  }, [agents, resetScopedState]);
+  };
 
-  const selectAgent = useCallback(
-    (agentName: string) => {
-      if (agentName.trim().length === 0) {
-        return;
+  const selectAgent = (agentName: string) => {
+    if (agentName.trim().length === 0) {
+      return;
+    }
+    resetScopedState();
+    setSelection(current => ({
+      scope: "agent",
+      agentName,
+      workspaceId: current.scope === "agent" ? current.workspaceId : undefined,
+    }));
+  };
+
+  const selectWorkspaceContext = (workspaceId: string) => {
+    resetScopedState();
+    setSelection(current => {
+      if (current.scope !== "agent") {
+        return current;
       }
-      resetScopedState();
-      setSelection(current => ({
-        scope: "agent",
-        agentName,
-        workspaceId: current.scope === "agent" ? current.workspaceId : undefined,
-      }));
-    },
-    [resetScopedState]
-  );
-
-  const selectWorkspaceContext = useCallback(
-    (workspaceId: string) => {
-      resetScopedState();
-      setSelection(current => {
-        if (current.scope !== "agent") {
-          return current;
-        }
-        return {
-          ...current,
-          workspaceId: workspaceId.trim().length > 0 ? workspaceId : undefined,
-        };
-      });
-    },
-    [resetScopedState]
-  );
+      return {
+        ...current,
+        workspaceId: workspaceId.trim().length > 0 ? workspaceId : undefined,
+      };
+    });
+  };
 
   return {
     isLoading: query.isLoading || (selection.scope === "agent" && agentsQuery.isLoading),

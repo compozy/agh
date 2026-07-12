@@ -1,4 +1,4 @@
-import { startTransition, useMemo } from "react";
+import { startTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
@@ -17,35 +17,30 @@ export function useSessionChatRuntime({
   workspaceId: string;
 }) {
   const queryClient = useQueryClient();
-  const threadListAdapter = useMemo(
-    () => createSessionThreadListAdapter({ queryClient, workspaceId }),
-    [queryClient, workspaceId]
-  );
-  const transport = useMemo(() => {
-    const goalAwareFetch = createGoalAwareFetch({
-      onResult: (result, requestText) => {
-        useSessionStore.getState().setGoalResult(sessionId, result, requestText ?? undefined);
-        if (result.snapshot !== null || result.outcome === "cleared") {
-          queryClient.setQueryData(sessionKeys.goal(workspaceId, sessionId), {
-            goal: result.snapshot,
-          });
-        }
-        const runId = result.snapshot?.run_id;
-        if (runId) {
-          void queryClient.invalidateQueries({
-            queryKey: loopsKeys.runDetail(workspaceId, runId),
-          });
-        }
-        void queryClient.invalidateQueries({
-          queryKey: loopsKeys.runsByWorkspace(workspaceId),
+  const threadListAdapter = createSessionThreadListAdapter({ queryClient, workspaceId });
+  const goalAwareFetch = createGoalAwareFetch({
+    onResult: (result, requestText) => {
+      useSessionStore.getState().setGoalResult(sessionId, result, requestText ?? undefined);
+      if (result.snapshot !== null || result.outcome === "cleared") {
+        queryClient.setQueryData(sessionKeys.goal(workspaceId, sessionId), {
+          goal: result.snapshot,
         });
-      },
-    });
-    return new AssistantChatTransport({
-      api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
-      fetch: goalAwareFetch,
-    });
-  }, [queryClient, workspaceId, sessionId]);
+      }
+      const runId = result.snapshot?.run_id;
+      if (runId) {
+        void queryClient.invalidateQueries({
+          queryKey: loopsKeys.runDetail(workspaceId, runId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: loopsKeys.runsByWorkspace(workspaceId),
+      });
+    },
+  });
+  const transport = new AssistantChatTransport({
+    api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
+    fetch: goalAwareFetch,
+  });
 
   return useRemoteThreadListRuntime({
     threadId: sessionId,

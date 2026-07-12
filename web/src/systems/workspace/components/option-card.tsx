@@ -33,7 +33,7 @@ interface OptionCardProps extends Omit<
 }
 
 function OptionCardRoot({ className, size = "comfortable", children, ...props }: OptionCardProps) {
-  const ctx = React.useMemo<OptionCardContextValue>(() => ({ size }), [size]);
+  const ctx: OptionCardContextValue = { size };
 
   let headerEyebrow: React.ReactNode;
   let headerRight: React.ReactNode;

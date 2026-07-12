@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   addEdge,
   applyEdgeChanges,
@@ -144,48 +144,44 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     if (!annotationsQuery.isError) annotationsErrorNotifiedRef.current = false;
   }, [annotationsQuery.isError]);
 
-  const runValidation = useCallback(
-    async (options: { notify?: boolean } = {}) => {
-      const base = baseDefRef.current;
-      if (!base) return;
-      const definition = graphToDefinition(base, nodes, edges);
-      const seq = ++validateSeqRef.current;
-      try {
-        const result = await validateMutation.mutateAsync({
-          workspaceId,
-          name,
-          data: { definition },
-        });
-        // Drop a stale verdict: a later validate has already superseded this one.
-        if (seq !== validateSeqRef.current) return;
-        setValidateFailed(false);
-        const state = buildLintState(result);
-        setLint(state);
-        setNodes(current => applyLintToNodes(current, state.byNode));
-      } catch {
-        // A transport failure never fabricates a pass/fail (the daemon linter is the only
-        // invariant authority). Mark the failure AND demote the verdict to unvalidated so a
-        // stale "all pass" from a prior verdict can't linger over an edited graph the daemon
-        // never confirmed — the dock shows "unavailable — retry", not a claimed pass.
-        if (seq === validateSeqRef.current) {
-          setValidateFailed(true);
-          setLint(current => (current.validated ? { ...current, validated: false } : current));
-        }
-        if (options.notify) toast.error("Validation could not reach the daemon. Try again.");
+  const runValidation = async (options: { notify?: boolean } = {}) => {
+    const base = baseDefRef.current;
+    if (!base) return;
+    const definition = graphToDefinition(base, nodes, edges);
+    const seq = ++validateSeqRef.current;
+    try {
+      const result = await validateMutation.mutateAsync({
+        workspaceId,
+        name,
+        data: { definition },
+      });
+      // Drop a stale verdict: a later validate has already superseded this one.
+      if (seq !== validateSeqRef.current) return;
+      setValidateFailed(false);
+      const state = buildLintState(result);
+      setLint(state);
+      setNodes(current => applyLintToNodes(current, state.byNode));
+    } catch {
+      // A transport failure never fabricates a pass/fail (the daemon linter is the only
+      // invariant authority). Mark the failure AND demote the verdict to unvalidated so a
+      // stale "all pass" from a prior verdict can't linger over an edited graph the daemon
+      // never confirmed — the dock shows "unavailable — retry", not a claimed pass.
+      if (seq === validateSeqRef.current) {
+        setValidateFailed(true);
+        setLint(current => (current.validated ? { ...current, validated: false } : current));
       }
-    },
-    [nodes, edges, workspaceId, name, validateMutation]
-  );
+      if (options.notify) toast.error("Validation could not reach the daemon. Try again.");
+    }
+  };
 
   // Live re-lint after structural edits so the chips + Publish gate stay truthful. The
   // validator is held in a ref so only the structural signature retriggers it.
   const runValidationRef = useRef(runValidation);
   runValidationRef.current = runValidation;
-  const structuralKey = useMemo(
-    () =>
-      JSON.stringify({ n: nodes.map(node => node.data.raw), e: edges.map(edge => edge.data?.raw) }),
-    [nodes, edges]
-  );
+  const structuralKey = JSON.stringify({
+    n: nodes.map(node => node.data.raw),
+    e: edges.map(edge => edge.data?.raw),
+  });
   useEffect(() => {
     if (!baseDefRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -197,20 +193,20 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     };
   }, [structuralKey]);
 
-  const onNodesChange = useCallback((changes: NodeChange<EditorNode>[]) => {
+  const onNodesChange = (changes: NodeChange<EditorNode>[]) => {
     setNodes(current => applyNodeChanges(changes, current));
     for (const change of changes) {
       if (change.type === "position") setPositionsDirty(true);
       if (change.type === "remove") setDirty(true);
     }
-  }, []);
+  };
 
-  const onEdgesChange = useCallback((changes: EdgeChange<EditorEdge>[]) => {
+  const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
     setEdges(current => applyEdgeChanges(changes, current));
     if (changes.some(change => change.type === "remove")) setDirty(true);
-  }, []);
+  };
 
-  const onConnect = useCallback((connection: Connection) => {
+  const onConnect = (connection: Connection) => {
     const { source, target } = connection;
     if (!source || !target) return;
     setEdges(current => {
@@ -223,46 +219,43 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       return addEdge(edge, current);
     });
     setDirty(true);
-  }, []);
+  };
 
   // Bumped on a genuine selection *switch* (click / reveal / add) but NOT on a rename of the
   // already-selected node, so the inspector's field container is keyed by this — a rename
   // never remounts it (which would drop focus after each keystroke, R-001 round 7).
-  const selectNode = useCallback((id: string | null) => {
+  const selectNode = (id: string | null) => {
     setSelectedNodeId(id);
     setSelectionSeq(seq => seq + 1);
-  }, []);
-  const revealNode = useCallback((id: string) => {
+  };
+  const revealNode = (id: string) => {
     setSelectedNodeId(id);
     setSelectionSeq(seq => seq + 1);
     setView("graph");
-  }, []);
+  };
 
-  const changeField = useCallback(
-    (path: FieldPath, value: unknown) => {
-      const targetId = selectedNodeId;
-      if (!targetId) return;
-      setPublishError(null);
-      if (isNodeIdPath(path)) {
-        const newId = String(value).trim();
-        if (newId === "" || newId === targetId) return;
-        // Reject a rename onto an id another node already uses — two nodes sharing an id
-        // would duplicate React Flow keys and make selection ambiguous before the daemon
-        // rejects it. The author keeps the old id until they pick a free one.
-        if (nodes.some(node => node.id === newId)) return;
-        const renamed = renameNodeId(nodes, edges, targetId, newId);
-        setNodes(renamed.nodes);
-        setEdges(renamed.edges);
-        setSelectedNodeId(newId);
-      } else {
-        setNodes(current => setNodeField(current, targetId, path, value));
-      }
-      setDirty(true);
-    },
-    [selectedNodeId, nodes, edges]
-  );
+  const changeField = (path: FieldPath, value: unknown) => {
+    const targetId = selectedNodeId;
+    if (!targetId) return;
+    setPublishError(null);
+    if (isNodeIdPath(path)) {
+      const newId = String(value).trim();
+      if (newId === "" || newId === targetId) return;
+      // Reject a rename onto an id another node already uses — two nodes sharing an id
+      // would duplicate React Flow keys and make selection ambiguous before the daemon
+      // rejects it. The author keeps the old id until they pick a free one.
+      if (nodes.some(node => node.id === newId)) return;
+      const renamed = renameNodeId(nodes, edges, targetId, newId);
+      setNodes(renamed.nodes);
+      setEdges(renamed.edges);
+      setSelectedNodeId(newId);
+    } else {
+      setNodes(current => setNodeField(current, targetId, path, value));
+    }
+    setDirty(true);
+  };
 
-  const addNode = useCallback((item: PaletteItem) => {
+  const addNode = (item: PaletteItem) => {
     setNodes(current => {
       const existing = new Set(current.map(node => node.id));
       const id = uniqueNodeId(item.idBase, existing);
@@ -278,9 +271,9 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       return [...current, node];
     });
     setDirty(true);
-  }, []);
+  };
 
-  const publish = useCallback(async (): Promise<LoopDetail | null> => {
+  const publish = async (): Promise<LoopDetail | null> => {
     const base = baseDefRef.current;
     if (!base) return null;
     setPublishError(null);
@@ -314,14 +307,14 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       setPublishError(error instanceof Error ? error.message : "Failed to publish loop");
       return null;
     }
-  }, [nodes, edges, workspaceId, name, patchMutation]);
+  };
 
-  const autoLayout = useCallback(() => {
+  const autoLayout = () => {
     setNodes(current => layoutEditorGraph(current, edges, []));
     setPositionsDirty(true);
-  }, [edges]);
+  };
 
-  const savePositions = useCallback(async () => {
+  const savePositions = async () => {
     const annotations = nodes.map(node => ({
       node_id: node.id,
       x: Math.round(node.position.x),
@@ -335,25 +328,22 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
       // must not be silently swallowed by the caller's `void`.
       toast.error("Could not save node positions. Try again.");
     }
-  }, [nodes, workspaceId, name, annotationsMutation]);
+  };
 
-  const selectedNode = useMemo(
-    () => nodes.find(node => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId]
-  );
-  const selectedFields = useMemo(
-    () =>
-      selectedNode ? buildNodeFields(selectedNode.data.raw, baseDefRef.current ?? undefined) : [],
-    [selectedNode]
-  );
-  const dslLines = useMemo(() => {
-    const base = baseDefRef.current;
-    // Only serialize when the DSL panel is visible — skip the graphToDefinition + YAML
-    // emit work entirely while editing on the Graph canvas.
-    if (!base || view !== "dsl") return [];
-    const definition = graphToDefinition(base, nodes, edges) as unknown as Record<string, unknown>;
-    return buildDslView(definition, lint.byNode);
-  }, [nodes, edges, lint, view]);
+  const selectedNode = nodes.find(node => node.id === selectedNodeId) ?? null;
+  const selectedFields = selectedNode
+    ? buildNodeFields(selectedNode.data.raw, baseDefRef.current ?? undefined)
+    : [];
+  const dslBase = baseDefRef.current;
+  // Only serialize when the DSL panel is visible — skip graph conversion + YAML
+  // emission entirely while editing on the Graph canvas.
+  const dslLines =
+    dslBase && view === "dsl"
+      ? buildDslView(
+          graphToDefinition(dslBase, nodes, edges) as unknown as Record<string, unknown>,
+          lint.byNode
+        )
+      : [];
 
   const status: LoopEditorStatus =
     workspaceId === ""

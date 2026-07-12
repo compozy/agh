@@ -1,5 +1,5 @@
 import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 import {
   createVirtualizerMeasurementState,
@@ -60,16 +60,13 @@ export function useVirtualizedThreadMessages(
   const previousCountRef = useRef(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-  const estimateSize = useCallback(
-    (index: number) => estimateMessageSize(messages[index]),
-    [messages]
-  );
+  const estimateSize = (index: number) => estimateMessageSize(messages[index]);
 
   // Key the virtualizer's measurement cache by message identity: a settled
   // message's measured height and React key follow the message across
   // appends/reconnects instead of being pinned to a shifting index, so recycled
   // rows recycle by the row they actually are.
-  const getItemKey = useCallback((index: number) => messages[index]?.id ?? index, [messages]);
+  const getItemKey = (index: number) => messages[index]?.id ?? index;
 
   const virtualizer = useVirtualizer({
     count: messageCount,
@@ -79,22 +76,14 @@ export function useVirtualizedThreadMessages(
     overscan: 8,
   });
 
-  const distanceFromBottom = useCallback(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) {
-      return 0;
-    }
-    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-  }, [viewportRef]);
-
-  const scrollToEnd = useCallback(() => {
+  const scrollToEnd = () => {
     modeRef.current = nextScrollMode(modeRef.current, "scroll-to-end");
     anchorIndexRef.current = null;
     setShowScrollToBottom(false);
     if (messageCount > 0) {
       virtualizer.scrollToIndex(messageCount - 1, { align: "end" });
     }
-  }, [messageCount, virtualizer]);
+  };
 
   // Manual navigation opts out of live-follow; the scroll listener resumes it at
   // the live edge and toggles the pill while free-scrolling.
@@ -103,6 +92,9 @@ export function useVirtualizedThreadMessages(
     if (!viewport) {
       return undefined;
     }
+
+    const distanceFromBottom = () =>
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
 
     const handleManualNavigation = () => {
       modeRef.current = nextScrollMode(modeRef.current, "manual-navigation");
@@ -130,7 +122,7 @@ export function useVirtualizedThreadMessages(
       viewport.removeEventListener("pointerdown", handleManualNavigation);
       viewport.removeEventListener("scroll", handleScroll);
     };
-  }, [viewportRef, distanceFromBottom]);
+  }, [viewportRef]);
 
   // New content settles the mode: a fresh prompt anchors, and the follow/anchor
   // effect repositions the viewport for the current mode.

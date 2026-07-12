@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { fn } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
@@ -83,10 +83,7 @@ function draftFor(entry: SettingsProviderEntry): ProviderDraft {
 function Harness({ initialState }: HarnessProps) {
   const [state, setState] = useState<ProviderInspectorState>(initialState);
   const entry = state.mode === "inspect" || state.mode === "edit" ? state.entry : null;
-  const draft = useMemo(() => {
-    if (state.mode === "edit" || state.mode === "create") return state.draft;
-    return null;
-  }, [state]);
+  const draft = state.mode === "edit" || state.mode === "create" ? state.draft : null;
 
   return (
     <StorySurface className="min-h-160 bg-canvas p-6">

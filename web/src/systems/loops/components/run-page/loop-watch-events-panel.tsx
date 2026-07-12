@@ -1,5 +1,7 @@
 import { Eyebrow, formatRelativeTime } from "@agh/ui";
 
+import { withOccurrenceKeys } from "@/lib/occurrence-keys";
+
 import type { LoopWatchEventsState } from "../../types";
 
 interface LoopWatchEventsPanelProps {
@@ -16,13 +18,17 @@ interface LoopWatchEventsPanelProps {
 export function LoopWatchEventsPanel({ state }: LoopWatchEventsPanelProps) {
   if (!state || state.subscriptions.length === 0) return null;
   const cursors = Object.entries(state.cursors ?? {});
+  const subscriptions = withOccurrenceKeys(
+    state.subscriptions,
+    subscription => `${subscription.kind}\u0000${subscription.filter ?? ""}`
+  );
   return (
     <div className="border-b border-line-soft px-4 py-4" data-testid="loop-watch-events-panel">
       <Eyebrow className="mb-3 text-faint">Watching events</Eyebrow>
       <div className="flex flex-col gap-2" data-testid="loop-watch-events-subscriptions">
-        {state.subscriptions.map(subscription => (
+        {subscriptions.map(({ item: subscription, key }) => (
           <div
-            key={JSON.stringify(subscription)}
+            key={key}
             className="rounded-md border border-line-soft bg-canvas px-2.5 py-2"
             data-testid="loop-watch-events-subscription"
           >

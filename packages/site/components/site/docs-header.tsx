@@ -9,7 +9,7 @@ import {
   type LinkItemType,
 } from "fumadocs-ui/layouts/shared";
 import { Sidebar as SidebarIcon } from "lucide-react";
-import { useMemo, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HeaderSearchInput } from "@/components/site/header-search-input";
@@ -147,10 +147,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
 
 function DocsHeaderTabs({ tabs }: { tabs: LayoutTab[] }) {
   const pathname = usePathname();
-  const selectedIdx = useMemo(
-    () => tabs.findLastIndex(option => isLayoutTabActive(option, pathname)),
-    [tabs, pathname]
-  );
+  const selectedIdx = tabs.findLastIndex(option => isLayoutTabActive(option, pathname));
 
   return (
     <div

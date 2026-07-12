@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer } from "react";
+import { useReducer } from "react";
 
 import { toast } from "@agh/ui";
 import {
@@ -46,34 +46,24 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
   useLoopStream(workspaceId, runId, { enabled: isLive, onEvent: dispatch });
   const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });
-  const goalTurns = useMemo(
-    () => mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns),
-    [goalTurnsQuery.data?.turns, live.goalTurns]
-  );
+  const goalTurns = mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns);
 
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
   const stopMutation = useStopLoopRun();
   const approveMutation = useApproveLoopRun();
 
-  const breadth = useMemo(() => latestGenerationBreadth(generations), [generations]);
-  const meters = useMemo(() => {
-    if (!run) return [];
-    // A lifecycle refetch can return a `tokens_used` newer than the last `token_tick`;
-    // take the max so the Tokens/Cost meters never step backward to a stale streamed
-    // value between a tick and the next poll (R-005).
-    const effective =
-      live.tokensUsed !== null
-        ? { ...run, tokens_used: Math.max(run.tokens_used, live.tokensUsed) }
-        : run;
-    return buildRunMeters(effective, breadth);
-  }, [run, live.tokensUsed, breadth]);
-  const timeline = useMemo(
-    () => buildRunTimeline(generations, definition),
-    [generations, definition]
-  );
+  const breadth = latestGenerationBreadth(generations);
+  // A lifecycle refetch can return tokens newer than the latest streamed tick;
+  // take the max so the meter never steps backward between a tick and a poll.
+  const effectiveRun =
+    run && live.tokensUsed !== null
+      ? { ...run, tokens_used: Math.max(run.tokens_used, live.tokensUsed) }
+      : run;
+  const meters = effectiveRun ? buildRunMeters(effectiveRun, breadth) : [];
+  const timeline = buildRunTimeline(generations, definition);
 
-  const handlePause = useCallback(() => {
+  const handlePause = () => {
     pauseMutation.mutate(
       { workspaceId, runId },
       {
@@ -82,9 +72,9 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
           toast.error(error instanceof Error ? error.message : "Failed to pause run"),
       }
     );
-  }, [pauseMutation, workspaceId, runId]);
+  };
 
-  const handleResume = useCallback(() => {
+  const handleResume = () => {
     resumeMutation.mutate(
       { workspaceId, runId },
       {
@@ -93,9 +83,9 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
           toast.error(error instanceof Error ? error.message : "Failed to resume run"),
       }
     );
-  }, [resumeMutation, workspaceId, runId]);
+  };
 
-  const handleStop = useCallback(() => {
+  const handleStop = () => {
     stopMutation.mutate(
       { workspaceId, runId },
       {
@@ -104,21 +94,18 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
           toast.error(error instanceof Error ? error.message : "Failed to stop run"),
       }
     );
-  }, [stopMutation, workspaceId, runId]);
+  };
 
-  const handleDecision = useCallback(
-    (decision: LoopGateDecision, gateId: string) => {
-      approveMutation.mutate(
-        { workspaceId, runId, data: { decision, gate_id: gateId } },
-        {
-          onSuccess: () => toast.success(`Gate decision recorded — ${decision}`),
-          onError: error =>
-            toast.error(error instanceof Error ? error.message : "Failed to record gate decision"),
-        }
-      );
-    },
-    [approveMutation, workspaceId, runId]
-  );
+  const handleDecision = (decision: LoopGateDecision, gateId: string) => {
+    approveMutation.mutate(
+      { workspaceId, runId, data: { decision, gate_id: gateId } },
+      {
+        onSuccess: () => toast.success(`Gate decision recorded — ${decision}`),
+        onError: error =>
+          toast.error(error instanceof Error ? error.message : "Failed to record gate decision"),
+      }
+    );
+  };
 
   return {
     runQuery,

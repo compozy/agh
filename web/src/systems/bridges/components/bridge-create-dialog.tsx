@@ -7,7 +7,7 @@ import {
   Settings2,
   Waypoints,
 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 
 import {
   bridgeKindIconRegistry,
@@ -446,10 +446,7 @@ function RuntimeStep({
   provider,
   providerConfigError,
 }: RuntimeStepProps) {
-  const configSchema = useMemo(
-    () => describeBridgeProviderConfigSchema(provider.config_schema),
-    [provider.config_schema]
-  );
+  const configSchema = describeBridgeProviderConfigSchema(provider.config_schema);
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowUpRight } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Eyebrow, MonoId, OwnerAvatar, Pill, Time } from "@agh/ui";
 
@@ -36,10 +36,7 @@ export function AgentCard({ node, label, isLive, isRoot, timeline }: AgentCardPr
   const ownerName = label || taskOwnerLabel(task.owner);
   const childCount = node.child_count ?? 0;
   const taskIdentifier = task.identifier ?? task.id;
-  const events = useMemo(
-    () => timeline.filter(item => item.task?.id === task.id),
-    [timeline, task.id]
-  );
+  const events = timeline.filter(item => item.task?.id === task.id);
   const eventsTop = events.slice(0, AGENT_TIMELINE_DEPTH);
   const failureMessage = run?.error ?? null;
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { toNetworkPresenceState } from "../lib/network-formatters";
@@ -66,17 +66,11 @@ export function useDirectRoom({
     enabled: Boolean(detail.direct),
     surface: "direct",
   });
-  const otherPeerId = useMemo(
-    () => pickOtherPeerId(detail.direct, selfPeerId),
-    [detail.direct, selfPeerId]
-  );
+  const otherPeerId = pickOtherPeerId(detail.direct, selfPeerId);
   const peersQuery = useQuery(
     networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherPeerId))
   );
-  const presence = useMemo(
-    () => presenceFromPeer(peersQuery.data?.find(peer => peer.peer_id === otherPeerId)),
-    [otherPeerId, peersQuery.data]
-  );
+  const presence = presenceFromPeer(peersQuery.data?.find(peer => peer.peer_id === otherPeerId));
   const { lastReadAt, markRead } = useLastRead({ workspaceId });
   const lastReadIso = lastReadAt({ channel, containerId: directId, surface: "direct" });
 

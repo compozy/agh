@@ -394,7 +394,7 @@ function SkillDetailPanel({
       <DetailHeader
         back={onBack}
         backLabel="Back to skills"
-        crumbs={onBack ? [{ label: "Skills", onSelect: onBack }] : undefined}
+        crumbs={onBack ? [{ id: "skills", label: "Skills", onSelect: onBack }] : undefined}
         data-testid="skill-detail-header"
         title={<span data-testid="skill-detail-title">{skill.name}</span>}
         pills={

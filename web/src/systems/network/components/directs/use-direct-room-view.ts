@@ -1,5 +1,3 @@
-import { useCallback } from "react";
-
 import { useActiveNetworkSession, type ActiveNetworkSession } from "../../hooks/use-active-session";
 import { useDirectRoom, type UseDirectRoomResult } from "../../hooks/use-direct-room";
 import {
@@ -49,47 +47,34 @@ export function useDirectRoomView({
   });
   const { retry, discard } = useSendNetworkMessage({ workspaceId });
 
-  const buildSendInput = useCallback(
-    (message: NetworkConversationMessage): SendNetworkMessageDirectInput | null => {
-      if (!session.session) {
-        return null;
-      }
-      const text = message.text ?? "";
-      return {
-        surface: "direct",
-        channel,
-        directId,
-        sessionId: session.session.sessionId,
-        peerFrom: session.session.peerId,
-        peerTo: room.otherPeerId,
-        text,
-        displayName: session.session.displayName,
-      };
-    },
-    [channel, directId, room.otherPeerId, session.session]
-  );
+  const buildSendInput = (
+    message: NetworkConversationMessage
+  ): SendNetworkMessageDirectInput | null => {
+    if (!session.session) return null;
+    const text = message.text ?? "";
+    return {
+      surface: "direct",
+      channel,
+      directId,
+      sessionId: session.session.sessionId,
+      peerFrom: session.session.peerId,
+      peerTo: room.otherPeerId,
+      text,
+      displayName: session.session.displayName,
+    };
+  };
 
-  const handleRetry = useCallback(
-    (message: NetworkConversationMessage) => {
-      const input = buildSendInput(message);
-      if (input == null) {
-        return;
-      }
-      void retry(input, message.message_id);
-    },
-    [buildSendInput, retry]
-  );
+  const handleRetry = (message: NetworkConversationMessage) => {
+    const input = buildSendInput(message);
+    if (input == null) return;
+    void retry(input, message.message_id);
+  };
 
-  const handleDiscard = useCallback(
-    (message: NetworkConversationMessage) => {
-      const input = buildSendInput(message);
-      if (input == null) {
-        return;
-      }
-      discard(input, message.message_id);
-    },
-    [buildSendInput, discard]
-  );
+  const handleDiscard = (message: NetworkConversationMessage) => {
+    const input = buildSendInput(message);
+    if (input == null) return;
+    discard(input, message.message_id);
+  };
 
   return {
     room,

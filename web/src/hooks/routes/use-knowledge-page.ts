@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import {
   knowledgeMemoryKey,
@@ -80,48 +80,35 @@ function useKnowledgePage() {
   const trimmedAgentName = agentName.trim();
   const trimmedSearchQuery = searchQuery.trim();
 
-  const selector: KnowledgeSelector | null = useMemo(() => {
-    if (activeScope === "workspace") {
-      if (!activeWorkspaceId) {
-        return null;
-      }
-      return { scope: "workspace", workspaceId: activeWorkspaceId };
-    }
-    if (activeScope === "agent") {
-      if (trimmedAgentName === "") {
-        return null;
-      }
-      return {
-        scope: "agent",
-        agentName: trimmedAgentName,
-        agentTier,
-        workspaceId: agentTier === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
-      };
-    }
-    return { scope: "global" };
-  }, [activeScope, agentTier, activeWorkspaceId, trimmedAgentName]);
+  let selector: KnowledgeSelector | null = { scope: "global" };
+  if (activeScope === "workspace") {
+    selector = activeWorkspaceId ? { scope: "workspace", workspaceId: activeWorkspaceId } : null;
+  } else if (activeScope === "agent") {
+    selector = trimmedAgentName
+      ? {
+          scope: "agent",
+          agentName: trimmedAgentName,
+          agentTier,
+          workspaceId: agentTier === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
+        }
+      : null;
+  }
 
-  const decorateOptions: DecorateOptions = useMemo(() => {
-    return {
-      scope: activeScope,
-      agentTier: activeScope === "agent" ? agentTier : undefined,
-      agentName: activeScope === "agent" ? trimmedAgentName : undefined,
-      workspaceId: selector?.workspaceId,
-    };
-  }, [activeScope, agentTier, selector?.workspaceId, trimmedAgentName]);
+  const decorateOptions: DecorateOptions = {
+    scope: activeScope,
+    agentTier: activeScope === "agent" ? agentTier : undefined,
+    agentName: activeScope === "agent" ? trimmedAgentName : undefined,
+    workspaceId: selector?.workspaceId,
+  };
 
-  const catalogFilter = useMemo<KnowledgeListFilter | undefined>(
-    () =>
-      selector
-        ? {
-            ...selector,
-            includeSystem: false,
-            limit: DEFAULT_MEMORY_LIST_LIMIT,
-            sort: "recent",
-          }
-        : undefined,
-    [selector]
-  );
+  const catalogFilter: KnowledgeListFilter | undefined = selector
+    ? {
+        ...selector,
+        includeSystem: false,
+        limit: DEFAULT_MEMORY_LIST_LIMIT,
+        sort: "recent",
+      }
+    : undefined;
   const memoriesQuery = useMemories(catalogFilter, { enabled: Boolean(catalogFilter) });
   const searchEnabled = Boolean(selector) && trimmedSearchQuery.length > 0;
   const searchQueryResult = useMemorySearch(selector ?? undefined, trimmedSearchQuery, {
@@ -156,10 +143,8 @@ function useKnowledgePage() {
     reset: resetRevertMutation,
   } = useRevertMemoryDecision();
 
-  const listMemories = useMemo<KnowledgeMemoryItem[]>(() => {
-    if (searchEnabled) {
-      const results = searchQueryResult.data?.results ?? [];
-      return results.map(result => {
+  const listMemories: KnowledgeMemoryItem[] = searchEnabled
+    ? (searchQueryResult.data?.results ?? []).map(result => {
         const decorated: KnowledgeMemoryItem = {
           ...result.memory,
           scope: result.memory.scope ?? activeScope,
@@ -169,32 +154,22 @@ function useKnowledgePage() {
         };
         decorated.key = knowledgeMemoryKey(decorated);
         return decorated;
-      });
-    }
-    return decorateKnowledgeMemories(memoriesQuery.data, decorateOptions);
-  }, [
-    activeScope,
-    decorateOptions,
-    memoriesQuery.data,
-    searchEnabled,
-    searchQueryResult.data?.results,
-  ]);
+      })
+    : decorateKnowledgeMemories(memoriesQuery.data, decorateOptions);
 
   const visibleMemories = listMemories;
 
-  const effectiveSelectedMemoryKey = useMemo(() => {
-    if (
-      selectedMemoryKey &&
-      visibleMemories.some(memory => knowledgeMemoryKey(memory) === selectedMemoryKey)
-    ) {
-      return selectedMemoryKey;
-    }
-    return visibleMemories[0] ? knowledgeMemoryKey(visibleMemories[0]) : null;
-  }, [selectedMemoryKey, visibleMemories]);
+  const selectedMemoryStillVisible =
+    selectedMemoryKey !== null &&
+    visibleMemories.some(memory => knowledgeMemoryKey(memory) === selectedMemoryKey);
+  const effectiveSelectedMemoryKey = selectedMemoryStillVisible
+    ? selectedMemoryKey
+    : visibleMemories[0]
+      ? knowledgeMemoryKey(visibleMemories[0])
+      : null;
 
-  const selectedMemory = useMemo(
-    () => visibleMemories.find(memory => knowledgeMemoryKey(memory) === effectiveSelectedMemoryKey),
-    [effectiveSelectedMemoryKey, visibleMemories]
+  const selectedMemory = visibleMemories.find(
+    memory => knowledgeMemoryKey(memory) === effectiveSelectedMemoryKey
   );
 
   const detailSelector = selectedMemory ? selectorFromMemory(selectedMemory) : null;
@@ -214,20 +189,20 @@ function useKnowledgePage() {
   const isLoading = isListLoading && visibleMemories.length === 0;
   const error = visibleMemories.length === 0 ? (listError ?? null) : null;
   const listRetryError = visibleMemories.length > 0 ? (listError ?? null) : null;
-  const retryMemories = useCallback(() => {
+  const retryMemories = () => {
     if (memoriesQuery.isFetchNextPageError) {
       void memoriesQuery.fetchNextPage();
       return;
     }
     void memoriesQuery.refetch();
-  }, [memoriesQuery]);
-  const retryKnowledgeList = useCallback(() => {
+  };
+  const retryKnowledgeList = () => {
     if (searchEnabled) {
       void searchQueryResult.refetch();
       return;
     }
     retryMemories();
-  }, [retryMemories, searchEnabled, searchQueryResult]);
+  };
 
   const decisionsForSelected: MemoryDecision[] = decisionsQuery.data?.decisions ?? [];
 
@@ -360,11 +335,9 @@ function useKnowledgePage() {
     }
   };
 
-  const selectedTargetMatches = (() => {
-    if (!selectedMemory) return false;
-    const key = knowledgeMemoryKey(selectedMemory);
-    return actionTargetKey === key;
-  })();
+  const selectedTargetMatches = selectedMemory
+    ? actionTargetKey === knowledgeMemoryKey(selectedMemory)
+    : false;
 
   const deleteError =
     selectedTargetMatches && deleteMutationError

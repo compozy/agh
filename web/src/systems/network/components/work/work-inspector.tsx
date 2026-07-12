@@ -59,7 +59,7 @@ export function WorkInspector({
         data-testid="network-work-inspector-list"
       >
         {entries.map(entry => (
-          <li key={entry.workId} className="contents">
+          <li className="border-b border-line last:border-b-0" key={entry.workId}>
             <WorkInspectorRow entry={entry} onJump={onJump} />
           </li>
         ))}

@@ -293,4 +293,17 @@ describe("LoopWatchEventsPanel", () => {
     render(<LoopWatchEventsPanel state={{ subscriptions: [], cursors: {} }} />);
     expect(screen.queryByTestId("loop-watch-events-panel")).not.toBeInTheDocument();
   });
+
+  it("Should render duplicate subscriptions without React key collisions", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const subscription = { kind: "loop.terminal" as const };
+
+    render(
+      <LoopWatchEventsPanel state={{ subscriptions: [subscription, subscription], cursors: {} }} />
+    );
+
+    expect(screen.getAllByTestId("loop-watch-events-subscription")).toHaveLength(2);
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });

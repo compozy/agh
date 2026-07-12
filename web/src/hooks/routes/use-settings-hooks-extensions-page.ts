@@ -159,24 +159,23 @@ export function useSettingsHooksExtensionsPage() {
 
   const hooks: SettingsHookEntry[] = envelope?.hooks ?? [];
   const installedFromEnvelope = envelope?.installed ?? [];
-  const extensions: SettingsExtensionEntry[] = (() => {
-    const live = extensionsQuery.data;
-    if (live && live.length > 0) return live;
-    return installedFromEnvelope.map(entry => ({
-      name: entry.name,
-      enabled: entry.enabled,
-      version: entry.version ?? "",
-      state: entry.state ?? "",
-      health: entry.health,
-      health_message: entry.health_message,
-      last_error: entry.last_error,
-      requires_env: entry.requires_env,
-      missing_env: entry.missing_env,
-      source: "settings",
-      type: "unknown",
-      daemon_running: true,
-    }));
-  })();
+  const extensions: SettingsExtensionEntry[] =
+    extensionsQuery.data && extensionsQuery.data.length > 0
+      ? extensionsQuery.data
+      : installedFromEnvelope.map(entry => ({
+          name: entry.name,
+          enabled: entry.enabled,
+          version: entry.version ?? "",
+          state: entry.state ?? "",
+          health: entry.health,
+          health_message: entry.health_message,
+          last_error: entry.last_error,
+          requires_env: entry.requires_env,
+          missing_env: entry.missing_env,
+          source: "settings",
+          type: "unknown",
+          daemon_running: true,
+        }));
 
   const marketplaceFilter: SettingsExtensionMarketplaceFilter = {
     q: marketplaceSearch.trim() || undefined,
@@ -192,10 +191,7 @@ export function useSettingsHooksExtensionsPage() {
   const transportParity: SettingsHooksExtensionsTransportParity | null =
     envelope?.transport_parity ?? null;
 
-  const isPolicyDirty = (() => {
-    if (!envelope || !draft) return false;
-    return !samePolicy(envelope.config, draft);
-  })();
+  const isPolicyDirty = Boolean(envelope && draft && !samePolicy(envelope.config, draft));
 
   const handleResetPolicy = () => {
     if (envelope) setDraft(clonePolicy(envelope.config));
@@ -397,17 +393,14 @@ export function useSettingsHooksExtensionsPage() {
 
   const dismissLastAction = () => setLastAction(null);
 
-  const hooksCounts = (() => {
-    const total = hooks.length;
-    const enabled = hooks.filter(entry => entry.declaration.required !== false).length;
-    return { total, enabled };
-  })();
-
-  const extensionsCounts = (() => {
-    const total = extensions.length;
-    const enabled = extensions.filter(entry => entry.enabled).length;
-    return { total, enabled };
-  })();
+  const hooksCounts = {
+    total: hooks.length,
+    enabled: hooks.filter(entry => entry.declaration.required !== false).length,
+  };
+  const extensionsCounts = {
+    total: extensions.length,
+    enabled: extensions.filter(entry => entry.enabled).length,
+  };
 
   const canMutateHooks = transportParity?.settings_http !== false;
   const canMutatePolicy = transportParity?.settings_http !== false;

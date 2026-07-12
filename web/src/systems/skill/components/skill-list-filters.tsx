@@ -1,5 +1,4 @@
 import { ListFilter } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -28,11 +27,8 @@ function SkillListFilters({
   onSourceFilterChange,
   onEnabledFilterChange,
 }: SkillListFiltersProps) {
-  const fields = useMemo(() => buildSkillFilterFields(), []);
-  const chips = useMemo(
-    () => skillFiltersToChips({ source: sourceFilter, enabled: enabledFilter }),
-    [enabledFilter, sourceFilter]
-  );
+  const fields = buildSkillFilterFields();
+  const chips = skillFiltersToChips({ source: sourceFilter, enabled: enabledFilter });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applySkillFilterChips(next, {

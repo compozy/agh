@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import type { NetworkConversationMessage, NetworkThreadDetail } from "../types";
@@ -60,17 +60,10 @@ export function useThreadOverlay({
   const { lastReadAt, markRead } = useLastRead({ workspaceId });
   const lastReadIso = lastReadAt({ channel, containerId: threadId, surface: "thread" });
 
-  const rootMessage = useMemo(
-    () => pickRoot(detail.thread, messagesQuery.messages),
-    [detail.thread, messagesQuery.messages]
-  );
-  const replies = useMemo(
-    () =>
-      rootMessage
-        ? messagesQuery.messages.filter(message => message.message_id !== rootMessage.message_id)
-        : [...messagesQuery.messages],
-    [messagesQuery.messages, rootMessage]
-  );
+  const rootMessage = pickRoot(detail.thread, messagesQuery.messages);
+  const replies = rootMessage
+    ? messagesQuery.messages.filter(message => message.message_id !== rootMessage.message_id)
+    : [...messagesQuery.messages];
   const replyCount = Math.max(
     0,
     (detail.thread?.message_count ?? messagesQuery.messages.length) - 1

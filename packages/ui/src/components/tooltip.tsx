@@ -35,7 +35,7 @@ function Tooltip({
     onOpenChange?.(next, details);
   };
 
-  const value = React.useMemo<TooltipMotionContextValue>(() => ({ actionsRef, open }), [open]);
+  const value: TooltipMotionContextValue = { actionsRef, open };
 
   return (
     <TooltipPrimitive.Root
@@ -71,9 +71,9 @@ function TooltipContent({
 }: TooltipContentProps) {
   const { actionsRef, open } = useTooltipMotion();
 
-  const handleExitComplete = React.useCallback(() => {
+  const handleExitComplete = () => {
     actionsRef.current?.unmount();
-  }, [actionsRef]);
+  };
 
   return (
     <AnimatePresence onExitComplete={handleExitComplete}>

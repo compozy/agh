@@ -254,7 +254,9 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
   });
 
   it("Should surface a toast and stay open on API failure", async () => {
-    vi.mocked(approveSession).mockRejectedValue(new Error("Network error"));
+    const error = new Error("Network error");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(approveSession).mockRejectedValue(error);
     const onResolved = vi.fn();
 
     render(
@@ -275,6 +277,7 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     });
 
     expect(onResolved).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith("Failed to submit permission decision", error);
     expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-once")).not.toBeDisabled();
   });

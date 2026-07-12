@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { AlertCircle, PauseCircle, PlayCircle, RotateCw } from "lucide-react";
 
 import {
@@ -59,14 +59,14 @@ export function SchedulerControlsPanel({
   const isActionPending = isPausePending || isResumePending || isDrainPending;
   const rows = backlog?.runs?.slice(0, BACKLOG_PREVIEW_LIMIT) ?? [];
 
-  const handlePauseOpenChange = useCallback((next: boolean) => {
+  const handlePauseOpenChange = (next: boolean) => {
     setPauseOpen(next);
     if (!next) {
       setPauseError(null);
     }
-  }, []);
+  };
 
-  const handlePauseConfirm = useCallback(async () => {
+  const handlePauseConfirm = async () => {
     const reason = pauseReason.trim();
     if (!reason) {
       setPauseError("Provide a pause reason.");
@@ -83,7 +83,7 @@ export function SchedulerControlsPanel({
     } catch (error) {
       setPauseError(error instanceof Error ? error.message : "Failed to pause scheduler.");
     }
-  }, [onPause, pauseReason]);
+  };
 
   if (errorMessage && !status) {
     return (

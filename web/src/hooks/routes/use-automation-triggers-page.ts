@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -34,7 +34,7 @@ export function useAutomationTriggersPage(
   const [editor, setEditor] = useState<TriggerEditorState | null>(null);
   const triggerSubmitInFlightRef = useRef(false);
   const seededRef = useRef(false);
-  const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
+  const [editorHandle] = useState(createAutomationDialogHandle);
 
   const triggersQuery = useAutomationTriggers({ ...page.listFilters, event: search.event });
   const triggers = triggersQuery.triggers;
@@ -43,10 +43,7 @@ export function useAutomationTriggersPage(
     page.automationRuntime,
     triggersQuery.error
   );
-  const effectiveSelectedTriggerId = useMemo(
-    () => resolveSelectedId(page.selectedId, triggers),
-    [page.selectedId, triggers]
-  );
+  const effectiveSelectedTriggerId = resolveSelectedId(page.selectedId, triggers);
 
   const triggerDetailQuery = useAutomationTrigger(effectiveSelectedTriggerId ?? "", {
     enabled: Boolean(effectiveSelectedTriggerId),

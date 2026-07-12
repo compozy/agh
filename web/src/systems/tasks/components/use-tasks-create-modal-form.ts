@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
 import type { TaskEditorDraft as CreateTaskDraftInput } from "../lib/task-editor";
@@ -17,67 +16,44 @@ export function useTasksCreateModalForm({
   onDraftChange,
   onSubmit,
 }: UseTasksCreateModalFormParams) {
-  const updateText = useCallback(
+  const updateText =
     (field: keyof CreateTaskDraftInput) =>
-      (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const value = event.target.value;
-        onDraftChange(current => ({ ...current, [field]: value }));
-      },
-    [onDraftChange]
-  );
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const value = event.target.value;
+      onDraftChange(current => ({ ...current, [field]: value }));
+    };
 
-  const updateScope = useCallback(
-    (scope: TaskScope) => onDraftChange(current => ({ ...current, scope })),
-    [onDraftChange]
-  );
+  const updateScope = (scope: TaskScope) => onDraftChange(current => ({ ...current, scope }));
 
-  const updateWorkspace = useCallback(
-    (workspaceId: string) => onDraftChange(current => ({ ...current, workspaceId })),
-    [onDraftChange]
-  );
+  const updateWorkspace = (workspaceId: string) =>
+    onDraftChange(current => ({ ...current, workspaceId }));
 
-  const updatePriority = useCallback(
-    (priority: TaskPriority) => onDraftChange(current => ({ ...current, priority })),
-    [onDraftChange]
-  );
+  const updatePriority = (priority: TaskPriority) =>
+    onDraftChange(current => ({ ...current, priority }));
 
-  const updateOwnerKind = useCallback(
-    (ownerKind: TaskOwnerKind | "") => onDraftChange(current => ({ ...current, ownerKind })),
-    [onDraftChange]
-  );
+  const updateOwnerKind = (ownerKind: TaskOwnerKind | "") =>
+    onDraftChange(current => ({ ...current, ownerKind }));
 
-  const updateMaxAttempts = useCallback(
-    (maxAttempts: number | null) => onDraftChange(current => ({ ...current, maxAttempts })),
-    [onDraftChange]
-  );
+  const updateMaxAttempts = (maxAttempts: number | null) =>
+    onDraftChange(current => ({ ...current, maxAttempts }));
 
-  const updateApprovalPolicy = useCallback(
-    (approvalPolicy: "none" | "manual") =>
-      onDraftChange(current => ({ ...current, approvalPolicy })),
-    [onDraftChange]
-  );
+  const updateApprovalPolicy = (approvalPolicy: "none" | "manual") =>
+    onDraftChange(current => ({ ...current, approvalPolicy }));
 
-  const updateAutoEnqueue = useCallback(
-    (next: boolean) => onDraftChange(current => ({ ...current, autoEnqueueOnReady: next })),
-    [onDraftChange]
-  );
+  const updateAutoEnqueue = (next: boolean) =>
+    onDraftChange(current => ({ ...current, autoEnqueueOnReady: next }));
 
-  const updateSaveAsDraft = useCallback(
-    (next: boolean) => onDraftChange(current => ({ ...current, saveAsDraft: next })),
-    [onDraftChange]
-  );
+  const updateSaveAsDraft = (next: boolean) =>
+    onDraftChange(current => ({ ...current, saveAsDraft: next }));
 
-  const submitForm = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      void onSubmit(draft, draft.saveAsDraft);
-    },
-    [draft, onSubmit]
-  );
+  const submitForm = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void onSubmit(draft, draft.saveAsDraft);
+  };
 
-  const submitDraft = useCallback(() => {
+  const submitDraft = () => {
     void onSubmit(draft, true);
-  }, [draft, onSubmit]);
+  };
 
   return {
     submitDraft,

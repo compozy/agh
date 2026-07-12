@@ -40,9 +40,14 @@ export interface TopbarSlotContextValue extends TopbarSlotSetters {
   slot: TopbarSlotValue | null;
 }
 
+interface TopbarSlotStore extends TopbarSlotSetters {
+  getSnapshot: () => TopbarSlotValue | null;
+  subscribe: (listener: () => void) => () => void;
+}
+
 export const TopbarSlotSettersContext = React.createContext<TopbarSlotSetters | null>(null);
 
-export const TopbarSlotContext = React.createContext<TopbarSlotContextValue | null>(null);
+export const TopbarSlotContext = React.createContext<TopbarSlotStore | null>(null);
 
 function slotKey(slot: TopbarSlotValue | null): string {
   if (slot === null) return "null";
@@ -92,6 +97,35 @@ export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue |
   return slotKey(a) === slotKey(b);
 }
 
+export function createTopbarSlotStore(): TopbarSlotStore {
+  let active: { owner: object; slot: TopbarSlotValue | null } | null = null;
+  const listeners = new Set<() => void>();
+  const emit = () => {
+    for (const listener of listeners) listener();
+  };
+
+  return {
+    getSnapshot: () => active?.slot ?? null,
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    setSlot: (owner, slot) => {
+      if (active?.owner === owner && isSameTopbarSlot(active.slot, slot)) return;
+      active = { owner, slot };
+      emit();
+    },
+    clearSlot: owner => {
+      if (active?.owner !== owner) return;
+      active = null;
+      emit();
+    },
+  };
+}
+
+const subscribeToNothing = () => () => undefined;
+const getNullSnapshot = () => null;
+
 /**
  * Pushes a topbar slot for the lifetime of the calling component.
  */
@@ -129,10 +163,16 @@ export function useTopbarSlot(slot: TopbarSlotValue | null): void {
 }
 
 export function useTopbarSlotValue(): TopbarSlotValue | null {
-  const ctx = React.use(TopbarSlotContext);
-  return ctx?.slot ?? null;
+  const store = React.use(TopbarSlotContext);
+  return React.useSyncExternalStore(
+    store?.subscribe ?? subscribeToNothing,
+    store?.getSnapshot ?? getNullSnapshot,
+    store?.getSnapshot ?? getNullSnapshot
+  );
 }
 
 export function useTopbarSlotContext(): TopbarSlotContextValue | null {
-  return React.use(TopbarSlotContext);
+  const store = React.use(TopbarSlotContext);
+  const slot = useTopbarSlotValue();
+  return store ? { slot, setSlot: store.setSlot, clearSlot: store.clearSlot } : null;
 }

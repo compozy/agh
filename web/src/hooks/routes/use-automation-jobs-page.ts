@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -41,7 +41,7 @@ export function useAutomationJobsPage(
   const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
   const jobSubmitInFlightRef = useRef(false);
   const seededRef = useRef(false);
-  const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
+  const [editorHandle] = useState(createAutomationDialogHandle);
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.jobs;
@@ -50,10 +50,7 @@ export function useAutomationJobsPage(
     page.automationRuntime,
     jobsQuery.error
   );
-  const effectiveSelectedJobId = useMemo(
-    () => resolveSelectedId(page.selectedId, jobs),
-    [jobs, page.selectedId]
-  );
+  const effectiveSelectedJobId = resolveSelectedId(page.selectedId, jobs);
 
   const jobDetailQuery = useAutomationJob(effectiveSelectedJobId ?? "", {
     enabled: Boolean(effectiveSelectedJobId),
@@ -71,18 +68,13 @@ export function useAutomationJobsPage(
 
   const selectedJob = jobDetailQuery.data ?? jobs.find(job => job.id === effectiveSelectedJobId);
 
-  const displayedRuns = useMemo(() => {
-    const runs = jobRunsQuery.data ?? [];
-    if (
-      queuedRun &&
-      queuedRun.jobId === effectiveSelectedJobId &&
-      !runs.some(run => run.id === queuedRun.run.id)
-    ) {
-      return [queuedRun.run, ...runs];
-    }
-
-    return runs;
-  }, [effectiveSelectedJobId, jobRunsQuery.data, queuedRun]);
+  const persistedRuns = jobRunsQuery.data ?? [];
+  const displayedRuns =
+    queuedRun &&
+    queuedRun.jobId === effectiveSelectedJobId &&
+    !persistedRuns.some(run => run.id === queuedRun.run.id)
+      ? [queuedRun.run, ...persistedRuns]
+      : persistedRuns;
 
   const handleScopeChange = (nextScope: AutomationScopeFilter) => {
     startTransition(() => {

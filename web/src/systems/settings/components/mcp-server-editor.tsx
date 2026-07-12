@@ -156,6 +156,27 @@ interface TargetSelectorProps {
   onChange: (target: SettingsMCPServerTarget) => void;
 }
 
+function targetDescription(
+  scope: "global" | "workspace",
+  entry: SettingsMCPServerEntry | null,
+  isCreate: boolean
+): string {
+  if (isCreate) {
+    return scope === "workspace"
+      ? "Auto writes new entries to the workspace mcp.json. Pick config to write into <workspace>/.agh/config.toml instead."
+      : "Auto writes new entries to ~/.agh/mcp.json. Pick config to write into ~/.agh/config.toml instead.";
+  }
+  if (!entry) return "Where to persist this definition in the selected scope.";
+  const effectiveKind = entry.source_metadata.effective_source.kind;
+  if (effectiveKind.endsWith("sidecar")) {
+    return "Auto replaces the sidecar definition (highest precedence). Choosing config writes a new config override that would shadow the sidecar only if precedence allowed it; in v1 sidecar wins so config entry stays shadowed.";
+  }
+  if (effectiveKind.endsWith("config")) {
+    return "Auto replaces the config definition. Choosing sidecar writes into mcp.json, which would shadow the config entry after save.";
+  }
+  return "Auto replaces the current highest-precedence definition in the selected scope.";
+}
+
 function TargetSelector({
   target,
   availableTargets,
@@ -164,22 +185,7 @@ function TargetSelector({
   isCreate,
   onChange,
 }: TargetSelectorProps) {
-  const description = (() => {
-    if (isCreate) {
-      return scope === "workspace"
-        ? "Auto writes new entries to the workspace mcp.json. Pick config to write into <workspace>/.agh/config.toml instead."
-        : "Auto writes new entries to ~/.agh/mcp.json. Pick config to write into ~/.agh/config.toml instead.";
-    }
-    if (!entry) return "Where to persist this definition in the selected scope.";
-    const effectiveKind = entry.source_metadata.effective_source.kind;
-    if (effectiveKind.endsWith("sidecar")) {
-      return "Auto replaces the sidecar definition (highest precedence). Choosing config writes a new config override that would shadow the sidecar only if precedence allowed it; in v1 sidecar wins so config entry stays shadowed.";
-    }
-    if (effectiveKind.endsWith("config")) {
-      return "Auto replaces the config definition. Choosing sidecar writes into mcp.json, which would shadow the config entry after save.";
-    }
-    return "Auto replaces the current highest-precedence definition in the selected scope.";
-  })();
+  const description = targetDescription(scope, entry, isCreate);
 
   return (
     <SettingsFieldRow
@@ -221,7 +227,7 @@ function TargetSelector({
 }
 
 function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: string[]) => void }) {
-  const rowKeys = useLocalRowKeys(args.length, "mcp-arg");
+  const rowKeys = useLocalRowKeys(args, "mcp-arg");
   return (
     <SettingsFieldRow
       data-testid="settings-mcp-servers-editor-args"
@@ -287,7 +293,7 @@ function EnvEditor({
   env: MCPEnvPair[];
   onChange: (next: MCPEnvPair[]) => void;
 }) {
-  const rowKeys = useLocalRowKeys(env.length, "mcp-env");
+  const rowKeys = useLocalRowKeys(env, "mcp-env");
   return (
     <SettingsFieldRow
       data-testid="settings-mcp-servers-editor-env"

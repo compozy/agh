@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useChildMatches, useNavigate, useParams } from "@tanstack/react-router";
 
 import type { ChannelTab } from "../components/shell/channel-tabs-types";
@@ -88,36 +88,21 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
     page.firstVisibleChannel,
   ]);
 
-  return useMemo(() => {
-    const activeChannel =
-      childParams.workspaceId == null || childParams.workspaceId === routeWorkspaceId
-        ? (page.channels.find(channel => channel.channel === childParams.channel) ?? null)
-        : null;
-    const activeTab = detectActiveTab(childPathname);
-    const activeThreadId = childParams.threadId ?? null;
-    const activeDirectId = childParams.directId ?? null;
-
-    return {
-      page,
-      activeChannel,
-      activeTab,
-      activeThreadId,
-      activeDirectId,
-      activeWorkspaceId: routeWorkspaceId,
-      // A dot means "known unread" from the bounded embedded recents projection.
-      // Absence deliberately does not claim the whole channel catalog is read.
-      hasUnread: (channelId: string): boolean =>
-        page.recents.some(recent => recent.channel === channelId && recent.hasUnread),
-    };
-  }, [
-    routeWorkspaceId,
-    childParams.channel,
-    childParams.workspaceId,
-    childParams.threadId,
-    childParams.directId,
-    childPathname,
+  const activeChannel =
+    childParams.workspaceId == null || childParams.workspaceId === routeWorkspaceId
+      ? (page.channels.find(channel => channel.channel === childParams.channel) ?? null)
+      : null;
+  return {
     page,
-  ]);
+    activeChannel,
+    activeTab: detectActiveTab(childPathname),
+    activeThreadId: childParams.threadId ?? null,
+    activeDirectId: childParams.directId ?? null,
+    activeWorkspaceId: routeWorkspaceId,
+    // A dot means "known unread" from the bounded embedded recents projection.
+    hasUnread: (channelId: string): boolean =>
+      page.recents.some(recent => recent.channel === channelId && recent.hasUnread),
+  };
 }
 
 export type { NetworkRecentEntry };

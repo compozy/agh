@@ -77,7 +77,7 @@ function MonoIdCopyButton({
     []
   );
 
-  const handleCopy = React.useCallback(async () => {
+  const handleCopy = async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(value);
@@ -87,7 +87,7 @@ function MonoIdCopyButton({
     } catch {
       // Clipboard may be unavailable in insecure contexts; swallow silently.
     }
-  }, [value]);
+  };
 
   return (
     <button

@@ -1,4 +1,4 @@
-import { useCallback, useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 
 export type PauseTaskHandler = (reason: string) => void | Promise<void>;
 
@@ -7,28 +7,28 @@ export function useTaskPauseDialog(onPause?: PauseTaskHandler) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const handleOpenChange = useCallback((next: boolean) => {
+  const handleOpenChange = (next: boolean) => {
     setIsOpen(next);
     if (!next) {
       setReason("");
       setError(null);
     }
-  }, []);
+  };
 
-  const handleReasonChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+  const handleReasonChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setReason(event.target.value);
     setError(null);
-  }, []);
+  };
 
-  const open = useCallback(() => {
+  const open = () => {
     setIsOpen(true);
-  }, []);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     handleOpenChange(false);
-  }, [handleOpenChange]);
+  };
 
-  const confirm = useCallback(async () => {
+  const confirm = async () => {
     const normalizedReason = reason.trim();
     if (!normalizedReason) {
       setError("Provide a pause reason.");
@@ -43,7 +43,7 @@ export function useTaskPauseDialog(onPause?: PauseTaskHandler) {
     } catch (pauseError) {
       setError(pauseError instanceof Error ? pauseError.message : "Failed to pause task.");
     }
-  }, [handleOpenChange, onPause, reason]);
+  };
 
   return {
     close,

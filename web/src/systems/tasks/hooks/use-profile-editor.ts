@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { TaskExecutionProfile, TaskExecutionProfileSetRequest } from "../types";
 
@@ -35,7 +35,7 @@ export function useProfileEditor({ taskId, profile, onSetProfile }: UseProfileEd
     setError(null);
   }, [open, profile, taskId]);
 
-  const submit = useCallback(async () => {
+  const submit = async () => {
     setError(null);
     let parsed: TaskExecutionProfileSetRequest;
     try {
@@ -64,7 +64,7 @@ export function useProfileEditor({ taskId, profile, onSetProfile }: UseProfileEd
     } catch {
       // Caller surfaces the toast; keep dialog open so the operator can retry.
     }
-  }, [onSetProfile, taskId, value]);
+  };
 
   return { open, setOpen, value, setValue, error, submit };
 }

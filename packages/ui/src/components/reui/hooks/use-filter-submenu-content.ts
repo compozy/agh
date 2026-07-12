@@ -48,17 +48,14 @@ export function useFilterSubmenuContent<T = unknown>({
     }
   };
 
-  const filteredOptions = (() => {
-    const currentValueSet = new Set(currentValues);
-    return (
-      field.options?.filter(option => {
-        const isSelected = currentValueSet.has(option.value);
-        if (isSelected) return true;
-        if (!searchInput) return true;
-        return option.label.toLowerCase().includes(searchInput.toLowerCase());
-      }) || []
-    );
-  })();
+  const currentValueSet = new Set(currentValues);
+  const filteredOptions =
+    field.options?.filter(option => {
+      const isSelected = currentValueSet.has(option.value);
+      if (isSelected) return true;
+      if (!searchInput) return true;
+      return option.label.toLowerCase().includes(searchInput.toLowerCase());
+    }) ?? [];
 
   const activeHighlightedIndex =
     highlightedIndex >= 0 ? highlightedIndex : isActive && filteredOptions.length > 0 ? 0 : -1;

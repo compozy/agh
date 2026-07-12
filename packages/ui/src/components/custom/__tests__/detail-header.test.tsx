@@ -49,7 +49,11 @@ describe("DetailHeader", () => {
     render(
       <DetailHeader
         title="Run"
-        crumbs={[{ label: "Workspaces" }, { label: "Sessions" }, { label: "Run #42" }]}
+        crumbs={[
+          { id: "workspaces", label: "Workspaces" },
+          { id: "sessions", label: "Sessions" },
+          { id: "run-42", label: "Run #42" },
+        ]}
       />
     );
     const crumbList = screen

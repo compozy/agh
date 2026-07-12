@@ -7,6 +7,7 @@ import { cn } from "../../lib/utils";
 import { Eyebrow } from "./eyebrow";
 
 export interface DetailHeaderCrumb {
+  id: string;
   label: React.ReactNode;
   to?: string;
   onSelect?: () => void;
@@ -127,10 +128,9 @@ function DetailHeaderCrumbList({ crumbs }: { crumbs: ReadonlyArray<DetailHeaderC
       className="inline-flex min-w-0 items-center gap-1.5"
     >
       {crumbs.map((crumb, index) => {
-        const key = `${crumb.to ?? "action"}:${typeof crumb.label === "string" ? crumb.label : "crumb"}`;
         const interactive = Boolean(crumb.to || crumb.onSelect);
         return (
-          <React.Fragment key={key}>
+          <React.Fragment key={crumb.id}>
             {index > 0 ? (
               <span aria-hidden="true" className="text-faint">
                 ·

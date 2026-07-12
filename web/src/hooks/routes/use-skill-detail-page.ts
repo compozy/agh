@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
@@ -23,8 +22,8 @@ function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
   const requestedContent = search.content === name;
 
   const skillsQuery = useSkills(workspaceId);
-  const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data]);
-  const listSkill = useMemo(() => skills.find(skill => skill.name === name), [name, skills]);
+  const skills = skillsQuery.data ?? [];
+  const listSkill = skills.find(skill => skill.name === name);
 
   const {
     data: selectedSkill,
@@ -47,15 +46,15 @@ function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
 
-  const handleDisable = useCallback(() => {
+  const handleDisable = () => {
     disableMutation.mutate({ name, workspace: workspaceId });
-  }, [disableMutation, name, workspaceId]);
+  };
 
-  const handleEnable = useCallback(() => {
+  const handleEnable = () => {
     enableMutation.mutate({ name, workspace: workspaceId });
-  }, [enableMutation, name, workspaceId]);
+  };
 
-  const handleViewContent = useCallback(() => {
+  const handleViewContent = () => {
     void navigate({
       to: "/skills/$name",
       params: { name },
@@ -64,15 +63,15 @@ function useSkillDetailPage(name: string, search: SkillDetailRouteSearch = {}) {
         content: name,
       }),
     });
-  }, [name, navigate]);
+  };
 
-  const handleRetryContent = useCallback(() => {
+  const handleRetryContent = () => {
     void refetchSkillContent();
-  }, [refetchSkillContent]);
+  };
 
-  const handleBack = useCallback(() => {
+  const handleBack = () => {
     void navigate({ to: "/skills" });
-  }, [navigate]);
+  };
 
   return {
     contentError: requestedContent ? contentError : null,

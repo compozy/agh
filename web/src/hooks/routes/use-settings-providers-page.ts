@@ -227,6 +227,31 @@ type LastAction = ProviderLastAction | null;
 
 export type { ProviderDraft };
 
+function isProviderInspectorValid(
+  inspector: ProviderInspectorState,
+  providers: readonly SettingsProviderEntry[]
+): boolean {
+  if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
+  const name = inspector.draft.name.trim();
+  if (name.length === 0) return false;
+  if (
+    inspector.draft.auth_mode === "bound_secret" &&
+    buildCredentialSlots(inspector.draft).length === 0
+  ) {
+    return false;
+  }
+  if (
+    inspector.draft.secret_value.trim() &&
+    !inspector.draft.secret_ref.trim().startsWith("vault:")
+  ) {
+    return false;
+  }
+  return (
+    inspector.mode !== "create" ||
+    !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase())
+  );
+}
+
 export function useSettingsProvidersPage() {
   const query = useSettingsProviders();
   const putMutation = usePutSettingsProvider();
@@ -241,16 +266,16 @@ export function useSettingsProvidersPage() {
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
 
-  const counts = (() => {
-    const installed = providers.filter(
+  const counts = {
+    total: providers.length,
+    installed: providers.filter(
       provider => provider.command_available && providerCredentialsConfigured(provider)
-    ).length;
-    const binaryMissing = providers.filter(provider => !provider.command_available).length;
-    const unconfigured = providers.filter(
+    ).length,
+    binaryMissing: providers.filter(provider => !provider.command_available).length,
+    unconfigured: providers.filter(
       provider => provider.command_available && !providerCredentialsConfigured(provider)
-    ).length;
-    return { total: providers.length, installed, binaryMissing, unconfigured };
-  })();
+    ).length,
+  };
 
   const filteredProviders = applyProviderFilters(providers, filters);
 
@@ -317,27 +342,7 @@ export function useSettingsProvidersPage() {
     });
   };
 
-  const inspectorIsValid = (() => {
-    if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
-    const name = inspector.draft.name.trim();
-    if (name.length === 0) return false;
-    if (
-      inspector.draft.auth_mode === "bound_secret" &&
-      buildCredentialSlots(inspector.draft).length === 0
-    ) {
-      return false;
-    }
-    if (
-      inspector.draft.secret_value.trim() &&
-      !inspector.draft.secret_ref.trim().startsWith("vault:")
-    ) {
-      return false;
-    }
-    if (inspector.mode === "create") {
-      return !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase());
-    }
-    return true;
-  })();
+  const inspectorIsValid = isProviderInspectorValid(inspector, providers);
 
   const saveInspector = () => {
     if (inspector.mode !== "edit" && inspector.mode !== "create") return;

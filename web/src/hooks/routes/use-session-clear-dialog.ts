@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 export interface UseSessionClearDialogResult {
   open: boolean;
@@ -15,10 +15,10 @@ export interface UseSessionClearDialogResult {
  */
 export function useSessionClearDialog(onClear: () => void): UseSessionClearDialogResult {
   const [open, setOpen] = useState(false);
-  const openDialog = useCallback(() => setOpen(true), []);
-  const confirmClear = useCallback(() => {
+  const openDialog = () => setOpen(true);
+  const confirmClear = () => {
     setOpen(false);
     onClear();
-  }, [onClear]);
+  };
   return { open, setOpen, openDialog, confirmClear };
 }

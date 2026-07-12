@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   dedupeFavorites,
@@ -71,44 +71,32 @@ export function useRuntimeFavorites(
 
   // Effective sets exclude anything outside the current allow-list, so a stale
   // entry never renders even in the window before the reconcile pass persists.
-  const favorites = useMemo(
-    () => new Set(rawFavorites.filter(key => validKeys.has(key))),
-    [rawFavorites, validKeys]
-  );
-  const recents = useMemo(
-    () => rawRecents.filter(key => validKeys.has(key)),
-    [rawRecents, validKeys]
-  );
+  const favorites = new Set(rawFavorites.filter(key => validKeys.has(key)));
+  const recents = rawRecents.filter(key => validKeys.has(key));
 
-  const toggleFavorite = useCallback(
-    (id: string) => {
-      const trimmed = id.trim();
-      if (!validKeys.has(trimmed)) return;
-      setRawFavorites(current => {
-        const next = current.includes(trimmed)
-          ? current.filter(key => key !== trimmed)
-          : [...current, trimmed];
-        writeFavoritesList(FAVORITES_STORAGE_KEY, next);
-        return next;
-      });
-    },
-    [validKeys]
-  );
+  const toggleFavorite = (id: string) => {
+    const trimmed = id.trim();
+    if (!validKeys.has(trimmed)) return;
+    setRawFavorites(current => {
+      const next = current.includes(trimmed)
+        ? current.filter(key => key !== trimmed)
+        : [...current, trimmed];
+      writeFavoritesList(FAVORITES_STORAGE_KEY, next);
+      return next;
+    });
+  };
 
-  const pushRecent = useCallback(
-    (id: string) => {
-      const trimmed = id.trim();
-      if (!validKeys.has(trimmed)) return;
-      setRawRecents(current => {
-        const next = dedupeFavorites([trimmed, ...current]).slice(0, RECENTS_LIMIT);
-        writeFavoritesList(RECENTS_STORAGE_KEY, next);
-        return next;
-      });
-    },
-    [validKeys]
-  );
+  const pushRecent = (id: string) => {
+    const trimmed = id.trim();
+    if (!validKeys.has(trimmed)) return;
+    setRawRecents(current => {
+      const next = dedupeFavorites([trimmed, ...current]).slice(0, RECENTS_LIMIT);
+      writeFavoritesList(RECENTS_STORAGE_KEY, next);
+      return next;
+    });
+  };
 
-  const isFavorite = useCallback((id: string) => favorites.has(id), [favorites]);
+  const isFavorite = (id: string) => favorites.has(id);
 
   return { favorites, recents, isFavorite, toggleFavorite, pushRecent };
 }

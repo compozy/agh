@@ -32,6 +32,8 @@ describe("WorkInspector", () => {
     expect(screen.getByTestId("network-work-inspector-count")).toHaveTextContent("2 open");
     expect(screen.getByTestId("network-work-inspector-row-work-1")).toBeInTheDocument();
     expect(screen.getByTestId("network-work-inspector-row-work-2")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getAllByRole("listitem").every(item => item.tagName === "LI")).toBe(true);
   });
 
   it("Should render an empty placeholder when no entries are open", () => {

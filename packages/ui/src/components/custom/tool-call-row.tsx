@@ -252,8 +252,7 @@ function ToolCallRowInner({
         <div
           data-slot="tool-call-row-header"
           className={cn(
-            "relative flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-small-body",
-            "transition-colors duration-base ease-out hover:bg-hover"
+            "relative flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-small-body"
           )}
         >
           <button
@@ -261,7 +260,7 @@ function ToolCallRowInner({
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
             aria-label={`Toggle ${toolName} tool call (${status})`}
-            className="absolute inset-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+            className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:ring-2 focus-visible:ring-line-strong"
             onClick={toggle}
           />
           {rowContent}

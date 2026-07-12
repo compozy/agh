@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   fetchSession,
@@ -37,6 +37,10 @@ function clearPersistedOnboardingSession() {
     onboardingWorkspaceId: "",
     onboardingKickoffSessionId: "",
   });
+}
+
+function markOnboardingKickoffSent(sessionId: string): void {
+  useOnboardingDraftStore.getState().patch({ onboardingKickoffSessionId: sessionId });
 }
 
 function canPromptOnboardingSession(session: SessionPayload): boolean {
@@ -84,16 +88,13 @@ export function useOnboardingChat(): OnboardingChatApi {
   const [isValidating, setIsValidating] = useState(false);
   const creatingRef = useRef(false);
   const validatingRef = useRef(false);
-  const persistedSession = useMemo(
-    () =>
-      persistedSessionId.length > 0 && persistedWorkspaceId.length > 0
-        ? { sessionId: persistedSessionId, workspaceId: persistedWorkspaceId }
-        : null,
-    [persistedSessionId, persistedWorkspaceId]
-  );
+  const persistedSession =
+    persistedSessionId.length > 0 && persistedWorkspaceId.length > 0
+      ? { sessionId: persistedSessionId, workspaceId: persistedWorkspaceId }
+      : null;
   const session = localSession;
 
-  const startSession = useCallback(async () => {
+  const startSession = async () => {
     if (creatingRef.current) {
       return;
     }
@@ -139,9 +140,9 @@ export function useOnboardingChat(): OnboardingChatApi {
     } finally {
       creatingRef.current = false;
     }
-  }, [createSession]);
+  };
 
-  const ensureSession = useCallback(async () => {
+  const ensureSession = async () => {
     if (error !== null || localSession !== null || validatingRef.current) {
       return;
     }
@@ -178,21 +179,17 @@ export function useOnboardingChat(): OnboardingChatApi {
       }
     }
     await startSession();
-  }, [error, localSession, persistedSession, startSession]);
+  };
 
-  const retry = useCallback(async () => {
+  const retry = async () => {
     setLocalSession(null);
     clearPersistedOnboardingSession();
     await startSession();
-  }, [startSession]);
+  };
 
-  const markKickoffSent = useCallback((sessionId: string) => {
-    useOnboardingDraftStore.getState().patch({ onboardingKickoffSessionId: sessionId });
-  }, []);
-
-  const reportError = useCallback((message: string) => {
+  const reportError = (message: string) => {
     setError(message);
-  }, []);
+  };
 
   return {
     session,
@@ -201,7 +198,7 @@ export function useOnboardingChat(): OnboardingChatApi {
     error,
     ensureSession,
     retry,
-    markKickoffSent,
+    markKickoffSent: markOnboardingKickoffSent,
     reportError,
   };
 }

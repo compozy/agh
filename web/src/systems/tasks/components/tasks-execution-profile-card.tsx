@@ -124,16 +124,13 @@ function TasksExecutionProfileCardView({
   const editDisabled = hasActiveRun || isSetPending || isDeletePending;
   const deleteDisabled = !profile || hasActiveRun || isSetPending || isDeletePending;
 
-  const summaryPills = (() => {
-    if (!profile) {
-      return [];
-    }
-    return [
-      { label: "Worker mode", value: profile.worker?.mode ?? "inherit" },
-      { label: "Coordinator mode", value: profile.coordinator?.mode ?? "inherit" },
-      { label: "Sandbox mode", value: profile.sandbox?.mode ?? "inherit" },
-    ];
-  })();
+  const summaryPills = profile
+    ? [
+        { label: "Worker mode", value: profile.worker?.mode ?? "inherit" },
+        { label: "Coordinator mode", value: profile.coordinator?.mode ?? "inherit" },
+        { label: "Sandbox mode", value: profile.sandbox?.mode ?? "inherit" },
+      ]
+    : [];
 
   const handleDeleteConfirm = async () => {
     try {

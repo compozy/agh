@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { supportApi } from "../adapters/support-api";
 import { supportKeys } from "../lib/query-keys";
@@ -67,10 +67,7 @@ export function useSupportBundleDownload() {
     },
   });
 
-  const create = useCallback(
-    (input: SupportBundleDownloadInput) => mutation.mutateAsync(input),
-    [mutation]
-  );
+  const create = (input: SupportBundleDownloadInput) => mutation.mutateAsync(input);
 
   return {
     create,

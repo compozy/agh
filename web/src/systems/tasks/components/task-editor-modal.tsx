@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ClipboardCheck } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import {
   Button,
@@ -92,29 +92,23 @@ export function TaskEditorModal({
   const [formMode, setFormMode] = useState<TaskFormMode>("simple");
   const isNewMode = mode === "new";
 
-  const setField = useCallback(
-    (field: keyof TaskEditorDraft) => (value: string) =>
-      onDraftChange(current => ({ ...current, [field]: value })),
-    [onDraftChange]
-  );
+  const setField = (field: keyof TaskEditorDraft) => (value: string) =>
+    onDraftChange(current => ({ ...current, [field]: value }));
 
-  const handleCancel = useCallback(() => onOpenChange(false), [onOpenChange]);
+  const handleCancel = () => onOpenChange(false);
 
-  const handleModeChange = useCallback(
-    (nextMode: TaskFormMode) => {
-      setFormMode(nextMode);
-      // Dropping to Simple while on an advanced-only template snaps back to one-shot.
-      if (
-        nextMode === "simple" &&
-        templateId &&
-        !SIMPLE_TASK_TEMPLATE_IDS.includes(templateId) &&
-        onTemplateChange
-      ) {
-        onTemplateChange("one_shot");
-      }
-    },
-    [onTemplateChange, templateId]
-  );
+  const handleModeChange = (nextMode: TaskFormMode) => {
+    setFormMode(nextMode);
+    // Dropping to Simple while on an advanced-only template snaps back to one-shot.
+    if (
+      nextMode === "simple" &&
+      templateId &&
+      !SIMPLE_TASK_TEMPLATE_IDS.includes(templateId) &&
+      onTemplateChange
+    ) {
+      onTemplateChange("one_shot");
+    }
+  };
 
   const advanced = isNewMode && formMode === "advanced";
   const submitLabel = resolveSubmitLabel(mode, draft.saveAsDraft);

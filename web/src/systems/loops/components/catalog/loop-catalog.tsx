@@ -1,5 +1,4 @@
 import { Repeat2 } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button, Empty, Eyebrow, type ListingViewMode } from "@agh/ui";
 
@@ -34,7 +33,7 @@ export function LoopCatalog({
   onLoadMore,
   onRun,
 }: LoopCatalogProps) {
-  const groups = useMemo(() => groupLoopCatalog(entries, GROUP_PASS_THROUGH), [entries]);
+  const groups = groupLoopCatalog(entries, GROUP_PASS_THROUGH);
   const isEmpty = entries.length === 0;
 
   if (isEmpty) {

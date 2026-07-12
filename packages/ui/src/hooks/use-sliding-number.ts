@@ -20,6 +20,10 @@ export interface UseSlidingNumberParams {
   delay: number;
 }
 
+function formatSlidingNumber(num: number, decimalPlaces: number): string {
+  return decimalPlaces != null ? num.toFixed(decimalPlaces) : num.toString();
+}
+
 export function useSlidingNumber({
   ref,
   number,
@@ -104,12 +108,7 @@ export function useSlidingNumber({
     initialNumeric,
   ]);
 
-  const formatNumber = React.useCallback(
-    (num: number) => (decimalPlaces != null ? num.toFixed(decimalPlaces) : num.toString()),
-    [decimalPlaces]
-  );
-
-  const numberStr = formatNumber(effectiveNumber);
+  const numberStr = formatSlidingNumber(effectiveNumber, decimalPlaces);
   const [newIntStrRaw = "0", newDecStrRaw = ""] = numberStr.split(".");
 
   const finalIntLength = padStart
@@ -118,22 +117,20 @@ export function useSlidingNumber({
 
   const newIntStr = padStart ? newIntStrRaw.padStart(finalIntLength, "0") : newIntStrRaw;
 
-  const prevFormatted = formatNumber(prevNumber);
+  const prevFormatted = formatSlidingNumber(prevNumber, decimalPlaces);
   const [prevIntStrRaw = "", prevDecStrRaw = ""] = prevFormatted.split(".");
   const prevIntStr = padStart ? prevIntStrRaw.padStart(finalIntLength, "0") : prevIntStrRaw;
 
-  const adjustedPrevInt = React.useMemo(() => {
-    return prevIntStr.length > finalIntLength
+  const adjustedPrevInt =
+    prevIntStr.length > finalIntLength
       ? prevIntStr.slice(-finalIntLength)
       : prevIntStr.padStart(finalIntLength, "0");
-  }, [prevIntStr, finalIntLength]);
 
-  const adjustedPrevDec = React.useMemo(() => {
-    if (!newDecStrRaw) return "";
-    return prevDecStrRaw.length > newDecStrRaw.length
+  const adjustedPrevDec = newDecStrRaw
+    ? prevDecStrRaw.length > newDecStrRaw.length
       ? prevDecStrRaw.slice(0, newDecStrRaw.length)
-      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0");
-  }, [prevDecStrRaw, newDecStrRaw]);
+      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0")
+    : "";
 
   React.useEffect(() => {
     if (isInView || initiallyStable) {
@@ -141,19 +138,14 @@ export function useSlidingNumber({
     }
   }, [effectiveNumber, isInView, initiallyStable]);
 
-  const intPlaces = React.useMemo(
-    () => Array.from({ length: finalIntLength }, (_, i) => Math.pow(10, finalIntLength - i - 1)),
-    [finalIntLength]
+  const intPlaces = Array.from({ length: finalIntLength }, (_, i) =>
+    Math.pow(10, finalIntLength - i - 1)
   );
-  const decPlaces = React.useMemo(
-    () =>
-      newDecStrRaw
-        ? Array.from({ length: newDecStrRaw.length }, (_, i) =>
-            Math.pow(10, newDecStrRaw.length - i - 1)
-          )
-        : [],
-    [newDecStrRaw]
-  );
+  const decPlaces = newDecStrRaw
+    ? Array.from({ length: newDecStrRaw.length }, (_, i) =>
+        Math.pow(10, newDecStrRaw.length - i - 1)
+      )
+    : [];
 
   const newDecValue = newDecStrRaw ? parseInt(newDecStrRaw, 10) : 0;
   const prevDecValue = adjustedPrevDec ? parseInt(adjustedPrevDec, 10) : 0;

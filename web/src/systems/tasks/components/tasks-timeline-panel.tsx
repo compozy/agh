@@ -1,5 +1,5 @@
 import { Activity, AlertCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import {
   BlockLoading,
@@ -116,11 +116,12 @@ export function TasksTimelinePanel({
 }: TasksTimelinePanelProps) {
   const [viewMode, setViewMode] = useState<TasksTimelineViewMode>("interleaved");
 
-  const groups = useMemo<TimelineGroup[]>(() => {
-    if (viewMode === "by_agent") return groupByAgent(items);
-    if (viewMode === "by_event_type") return groupByEventType(items);
-    return [];
-  }, [items, viewMode]);
+  let groups: TimelineGroup[] = [];
+  if (viewMode === "by_agent") {
+    groups = groupByAgent(items);
+  } else if (viewMode === "by_event_type") {
+    groups = groupByEventType(items);
+  }
 
   if (isLoading && items.length === 0) {
     return (

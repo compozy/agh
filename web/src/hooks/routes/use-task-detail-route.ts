@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -17,18 +16,15 @@ function useTaskDetailRoute(taskId: string) {
     latestEventSeq,
   });
 
-  const handleDeleteTask = useCallback(
-    async (id: string) => {
-      void navigate({ to: "/tasks", replace: true });
-      try {
-        await deleteMutation.mutateAsync({ id });
-        toast.success("Task deleted.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to delete task");
-      }
-    },
-    [deleteMutation, navigate]
-  );
+  const handleDeleteTask = async (id: string) => {
+    void navigate({ to: "/tasks", replace: true });
+    try {
+      await deleteMutation.mutateAsync({ id });
+      toast.success("Task deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete task");
+    }
+  };
 
   return {
     deleteMutation,

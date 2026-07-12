@@ -61,16 +61,12 @@ export function useAgentInstructionsTab({
   if (!requestedSessionIsActive) {
     setWakeSessionId(null);
   }
-  const wakeSessionId = (() => {
-    if (activeSessions.length === 1) return activeSessions[0]?.id ?? null;
-    if (
-      requestedWakeSessionId &&
-      activeSessions.some(session => session.id === requestedWakeSessionId)
-    ) {
-      return requestedWakeSessionId;
-    }
-    return null;
-  })();
+  const wakeSessionId =
+    activeSessions.length === 1
+      ? (activeSessions[0]?.id ?? null)
+      : requestedSessionIsActive
+        ? requestedWakeSessionId
+        : null;
 
   const statusQuery = useAgentHeartbeatStatus(
     agent.name,

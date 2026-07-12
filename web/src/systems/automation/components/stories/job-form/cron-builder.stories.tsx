@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -43,8 +43,8 @@ function CronBuilderHarness({ initialExpr }: { initialExpr: string }) {
   const [model, setModel] = useState<CronModel>(() => modelForExpr(initialExpr));
   const [expr, setExpr] = useState(initialExpr);
 
-  const valid = useMemo(() => isValidCron(expr), [expr]);
-  const readout = useMemo(() => readoutForExpr(expr), [expr]);
+  const valid = isValidCron(expr);
+  const readout = readoutForExpr(expr);
 
   /** Recompile the raw expression from a mutated model (except `custom`). */
   const syncFromModel = (next: CronModel) => {

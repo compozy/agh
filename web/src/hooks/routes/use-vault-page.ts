@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import {
   useDeleteVaultSecret,
@@ -55,6 +55,24 @@ function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFi
   return filter;
 }
 
+function countVaultSecrets(secrets: VaultSecret[]) {
+  const byNamespace = Object.fromEntries(VAULT_NAMESPACES.map(item => [item, 0])) as Record<
+    VaultNamespace,
+    number
+  >;
+  for (const secret of secrets) {
+    if (secret.namespace in byNamespace) {
+      byNamespace[secret.namespace as VaultNamespace] += 1;
+    }
+  }
+  return {
+    total: secrets.length,
+    sessions: byNamespace.sessions,
+    providers: byNamespace.providers,
+    byNamespace,
+  };
+}
+
 export function useVaultPage() {
   const [namespace, setNamespace] = useState<VaultNamespaceFilter>("all");
   const [prefix, setPrefix] = useState("");
@@ -62,53 +80,37 @@ export function useVaultPage() {
   const [deleteTarget, setDeleteTarget] = useState<VaultDeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<VaultLastAction | null>(null);
 
-  const filter = useMemo(() => filterFor(namespace, prefix), [namespace, prefix]);
+  const filter = filterFor(namespace, prefix);
   const query = useVaultSecrets(filter);
   const putMutation = usePutVaultSecret();
   const deleteMutation = useDeleteVaultSecret();
 
   const secrets = query.data ?? [];
-  const counts = useMemo(() => {
-    const byNamespace = Object.fromEntries(VAULT_NAMESPACES.map(item => [item, 0])) as Record<
-      VaultNamespace,
-      number
-    >;
-    for (const secret of secrets) {
-      if (secret.namespace in byNamespace) {
-        byNamespace[secret.namespace as VaultNamespace] += 1;
-      }
-    }
-    return {
-      total: secrets.length,
-      sessions: byNamespace.sessions,
-      providers: byNamespace.providers,
-      byNamespace,
-    };
-  }, [secrets]);
+  const counts = countVaultSecrets(secrets);
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     putMutation.reset();
     setEditor({ mode: "create", draft: emptyDraft() });
-  }, [putMutation]);
+  };
 
-  const closeEditor = useCallback(() => {
+  const closeEditor = () => {
     setEditor({ mode: "closed" });
     putMutation.reset();
-  }, [putMutation]);
+  };
 
-  const updateDraft = useCallback((updater: (draft: VaultDraft) => VaultDraft) => {
+  const updateDraft = (updater: (draft: VaultDraft) => VaultDraft) => {
     setEditor(current => {
       if (current.mode === "closed") return current;
       return { ...current, draft: updater(current.draft) };
     });
-  }, []);
+  };
 
-  const editorIsValid = useMemo(() => {
-    if (editor.mode === "closed") return false;
-    return editor.draft.ref.trim().startsWith("vault:") && editor.draft.secretValue.trim() !== "";
-  }, [editor]);
+  const editorIsValid =
+    editor.mode !== "closed" &&
+    editor.draft.ref.trim().startsWith("vault:") &&
+    editor.draft.secretValue.trim() !== "";
 
-  const saveEditor = useCallback(() => {
+  const saveEditor = () => {
     if (editor.mode === "closed" || !editorIsValid) return;
     const ref = editor.draft.ref.trim();
     const kind = editor.draft.kind.trim();
@@ -125,22 +127,19 @@ export function useVaultPage() {
         },
       }
     );
-  }, [editor, editorIsValid, putMutation]);
+  };
 
-  const openDelete = useCallback(
-    (secret: VaultSecret) => {
-      deleteMutation.reset();
-      setDeleteTarget({ mode: "open", secret });
-    },
-    [deleteMutation]
-  );
+  const openDelete = (secret: VaultSecret) => {
+    deleteMutation.reset();
+    setDeleteTarget({ mode: "open", secret });
+  };
 
-  const closeDelete = useCallback(() => {
+  const closeDelete = () => {
     setDeleteTarget({ mode: "closed" });
     deleteMutation.reset();
-  }, [deleteMutation]);
+  };
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget.mode !== "open") return;
     const ref = deleteTarget.secret.ref;
     deleteMutation.mutate(ref, {
@@ -149,11 +148,11 @@ export function useVaultPage() {
         setDeleteTarget({ mode: "closed" });
       },
     });
-  }, [deleteMutation, deleteTarget]);
+  };
 
-  const dismissLastAction = useCallback(() => {
+  const dismissLastAction = () => {
     setLastAction(null);
-  }, []);
+  };
 
   return {
     counts,

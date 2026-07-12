@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
 import {
@@ -40,22 +39,17 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const session = run?.session ?? null;
   const summary = run?.summary ?? null;
 
-  const fatalError = useMemo(() => {
-    if (!hasRunId || !hasTaskId) {
-      return new Error("Missing task or run id");
-    }
+  const fatalError =
+    hasRunId && hasTaskId ? (runQuery.error ?? null) : new Error("Missing task or run id");
 
-    return runQuery.error ?? null;
-  }, [hasRunId, hasTaskId, runQuery.error]);
+  const runStatus = run?.run?.status;
+  const isLive =
+    runStatus === "running" ||
+    runStatus === "starting" ||
+    runStatus === "claimed" ||
+    runStatus === "queued";
 
-  const isLive = useMemo(() => {
-    const status = run?.run?.status;
-    return (
-      status === "running" || status === "starting" || status === "claimed" || status === "queued"
-    );
-  }, [run]);
-
-  const handleCancelRun = useCallback(async () => {
+  const handleCancelRun = async () => {
     if (!hasRunId) {
       return;
     }
@@ -66,47 +60,32 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel run");
     }
-  }, [cancelMutation, hasRunId, runId]);
+  };
 
-  const handleForceReleaseRun = useCallback(
-    async (reason?: string) => {
-      if (!hasRunId) {
-        return;
-      }
+  const handleForceReleaseRun = async (reason?: string) => {
+    if (!hasRunId) return;
+    try {
+      await forceReleaseMutation.mutateAsync({
+        runId,
+        data: { reason: reason?.trim() || undefined },
+      });
+      toast.success("Run released.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to release run");
+    }
+  };
 
-      try {
-        await forceReleaseMutation.mutateAsync({
-          runId,
-          data: { reason: reason?.trim() || undefined },
-        });
-        toast.success("Run released.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to release run");
-      }
-    },
-    [forceReleaseMutation, hasRunId, runId]
-  );
+  const handleForceFailRun = async (reason: string) => {
+    if (!hasRunId) return;
+    try {
+      await forceFailMutation.mutateAsync({ runId, data: { reason: reason.trim() } });
+      toast.success("Run failed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to fail run");
+    }
+  };
 
-  const handleForceFailRun = useCallback(
-    async (reason: string) => {
-      if (!hasRunId) {
-        return;
-      }
-
-      try {
-        await forceFailMutation.mutateAsync({
-          runId,
-          data: { reason: reason.trim() },
-        });
-        toast.success("Run failed.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to fail run");
-      }
-    },
-    [forceFailMutation, hasRunId, runId]
-  );
-
-  const handleRetryRun = useCallback(async () => {
+  const handleRetryRun = async () => {
     if (!hasRunId) {
       return;
     }
@@ -117,7 +96,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to retry run");
     }
-  }, [hasRunId, retryMutation, runId]);
+  };
 
   const reviews = reviewsQuery.data ?? [];
 

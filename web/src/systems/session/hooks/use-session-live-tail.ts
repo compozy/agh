@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -114,20 +114,15 @@ export function useSessionLiveTail({
   const sessionState = useQuery(sessionDetailOptions(workspaceId, sessionId)).data?.state;
   const streamShouldOpen = sessionState == null || isLiveSessionState(sessionState);
   const transcriptQuery = useInfiniteQuery(sessionTranscriptOptions(workspaceId, sessionId));
-  const transcriptMessages = useMemo(
-    () => flattenTranscriptMessages(transcriptQuery.data),
-    [transcriptQuery.data]
-  );
+  const transcriptMessages = flattenTranscriptMessages(transcriptQuery.data);
   const transcriptStatus: SessionTranscriptThreadStatus = transcriptQuery.isPending
     ? "pending"
     : transcriptQuery.isError
       ? "error"
       : "success";
-  const readonlyMessages = useMemo(() => {
-    const stable = computeStableThreadMessages(transcriptMessages, stableMessagesRef.current);
-    stableMessagesRef.current = stable;
-    return stable.result;
-  }, [transcriptMessages]);
+  const stableMessages = computeStableThreadMessages(transcriptMessages, stableMessagesRef.current);
+  stableMessagesRef.current = stableMessages;
+  const readonlyMessages = stableMessages.result;
 
   useEffect(() => {
     return () => {

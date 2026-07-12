@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { LoopTargetDraft } from "@/systems/loops";
 
@@ -115,28 +115,23 @@ export function useAutomationJobForm({
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const [cronFrequencyOverride, setCronFrequencyOverride] = useState<CronFrequency | null>(null);
 
-  const decodedCronModel = useMemo(
-    () => decodeCron(scheduleExpr(draft)) ?? { frequency: "custom" as const },
-    [draft]
-  );
-  const cronModel = useMemo<CronModel>(
-    () =>
-      fullCronModel({
-        ...decodedCronModel,
-        frequency:
-          draft.schedule.mode === "cron" && cronFrequencyOverride
-            ? cronFrequencyOverride
-            : decodedCronModel.frequency,
-      }),
-    [cronFrequencyOverride, decodedCronModel, draft.schedule.mode]
-  );
+  const decodedCronModel = decodeCron(scheduleExpr(draft)) ?? { frequency: "custom" as const };
+  const cronModel: CronModel = fullCronModel({
+    ...decodedCronModel,
+    frequency:
+      draft.schedule.mode === "cron" && cronFrequencyOverride
+        ? cronFrequencyOverride
+        : decodedCronModel.frequency,
+  });
 
-  const resolvedWorkspaces = useMemo<WorkspaceOption[]>(() => {
-    if (workspaces && workspaces.length > 0) return [...workspaces];
-    return activeWorkspaceId ? [{ id: activeWorkspaceId, name: activeWorkspaceId }] : [];
-  }, [workspaces, activeWorkspaceId]);
+  const resolvedWorkspaces: WorkspaceOption[] =
+    workspaces && workspaces.length > 0
+      ? [...workspaces]
+      : activeWorkspaceId
+        ? [{ id: activeWorkspaceId, name: activeWorkspaceId }]
+        : [];
 
-  const preview = useMemo(() => buildJobPreview(draft), [draft]);
+  const preview = buildJobPreview(draft);
   const canSubmit = computeCanSubmit(draft, Date.now());
 
   const patch = (next: Partial<CreateAutomationJobRequest>) => onChange({ ...draft, ...next });

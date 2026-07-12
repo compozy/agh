@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -63,10 +63,7 @@ function useBridgeDetailPage(bridgeId: string) {
 
   const deferredTargetSearchQuery = useDeferredValue(targetSearchQuery);
 
-  const bridgeListFilters = useMemo(
-    () => bridgeListFilterForScope("all", activeWorkspaceId),
-    [activeWorkspaceId]
-  );
+  const bridgeListFilters = bridgeListFilterForScope("all", activeWorkspaceId);
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: Boolean(bridgeId) });
   const providersQuery = useBridgeProviders();
@@ -83,10 +80,7 @@ function useBridgeDetailPage(bridgeId: string) {
   const bridgeHealth = bridgesQuery.bridgeHealth;
   const providers = providersQuery.data ?? [];
 
-  const listBridgeSummary = useMemo(
-    () => bridges.find(bridge => bridge.id === bridgeId),
-    [bridgeId, bridges]
-  );
+  const listBridgeSummary = bridges.find(bridge => bridge.id === bridgeId);
 
   const bridgeDetailQuery = useBridge(bridgeId, { enabled: Boolean(bridgeId) });
   const bridgeRoutesQuery = useBridgeRoutes(bridgeId, { enabled: Boolean(bridgeId) });
@@ -101,39 +95,27 @@ function useBridgeDetailPage(bridgeId: string) {
 
   // Prefer the detail record; fall back to the list summary while it loads.
   const selectedBridge = bridgeDetailQuery.data?.bridge ?? listBridgeSummary;
-  const selectedBridgeProvider = useMemo(
-    () =>
-      selectedBridge
-        ? providers.find(
-            provider =>
-              provider.extension_name === selectedBridge.extension_name &&
-              provider.platform === selectedBridge.platform
-          )
-        : undefined,
-    [providers, selectedBridge]
-  );
+  const selectedBridgeProvider = selectedBridge
+    ? providers.find(
+        provider =>
+          provider.extension_name === selectedBridge.extension_name &&
+          provider.platform === selectedBridge.platform
+      )
+    : undefined;
   const selectedHealth =
     bridgeDetailQuery.data?.health ?? (bridgeId ? bridgeHealth[bridgeId] : undefined);
   const selectedSecretBindings = bridgeSecretBindingsQuery.data ?? [];
   // Strip `${bridgeId}:` prefixes so the panel sees bare binding names.
-  const selectedSecretInputMap = useMemo(() => {
-    if (!selectedBridge) {
-      return {};
-    }
-
+  let selectedSecretInputMap: Record<string, string> = {};
+  if (selectedBridge) {
     const inputEntries = new Map<string, string>();
-
     for (const [key, value] of Object.entries(secretInputValues)) {
       const prefix = `${selectedBridge.id}:`;
-      if (!key.startsWith(prefix)) {
-        continue;
-      }
-
+      if (!key.startsWith(prefix)) continue;
       inputEntries.set(key.slice(prefix.length), value);
     }
-
-    return Object.fromEntries(inputEntries.entries());
-  }, [secretInputValues, selectedBridge]);
+    selectedSecretInputMap = Object.fromEntries(inputEntries.entries());
+  }
   const restartRequired =
     selectedBridge != null ? Boolean(restartRequiredByID[selectedBridge.id]) : false;
   const isLifecyclePending =
@@ -394,9 +376,9 @@ function useBridgeDetailPage(bridgeId: string) {
     }
   };
 
-  const handleBack = useCallback(() => {
+  const handleBack = () => {
     void navigate({ to: "/bridges" });
-  }, [navigate]);
+  };
 
   const detailPanelProps = {
     bridge: selectedBridge,

@@ -48,10 +48,7 @@ function ConnectionIndicator({
   children,
   ...props
 }: ConnectionIndicatorProps) {
-  const value = React.useMemo<ConnectionIndicatorContextValue>(
-    () => ({ label, status, variant }),
-    [label, status, variant]
-  );
+  const value: ConnectionIndicatorContextValue = { label, status, variant };
 
   return (
     <ConnectionIndicatorContext.Provider value={value}>

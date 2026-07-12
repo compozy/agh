@@ -28,24 +28,21 @@ export function useCodeBlock({
 }: UseCodeBlockOptions) {
   const resolvedTheme = useResolvedCodeTheme(themeMode);
   const resolvedThemeName = resolveAghCodeThemeName(resolvedTheme);
-  const normalizedLanguage = React.useMemo(() => normalizeAghCodeLanguage(language), [language]);
+  const normalizedLanguage = normalizeAghCodeLanguage(language);
   const [highlightedCode, setHighlightedCode] = React.useState<HighlightedCodeLine[] | null>(null);
   const [highlightState, setHighlightState] = React.useState<CodeBlockHighlightState>(
     normalizedLanguage ? "loading" : "plain"
   );
 
-  const lines = React.useMemo(() => code.split("\n"), [code]);
-  const displayLines = React.useMemo(() => {
-    const seen = new Map<string, number>();
-    return lines.map((line, index) => {
-      const count = seen.get(line) ?? 0;
-      seen.set(line, count + 1);
-      return { id: `${index + 1}:${line || "blank"}-${count}`, line, lineNumber: index + 1 };
-    });
-  }, [lines]);
-  const highlightedLineNumbers = React.useMemo(
-    () => new Set(highlightLines?.filter(line => Number.isInteger(line) && line > 0) ?? []),
-    [highlightLines]
+  const lines = code.split("\n");
+  const seenLines = new Map<string, number>();
+  const displayLines = lines.map((line, index) => {
+    const count = seenLines.get(line) ?? 0;
+    seenLines.set(line, count + 1);
+    return { id: `${index + 1}:${line || "blank"}-${count}`, line, lineNumber: index + 1 };
+  });
+  const highlightedLineNumbers = new Set(
+    highlightLines?.filter(line => Number.isInteger(line) && line > 0) ?? []
   );
   const clampedLines =
     typeof truncateLines === "number" && Number.isFinite(truncateLines) && truncateLines > 0

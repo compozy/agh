@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { RuntimeModelOption } from "@/systems/runtime";
@@ -61,42 +60,30 @@ export function useRuntimeModelCatalog(
 
   // Ordered allow-list: preserves the surface's provider order and carries each
   // provider's auth state so rows for a signed-out provider render disabled.
-  const allowed = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const provider of providers) {
-      const id = provider.id.trim();
-      if (id.length > 0 && !map.has(id)) map.set(id, Boolean(provider.needsAuth));
-    }
-    return map;
-  }, [providers]);
+  const allowed = new Map<string, boolean>();
+  for (const provider of providers) {
+    const id = provider.id.trim();
+    if (id.length > 0 && !allowed.has(id)) allowed.set(id, Boolean(provider.needsAuth));
+  }
 
   const payloads = query.data?.models;
 
-  const payloadsByProvider = useMemo(() => {
-    const grouped: Record<string, ProviderModelPayload[]> = {};
-    for (const model of payloads ?? []) {
-      if (!allowed.has(model.provider_id)) continue;
-      (grouped[model.provider_id] ??= []).push(model);
-    }
-    return grouped;
-  }, [payloads, allowed]);
+  const payloadsByProvider: Record<string, ProviderModelPayload[]> = {};
+  for (const model of payloads ?? []) {
+    if (!allowed.has(model.provider_id)) continue;
+    (payloadsByProvider[model.provider_id] ??= []).push(model);
+  }
 
-  const models = useMemo(() => {
-    const result: RuntimeModelOption[] = [];
-    for (const [providerId, needsAuth] of allowed) {
-      const bucket = payloadsByProvider[providerId];
-      if (!bucket) continue;
-      result.push(...toRuntimeModelOptions(bucket, { providerNeedsAuth: needsAuth }));
-    }
-    return result;
-  }, [payloadsByProvider, allowed]);
+  const models: RuntimeModelOption[] = [];
+  for (const [providerId, needsAuth] of allowed) {
+    const bucket = payloadsByProvider[providerId];
+    if (!bucket) continue;
+    models.push(...toRuntimeModelOptions(bucket, { providerNeedsAuth: needsAuth }));
+  }
 
-  const stale = useMemo(
-    () => Object.values(payloadsByProvider).some(bucket => bucket.some(model => model.stale)),
-    [payloadsByProvider]
-  );
+  const stale = Object.values(payloadsByProvider).some(bucket => bucket.some(model => model.stale));
 
-  const refresh = useCallback(() => refreshMutation.mutate(), [refreshMutation]);
+  const refresh = () => refreshMutation.mutate();
 
   return {
     models,

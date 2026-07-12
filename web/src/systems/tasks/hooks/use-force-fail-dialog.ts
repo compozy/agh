@@ -1,4 +1,4 @@
-import { useCallback, useId, useState } from "react";
+import { useId, useState } from "react";
 
 export type ForceFailRunHandler = (reason: string) => Promise<void> | void;
 
@@ -9,24 +9,24 @@ export function useForceFailDialog(onForceFailRun?: ForceFailRunHandler) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const handleOpenChange = useCallback((open: boolean) => {
+  const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     if (!open) {
       setReason("");
       setError(null);
     }
-  }, []);
+  };
 
-  const open = useCallback(() => {
+  const open = () => {
     setIsOpen(true);
-  }, []);
+  };
 
-  const changeReason = useCallback((value: string) => {
+  const changeReason = (value: string) => {
     setReason(value);
     setError(null);
-  }, []);
+  };
 
-  const confirm = useCallback(async () => {
+  const confirm = async () => {
     const trimmed = reason.trim();
     if (!trimmed) {
       setError("Reason is required.");
@@ -38,7 +38,7 @@ export function useForceFailDialog(onForceFailRun?: ForceFailRunHandler) {
     } catch {
       setError(null);
     }
-  }, [handleOpenChange, onForceFailRun, reason]);
+  };
 
   return {
     changeReason,

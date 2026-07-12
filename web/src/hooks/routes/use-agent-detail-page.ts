@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useAgent } from "@/systems/agent/hooks/use-agents";
@@ -78,77 +77,53 @@ export function useAgentDetailPage(
     workspaceId: activeWorkspaceId,
   });
 
-  const setTab = useCallback(
-    (tab: AgentDetailTab) => {
-      void navigate({
-        to: "/agents/$name",
-        params: { name },
-        search: {
-          tab,
-          file: search.file,
-          filter: search.filter,
-        },
-        replace: true,
-      });
-    },
-    [name, navigate, search.file, search.filter]
-  );
+  const setTab = (tab: AgentDetailTab) => {
+    void navigate({
+      to: "/agents/$name",
+      params: { name },
+      search: { tab, file: search.file, filter: search.filter },
+      replace: true,
+    });
+  };
 
-  const setFile = useCallback(
-    (file: AgentInstructionFile) => {
-      void navigate({
-        to: "/agents/$name",
-        params: { name },
-        search: {
-          tab: "instructions",
-          file,
-          filter: search.filter,
-        },
-        replace: true,
-      });
-    },
-    [name, navigate, search.filter]
-  );
+  const setFile = (file: AgentInstructionFile) => {
+    void navigate({
+      to: "/agents/$name",
+      params: { name },
+      search: { tab: "instructions", file, filter: search.filter },
+      replace: true,
+    });
+  };
 
-  const setFilter = useCallback(
-    (filter: AgentSessionFilter) => {
-      void navigate({
-        to: "/agents/$name",
-        params: { name },
-        search: {
-          tab: "sessions",
-          file: search.file,
-          filter,
-        },
-        replace: true,
-      });
-    },
-    [name, navigate, search.file]
-  );
+  const setFilter = (filter: AgentSessionFilter) => {
+    void navigate({
+      to: "/agents/$name",
+      params: { name },
+      search: { tab: "sessions", file: search.file, filter },
+      replace: true,
+    });
+  };
 
-  const onNewSession = useCallback(() => {
+  const onNewSession = () => {
     sessionCreate.openForAgent(name);
-  }, [sessionCreate, name]);
+  };
 
-  const onEditSettings = useCallback(
-    (section?: AgentSettingsSection) => {
-      void navigate({
-        to: "/agents/$name/settings",
-        params: { name },
-        search: section ? { section } : {},
-      });
-    },
-    [name, navigate]
-  );
+  const onEditSettings = (section?: AgentSettingsSection) => {
+    void navigate({
+      to: "/agents/$name/settings",
+      params: { name },
+      search: section ? { section } : {},
+    });
+  };
 
-  const onDuplicate = useCallback(() => {
+  const onDuplicate = () => {
     if (!agent) return;
     createHost.openForDuplicate(agent);
-  }, [agent, createHost]);
+  };
 
-  const onBackToAgents = useCallback(() => {
+  const onBackToAgents = () => {
     void navigate({ to: "/agents" });
-  }, [navigate]);
+  };
 
   return {
     agent,

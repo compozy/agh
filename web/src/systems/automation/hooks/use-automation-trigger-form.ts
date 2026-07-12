@@ -1,5 +1,4 @@
 import type { FormEvent } from "react";
-import { useMemo } from "react";
 
 import type { LoopTargetDraft } from "@/systems/loops";
 
@@ -83,15 +82,14 @@ export function useAutomationTriggerForm({
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const eventKind = formatEventKind(selection, draft.event);
 
-  const resolvedWorkspaces = useMemo<WorkspaceOption[]>(() => {
-    if (workspaces && workspaces.length > 0) return [...workspaces];
-    return activeWorkspaceId ? [{ id: activeWorkspaceId, name: activeWorkspaceId }] : [];
-  }, [workspaces, activeWorkspaceId]);
+  const resolvedWorkspaces: WorkspaceOption[] =
+    workspaces && workspaces.length > 0
+      ? [...workspaces]
+      : activeWorkspaceId
+        ? [{ id: activeWorkspaceId, name: activeWorkspaceId }]
+        : [];
 
-  const preview = useMemo(
-    () => buildTriggerPreview(draft, { workspaces: resolvedWorkspaces }),
-    [draft, resolvedWorkspaces]
-  );
+  const preview = buildTriggerPreview(draft, { workspaces: resolvedWorkspaces });
 
   const dataFields = def ? availableDataFields(def) : [];
   const subConfigValues: SubConfigValues = {

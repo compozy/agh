@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -56,14 +55,11 @@ export function useNetworkWork({
     },
   });
 
-  return useMemo(
-    () => ({
-      work: query.data ?? null,
-      isLoading: isReady && query.isLoading,
-      error: query.error ?? null,
-    }),
-    [isReady, query.data, query.isLoading, query.error]
-  );
+  return {
+    work: query.data ?? null,
+    isLoading: isReady && query.isLoading,
+    error: query.error ?? null,
+  };
 }
 
 export interface OpenWorkEntry {
@@ -169,77 +165,74 @@ export function useOpenWork({
     enabled,
   });
 
-  return useMemo(() => {
-    if (!enabled) {
-      return {
-        entries: [],
-        openCount: 0,
-        hasNeedsInput: false,
-        needsInputCount: 0,
-        workingCount: 0,
-        isLoading: false,
-      };
-    }
-
-    const byWork = new Map<string, MutableOpenWorkState>();
-    for (const message of messagesQuery.messages) {
-      const workId = message.work_id;
-      if (!workId) {
-        continue;
-      }
-      const state = readWorkState(message);
-      const timestamp = readNumericTimestamp(message);
-      const existing = byWork.get(workId);
-      const nextState = state ?? existing?.state ?? "submitted";
-      if (shouldReplaceWorkState(existing, nextState, timestamp)) {
-        byWork.set(workId, {
-          workId,
-          state: nextState,
-          messageId: message.message_id,
-          targetPeerId: message.peer_to ?? existing?.targetPeerId ?? null,
-          timestamp,
-          openedAt: existing?.openedAt ?? timestamp,
-        });
-      }
-    }
-
-    const entries: OpenWorkEntry[] = [];
-    let hasNeedsInput = false;
-    let needsInputCount = 0;
-    let workingCount = 0;
-    for (const candidate of byWork.values()) {
-      if (isTerminalNetworkWorkState(candidate.state)) {
-        continue;
-      }
-      if (candidate.state === "submitted") {
-        // Silent state — counts toward openCount for forensic completeness but
-        // not toward the banner/chip surfacing per chromatic rule 6.6.
-      }
-      entries.push({
-        workId: candidate.workId,
-        state: candidate.state,
-        messageId: candidate.messageId,
-        targetPeerId: candidate.targetPeerId,
-        openedAt: candidate.openedAt > 0 ? new Date(candidate.openedAt).toISOString() : null,
-        lastActivityAt:
-          candidate.timestamp > 0 ? new Date(candidate.timestamp).toISOString() : null,
-      });
-      if (candidate.state === "needs_input") {
-        hasNeedsInput = true;
-        needsInputCount += 1;
-      } else if (candidate.state === "working") {
-        workingCount += 1;
-      }
-    }
-
-    entries.sort((left, right) => left.workId.localeCompare(right.workId));
+  if (!enabled) {
     return {
-      entries,
-      openCount: exactOpenCount ?? entries.length,
-      hasNeedsInput,
-      needsInputCount,
-      workingCount,
-      isLoading: messagesQuery.isLoading,
+      entries: [],
+      openCount: 0,
+      hasNeedsInput: false,
+      needsInputCount: 0,
+      workingCount: 0,
+      isLoading: false,
     };
-  }, [enabled, exactOpenCount, messagesQuery.messages, messagesQuery.isLoading]);
+  }
+
+  const byWork = new Map<string, MutableOpenWorkState>();
+  for (const message of messagesQuery.messages) {
+    const workId = message.work_id;
+    if (!workId) {
+      continue;
+    }
+    const state = readWorkState(message);
+    const timestamp = readNumericTimestamp(message);
+    const existing = byWork.get(workId);
+    const nextState = state ?? existing?.state ?? "submitted";
+    if (shouldReplaceWorkState(existing, nextState, timestamp)) {
+      byWork.set(workId, {
+        workId,
+        state: nextState,
+        messageId: message.message_id,
+        targetPeerId: message.peer_to ?? existing?.targetPeerId ?? null,
+        timestamp,
+        openedAt: existing?.openedAt ?? timestamp,
+      });
+    }
+  }
+
+  const entries: OpenWorkEntry[] = [];
+  let hasNeedsInput = false;
+  let needsInputCount = 0;
+  let workingCount = 0;
+  for (const candidate of byWork.values()) {
+    if (isTerminalNetworkWorkState(candidate.state)) {
+      continue;
+    }
+    if (candidate.state === "submitted") {
+      // Silent state — counts toward openCount for forensic completeness but
+      // not toward the banner/chip surfacing per chromatic rule 6.6.
+    }
+    entries.push({
+      workId: candidate.workId,
+      state: candidate.state,
+      messageId: candidate.messageId,
+      targetPeerId: candidate.targetPeerId,
+      openedAt: candidate.openedAt > 0 ? new Date(candidate.openedAt).toISOString() : null,
+      lastActivityAt: candidate.timestamp > 0 ? new Date(candidate.timestamp).toISOString() : null,
+    });
+    if (candidate.state === "needs_input") {
+      hasNeedsInput = true;
+      needsInputCount += 1;
+    } else if (candidate.state === "working") {
+      workingCount += 1;
+    }
+  }
+
+  entries.sort((left, right) => left.workId.localeCompare(right.workId));
+  return {
+    entries,
+    openCount: exactOpenCount ?? entries.length,
+    hasNeedsInput,
+    needsInputCount,
+    workingCount,
+    isLoading: messagesQuery.isLoading,
+  };
 }

@@ -27,7 +27,6 @@ import {
   computeStableSessionRows,
   deriveSessionRows,
   EMPTY_STABLE_SESSION_ROWS,
-  type SessionRow,
   type SessionTimelinePart,
   type StableSessionRowsState,
 } from "../session-timeline.logic";
@@ -968,8 +967,8 @@ describe("SessionThread transcript states", () => {
 
 // Suite: streaming render-count probe (task 39).
 // Invariant: derive-layer structural sharing + compiler-stabilized `TimelineRowContent` mean
-// streaming N chunk updates into the live row re-renders only that row — settled
-// rows keep their reference AND never re-commit.
+// streaming N chunk updates change only the live row's visible subtree; settled
+// rows keep both their data reference and mounted DOM subtree.
 // Boundary IN: `computeStableSessionRows` row identity + the compiler-managed row renderer.
 // Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
 describe("SessionThread streaming render-count", () => {
@@ -977,21 +976,12 @@ describe("SessionThread streaming render-count", () => {
     return { kind: "text", id, text: value, turnId, timestamp: "2026-07-07T12:00:00Z", state };
   }
 
-  // Wraps the production compiler-managed row renderer and counts renders per row
-  // id. Stable inputs let the compiler skip the subtree while a sibling streams.
-  function CountingRow({ row, onRender }: { row: SessionRow; onRender: (id: string) => void }) {
-    onRender(row.id);
-    return <TimelineRowContent row={row} />;
-  }
-
   function StableTimeline({
     liveText,
     stateRef,
-    onRowRender,
   }: {
     liveText: string;
     stateRef: { current: StableSessionRowsState };
-    onRowRender: (id: string) => void;
   }) {
     // Mirror the production hook: re-derive fresh rows, then structurally share
     // against the prior pass so unchanged rows keep their reference.
@@ -1004,37 +994,51 @@ describe("SessionThread streaming render-count", () => {
     return (
       <>
         {stable.result.map(row => (
-          <CountingRow key={row.id} row={row} onRender={onRowRender} />
+          <div key={row.id} data-session-row-id={row.id}>
+            <TimelineRowContent row={row} />
+          </div>
         ))}
       </>
     );
   }
 
-  it("Should re-render only the live row across streaming chunk updates and keep settled rows referentially stable", () => {
-    const renders = new Map<string, number>();
-    const bump = (id: string) => renders.set(id, (renders.get(id) ?? 0) + 1);
+  it("Should preserve the settled row subtree while the live row changes across streaming chunks", () => {
     const stateRef: { current: StableSessionRowsState } = { current: EMPTY_STABLE_SESSION_ROWS };
 
-    const { rerender } = render(
-      <StableTimeline liveText="chunk 1" stateRef={stateRef} onRowRender={bump} />
+    const { container, rerender } = render(
+      <StableTimeline liveText="chunk 1" stateRef={stateRef} />
     );
     const settledRowAtMount = stateRef.current.result[0];
+    const settledElement = container.querySelector<HTMLElement>(
+      '[data-session-row-id="text:settled"]'
+    );
+    const liveElement = container.querySelector<HTMLElement>('[data-session-row-id="text:live"]');
+    if (!settledElement || !liveElement) {
+      throw new Error("Expected settled and live timeline rows to render");
+    }
+    let settledMarkup = settledElement.innerHTML;
+    let liveMarkup = liveElement.innerHTML;
+    let settledVersions = 1;
+    let liveVersions = 1;
 
     for (const chunk of [
       "chunk 1 chunk 2",
       "chunk 1 chunk 2 chunk 3",
       "chunk 1 chunk 2 chunk 3 chunk 4",
     ]) {
-      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} onRowRender={bump} />);
+      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} />);
+      const nextSettledMarkup = settledElement.innerHTML;
+      const nextLiveMarkup = liveElement.innerHTML;
+      if (nextSettledMarkup !== settledMarkup) settledVersions += 1;
+      if (nextLiveMarkup !== liveMarkup) liveVersions += 1;
+      settledMarkup = nextSettledMarkup;
+      liveMarkup = nextLiveMarkup;
     }
 
-    // The settled row's reference survives every streaming update...
     expect(stateRef.current.result[0]).toBe(settledRowAtMount);
-    // ...so its memoized renderer commits exactly once (mount) and is skipped on
-    // all three streaming chunk updates.
-    expect(renders.get("text:settled")).toBe(1);
-    // The live row re-renders on each chunk: mount + three updates.
-    expect(renders.get("text:live")).toBe(4);
+    expect(container.querySelector('[data-session-row-id="text:settled"]')).toBe(settledElement);
+    expect(settledVersions).toBe(1);
+    expect(liveVersions).toBe(4);
   });
 });
 

@@ -137,15 +137,12 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
   const [deleteTarget, setDeleteTarget] = useState<MCPDeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<LastAction>(null);
 
-  const filter = (() => {
-    if (activeScope === "global") {
-      return { scope: "global" as const };
-    }
-    if (!activeWorkspaceId) {
-      return null;
-    }
-    return { scope: "workspace" as const, workspace_id: activeWorkspaceId };
-  })();
+  const filter =
+    activeScope === "global"
+      ? { scope: "global" as const }
+      : activeWorkspaceId
+        ? { scope: "workspace" as const, workspace_id: activeWorkspaceId }
+        : null;
 
   const queryEnabled = filter !== null;
   const query = useSettingsMCPServers(filter ?? { scope: "global" }, { enabled: queryEnabled });
@@ -155,14 +152,13 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
   const availableScopes = envelope?.available_scopes ?? ["global", "workspace"];
   const workspaceScopeAvailable = availableScopes.includes("workspace");
 
-  const counts = (() => {
-    const total = servers.length;
-    const shadowed = servers.reduce(
+  const counts = {
+    total: servers.length,
+    shadowed: servers.reduce(
       (acc, entry) => acc + (entry.source_metadata.shadowed_sources?.length ?? 0),
       0
-    );
-    return { total, shadowed };
-  })();
+    ),
+  };
 
   const resetTransientState = () => {
     putMutation.reset();
@@ -221,22 +217,19 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     });
   };
 
-  const editorIsValid = (() => {
-    if (editor.mode === "closed") return false;
-    const name = editor.draft.name.trim();
-    const command = editor.draft.command.trim();
-    if (name.length === 0 || command.length === 0) return false;
-    if (editor.mode === "create") {
-      return !servers.some(entry => entry.name.toLowerCase() === name.toLowerCase());
-    }
-    return true;
-  })();
+  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
+  const editorCommand = editor.mode === "closed" ? "" : editor.draft.command.trim();
+  const editorIsValid =
+    editor.mode !== "closed" &&
+    editorName.length > 0 &&
+    editorCommand.length > 0 &&
+    (editor.mode !== "create" ||
+      !servers.some(entry => entry.name.toLowerCase() === editorName.toLowerCase()));
 
-  const editorAvailableTargets: SettingsMCPServerTarget[] = (() => {
-    if (editor.mode === "closed") return ["auto", "config", "sidecar"];
-    if (editor.mode === "create") return ["auto", "config", "sidecar"];
-    return resolveAvailableTargets(editor.entry, activeScope);
-  })();
+  const editorAvailableTargets: SettingsMCPServerTarget[] =
+    editor.mode === "edit"
+      ? resolveAvailableTargets(editor.entry, activeScope)
+      : ["auto", "config", "sidecar"];
 
   const saveEditor = () => {
     if (editor.mode === "closed" || filter === null) return;
@@ -277,10 +270,10 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
     });
   };
 
-  const deleteAvailableTargets: SettingsMCPServerTarget[] = (() => {
-    if (deleteTarget.mode === "closed") return ["auto", "config", "sidecar"];
-    return resolveAvailableTargets(deleteTarget.entry, activeScope);
-  })();
+  const deleteAvailableTargets: SettingsMCPServerTarget[] =
+    deleteTarget.mode === "open"
+      ? resolveAvailableTargets(deleteTarget.entry, activeScope)
+      : ["auto", "config", "sidecar"];
 
   const confirmDelete = () => {
     if (deleteTarget.mode === "closed" || filter === null) return;

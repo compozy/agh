@@ -1,5 +1,3 @@
-import { useCallback } from "react";
-
 import { useActiveNetworkSession, type ActiveNetworkSession } from "../../hooks/use-active-session";
 import {
   useSendNetworkMessage,
@@ -42,46 +40,33 @@ export function useThreadOverlayView({
   });
   const { retry, discard } = useSendNetworkMessage({ workspaceId });
 
-  const buildSendInput = useCallback(
-    (message: NetworkConversationMessage): SendNetworkMessageThreadInput | null => {
-      if (!session.session) {
-        return null;
-      }
-      return {
-        surface: "thread",
-        channel,
-        threadId,
-        sessionId: session.session.sessionId,
-        peerFrom: session.session.peerId,
-        text: message.text ?? "",
-        mentions: message.mentions ?? [],
-        displayName: session.session.displayName,
-      };
-    },
-    [channel, session.session, threadId]
-  );
+  const buildSendInput = (
+    message: NetworkConversationMessage
+  ): SendNetworkMessageThreadInput | null => {
+    if (!session.session) return null;
+    return {
+      surface: "thread",
+      channel,
+      threadId,
+      sessionId: session.session.sessionId,
+      peerFrom: session.session.peerId,
+      text: message.text ?? "",
+      mentions: message.mentions ?? [],
+      displayName: session.session.displayName,
+    };
+  };
 
-  const handleRetry = useCallback(
-    (message: NetworkConversationMessage) => {
-      const input = buildSendInput(message);
-      if (input == null) {
-        return;
-      }
-      void retry(input, message.message_id);
-    },
-    [buildSendInput, retry]
-  );
+  const handleRetry = (message: NetworkConversationMessage) => {
+    const input = buildSendInput(message);
+    if (input == null) return;
+    void retry(input, message.message_id);
+  };
 
-  const handleDiscard = useCallback(
-    (message: NetworkConversationMessage) => {
-      const input = buildSendInput(message);
-      if (input == null) {
-        return;
-      }
-      discard(input, message.message_id);
-    },
-    [buildSendInput, discard]
-  );
+  const handleDiscard = (message: NetworkConversationMessage) => {
+    const input = buildSendInput(message);
+    if (input == null) return;
+    discard(input, message.message_id);
+  };
 
   return {
     overlay,

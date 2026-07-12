@@ -1,6 +1,4 @@
 import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } from "lucide-react";
-import { useMemo } from "react";
-
 import {
   Button,
   CodeBlock,
@@ -466,97 +464,75 @@ function AutomationDetailLoadedPanel({
   const job = isJob ? (item as AutomationJob) : null;
   const trigger = !isJob ? (item as AutomationTrigger) : null;
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
-  const detailActions = useMemo(
-    () => (
-      <>
+  const detailActions = (
+    <>
+      <Button
+        data-testid="toggle-automation-btn"
+        disabled={isTogglePending}
+        onClick={() => onToggleEnabled(!item.enabled)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
+      </Button>
+      {isJob && onTriggerNow ? (
         <Button
-          data-testid="toggle-automation-btn"
-          disabled={isTogglePending}
-          onClick={() => onToggleEnabled(!item.enabled)}
+          data-testid="trigger-job-btn"
+          disabled={isTriggerPending}
+          onClick={onTriggerNow}
+          size="sm"
+          type="button"
+        >
+          <Play className="size-3" />
+          {isTriggerPending ? "Queuing..." : "Run now"}
+        </Button>
+      ) : null}
+      {isDynamic ? (
+        <Button
+          data-testid="edit-automation-btn"
+          onClick={onEdit}
           size="sm"
           type="button"
           variant="outline"
         >
-          {isTogglePending ? "Saving..." : item.enabled ? "Disable" : "Enable"}
+          <Pencil className="size-3" />
+          Edit
         </Button>
-        {isJob && onTriggerNow ? (
-          <Button
-            data-testid="trigger-job-btn"
-            disabled={isTriggerPending}
-            onClick={onTriggerNow}
-            size="sm"
-            type="button"
-          >
-            <Play className="size-3" />
-            {isTriggerPending ? "Queuing..." : "Run now"}
-          </Button>
-        ) : null}
-        {isDynamic ? (
-          <Button
-            data-testid="edit-automation-btn"
-            onClick={onEdit}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Pencil className="size-3" />
-            Edit
-          </Button>
-        ) : null}
-        {isDynamic ? (
-          <Button
-            data-testid="delete-automation-btn"
-            disabled={isDeleting}
-            onClick={onDelete}
-            size="sm"
-            type="button"
-            variant="destructive"
-          >
-            <Trash2 className="size-3" />
-            {isDeleting ? "Deleting..." : "Delete"}
-          </Button>
-        ) : null}
-      </>
-    ),
-    [
-      isDeleting,
-      isDynamic,
-      isJob,
-      isTogglePending,
-      isTriggerPending,
-      item.enabled,
-      onDelete,
-      onEdit,
-      onToggleEnabled,
-      onTriggerNow,
-    ]
+      ) : null}
+      {isDynamic ? (
+        <Button
+          data-testid="delete-automation-btn"
+          disabled={isDeleting}
+          onClick={onDelete}
+          size="sm"
+          type="button"
+          variant="destructive"
+        >
+          <Trash2 className="size-3" />
+          {isDeleting ? "Deleting..." : "Delete"}
+        </Button>
+      ) : null}
+    </>
   );
-  const detailMeta = useMemo(
-    () => (
-      <span data-testid="automation-detail-meta">
-        {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
-      </span>
-    ),
-    [item.agent_name, item.scope, item.updated_at]
+  const detailMeta = (
+    <span data-testid="automation-detail-meta">
+      {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+    </span>
   );
-  const detailPills = useMemo(
-    () => (
-      <>
-        <span className="flex items-center gap-1.5">
-          <Pill.Dot tone={enabledTone} />
-          <Pill mono tone={enabledTone}>
-            {item.enabled ? "ENABLED" : "DISABLED"}
-          </Pill>
-        </span>
-        <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
-          {automationSourceLabel(item.source)}
+  const detailPills = (
+    <>
+      <span className="flex items-center gap-1.5">
+        <Pill.Dot tone={enabledTone} />
+        <Pill mono tone={enabledTone}>
+          {item.enabled ? "ENABLED" : "DISABLED"}
         </Pill>
-        {item.source === "config" ? (
-          <Lock aria-hidden="true" className="size-3 text-subtle" />
-        ) : null}
-      </>
-    ),
-    [enabledTone, item.enabled, item.source]
+      </span>
+      <Pill mono tone={item.source === "dynamic" ? "info" : "neutral"}>
+        {automationSourceLabel(item.source)}
+      </Pill>
+      {item.source === "config" ? <Lock aria-hidden="true" className="size-3 text-subtle" /> : null}
+    </>
   );
 
   return (

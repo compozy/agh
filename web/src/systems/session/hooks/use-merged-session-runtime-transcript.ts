@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { type ThreadMessage, useAuiState } from "@assistant-ui/react";
 
 import { mergeSessionThreadReadModel } from "../lib/session-thread-read-model";
@@ -24,10 +24,7 @@ export function useMergedSessionRuntimeTranscript({
   const runtimeMessages = useAuiState(state => state.thread.messages);
   const runtimeIsRunning = useAuiState(state => state.thread.isRunning);
   const transcript = useSessionLiveTail({ sessionId, workspaceId, eventSourceFactory });
-  const hasOptimisticRuntimeMessage = useMemo(
-    () => runtimeMessages.some(isOptimisticRuntimeMessage),
-    [runtimeMessages]
-  );
+  const hasOptimisticRuntimeMessage = runtimeMessages.some(isOptimisticRuntimeMessage);
   const [runtimeTailState, setRuntimeTailState] = useState<RuntimeTailState>({
     transcriptMessages: null,
     runtimeMessages: null,
@@ -72,15 +69,11 @@ export function useMergedSessionRuntimeTranscript({
       !transcriptMessagesChanged &&
       (runtimeTailState.hasLocalRuntimeTail ||
         (runtimeMessagesChanged && hasOptimisticRuntimeMessage)));
-  const messages = useMemo(
-    () =>
-      mergeSessionThreadReadModel({
-        transcriptMessages: transcript.messages,
-        runtimeMessages,
-        includeRuntimeTail,
-      }),
-    [includeRuntimeTail, runtimeMessages, transcript.messages]
-  );
+  const messages = mergeSessionThreadReadModel({
+    transcriptMessages: transcript.messages,
+    runtimeMessages,
+    includeRuntimeTail,
+  });
 
   return {
     ...transcript,

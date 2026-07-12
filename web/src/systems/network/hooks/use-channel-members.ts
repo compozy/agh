@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -47,37 +46,32 @@ export function useChannelMembers(
   const enabled = (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
   const query = useQuery(networkPeersOptions(workspaceId, channel ?? undefined, enabled));
 
-  return useMemo(() => {
-    const peers: ReadonlyArray<NetworkPeerSummary> = query.data ?? [];
-    const members: ChannelMember[] = peers.map((peer: NetworkPeerSummary) => ({
-      peerId: peer.peer_id,
-      displayName: (peer.display_name?.trim() || peer.peer_card?.display_name?.trim()) ?? "",
-      role: classifyPeer(peer),
-      local: Boolean(peer.local),
-      presenceState: toNetworkPresenceState(peer.presence_state),
-      lastSeenAgeSeconds: peer.last_seen_age_seconds ?? null,
-    }));
-    members.sort((left, right) => {
-      if (left.role !== right.role) {
-        return left.role === "agent" ? -1 : 1;
-      }
-      return left.peerId.localeCompare(right.peerId);
-    });
-    let agentCount = 0;
-    let humanCount = 0;
-    for (const member of members) {
-      if (member.role === "agent") {
-        agentCount += 1;
-      } else {
-        humanCount += 1;
-      }
+  const peers: ReadonlyArray<NetworkPeerSummary> = query.data ?? [];
+  const members: ChannelMember[] = peers.map((peer: NetworkPeerSummary) => ({
+    peerId: peer.peer_id,
+    displayName: (peer.display_name?.trim() || peer.peer_card?.display_name?.trim()) ?? "",
+    role: classifyPeer(peer),
+    local: Boolean(peer.local),
+    presenceState: toNetworkPresenceState(peer.presence_state),
+    lastSeenAgeSeconds: peer.last_seen_age_seconds ?? null,
+  }));
+  members.sort((left, right) => {
+    if (left.role !== right.role) {
+      return left.role === "agent" ? -1 : 1;
     }
-    return {
-      members,
-      agentCount,
-      humanCount,
-      isLoading: enabled && query.isLoading,
-      error: (query.error as Error | null) ?? null,
-    };
-  }, [enabled, query.data, query.error, query.isLoading]);
+    return left.peerId.localeCompare(right.peerId);
+  });
+  let agentCount = 0;
+  let humanCount = 0;
+  for (const member of members) {
+    if (member.role === "agent") agentCount += 1;
+    else humanCount += 1;
+  }
+  return {
+    members,
+    agentCount,
+    humanCount,
+    isLoading: enabled && query.isLoading,
+    error: (query.error as Error | null) ?? null,
+  };
 }

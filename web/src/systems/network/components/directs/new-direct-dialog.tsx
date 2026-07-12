@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -53,10 +53,7 @@ function PeerPickerList({
   const { data, isLoading } = useQuery(
     networkPeersOptions(workspaceId, channel, Boolean(workspaceId))
   );
-  const candidates = useMemo(() => {
-    const peers = data ?? [];
-    return peers.filter(peer => peer.peer_id !== selfPeerId);
-  }, [data, selfPeerId]);
+  const candidates = (data ?? []).filter(peer => peer.peer_id !== selfPeerId);
 
   if (isLoading) {
     return <p className="px-2 py-3 text-xs text-subtle">Loading peers…</p>;

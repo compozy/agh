@@ -13,7 +13,7 @@ import {
   Webhook,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
@@ -942,18 +942,12 @@ function PolicySection({
   onReset,
 }: PolicySectionProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
-  const setValidationError = useCallback(
-    (key: string) => (message: string | null) => {
-      setValidationErrors(current =>
-        current[key] === message ? current : { ...current, [key]: message }
-      );
-    },
-    []
-  );
-  const isInvalid = useMemo(
-    () => Object.values(validationErrors).some(message => message !== null),
-    [validationErrors]
-  );
+  const setValidationError = (key: string) => (message: string | null) => {
+    setValidationErrors(current =>
+      current[key] === message ? current : { ...current, [key]: message }
+    );
+  };
+  const isInvalid = Object.values(validationErrors).some(message => message !== null);
 
   return (
     <Section

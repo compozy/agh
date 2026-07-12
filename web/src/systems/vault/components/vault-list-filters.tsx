@@ -1,5 +1,4 @@
 import { ListFilter } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -22,8 +21,8 @@ export interface VaultListFiltersProps {
  * the prefix search).
  */
 export function VaultListFilters({ namespace, onNamespaceChange }: VaultListFiltersProps) {
-  const fields = useMemo(() => buildVaultFilterFields(), []);
-  const chips = useMemo(() => vaultFiltersToChips({ namespace }), [namespace]);
+  const fields = buildVaultFilterFields();
+  const chips = vaultFiltersToChips({ namespace });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyVaultFilterChips(next, { onNamespaceChange });

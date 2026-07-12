@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import { Box, Globe } from "lucide-react";
 
 import { PillGroup, cn } from "@agh/ui";
@@ -36,11 +35,11 @@ export function ScopeSelector({
   testIdPrefix = "scope",
   workspaceDisabled,
 }: ScopeSelectorProps) {
-  const selectGlobalScope = useCallback(() => {
+  const selectGlobalScope = () => {
     onScopeChange("global");
-  }, [onScopeChange]);
+  };
 
-  const scopeSelectorContext = useMemo(() => ({ selectGlobalScope }), [selectGlobalScope]);
+  const scopeSelectorContext = { selectGlobalScope };
 
   return (
     <ScopeSelectorProvider value={scopeSelectorContext}>

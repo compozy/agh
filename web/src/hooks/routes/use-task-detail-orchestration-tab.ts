@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -62,12 +62,12 @@ function useTaskDetailOrchestrationTab(
     setStreamErrorMessage(null);
   }, [streamEnabled]);
 
-  const handleStreamEvent = useCallback(() => {
+  const handleStreamEvent = () => {
     setStreamState("connected");
     setStreamErrorMessage(null);
-  }, []);
+  };
 
-  const handleStreamError = useCallback((error: unknown) => {
+  const handleStreamError = (error: unknown) => {
     setStreamState("error");
     setStreamErrorMessage(
       error instanceof Error
@@ -76,7 +76,7 @@ function useTaskDetailOrchestrationTab(
           ? error
           : "Stream connection failed"
     );
-  }, []);
+  };
 
   useTaskStream(taskId, {
     enabled: streamEnabled,
@@ -85,23 +85,18 @@ function useTaskDetailOrchestrationTab(
     onError: handleStreamError,
   });
 
-  const handleSetProfile = useCallback(
-    async (data: TaskExecutionProfileSetRequest) => {
-      if (!hasTaskId) {
-        return;
-      }
-      try {
-        await setProfileMutation.mutateAsync({ id: taskId, data });
-        toast.success("Execution profile updated.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update execution profile");
-        throw error;
-      }
-    },
-    [hasTaskId, setProfileMutation, taskId]
-  );
+  const handleSetProfile = async (data: TaskExecutionProfileSetRequest) => {
+    if (!hasTaskId) return;
+    try {
+      await setProfileMutation.mutateAsync({ id: taskId, data });
+      toast.success("Execution profile updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update execution profile");
+      throw error;
+    }
+  };
 
-  const handleDeleteProfile = useCallback(async () => {
+  const handleDeleteProfile = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -112,65 +107,48 @@ function useTaskDetailOrchestrationTab(
       toast.error(error instanceof Error ? error.message : "Failed to delete execution profile");
       throw error;
     }
-  }, [deleteProfileMutation, hasTaskId, taskId]);
+  };
 
-  const handleFanOutRuns = useCallback(
-    async (data: FanOutTaskRunsRequest) => {
-      if (!hasTaskId) {
-        return;
-      }
-      try {
-        const result = await fanOutMutation.mutateAsync({ id: taskId, data });
-        const runCount = result.runs.length;
-        toast.success(`${runCount} designated ${runCount === 1 ? "run" : "runs"} queued.`);
-        return result;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to fan out task runs");
-        throw error;
-      }
-    },
-    [fanOutMutation, hasTaskId, taskId]
-  );
+  const handleFanOutRuns = async (data: FanOutTaskRunsRequest) => {
+    if (!hasTaskId) return;
+    try {
+      const result = await fanOutMutation.mutateAsync({ id: taskId, data });
+      const runCount = result.runs.length;
+      toast.success(`${runCount} designated ${runCount === 1 ? "run" : "runs"} queued.`);
+      return result;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to fan out task runs");
+      throw error;
+    }
+  };
 
-  const handleCreateSubscription = useCallback(
-    async (data: TaskBridgeNotificationSubscriptionCreateRequest) => {
-      if (!hasTaskId) {
-        return;
-      }
-      try {
-        await createSubscriptionMutation.mutateAsync({ taskId, data });
-        toast.success("Bridge notification subscription created.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to create bridge subscription"
-        );
-        throw error;
-      }
-    },
-    [createSubscriptionMutation, hasTaskId, taskId]
-  );
+  const handleCreateSubscription = async (
+    data: TaskBridgeNotificationSubscriptionCreateRequest
+  ) => {
+    if (!hasTaskId) return;
+    try {
+      await createSubscriptionMutation.mutateAsync({ taskId, data });
+      toast.success("Bridge notification subscription created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create bridge subscription");
+      throw error;
+    }
+  };
 
-  const handleDeleteSubscription = useCallback(
-    async (subscriptionId: string) => {
-      if (!hasTaskId || subscriptionId.trim() === "") {
-        return;
-      }
-      try {
-        await deleteSubscriptionMutation.mutateAsync({ taskId, subscriptionId });
-        toast.success("Bridge notification subscription deleted.");
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Failed to delete bridge subscription"
-        );
-        throw error;
-      }
-    },
-    [deleteSubscriptionMutation, hasTaskId, taskId]
-  );
+  const handleDeleteSubscription = async (subscriptionId: string) => {
+    if (!hasTaskId || subscriptionId.trim() === "") return;
+    try {
+      await deleteSubscriptionMutation.mutateAsync({ taskId, subscriptionId });
+      toast.success("Bridge notification subscription deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete bridge subscription");
+      throw error;
+    }
+  };
 
   const profile = profileQuery.data ?? null;
-  const reviews = useMemo(() => reviewsQuery.data ?? [], [reviewsQuery.data]);
-  const subscriptions = useMemo(() => subscriptionsQuery.data ?? [], [subscriptionsQuery.data]);
+  const reviews = reviewsQuery.data ?? [];
+  const subscriptions = subscriptionsQuery.data ?? [];
 
   return {
     profile,

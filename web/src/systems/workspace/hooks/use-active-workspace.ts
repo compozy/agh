@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 import {
   useActiveWorkspaceStore,
@@ -14,12 +14,9 @@ export function useActiveWorkspace() {
   const clearSelectedWorkspaceId = useActiveWorkspaceStore(state => state.clearSelectedWorkspaceId);
   const query = useWorkspaces();
 
-  const activeWorkspace = useMemo(() => {
-    if (!hasHydrated) {
-      return undefined;
-    }
-    return selectActiveWorkspace(query.data ?? [], selectedWorkspaceId);
-  }, [hasHydrated, query.data, selectedWorkspaceId]);
+  const activeWorkspace = hasHydrated
+    ? selectActiveWorkspace(query.data ?? [], selectedWorkspaceId)
+    : undefined;
 
   useEffect(() => {
     if (!hasHydrated) {

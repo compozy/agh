@@ -101,7 +101,7 @@ function ListingRowMain({ className, ...props }: ListingRowMainProps) {
 }
 
 function ListingRowName({ mono = false, className, ...props }: ListingRowNameProps) {
-  const ctx = React.useMemo<ListingRowNameContextValue>(() => ({ mono }), [mono]);
+  const ctx: ListingRowNameContextValue = { mono };
   return (
     <ListingRowNameContext.Provider value={ctx}>
       <div

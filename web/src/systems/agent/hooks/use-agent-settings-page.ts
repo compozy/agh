@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -96,10 +96,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const dirty = Boolean(
     baselineAgent && draftSafe && isAgentSettingsDraftDirty(draftSafe, baselineAgent)
   );
-  const validation = useMemo(
-    () => (draftSafe ? validateAgentSettingsDraft(draftSafe) : null),
-    [draftSafe]
-  );
+  const validation = draftSafe ? validateAgentSettingsDraft(draftSafe) : null;
   const canSave = Boolean(validation?.canSave);
   const saveBlocked = dirty && (!canSave || mutationDenied);
   const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
@@ -108,45 +105,39 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const deleteFlow = useAgentDeleteFlow({ agent, workspaceId: activeWorkspaceId });
 
   const useWorkspaceProviders = agent?.origin === "workspace";
-  const globalProviders = useMemo(
-    () => settingsProviders.data?.providers.map(settingsProviderToOption) ?? [],
-    [settingsProviders.data?.providers]
-  );
-  const workspaceProviders = useMemo(
-    () => (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption),
-    [workspaceDetail.data?.providers]
-  );
+  const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
+  const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
   const providersLoading = useWorkspaceProviders
     ? activeWorkspaceId !== null && workspaceDetail.isLoading
     : settingsProviders.isLoading || settingsProviders.isFetching;
 
-  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
-    () => providerOptions.map(option => ({ id: option.id, needsAuth: option.needs_auth })),
-    [providerOptions]
-  );
+  const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
+    id: option.id,
+    needsAuth: option.needs_auth,
+  }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agent) });
 
-  const setDraft = useCallback((next: AgentSettingsDraft) => {
+  const setDraft = (next: AgentSettingsDraft) => {
     setDraftState(next);
     setSaveError(null);
     setConflictBanner(null);
-  }, []);
+  };
 
-  const patchDraft = useCallback((patch: Partial<AgentSettingsDraft>) => {
+  const patchDraft = (patch: Partial<AgentSettingsDraft>) => {
     setDraftState(current => (current ? { ...current, ...patch } : current));
     setSaveError(null);
     setConflictBanner(null);
-  }, []);
+  };
 
-  const onDiscard = useCallback(() => {
+  const onDiscard = () => {
     if (!baselineAgent) return;
     setDraftState(buildSettingsDraftFromAgent(baselineAgent));
     setSaveError(null);
     setConflictBanner(null);
-  }, [baselineAgent]);
+  };
 
-  const onReloadAndRetry = useCallback(async () => {
+  const onReloadAndRetry = async () => {
     setConflictBanner(null);
     setSaveError(null);
     const result = await agentQuery.refetch();
@@ -154,9 +145,9 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       setBaselineAgent(result.data);
       setDraftState(buildSettingsDraftFromAgent(result.data));
     }
-  }, [agentQuery]);
+  };
 
-  const onSave = useCallback(() => {
+  const onSave = () => {
     if (!draftSafe || !agent || saveBlocked || updateAgent.isPending) return;
     const params = buildUpdateAgentParams(draftSafe, activeWorkspaceId);
     if (!params) return;
@@ -192,30 +183,27 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
         },
       }
     );
-  }, [activeWorkspaceId, agent, draftSafe, saveBlocked, updateAgent]);
+  };
 
-  const setSection = useCallback(
-    (next: AgentSettingsSection) => {
-      void navigate({
-        to: "/agents/$name/settings",
-        params: { name },
-        search: { section: next },
-        replace: true,
-      });
-    },
-    [name, navigate]
-  );
+  const setSection = (next: AgentSettingsSection) => {
+    void navigate({
+      to: "/agents/$name/settings",
+      params: { name },
+      search: { section: next },
+      replace: true,
+    });
+  };
 
-  const onBackToDetail = useCallback(() => {
+  const onBackToDetail = () => {
     void navigate({
       to: "/agents/$name",
       params: { name },
     });
-  }, [name, navigate]);
+  };
 
-  const onOpenProviderSettings = useCallback(() => {
+  const onOpenProviderSettings = () => {
     void navigate({ to: "/settings/providers" });
-  }, [navigate]);
+  };
 
   const saveBlockedCaption = mutationDenied
     ? "Editing is not permitted for this agent."

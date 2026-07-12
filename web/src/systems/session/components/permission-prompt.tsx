@@ -91,7 +91,8 @@ async function submitPermissionDecision({
     });
     onResolved?.();
     return true;
-  } catch {
+  } catch (error) {
+    console.error("Failed to submit permission decision", error);
     return false;
   }
 }

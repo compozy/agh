@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 
 export function useLatestAgentSettingsActions(onSave: () => void, onDiscard: () => void) {
   const saveRef = useRef(onSave);
@@ -7,7 +7,7 @@ export function useLatestAgentSettingsActions(onSave: () => void, onDiscard: () 
   discardRef.current = onDiscard;
 
   return {
-    onSave: useCallback(() => saveRef.current(), []),
-    onDiscard: useCallback(() => discardRef.current(), []),
+    onSave: () => saveRef.current(),
+    onDiscard: () => discardRef.current(),
   };
 }

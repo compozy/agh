@@ -6,11 +6,10 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import {
-  isSameTopbarSlot,
+  createTopbarSlotStore,
   TopbarSlotContext,
   TopbarSlotSettersContext,
   type TopbarSlotContextValue,
-  type TopbarSlotSetters,
   type TopbarSlotValue,
   useTopbarSlot,
   useTopbarSlotContext,
@@ -35,30 +34,10 @@ export interface TopbarSlotProviderProps {
 }
 
 function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
-  const [active, setActive] = React.useState<{
-    owner: object;
-    slot: TopbarSlotValue | null;
-  } | null>(null);
-  const setSlot = React.useCallback((owner: object, next: TopbarSlotValue | null) => {
-    setActive(prev => {
-      if (prev?.owner === owner && isSameTopbarSlot(prev.slot, next)) return prev;
-      return { owner, slot: next };
-    });
-  }, []);
-  const clearSlot = React.useCallback((owner: object) => {
-    setActive(prev => (prev?.owner === owner ? null : prev));
-  }, []);
-  const setters = React.useMemo<TopbarSlotSetters>(
-    () => ({ setSlot, clearSlot }),
-    [setSlot, clearSlot]
-  );
-  const value = React.useMemo<TopbarSlotContextValue>(
-    () => ({ slot: active?.slot ?? null, setSlot, clearSlot }),
-    [active, setSlot, clearSlot]
-  );
+  const [store] = React.useState(createTopbarSlotStore);
   return (
-    <TopbarSlotSettersContext.Provider value={setters}>
-      <TopbarSlotContext.Provider value={value}>{children}</TopbarSlotContext.Provider>
+    <TopbarSlotSettersContext.Provider value={store}>
+      <TopbarSlotContext.Provider value={store}>{children}</TopbarSlotContext.Provider>
     </TopbarSlotSettersContext.Provider>
   );
 }

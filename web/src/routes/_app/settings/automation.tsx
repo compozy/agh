@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertCircle, Bot, ExternalLink } from "lucide-react";
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsAutomationPage } from "@/hooks/routes/use-settings-automation-page";
 import type { SettingsAutomationSection } from "@/systems/settings";
@@ -39,18 +39,12 @@ type AutomationRuntime = SettingsAutomationSection["runtime"];
 function AutomationSettingsPage() {
   const page = useSettingsAutomationPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
-  const setValidationError = useCallback(
-    (key: string) => (message: string | null) => {
-      setValidationErrors(current =>
-        current[key] === message ? current : { ...current, [key]: message }
-      );
-    },
-    []
-  );
-  const isInvalid = useMemo(
-    () => Object.values(validationErrors).some(message => message !== null),
-    [validationErrors]
-  );
+  const setValidationError = (key: string) => (message: string | null) => {
+    setValidationErrors(current =>
+      current[key] === message ? current : { ...current, [key]: message }
+    );
+  };
+  const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
   useTopbarSlot({
     tabs: runtime ? (

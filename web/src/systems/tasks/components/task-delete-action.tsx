@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useCallback, useState, type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 
 import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@agh/ui";
 
@@ -35,10 +35,10 @@ export function TaskDeleteAction({
 }: TaskDeleteActionProps) {
   const [open, setOpen] = useState(false);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = () => {
     setOpen(false);
     onDelete(taskId);
-  }, [onDelete, taskId]);
+  };
 
   return (
     <ConfirmDialog

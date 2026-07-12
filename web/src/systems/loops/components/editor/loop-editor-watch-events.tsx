@@ -47,7 +47,7 @@ export function LoopEditorWatchEvents({
 }: LoopEditorWatchEventsProps) {
   const subscriptions = asSubscriptions(value);
   // Row IDs are component-local: they stabilize editor instances without entering the loop DSL.
-  const rowKeys = useLocalRowKeys(subscriptions.length, "watch-event");
+  const rowKeys = useLocalRowKeys(subscriptions, "watch-event");
 
   const update = (index: number, patch: Record<string, unknown>) => {
     onChange(subscriptions.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));

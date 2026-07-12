@@ -48,9 +48,8 @@ export function useNetworkRecents(
   const enabled = options.enabled ?? true;
   const limit = options.limit ?? RECENTS_LIMIT_FOR_TESTS;
   const { lastReadAt } = useLastRead({ workspaceId: options.workspaceId });
-  const recents = (() => {
-    if (!enabled) return [];
-    const visible: NetworkRecentEntry[] = [];
+  const visible: NetworkRecentEntry[] = [];
+  if (enabled) {
     for (const recent of embedded) {
       if (!isNetworkSurface(recent.surface)) continue;
       const surface = recent.surface;
@@ -69,7 +68,7 @@ export function useNetworkRecents(
         participantLabel: participantLabel(recent),
       });
     }
-    return visible.slice(0, limit);
-  })();
+  }
+  const recents = visible.slice(0, limit);
   return { recents, isLoading: enabled && (options.isLoading ?? false) };
 }

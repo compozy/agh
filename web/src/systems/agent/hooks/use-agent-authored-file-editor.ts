@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
@@ -124,19 +124,17 @@ export function useAgentAuthoredFileEditor({
   draftRef.current = draft;
   baselineRef.current = baseline;
 
-  const applyAuthoritativePayload = useCallback(
-    (authoritative: AuthoredFilePayload | undefined) => {
-      const next = seedFromPayload(kind, authoritative);
-      setDraft(next.draft);
-      setBaseline(next.baseline);
-      setDiagnostics(next.diagnostics);
-      setEffectivePayload(authoritative);
-      setValidationStatus(authoritative?.validation_status);
-      setConflict(false);
-      setSaveError(null);
-    },
-    [kind]
-  );
+  const applyAuthoritativePayload = (authoritative: AuthoredFilePayload | undefined) => {
+    const next = seedFromPayload(kind, authoritative);
+    setDraft(next.draft);
+    setBaseline(next.baseline);
+    setDiagnostics(next.diagnostics);
+    setEffectivePayload(authoritative);
+    setValidationStatus(authoritative?.validation_status);
+    setConflict(false);
+    setSaveError(null);
+  };
+  const applyPayloadFromEffect = useEffectEvent(applyAuthoritativePayload);
 
   useEffect(() => {
     const resourceChanged = trackedResourceKey !== resourceKey;
@@ -152,14 +150,14 @@ export function useAgentAuthoredFileEditor({
       setShowHistory(false);
     }
 
-    applyAuthoritativePayload(payload);
-  }, [applyAuthoritativePayload, payload, resourceKey, trackedResourceKey]);
+    applyPayloadFromEffect(payload);
+  }, [payload, resourceKey, trackedResourceKey]);
 
-  const dirty = useMemo(() => draft !== baseline.body, [baseline.body, draft]);
+  const dirty = draft !== baseline.body;
 
   const guard = useUnsavedGuard({ dirty, entityName: fileLabel });
 
-  const applyWriteError = useCallback((err: unknown, fallback: string) => {
+  const applyWriteError = (err: unknown, fallback: string) => {
     if (isAgentDigestConflict(err)) {
       setConflict(true);
       setSaveError(CONFLICT_MESSAGE);
@@ -167,13 +165,13 @@ export function useAgentAuthoredFileEditor({
     }
     setConflict(false);
     setSaveError(err instanceof Error ? err.message : fallback);
-  }, []);
+  };
 
-  const handleReload = useCallback(() => {
+  const handleReload = () => {
     applyAuthoritativePayload(payload);
-  }, [applyAuthoritativePayload, payload]);
+  };
 
-  const handleValidate = useCallback(async () => {
+  const handleValidate = async () => {
     setValidating(true);
     setSaveError(null);
     setConflict(false);
@@ -188,9 +186,9 @@ export function useAgentAuthoredFileEditor({
     } finally {
       setValidating(false);
     }
-  }, [draft, fileLabel, onValidate]);
+  };
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
     setConflict(false);
@@ -203,9 +201,9 @@ export function useAgentAuthoredFileEditor({
     } finally {
       setSaving(false);
     }
-  }, [applyAuthoritativePayload, applyWriteError, baseline.digest, draft, fileLabel, onSave]);
+  };
 
-  const handleCreate = useCallback(async () => {
+  const handleCreate = async () => {
     const body = CREATE_BODIES[kind];
     setSaving(true);
     setSaveError(null);
@@ -219,25 +217,22 @@ export function useAgentAuthoredFileEditor({
     } finally {
       setSaving(false);
     }
-  }, [applyAuthoritativePayload, applyWriteError, baseline.digest, fileLabel, kind, onSave]);
+  };
 
-  const handleRestore = useCallback(
-    async (revisionId: string) => {
-      setSaving(true);
-      setSaveError(null);
-      setConflict(false);
-      try {
-        const authoritative = await onRestore(revisionId, baseline.digest);
-        applyAuthoritativePayload(authoritative);
-        toast.success(`${fileLabel} restored`);
-      } catch (err) {
-        applyWriteError(err, `Couldn't restore ${fileLabel}`);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [applyAuthoritativePayload, applyWriteError, baseline.digest, fileLabel, onRestore]
-  );
+  const handleRestore = async (revisionId: string) => {
+    setSaving(true);
+    setSaveError(null);
+    setConflict(false);
+    try {
+      const authoritative = await onRestore(revisionId, baseline.digest);
+      applyAuthoritativePayload(authoritative);
+      toast.success(`${fileLabel} restored`);
+    } catch (err) {
+      applyWriteError(err, `Couldn't restore ${fileLabel}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];
 

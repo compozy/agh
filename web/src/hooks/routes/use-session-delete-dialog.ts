@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 export interface UseSessionDeleteDialogResult {
   open: boolean;
@@ -14,10 +14,10 @@ export interface UseSessionDeleteDialogResult {
  */
 export function useSessionDeleteDialog(onDelete: () => void): UseSessionDeleteDialogResult {
   const [open, setOpen] = useState(false);
-  const openDialog = useCallback(() => setOpen(true), []);
-  const confirmDelete = useCallback(() => {
+  const openDialog = () => setOpen(true);
+  const confirmDelete = () => {
     setOpen(false);
     onDelete();
-  }, [onDelete]);
+  };
   return { open, setOpen, openDialog, confirmDelete };
 }

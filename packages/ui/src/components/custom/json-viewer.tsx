@@ -61,14 +61,13 @@ const KIND_CLASS: Record<RenderEntry["kind"], string> = {
 };
 
 function JsonViewer({ value, indent = 2, className, ...props }: JsonViewerProps) {
-  const text = React.useMemo(() => {
-    try {
-      return JSON.stringify(value, null, indent);
-    } catch {
-      return String(value);
-    }
-  }, [value, indent]);
-  const tokens = React.useMemo(() => tokenize(text), [text]);
+  let text: string;
+  try {
+    text = JSON.stringify(value, null, indent);
+  } catch {
+    text = String(value);
+  }
+  const tokens = tokenize(text);
   return (
     <pre
       data-slot="json-viewer"

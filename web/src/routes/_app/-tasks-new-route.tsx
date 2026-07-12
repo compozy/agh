@@ -1,5 +1,4 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
 
 import { useTaskCreateRouteState } from "@/hooks/routes/use-task-create-route-state";
 import { TaskEditorModal } from "@/systems/tasks/components/task-editor-modal";
@@ -10,14 +9,11 @@ export function TaskCreateRoute() {
   const navigate = useNavigate({ from: "/tasks/new" });
   const page = useTaskCreateRouteState(routeApi.useSearch());
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        void navigate({ to: "/tasks" });
-      }
-    },
-    [navigate]
-  );
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      void navigate({ to: "/tasks" });
+    }
+  };
 
   return (
     <TaskEditorModal

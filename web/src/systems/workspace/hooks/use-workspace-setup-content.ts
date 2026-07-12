@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { useDaemonStatus } from "@/systems/status";
@@ -25,6 +25,18 @@ function isAbsoluteWorkspacePath(path: string): boolean {
   return path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
 }
 
+function getGlobalUnavailableReason(isLoading: boolean, userHomeDir: string): string | null {
+  if (isLoading) {
+    return "Loading daemon status...";
+  }
+
+  if (!userHomeDir) {
+    return "Daemon status unavailable. Connect AGH to use your global workspace.";
+  }
+
+  return null;
+}
+
 export function useWorkspaceSetupContent({
   onWorkspaceResolved,
   onSuccessClose,
@@ -37,17 +49,7 @@ export function useWorkspaceSetupContent({
 
   const userHomeDir = statusQuery.data?.user_home_dir ?? "";
 
-  const globalUnavailableReason = useMemo(() => {
-    if (statusQuery.isLoading) {
-      return "Loading daemon status...";
-    }
-
-    if (!userHomeDir) {
-      return "Daemon status unavailable. Connect AGH to use your global workspace.";
-    }
-
-    return null;
-  }, [statusQuery.isLoading, userHomeDir]);
+  const globalUnavailableReason = getGlobalUnavailableReason(statusQuery.isLoading, userHomeDir);
 
   const runResolve = async (path: string, mode: Exclude<SubmissionMode, null>) => {
     setSubmissionMode(mode);

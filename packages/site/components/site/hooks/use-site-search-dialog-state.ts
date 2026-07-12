@@ -5,7 +5,7 @@ import { fetchClient } from "fumadocs-core/search/client/fetch";
 import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
 import type { SearchLink } from "fumadocs-ui/contexts/search";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSiteSearch } from "@/components/site/hooks/use-site-search";
 
 export type SiteSearchType = "fetch" | "static";
@@ -46,23 +46,20 @@ export function useSiteSearchDialogState({
     setQuery(seed.query);
   }, [seed.query, seed.version, setQuery, setSearch]);
 
-  const handleSearchChange = useCallback(
-    (nextQuery: string) => {
-      setSearch(nextQuery);
-      setQuery(nextQuery);
-    },
-    [setQuery, setSearch]
-  );
+  const handleSearchChange = (nextQuery: string) => {
+    setSearch(nextQuery);
+    setQuery(nextQuery);
+  };
 
-  const defaultItems = useMemo(() => {
-    if (links.length === 0) return null;
-    return links.map(([name, link]) => ({
-      type: "page" as const,
-      id: name,
-      content: name,
-      url: link,
-    }));
-  }, [links]);
+  const defaultItems =
+    links.length === 0
+      ? null
+      : links.map(([name, link]) => ({
+          type: "page" as const,
+          id: name,
+          content: name,
+          url: link,
+        }));
 
   return {
     defaultItems,

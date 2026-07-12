@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -76,18 +76,16 @@ export function useSettingsGeneralPage() {
     }
   }, [envelope, draft, workspaceContextKey]);
 
-  const isDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return JSON.stringify(envelope.config) !== JSON.stringify(draft);
-  }, [envelope, draft]);
+  const isDirty =
+    envelope && draft ? JSON.stringify(envelope.config) !== JSON.stringify(draft) : false;
 
-  const handleReset = useCallback(() => {
+  const handleReset = () => {
     if (envelope) {
       setDraft(envelope.config);
     }
-  }, [envelope]);
+  };
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (!draft) return;
     const body: SettingsUpdateGeneralRequest = { config: draft };
     mutation.mutate(body, {
@@ -95,15 +93,15 @@ export function useSettingsGeneralPage() {
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
-  }, [draft, mutation]);
+  };
 
-  const handleReload = useCallback(() => {
+  const handleReload = () => {
     reload.mutate(undefined, {
       onSuccess: result => {
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
-  }, [reload]);
+  };
 
   const saveError =
     mutation.error instanceof SettingsApiError
@@ -112,9 +110,9 @@ export function useSettingsGeneralPage() {
         ? mutation.error.message
         : null;
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void query.refetch();
-  }, [query]);
+  };
 
   return {
     isLoading: query.isLoading,

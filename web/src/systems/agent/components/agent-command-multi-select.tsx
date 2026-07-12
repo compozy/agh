@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Pill } from "@agh/ui";
 
@@ -31,7 +31,7 @@ export function AgentCommandMultiSelect({
   countTestId,
 }: AgentCommandMultiSelectProps) {
   const [open, setOpen] = useState(false);
-  const selectedSet = useMemo(() => new Set(value), [value]);
+  const selectedSet = new Set(value);
   const isSelected = (agent: AgentPayload) => selectedSet.has(agent.name);
 
   const handleSelect = (agent: AgentPayload) => {

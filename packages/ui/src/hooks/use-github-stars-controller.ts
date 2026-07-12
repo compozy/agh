@@ -43,7 +43,7 @@ export function useGithubStarsController({
   const [stars, setStars] = React.useState(value ?? 0);
   const [currentStars, setCurrentStars] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
-  const isCompleted = React.useMemo(() => currentStars === stars, [currentStars, stars]);
+  const isCompleted = currentStars === stars;
 
   React.useEffect(() => {
     if (value !== undefined && username && repo) return;
@@ -68,10 +68,14 @@ export function useGithubStarsController({
     return () => clearTimeout(timeout);
   }, [username, repo, value, isInView, delay]);
 
-  const contextValue = React.useMemo<GithubStarsContextType>(
-    () => ({ stars, currentStars, isCompleted, isLoading, setStars, setCurrentStars }),
-    [stars, currentStars, isCompleted, isLoading]
-  );
+  const contextValue: GithubStarsContextType = {
+    stars,
+    currentStars,
+    isCompleted,
+    isLoading,
+    setStars,
+    setCurrentStars,
+  };
 
   return { localRef, isLoading, contextValue };
 }

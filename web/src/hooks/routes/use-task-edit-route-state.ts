@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -27,27 +27,18 @@ export function useTaskEditRouteState(id: string | undefined) {
     }
   }, [task]);
 
-  const handleSubmit = useCallback(
-    async (nextDraft: TaskEditorDraft) => {
-      if (!id) {
-        return null;
-      }
-
-      try {
-        await updateMutation.mutateAsync({
-          id,
-          data: buildUpdateTaskRequest(nextDraft),
-        });
-        toast.success("Task updated.");
-        await navigate({ to: "/tasks/$id", params: { id } });
-        return true;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update task");
-        return null;
-      }
-    },
-    [id, navigate, updateMutation]
-  );
+  const handleSubmit = async (nextDraft: TaskEditorDraft) => {
+    if (!id) return null;
+    try {
+      await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
+      toast.success("Task updated.");
+      await navigate({ to: "/tasks/$id", params: { id } });
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update task");
+      return null;
+    }
+  };
 
   return {
     draft,

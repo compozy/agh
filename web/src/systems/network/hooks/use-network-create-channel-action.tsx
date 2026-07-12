@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -27,10 +27,7 @@ export function useNetworkCreateChannelAction({
   const createChannel = useCreateNetworkChannel({ workspaceId: requestedWorkspaceId });
   const [createOpen, setCreateOpen] = useState(false);
   const [createDraft, setCreateDraft] = useState(createNetworkChannelDraft);
-  const sortedAgents = useMemo(
-    () => sortAgentsForNetwork(agentsQuery.data ?? []),
-    [agentsQuery.data]
-  );
+  const sortedAgents = sortAgentsForNetwork(agentsQuery.data ?? []);
   const canCreateChannel =
     enabled &&
     requestedWorkspaceId != null &&
