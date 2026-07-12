@@ -36,7 +36,7 @@ import { AssistantMessageTimeline } from "./session-timeline-render";
 import { ThreadStatePane } from "./session-thread-states";
 import { VIRTUAL_MESSAGE_ESTIMATE } from "./timeline-row-estimates";
 
-export { formatMessageError };
+const EMPTY_QUEUED_PROMPTS: NonNullable<SessionComposerProps["queuedPrompts"]> = [];
 
 interface SessionThreadProps extends SessionComposerProps {
   sessionId: string;
@@ -390,7 +390,7 @@ export function SessionThread({
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
-  queuedPrompts = [],
+  queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
   contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,

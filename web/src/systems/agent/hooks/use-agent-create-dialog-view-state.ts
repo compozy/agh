@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
@@ -31,37 +31,22 @@ function useAgentCreateDialogViewState({
   hasActiveWorkspace,
   initialStep,
   onOpenChange,
-  open,
   providerOptions,
   providersError,
   providersLoading,
 }: AgentCreateDialogViewStateArgs) {
   const [step, setStep] = useState<AgentCreateStep>(initialStep);
-  const validation = useMemo(
-    () =>
-      validateAgentCreateDraft(draft, {
-        hasActiveWorkspace,
-        providerOptions,
-        providersError,
-        providersLoading,
-      }),
-    [draft, hasActiveWorkspace, providerOptions, providersError, providersLoading]
-  );
-  const visibleErrors = useMemo(
-    () =>
-      visibleAgentCreateErrors(draft, validation.fields, {
-        providerOptions,
-        providersError,
-        providersLoading,
-      }),
-    [draft, providerOptions, providersError, providersLoading, validation.fields]
-  );
-
-  useEffect(() => {
-    if (!open) {
-      setStep(initialStep);
-    }
-  }, [initialStep, open]);
+  const validation = validateAgentCreateDraft(draft, {
+    hasActiveWorkspace,
+    providerOptions,
+    providersError,
+    providersLoading,
+  });
+  const visibleErrors = visibleAgentCreateErrors(draft, validation.fields, {
+    providerOptions,
+    providersError,
+    providersLoading,
+  });
 
   const currentIndex = AGENT_CREATE_STEPS.indexOf(step);
   const previousStep = currentIndex > 0 ? AGENT_CREATE_STEPS[currentIndex - 1] : undefined;

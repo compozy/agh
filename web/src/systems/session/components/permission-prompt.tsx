@@ -1,5 +1,5 @@
 import { Check, ShieldAlert, ShieldCheck, ShieldOff, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button, CodeBlock, Eyebrow, cn } from "@agh/ui";
@@ -68,6 +68,34 @@ function permissionDecisionOptions(permission: PermissionRequest): PermissionDec
   return filtered.length > 0 ? filtered : FALLBACK_PERMISSION_DECISIONS;
 }
 
+interface SubmitPermissionDecisionArgs {
+  workspaceId: string;
+  sessionId: string;
+  permission: PermissionRequest;
+  decision: PermissionDecision;
+  onResolved?: () => void;
+}
+
+async function submitPermissionDecision({
+  workspaceId,
+  sessionId,
+  permission,
+  decision,
+  onResolved,
+}: SubmitPermissionDecisionArgs): Promise<boolean> {
+  try {
+    await approveSession(workspaceId, sessionId, {
+      request_id: permission.requestId,
+      turn_id: permission.turnId ?? "",
+      decision,
+    });
+    onResolved?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function PermissionPrompt({
   permission,
   sessionId,
@@ -77,25 +105,22 @@ export function PermissionPrompt({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResolved, setIsResolved] = useState(false);
 
-  const handleDecision = useCallback(
-    async (decision: PermissionDecision) => {
-      setIsSubmitting(true);
-      try {
-        await approveSession(workspaceId, sessionId, {
-          request_id: permission.requestId,
-          turn_id: permission.turnId ?? "",
-          decision,
-        });
-        setIsResolved(true);
-        onResolved?.();
-      } catch {
-        toast.error("Failed to send permission response. The agent may continue waiting.");
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [sessionId, workspaceId, permission.requestId, permission.turnId, onResolved]
-  );
+  const handleDecision = async (decision: PermissionDecision) => {
+    setIsSubmitting(true);
+    const resolved = await submitPermissionDecision({
+      workspaceId,
+      sessionId,
+      permission,
+      decision,
+      onResolved,
+    });
+    if (resolved) {
+      setIsResolved(true);
+    } else {
+      toast.error("Failed to send permission response. The agent may continue waiting.");
+    }
+    setIsSubmitting(false);
+  };
 
   const tone = promptToneFor(permission.toolName);
   const isHighStakes = tone === "danger";

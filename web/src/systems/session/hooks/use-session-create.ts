@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { use } from "react";
 
 import {
   SessionCreateContext,
@@ -6,7 +6,7 @@ import {
 } from "../contexts/session-create-context-value";
 
 export function useSessionCreate(): SessionCreateContextValue {
-  const value = useContext(SessionCreateContext);
+  const value = use(SessionCreateContext);
   if (!value) {
     throw new Error("useSessionCreate must be used inside <SessionCreateProvider>");
   }

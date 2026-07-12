@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 // Shared per-timeline row state fed through context so the row renderer stays
 // referentially stable (no closure deps) and each memoized `TimelineRowContent`
@@ -15,7 +15,7 @@ export interface TimelineRowSharedState {
 export const TimelineRowContext = createContext<TimelineRowSharedState | null>(null);
 
 export function useTimelineRowContext(): TimelineRowSharedState {
-  const context = useContext(TimelineRowContext);
+  const context = use(TimelineRowContext);
   if (!context) {
     throw new Error("Timeline row views must render within a TimelineRowContext provider");
   }

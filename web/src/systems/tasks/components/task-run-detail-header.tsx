@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { ArrowUpRight, RotateCcw, Unlock, XCircle } from "lucide-react";
 
@@ -28,10 +27,7 @@ export interface TaskRunDetailHeaderProps {
   onForceReleaseRun?: (reason?: string) => Promise<void> | void;
   onForceFailRun?: (reason: string) => Promise<void> | void;
   onRetryRun?: () => Promise<void> | void;
-  isCancelPending?: boolean;
-  isForceReleasePending?: boolean;
-  isForceFailPending?: boolean;
-  isRetryPending?: boolean;
+  pendingActions?: ReadonlySet<"cancel" | "force-release" | "force-fail" | "retry">;
 }
 
 function computeElapsedLabel(startedAt?: string | null, endedAt?: string | null): string | null {
@@ -53,16 +49,13 @@ export function TaskRunDetailHeader({
   onForceReleaseRun,
   onForceFailRun,
   onRetryRun,
-  isCancelPending = false,
-  isForceReleasePending = false,
-  isForceFailPending = false,
-  isRetryPending = false,
+  pendingActions,
 }: TaskRunDetailHeaderProps) {
   const router = useRouter();
   const forceFailDialog = useForceFailDialog(onForceFailRun);
-  const handleBack = useCallback(() => {
+  const handleBack = () => {
     router.history.back();
-  }, [router]);
+  };
 
   const record = run.run;
   const task = run.task;
@@ -204,7 +197,7 @@ export function TaskRunDetailHeader({
             {canForceRelease && onForceReleaseRun ? (
               <Button
                 data-testid="task-run-detail-force-release"
-                disabled={isForceReleasePending}
+                disabled={pendingActions?.has("force-release")}
                 onClick={() => void onForceReleaseRun()}
                 size="sm"
                 type="button"
@@ -217,7 +210,7 @@ export function TaskRunDetailHeader({
             {canForceFail && onForceFailRun ? (
               <Button
                 data-testid="task-run-detail-force-fail"
-                disabled={isForceFailPending}
+                disabled={pendingActions?.has("force-fail")}
                 onClick={forceFailDialog.open}
                 size="sm"
                 type="button"
@@ -230,7 +223,7 @@ export function TaskRunDetailHeader({
             {canRetry && onRetryRun ? (
               <Button
                 data-testid="task-run-detail-retry"
-                disabled={isRetryPending}
+                disabled={pendingActions?.has("retry")}
                 onClick={() => void onRetryRun()}
                 size="sm"
                 type="button"
@@ -243,7 +236,7 @@ export function TaskRunDetailHeader({
             {canCancel && onCancelRun ? (
               <Button
                 data-testid="task-run-detail-cancel"
-                disabled={isCancelPending}
+                disabled={pendingActions?.has("cancel")}
                 onClick={onCancelRun}
                 size="sm"
                 type="button"
@@ -296,7 +289,7 @@ export function TaskRunDetailHeader({
           </div>
           <DialogFooter className="gap-2">
             <Button
-              disabled={isForceFailPending}
+              disabled={pendingActions?.has("force-fail")}
               onClick={() => forceFailDialog.handleOpenChange(false)}
               type="button"
               variant="neutral"
@@ -305,7 +298,7 @@ export function TaskRunDetailHeader({
             </Button>
             <Button
               data-testid="task-run-detail-force-fail-confirm"
-              disabled={isForceFailPending}
+              disabled={pendingActions?.has("force-fail")}
               onClick={() => void forceFailDialog.confirm()}
               type="button"
               variant="destructive"

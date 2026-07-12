@@ -81,19 +81,18 @@ export function TasksKanbanBoard({
   // wrapping the last column onto a broken second row.
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div
+      {isLoading ? (
+        <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">
+          Loading kanban board
+        </span>
+      ) : null}
+      <ul
         className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-6"
         data-testid="tasks-kanban-board"
-        role="list"
         style={{
           gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
         }}
       >
-        {isLoading ? (
-          <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">
-            Loading kanban board
-          </span>
-        ) : null}
         {columns.map(group => (
           <TaskKanbanColumn
             column={group.column}
@@ -120,7 +119,7 @@ export function TasksKanbanBoard({
                 ))}
           </TaskKanbanColumn>
         ))}
-      </div>
+      </ul>
       {errorMessage ? (
         <div
           className="flex shrink-0 items-center justify-between gap-3 border-t border-line-soft px-4 py-3 text-caption text-danger"

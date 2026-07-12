@@ -33,6 +33,18 @@ const LABELABLE_TAGS = new Set([
   "textarea",
 ]);
 
+function mergeAttributeTokens(...values: Array<string | undefined>): string | undefined {
+  const tokens: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    for (const token of value.split(" ")) {
+      const trimmed = token.trim();
+      if (trimmed) tokens.push(trimmed);
+    }
+  }
+  return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
+}
+
 function SettingsFieldRow({
   label,
   description,
@@ -49,18 +61,6 @@ function SettingsFieldRow({
   const labelId = `${baseId}-label`;
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
-
-  const mergeAttributeTokens = (...values: Array<string | undefined>) => {
-    const tokens: string[] = [];
-    for (const value of values) {
-      if (!value) continue;
-      for (const token of value.split(" ")) {
-        const trimmed = token.trim();
-        if (trimmed) tokens.push(trimmed);
-      }
-    }
-    return tokens.length > 0 ? Array.from(new Set(tokens)).join(" ") : undefined;
-  };
 
   type ControlProps = {
     id?: string;

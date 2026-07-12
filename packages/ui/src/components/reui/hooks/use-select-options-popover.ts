@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import type { FilterFieldConfig, FilterOption } from "../filters";
 import {
@@ -27,89 +27,73 @@ export function useSelectOptionsPopover<T = unknown>({
   const context = useFilterContext();
   const baseId = useId();
 
-  const focusSearchInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      inputRef.current = node;
-      if (node && open) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [open]
-  );
+  const focusSearchInput = (node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    if (node && open) {
+      scheduleFilterDomSync(() => node.focus());
+    }
+  };
 
-  const highlightOption = useCallback(
-    (index: number) => {
-      setHighlightedIndex(index);
-      if (open) {
-        scrollFilterOptionIntoView(baseId, index);
-      }
-    },
-    [baseId, open]
-  );
+  const highlightOption = (index: number) => {
+    setHighlightedIndex(index);
+    if (open) {
+      scrollFilterOptionIntoView(baseId, index);
+    }
+  };
 
   const isMultiSelect = field.type === "multiselect" || values.length > 1;
   const effectiveValues = (field.value !== undefined ? (field.value as T[]) : values) || [];
+  const effectiveValueSet = new Set(effectiveValues);
   const selectedOptions =
-    field.options?.filter(option => effectiveValues.includes(option.value)) || [];
+    field.options?.filter(option => effectiveValueSet.has(option.value)) || [];
   const unselectedOptions =
-    field.options?.filter(option => !effectiveValues.includes(option.value)) || [];
+    field.options?.filter(option => !effectiveValueSet.has(option.value)) || [];
   const filteredSelectedOptions = selectedOptions;
   const filteredUnselectedOptions = unselectedOptions.filter(option =>
     option.label.toLowerCase().includes(searchInput.toLowerCase())
   );
 
-  const allFilteredOptions = useMemo(
-    () => [...filteredSelectedOptions, ...filteredUnselectedOptions],
-    [filteredSelectedOptions, filteredUnselectedOptions]
-  );
+  const allFilteredOptions = [...filteredSelectedOptions, ...filteredUnselectedOptions];
 
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     setOpen(false);
     setSearchInput("");
     setHighlightedIndex(-1);
     onClose?.();
-  }, [onClose]);
+  };
 
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
+  const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     setHighlightedIndex(-1);
     if (!nextOpen) {
       setSearchInput("");
     }
-  }, []);
+  };
 
-  const handleSearchInputChange = useCallback((value: string) => {
+  const handleSearchInputChange = (value: string) => {
     setSearchInput(value);
     setHighlightedIndex(-1);
-  }, []);
+  };
 
-  const toggleOption = useCallback(
-    (option: FilterOption<T>) => {
-      const isSelected = effectiveValues.includes(option.value as T);
-      const next = isSelected
-        ? (effectiveValues.filter(value => value !== option.value) as T[])
-        : isMultiSelect
-          ? ([...effectiveValues, option.value] as T[])
-          : ([option.value] as T[]);
+  const toggleOption = (option: FilterOption<T>) => {
+    const isSelected = effectiveValues.includes(option.value as T);
+    const next = isSelected
+      ? (effectiveValues.filter(value => value !== option.value) as T[])
+      : isMultiSelect
+        ? ([...effectiveValues, option.value] as T[])
+        : ([option.value] as T[]);
 
-      if (
-        !isSelected &&
-        isMultiSelect &&
-        field.maxSelections &&
-        next.length > field.maxSelections
-      ) {
-        return;
-      }
+    if (!isSelected && isMultiSelect && field.maxSelections && next.length > field.maxSelections) {
+      return;
+    }
 
-      if (field.onValueChange) {
-        field.onValueChange(next);
-      } else {
-        onChange(next);
-      }
-      if (!isMultiSelect) handleClose();
-    },
-    [effectiveValues, field, handleClose, isMultiSelect, onChange]
-  );
+    if (field.onValueChange) {
+      field.onValueChange(next);
+    } else {
+      onChange(next);
+    }
+    if (!isMultiSelect) handleClose();
+  };
 
   return {
     allFilteredOptions,

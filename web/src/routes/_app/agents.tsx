@@ -126,18 +126,23 @@ function AgentsFleetRoute() {
         </div>
       ) : (
         <AgentFleetList
-          isFilteredEmpty={page.isFilteredEmpty}
-          isFirstRunEmpty={page.isFirstRunEmpty}
-          isLoading={page.isLoading}
-          newSessionDisabled={page.newSessionDisabled}
+          status={
+            page.isLoading
+              ? "loading"
+              : page.isFirstRunEmpty
+                ? "first-run-empty"
+                : page.isFilteredEmpty
+                  ? "filtered-empty"
+                  : "ready"
+          }
+          newSessionStatus={page.newSessionDisabled ? "disabled" : "enabled"}
           onClearFilters={page.clearFilters}
           onCreateAgent={page.openCreate}
           onNewSession={page.openNewSession}
-          hasMore={page.hasMore}
-          isLoadingMore={page.isLoadingMore}
+          paginationStatus={page.isLoadingMore ? "loading" : page.hasMore ? "available" : undefined}
           onLoadMore={page.loadMore}
           rows={page.rows}
-          sessionsPartial={page.sessionsPartial}
+          sessionDataStatus={page.sessionsPartial ? "partial" : "available"}
           view={page.view}
         />
       )}

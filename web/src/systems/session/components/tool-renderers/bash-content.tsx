@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronsUpDown } from "lucide-react";
 
 import { CodeBlock } from "@agh/ui";
@@ -19,11 +19,8 @@ export function BashContent({ message }: { message: UIMessage }) {
   const result = message.toolResult;
   const [expanded, setExpanded] = useState(false);
 
-  const formattedResult = useMemo(() => (result ? formatBashOutput(result) : ""), [result]);
-  const totalLines = useMemo(
-    () => (formattedResult ? formattedResult.split("\n").length : 0),
-    [formattedResult]
-  );
+  const formattedResult = result ? formatBashOutput(result) : "";
+  const totalLines = formattedResult ? formattedResult.split("\n").length : 0;
   const truncateLines = expanded ? undefined : 20;
 
   return (

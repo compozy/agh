@@ -94,12 +94,8 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
               expected_version compare-and-swap.
             </p>
           ) : (
-            lint.issues.map((issue, index) => (
-              <IssueRow
-                key={`${issue.code}-${issue.node_id ?? "graph"}-${index}`}
-                issue={issue}
-                onReveal={onReveal}
-              />
+            lint.issues.map(issue => (
+              <IssueRow key={JSON.stringify(issue)} issue={issue} onReveal={onReveal} />
             ))
           )}
         </div>

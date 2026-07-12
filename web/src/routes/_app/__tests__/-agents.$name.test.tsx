@@ -126,14 +126,14 @@ vi.mock("@/systems/agent", async importOriginal => {
       total,
       active,
       resumable,
-      hasMore,
+      paginationStatus,
     }: {
       sessions: SessionPayload[];
       filter: string;
       total: number;
       active: number;
       resumable: number;
-      hasMore: boolean;
+      paginationStatus?: "available" | "loading";
     }) => (
       <div
         data-testid="agent-sessions-tab"
@@ -142,7 +142,7 @@ vi.mock("@/systems/agent", async importOriginal => {
         data-total={total}
         data-active={active}
         data-resumable={resumable}
-        data-has-more={hasMore}
+        data-has-more={Boolean(paginationStatus)}
       />
     ),
     validateAgentDetailSearch: actual.validateAgentDetailSearch,

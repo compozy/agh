@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -21,7 +21,7 @@ import type { SessionMessage } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 
 import { SessionThread } from "../session-thread";
-import { formatDataPreview } from "../session-message-parts";
+import { formatDataPreview } from "../session-message-parts.logic";
 import { TimelineRowContent } from "../session-timeline-render";
 import {
   computeStableSessionRows,
@@ -151,8 +151,6 @@ function renderThreadState({
         <SessionTranscriptThreadProvider
           messages={messages}
           status={status}
-          isPending={status === "pending"}
-          isError={status === "error"}
           error={error}
           retry={retry}
         >
@@ -367,8 +365,6 @@ describe("SessionThread transcript states", () => {
             <SessionTranscriptThreadProvider
               messages={messages}
               status="success"
-              isPending={false}
-              isError={false}
               error={null}
               retry={vi.fn()}
             >
@@ -971,31 +967,22 @@ describe("SessionThread transcript states", () => {
 });
 
 // Suite: streaming render-count probe (task 39).
-// Invariant: derive-layer structural sharing + memoized `TimelineRowContent` mean
+// Invariant: derive-layer structural sharing + compiler-stabilized `TimelineRowContent` mean
 // streaming N chunk updates into the live row re-renders only that row — settled
 // rows keep their reference AND never re-commit.
-// Boundary IN: `computeStableSessionRows` row identity + the memoized row renderer.
+// Boundary IN: `computeStableSessionRows` row identity + the compiler-managed row renderer.
 // Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
 describe("SessionThread streaming render-count", () => {
   function textPart(id: string, value: string, state: string, turnId: string): SessionTimelinePart {
     return { kind: "text", id, text: value, turnId, timestamp: "2026-07-07T12:00:00Z", state };
   }
 
-  // Wraps the production memoized row renderer and counts renders per row id. Its
-  // memo comparison mirrors `TimelineRowContent` (shallow on `row`, with a stable
-  // `onRender`), so a bail here means the whole `TimelineRowContent` subtree was
-  // skipped — the exact render-avoidance a settled row must get while a sibling
-  // streams. Same probe shape as the task-30 timer render-count test.
-  const CountingRow = memo(function CountingRow({
-    row,
-    onRender,
-  }: {
-    row: SessionRow;
-    onRender: (id: string) => void;
-  }) {
+  // Wraps the production compiler-managed row renderer and counts renders per row
+  // id. Stable inputs let the compiler skip the subtree while a sibling streams.
+  function CountingRow({ row, onRender }: { row: SessionRow; onRender: (id: string) => void }) {
     onRender(row.id);
     return <TimelineRowContent row={row} />;
-  });
+  }
 
   function StableTimeline({
     liveText,
@@ -1068,8 +1055,6 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
         <SessionTranscriptThreadProvider
           messages={[]}
           status="success"
-          isPending={false}
-          isError={false}
           error={null}
           retry={vi.fn()}
         >
@@ -1232,8 +1217,6 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
         <SessionTranscriptThreadProvider
           messages={[]}
           status="success"
-          isPending={false}
-          isError={false}
           error={null}
           retry={vi.fn()}
         >

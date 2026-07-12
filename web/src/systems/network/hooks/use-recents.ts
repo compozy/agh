@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import type { NetworkChannelsResponse, NetworkRecentEntry, NetworkSurface } from "../types";
 import { useLastRead } from "./use-last-read";
 
@@ -50,28 +48,28 @@ export function useNetworkRecents(
   const enabled = options.enabled ?? true;
   const limit = options.limit ?? RECENTS_LIMIT_FOR_TESTS;
   const { lastReadAt } = useLastRead({ workspaceId: options.workspaceId });
-  const recents = useMemo(() => {
+  const recents = (() => {
     if (!enabled) return [];
-    return embedded
-      .filter(recent => isNetworkSurface(recent.surface))
-      .map(recent => {
-        const surface = recent.surface as NetworkSurface;
-        const lastActivityAt = recent.last_activity_at ?? null;
-        return {
-          surface,
-          channel: recent.channel,
-          containerId: recent.container_id,
-          preview: preview(recent),
-          lastActivityAt,
-          hasUnread:
-            safeTimestamp(lastActivityAt) >
-            safeTimestamp(
-              lastReadAt({ channel: recent.channel, surface, containerId: recent.container_id })
-            ),
-          participantLabel: participantLabel(recent),
-        } satisfies NetworkRecentEntry;
-      })
-      .slice(0, limit);
-  }, [embedded, enabled, lastReadAt, limit]);
+    const visible: NetworkRecentEntry[] = [];
+    for (const recent of embedded) {
+      if (!isNetworkSurface(recent.surface)) continue;
+      const surface = recent.surface;
+      const lastActivityAt = recent.last_activity_at ?? null;
+      visible.push({
+        surface,
+        channel: recent.channel,
+        containerId: recent.container_id,
+        preview: preview(recent),
+        lastActivityAt,
+        hasUnread:
+          safeTimestamp(lastActivityAt) >
+          safeTimestamp(
+            lastReadAt({ channel: recent.channel, surface, containerId: recent.container_id })
+          ),
+        participantLabel: participantLabel(recent),
+      });
+    }
+    return visible.slice(0, limit);
+  })();
   return { recents, isLoading: enabled && (options.isLoading ?? false) };
 }

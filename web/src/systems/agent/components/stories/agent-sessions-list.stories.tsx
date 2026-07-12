@@ -72,8 +72,7 @@ const meta: Meta<typeof AgentSessionsList> = {
   args: {
     agentName: storyAgentNames.fraud,
     sessions: fraudSessions,
-    isLoading: false,
-    isError: false,
+    status: "ready",
   },
 };
 
@@ -132,7 +131,7 @@ export const Empty: Story = {
  * Loading skeleton while sessions are being fetched.
  */
 export const Loading: Story = {
-  args: { isLoading: true, sessions: [] },
+  args: { status: "loading", sessions: [] },
   render: args => (
     <Frame>
       <AgentSessionsList {...args} />
@@ -144,7 +143,7 @@ export const Loading: Story = {
  * Error fallback when the sessions query rejects.
  */
 export const Error: Story = {
-  args: { isError: true, sessions: [] },
+  args: { status: "error", sessions: [] },
   render: args => (
     <Frame>
       <AgentSessionsList {...args} />

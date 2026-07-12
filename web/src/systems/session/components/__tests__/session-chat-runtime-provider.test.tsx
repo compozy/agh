@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { formatMessageError, SessionThread } from "@/components/assistant-ui/session-thread";
+import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { sessionKeys, useSessionTranscriptThreadState } from "@/systems/session";
 import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";

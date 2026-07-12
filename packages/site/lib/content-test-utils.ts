@@ -37,13 +37,17 @@ function listMDXFiles(dir: string): string[] {
 }
 
 export function listManualDocs(prefixes: string[] = defaultManualDocPrefixes): ManualDoc[] {
-  return listMDXFiles(contentRoot)
-    .map(file => ({
-      path: relative(contentRoot, file),
-      content: readFileSync(file, "utf8"),
-    }))
-    .filter(doc => prefixes.some(prefix => doc.path.startsWith(prefix)))
-    .filter(doc => !generatedPrefixes.some(prefix => doc.path.startsWith(prefix)));
+  const docs: ManualDoc[] = [];
+  for (const file of listMDXFiles(contentRoot)) {
+    const path = relative(contentRoot, file);
+    if (
+      prefixes.some(prefix => path.startsWith(prefix)) &&
+      !generatedPrefixes.some(prefix => path.startsWith(prefix))
+    ) {
+      docs.push({ path, content: readFileSync(file, "utf8") });
+    }
+  }
+  return docs;
 }
 
 export function stripFencedCode(content: string): string {

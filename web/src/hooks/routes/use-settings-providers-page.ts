@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -126,8 +126,10 @@ function envSecretRef(apiKeyEnv?: string): string {
 
 function joinCuratedModels(models: SettingsProviderModelRequest[]): string {
   return models
-    .map(model => model.id.trim())
-    .filter(Boolean)
+    .flatMap(model => {
+      const id = model.id.trim();
+      return id ? [id] : [];
+    })
     .join("\n");
 }
 
@@ -239,7 +241,7 @@ export function useSettingsProvidersPage() {
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
 
-  const counts = useMemo(() => {
+  const counts = (() => {
     const installed = providers.filter(
       provider => provider.command_available && providerCredentialsConfigured(provider)
     ).length;
@@ -248,46 +250,40 @@ export function useSettingsProvidersPage() {
       provider => provider.command_available && !providerCredentialsConfigured(provider)
     ).length;
     return { total: providers.length, installed, binaryMissing, unconfigured };
-  }, [providers]);
+  })();
 
-  const filteredProviders = useMemo(
-    () => applyProviderFilters(providers, filters),
-    [providers, filters]
-  );
+  const filteredProviders = applyProviderFilters(providers, filters);
 
-  const setStatusFilter = useCallback((next: ProviderStateLabel | null) => {
+  const setStatusFilter = (next: ProviderStateLabel | null) => {
     setFilters(current => ({ ...current, statusFilter: next }));
-  }, []);
-  const setSourceFilter = useCallback((next: SettingsSourceKind | null) => {
+  };
+  const setSourceFilter = (next: SettingsSourceKind | null) => {
     setFilters(current => ({ ...current, sourceFilter: next }));
-  }, []);
-  const setHarnessFilter = useCallback((next: ProviderHarness | null) => {
+  };
+  const setHarnessFilter = (next: ProviderHarness | null) => {
     setFilters(current => ({ ...current, harnessFilter: next }));
-  }, []);
-  const setAuthModeFilter = useCallback((next: ProviderAuthMode | null) => {
+  };
+  const setAuthModeFilter = (next: ProviderAuthMode | null) => {
     setFilters(current => ({ ...current, authModeFilter: next }));
-  }, []);
-  const setDefaultFilter = useCallback((next: ProviderDefaultFilter | null) => {
+  };
+  const setDefaultFilter = (next: ProviderDefaultFilter | null) => {
     setFilters(current => ({ ...current, defaultFilter: next }));
-  }, []);
-  const setNameQuery = useCallback((next: string) => {
+  };
+  const setNameQuery = (next: string) => {
     setFilters(current => ({ ...current, nameQuery: next }));
-  }, []);
+  };
 
-  const openInspect = useCallback(
-    (entry: SettingsProviderEntry) => {
-      putMutation.reset();
-      setInspector({ mode: "inspect", entry });
-    },
-    [putMutation]
-  );
+  const openInspect = (entry: SettingsProviderEntry) => {
+    putMutation.reset();
+    setInspector({ mode: "inspect", entry });
+  };
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     putMutation.reset();
     setInspector({ mode: "create", draft: emptyDraft() });
-  }, [putMutation]);
+  };
 
-  const switchToEdit = useCallback(() => {
+  const switchToEdit = () => {
     setInspector(current => {
       if (current.mode !== "inspect") return current;
       return {
@@ -297,9 +293,9 @@ export function useSettingsProvidersPage() {
         cameFrom: "inspect",
       };
     });
-  }, []);
+  };
 
-  const cancelEdit = useCallback(() => {
+  const cancelEdit = () => {
     putMutation.reset();
     setInspector(current => {
       if (current.mode === "edit" && current.cameFrom === "inspect") {
@@ -307,21 +303,21 @@ export function useSettingsProvidersPage() {
       }
       return { mode: "closed" };
     });
-  }, [putMutation]);
+  };
 
-  const closeInspector = useCallback(() => {
+  const closeInspector = () => {
     setInspector({ mode: "closed" });
     putMutation.reset();
-  }, [putMutation]);
+  };
 
-  const updateDraft = useCallback((updater: (draft: ProviderDraft) => ProviderDraft) => {
+  const updateDraft = (updater: (draft: ProviderDraft) => ProviderDraft) => {
     setInspector(current => {
       if (current.mode !== "edit" && current.mode !== "create") return current;
       return { ...current, draft: updater(current.draft) };
     });
-  }, []);
+  };
 
-  const inspectorIsValid = useMemo(() => {
+  const inspectorIsValid = (() => {
     if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
     const name = inspector.draft.name.trim();
     if (name.length === 0) return false;
@@ -341,9 +337,9 @@ export function useSettingsProvidersPage() {
       return !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase());
     }
     return true;
-  }, [inspector, providers]);
+  })();
 
-  const saveInspector = useCallback(() => {
+  const saveInspector = () => {
     if (inspector.mode !== "edit" && inspector.mode !== "create") return;
     const name = inspector.draft.name.trim();
     if (!name) return;
@@ -357,22 +353,19 @@ export function useSettingsProvidersPage() {
         },
       }
     );
-  }, [inspector, putMutation]);
+  };
 
-  const openDelete = useCallback(
-    (entry: SettingsProviderEntry) => {
-      deleteMutation.reset();
-      setDeleteTarget({ mode: "open", entry });
-    },
-    [deleteMutation]
-  );
+  const openDelete = (entry: SettingsProviderEntry) => {
+    deleteMutation.reset();
+    setDeleteTarget({ mode: "open", entry });
+  };
 
-  const closeDelete = useCallback(() => {
+  const closeDelete = () => {
     setDeleteTarget({ mode: "closed" });
     deleteMutation.reset();
-  }, [deleteMutation]);
+  };
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget.mode === "closed") return;
     const target = deleteTarget.entry;
     deleteMutation.mutate(target.name, {
@@ -391,9 +384,9 @@ export function useSettingsProvidersPage() {
         );
       },
     });
-  }, [deleteMutation, deleteTarget]);
+  };
 
-  const dismissLastAction = useCallback(() => setLastAction(null), []);
+  const dismissLastAction = () => setLastAction(null);
 
   return {
     isLoading: query.isLoading,

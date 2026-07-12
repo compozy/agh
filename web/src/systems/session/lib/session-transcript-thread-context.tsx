@@ -12,8 +12,6 @@ export function SessionTranscriptThreadProvider({
   children,
   messages,
   status,
-  isPending,
-  isError,
   error,
   hasOlder = false,
   isFetchingOlder = false,
@@ -23,28 +21,25 @@ export function SessionTranscriptThreadProvider({
   children: ReactNode;
   messages: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
-  isPending: boolean;
-  isError: boolean;
   error: Error | null;
   hasOlder?: boolean;
   isFetchingOlder?: boolean;
   loadOlder?: () => void;
   retry: () => void;
 }) {
+  const contextValue = {
+    messages,
+    status,
+    isPending: status === "pending",
+    isError: status === "error",
+    error,
+    hasOlder,
+    isFetchingOlder,
+    loadOlder,
+    retry,
+  };
   return (
-    <SessionTranscriptThreadContext.Provider
-      value={{
-        messages,
-        status,
-        isPending,
-        isError,
-        error,
-        hasOlder,
-        isFetchingOlder,
-        loadOlder,
-        retry,
-      }}
-    >
+    <SessionTranscriptThreadContext.Provider value={contextValue}>
       {children}
     </SessionTranscriptThreadContext.Provider>
   );

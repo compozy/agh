@@ -13,17 +13,20 @@ export interface ActivityFeedProps {
   channel: string;
   threads: ReadonlyArray<NetworkThreadSummary>;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
-  isLoading: boolean;
+  status: "loading" | "ready";
   threadTotal?: number;
   directTotal?: number;
-  hasMoreThreads?: boolean;
-  hasMoreDirects?: boolean;
-  isLoadingMoreThreads?: boolean;
-  isLoadingMoreDirects?: boolean;
-  onLoadMoreThreads?: () => void | Promise<void>;
-  onLoadMoreDirects?: () => void | Promise<void>;
+  pagination?: {
+    threads?: ActivityFeedPagination;
+    directs?: ActivityFeedPagination;
+  };
   isFiltered?: boolean;
   sort?: "recent_activity" | "created" | "alphabetical";
+}
+
+interface ActivityFeedPagination {
+  status: "available" | "loading";
+  onLoadMore: () => void | Promise<void>;
 }
 
 type ThreadEntry = {
@@ -120,25 +123,22 @@ export function ActivityFeed({
   channel,
   threads,
   directs,
-  isLoading,
-  threadTotal = threads.length,
-  directTotal = directs.length,
-  hasMoreThreads = false,
-  hasMoreDirects = false,
-  isLoadingMoreThreads = false,
-  isLoadingMoreDirects = false,
-  onLoadMoreThreads,
-  onLoadMoreDirects,
+  status,
+  threadTotal,
+  directTotal,
+  pagination,
   isFiltered = false,
   sort = "recent_activity",
 }: ActivityFeedProps) {
+  const resolvedThreadTotal = threadTotal === undefined ? threads.length : threadTotal;
+  const resolvedDirectTotal = directTotal === undefined ? directs.length : directTotal;
   const entries = buildEntries(workspaceId, channel, threads, directs, sort);
 
-  if (isLoading && entries.length === 0) {
+  if (status === "loading" && entries.length === 0) {
     return <ActivityFeedSkeleton />;
   }
 
-  if (entries.length === 0 && !hasMoreThreads && !hasMoreDirects) {
+  if (entries.length === 0 && !pagination?.threads && !pagination?.directs) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
         <Empty
@@ -163,7 +163,8 @@ export function ActivityFeed({
     >
       <div className="border-b border-line px-5 py-2" data-testid="network-activity-subheader">
         <Eyebrow>
-          Recent activity / {entries.length} loaded / {threadTotal + directTotal} total
+          Recent activity / {entries.length} loaded / {resolvedThreadTotal + resolvedDirectTotal}{" "}
+          total
         </Eyebrow>
       </div>
       {entries.map(entry => {
@@ -213,28 +214,30 @@ export function ActivityFeed({
           </Link>
         );
       })}
-      {hasMoreThreads || hasMoreDirects ? (
+      {pagination?.threads || pagination?.directs ? (
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
-          {hasMoreThreads && onLoadMoreThreads ? (
+          {pagination.threads ? (
             <Button
-              aria-busy={isLoadingMoreThreads}
-              disabled={isLoadingMoreThreads}
-              onClick={() => void onLoadMoreThreads()}
+              aria-busy={pagination.threads.status === "loading"}
+              disabled={pagination.threads.status === "loading"}
+              onClick={() => void pagination.threads?.onLoadMore()}
               size="sm"
               variant="outline"
             >
-              {isLoadingMoreThreads ? "Loading threads…" : "Load more threads"}
+              {pagination.threads.status === "loading" ? "Loading threads…" : "Load more threads"}
             </Button>
           ) : null}
-          {hasMoreDirects && onLoadMoreDirects ? (
+          {pagination.directs ? (
             <Button
-              aria-busy={isLoadingMoreDirects}
-              disabled={isLoadingMoreDirects}
-              onClick={() => void onLoadMoreDirects()}
+              aria-busy={pagination.directs.status === "loading"}
+              disabled={pagination.directs.status === "loading"}
+              onClick={() => void pagination.directs?.onLoadMore()}
               size="sm"
               variant="outline"
             >
-              {isLoadingMoreDirects ? "Loading rooms…" : "Load more direct rooms"}
+              {pagination.directs.status === "loading"
+                ? "Loading rooms…"
+                : "Load more direct rooms"}
             </Button>
           ) : null}
         </div>

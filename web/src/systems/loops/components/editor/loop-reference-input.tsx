@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { cn } from "@agh/ui";
 
 import { useReferenceAutocomplete } from "../../hooks/use-reference-autocomplete";
@@ -17,6 +19,8 @@ interface LoopReferenceInputProps {
   testId?: string;
 }
 
+type ReferenceFieldElement = HTMLInputElement | HTMLTextAreaElement;
+
 /**
  * A template-string input with the ADR-020 `{{ }}` reference picker: typing `{{ .`
  * surfaces the loop namespace (inputs, upstream node outputs, item/index, trigger,
@@ -35,7 +39,11 @@ export function LoopReferenceInput({
   ariaLabel,
   testId,
 }: LoopReferenceInputProps) {
-  const auto = useReferenceAutocomplete(onChange, suggestions, cel);
+  const fieldRef = useRef<ReferenceFieldElement>(null);
+  const auto = useReferenceAutocomplete(fieldRef, onChange, suggestions, cel);
+  const setFieldRef = (element: ReferenceFieldElement | null) => {
+    fieldRef.current = element;
+  };
 
   const inputClass = cn(
     "w-full rounded-md border bg-elevated px-2.5 text-[12.5px] text-fg outline-none placeholder:text-faint focus:border-line-strong focus:bg-canvas",
@@ -60,9 +68,9 @@ export function LoopReferenceInput({
   return (
     <div className="relative">
       {multiline ? (
-        <textarea ref={auto.ref as React.RefObject<HTMLTextAreaElement>} {...shared} />
+        <textarea ref={setFieldRef} {...shared} />
       ) : (
-        <input type="text" ref={auto.ref as React.RefObject<HTMLInputElement>} {...shared} />
+        <input type="text" ref={setFieldRef} {...shared} />
       )}
       {auto.matches.length > 0 ? (
         <ul

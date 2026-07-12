@@ -1,7 +1,7 @@
-import { useContext } from "react";
+import { use } from "react";
 
-import { SessionRuntimeRenderContext } from "../lib/session-runtime-render-context";
+import { SessionRuntimeRenderContext } from "../lib/session-runtime-render-context-value";
 
 export function useSessionRuntimeRenderContext() {
-  return useContext(SessionRuntimeRenderContext);
+  return use(SessionRuntimeRenderContext);
 }

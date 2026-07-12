@@ -60,7 +60,7 @@ export function WorkChip({ state, startedAt, className, onClick, ariaLabel }: Wo
         data-state={state}
         mono
         onClick={onClick}
-        render={<button />}
+        render={<button type="button" />}
         size="xs"
         tone={tone}
       >

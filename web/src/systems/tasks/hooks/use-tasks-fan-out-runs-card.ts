@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 
@@ -34,48 +34,41 @@ export function useTasksFanOutRunsCard({
   const [networkChannel, setNetworkChannel] = useState(defaultNetworkChannel ?? "");
   const [designationsText, setDesignationsText] = useState(DEFAULT_DESIGNATIONS);
   const [formError, setFormError] = useState<string | null>(null);
-  const designations = useMemo(() => parseDesignations(designationsText), [designationsText]);
+  const designations = parseDesignations(designationsText);
 
-  useEffect(() => {
-    if (open) {
-      setNetworkChannel(defaultNetworkChannel ?? "");
-    }
-  }, [defaultNetworkChannel, open]);
-
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
+  const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (!nextOpen) {
+    if (nextOpen) {
+      setNetworkChannel(defaultNetworkChannel ?? "");
+    } else {
       setFormError(null);
       setDesignationsText(DEFAULT_DESIGNATIONS);
     }
-  }, []);
+  };
 
-  const openDialog = useCallback(() => handleOpenChange(true), [handleOpenChange]);
-  const closeDialog = useCallback(() => handleOpenChange(false), [handleOpenChange]);
+  const openDialog = () => handleOpenChange(true);
+  const closeDialog = () => handleOpenChange(false);
 
-  const handleSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setFormError(null);
-      if (designations.length === 0) {
-        setFormError("Add at least one assignment.");
-        return;
-      }
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(null);
+    if (designations.length === 0) {
+      setFormError("Add at least one assignment.");
+      return;
+    }
 
-      const payload: FanOutTaskRunsRequest = {
-        designations,
-        network_channel: trimOrUndefined(networkChannel),
-      };
+    const payload: FanOutTaskRunsRequest = {
+      designations,
+      network_channel: trimOrUndefined(networkChannel),
+    };
 
-      try {
-        await onFanOut(payload);
-        handleOpenChange(false);
-      } catch {
-        // The route hook owns the toast; keep the dialog open for correction.
-      }
-    },
-    [designations, handleOpenChange, networkChannel, onFanOut]
-  );
+    try {
+      await onFanOut(payload);
+      handleOpenChange(false);
+    } catch {
+      // The route hook owns the toast; keep the dialog open for correction.
+    }
+  };
 
   return {
     closeDialog,

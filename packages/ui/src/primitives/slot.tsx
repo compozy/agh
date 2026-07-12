@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { isMotionComponent, motion, type HTMLMotionProps } from "motion/react";
+import { isMotionComponent, m, type HTMLMotionProps } from "motion/react";
 
 import { cn } from "../lib/utils";
 
@@ -61,7 +61,7 @@ const motionComponentCache = new Map<React.ElementType, React.ElementType>();
 function getOrCreateMotionComponent(type: React.ElementType): React.ElementType {
   const key = type;
   if (!motionComponentCache.has(key)) {
-    motionComponentCache.set(key, motion.create(type));
+    motionComponentCache.set(key, m.create(type));
   }
   return motionComponentCache.get(key)!;
 }

@@ -23,12 +23,11 @@ export interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
   bridges: BridgeSummary[];
   view: ListingViewMode;
-  hasActiveFilters?: boolean;
-  hasNextPage?: boolean;
-  isFetchingNextPage?: boolean;
+  emptyState?: "default" | "filtered";
+  paginationStatus?: "available" | "loading";
   onClearFilters: () => void;
   onLoadMore?: () => void;
-  isLoading?: boolean;
+  status?: "loading" | "ready";
   errorMessage?: string | null;
 }
 
@@ -38,14 +37,14 @@ interface BridgeRowProps {
 }
 
 function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
-  const facts: string[] = [];
+  const facts: Array<{ id: string; label: string }> = [];
   const relative = formatBridgeRelativeTime(health?.last_success_at);
   if (relative) {
-    facts.push(relative);
+    facts.push({ id: "last-success", label: relative });
   }
-  facts.push(bridge.scope);
+  facts.push({ id: "scope", label: bridge.scope });
   if (health?.route_count !== undefined) {
-    facts.push(`${health.route_count} routes`);
+    facts.push({ id: "routes", label: `${health.route_count} routes` });
   }
 
   if (facts.length === 0) {
@@ -55,9 +54,9 @@ function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
   return (
     <ListingRow.Meta>
       {facts.map((fact, index) => (
-        <span className="inline-flex items-center gap-1.5" key={`${fact}-${index}`}>
+        <span className="inline-flex items-center gap-1.5" key={fact.id}>
           {index > 0 ? <ListingRow.MetaDot /> : null}
-          <span className="font-mono text-badge text-subtle">{fact}</span>
+          <span className="font-mono text-badge text-subtle">{fact.label}</span>
         </span>
       ))}
     </ListingRow.Meta>
@@ -150,17 +149,16 @@ function BridgeListPanel({
   bridgeHealth,
   bridges,
   view,
-  hasActiveFilters = false,
-  hasNextPage = false,
-  isFetchingNextPage = false,
+  emptyState = "default",
+  paginationStatus,
   onClearFilters,
   onLoadMore,
-  isLoading = false,
+  status = "ready",
   errorMessage = null,
 }: BridgeListPanelProps) {
   const isEmpty = bridges.length === 0;
 
-  if (isLoading && isEmpty) {
+  if (status === "loading" && isEmpty) {
     return (
       <div
         className="flex min-h-60 items-center justify-center px-6 py-10"
@@ -195,7 +193,7 @@ function BridgeListPanel({
       >
         <Empty
           action={
-            hasActiveFilters ? (
+            emptyState === "filtered" ? (
               <Button
                 data-testid="bridge-list-clear-filters"
                 onClick={onClearFilters}
@@ -209,10 +207,12 @@ function BridgeListPanel({
           }
           className="max-w-sm"
           description={
-            hasActiveFilters ? "Try clearing search or filters." : "No bridges are configured yet."
+            emptyState === "filtered"
+              ? "Try clearing search or filters."
+              : "No bridges are configured yet."
           }
           icon={Waypoints}
-          title={hasActiveFilters ? "No bridges match" : "No bridges yet"}
+          title={emptyState === "filtered" ? "No bridges match" : "No bridges yet"}
         />
       </div>
     );
@@ -247,18 +247,18 @@ function BridgeListPanel({
           {errorMessage}
         </p>
       ) : null}
-      {hasNextPage && onLoadMore ? (
+      {paginationStatus && onLoadMore ? (
         <div className="flex justify-center">
           <Button
-            aria-busy={isFetchingNextPage}
+            aria-busy={paginationStatus === "loading"}
             data-testid="bridge-list-load-more"
-            disabled={isFetchingNextPage}
+            disabled={paginationStatus === "loading"}
             onClick={onLoadMore}
             size="sm"
             type="button"
             variant="ghost"
           >
-            {isFetchingNextPage ? "Loading more bridges…" : "Load more bridges"}
+            {paginationStatus === "loading" ? "Loading more bridges…" : "Load more bridges"}
           </Button>
         </div>
       ) : null}

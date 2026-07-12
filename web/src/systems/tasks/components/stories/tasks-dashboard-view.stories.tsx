@@ -117,7 +117,7 @@ export const EmptyDashboard: Story = {
 export const Loading: Story = {
   render: () => (
     <Frame>
-      <TasksDashboardView dashboard={null} isLoading />
+      <TasksDashboardView dashboard={null} dashboardStatus="loading" />
     </Frame>
   ),
 };

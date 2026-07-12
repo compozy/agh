@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react";
+import { AnimatePresence, m, type HTMLMotionProps } from "motion/react";
 
 import { useIsInView, type UseIsInViewOptions } from "../../hooks/use-is-in-view";
 import { getStrictContext } from "../../lib/context";
@@ -43,7 +43,7 @@ export function Particles({
     inViewMargin,
   });
 
-  const Component = asChild ? Slot : motion.div;
+  const Component = asChild ? Slot : m.div;
 
   return (
     <ParticlesProvider value={{ animate, isInView }}>
@@ -118,14 +118,14 @@ export function ParticlesEffect({
           const y = Math.sin(angle) * radius;
 
           return (
-            <motion.div
+            <m.div
               key={i}
               style={style ? { ...containerStyle, ...style } : containerStyle}
-              initial={{ scale: 0, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{
                 x: `${x}px`,
                 y: `${y}px`,
-                scale: [0, 1, 0],
+                scale: [0.95, 1, 0.95],
                 opacity: [0, 1, 0],
               }}
               transition={{

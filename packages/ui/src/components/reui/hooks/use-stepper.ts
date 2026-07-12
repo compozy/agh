@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Children,
-  createContext,
-  isValidElement,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Children, createContext, isValidElement, use, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactElement, ReactNode } from "react";
 
 export type StepperOrientation = "horizontal" | "vertical";
@@ -56,13 +46,13 @@ export const StepperContext = createContext<StepperContextValue | undefined>(und
 export const StepItemContext = createContext<StepItemContextValue | undefined>(undefined);
 
 export function useStepper() {
-  const ctx = useContext(StepperContext);
+  const ctx = use(StepperContext);
   if (!ctx) throw new Error("useStepper must be used within a Stepper");
   return ctx;
 }
 
 export function useStepItem() {
-  const ctx = useContext(StepItemContext);
+  const ctx = use(StepItemContext);
   if (!ctx) throw new Error("useStepItem must be used within a StepperItem");
   return ctx;
 }
@@ -78,82 +68,48 @@ export function useStepperState({
   const [activeStep, setActiveStep] = useState(defaultValue);
   const [triggerNodes, setTriggerNodes] = useState<HTMLButtonElement[]>([]);
 
-  const registerTrigger = useCallback((node: HTMLButtonElement | null) => {
+  const registerTrigger = (node: HTMLButtonElement | null) => {
     if (!node) {
       return;
     }
     setTriggerNodes(prev => (prev.includes(node) ? prev : [...prev, node]));
-  }, []);
+  };
 
-  const handleSetActiveStep = useCallback(
-    (step: number) => {
-      if (value === undefined) {
-        setActiveStep(step);
-      }
-      onValueChange?.(step);
-    },
-    [value, onValueChange]
-  );
+  const handleSetActiveStep = (step: number) => {
+    if (value === undefined) {
+      setActiveStep(step);
+    }
+    onValueChange?.(step);
+  };
 
   const currentStep = value ?? activeStep;
-  const focusTrigger = useCallback(
-    (idx: number) => {
-      triggerNodes[idx]?.focus();
-    },
-    [triggerNodes]
-  );
-  const focusNext = useCallback(
-    (currentIdx: number) => focusTrigger((currentIdx + 1) % triggerNodes.length),
-    [focusTrigger, triggerNodes.length]
-  );
-  const focusPrev = useCallback(
-    (currentIdx: number) =>
-      focusTrigger((currentIdx - 1 + triggerNodes.length) % triggerNodes.length),
-    [focusTrigger, triggerNodes.length]
-  );
-  const focusFirst = useCallback(() => focusTrigger(0), [focusTrigger]);
-  const focusLast = useCallback(
-    () => focusTrigger(triggerNodes.length - 1),
-    [focusTrigger, triggerNodes.length]
-  );
-  const stepsCount = useMemo(
-    () =>
-      Children.toArray(children).filter(
-        (child): child is ReactElement =>
-          isValidElement(child) &&
-          (child.type as { displayName?: string }).displayName === "StepperItem"
-      ).length,
-    [children]
-  );
+  const focusTrigger = (idx: number) => {
+    triggerNodes[idx]?.focus();
+  };
+  const focusNext = (currentIdx: number) => focusTrigger((currentIdx + 1) % triggerNodes.length);
+  const focusPrev = (currentIdx: number) =>
+    focusTrigger((currentIdx - 1 + triggerNodes.length) % triggerNodes.length);
+  const focusFirst = () => focusTrigger(0);
+  const focusLast = () => focusTrigger(triggerNodes.length - 1);
+  const stepsCount = Children.toArray(children).filter(
+    (child): child is ReactElement =>
+      isValidElement(child) &&
+      (child.type as { displayName?: string }).displayName === "StepperItem"
+  ).length;
 
-  return useMemo<StepperContextValue>(
-    () => ({
-      activeStep: currentStep,
-      setActiveStep: handleSetActiveStep,
-      stepsCount,
-      orientation,
-      registerTrigger,
-      focusNext,
-      focusPrev,
-      focusFirst,
-      focusLast,
-      triggerNodes,
-      indicators,
-    }),
-    [
-      currentStep,
-      focusFirst,
-      focusLast,
-      focusNext,
-      focusPrev,
-      handleSetActiveStep,
-      indicators,
-      orientation,
-      registerTrigger,
-      stepsCount,
-      triggerNodes,
-    ]
-  );
+  return {
+    activeStep: currentStep,
+    setActiveStep: handleSetActiveStep,
+    stepsCount,
+    orientation,
+    registerTrigger,
+    focusNext,
+    focusPrev,
+    focusFirst,
+    focusLast,
+    triggerNodes,
+    indicators,
+  };
 }
 
 export function useStepperTrigger() {
@@ -177,41 +133,37 @@ export function useStepperTrigger() {
     registerTrigger(buttonRef.current);
   }, [registerTrigger]);
 
-  const triggerIndex = useMemo(
-    () => triggerNodes.findIndex((node: HTMLButtonElement) => node === buttonRef.current),
-    [triggerNodes]
+  const triggerIndex = triggerNodes.findIndex(
+    (node: HTMLButtonElement) => node === buttonRef.current
   );
-  const selectStep = useCallback(() => setActiveStep(step), [setActiveStep, step]);
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>) => {
-      switch (event.key) {
-        case "ArrowRight":
-        case "ArrowDown":
-          event.preventDefault();
-          if (triggerIndex !== -1) focusNext(triggerIndex);
-          break;
-        case "ArrowLeft":
-        case "ArrowUp":
-          event.preventDefault();
-          if (triggerIndex !== -1) focusPrev(triggerIndex);
-          break;
-        case "Home":
-          event.preventDefault();
-          focusFirst();
-          break;
-        case "End":
-          event.preventDefault();
-          focusLast();
-          break;
-        case "Enter":
-        case " ":
-          event.preventDefault();
-          selectStep();
-          break;
-      }
-    },
-    [focusFirst, focusLast, focusNext, focusPrev, selectStep, triggerIndex]
-  );
+  const selectStep = () => setActiveStep(step);
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        event.preventDefault();
+        if (triggerIndex !== -1) focusNext(triggerIndex);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        event.preventDefault();
+        if (triggerIndex !== -1) focusPrev(triggerIndex);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusFirst();
+        break;
+      case "End":
+        event.preventDefault();
+        focusLast();
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        selectStep();
+        break;
+    }
+  };
 
   return {
     buttonRef,

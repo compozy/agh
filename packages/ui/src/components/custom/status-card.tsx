@@ -26,8 +26,9 @@ type StatusCardFooterProps = React.ComponentProps<"div">;
 type StatusCardActionProps = React.ComponentProps<"div">;
 
 function StatusCard({ tone = "neutral", className, children, ...props }: StatusCardProps) {
+  const contextValue = { tone };
   return (
-    <StatusCardContext.Provider value={{ tone }}>
+    <StatusCardContext.Provider value={contextValue}>
       <section
         className={cn("flex min-w-0 flex-col gap-3 rounded-lg bg-canvas-soft px-5 py-4", className)}
         data-slot="status-card"

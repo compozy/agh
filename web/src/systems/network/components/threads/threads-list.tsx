@@ -14,10 +14,9 @@ export interface ThreadsListProps {
   channel: string;
   threads: ReadonlyArray<NetworkThreadSummary>;
   activeThreadId: string | null;
-  isLoading: boolean;
+  status: "loading" | "ready";
   total?: number;
-  hasMore?: boolean;
-  isLoadingMore?: boolean;
+  paginationStatus?: "available" | "loading";
   onLoadMore?: () => void | Promise<void>;
   isFiltered?: boolean;
   /** Reduced contrast applied when the right-rail thread overlay is open. */
@@ -140,16 +139,15 @@ export function ThreadsList({
   channel,
   threads,
   activeThreadId,
-  isLoading,
+  status,
   total,
-  hasMore = false,
-  isLoadingMore = false,
+  paginationStatus,
   onLoadMore,
   isFiltered = false,
   dim = false,
   onStartThread,
 }: ThreadsListProps) {
-  if (isLoading && threads.length === 0) {
+  if (status === "loading" && threads.length === 0) {
     return <ThreadsListSkeleton />;
   }
 
@@ -181,20 +179,20 @@ export function ThreadsList({
           workspaceId={workspaceId}
         />
       ))}
-      {hasMore && onLoadMore ? (
+      {paginationStatus && onLoadMore ? (
         <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
           <span className="text-small-body text-muted">
             {threads.length} of {total ?? threads.length} threads loaded
           </span>
           <Button
-            aria-busy={isLoadingMore}
+            aria-busy={paginationStatus === "loading"}
             aria-label="Load more threads"
-            disabled={isLoadingMore}
+            disabled={paginationStatus === "loading"}
             onClick={() => void onLoadMore()}
             size="sm"
             variant="outline"
           >
-            {isLoadingMore ? "Loading threads…" : "Load more threads"}
+            {paginationStatus === "loading" ? "Loading threads…" : "Load more threads"}
           </Button>
         </div>
       ) : null}

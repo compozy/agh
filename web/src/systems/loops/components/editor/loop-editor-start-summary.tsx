@@ -21,9 +21,9 @@ export function LoopEditorStartSummary({ start }: LoopEditorStartSummaryProps) {
       title="Declared in start[]; authored in the definition file/agent (read-only here)"
     >
       <MonoTag className="text-[9px] tracking-[0.07em] text-faint">start</MonoTag>
-      {start.map((binding, index) => (
+      {start.map(binding => (
         <MonoTag
-          key={`${binding.kind}-${index}`}
+          key={JSON.stringify(binding)}
           className="rounded-xs bg-badge-fill px-1.5 py-0.5 text-[9.5px] tracking-[0.04em] text-subtle"
         >
           {binding.kind}

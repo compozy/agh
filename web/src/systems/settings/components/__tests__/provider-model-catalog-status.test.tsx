@@ -78,8 +78,11 @@ describe("ProviderModelCatalogStatus", () => {
     expect(screen.getByTestId("provider-catalog-source-models.dev-rows")).toHaveTextContent(
       "42 rows"
     );
-    expect(container.querySelector("ul")).not.toBeInTheDocument();
-    expect(container.querySelector("li")).not.toBeInTheDocument();
+    // SUT_IS_CORRECT_BECAUSE ItemGroup is the public list primitive, so its
+    // catalog rows must expose native list semantics to assistive technology.
+    const list = container.querySelector("ul");
+    expect(list).toBeInTheDocument();
+    expect(row.closest("li")?.parentElement).toBe(list);
   });
 
   it("Should request a forced refresh for the current provider", async () => {

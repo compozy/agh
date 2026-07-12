@@ -44,7 +44,7 @@ function makeHealthMap(entries: Record<string, BridgeHealthMap[string]>): Bridge
 
 const defaultProps = {
   bridgeHealth: {} as BridgeHealthMap,
-  hasActiveFilters: false,
+  emptyState: "default" as const,
   onClearFilters: vi.fn(),
   view: "rows" as const,
 };
@@ -122,7 +122,7 @@ describe("BridgeListPanel", () => {
       <BridgeListPanel
         {...defaultProps}
         bridges={[]}
-        hasActiveFilters
+        emptyState="filtered"
         onClearFilters={onClearFilters}
       />
     );
@@ -141,7 +141,9 @@ describe("BridgeListPanel", () => {
   });
 
   it("renders loading and error fallbacks", () => {
-    const { rerender } = render(<BridgeListPanel {...defaultProps} bridges={[]} isLoading />);
+    const { rerender } = render(
+      <BridgeListPanel {...defaultProps} bridges={[]} status="loading" />
+    );
 
     expect(screen.getByTestId("bridge-list-loading")).toBeInTheDocument();
 
@@ -182,7 +184,7 @@ describe("BridgeListPanel", () => {
       <BridgeListPanel
         {...defaultProps}
         bridges={[makeBridge()]}
-        hasNextPage
+        paginationStatus="available"
         onLoadMore={onLoadMore}
       />
     );
@@ -194,8 +196,7 @@ describe("BridgeListPanel", () => {
       <BridgeListPanel
         {...defaultProps}
         bridges={[makeBridge()]}
-        hasNextPage
-        isFetchingNextPage
+        paginationStatus="loading"
         onLoadMore={onLoadMore}
       />
     );

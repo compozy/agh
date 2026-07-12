@@ -86,7 +86,10 @@ export function LoopEditorCriteria({
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-criteria">
       {criteria.map((criterion, index) => (
-        <div key={index} className="rounded-md border border-line-soft bg-canvas-soft p-2.5">
+        <div
+          key={str(criterion.id) || JSON.stringify(criterion)}
+          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
+        >
           <div className="mb-2 flex items-center gap-2">
             <span className="font-mono text-[11.5px] text-fg-strong">
               {str(criterion.id) || "criterion"}

@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { Empty } from "@agh/ui";
 import { MousePointerClick } from "lucide-react";
 
@@ -30,8 +28,15 @@ interface LoopEditorInspectorProps {
  * which can be several hops deep), not merely a fan-out's direct successors.
  */
 function fanoutBranchNodeIds(nodes: EditorNode[], edges: EditorEdge[]): Set<string> {
-  const fanOutIds = nodes.filter(n => n.data.kind === "fan-out").map(n => n.id);
-  const collectIds = new Set(nodes.filter(n => n.data.kind === "collect").map(n => n.id));
+  const fanOutIds: string[] = [];
+  const collectIds = new Set<string>();
+  for (const node of nodes) {
+    if (node.data.kind === "fan-out") {
+      fanOutIds.push(node.id);
+    } else if (node.data.kind === "collect") {
+      collectIds.add(node.id);
+    }
+  }
   const adjacency = new Map<string, string[]>();
   for (const edge of edges) {
     const list = adjacency.get(edge.source) ?? [];
@@ -75,19 +80,15 @@ export function LoopEditorInspector({
   disabled,
   onChange,
 }: LoopEditorInspectorProps) {
-  const branchIds = useMemo(() => fanoutBranchNodeIds(nodes, edges), [nodes, edges]);
-  const suggestions = useMemo(
-    () =>
-      node
-        ? buildReferenceNamespace(definition, {
-            nodes,
-            edges,
-            currentNodeId: node.id,
-            inFanoutBranch: branchIds.has(node.id),
-          })
-        : [],
-    [definition, nodes, edges, branchIds, node]
-  );
+  const branchIds = fanoutBranchNodeIds(nodes, edges);
+  const suggestions = node
+    ? buildReferenceNamespace(definition, {
+        nodes,
+        edges,
+        currentNodeId: node.id,
+        inFanoutBranch: branchIds.has(node.id),
+      })
+    : [];
 
   if (!node) {
     return (

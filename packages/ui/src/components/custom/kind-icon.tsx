@@ -14,39 +14,37 @@ import {
 } from "lucide-react";
 
 import { cn } from "../../lib/utils";
-import {
-  BlackboxLogo,
-  ClaudeLogo,
-  ClineLogo,
-  CursorLogo,
-  DiscordLogo,
-  GeminiLogo,
-  GithubLogo,
-  GooseLogo,
-  GoogleChatLogo,
-  GroqLogo,
-  HermesLogo,
-  JunieLogo,
-  KimiLogo,
-  KiroLogo,
-  LinearLogo,
-  MicrosoftTeamsLogo,
-  MinimaxLogo,
-  MistralLogo,
-  OpenAILogo,
-  OpenClawLogo,
-  OpenCodeLogo,
-  OpenHandsLogo,
-  OpenRouterLogo,
-  PiLogo,
-  QoderLogo,
-  QwenLogo,
-  SlackLogo,
-  TelegramLogo,
-  WhatsAppLogo,
-  XAILogo,
-  ZAILogo,
-} from "../../logos";
+import { BlackboxLogo } from "../../logos/blackbox";
+import { ClaudeLogo } from "../../logos/claude";
+import { ClineLogo } from "../../logos/cline";
+import { CursorLogo } from "../../logos/cursor";
+import { DiscordLogo } from "../../logos/discord";
+import { GeminiLogo } from "../../logos/gemini";
+import { GithubLogo } from "../../logos/github";
+import { GooseLogo } from "../../logos/goose";
+import { GoogleChatLogo } from "../../logos/google-chat";
+import { GroqLogo } from "../../logos/groq";
+import { HermesLogo } from "../../logos/hermes";
+import { JunieLogo } from "../../logos/junie";
+import { KimiLogo } from "../../logos/kimi";
+import { KiroLogo } from "../../logos/kiro";
+import { LinearLogo } from "../../logos/linear";
+import { MicrosoftTeamsLogo } from "../../logos/microsoft-teams";
+import { MinimaxLogo } from "../../logos/minimax";
+import { MistralLogo } from "../../logos/mistral";
+import { OpenAILogo } from "../../logos/openai";
+import { OpenClawLogo } from "../../logos/openclaw";
+import { OpenCodeLogo } from "../../logos/opencode";
+import { OpenHandsLogo } from "../../logos/openhands";
+import { OpenRouterLogo } from "../../logos/openrouter";
+import { PiLogo } from "../../logos/pi";
+import { QoderLogo } from "../../logos/qoder";
+import { QwenLogo } from "../../logos/qwen";
+import { SlackLogo } from "../../logos/slack";
+import { TelegramLogo } from "../../logos/telegram";
+import { WhatsAppLogo } from "../../logos/whatsapp";
+import { XAILogo } from "../../logos/xai";
+import { ZAILogo } from "../../logos/zai";
 
 type KindIconTone = "default" | "muted" | "accent";
 type KindIconSize = "xs" | "sm" | "md";

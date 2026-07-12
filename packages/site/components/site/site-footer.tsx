@@ -48,7 +48,7 @@ export function SiteFooter() {
   const [runtime, network, resources] = footerColumns;
 
   return (
-    <footer role="contentinfo" className="mt-auto border-t border-line bg-canvas">
+    <footer className="mt-auto border-t border-line bg-canvas">
       <SectionFrame padY="lg">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-12 lg:grid-cols-12">
           <div className="flex flex-col gap-5 md:col-span-2 lg:col-span-5">

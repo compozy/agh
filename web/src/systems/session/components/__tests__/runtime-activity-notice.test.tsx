@@ -6,8 +6,8 @@ import {
   isSessionErrorEvent,
   isRuntimeActivityEvent,
   isTranscriptMarkerEvent,
-  RuntimeActivityNotice,
-} from "../runtime-activity-notice";
+} from "../runtime-activity-notice.logic";
+import { RuntimeActivityNotice } from "../runtime-activity-notice";
 
 const runtime: RuntimeActivityPayload = {
   turn_id: "turn_001",

@@ -5,6 +5,19 @@ interface JsonLdScriptProps {
 }
 
 const jsonLdScriptEscapePattern = /[<>&\u2028\u2029]/g;
+const WEBSITE_JSON_LD_DATA: Record<string, unknown> = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: siteConfig.name,
+  description: siteConfig.description,
+  url: siteConfig.url,
+  inLanguage: "en",
+  publisher: {
+    "@type": "Organization",
+    name: siteConfig.name,
+    url: siteConfig.url,
+  },
+};
 
 function escapeJsonLdScriptCharacter(character: string): string {
   switch (character) {
@@ -135,18 +148,5 @@ export function ArticleJsonLd({
 }
 
 export function WebSiteJsonLd() {
-  const data = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: siteConfig.name,
-    description: siteConfig.description,
-    url: siteConfig.url,
-    inLanguage: "en",
-    publisher: {
-      "@type": "Organization",
-      name: siteConfig.name,
-      url: siteConfig.url,
-    },
-  };
-  return <JsonLdScript data={data} />;
+  return <JsonLdScript data={WEBSITE_JSON_LD_DATA} />;
 }

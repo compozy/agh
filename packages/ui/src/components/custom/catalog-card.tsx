@@ -80,9 +80,7 @@ function CatalogCardLogo({
 
 function CatalogCardTitle({ className, ...props }: CatalogCardTitleProps) {
   return (
-    <div
-      role="heading"
-      aria-level={3}
+    <h3
       data-slot="catalog-card-title"
       className={cn(
         "min-w-0 truncate text-small-body font-medium tracking-modal-title text-fg-strong",

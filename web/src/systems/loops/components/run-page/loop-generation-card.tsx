@@ -60,7 +60,7 @@ export function LoopGenerationCard({
   isLive,
   goalTurns = [],
 }: LoopGenerationCardProps) {
-  const [open, setOpen] = useState(generation.isLatest);
+  const [open, setOpen] = useState(() => generation.isLatest);
   const summary = generationSummary(generation);
   const liveBorder = generation.isLatest && isLive ? "border-accent/25" : "border-line";
   return (

@@ -90,7 +90,7 @@ export const Threads: Story = {
       channel={channel}
       threads={networkThreadsFixture}
       activeThreadId={networkThreadsFixture[0]?.thread_id ?? null}
-      isLoading={false}
+      status="ready"
       onStartThread={fn()}
     />
   ),
@@ -135,7 +135,7 @@ export const ThreadsLongContent: Story = {
       channel="design"
       threads={[longContentThread]}
       activeThreadId={longContentThread.thread_id}
-      isLoading={false}
+      status="ready"
       onStartThread={fn()}
     />
   ),
@@ -188,7 +188,7 @@ export const Activity: Story = {
       channel={channel}
       threads={networkThreadsFixture}
       directs={networkDirectRoomsFixture}
-      isLoading={false}
+      status="ready"
     />
   ),
 };

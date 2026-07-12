@@ -1,5 +1,5 @@
 import { AlertCircle, Edit3, Settings2, Trash2 } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Alert,
@@ -92,14 +92,16 @@ export function TasksExecutionProfileCard({
     isSetPending = false,
     isDeletePending = false,
   } = state ?? {};
-  return TasksExecutionProfileCardView({
-    taskId,
-    profile,
-    errorMessage,
-    state: { isLoading, hasActiveRun, isSetPending, isDeletePending },
-    onSetProfile,
-    onDeleteProfile,
-  });
+  return (
+    <TasksExecutionProfileCardView
+      taskId={taskId}
+      profile={profile}
+      errorMessage={errorMessage}
+      state={{ isLoading, hasActiveRun, isSetPending, isDeletePending }}
+      onSetProfile={onSetProfile}
+      onDeleteProfile={onDeleteProfile}
+    />
+  );
 }
 
 function TasksExecutionProfileCardView({
@@ -122,7 +124,7 @@ function TasksExecutionProfileCardView({
   const editDisabled = hasActiveRun || isSetPending || isDeletePending;
   const deleteDisabled = !profile || hasActiveRun || isSetPending || isDeletePending;
 
-  const summaryPills = useMemo(() => {
+  const summaryPills = (() => {
     if (!profile) {
       return [];
     }
@@ -131,16 +133,16 @@ function TasksExecutionProfileCardView({
       { label: "Coordinator mode", value: profile.coordinator?.mode ?? "inherit" },
       { label: "Sandbox mode", value: profile.sandbox?.mode ?? "inherit" },
     ];
-  }, [profile]);
+  })();
 
-  const handleDeleteConfirm = useCallback(async () => {
+  const handleDeleteConfirm = async () => {
     try {
       await onDeleteProfile();
       setDeleteOpen(false);
     } catch {
       // toast surfaced by route hook; keep dialog open so the operator can retry.
     }
-  }, [onDeleteProfile]);
+  };
 
   const editorTitle = profile ? "Edit execution profile" : "Create execution profile";
   const cardTestId = "tasks-execution-profile-card";

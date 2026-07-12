@@ -143,8 +143,10 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
   const workspaceId = options?.filters?.workspace_id;
   const workspace = options?.filters?.workspace;
   const bridgeIdsKey = [...new Set(options?.bridgeIds ?? [])]
-    .map(bridgeId => bridgeId.trim())
-    .filter(Boolean)
+    .flatMap(bridgeId => {
+      const id = bridgeId.trim();
+      return id ? [id] : [];
+    })
     .join(",");
   const queryClient = useQueryClient();
 

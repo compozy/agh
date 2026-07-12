@@ -1,4 +1,3 @@
-import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, Eraser, MessageCircle, Trash2 } from "lucide-react";
 import { useEffect } from "react";
@@ -22,20 +21,11 @@ import {
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
-  sessionByIdOptions,
-  sessionDetailOptions,
-  sessionKeys,
-  SessionNotFoundError,
-  sessionTranscriptOptions,
   useSessionById,
   type SessionPayload,
 } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { adoptRouteWorkspaceWhenSelectionInvalid } from "./-route-preload";
-
-interface AgentSessionRouteLoaderData {
-  workspaceId: string | null;
-}
+import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -50,53 +40,6 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   pendingComponent: SessionRouteLoading,
   component: SessionPage,
 });
-
-export async function prefetchAgentSessionRoute({
-  queryClient,
-  sessionId,
-}: {
-  queryClient: QueryClient;
-  sessionId: string;
-}): Promise<AgentSessionRouteLoaderData> {
-  const workspaceId = await resolveSessionRouteWorkspace(queryClient, sessionId);
-  if (!workspaceId) {
-    return { workspaceId: null };
-  }
-
-  await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
-  await Promise.allSettled([
-    queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),
-    queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
-  ]);
-
-  return { workspaceId };
-}
-
-async function resolveSessionRouteWorkspace(
-  queryClient: QueryClient,
-  sessionId: string
-): Promise<string | null> {
-  const cachedWorkspaceId = normalizeWorkspaceId(
-    queryClient.getQueryData<SessionPayload>(sessionKeys.byId(sessionId))?.workspace_id
-  );
-  if (cachedWorkspaceId) {
-    return cachedWorkspaceId;
-  }
-  try {
-    const session = await queryClient.ensureQueryData(sessionByIdOptions(sessionId));
-    return normalizeWorkspaceId(session.workspace_id);
-  } catch (error) {
-    if (error instanceof SessionNotFoundError) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-function normalizeWorkspaceId(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
 
 function SessionPageContent({
   agentName,

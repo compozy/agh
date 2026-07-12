@@ -127,7 +127,7 @@ function DetailHeaderCrumbList({ crumbs }: { crumbs: ReadonlyArray<DetailHeaderC
       className="inline-flex min-w-0 items-center gap-1.5"
     >
       {crumbs.map((crumb, index) => {
-        const key = `${index}-${typeof crumb.label === "string" ? crumb.label : "crumb"}`;
+        const key = `${crumb.to ?? "action"}:${typeof crumb.label === "string" ? crumb.label : "crumb"}`;
         const interactive = Boolean(crumb.to || crumb.onSelect);
         return (
           <React.Fragment key={key}>

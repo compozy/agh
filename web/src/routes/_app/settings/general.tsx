@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, ExternalLink, Settings as SettingsIcon } from "lucide-react";
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
@@ -72,18 +72,12 @@ function formatUpdateStatus(status?: SettingsUpdateStatus["status"]): string {
 function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
   const [validationErrors, setValidationErrors] = useState<Record<string, string | null>>({});
-  const setValidationError = useCallback(
-    (key: string) => (message: string | null) => {
-      setValidationErrors(current =>
-        current[key] === message ? current : { ...current, [key]: message }
-      );
-    },
-    []
-  );
-  const isInvalid = useMemo(
-    () => Object.values(validationErrors).some(message => message !== null),
-    [validationErrors]
-  );
+  const setValidationError = (key: string) => (message: string | null) => {
+    setValidationErrors(current =>
+      current[key] === message ? current : { ...current, [key]: message }
+    );
+  };
+  const isInvalid = Object.values(validationErrors).some(message => message !== null);
   const runtime = page.envelope?.runtime;
   const configPaths = page.envelope?.config_paths;
   useTopbarSlot({
@@ -215,10 +209,12 @@ function SoftwareUpdateSection({ update }: { update: UpdateQuery }) {
     update.error instanceof Error ? update.error.message : "Failed to load update status";
   const releaseLink = snapshot?.release_url ? (
     <Button
+      nativeButton={false}
       variant="outline"
       size="sm"
       render={
         <a
+          aria-label="Open release notes"
           href={snapshot.release_url}
           rel="noreferrer"
           target="_blank"

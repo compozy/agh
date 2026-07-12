@@ -3,7 +3,7 @@ import { Plus, X } from "lucide-react";
 import { Button, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
 import { LOOP_WATCH_EVENT_KINDS } from "@/generated/loop-enums";
 
-import { useLocalRowKeys } from "../../hooks/use-local-row-keys";
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { MonoTag } from "../mono-tag";
 import { LoopReferenceInput } from "./loop-reference-input";
@@ -21,6 +21,7 @@ interface LoopEditorWatchEventsProps {
 // option list is the GENERATED matrix (`LOOP_WATCH_EVENT_KINDS`, sourced from the Go
 // SupportedWatchEvents registry) so the select never hand-authors the enum.
 const DEFAULT_WATCH_EVENT_KIND = LOOP_WATCH_EVENT_KINDS[0];
+const EMPTY_REFERENCE_SUGGESTIONS: readonly LoopReferenceSuggestion[] = [];
 
 function asSubscriptions(value: unknown): Subscription[] {
   return Array.isArray(value)
@@ -41,12 +42,12 @@ function str(value: unknown): string {
 export function LoopEditorWatchEvents({
   value,
   onChange,
-  suggestions = [],
+  suggestions = EMPTY_REFERENCE_SUGGESTIONS,
   disabled = false,
 }: LoopEditorWatchEventsProps) {
   const subscriptions = asSubscriptions(value);
   // Row IDs are component-local: they stabilize editor instances without entering the loop DSL.
-  const rowKeys = useLocalRowKeys(subscriptions.length);
+  const rowKeys = useLocalRowKeys(subscriptions.length, "watch-event");
 
   const update = (index: number, patch: Record<string, unknown>) => {
     onChange(subscriptions.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));

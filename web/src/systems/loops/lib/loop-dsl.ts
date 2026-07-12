@@ -133,9 +133,11 @@ function emitGraph(
   for (const node of nodes) {
     const nodeId = isPlainObject(node) ? rawString(node.id) : "";
     const issues = nodeId ? byNode.get(nodeId) : undefined;
-    const offendingFields = new Set(
-      (issues ?? []).map(issue => CODE_FIELD[issue.code]).filter(Boolean)
-    );
+    const offendingFields = new Set<string>();
+    for (const issue of issues ?? []) {
+      const field = CODE_FIELD[issue.code];
+      if (field) offendingFields.add(field);
+    }
     const block: string[] = [];
     emit([node], 2, block);
     for (const text of block) {

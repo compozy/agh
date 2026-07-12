@@ -18,13 +18,10 @@ import { AgentFleetRow } from "./agent-fleet-row";
 export interface AgentFleetListProps {
   rows: readonly AgentFleetRowModel[];
   view: ListingViewMode;
-  isLoading: boolean;
-  sessionsPartial: boolean;
-  isFirstRunEmpty: boolean;
-  isFilteredEmpty: boolean;
-  newSessionDisabled?: boolean;
-  hasMore?: boolean;
-  isLoadingMore?: boolean;
+  status: "loading" | "first-run-empty" | "filtered-empty" | "ready";
+  sessionDataStatus: "available" | "partial";
+  newSessionStatus?: "enabled" | "disabled";
+  paginationStatus?: "available" | "loading";
   onClearFilters: () => void;
   onCreateAgent: () => void;
   onNewSession: (agentName: string) => void;
@@ -34,19 +31,16 @@ export interface AgentFleetListProps {
 function AgentFleetList({
   rows,
   view,
-  isLoading,
-  sessionsPartial,
-  isFirstRunEmpty,
-  isFilteredEmpty,
-  newSessionDisabled = false,
-  hasMore = false,
-  isLoadingMore = false,
+  status,
+  sessionDataStatus,
+  newSessionStatus = "enabled",
+  paginationStatus,
   onClearFilters,
   onCreateAgent,
   onNewSession,
   onLoadMore,
 }: AgentFleetListProps) {
-  if (isLoading) {
+  if (status === "loading") {
     if (view === "cards") {
       return (
         <div
@@ -99,7 +93,7 @@ function AgentFleetList({
     );
   }
 
-  if (isFirstRunEmpty) {
+  if (status === "first-run-empty") {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
@@ -124,7 +118,7 @@ function AgentFleetList({
     );
   }
 
-  if (isFilteredEmpty) {
+  if (status === "filtered-empty") {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
@@ -152,7 +146,7 @@ function AgentFleetList({
 
   return (
     <div className="min-h-0 flex-1" data-testid="agent-fleet-list">
-      {sessionsPartial ? (
+      {sessionDataStatus === "partial" ? (
         <Alert data-testid="agent-fleet-sessions-notice" role="status" variant="warning">
           <AlertTriangle aria-hidden="true" className="size-4" />
           <AlertDescription>Session status unavailable</AlertDescription>
@@ -167,41 +161,41 @@ function AgentFleetList({
           {rows.map(row => (
             <AgentFleetCard
               key={row.agent.name}
-              newSessionDisabled={newSessionDisabled}
+              newSessionDisabled={newSessionStatus === "disabled"}
               onNewSession={onNewSession}
               row={row}
             />
           ))}
         </div>
       ) : (
-        <div
+        <ul
           className="overflow-hidden rounded-lg border border-line-soft bg-canvas-soft"
           data-slot="agent-fleet-rows"
-          role="list"
         >
           {rows.map(row => (
-            <AgentFleetRow
-              key={row.agent.name}
-              newSessionDisabled={newSessionDisabled}
-              onNewSession={onNewSession}
-              row={row}
-            />
+            <li key={row.agent.name} className="contents">
+              <AgentFleetRow
+                newSessionDisabled={newSessionStatus === "disabled"}
+                onNewSession={onNewSession}
+                row={row}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-      {hasMore || isLoadingMore ? (
+      {paginationStatus ? (
         <div className="flex justify-center py-4">
           <Button
-            aria-busy={isLoadingMore}
+            aria-busy={paginationStatus === "loading"}
             data-testid="agent-fleet-load-more"
-            disabled={isLoadingMore}
+            disabled={paginationStatus === "loading"}
             onClick={onLoadMore}
             size="sm"
             type="button"
             variant="neutral"
           >
-            {isLoadingMore ? <Spinner aria-hidden="true" /> : null}
-            {isLoadingMore ? "Loading more agents" : "Load more agents"}
+            {paginationStatus === "loading" ? <Spinner aria-hidden="true" /> : null}
+            {paginationStatus === "loading" ? "Loading more agents" : "Load more agents"}
           </Button>
         </div>
       ) : null}

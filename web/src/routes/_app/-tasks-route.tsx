@@ -91,16 +91,22 @@ export function TasksRoute() {
           <TasksDashboardView
             dashboard={page.dashboard}
             errorMessage={page.dashboardError?.message ?? null}
-            isLoading={page.dashboardLoading}
+            dashboardStatus={page.dashboardLoading ? "loading" : "ready"}
             scheduler={page.schedulerStatus}
             schedulerBacklog={page.schedulerBacklog}
             schedulerBacklogErrorMessage={page.schedulerBacklogError?.message ?? null}
-            schedulerBacklogLoading={page.schedulerBacklogLoading}
+            schedulerBacklogStatus={page.schedulerBacklogLoading ? "loading" : "ready"}
             schedulerErrorMessage={page.schedulerStatusError?.message ?? null}
-            schedulerLoading={page.schedulerStatusLoading}
-            isSchedulerDrainPending={page.isSchedulerDrainPending}
-            isSchedulerPausePending={page.isSchedulerPausePending}
-            isSchedulerResumePending={page.isSchedulerResumePending}
+            schedulerStatus={page.schedulerStatusLoading ? "loading" : "ready"}
+            schedulerPendingActions={
+              new Set(
+                [
+                  page.isSchedulerDrainPending ? "drain" : null,
+                  page.isSchedulerPausePending ? "pause" : null,
+                  page.isSchedulerResumePending ? "resume" : null,
+                ].filter((action): action is "drain" | "pause" | "resume" => action !== null)
+              )
+            }
             onDrainScheduler={page.handleDrainScheduler}
             onPauseScheduler={page.handlePauseScheduler}
             onResumeScheduler={page.handleResumeScheduler}

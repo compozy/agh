@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import type { NetworkConversationMessage } from "../../types";
 import { formatTimelineClock, formatTimelineIso } from "../../lib/format-timestamp";
-import { readMessageBody } from "./message-body";
+import { readMessageBody } from "./message-body.logic";
 
 export interface MessageRowSystemProps {
   message: NetworkConversationMessage;

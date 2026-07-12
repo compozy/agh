@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import { useTriggerMemoryDream } from "@/systems/knowledge";
@@ -20,28 +20,27 @@ export function useSettingsMemoryPage() {
 
   const envelope = query.data ?? null;
 
-  const [draft, setDraft] = useState<MemoryConfig | null>(null);
+  const [draftOverride, setDraftOverride] = useState<MemoryConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
+  const setDraft = (update: SetStateAction<MemoryConfig | null>) => {
+    setDraftOverride(current => {
+      const resolved = current === undefined ? (envelope?.config ?? null) : current;
+      return typeof update === "function" ? update(resolved) : update;
+    });
+  };
 
-  useEffect(() => {
-    if (envelope && draft === null) {
-      setDraft(envelope.config);
-    }
-  }, [envelope, draft]);
+  const isDirty =
+    envelope && draft ? JSON.stringify(envelope.config) !== JSON.stringify(draft) : false;
 
-  const isDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return JSON.stringify(envelope.config) !== JSON.stringify(draft);
-  }, [envelope, draft]);
-
-  const handleReset = useCallback(() => {
+  const handleReset = () => {
     if (envelope) {
       setDraft(envelope.config);
     }
-  }, [envelope]);
+  };
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (!draft) return;
     const body: SettingsUpdateMemoryRequest = { config: draft };
     mutation.mutate(body, {
@@ -53,9 +52,9 @@ export function useSettingsMemoryPage() {
         );
       },
     });
-  }, [draft, mutation]);
+  };
 
-  const handleTriggerDream = useCallback(() => {
+  const handleTriggerDream = () => {
     setActionMessage(null);
     triggerDream.mutate(
       {},
@@ -72,7 +71,7 @@ export function useSettingsMemoryPage() {
         },
       }
     );
-  }, [triggerDream]);
+  };
 
   const saveError =
     mutation.error instanceof SettingsApiError
@@ -81,9 +80,9 @@ export function useSettingsMemoryPage() {
         ? mutation.error.message
         : null;
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void query.refetch();
-  }, [query]);
+  };
 
   return {
     isLoading: query.isLoading,

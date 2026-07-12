@@ -245,10 +245,14 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
               active={page.activeSessionsTotal}
               resumable={page.resumableSessionsTotal}
               lastActivityAt={page.lastSessionActivityAt}
-              isLoading={page.sessionsLoading}
-              isError={page.sessionsError}
-              hasMore={page.hasMoreSessions}
-              isLoadingMore={page.isLoadingMoreSessions}
+              status={page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"}
+              paginationStatus={
+                page.isLoadingMoreSessions
+                  ? "loading"
+                  : page.hasMoreSessions
+                    ? "available"
+                    : undefined
+              }
               onLoadMore={page.onLoadMoreSessions}
               filter={search.filter}
               onFilterChange={page.setFilter}

@@ -93,4 +93,4 @@ function RestartDaemonButton({ activeSessionCount }: RestartDaemonButtonProps) {
   );
 }
 
-export { RestartDaemonButton, describeImpact };
+export { RestartDaemonButton };

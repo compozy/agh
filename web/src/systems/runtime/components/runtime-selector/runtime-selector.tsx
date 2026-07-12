@@ -1,5 +1,5 @@
 import { RefreshCw, Search } from "lucide-react";
-import { type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { cn, Popover, PopoverContent } from "@agh/ui";
 
@@ -68,11 +68,17 @@ export function RuntimeSelector({
   className,
 }: RuntimeSelectorProps) {
   const controller = useRuntimeSelector({ value, onChange, providers, models, catalogLoaded });
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const popup = useRuntimeSelectorPopup({
     controller,
     providers,
     value,
     disabled: disabled || readOnly,
+    triggerRef,
+    searchRef,
+    popupRef,
   });
   const modelName = controller.selectedModel?.name ?? value.model;
 
@@ -89,7 +95,7 @@ export function RuntimeSelector({
   return (
     <Popover open={controller.open} onOpenChange={popup.handleOpenChange}>
       <RuntimeSelectorTrigger
-        ref={popup.triggerRef}
+        ref={triggerRef}
         id={triggerId}
         data-testid={triggerTestId}
         className={className}
@@ -117,7 +123,7 @@ export function RuntimeSelector({
         className="max-h-[min(520px,82vh)] w-[min(528px,94vw)] overflow-hidden p-0 shadow-overlay"
       >
         <div
-          ref={popup.popupRef}
+          ref={popupRef}
           id={popup.popupId}
           className="flex max-h-[inherit] flex-col"
           data-testid="runtime-selector-popup"
@@ -125,7 +131,7 @@ export function RuntimeSelector({
           <div className="flex h-11 shrink-0 items-center gap-2.5 border-b border-line-soft px-3">
             <Search aria-hidden="true" className="size-[15px] shrink-0 text-subtle" />
             <input
-              ref={popup.searchRef}
+              ref={searchRef}
               type="text"
               role="combobox"
               aria-label="Search models and providers"
@@ -196,7 +202,7 @@ export function RuntimeSelector({
               }
               onToggleHighlightedFavorite={controller.toggleHighlightedFavorite}
               onCustomCommit={controller.pickCustom}
-              onFocusSearch={() => popup.searchRef.current?.focus()}
+              onFocusSearch={() => searchRef.current?.focus()}
             />
           </div>
           <ReasoningBar

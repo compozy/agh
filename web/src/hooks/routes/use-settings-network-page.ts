@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -18,27 +18,26 @@ export function useSettingsNetworkPage() {
 
   const envelope = query.data ?? null;
 
-  const [draft, setDraft] = useState<NetworkConfig | null>(null);
+  const [draftOverride, setDraftOverride] = useState<NetworkConfig | null>();
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+  const draft = draftOverride === undefined ? (envelope?.config ?? null) : draftOverride;
+  const setDraft = (update: SetStateAction<NetworkConfig | null>) => {
+    setDraftOverride(current => {
+      const resolved = current === undefined ? (envelope?.config ?? null) : current;
+      return typeof update === "function" ? update(resolved) : update;
+    });
+  };
 
-  useEffect(() => {
-    if (envelope && draft === null) {
-      setDraft(envelope.config);
-    }
-  }, [envelope, draft]);
+  const isDirty =
+    envelope && draft ? JSON.stringify(envelope.config) !== JSON.stringify(draft) : false;
 
-  const isDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return JSON.stringify(envelope.config) !== JSON.stringify(draft);
-  }, [envelope, draft]);
-
-  const handleReset = useCallback(() => {
+  const handleReset = () => {
     if (envelope) {
       setDraft(envelope.config);
     }
-  }, [envelope]);
+  };
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (!draft) return;
     const body: SettingsUpdateNetworkRequest = { config: draft };
     mutation.mutate(body, {
@@ -50,7 +49,7 @@ export function useSettingsNetworkPage() {
         );
       },
     });
-  }, [draft, mutation]);
+  };
 
   const saveError =
     mutation.error instanceof SettingsApiError
@@ -59,9 +58,9 @@ export function useSettingsNetworkPage() {
         ? mutation.error.message
         : null;
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void query.refetch();
-  }, [query]);
+  };
 
   return {
     isLoading: query.isLoading,

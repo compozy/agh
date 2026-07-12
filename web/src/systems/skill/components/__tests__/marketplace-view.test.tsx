@@ -33,16 +33,12 @@ function renderView(props: Partial<React.ComponentProps<typeof MarketplaceView>>
     listings: LISTINGS,
     installedSkillNames: new Set<string>(),
     view: "cards",
-    isSearchEnabled: true,
-    isSearching: false,
+    searchStatus: "ready",
     searchError: null,
     onClearSearch: vi.fn(),
     onInstall: vi.fn(),
     onUpdate: vi.fn(),
     onRemove: vi.fn(),
-    isInstalling: false,
-    isUpdating: false,
-    isRemoving: false,
     ...props,
   };
   return render(
@@ -54,7 +50,7 @@ function renderView(props: Partial<React.ComponentProps<typeof MarketplaceView>>
 
 describe("MarketplaceView", () => {
   it("Should render the search prompt when no query is entered", () => {
-    renderView({ isSearchEnabled: false, listings: [] });
+    renderView({ searchStatus: "prompt", listings: [] });
     expect(screen.getByTestId("marketplace-search-prompt")).toBeInTheDocument();
     expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
   });
@@ -84,7 +80,7 @@ describe("MarketplaceView", () => {
   });
 
   it("Should disable Install while an install mutation is pending", () => {
-    renderView({ isInstalling: true });
+    renderView({ pendingActions: new Set(["install"]) });
     expect(screen.getByTestId("install-btn-alpha")).toBeDisabled();
   });
 
@@ -106,7 +102,7 @@ describe("MarketplaceView", () => {
   });
 
   it("Should disable Update while update is pending and show spinner copy", () => {
-    renderView({ installedSkillNames: new Set(["alpha"]), isUpdating: true });
+    renderView({ installedSkillNames: new Set(["alpha"]), pendingActions: new Set(["update"]) });
     const button = screen.getByTestId("update-btn-alpha");
     expect(button).toBeDisabled();
     expect(button).toHaveTextContent("Updating");
@@ -137,12 +133,12 @@ describe("MarketplaceView", () => {
   });
 
   it("Should disable Remove while removal is pending", () => {
-    renderView({ installedSkillNames: new Set(["alpha"]), isRemoving: true });
+    renderView({ installedSkillNames: new Set(["alpha"]), pendingActions: new Set(["remove"]) });
     expect(screen.getByTestId("remove-btn-alpha")).toBeDisabled();
   });
 
   it("Should render the loading spinner when searching with no listings yet", () => {
-    renderView({ listings: [], isSearching: true });
+    renderView({ listings: [], searchStatus: "searching" });
     expect(screen.getByTestId("marketplace-loading")).toBeInTheDocument();
   });
 
@@ -160,7 +156,11 @@ describe("MarketplaceView", () => {
   });
 
   it("Should render an inline error message when the search fails", () => {
-    renderView({ listings: [], searchError: new Error("clawhub offline") });
+    renderView({
+      listings: [],
+      searchStatus: "error",
+      searchError: new Error("clawhub offline"),
+    });
     expect(screen.getByTestId("marketplace-error")).toHaveTextContent("clawhub offline");
   });
 

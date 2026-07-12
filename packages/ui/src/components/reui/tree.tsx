@@ -38,9 +38,10 @@ function Tree<T>({
     ...mergedContainerStyle,
     "--tree-indent": `${indent}px`,
   } as React.CSSProperties;
+  const contextValue = { indent, tree, toggleIconType };
 
   return (
-    <TreeContext.Provider value={{ indent, tree, toggleIconType }}>
+    <TreeContext.Provider value={contextValue}>
       <div
         data-slot="tree"
         style={mergedStyle}
@@ -94,9 +95,10 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
     "data-search-match": searchMatch,
     "aria-expanded": isFolder ? item.isExpanded() : undefined,
   };
+  const contextValue = { ...parentContext, currentItem: item };
 
   return (
-    <TreeContext.Provider value={{ ...parentContext, currentItem: item }}>
+    <TreeContext.Provider value={contextValue}>
       {useRender({
         defaultTagName: "button",
         render,

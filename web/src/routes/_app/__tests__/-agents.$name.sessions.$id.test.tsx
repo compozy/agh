@@ -269,8 +269,12 @@ vi.mock("@assistant-ui/react", () => ({
   ) => selector({ thread: { messages: [], isRunning: false } }),
 }));
 
-import { prefetchAgentSessionRoute, Route } from "../agents.$name.sessions.$id";
-import { redirectSessionPermalinkRoute, resolveSessionPermalink } from "../session.$id";
+import { Route } from "../agents.$name.sessions.$id";
+import { prefetchAgentSessionRoute } from "../-agent-session-route-loader";
+import {
+  redirectSessionPermalinkRoute,
+  resolveSessionPermalink,
+} from "../-session-permalink-route";
 import {
   fetchSession,
   fetchSessionById,

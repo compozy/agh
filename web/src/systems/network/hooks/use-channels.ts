@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -88,29 +88,21 @@ export function useNetworkChannels(
     return () => window.removeEventListener("storage", handleStorage);
   }, [selectedWorkspaceId]);
 
-  const togglePinned = useCallback(
-    (channel: string) => {
-      if (!selectedWorkspaceId) return;
-      setPinnedIds(current => {
-        const next = current.includes(channel)
-          ? current.filter(value => value !== channel)
-          : [channel, ...current];
-        writePinnedChannels(selectedWorkspaceId, next);
-        return next;
-      });
-    },
-    [selectedWorkspaceId]
-  );
-  const isPinned = useCallback((channel: string) => pinnedIds.includes(channel), [pinnedIds]);
-  const channels = useMemo(() => query.data?.channels ?? [], [query.data?.channels]);
-  const pinned = useMemo(
-    () => channels.filter(channel => pinnedIds.includes(channel.channel)),
-    [channels, pinnedIds]
-  );
-  const unpinned = useMemo(
-    () => channels.filter(channel => !pinnedIds.includes(channel.channel)),
-    [channels, pinnedIds]
-  );
+  const togglePinned = (channel: string) => {
+    if (!selectedWorkspaceId) return;
+    setPinnedIds(current => {
+      const next = current.includes(channel)
+        ? current.filter(value => value !== channel)
+        : [channel, ...current];
+      writePinnedChannels(selectedWorkspaceId, next);
+      return next;
+    });
+  };
+  const channels = query.data?.channels ?? [];
+  const pinnedIdSet = new Set(pinnedIds);
+  const isPinned = (channel: string) => pinnedIdSet.has(channel);
+  const pinned = channels.filter(channel => pinnedIdSet.has(channel.channel));
+  const unpinned = channels.filter(channel => !pinnedIdSet.has(channel.channel));
 
   return {
     channels,

@@ -15,41 +15,39 @@ const AGENTS: { id: AgentId; letter: string }[] = [
   { id: "DEPLOYER", letter: "D" },
 ];
 
+const WRAP_STYLE: CSSProperties = {
+  width: 60,
+  flexShrink: 0,
+  backgroundColor: TOKENS.canvas,
+  borderRight: `1px solid ${TOKENS.divider}`,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  padding: "14px 0",
+  gap: 10,
+};
+const LOGO_BOX_STYLE: CSSProperties = {
+  width: 32,
+  height: 32,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 8,
+};
+const DIVIDER_STYLE: CSSProperties = {
+  width: 24,
+  height: 1,
+  backgroundColor: TOKENS.divider,
+  marginBottom: 4,
+};
+
 export function SidebarRail({ activeAgent }: SidebarRailProps) {
-  const wrap: CSSProperties = {
-    width: 60,
-    flexShrink: 0,
-    backgroundColor: TOKENS.canvas,
-    borderRight: `1px solid ${TOKENS.divider}`,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    padding: "14px 0",
-    gap: 10,
-  };
-
-  const logoBox: CSSProperties = {
-    width: 32,
-    height: 32,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  };
-
-  const dividerLine: CSSProperties = {
-    width: 24,
-    height: 1,
-    backgroundColor: TOKENS.divider,
-    marginBottom: 4,
-  };
-
   return (
-    <div style={wrap}>
-      <div style={logoBox}>
+    <div style={WRAP_STYLE}>
+      <div style={LOGO_BOX_STYLE}>
         <Logo variant="symbol" decorative style={{ width: 32, height: 32, display: "block" }} />
       </div>
-      <div style={dividerLine} />
+      <div style={DIVIDER_STYLE} />
       {AGENTS.map(a => {
         const active = a.id === activeAgent;
         const circle: CSSProperties = {

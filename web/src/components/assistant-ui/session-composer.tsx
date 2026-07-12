@@ -1,6 +1,6 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
 import { ListPlus, Scissors, SendHorizontal, Square } from "lucide-react";
-import { type KeyboardEvent, useCallback } from "react";
+import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ import {
 } from "./session-thread-content-rail";
 
 export type SessionBusyInputHandler = (message: string) => void | Promise<void>;
+
+const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 
 export interface SessionComposerProps {
   canPrompt: boolean;
@@ -54,7 +56,7 @@ export function SessionComposer({
   isBusyInputPending = false,
   isSessionRunning = false,
   allowBusyInput = true,
-  queuedPrompts = [],
+  queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
@@ -72,20 +74,20 @@ export function SessionComposer({
   const hasQueuedPrompts = queuedPrompts.length > 0;
   const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
 
-  const handleBusyInputAction = useCallback(
-    (handler: SessionBusyInputHandler | undefined, failureMessage: string) => {
-      if (!handler || !canSubmitBusyInput) {
-        return;
-      }
+  const handleBusyInputAction = (
+    handler: SessionBusyInputHandler | undefined,
+    failureMessage: string
+  ) => {
+    if (!handler || !canSubmitBusyInput) {
+      return;
+    }
 
-      void Promise.resolve(handler(trimmedComposerText))
-        .then(clearComposer)
-        .catch(error => {
-          toast.error(describeComposerActionError(error, failureMessage));
-        });
-    },
-    [canSubmitBusyInput, clearComposer, trimmedComposerText]
-  );
+    void Promise.resolve(handler(trimmedComposerText))
+      .then(clearComposer)
+      .catch(error => {
+        toast.error(describeComposerActionError(error, failureMessage));
+      });
+  };
 
   // While a turn runs, Enter has ONE defined meaning: queue the draft (matching the
   // primary visible affordance + the "Enter to queue" hint). Intercepting here with
@@ -93,35 +95,29 @@ export function SessionComposer({
   // ComposerPrimitive.Input wires `onKeyDown` through
   // composeEventHandlers(onKeyDown, handleKeyPress): our handler runs first and its
   // preventDefault short-circuits the internal submit.
-  const handleInputKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (
-        runtimeRunning &&
-        canQueueFromInput &&
-        event.key === "Enter" &&
-        !event.shiftKey &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.nativeEvent.isComposing
-      ) {
-        event.preventDefault();
-        handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
-      }
-    },
-    [runtimeRunning, canQueueFromInput, handleBusyInputAction, onQueuePrompt]
-  );
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      runtimeRunning &&
+      canQueueFromInput &&
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      handleBusyInputAction(onQueuePrompt, "Couldn't queue prompt.");
+    }
+  };
 
-  const handleEditQueuedPrompt = useCallback(
-    (prompt: QueuedPrompt) => {
-      if (trimmedComposerText.length > 0 && trimmedComposerText !== prompt.text.trim()) {
-        toast.warning("Send or clear the current draft before editing a queued prompt.");
-        return;
-      }
-      setComposerText(prompt.text);
-      onRemoveQueuedPrompt?.(prompt.id);
-    },
-    [onRemoveQueuedPrompt, setComposerText, trimmedComposerText]
-  );
+  const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
+    if (trimmedComposerText.length > 0 && trimmedComposerText !== prompt.text.trim()) {
+      toast.warning("Send or clear the current draft before editing a queued prompt.");
+      return;
+    }
+    setComposerText(prompt.text);
+    onRemoveQueuedPrompt?.(prompt.id);
+  };
 
   return (
     <div className="border-t border-line bg-canvas-soft" data-testid="composer-shell">

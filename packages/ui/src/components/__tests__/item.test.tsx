@@ -26,7 +26,8 @@ describe("Item", () => {
     );
     const group = container.querySelector('[data-slot="item-group"]');
     expect(group).not.toBeNull();
-    expect(group?.getAttribute("role")).toBe("list");
+    expect(group?.tagName).toBe("UL");
+    expect(group?.firstElementChild?.tagName).toBe("LI");
   });
 
   it("Should compose media + content + actions slots in declared order", () => {

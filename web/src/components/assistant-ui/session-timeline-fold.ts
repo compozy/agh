@@ -175,9 +175,12 @@ function isInterruptedState(state: string | undefined): boolean {
 }
 
 function turnDurationMs(group: readonly SessionRow[]): number | null {
-  const values = group
-    .flatMap(rowTimestamps)
-    .filter((value): value is number => Number.isFinite(value));
+  const values: number[] = [];
+  for (const row of group) {
+    for (const value of rowTimestamps(row)) {
+      if (Number.isFinite(value)) values.push(value);
+    }
+  }
   if (values.length < 2) {
     return null;
   }

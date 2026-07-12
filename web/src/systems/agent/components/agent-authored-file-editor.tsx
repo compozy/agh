@@ -195,8 +195,11 @@ export function AgentAuthoredFileEditor({
 
       {editor.diagnostics.length > 0 ? (
         <ul className="flex flex-col gap-1" data-testid={`agent-${kind}-diagnostics`}>
-          {editor.diagnostics.map((item, index) => (
-            <li key={`${item.message}-${index}`} className="text-small-body text-danger">
+          {editor.diagnostics.map(item => (
+            <li
+              key={`${item.source_path ?? "unknown"}:${item.line ?? "unknown"}:${item.message}`}
+              className="text-small-body text-danger"
+            >
               {item.message}
               {item.line != null ? (
                 <span className="ml-2 font-mono text-muted">line {item.line}</span>

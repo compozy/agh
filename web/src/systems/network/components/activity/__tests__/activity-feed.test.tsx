@@ -52,7 +52,7 @@ describe("ActivityFeed", () => {
             peer_b: "remote",
           },
         ]}
-        isLoading={false}
+        status="ready"
         threads={[
           {
             channel: "ops",
@@ -97,7 +97,7 @@ describe("ActivityFeed", () => {
             peer_b: "remote",
           },
         ]}
-        isLoading={false}
+        status="ready"
         threads={[
           {
             channel: "ops",
@@ -131,11 +131,11 @@ describe("ActivityFeed", () => {
         channel="ops"
         directs={[]}
         directTotal={3}
-        hasMoreDirects
-        hasMoreThreads
-        isLoading={false}
-        onLoadMoreDirects={loadDirects}
-        onLoadMoreThreads={loadThreads}
+        status="ready"
+        pagination={{
+          threads: { status: "available", onLoadMore: loadThreads },
+          directs: { status: "available", onLoadMore: loadDirects },
+        }}
         threadTotal={4}
         threads={[]}
       />

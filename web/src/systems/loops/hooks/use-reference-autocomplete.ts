@@ -39,7 +39,6 @@ function insertCelReference(
 }
 
 export interface ReferenceAutocomplete {
-  ref: RefObject<FieldElement | null>;
   matches: LoopReferenceSuggestion[];
   activeIndex: number;
   onChange: (event: ChangeEvent<FieldElement>) => void;
@@ -57,11 +56,11 @@ export interface ReferenceAutocomplete {
  * UX only — it never blocks a keystroke; the linter owns reference resolution.
  */
 export function useReferenceAutocomplete(
+  fieldRef: RefObject<FieldElement | null>,
   onValueChange: (value: string) => void,
   suggestions: readonly LoopReferenceSuggestion[],
   cel = false
 ): ReferenceAutocomplete {
-  const ref = useRef<FieldElement>(null);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
@@ -79,12 +78,12 @@ export function useReferenceAutocomplete(
   );
 
   useLayoutEffect(() => {
-    if (pendingCaret !== null && ref.current) {
-      ref.current.focus();
-      ref.current.setSelectionRange(pendingCaret, pendingCaret);
+    if (pendingCaret !== null && fieldRef.current) {
+      fieldRef.current.focus();
+      fieldRef.current.setSelectionRange(pendingCaret, pendingCaret);
       setPendingCaret(null);
     }
-  }, [pendingCaret]);
+  }, [fieldRef, pendingCaret]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -113,7 +112,7 @@ export function useReferenceAutocomplete(
     );
 
   const select = (path: string) => {
-    const element = ref.current;
+    const element = fieldRef.current;
     if (!element) return;
     const caret = element.selectionStart ?? element.value.length;
     const next = cel
@@ -125,7 +124,6 @@ export function useReferenceAutocomplete(
   };
 
   return {
-    ref,
     matches,
     activeIndex,
     onChange: event => {

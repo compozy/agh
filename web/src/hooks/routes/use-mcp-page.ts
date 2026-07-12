@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -72,10 +72,14 @@ function toDraft(entry: SettingsMCPServerEntry): MCPDraft {
 function toRequest(draft: MCPDraft): SettingsMCPServerRequest {
   const name = draft.name.trim();
   const command = draft.command.trim();
-  const args = draft.args.map(arg => arg.trim()).filter(arg => arg.length > 0);
-  const envEntries = draft.env
-    .map(entry => ({ key: entry.key.trim(), value: entry.value }))
-    .filter(entry => entry.key.length > 0);
+  const args = draft.args.flatMap(arg => {
+    const value = arg.trim();
+    return value ? [value] : [];
+  });
+  const envEntries = draft.env.flatMap(entry => {
+    const key = entry.key.trim();
+    return key ? [{ key, value: entry.value }] : [];
+  });
   const env: Record<string, string> = {};
   for (const entry of envEntries) {
     env[entry.key] = entry.value;
@@ -133,7 +137,7 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
   const [deleteTarget, setDeleteTarget] = useState<MCPDeleteState>({ mode: "closed" });
   const [lastAction, setLastAction] = useState<LastAction>(null);
 
-  const filter = useMemo(() => {
+  const filter = (() => {
     if (activeScope === "global") {
       return { scope: "global" as const };
     }
@@ -141,7 +145,7 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
       return null;
     }
     return { scope: "workspace" as const, workspace_id: activeWorkspaceId };
-  }, [activeScope, activeWorkspaceId]);
+  })();
 
   const queryEnabled = filter !== null;
   const query = useSettingsMCPServers(filter ?? { scope: "global" }, { enabled: queryEnabled });
@@ -151,29 +155,27 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
   const availableScopes = envelope?.available_scopes ?? ["global", "workspace"];
   const workspaceScopeAvailable = availableScopes.includes("workspace");
 
-  const counts = useMemo(() => {
+  const counts = (() => {
     const total = servers.length;
     const shadowed = servers.reduce(
       (acc, entry) => acc + (entry.source_metadata.shadowed_sources?.length ?? 0),
       0
     );
     return { total, shadowed };
-  }, [servers]);
+  })();
 
-  const resetTransientState = useCallback(() => {
+  const resetTransientState = () => {
     putMutation.reset();
     deleteMutation.reset();
     setEditor({ mode: "closed" });
     setDeleteTarget({ mode: "closed" });
-  }, [deleteMutation, putMutation]);
+  };
+  const resetTransientStateAfterWorkspaceChange = useEffectEvent(resetTransientState);
 
-  const selectScope = useCallback(
-    (scope: MCPActiveScope) => {
-      resetTransientState();
-      setActiveScope(scope);
-    },
-    [resetTransientState]
-  );
+  const selectScope = (scope: MCPActiveScope) => {
+    resetTransientState();
+    setActiveScope(scope);
+  };
 
   const previousWorkspaceIdRef = useRef(activeWorkspaceId);
   useEffect(() => {
@@ -181,48 +183,45 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
       return;
     }
     previousWorkspaceIdRef.current = activeWorkspaceId;
-    resetTransientState();
-  }, [activeWorkspaceId, resetTransientState]);
+    resetTransientStateAfterWorkspaceChange();
+  }, [activeWorkspaceId]);
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     putMutation.reset();
     setEditor({ mode: "create", draft: emptyDraft(), target: "auto" });
-  }, [putMutation]);
+  };
 
-  const openEdit = useCallback(
-    (entry: SettingsMCPServerEntry) => {
-      putMutation.reset();
-      setEditor({
-        mode: "edit",
-        name: entry.name,
-        draft: toDraft(entry),
-        entry,
-        target: "auto",
-      });
-    },
-    [putMutation]
-  );
+  const openEdit = (entry: SettingsMCPServerEntry) => {
+    putMutation.reset();
+    setEditor({
+      mode: "edit",
+      name: entry.name,
+      draft: toDraft(entry),
+      entry,
+      target: "auto",
+    });
+  };
 
-  const closeEditor = useCallback(() => {
+  const closeEditor = () => {
     setEditor({ mode: "closed" });
     putMutation.reset();
-  }, [putMutation]);
+  };
 
-  const updateDraft = useCallback((updater: (draft: MCPDraft) => MCPDraft) => {
+  const updateDraft = (updater: (draft: MCPDraft) => MCPDraft) => {
     setEditor(current => {
       if (current.mode === "closed") return current;
       return { ...current, draft: updater(current.draft) };
     });
-  }, []);
+  };
 
-  const setEditorTarget = useCallback((target: SettingsMCPServerTarget) => {
+  const setEditorTarget = (target: SettingsMCPServerTarget) => {
     setEditor(current => {
       if (current.mode === "closed") return current;
       return { ...current, target };
     });
-  }, []);
+  };
 
-  const editorIsValid = useMemo(() => {
+  const editorIsValid = (() => {
     if (editor.mode === "closed") return false;
     const name = editor.draft.name.trim();
     const command = editor.draft.command.trim();
@@ -231,15 +230,15 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
       return !servers.some(entry => entry.name.toLowerCase() === name.toLowerCase());
     }
     return true;
-  }, [editor, servers]);
+  })();
 
-  const editorAvailableTargets = useMemo<SettingsMCPServerTarget[]>(() => {
+  const editorAvailableTargets: SettingsMCPServerTarget[] = (() => {
     if (editor.mode === "closed") return ["auto", "config", "sidecar"];
     if (editor.mode === "create") return ["auto", "config", "sidecar"];
     return resolveAvailableTargets(editor.entry, activeScope);
-  }, [activeScope, editor]);
+  })();
 
-  const saveEditor = useCallback(() => {
+  const saveEditor = () => {
     if (editor.mode === "closed" || filter === null) return;
     const name = editor.draft.name.trim();
     const command = editor.draft.command.trim();
@@ -259,34 +258,31 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
         },
       }
     );
-  }, [editor, filter, putMutation]);
+  };
 
-  const openDelete = useCallback(
-    (entry: SettingsMCPServerEntry) => {
-      deleteMutation.reset();
-      setDeleteTarget({ mode: "open", entry, target: "auto" });
-    },
-    [deleteMutation]
-  );
+  const openDelete = (entry: SettingsMCPServerEntry) => {
+    deleteMutation.reset();
+    setDeleteTarget({ mode: "open", entry, target: "auto" });
+  };
 
-  const closeDelete = useCallback(() => {
+  const closeDelete = () => {
     setDeleteTarget({ mode: "closed" });
     deleteMutation.reset();
-  }, [deleteMutation]);
+  };
 
-  const setDeleteTargetKind = useCallback((target: SettingsMCPServerTarget) => {
+  const setDeleteTargetKind = (target: SettingsMCPServerTarget) => {
     setDeleteTarget(current => {
       if (current.mode === "closed") return current;
       return { ...current, target };
     });
-  }, []);
+  };
 
-  const deleteAvailableTargets = useMemo<SettingsMCPServerTarget[]>(() => {
+  const deleteAvailableTargets: SettingsMCPServerTarget[] = (() => {
     if (deleteTarget.mode === "closed") return ["auto", "config", "sidecar"];
     return resolveAvailableTargets(deleteTarget.entry, activeScope);
-  }, [activeScope, deleteTarget]);
+  })();
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget.mode === "closed" || filter === null) return;
     const target = deleteTarget.entry;
     const deleteFilter =
@@ -312,9 +308,9 @@ export function useMcpPage(options: UseMcpPageOptions = {}) {
         },
       }
     );
-  }, [deleteMutation, deleteTarget, filter]);
+  };
 
-  const dismissLastAction = useCallback(() => setLastAction(null), []);
+  const dismissLastAction = () => setLastAction(null);
 
   const needsActiveWorkspace = activeScope === "workspace" && !activeWorkspaceId;
   const isLoading = !needsActiveWorkspace && query.isLoading;

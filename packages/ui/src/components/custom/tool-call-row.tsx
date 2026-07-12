@@ -169,29 +169,17 @@ function ToolCallRowInner({
         ? "bg-surface-glaze text-muted"
         : null;
 
-  const setExpanded = React.useCallback(
-    (next: boolean) => {
-      if (expanded === undefined) {
-        setLocalExpanded(next);
-      }
-      onExpandedChange?.(next);
-    },
-    [expanded, onExpandedChange]
-  );
+  const setExpanded = (next: boolean) => {
+    if (expanded === undefined) {
+      setLocalExpanded(next);
+    }
+    onExpandedChange?.(next);
+  };
 
-  const toggle = React.useCallback(() => {
+  const toggle = () => {
     if (!expandable) return;
     setExpanded(!isExpanded);
-  }, [expandable, isExpanded, setExpanded]);
-
-  const handleTriggerKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      toggle();
-    },
-    [toggle]
-  );
+  };
 
   const rowContent = (
     <>
@@ -228,7 +216,7 @@ function ToolCallRowInner({
         {actions ? (
           <span
             data-slot="tool-call-row-actions"
-            className="flex shrink-0 items-center"
+            className="relative z-10 flex shrink-0 items-center"
             onClick={event => event.stopPropagation()}
             onKeyDown={event => event.stopPropagation()}
             onPointerDown={event => event.stopPropagation()}
@@ -262,18 +250,20 @@ function ToolCallRowInner({
     >
       {expandable ? (
         <div
-          data-slot="tool-call-row-trigger"
-          role="button"
-          tabIndex={0}
-          aria-expanded={isExpanded}
-          onClick={toggle}
-          onKeyDown={handleTriggerKeyDown}
+          data-slot="tool-call-row-header"
           className={cn(
-            "flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-small-body",
-            "transition-colors duration-base ease-out hover:bg-hover",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+            "relative flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-small-body",
+            "transition-colors duration-base ease-out hover:bg-hover"
           )}
         >
+          <button
+            type="button"
+            data-slot="tool-call-row-trigger"
+            aria-expanded={isExpanded}
+            aria-label={`Toggle ${toolName} tool call (${status})`}
+            className="absolute inset-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-line-strong"
+            onClick={toggle}
+          />
           {rowContent}
         </div>
       ) : (

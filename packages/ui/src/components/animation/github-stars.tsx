@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { motion, type HTMLMotionProps } from "motion/react";
+import { m, type HTMLMotionProps } from "motion/react";
 
 import { type UseIsInViewOptions } from "../../hooks/use-is-in-view";
 import {
@@ -53,7 +53,7 @@ export function GithubStars({
     inViewOnce,
   });
 
-  const Component = asChild ? Slot : motion.div;
+  const Component = asChild ? Slot : m.div;
 
   return (
     <GithubStarsProvider value={contextValue}>

@@ -1,10 +1,10 @@
 import { useId, useRef } from "react";
 
-export function useLocalRowKeys(rowCount: number) {
+export function useLocalRowKeys(rowCount: number, label: string) {
   const prefix = useId();
   const nextKey = useRef(0);
   const keys = useRef<string[]>([]);
-  const allocate = () => `${prefix}-watch-event-${nextKey.current++}`;
+  const allocate = () => `${prefix}-${label}-${nextKey.current++}`;
 
   while (keys.current.length < rowCount) keys.current.push(allocate());
   if (keys.current.length > rowCount) keys.current.length = rowCount;

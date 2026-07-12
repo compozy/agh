@@ -718,10 +718,12 @@ function DesignSystemShowcase() {
               className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted"
             >
               <Button
+                nativeButton={false}
                 size="sm"
                 variant="outline"
                 render={
                   <a
+                    aria-label="Open DESIGN.md"
                     data-testid="showcase-open-design-md"
                     href={DESIGN_MD_BASE}
                     target="_blank"

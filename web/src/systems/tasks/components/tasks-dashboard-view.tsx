@@ -12,17 +12,15 @@ import { TasksDashboardStatusBreakdown } from "./tasks-dashboard-status-breakdow
 
 export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;
-  isLoading?: boolean;
+  dashboardStatus?: "loading" | "ready";
   errorMessage?: string | null;
   scheduler?: SchedulerStatus | null;
   schedulerBacklog?: SchedulerBacklog | null;
-  schedulerLoading?: boolean;
-  schedulerBacklogLoading?: boolean;
+  schedulerStatus?: "loading" | "ready";
+  schedulerBacklogStatus?: "loading" | "ready";
   schedulerErrorMessage?: string | null;
   schedulerBacklogErrorMessage?: string | null;
-  isSchedulerPausePending?: boolean;
-  isSchedulerResumePending?: boolean;
-  isSchedulerDrainPending?: boolean;
+  schedulerPendingActions?: ReadonlySet<"pause" | "resume" | "drain">;
   onPauseScheduler?: (reason: string) => void | Promise<void>;
   onResumeScheduler?: () => void | Promise<void>;
   onDrainScheduler?: (input: { reason?: string; timeoutSeconds?: number }) => void | Promise<void>;
@@ -36,22 +34,20 @@ export interface TasksDashboardViewProps {
  */
 export function TasksDashboardView({
   dashboard,
-  isLoading = false,
+  dashboardStatus = "ready",
   errorMessage = null,
   scheduler = null,
   schedulerBacklog = null,
-  schedulerLoading = false,
-  schedulerBacklogLoading = false,
+  schedulerStatus = "ready",
+  schedulerBacklogStatus = "ready",
   schedulerErrorMessage = null,
   schedulerBacklogErrorMessage = null,
-  isSchedulerPausePending = false,
-  isSchedulerResumePending = false,
-  isSchedulerDrainPending = false,
+  schedulerPendingActions,
   onPauseScheduler,
   onResumeScheduler,
   onDrainScheduler,
 }: TasksDashboardViewProps) {
-  if (isLoading && !dashboard) {
+  if (dashboardStatus === "loading" && !dashboard) {
     return (
       <BlockLoading
         label="Loading tasks dashboard"
@@ -93,15 +89,15 @@ export function TasksDashboardView({
         backlog={schedulerBacklog}
         backlogErrorMessage={schedulerBacklogErrorMessage}
         errorMessage={schedulerErrorMessage}
-        isBacklogLoading={schedulerBacklogLoading}
-        isLoading={schedulerLoading}
+        isBacklogLoading={schedulerBacklogStatus === "loading"}
+        isLoading={schedulerStatus === "loading"}
         onDrain={onDrainScheduler ? () => onDrainScheduler({ timeoutSeconds: 60 }) : undefined}
         onPause={onPauseScheduler}
         onResume={onResumeScheduler}
         pending={{
-          drain: isSchedulerDrainPending,
-          pause: isSchedulerPausePending,
-          resume: isSchedulerResumePending,
+          drain: schedulerPendingActions?.has("drain") ?? false,
+          pause: schedulerPendingActions?.has("pause") ?? false,
+          resume: schedulerPendingActions?.has("resume") ?? false,
         }}
         status={scheduler}
       />

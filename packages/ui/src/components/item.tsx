@@ -6,17 +6,20 @@ import * as React from "react";
 import { cn } from "../lib/utils";
 import { Separator } from "./separator";
 
-function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
+function ItemGroup({ className, children, ...props }: React.ComponentProps<"ul">) {
   return (
-    <div
-      role="list"
+    <ul
       data-slot="item-group"
       className={cn(
         "group/item-group flex w-full flex-col gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2",
         className
       )}
       {...props}
-    />
+    >
+      {React.Children.map(children, child => (
+        <li className="list-none">{child}</li>
+      ))}
+    </ul>
   );
 }
 

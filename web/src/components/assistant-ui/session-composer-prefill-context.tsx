@@ -1,8 +1,9 @@
-import { createContext, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-export type SessionComposerPrefill = (text: string) => void;
-
-export const SessionComposerPrefillContext = createContext<SessionComposerPrefill | null>(null);
+import {
+  SessionComposerPrefillContext,
+  type SessionComposerPrefill,
+} from "./session-composer-prefill-context-value";
 
 export function SessionComposerPrefillProvider({
   children,

@@ -139,17 +139,16 @@ export function AutomationRunHistory({
           <Empty description={emptyDescription} icon={History} title={emptyTitle} fill={false} />
         </div>
       ) : (
-        <div
+        <ul
           className="overflow-hidden rounded-lg bg-canvas-soft"
           data-testid="automation-run-history-rows"
-          role="list"
         >
           {runs.map(run => (
-            <div key={run.id} role="listitem">
+            <li key={run.id}>
               <AutomationRunRow run={run} />
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </Section>
   );

@@ -20,9 +20,9 @@ export function LoopWatchEventsPanel({ state }: LoopWatchEventsPanelProps) {
     <div className="border-b border-line-soft px-4 py-4" data-testid="loop-watch-events-panel">
       <Eyebrow className="mb-3 text-faint">Watching events</Eyebrow>
       <div className="flex flex-col gap-2" data-testid="loop-watch-events-subscriptions">
-        {state.subscriptions.map((subscription, index) => (
+        {state.subscriptions.map(subscription => (
           <div
-            key={`${subscription.kind}-${index}`}
+            key={JSON.stringify(subscription)}
             className="rounded-md border border-line-soft bg-canvas px-2.5 py-2"
             data-testid="loop-watch-events-subscription"
           >

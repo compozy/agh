@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
@@ -53,12 +53,15 @@ export function useAgentInstructionsTab({
   const rollbackHeartbeat = useRollbackAgentHeartbeat(agent.name, workspaceId);
   const wakeHeartbeat = useWakeAgentHeartbeat(agent.name, workspaceId);
 
-  const activeSessions = useMemo(
-    () => sessions.filter(session => session.state === "active"),
-    [sessions]
-  );
+  const activeSessions = sessions.filter(session => session.state === "active");
   const [requestedWakeSessionId, setWakeSessionId] = useState<string | null>(null);
-  const wakeSessionId = useMemo(() => {
+  const requestedSessionIsActive =
+    requestedWakeSessionId === null ||
+    activeSessions.some(session => session.id === requestedWakeSessionId);
+  if (!requestedSessionIsActive) {
+    setWakeSessionId(null);
+  }
+  const wakeSessionId = (() => {
     if (activeSessions.length === 1) return activeSessions[0]?.id ?? null;
     if (
       requestedWakeSessionId &&
@@ -67,16 +70,7 @@ export function useAgentInstructionsTab({
       return requestedWakeSessionId;
     }
     return null;
-  }, [activeSessions, requestedWakeSessionId]);
-
-  useEffect(() => {
-    if (
-      requestedWakeSessionId &&
-      !activeSessions.some(session => session.id === requestedWakeSessionId)
-    ) {
-      setWakeSessionId(null);
-    }
-  }, [activeSessions, requestedWakeSessionId]);
+  })();
 
   const statusQuery = useAgentHeartbeatStatus(
     agent.name,
@@ -96,12 +90,9 @@ export function useAgentInstructionsTab({
     heartbeatQuery.isSuccess &&
     (heartbeatQuery.data.validation_status === "missing" || heartbeatQuery.data.present === false);
 
-  const handleWake = useCallback(
-    (sessionId: string) => {
-      wakeHeartbeat.mutate({ session_id: sessionId, source: "manual" });
-    },
-    [wakeHeartbeat]
-  );
+  const handleWake = (sessionId: string) => {
+    wakeHeartbeat.mutate({ session_id: sessionId, source: "manual" });
+  };
 
   return {
     promptWordCount: formatPromptWordCount(agent.prompt),

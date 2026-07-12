@@ -34,11 +34,11 @@ function DetailHarness(props: Partial<React.ComponentProps<typeof SkillDetailPan
       <SkillDetailPanel
         content={props.content}
         contentError={props.contentError ?? null}
+        contentStatus={props.contentStatus ?? "ready"}
+        detailStatus={props.detailStatus ?? "ready"}
         error={props.error ?? null}
-        isActionPending={props.isActionPending ?? false}
-        isContentLoading={props.isContentLoading ?? false}
-        isLoading={props.isLoading ?? false}
-        isShadowsLoading={props.isShadowsLoading ?? false}
+        actionStatus={props.actionStatus ?? "idle"}
+        shadowsStatus={props.shadowsStatus ?? "ready"}
         onBack={props.onBack ?? (() => undefined)}
         onDisable={props.onDisable ?? (() => undefined)}
         onEnable={props.onEnable ?? (() => undefined)}
@@ -47,7 +47,7 @@ function DetailHarness(props: Partial<React.ComponentProps<typeof SkillDetailPan
         shadows={props.shadows ?? skillShadowsFixtures[primarySkillFixture.name]}
         shadowsError={props.shadowsError ?? null}
         skill={
-          props.skill === undefined && (props.isLoading || props.error)
+          props.skill === undefined && (props.detailStatus === "loading" || props.error)
             ? undefined
             : (props.skill ?? primarySkillFixture)
         }
@@ -70,11 +70,11 @@ export const Empty: Story = {
       <SkillDetailPanel
         content={undefined}
         contentError={null}
+        contentStatus="ready"
+        detailStatus="ready"
         error={null}
-        isActionPending={false}
-        isContentLoading={false}
-        isLoading={false}
-        isShadowsLoading={false}
+        actionStatus="idle"
+        shadowsStatus="ready"
         onDisable={() => undefined}
         onEnable={() => undefined}
         onRetryContent={() => undefined}
@@ -93,11 +93,11 @@ export const Loading: Story = {
       <SkillDetailPanel
         content={undefined}
         contentError={null}
+        contentStatus="ready"
+        detailStatus="loading"
         error={null}
-        isActionPending={false}
-        isContentLoading={false}
-        isLoading={true}
-        isShadowsLoading={false}
+        actionStatus="idle"
+        shadowsStatus="ready"
         onDisable={() => undefined}
         onEnable={() => undefined}
         onRetryContent={() => undefined}
@@ -116,11 +116,11 @@ export const ErrorState: Story = {
       <SkillDetailPanel
         content={undefined}
         contentError={null}
+        contentStatus="ready"
+        detailStatus="error"
         error={new Error("Skill registry offline")}
-        isActionPending={false}
-        isContentLoading={false}
-        isLoading={false}
-        isShadowsLoading={false}
+        actionStatus="idle"
+        shadowsStatus="ready"
         onDisable={() => undefined}
         onEnable={() => undefined}
         onRetryContent={() => undefined}

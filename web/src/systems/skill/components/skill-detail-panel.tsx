@@ -32,18 +32,18 @@ import type { SkillPayload, SkillShadowsResponse } from "../types";
 
 interface SkillDetailPanelProps {
   skill: SkillPayload | undefined;
-  isLoading: boolean;
+  detailStatus: "loading" | "error" | "ready";
   error: Error | null;
   content: string | undefined;
-  isContentLoading: boolean;
+  contentStatus: "loading" | "error" | "ready";
   contentError: Error | null;
   onViewContent: (name: string) => void;
   onRetryContent: () => void;
   onDisable: (name: string) => void;
   onEnable: (name: string) => void;
-  isActionPending: boolean;
+  actionStatus: "idle" | "pending";
   shadows: SkillShadowsResponse | undefined;
-  isShadowsLoading: boolean;
+  shadowsStatus: "loading" | "error" | "ready";
   shadowsError: Error | null;
   onBack?: () => void;
 }
@@ -320,22 +320,22 @@ function SkillShadowSection({
 
 function SkillDetailPanel({
   skill,
-  isLoading,
+  detailStatus,
   error,
   content,
-  isContentLoading,
+  contentStatus,
   contentError,
   onViewContent,
   onRetryContent,
   onDisable,
   onEnable,
-  isActionPending,
+  actionStatus,
   shadows,
-  isShadowsLoading,
+  shadowsStatus,
   shadowsError,
   onBack,
 }: SkillDetailPanelProps) {
-  if (isLoading) {
+  if (detailStatus === "loading") {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center"
@@ -346,7 +346,7 @@ function SkillDetailPanel({
     );
   }
 
-  if (error) {
+  if (detailStatus === "error" && error) {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
@@ -379,7 +379,7 @@ function SkillDetailPanel({
   }
 
   const handleToggle = (next: boolean) => {
-    if (isActionPending) return;
+    if (actionStatus === "pending") return;
     if (next) {
       onEnable(skill.name);
     } else {
@@ -417,7 +417,7 @@ function SkillDetailPanel({
               aria-labelledby="skill-enabled-label"
               checked={skill.enabled}
               data-testid="skill-enabled-switch"
-              disabled={isActionPending}
+              disabled={actionStatus === "pending"}
               onCheckedChange={handleToggle}
             />
           </div>
@@ -432,7 +432,7 @@ function SkillDetailPanel({
             <SkillContentSection
               content={content}
               error={contentError}
-              isLoading={isContentLoading}
+              isLoading={contentStatus === "loading"}
               onRetryContent={onRetryContent}
               onViewContent={onViewContent}
               skill={skill}
@@ -442,7 +442,11 @@ function SkillDetailPanel({
 
         <SkillCapabilitiesSection skill={skill} />
         <SkillProvenanceSection skill={skill} />
-        <SkillShadowSection error={shadowsError} isLoading={isShadowsLoading} shadows={shadows} />
+        <SkillShadowSection
+          error={shadowsError}
+          isLoading={shadowsStatus === "loading"}
+          shadows={shadows}
+        />
         <SkillRecentCallsSection skill={skill} />
       </div>
     </div>

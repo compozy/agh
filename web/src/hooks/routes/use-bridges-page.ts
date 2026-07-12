@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -52,17 +52,14 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     createBridgeCreateDraft([], activeWorkspaceId)
   );
 
-  const bridgeListFilters = useMemo(
-    () => ({
-      ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
-      q: searchQuery,
-      platform: platformFilter ?? undefined,
-      status: statusFilter ?? undefined,
-      sort: "name" as const,
-      limit: 50,
-    }),
-    [activeWorkspaceId, platformFilter, scopeFilter, searchQuery, statusFilter]
-  );
+  const bridgeListFilters = {
+    ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
+    q: searchQuery,
+    platform: platformFilter ?? undefined,
+    status: statusFilter ?? undefined,
+    sort: "name" as const,
+    limit: 50,
+  };
   const bridgeListEnabled = scopeFilter !== "workspace" || Boolean(activeWorkspaceId);
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
@@ -80,9 +77,10 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const canCreateBridge = providers.some(isBridgeProviderSelectable);
 
   const platforms = Object.keys(bridgesQuery.facets?.platforms ?? {});
-  const statuses = Object.entries(bridgesQuery.facets?.statuses ?? {})
-    .filter(([status, count]) => count > 0 || status === statusFilter)
-    .map(([status]) => status as BridgeStatusFilter);
+  const statuses: BridgeStatusFilter[] = [];
+  for (const [status, count] of Object.entries(bridgesQuery.facets?.statuses ?? {})) {
+    if (count > 0 || status === statusFilter) statuses.push(status as BridgeStatusFilter);
+  }
   const totalBridgeCount = bridgesQuery.total;
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
@@ -102,67 +100,49 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
         ? providersQuery.error
         : null;
 
-  const updateSearch = useCallback(
-    (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
-      void navigate({
-        search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
-        to: "/bridges",
-      });
-    },
-    [navigate]
-  );
+  const updateSearch = (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
+    void navigate({
+      search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
+      to: "/bridges",
+    });
+  };
 
-  const setSearchQuery = useCallback(
-    (nextQuery: string) => {
-      updateSearch(current => ({
-        ...current,
-        q: normalizeListingSearchValue(nextQuery),
-      }));
-    },
-    [updateSearch]
-  );
+  const setSearchQuery = (nextQuery: string) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeListingSearchValue(nextQuery),
+    }));
+  };
 
-  const setView = useCallback(
-    (nextView: ListingViewMode) => {
-      updateSearch(current => ({
-        ...current,
-        view: nextView === "rows" ? undefined : nextView,
-      }));
-    },
-    [updateSearch]
-  );
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
 
-  const setScopeFilter = useCallback(
-    (next: BridgeScopeFilter) => {
-      updateSearch(current => ({
-        ...current,
-        scope: next === "all" ? undefined : next,
-      }));
-    },
-    [updateSearch]
-  );
+  const setScopeFilter = (next: BridgeScopeFilter) => {
+    updateSearch(current => ({
+      ...current,
+      scope: next === "all" ? undefined : next,
+    }));
+  };
 
-  const setPlatformFilter = useCallback(
-    (next: BridgePlatformFilter | null) => {
-      updateSearch(current => ({
-        ...current,
-        platform: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setPlatformFilter = (next: BridgePlatformFilter | null) => {
+    updateSearch(current => ({
+      ...current,
+      platform: next ?? undefined,
+    }));
+  };
 
-  const setStatusFilter = useCallback(
-    (next: BridgeStatusFilter | null) => {
-      updateSearch(current => ({
-        ...current,
-        status: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setStatusFilter = (next: BridgeStatusFilter | null) => {
+    updateSearch(current => ({
+      ...current,
+      status: next ?? undefined,
+    }));
+  };
 
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     updateSearch(current => ({
       ...current,
       platform: undefined,
@@ -170,12 +150,12 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
       scope: undefined,
       status: undefined,
     }));
-  }, [updateSearch]);
+  };
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     void bridgesQuery.refetch();
     void providersQuery.refetch();
-  }, [bridgesQuery, providersQuery]);
+  };
 
   const openCreateDialog = () => {
     setCreateDraft(createBridgeCreateDraft(providers, activeWorkspaceId));

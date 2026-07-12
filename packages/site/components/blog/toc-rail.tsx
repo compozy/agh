@@ -12,7 +12,9 @@ export interface TocRailProps {
 }
 
 export function TocRail({ items }: TocRailProps) {
-  const [activeId, setActiveId] = useState<string | undefined>(items[0]?.url.replace(/^#/, ""));
+  const [activeId, setActiveId] = useState<string | undefined>(() =>
+    items[0]?.url.replace(/^#/, "")
+  );
 
   useEffect(() => {
     if (items.length === 0) return;

@@ -130,6 +130,7 @@ export function CronBuilder({
   const isCustom = model.frequency === "custom";
   const clock = formatClock(model.hour, model.minute);
   const showMonthWarning = model.frequency === "monthly" && model.monthDay >= 29;
+  const selectedWeekdays = new Set(model.weekdays);
 
   return (
     <div>
@@ -234,7 +235,7 @@ export function CronBuilder({
           <fieldset className="grid grid-cols-7 gap-1.5">
             <legend className="sr-only">Days of week</legend>
             {SCHEDULE_CONSTANTS.DOW_SHORT.map((label, day) => {
-              const pressed = model.weekdays.includes(day);
+              const pressed = selectedWeekdays.has(day);
               const weekday = SCHEDULE_CONSTANTS.DOW_LONG[day];
               return (
                 <button

@@ -1,17 +1,8 @@
 import { cn } from "@agh/ui";
 
-export const WIRE_KINDS = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
+import { WIRE_KIND_DOT_CLASS, type WireKind } from "./kind-chip-data";
 
-export type WireKind = (typeof WIRE_KINDS)[number];
-
-const dotClass: Record<WireKind, string> = {
-  greet: "bg-kind-greet",
-  whois: "bg-kind-whois",
-  say: "bg-kind-say",
-  capability: "bg-kind-capability",
-  receipt: "bg-kind-receipt",
-  trace: "bg-kind-trace",
-};
+export type { WireKind } from "./kind-chip-data";
 
 export interface BlogKindChipProps {
   kind: WireKind;
@@ -27,7 +18,7 @@ export function BlogKindChip({ kind, label, className }: BlogKindChipProps) {
         className
       )}
     >
-      <span className={cn("inline-block size-2 rounded-full", dotClass[kind])} />
+      <span className={cn("inline-block size-2 rounded-full", WIRE_KIND_DOT_CLASS[kind])} />
       {label ?? kind}
     </span>
   );

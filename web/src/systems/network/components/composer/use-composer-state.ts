@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 
 import type { SlashCommandEntry } from "./composer-slash-popover";
 
@@ -18,6 +18,7 @@ export interface UseComposerStateArgs {
   disabled: boolean;
   isSending: boolean;
   onSubmit: (args: ComposerSubmitArgs) => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
 export interface UseComposerStateResult {
@@ -26,7 +27,6 @@ export interface UseComposerStateResult {
   mentions: string[];
   slashOpen: boolean;
   slashFilter: string;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
   sendDisabled: boolean;
   handleChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -47,6 +47,11 @@ export function parseMentions(value: string): string[] {
   return [...mentions];
 }
 
+function restoreComposerText(): void {
+  // The composer keeps its text until a successful send calls `reset`, so a
+  // failed optimistic send has nothing to restore.
+}
+
 /**
  * Drives composer textarea state, slash command detection, and Cmd/Ctrl+Enter
  * submission. Extracted from `<Composer>` so it stays under the
@@ -57,31 +62,32 @@ export function useComposerState({
   disabled,
   isSending,
   onSubmit,
+  textareaRef,
 }: UseComposerStateArgs): UseComposerStateResult {
   const [value, setValue] = useState("");
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [previousDisabled, setPreviousDisabled] = useState(disabled);
 
-  const reset = useCallback(() => {
+  // Reset during the disabled transition so descendants never render stale
+  // composer state. This follows React's guarded render-time adjustment pattern
+  // for state derived from a prop transition.
+  if (disabled !== previousDisabled) {
+    setPreviousDisabled(disabled);
+    if (disabled) {
+      setValue("");
+      setSlashOpen(false);
+      setSlashFilter("");
+    }
+  }
+
+  const reset = () => {
     setValue("");
     setSlashOpen(false);
     setSlashFilter("");
-  }, []);
+  };
 
-  const restore = useCallback(() => {
-    // Caller invokes after a failed send if the optimistic message was
-    // discarded. Currently a no-op since we keep the textarea contents in
-    // `value` so the user can retry without retyping.
-  }, []);
-
-  useEffect(() => {
-    if (disabled) {
-      reset();
-    }
-  }, [disabled, reset]);
-
-  const updateSlashState = useCallback((next: string) => {
+  const updateSlashState = (next: string) => {
     const match = SLASH_PREFIX.exec(next);
     if (match == null) {
       setSlashOpen(false);
@@ -90,71 +96,59 @@ export function useComposerState({
     }
     setSlashOpen(true);
     setSlashFilter(match[2] ?? "");
-  }, []);
+  };
 
-  const handleChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const next = event.target.value;
-      setValue(next);
-      updateSlashState(next);
-    },
-    [updateSlashState]
-  );
+  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = event.target.value;
+    setValue(next);
+    updateSlashState(next);
+  };
 
-  const submitInternal = useCallback(
-    (text: string) => {
-      onSubmit({ text, mentions: parseMentions(text), reset, restore });
-    },
-    [onSubmit, reset, restore]
-  );
+  const submitInternal = (text: string) => {
+    onSubmit({ text, mentions: parseMentions(text), reset, restore: restoreComposerText });
+  };
 
-  const handleSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (disabled || isSending) {
+      return;
+    }
+    const text = value.trim();
+    if (text.length === 0) {
+      return;
+    }
+    submitInternal(text);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      if (disabled || isSending) {
-        return;
-      }
       const text = value.trim();
-      if (text.length === 0) {
+      if (text.length === 0 || disabled || isSending) {
         return;
       }
       submitInternal(text);
-    },
-    [disabled, isSending, submitInternal, value]
-  );
+    }
+  };
 
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        const text = value.trim();
-        if (text.length === 0 || disabled || isSending) {
-          return;
-        }
-        submitInternal(text);
-      }
-    },
-    [disabled, isSending, submitInternal, value]
-  );
-
-  const handleSlashSelect = useCallback((entry: SlashCommandEntry) => {
+  const handleSlashSelect = (entry: SlashCommandEntry) => {
     setValue(prev =>
       prev.replace(SLASH_PREFIX, (_match, leading: string) => `${leading}/${entry.command} `)
     );
     setSlashOpen(false);
     setSlashFilter("");
     textareaRef.current?.focus();
-  }, []);
+  };
 
-  const handleToolbarSlash = useCallback(() => {
+  const handleToolbarSlash = () => {
     setSlashOpen(true);
     setSlashFilter("");
     textareaRef.current?.focus();
-  }, []);
+  };
 
-  const handleSlashClose = useCallback(() => {
+  const handleSlashClose = () => {
     setSlashOpen(false);
-  }, []);
+  };
 
   const trimmed = value.trim();
   const mentions = parseMentions(trimmed);
@@ -166,7 +160,6 @@ export function useComposerState({
     mentions,
     slashOpen,
     slashFilter,
-    textareaRef,
     sendDisabled,
     handleChange,
     handleSubmit,

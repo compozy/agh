@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import {
-  motion,
+  m,
   useSpring,
   useTransform,
   type HTMLMotionProps,
@@ -99,7 +99,7 @@ function SlidingNumberDisplay({
   }
 
   return (
-    <motion.span
+    <m.span
       data-slot="sliding-number-display"
       style={{
         y,
@@ -112,7 +112,7 @@ function SlidingNumberDisplay({
       transition={{ ...transition, type: "spring" }}
     >
       {number}
-    </motion.span>
+    </m.span>
   );
 }
 
@@ -173,7 +173,7 @@ export function SlidingNumber({
   });
 
   return (
-    <motion.span
+    <m.span
       ref={localRef}
       className={cn("inline-flex items-center", className)}
       data-slot="sliding-number"
@@ -214,6 +214,6 @@ export function SlidingNumber({
           ))}
         </>
       )}
-    </motion.span>
+    </m.span>
   );
 }

@@ -332,6 +332,7 @@ function DisabledSkillsSection({
   onReset,
 }: DisabledSkillsSectionProps) {
   const disabled = draft.disabled_skills ?? [];
+  const disabledSkills = new Set(disabled);
   const baseline = envelope.config.disabled_skills ?? [];
   const candidates = Array.from(new Set([...baseline, ...disabled])).sort();
 
@@ -395,7 +396,7 @@ function DisabledSkillsSection({
                   <TableCell className="text-right">
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}
-                      checked={disabled.includes(name)}
+                      checked={disabledSkills.has(name)}
                       onCheckedChange={() => onToggle(name)}
                       aria-label={`Toggle ${name}`}
                     />

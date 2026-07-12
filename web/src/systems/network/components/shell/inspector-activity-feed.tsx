@@ -123,44 +123,43 @@ export function InspectorActivityFeed({
   }
 
   return (
-    <div
+    <ul
       aria-label="Recent transitions"
       className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
       data-testid="network-inspector-activity-feed"
-      role="list"
     >
       {entries.map(({ entry, href }) => (
-        <Item
-          className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
-          data-testid={`network-inspector-activity-${entry.id}`}
-          key={entry.id}
-          render={
-            entry.kind === "thread" ? (
-              <Link
-                params={{ workspaceId, channel, threadId: href }}
-                to="/network/$workspaceId/$channel/threads/$threadId"
-              />
-            ) : (
-              <Link
-                params={{ workspaceId, channel, directId: href }}
-                to="/network/$workspaceId/$channel/directs/$directId"
-              />
-            )
-          }
-          role="listitem"
-          selectable
-        >
-          <ItemContent>
-            <ItemFooter>
-              <ItemTitle className="min-w-0 text-xs">
-                <span className="truncate">{entry.title}</span>
-              </ItemTitle>
-              <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
-            </ItemFooter>
-            <p className="line-clamp-2 text-xs text-muted">{entry.preview}</p>
-          </ItemContent>
-        </Item>
+        <li key={entry.id} className="contents">
+          <Item
+            className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
+            data-testid={`network-inspector-activity-${entry.id}`}
+            render={
+              entry.kind === "thread" ? (
+                <Link
+                  params={{ workspaceId, channel, threadId: href }}
+                  to="/network/$workspaceId/$channel/threads/$threadId"
+                />
+              ) : (
+                <Link
+                  params={{ workspaceId, channel, directId: href }}
+                  to="/network/$workspaceId/$channel/directs/$directId"
+                />
+              )
+            }
+            selectable
+          >
+            <ItemContent>
+              <ItemFooter>
+                <ItemTitle className="min-w-0 text-xs">
+                  <span className="truncate">{entry.title}</span>
+                </ItemTitle>
+                <Eyebrow>{formatNetworkRelativeTime(entry.timestamp)}</Eyebrow>
+              </ItemFooter>
+              <p className="line-clamp-2 text-xs text-muted">{entry.preview}</p>
+            </ItemContent>
+          </Item>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

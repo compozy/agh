@@ -74,7 +74,7 @@ const providerLogos: Record<SupportedAgentProvider["id"], ReactNode> = {
   groq: <GroqLogo aria-hidden className="size-6" />,
 };
 
-export const PROVIDERS: Provider[] = SUPPORTED_AGENT_PROVIDERS.map(provider => ({
+const PROVIDERS: Provider[] = SUPPORTED_AGENT_PROVIDERS.map(provider => ({
   ...provider,
   logo: providerLogos[provider.id],
 }));

@@ -27,17 +27,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function getMessageText(message: SessionMessage): string {
-  return message.parts
-    .filter(isTextUIPart)
-    .map(part => part.text)
-    .join("");
+  const text: string[] = [];
+  for (const part of message.parts) {
+    if (isTextUIPart(part)) text.push(part.text);
+  }
+  return text.join("");
 }
 
 export function getMessageReasoning(message: SessionMessage): string {
-  return message.parts
-    .filter(isReasoningUIPart)
-    .map(part => part.text)
-    .join("");
+  const reasoning: string[] = [];
+  for (const part of message.parts) {
+    if (isReasoningUIPart(part)) reasoning.push(part.text);
+  }
+  return reasoning.join("");
 }
 
 export function getMessageToolParts(message: SessionMessage): SessionToolPart[] {
@@ -107,10 +109,12 @@ function normalizePermissionDecision(value: unknown): PermissionDecision | null 
 function permissionSupportedDecisions(raw: Record<string, unknown> | undefined) {
   const options = Array.isArray(raw?.options) ? raw.options : [];
   const decisions: PermissionDecision[] = [];
+  const seen = new Set<PermissionDecision>();
   for (const option of options) {
     if (!isRecord(option)) continue;
     const decision = normalizePermissionDecision(option.decision ?? option.option_id);
-    if (decision != null && !decisions.includes(decision)) {
+    if (decision != null && !seen.has(decision)) {
+      seen.add(decision);
       decisions.push(decision);
     }
   }

@@ -43,8 +43,8 @@ vi.mock("@remotion/player", () => ({
 import { Hero } from "../hero";
 import { FeaturesSection } from "../features-section";
 import { BentoSection } from "../bento-section";
-import { SUPPORTED_AGENT_COUNT } from "../provider-data";
-import { PROVIDERS, SupportedAgents } from "../supported-agents";
+import { SUPPORTED_AGENT_COUNT, SUPPORTED_AGENT_PROVIDERS } from "../provider-data";
+import { SupportedAgents } from "../supported-agents";
 import { RuntimeMicroDiagram } from "../runtime-micro-diagram";
 import { RuntimeSection } from "../runtime-section";
 import { SandboxSection } from "../sandbox-section";
@@ -203,7 +203,7 @@ describe("SupportedAgents", () => {
     const items = within(list).getAllByRole("listitem");
 
     expect(items.map(item => item.getAttribute("aria-label"))).toEqual(
-      PROVIDERS.map(provider => provider.name)
+      SUPPORTED_AGENT_PROVIDERS.map(provider => provider.name)
     );
     expect(screen.getByText("Your CLI on the network")).toBeDefined();
   }, 15_000);

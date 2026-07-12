@@ -108,10 +108,10 @@ export function removeAgentCreateToken(current: readonly string[], target: strin
 }
 
 export function splitAgentCreateTokens(rawInput: string): string[] {
-  const values = rawInput
-    .split(/[,\n]/)
-    .map(value => value.trim())
-    .filter(Boolean);
+  const values = rawInput.split(/[,\n]/).flatMap(value => {
+    const token = value.trim();
+    return token ? [token] : [];
+  });
   return [...new Set(values)];
 }
 

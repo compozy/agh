@@ -634,7 +634,8 @@ export type {
   TreeItemLabelProps,
   TreeDragLineProps,
 } from "./components/reui/tree";
-export { Filters, createFilter } from "./components/reui/filters";
+export { Filters } from "./components/reui/filters";
+export { createFilter } from "./components/reui/hooks/filter-helpers";
 export type { Filter, FilterFieldsConfig, FilterFieldConfig } from "./components/reui/filters";
 export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";
 export { Toaster, type ToasterProps } from "./components/sonner";
