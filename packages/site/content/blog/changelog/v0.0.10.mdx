@@ -1,0 +1,39 @@
+---
+version: "v0.0.10"
+date: "2026-07-12T05:21:41.000Z"
+status: "alpha"
+summary: "Loops specs (#274)"
+added:
+  - "Loops specs (#274)"
+  - "Goals (#292)"
+  - "Agent details (#297)"
+changed:
+  - "Ai tooling improvs"
+  - "Sync skeeper specs to main"
+  - "Update deps"
+  - "Listing views (#282)"
+  - "Update skills"
+  - "Loops improvements (#284)"
+  - "Model selector improvements (#290)"
+  - "Frontend fixes (#293)"
+  - "Update repoclone"
+fixed:
+  - "Loops issues (#277)"
+  - "Session improvements (#279)"
+  - "Loops improvements (#287)"
+breaking: []
+compareUrl: "https://github.com/compozy/agh/compare/v0.0.9...v0.0.10"
+---
+
+Generated from release artifacts for v0.0.10.
+
+## Verification posture
+
+This generated release entry names the release gates and artifact guarantees that the AGH release workflow owns:
+
+- Repository gate: `make verify` covers codegen drift, Bun lint/typecheck/test/build, Go fmt/lint/test/build, and import boundaries.
+- Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.
+- Production release: generated release assets are validated before `goreleaser release --clean` publishes the release.
+- Artifact provenance: GoReleaser signs `checksums.txt` with cosign, publishes the Sigstore bundle `checksums.txt.sigstore.json`, and generates Syft SBOMs for archives, packages, and source.
+
+Known limitation: this generated changelog does not claim a manual post-release install smoke or live-provider QA run unless a release note in this entry names that evidence.
